@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "magic-tools",
+  "description": "MTG card inventory management toolkit with Airtable + Scryfall integration",
+  "owner": {
+    "name": "Tripp Wickersham"
+  },
+  "plugins": [
+    {
+      "name": "make-magic",
+      "description": "MTG card inventory management with Airtable + Scryfall",
+      "source": "./plugins/make-magic",
+      "category": "productivity"
+    }
+  ]
+}

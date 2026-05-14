@@ -1,0 +1,8 @@
+{
+  "name": "make-magic",
+  "version": "0.1.0",
+  "description": "MTG card inventory management with Airtable + Scryfall",
+  "author": {
+    "name": "Tripp Wickersham"
+  }
+}
