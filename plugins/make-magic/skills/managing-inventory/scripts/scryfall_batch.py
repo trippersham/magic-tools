@@ -60,6 +60,7 @@ class ScryfallMetadata(BaseModel):
     scryfall_uri: str = ""
     price_usd: str | None = None
     set_name: str = ""
+    color_identity: list[str] = []
 
 
 HEADERS = {
@@ -111,6 +112,7 @@ def extract_metadata(card: dict) -> ScryfallMetadata:
         scryfall_uri=card.get("scryfall_uri", ""),
         price_usd=card.get("prices", {}).get("usd"),
         set_name=card.get("set_name", ""),
+        color_identity=card.get("color_identity", []),
     )
 
 
@@ -145,6 +147,11 @@ def main(
             typer.echo("  WARNING: not found")
 
         results.append(card_entry)
+
+        # Write progress incrementally every 50 cards
+        if len(results) % 50 == 0:
+            output_path.write_text(json.dumps(results, indent=2))
+
         time.sleep(0.12)
 
     output_path.write_text(json.dumps(results, indent=2))
