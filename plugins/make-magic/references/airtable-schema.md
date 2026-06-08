@@ -12,32 +12,33 @@
 | Trades | `tblgqqIvTuz0l5SZM` | Card movement tracking |
 | Chase Cards | `tblXsNtGgT7UQLPXZ` | Pre-release / wanted cards tracking |
 
-### Cards table fields
+### Cards table fields (`tbl3UgZZPJGQhEFo8`)
 
-| Field | Type | Notes |
-|-------|------|-------|
-| Card Name | primary | |
-| Sets | multiSelect | Auto-creates choices on update |
-| Number Owned | number | |
-| Foil Count | number | |
-| Condition | multiSelect | |
-| Sources | multiSelect | e.g. "Edge of Eternities Commander" |
-| Card Type | text | Scryfall `type_line` |
-| Mana Cost | text | e.g. `{2}{W}{U}` |
-| CMC | number | Converted mana cost from Scryfall `cmc` field. Lands = 0 |
-| Power / Toughness | text | e.g. `2/4` |
-| Oracle Text | long text | |
-| Card Art | url | Scryfall `image_uris.art_crop` (double-faced: `card_faces[0].image_uris.art_crop`) |
-| Scryfall URL | url | Scryfall `scryfall_uri` |
-| Price (TCGPlayer) | currency | Scryfall `prices.usd` |
-| Price Last Updated | lastModifiedTime | Watches Price (TCGPlayer) only |
-| Is Land / Is Creature / Is Non-Creature Spell | formula (boolean) | |
-| Repeat Number in Decks | number | Extra copies beyond the first in decks (for multi-copy cards). See Multi-Copy Cards below |
-| Number in Decks | formula | `COUNTA(Decks) + Repeat Number in Decks` |
-| Number in Library | formula | `Number Owned - Number in Decks` |
-| Decks | link -> Decks | |
-| Trades (In) / Trades (Out) | link -> Trades | |
-| Commander of | inverse link from Decks.Commander | |
+| Field | Type | ID | Notes |
+|-------|------|----|-------|
+| Card Name | singleLineText (primary) | `fldltxh7GLqkkSYgT` | |
+| Sets | multipleSelects | `fldrJmmWZfkGYnjKT` | Auto-creates choices on update |
+| Number Owned | number | `flddWBnI3V5eNJnNe` | |
+| Foil Count | number | `fld3nfd1I2TkxPvrA` | |
+| Condition | multipleSelects | `flduMD0BHO9gqe6ti` | |
+| Sources | multipleSelects | `fld9bpabbOvFElUs2` | e.g. "Edge of Eternities Commander" |
+| Card Type | singleLineText | `fldMuUcJRwHQZ6FZf` | Scryfall `type_line` |
+| Mana Cost | singleLineText | `fldbmWKz2BQOnzHe4` | e.g. `{2}{W}{U}` |
+| CMC | number | `fldSPOJRQ6xh5I26J` | Converted mana cost from Scryfall `cmc` field. Lands = 0 |
+| Power / Toughness | singleLineText | `fldtNvnnaXa5oVCMS` | e.g. `2/4` |
+| Oracle Text | multilineText | `fldNka9DJRBTvu88U` | |
+| Card Art | url | `fldLXgSCz5ZKOHLgc` | Scryfall `image_uris.art_crop` (double-faced: `card_faces[0].image_uris.art_crop`) |
+| Scryfall URL | url | `fld0LU8D4aaGDPgHq` | Scryfall `scryfall_uri` |
+| Price (TCGPlayer) | currency | `fldehSQtf4SWRwqzG` | Scryfall `prices.usd` |
+| Price Last Updated | lastModifiedTime | `fldMMjDkaMLLVb4t2` | Watches Price (TCGPlayer) only |
+| Color Identity | multipleSelects | `fldKMDR2jgjYq725E` | W/U/B/R/G/Colorless |
+| Is Land / Is Creature / Is Non-Creature | formula (boolean) | various | |
+| Repeat Number in Decks | number | `fldIk3d5BclFeZL3n` | Extra copies beyond the first in decks. See Multi-Copy Cards below |
+| Number in Decks | formula | `fldYpXHYeMSfOJLyq` | `COUNTA(Decks) + Repeat Number in Decks` |
+| Number in Library | formula | `fldTDvyPNOrN3MZ4D` | `Number Owned - Number in Decks` |
+| Decks | multipleRecordLinks -> Decks | `fld7JS3yjDpokRlba` | |
+| Decks (as Commander) | multipleRecordLinks -> Decks | `fld6QRELImbLqapBO` | Inverse of Decks.Commander |
+| Trades (In) / Trades (Out) | multipleRecordLinks -> Trades | various | |
 
 ### Decks table fields
 

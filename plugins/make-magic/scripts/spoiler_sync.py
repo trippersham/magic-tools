@@ -49,6 +49,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import sys
 import time
 from datetime import datetime, timezone
 from enum import Enum
@@ -62,6 +63,11 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 from rich.console import Console
 from rich.table import Table
+
+_script_dir = Path(__file__).resolve().parent
+if str(_script_dir) not in sys.path:
+    sys.path.insert(0, str(_script_dir))
+from scryfall_cache import ScryfallCache  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Settings
@@ -515,82 +521,23 @@ def scrape_mythicspoiler_new(
 # ---------------------------------------------------------------------------
 
 
-def fetch_scryfall_set_cards(
-    client: httpx.Client,
-    base_url: str,
-    set_codes: list[str],
-    etag: str | None = None,
-    delay: float = 0.5,
-) -> tuple[list[ScryfallCard], str | None, bool]:
-    """Fetch all cards for the given sets. Returns (cards, new_etag, changed)."""
-    query = " or ".join(f"set:{sc}" for sc in set_codes)
-    url = f"{base_url}/cards/search"
-    headers: dict[str, str] = {}
-    if etag:
-        headers["If-None-Match"] = etag
-
-    all_cards: list[ScryfallCard] = []
-    new_etag: str | None = None
-    page_url: str | None = url
-    params: dict[str, str] | None = {"q": query, "order": "spoiled", "dir": "desc"}
-
-    while page_url:
-        resp = client.get(page_url, params=params, headers=headers)
-
-        if resp.status_code == 304:
-            return [], etag, False
-
-        if resp.status_code == 429:
-            retry_after = int(resp.headers.get("Retry-After", "30"))
-            time.sleep(retry_after)
-            continue
-
-        resp.raise_for_status()
-
-        if new_etag is None:
-            new_etag = resp.headers.get("ETag")
-
-        data = resp.json()
-        for card_data in data.get("data", []):
-            all_cards.append(ScryfallCard.from_api(card_data))
-
-        if data.get("has_more"):
-            page_url = data["next_page"]
-            params = None
-            time.sleep(delay)
-        else:
-            page_url = None
-
-    return all_cards, new_etag, True
-
-
-def fetch_scryfall_set_info(
-    client: httpx.Client, base_url: str, set_code: str
-) -> dict[str, Any]:
-    resp = client.get(f"{base_url}/sets/{set_code}")
-    resp.raise_for_status()
-    return resp.json()
-
-
-def fuzzy_match_scryfall(
-    client: httpx.Client,
+def _fuzzy_match_via_cache(
+    cache: ScryfallCache,
     base_url: str,
     name_guess: str,
     set_code: str,
-    delay: float = 0.5,
 ) -> ScryfallCard | None:
-    """Try to fuzzy-match a card name against Scryfall."""
-    time.sleep(delay)
-    resp = client.get(
-        f"{base_url}/cards/named", params={"fuzzy": name_guess, "set": set_code}
-    )
-    if resp.status_code == 404:
-        return None
-    if resp.status_code == 429:
-        time.sleep(int(resp.headers.get("Retry-After", "30")))
-        return fuzzy_match_scryfall(client, base_url, name_guess, set_code, delay)
-    resp.raise_for_status()
-    return ScryfallCard.from_api(resp.json())
+    """Try to fuzzy-match a card name against Scryfall via the shared cache layer."""
+    try:
+        data = cache._fetch(
+            f"{base_url}/cards/named",
+            params={"fuzzy": name_guess, "set": set_code},
+        )
+        return ScryfallCard.from_api(data)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            return None
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -617,6 +564,7 @@ def run_sync(
         timeout=30.0,
         follow_redirects=True,
     )
+    cache = ScryfallCache()
 
     # --- Phase 1: MythicSpoiler (fast, partial data) ---
     console.print("\n[bold cyan]Phase 1:[/] Scraping MythicSpoiler…")
@@ -661,45 +609,33 @@ def run_sync(
             f"  [green]{sc.upper()}:[/] {len(ms_cards)} cards scraped, {new_count} new"
         )
 
-    # --- Phase 2: Scryfall (authoritative, full data) ---
-    console.print("\n[bold cyan]Phase 2:[/] Querying Scryfall API…")
+    # --- Phase 2: Scryfall (authoritative, full data) via shared cache ---
+    console.print("\n[bold cyan]Phase 2:[/] Querying Scryfall API (via cache)…")
 
-    etag_key = f"scryfall_etag_{'_'.join(sorted(set_codes))}"
-    stored_etag = get_meta(conn, etag_key)
+    sf_cards: list[ScryfallCard] = []
+    for sc in set_codes:
+        try:
+            raw = cache.get_set(sc)
+            set_cards = [ScryfallCard.from_api(c) for c in raw]
+            sf_cards.extend(set_cards)
+        except Exception as e:
+            console.print(f"  [yellow]Warning:[/] Scryfall API failed for {sc}: {e}")
+            continue
 
-    try:
-        sf_cards, new_etag, changed = fetch_scryfall_set_cards(
-            client,
-            settings.scryfall_base,
-            set_codes,
-            stored_etag,
-            settings.scryfall_delay,
+        new_count = 0
+        for card in set_cards:
+            is_new, was_backfill = upsert_scryfall_card(conn, card)
+            if is_new:
+                stats.new_from_scryfall.append(f"{card.name} ({sc})")
+                new_count += 1
+            if was_backfill:
+                stats.backfilled.append(card.name)
+
+        console.print(
+            f"  [green]{sc.upper()}:[/] {len(set_cards)} cards from API, {new_count} new"
         )
-    except httpx.HTTPError as e:
-        console.print(f"  [yellow]Warning:[/] Scryfall API failed: {e}")
-        sf_cards, new_etag, changed = [], stored_etag, False
 
-    if not changed:
-        console.print("  [dim]No changes since last sync (ETag match)[/]")
-    else:
-        stats.total_scryfall = len(sf_cards)
-        if new_etag:
-            set_meta(conn, etag_key, new_etag)
-
-        for sc in set_codes:
-            set_cards = [c for c in sf_cards if c.set_code == sc]
-            new_count = 0
-            for card in set_cards:
-                is_new, was_backfill = upsert_scryfall_card(conn, card)
-                if is_new:
-                    stats.new_from_scryfall.append(f"{card.name} ({sc})")
-                    new_count += 1
-                if was_backfill:
-                    stats.backfilled.append(card.name)
-
-            console.print(
-                f"  [green]{sc.upper()}:[/] {len(set_cards)} cards from API, {new_count} new"
-            )
+    stats.total_scryfall = len(sf_cards)
 
     # --- Phase 3: Reconcile unconfirmed MythicSpoiler cards ---
     console.print("\n[bold cyan]Phase 3:[/] Reconciling unconfirmed cards…")
@@ -711,12 +647,11 @@ def run_sync(
         if not slug:
             continue
         name_guess = slug_to_name_guess(slug)
-        match = fuzzy_match_scryfall(
-            client,
+        match = _fuzzy_match_via_cache(
+            cache,
             settings.scryfall_base,
             name_guess,
             row["set_code"],
-            settings.scryfall_delay,
         )
         if match:
             link_mythicspoiler_to_scryfall(conn, row["id"], match)

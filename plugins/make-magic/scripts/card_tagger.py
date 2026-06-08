@@ -3,7 +3,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "httpx",
+#     "httpx",  # transitive: required by scryfall_cache
 #     "typer",
 # ]
 # [tool.uv]
@@ -741,8 +741,9 @@ def generate_recommendations(
 # ── CLI commands ───────────────────────────────────────────────────────
 
 def _get_cache():
-    script_dir = Path(__file__).parent
-    sys.path.insert(0, str(script_dir))
+    script_dir = Path(__file__).resolve().parent
+    if str(script_dir) not in sys.path:
+        sys.path.insert(0, str(script_dir))
     from scryfall_cache import ScryfallCache
     return ScryfallCache()
 
