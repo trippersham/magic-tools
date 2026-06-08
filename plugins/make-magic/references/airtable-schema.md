@@ -10,6 +10,7 @@
 | Cards | `tbl3UgZZPJGQhEFo8` | Normalized — 1 row per card title |
 | Decks | `tblIfqVuVHNQza1K3` | Deck configurations |
 | Trades | `tblgqqIvTuz0l5SZM` | Card movement tracking |
+| Chase Cards | `tblXsNtGgT7UQLPXZ` | Pre-release / wanted cards tracking |
 
 ### Cards table fields
 
@@ -51,6 +52,9 @@
 | Repeat Cards Count | number | Extra copies in deck beyond the linked records. See Multi-Copy Cards below |
 | Deck Size | formula | `Linked Cards + Commander + Basic Lands + Repeat Cards Count` |
 | Notes | multilineText | |
+| Strategy | text | `fldvJRaoYfRZiM8zw` — Source of truth for what the deck optimizes for. See strategy-schema.md for convention |
+| Chase Cards | link <- Chase Cards.Target Decks | `fldfoTmUWn5WpuT6u` — Inverse link, auto-populated |
+| Color Identity | text | `fldIXcQuMKd7PLyr9` — Deck's color identity (e.g. "WUR", "BG") |
 | Creatures / Nonbasic Lands / Non-Creature Spells | rollup | Via Is* helper fields |
 | Trades (From) / Trades (To) | link -> Trades | |
 
@@ -75,6 +79,27 @@
 **Source/Destination model:** Source and Destination are categories (Library, Deck, Store, Person). The Deck fields provide specificity when the category is "Deck". Example: swapping a card from Library into a deck -> From (Source) = "Library", To (Destination) = "Deck", To (Deck) = [the deck].
 
 **Note:** Look up current deck records at runtime via `mcp__airtable__list_records` on the Decks table.
+
+### Chase Cards table fields
+
+| Field | Type | ID | Notes |
+|-------|------|----|-------|
+| Card Name | singleLineText (primary) | `fldf14LO7VRoTZ8PK` | |
+| Sets | multipleSelects | `fldlhTQDqpLKxutjK` | Set names from Scryfall |
+| Card Type | singleLineText | `fldG2rGqiG8UydPy6` | Scryfall `type_line` |
+| Mana Cost | singleLineText | `fld5UtegtLhSWGRNV` | e.g. `{3}{R}` |
+| CMC | number | `fldMnldyhgYlEPcFA` | |
+| Power / Toughness | singleLineText | `fldnl2R4B7B9X2MlJ` | e.g. `2/4` |
+| Oracle Text | multilineText | `fldHSHDka12X4BiHL` | |
+| Card Art | url | `fldFvNmj0fqOnOVP3` | Scryfall `image_uris.art_crop` |
+| Scryfall URL | url | `fldUjrCkvkBKcWqgh` | |
+| Price (TCGPlayer) | currency | `fld8PpkaGej0qDA8x` | |
+| Price Last Updated | lastModifiedTime | `fldGkQ71BWcPuie2T` | Watches Price field |
+| Color Identity | multipleSelects | `fldEkalJKqK2ZecEv` | W/U/B/R/G/Colorless |
+| Target Decks | multipleRecordLinks -> Decks | `flduoZZRmVfpD6aSG` | Which decks want this card |
+| Is Land / Is Creature / Is Non-Creature | formula | various | Same pattern as Cards table |
+| Created At | createdTime | `fldWqJ6dAj2mXNx4V` | |
+| Last Modified | lastModifiedTime | `fldtYh0qTTObjRkJ7` | |
 
 ### Multi-Copy Cards (Non-Singleton Decks)
 
