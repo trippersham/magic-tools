@@ -1,0 +1,1 @@
+../../../references/airtable-patterns.md

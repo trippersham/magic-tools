@@ -3,11 +3,12 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
+#     "httpx",
 #     "typer",
 #     "pydantic",
 # ]
 # [tool.uv]
-# exclude-newer = "2026-05-13T00:00:00Z"
+# exclude-newer = "2026-06-08T00:00:00Z"
 # ///
 """
 Fetch Scryfall metadata for a list of MTG cards.
@@ -21,7 +22,7 @@ Output: JSON array with Scryfall metadata merged in:
 The "id" field (Airtable record ID) is passed through unchanged.
 Cards not found on Scryfall get "scryfall": null with an "error" key.
 
-Rate limiting: 120ms between requests, 65s cooldown on 429.
+Uses scryfall_cache.py for all Scryfall lookups (session-scoped caching).
 
 Usage:
     ./scryfall_batch.py input.json output.json
@@ -31,22 +32,17 @@ Maintenance:
     uv add --script scryfall_batch.py 'package-name'
     uvx ruff format scryfall_batch.py
     uvx ruff check scryfall_batch.py
-
-References:
-    - PEP 723 (Inline script metadata): https://peps.python.org/pep-0723/
-    - uv scripts guide: https://docs.astral.sh/uv/guides/scripts/
-    - Scryfall API: https://scryfall.com/docs/api
 """
 
 import json
-import time
-import urllib.error
-import urllib.parse
-import urllib.request
+import sys
 from pathlib import Path
 
 import typer
 from pydantic import BaseModel
+
+sys.path.insert(0, str(Path(__file__).parent))
+from scryfall_cache import ScryfallCache
 
 
 class ScryfallMetadata(BaseModel):
@@ -61,26 +57,6 @@ class ScryfallMetadata(BaseModel):
     price_usd: str | None = None
     set_name: str = ""
     color_identity: list[str] = []
-
-
-HEADERS = {
-    "User-Agent": "MTGInventoryManager/1.0",
-    "Accept": "application/json",
-}
-
-
-def fetch_card(name: str) -> dict | None:
-    """Fetch a single card from Scryfall by exact name."""
-    encoded = urllib.parse.quote(name)
-    url = f"https://api.scryfall.com/cards/named?exact={encoded}"
-    req = urllib.request.Request(url, headers=HEADERS)
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        if e.code == 429:
-            raise
-        return None
 
 
 def _get_face_field(card: dict, field: str, default: str = "") -> str:
@@ -127,17 +103,13 @@ def main(
     """Fetch Scryfall metadata for a batch of MTG cards."""
     cards = json.loads(input_path.read_text())
     results = []
+    cache = ScryfallCache()
 
     for i, card_entry in enumerate(cards):
         name = card_entry["name"]
         typer.echo(f"[{i + 1}/{len(cards)}] {name}")
 
-        try:
-            data = fetch_card(name)
-        except urllib.error.HTTPError:
-            typer.echo("  429 rate limited — cooling down 65s")
-            time.sleep(65)
-            data = fetch_card(name)
+        data = cache.get_card(name)
 
         if data:
             card_entry["scryfall"] = extract_metadata(data).model_dump()
@@ -148,17 +120,18 @@ def main(
 
         results.append(card_entry)
 
-        # Write progress incrementally every 50 cards
         if len(results) % 50 == 0:
             output_path.write_text(json.dumps(results, indent=2))
-
-        time.sleep(0.12)
 
     output_path.write_text(json.dumps(results, indent=2))
 
     found = sum(1 for r in results if r["scryfall"] is not None)
     typer.echo(f"\nDone: {found}/{len(results)} cards fetched successfully")
     typer.echo(f"Output: {output_path}")
+
+    stats = cache.cache_stats()
+    typer.echo(f"Cache: {stats['session_hits']} hits, {stats['session_misses']} misses")
+    cache.close()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,46 @@
+{
+  "name": "airtable-mcp-server",
+  "version": "1.13.0",
+  "description": "A Model Context Protocol server that provides read and write access to Airtable databases. This server enables LLMs to inspect database schemas, then read and write records.",
+  "license": "MIT",
+  "author": "Adam Jones (domdomegg)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/domdomegg/airtable-mcp-server.git"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "bin": "dist/main.js",
+  "mcpName": "io.github.domdomegg/airtable-mcp-server",
+  "scripts": {
+    "start": "npm run build && node ./dist/main.js",
+    "test": "vitest run",
+    "test:watch": "vitest --watch",
+    "lint": "eslint",
+    "clean": "rm -rf dist",
+    "build": "tsc --project tsconfig.build.json",
+    "bundle": "esbuild src/main.ts --bundle --platform=node --target=node20 --format=esm --banner:js=\"import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);\" --outfile=dist/server.js",
+    "build:watch": "nodemon --watch src --ext ts --exec \"npm run build\"",
+    "build:mcpb": "./build-mcpb.sh",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.24.3",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@tsconfig/node-lts": "^24.0.0",
+    "@types/node": "^24.10.1",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.39.1",
+    "eslint-config-domdomegg": "^2.0.9",
+    "nodemon": "^3.1.11",
+    "tsconfig-domdomegg": "^1.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  }
+}

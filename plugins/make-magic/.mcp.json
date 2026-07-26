@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "airtable": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "if [ -z \"$AIRTABLE_API_KEY\" ] && [ -f \"$CLAUDE_PLUGIN_ROOT/.env\" ]; then set -a; . \"$CLAUDE_PLUGIN_ROOT/.env\"; set +a; fi; exec node \"$CLAUDE_PLUGIN_ROOT/mcp/airtable-mcp-server/dist/server.js\""
+      ]
+    }
+  }
+}

@@ -1,0 +1,100 @@
+# Put That Thang Down (Flip It and Reverse It)
+# Commander: Nick Fury, Agent of S.H.I.E.L.D. · 5-color (WUBRG)
+# 86 nonbasic + 1 commander + 13 basics = 100
+
+1 Nick Fury, Agent of S.H.I.E.L.D.  # COMMANDER
+
+# --- Nonbasic (86) ---
+1 Irrigated Farmland
+1 Miles Morales
+1 Opulent Palace
+1 War Machine, Avenging Arsenal
+1 Avatar Aang
+1 Unbreakable Formation
+1 Sandsteppe Citadel
+1 Chrome Mox
+1 Soulherder
+1 Frostboil Snarl
+1 Avengers Quinjet
+1 Black Panther, Vanguard
+1 Director Nick Fury
+1 Methods of the Mighty
+1 Monica the Marvel
+1 Kodama's Reach
+1 Frontier Bivouac
+1 Sol Ring
+1 Echo, Perceptive Prodigy
+1 Glacial Fortress
+1 Thriving Isle
+1 Arcane Adaptation
+1 Iron Man, Armored Avenger
+1 The Wasp, Winsome Avenger
+1 Swords to Plowshares
+1 Political Triumph
+1 Winter Soldier, Reborn Avenger
+1 Thriving Grove
+1 Monica Rambeau
+1 Glittering Massif
+1 Arcane Signet
+1 Raise the Palisade
+1 Captain America, Living Legend
+1 Agent Phil Coulson
+1 The Mighty Thor, Jane Foster
+1 Morophon, the Boundless
+1 Elbrus, the Binding Blade
+1 Relic of Legends
+1 Arcane Denial
+1 Master's Guidance
+1 Mystic Monastery
+1 Avengers Tower
+1 Garruk's Uprising
+1 Spectator Seating
+1 Furycalm Snarl
+1 Origin of the Avengers
+1 Secluded Courtyard
+1 Kid Loki
+1 Llanowar Elves
+1 Captain America, Team Leader
+1 Molecule Man
+1 Plaza of Heroes
+1 Captain Marvel, Apex Avenger
+1 Peter Parker
+1 Embercleave
+1 Dismantling Wave
+1 Unclaimed Territory
+1 Wonder Man, Hollywood Hero
+1 Gwen Stacy
+1 Shang-Chi and the Ten Rings
+1 Rona, Herald of Invasion
+1 Descendants' Path
+1 Coastal Peak
+1 Sensei's Divining Top
+1 Port Town
+1 Exotic Orchard
+1 Hulkbuster Armor
+1 Kindred Discovery
+1 Chromatic Lantern
+1 Clifftop Retreat
+1 Path of Ancestry
+1 Command Tower
+1 She-Hulk, Wallbreaker
+1 Jennifer Walters
+1 Bruce Banner
+1 Scarlet Witch, Chaotic Avenger
+1 Thriving Heath
+1 Metallic Mimic
+1 Opal Palace
+1 Thriving Bluff
+1 Maskwood Nexus
+1 Shared Animosity
+1 Austere Command
+1 Eddie Brock
+1 Moonmist
+1 Sulfur Falls
+
+# --- Basics (13) — proposed split, adjustable ---
+4 Plains
+3 Island
+2 Mountain
+2 Forest
+2 Swamp

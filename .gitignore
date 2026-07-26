@@ -1,1 +1,16 @@
 .ruff_cache
+
+# Secrets: real env files are never committed
+.env
+**/.env
+# ...but the committed example placeholder must be tracked
+!.env.example
+!**/.env.example
+
+# Node dependencies (required at runtime; install via `npm install`)
+node_modules/
+**/node_modules/
+
+# Build artifacts (regenerate via `npm run build`)
+dist/
+**/dist/
