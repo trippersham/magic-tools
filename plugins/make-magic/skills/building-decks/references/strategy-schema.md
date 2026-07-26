@@ -77,6 +77,24 @@ What makes a card good here: Has deathtouch. Fight or bite effects. Theft (gain 
 What doesn't fit: Big dumb beaters without keywords, +1/+1 counter strategies, lifegain-focused cards, equipment/voltron.
 ```
 
+## The `Archetype:` Line Frames the Pre-Mortem
+
+Besides feeding synergy judgment, the `Archetype:` line frames what "healthy" looks like per
+game-state in Operation 5 (Diagnose Deck Balance). It sets the **expectations you bring to the
+pre-mortem** — it does not score or tally coverage. Map the primary archetype to its
+expectations:
+
+| `Archetype:` contains | Pre-mortem expectation |
+|-----------------------|------------------------|
+| aggro, burn, voltron, go-wide beatdown | May run thin on Losing — speed is the plan; note it, don't auto-flag it |
+| midrange, value, goodstuff, fight/theft | Wants a plan in all four game-states |
+| control, stax, spellslinger-control | **Must be deep on Losing + Parity**, or it folds |
+| combo, storm, cheat-into-play | Needs Development setup + a Winning payoff; protection reads as the Losing plan |
+
+A deck's plan is judged **against its archetype's expectations**, not against flat even
+coverage. See `references/quadrant-theory.md` for the pre-mortem method and the reading
+heuristics.
+
 ## How the Tagger Uses Strategy
 
 The card tagger's `TAG_STRATEGY_SYNONYMS` maps mechanic tags (like "Magecraft") to strategy keywords (like "spellslinger"). When scoring a card for a deck:

@@ -6,6 +6,9 @@ description: >
   "vet a trade", "find upgrades", "what's good for [deck]", "should I run [card] in [deck]",
   "build a deck around [commander]", or any question about deck strategy and card fit.
   Also trigger for "recommend from set", "what should I add from [set]", "upgrade suggestions".
+  Also trigger for deck balance / Quadrant Theory: "is my deck balanced", "diagnose [deck]",
+  "what's [deck] missing", "what quadrant is weak", "what should I shore up", "is [deck] too
+  glass-cannon".
 user-invocable: true
 ---
 
@@ -42,6 +45,7 @@ If you catch yourself thinking:
 | "What should I add from [set]?", "Recommend cards from [set]" | [2. Recommend from Set](#2-recommend-cards-from-a-set) |
 | "What's the weakest card to cut?", "Propose a swap for [card]" | [3. Propose Swaps](#3-propose-swaps) |
 | "Is trading X for Y good for deck Z?" | [4. Vet a Trade](#4-vet-a-trade) |
+| "Is my deck balanced?", "diagnose [deck]", "what quadrant is weak?", "what's [deck] missing?" | [5. Diagnose Deck Balance](#5-diagnose-deck-balance-quadrant-theory) |
 
 ---
 
@@ -138,6 +142,14 @@ For each card in the tagged set:
 3. Count overlapping keywords with the deck's Key mechanics
 4. Add oracle text keyword matches
 5. Sum for total score
+6. **Flexibility test (fact-informed judgment, not a numeric bonus):** ask whether the card is
+   live in multiple game-states or only when already ahead. Multi-quadrant = prize;
+   only-when-winning = trap. Keep the synergy reason and the flexibility reason separate — do
+   not collapse them into one verdict.
+
+<reference file="card-evaluation.md" section="The Flexibility Test (Operations 2 & 3)">
+See card-evaluation.md for the flexibility test and quadrant-theory.md for the game-state framing.
+</reference>
 
 <reference file="card-evaluation.md" section="Scoring Tiers">
 See card-evaluation.md for the scoring tier definitions (very high >= 8, high >= 5, medium >= 3).
@@ -224,6 +236,12 @@ Similar role means:
 - Same CMC bracket (0-2, 3-4, 5-6, 7+)
 - Same card type category (creature, instant/sorcery, artifact, enchantment)
 
+**Flexibility test (see Operation 2 / `card-evaluation.md`):** ask whether the incoming card
+is live in multiple game-states or only when already ahead, and prefer to **cut a card that
+is live in fewer states** — do not cut the deck's only answer for a game-state it's already
+thin on. A swap that adds a flexible, multi-state card while cutting an only-when-winning one
+is strictly better than a same-role trade. Keep synergy and flexibility rationales separate.
+
 **Step 5: Present the swap proposal**
 
 ```
@@ -287,6 +305,92 @@ uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/scryfall_cache.py get-card "<name>
 
 ---
 
+## 5. Diagnose Deck Balance (Quadrant Theory)
+
+Whole-deck **pre-mortem**: does the deck have a *plan* for every game-state it needs, given
+its archetype? This is a reasoning task, **not a card-scoring tally**. The quadrants are
+questions about the deck's plan — Development (don't fall behind), Parity (break a stall),
+Winning (what/how-fast/how-interruptible is the actual win), Losing (the out when behind). You
+answer them by reasoning over the deck's **Strategy** plus a **neutral fact sheet** from
+`deck_factsheet.py`. The output is a narrative pre-mortem plus a shopping list, **never a
+percentage table**.
+
+<reference file="quadrant-theory.md" section="The reframe: quadrants are questions, not buckets">
+Read quadrant-theory.md for the pre-mortem method, the deterministic/reasoning split, the resilience profile, the fact-sheet field reference, and the limitations (notably: cEDH is out of scope, and why the card-scoring premise was retired).
+</reference>
+
+<diagnose-workflow>
+
+**Step 1: Read the deck's Strategy → archetype and win condition**
+
+Same `get_record` as Operation 1 (the `<primary-constraint>` applies — never diagnose
+without the Strategy). The Strategy *is* the plan: extract the win condition and the
+`Archetype:` line, which frames the per-game-state expectations (see
+`references/strategy-schema.md`).
+
+**Step 2: Get the EXACT current decklist**
+
+Pull the deck's linked Cards (same mechanism as Operation 3, Step 1) — do not work from
+memory. Write the card names to a decklist file for the fact sheet.
+
+**Step 3: Run the fact sheet**
+```bash
+uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/deck_factsheet.py factsheet <decklist> --output /tmp/<deck>-facts.json
+```
+This emits **neutral facts only** — curve, ramp, an interaction census by type and speed, a
+keyword census, card advantage, and `coverage.uncategorized_pct`. It assigns **no** quadrant,
+role, or wincon. Any `missing` names are reported — resolve or note them.
+
+**Step 4: Reason the per-quadrant plan (from facts + Strategy)**
+
+For each game-state, state the deck's plan — from the engine, not a count. Lead with the
+**resilience profile** (`board_wipes`, `instant_speed`, `protection`, `ramp`, curve) — it is
+the measurable core of "Losing is the hardest quadrant."
+
+- **Development** — plan not to fall behind early? (curve, ramp, early interaction)
+- **Parity** — plan to break a stall / grind ahead? (the engine, card advantage)
+- **Winning** — what *is* the win, and is it resilient / fast / interruptible? (from Strategy)
+- **Losing** — the out when behind / swept / raced? (resilience profile)
+
+**When `coverage.uncategorized_pct` is high, weight the Strategy over the counts** — the
+deck's value is synergy-carried and invisible to the census. Cite the fact sheet's numbers
+only as supporting evidence ("2 wipes, 0 instant-speed protection"), never as a verdict.
+
+**Step 5: Name the loss-condition**
+
+State the game-state where, if the game goes there, the deck loses — threat-relative to the
+pod, not a flat low bar. This is the pre-mortem's payload.
+
+**Step 6: Prescription + owned fills (read-only)**
+
+Name the card **type** that plugs the hole. Then query the Cards inventory for
+in-color-identity cards of that type that are owned/available (`Number in Library > 0`), and
+flag any already on the Chase list. Prefilter by color identity + a text keyword before
+fetching to keep the scan tractable.
+
+<reference file="airtable-schema.md" section="Cards table fields">
+See airtable-schema.md for the Cards table fields (Number Owned, Number in Library, Oracle Text) and Chase Cards structure.
+</reference>
+
+**Step 7: Present the pre-mortem** (narrative + shopping list, NOT a percentage table)
+
+```
+## [Deck] — Quadrant Pre-Mortem (archetype: X · synergy-driven: low|med|high from coverage%)
+Resilience: N wipes · N instant-speed answers · N protection · N ramp · curve peak C · N at 6+
+[if uncategorized % high] NOTE: X% synergy-carried & invisible to counts → weight Strategy over numbers.
+- Development — <plan not to fall behind early> — ok|risk
+- Parity — <plan to break a stall / grind ahead> — ok|risk
+- Winning — <the actual win from Strategy: what, how fast, how interruptible> — ok|risk
+- Losing — <the out when behind/swept/raced> — ok|risk
+Loss condition: <game-state where, if it goes there, you lose — threat-relative>
+Prescription: add <card TYPE> for [quadrant]; trim from [over-covered]
+Owned fills: <inventory cards that plug it> (+ chase flags)
+```
+
+</diagnose-workflow>
+
+---
+
 ## Critical Constraints
 
 <constraint name="color-identity">
@@ -326,6 +430,7 @@ See airtable-patterns.md for efficiency patterns.
 | When you need to... | Read |
 |---------------------|------|
 | Understand strategy field format and keyword vocabulary | [references/strategy-schema.md](references/strategy-schema.md) |
+| Diagnose deck balance (Quadrant Theory pre-mortem, fact-sheet fields) | [references/quadrant-theory.md](references/quadrant-theory.md) |
 | Invoke tagger scripts or interpret scoring tiers | [references/card-evaluation.md](references/card-evaluation.md) |
 | Look up Airtable table/field IDs | [references/airtable-schema.md](references/airtable-schema.md) |
 | Optimize Airtable queries or handle edge cases | [references/airtable-patterns.md](references/airtable-patterns.md) |
