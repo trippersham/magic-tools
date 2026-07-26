@@ -159,6 +159,21 @@ describe('AirtableService', () => {
 				);
 			});
 
+			// Fork regression: the `fields` projection must emit a `fields[]` query param
+			// per requested field so Airtable returns only those columns. See PATCHES.md.
+			test('handles fields projection option (fork)', async () => {
+				mockFetch.mockResolvedValueOnce({
+					ok: true,
+					text: async () => Promise.resolve(JSON.stringify(mockResponse)),
+				});
+
+				await service.listRecords(mockBaseId, mockTableId, {fields: ['Name', 'Set']});
+
+				const url = mockFetch.mock.calls[0]?.[0] as string;
+				expect(url).toContain('fields%5B%5D=Name');
+				expect(url).toContain('fields%5B%5D=Set');
+			});
+
 			test('handles sort option with single field', async () => {
 				mockFetch.mockResolvedValueOnce({
 					ok: true,

@@ -122,3 +122,9 @@ build/
 dist/
 server/
 airtable-mcp-server.mcpb
+
+# ...but the committed, self-contained stdio bundle IS tracked (produced by `npm run bundle`).
+# This is the shippable server; the rest of dist/ and node_modules/ stay ignored.
+!dist/
+dist/*
+!dist/server.js
