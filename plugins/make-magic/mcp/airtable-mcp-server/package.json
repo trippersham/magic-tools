@@ -18,25 +18,24 @@
   "mcpName": "io.github.domdomegg/airtable-mcp-server",
   "scripts": {
     "start": "npm run build && node ./dist/main.js",
-    "start:http": "npm run build && MCP_TRANSPORT=http node ./dist/main.js",
     "test": "vitest run",
     "test:watch": "vitest --watch",
     "lint": "eslint",
     "clean": "rm -rf dist",
     "build": "tsc --project tsconfig.build.json",
+    "bundle": "esbuild src/main.ts --bundle --platform=node --target=node20 --format=esm --banner:js=\"import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);\" --outfile=dist/server.js",
     "build:watch": "nodemon --watch src --ext ts --exec \"npm run build\"",
     "build:mcpb": "./build-mcpb.sh",
     "prepublishOnly": "npm run clean && npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.24.3",
-    "express": "^5.1.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {
     "@tsconfig/node-lts": "^24.0.0",
-    "@types/express": "^5.0.3",
     "@types/node": "^24.10.1",
+    "esbuild": "^0.24.0",
     "eslint": "^9.39.1",
     "eslint-config-domdomegg": "^2.0.9",
     "nodemon": "^3.1.11",
