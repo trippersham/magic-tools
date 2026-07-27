@@ -16,4 +16,4 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
-uv.lock
+# uv.lock IS committed (reproducible installs; pinned by exclude-newer).
