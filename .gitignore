@@ -14,3 +14,9 @@ node_modules/
 # Build artifacts (regenerate via `npm run build`)
 dist/
 **/dist/
+
+# Runtime caches (regenerated on demand; never source)
+spoiler_cache.db
+**/spoiler_cache.db
+**/*.pyc
+**/__pycache__/

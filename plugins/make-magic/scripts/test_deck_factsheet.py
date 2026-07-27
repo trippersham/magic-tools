@@ -36,6 +36,8 @@ from deck_factsheet import (
     _fallback_factsheet,
     _load_card_otag,
     _pip_counts,
+    _resolve_card,
+    _strip_printing_annotation,
     _top_end_count,
     build_factsheet,
     cmc_histogram,
@@ -138,6 +140,37 @@ FOREST = card('Forest', type_line='Basic Land — Forest', produced_mana=['G'])
 # --------------------------------------------------------------------------- #
 # is_land — KEPT structured fact (front-face governs).
 # --------------------------------------------------------------------------- #
+
+
+def test_strip_printing_annotation():
+    """R3: a trailing printing annotation is stripped; a plain name is untouched."""
+    assert _strip_printing_annotation('Parallel Lives (Borderless)') == 'Parallel Lives'
+    assert _strip_printing_annotation('Sol Ring (Retro)') == 'Sol Ring'
+    assert _strip_printing_annotation('Cultivate') == 'Cultivate'
+
+
+def test_resolve_card_falls_back_to_stripped_printing_annotation():
+    """R3: `_resolve_card` matches a name carrying a printing annotation to the
+    oracle-named card, rather than dropping it into `missing`. It tries the exact
+    name first, then the stripped name."""
+
+    class FakeCache:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def get_card(self, name: str):
+            self.calls.append(name)
+            return {'name': 'Parallel Lives'} if name == 'Parallel Lives' else None
+
+    cache = FakeCache()
+    card = _resolve_card(cache, 'Parallel Lives (Borderless)')
+    assert card == {'name': 'Parallel Lives'}
+    # Exact tried first, then the stripped fallback.
+    assert cache.calls == ['Parallel Lives (Borderless)', 'Parallel Lives']
+
+    # A genuinely unresolvable name still returns None (kept in `missing`).
+    cache2 = FakeCache()
+    assert _resolve_card(cache2, 'Nonexistent (Borderless)') is None
 
 
 def test_is_land():

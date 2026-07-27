@@ -354,6 +354,11 @@ identity alongside the aim (Step 3b). The Strategy *is* the plan: extract the wi
 and the `Archetype:` line, which frames the per-game-state expectations (see
 `references/strategy-schema.md`).
 
+**Guard:** if `Focus Otags` (or `Assessment`) does not yet exist on a fresh Decks table, OMIT
+it from the `fields` list — Airtable returns `422 UNKNOWN_FIELD_NAME` if `fields` names a field
+that does not exist — and create/write it at the later step (`Focus Otags` at Step 3c, the
+`Assessment` at the Assessment write step).
+
 **Step 2: Get the EXACT current decklist**
 
 Pull the deck's linked Cards (same mechanism as Operation 3, Step 1) — do not work from

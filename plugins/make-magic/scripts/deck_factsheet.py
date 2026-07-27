@@ -531,6 +531,37 @@ def _parse_decklist(raw: str) -> list[tuple[int, str]]:
 # Scryfall-backed CLI — thin shell over the pure functions above.
 # --------------------------------------------------------------------------- #
 
+#: A TRAILING printing annotation, e.g. the "(Borderless)" in "Parallel Lives
+#: (Borderless)" or "(Retro)" in "Sol Ring (Retro)". Real cardlist names carry
+#: these cosmetic suffixes but Scryfall oracle names do not, so an exact name
+#: lookup misses. We strip a single trailing parenthetical as a fallback.
+_PRINTING_ANNOTATION = re.compile(r'\s*\([^()]*\)\s*$')
+
+
+def _strip_printing_annotation(name: str) -> str:
+    """Strip a TRAILING parenthetical printing annotation from a card name.
+
+    ``"Parallel Lives (Borderless)"`` -> ``"Parallel Lives"``. A name with no
+    trailing parenthetical is returned unchanged.
+    """
+    return _PRINTING_ANNOTATION.sub('', name).strip()
+
+
+def _resolve_card(cache, name: str) -> dict | None:
+    """Resolve a decklist ``name`` to a Scryfall card, tolerating printing suffixes.
+
+    Tries the exact name first, then falls back to the name with a trailing
+    printing annotation ("(Borderless)", "(Retro)", ...) stripped. Returns
+    ``None`` if still unresolved so the caller keeps its ``missing`` behavior.
+    """
+    card = cache.get_card(name)
+    if card:
+        return card
+    stripped = _strip_printing_annotation(name)
+    if stripped != name:
+        return cache.get_card(stripped)
+    return None
+
 
 def _get_cache():
     """Import ScryfallCache from the sibling script (same shim as card_tagger)."""
@@ -606,7 +637,7 @@ def factsheet(
     cards: list[dict] = []
     missing: list[str] = []
     for _count, name in entries:
-        card = cache.get_card(name)
+        card = _resolve_card(cache, name)
         if not card:
             missing.append(name)
             continue

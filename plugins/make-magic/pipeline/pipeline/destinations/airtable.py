@@ -61,6 +61,7 @@ import json
 import logging
 import math
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -295,6 +296,41 @@ def assert_no_human_fields(payload_fields: Any) -> None:
 # Card resolution + payload construction.
 # --------------------------------------------------------------------------- #
 
+#: A TRAILING printing annotation on a card name, e.g. the "(Borderless)" in
+#: "Parallel Lives (Borderless)" or "(Retro)" in "Sol Ring (Retro)". Real
+#: Airtable/cardlist names carry these cosmetic suffixes, but Scryfall oracle
+#: names do not — so an exact match against ``name_to_oracle_id`` misses. We
+#: strip a single trailing parenthetical (and surrounding whitespace) as a
+#: fallback before giving up.
+_PRINTING_ANNOTATION = re.compile(r'\s*\([^()]*\)\s*$')
+
+
+def _strip_printing_annotation(name: str) -> str:
+    """Strip a TRAILING parenthetical printing annotation from a card name.
+
+    ``"Parallel Lives (Borderless)"`` -> ``"Parallel Lives"``. Leaves a name with
+    no trailing parenthetical untouched. Only the LAST parenthetical is removed,
+    so a name like ``"Fire // Ice"`` or an interior paren is preserved.
+    """
+    return _PRINTING_ANNOTATION.sub('', name).strip()
+
+
+def _resolve_oracle_id(name: str, name_to_oracle_id: dict[str, str]) -> str | None:
+    """Resolve a card ``name`` to its ``oracle_id``, tolerating printing suffixes.
+
+    Tries an EXACT match first (the common case), then falls back to matching the
+    name with a trailing printing annotation stripped (e.g. "(Borderless)",
+    "(Retro)"). Returns ``None`` if still unmatched — the caller keeps its existing
+    loud-skip behavior for genuinely unresolvable names.
+    """
+    oid = name_to_oracle_id.get(name)
+    if oid:
+        return oid
+    stripped = _strip_printing_annotation(name)
+    if stripped != name:
+        return name_to_oracle_id.get(stripped)
+    return None
+
 
 @dataclass(frozen=True)
 class CardResolution:
@@ -343,7 +379,7 @@ def resolve_cards(
             log.warning('Skipping a Card with no Airtable record id.')
             skipped.append(record_id)
             continue
-        oid = name_to_oracle_id.get(name)
+        oid = _resolve_oracle_id(name, name_to_oracle_id)
         if not oid:
             log.warning(
                 'SKIP Card %s (%r): no robust oracle_id match — not guessing.',
@@ -626,12 +662,27 @@ class PushReport:
     #: cap). In a dry-run this is the count it WOULD send; in an applied run it
     #: equals ``write_requests_issued`` on success.
     chunks_planned: int = 0
+    #: R1 safety: True when the plan could NOT be computed because there was no
+    #: Airtable API access (offline dry-run: no credential -> no meta schema, so
+    #: the field-ID-keyed lake can't be read and field existence can't be
+    #: checked). In that state the resolved-count / would-create claims are
+    #: MEANINGLESS, so we report "unknown" rather than a misleading 0 / bogus
+    #: creation. NEVER set on an applied run (a write always has a credential).
+    plan_unknown_no_api: bool = False
 
     def render(self) -> str:
         lines: list[str] = []
         mode = 'DRY-RUN (no writes issued)' if self.dry_run else 'APPLY'
         lines.append(f'=== Airtable derived write-back -> Cards [{mode}] ===')
         lines.append(f'Allowlist (engine-owned): {sorted(ALLOWLIST_NAMES)}')
+        if self.plan_unknown_no_api:
+            lines.append(
+                'Plan: unknown (no API access; set AIRTABLE_API_KEY for an accurate dry-run). '
+                'The Card Name field id and live schema cannot be resolved offline, so the '
+                'field-ID-keyed lake cannot be read and field creation cannot be assessed — '
+                'no cards resolved and no would-create claim are reported.'
+            )
+            return '\n'.join(lines)
         if self.fields_to_create:
             lines.append(f'Fields that WOULD be created: {self.fields_to_create}')
         for w in self.planned:
@@ -686,6 +737,7 @@ def sync(
     client: SupportsWrite | None = None,
     dry_run: bool = True,
     apply: bool = False,
+    field_names_present: frozenset[str] | None = None,
 ) -> PushReport:
     """Sync per-card derived otag facts onto Cards records. DRY-RUN BY DEFAULT.
 
@@ -699,6 +751,11 @@ def sync(
         dry_run: when True (default) NO write request is issued; the intended
             diff is computed and returned.
         apply: a real write requires BOTH ``dry_run=False`` AND ``apply=True``.
+        field_names_present: the LIVE Cards field names (from a read-only meta
+            schema read). When provided in a dry-run, ``fields_to_create`` is the
+            REAL set of derived fields that don't yet exist (accurate creation
+            preview); when ``None`` in a dry-run, the plan is UNKNOWN — no schema
+            was resolvable (no API access) — and no cards/creation are claimed.
 
     Returns:
         A :class:`PushReport`. In dry-run, ``write_requests_issued == 0``. Cards
@@ -717,7 +774,15 @@ def sync(
     report.chunks_planned = _chunk_count(len(plan))
 
     if not do_write:
-        report.fields_to_create = [f.name for f in DERIVED_FIELDS]  # informational
+        if field_names_present is None:
+            # No live schema was resolvable (offline dry-run, no credential): the
+            # field-ID-keyed lake couldn't be read and field existence can't be
+            # checked, so any resolved-count / would-create claim is meaningless.
+            # Report UNKNOWN rather than a misleading vacuous 0 / bogus creation.
+            report.plan_unknown_no_api = True
+            return report
+        # Accurate creation preview: only the derived fields that DON'T yet exist.
+        report.fields_to_create = [f.name for f in DERIVED_FIELDS if f.name not in field_names_present]
         return report
 
     if client is None:
@@ -864,23 +929,35 @@ def main(argv: list[str] | None = None) -> int:
     client: AllowlistWriteClient | None = None
     do_write = (not args.dry_run) and args.apply
     card_name_field_id: str | None = None
-    if do_write:
-        token = os.environ.get('AIRTABLE_API_KEY')
-        if not token:
-            raise RuntimeError('AIRTABLE_API_KEY is not set; cannot apply a live write.')
+    #: The live Cards field names, from a READ-ONLY meta read. ``None`` means we
+    #: had no API access to resolve them (offline dry-run) -> the plan is UNKNOWN.
+    field_names_present: frozenset[str] | None = None
+    token = os.environ.get('AIRTABLE_API_KEY')
+    if do_write and not token:
+        raise RuntimeError('AIRTABLE_API_KEY is not set; cannot apply a live write.')
+    # SAFETY (R1): whenever a credential is available, resolve the schema via a
+    # READ-ONLY meta call REGARDLESS of do_write. In a DRY-RUN this makes the
+    # preview truthful — it resolves the Card Name field id (so the field-ID-keyed
+    # lake yields the REAL cards) and reads which derived fields already exist (so
+    # only genuinely-missing ones are reported as "would create"). This issues NO
+    # writes (list_fields is a GET); a real write still requires --no-dry-run
+    # --apply below. Without a credential a dry-run stays offline and reports the
+    # plan as UNKNOWN rather than a misleading vacuous 0 / bogus creation claim.
+    if token:
         client = AllowlistWriteClient(token)
-        # Resolve the per-base Card Name field id from the meta schema by NAME so
-        # the lake loader reads the field-ID-keyed card-name column correctly.
-        card_name_field_id = client.list_fields().get(CARD_NAME_FIELD)
+        schema = client.list_fields()  # read-only meta GET
+        card_name_field_id = schema.get(CARD_NAME_FIELD)
+        field_names_present = frozenset(schema)
     cards, name_to_oracle_id, card_otag = _load_cards_from_lake(card_name_field_id)
     try:
         report = sync(
             cards,
             name_to_oracle_id=name_to_oracle_id,
             card_otag=card_otag,
-            client=client,
+            client=client if do_write else None,
             dry_run=args.dry_run,
             apply=args.apply,
+            field_names_present=field_names_present,
         )
     finally:
         if client is not None:

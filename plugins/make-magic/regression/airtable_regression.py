@@ -40,12 +40,12 @@ Modes:
                   write-capable token against the real base.
 
 Usage:
-    AIRTABLE_API_KEY=<pat> uv run --script airtable_regression.py --read-only
-    AIRTABLE_API_KEY=<pat> uv run --script airtable_regression.py --full
+    AIRTABLE_API_KEY=<pat> uv run --script airtable_regression.py check --read-only
+    AIRTABLE_API_KEY=<pat> uv run --script airtable_regression.py check --full
 
     # Point at a different base/token combo (e.g. read-only mechanics smoke):
     AIRTABLE_API_KEY=<pat> uv run --script airtable_regression.py \
-        --read-only --smoke-any-base
+        check --read-only --smoke-any-base
 
     # Discover what bases/tables a token can see (plumbing check):
     AIRTABLE_API_KEY=<pat> uv run --script airtable_regression.py list-bases

@@ -275,6 +275,31 @@ def test_resolve_cards_joins_by_oracle_id() -> None:
     assert skipped == []
 
 
+def test_printing_annotation_name_normalizes_and_matches() -> None:
+    """R3: a card name carrying a TRAILING printing annotation (e.g.
+    "Parallel Lives (Borderless)") normalizes to its oracle name and resolves,
+    rather than dropping into `skipped`."""
+    name_to_oid = {'Parallel Lives': 'oid-parallel-lives'}
+    card_otag = {'oid-parallel-lives': {'tokens'}}
+    cards = {'recPL': 'Parallel Lives (Borderless)'}
+    resolved, skipped = wb.resolve_cards(cards, name_to_oracle_id=name_to_oid, card_otag=card_otag)
+    assert skipped == []
+    assert [r.oracle_id for r in resolved] == ['oid-parallel-lives']
+    # The helper itself strips only the trailing parenthetical.
+    assert wb._strip_printing_annotation('Parallel Lives (Borderless)') == 'Parallel Lives'
+    assert wb._strip_printing_annotation('Sol Ring (Retro)') == 'Sol Ring'
+    assert wb._strip_printing_annotation('Cultivate') == 'Cultivate'
+
+
+def test_genuinely_unresolvable_name_still_skipped_after_normalization() -> None:
+    """R3: normalization is a fallback only — a name that matches nothing even
+    after stripping the annotation keeps the loud-skip behavior."""
+    cards = {'recX': 'Nonexistent Card (Borderless)'}
+    resolved, skipped = wb.resolve_cards(cards, name_to_oracle_id=_NAME_TO_OID, card_otag=_CARD_OTAG)
+    assert resolved == []
+    assert skipped == ['recX']
+
+
 def test_card_with_unresolvable_oracle_id_is_skipped() -> None:
     """A card name with no oracle_id match is SKIPPED (logged), never guessed."""
     cards = {'recMystery': 'Totally Unknown Card'}
@@ -846,3 +871,144 @@ def test_chunk_error_stops_and_reports_partial_progress() -> None:
     # Only chunk 1 was actually recorded as complete; chunk 3 never fired.
     assert len(spy.patched_chunks) == 1
     assert spy.methods.count('PATCH:patch_records') == 2  # attempted 1 ok + 1 failed
+
+
+# --------------------------------------------------------------------------- #
+# R1: the destination CLI dry-run plan must NOT be a vacuous safety preview.
+#
+# A dry-run WITH a credential must resolve the REAL card count (by reading the
+# Card Name field-ID column keyed to the meta-resolved field id) and report only
+# the ⚙ fields that DON'T yet exist as "would create" — via a READ-ONLY meta
+# call, regardless of do_write. A dry-run with NO credential must report the plan
+# as "unknown (no API access...)" rather than a misleading 0-resolved / all-would-
+# create claim. No writes issue in either case.
+# --------------------------------------------------------------------------- #
+
+
+class MetaOnlyClient:
+    """Read-only stand-in for AllowlistWriteClient: serves a fixed field schema
+    via list_fields() and records ZERO write-shaped calls. A dry-run must only
+    ever call list_fields() (a GET) on it."""
+
+    def __init__(self, fields: dict[str, str]) -> None:
+        self._fields = dict(fields)
+        self.methods: list[str] = []
+        self.closed = False
+
+    def list_fields(self) -> dict[str, str]:
+        self.methods.append('GET:list_fields')
+        return dict(self._fields)
+
+    def create_field(self, name: str, airtable_type: str, options: dict[str, Any] | None) -> None:  # pragma: no cover
+        self.methods.append(f'POST:create_field:{name}')
+
+    def patch_records(self, records: list[dict[str, Any]]) -> Any:  # pragma: no cover
+        self.methods.append('PATCH:patch_records')
+        return None
+
+    def close(self) -> None:
+        self.closed = True
+
+    @property
+    def write_methods(self) -> list[str]:
+        return [m for m in self.methods if m.split(':', 1)[0] in {'POST', 'PATCH', 'PUT', 'DELETE'}]
+
+
+def test_dry_run_with_credential_resolves_real_cards_and_only_missing_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R1: `--dry-run` WITH AIRTABLE_API_KEY set does a READ-ONLY meta resolution
+    (resolves the Card Name field id + reads the real schema), so the plan shows
+    the REAL resolved card count and reports as "would create" ONLY the ⚙ field
+    that does not yet exist — never a card count of 0, never a bogus creation of
+    fields that already exist. No writes fire."""
+    monkeypatch.setenv('AIRTABLE_API_KEY', 'tok')
+    # The live schema: Card Name exists, ⚙ Buckets ALREADY exists, ⚙ Otags does NOT.
+    card_name_fid = 'fldCARDNAME'
+    schema = {'Card Name': card_name_fid, f'{wb.NS}Buckets': 'fldBUCKETS'}
+    client = MetaOnlyClient(schema)
+    monkeypatch.setattr(wb, 'AllowlistWriteClient', lambda *a, **k: client)
+
+    # A populated lake: two resolvable cards keyed by the Card Name field id.
+    captured_fid: dict[str, str | None] = {}
+
+    def fake_load(card_name_field_id: str | None = None):
+        captured_fid['fid'] = card_name_field_id
+        return _CARDS, _NAME_TO_OID, _CARD_OTAG
+
+    monkeypatch.setattr(wb, '_load_cards_from_lake', fake_load)
+
+    printed: list[str] = []
+    monkeypatch.setattr('builtins.print', lambda s='': printed.append(s))
+
+    rc = wb.main(['--dry-run'])
+    assert rc == 0
+    # The Card Name field id was resolved from the meta schema and handed to the loader.
+    assert captured_fid['fid'] == card_name_fid
+    # The lake resolved the REAL cards, not an empty map.
+    out = '\n'.join(printed)
+    assert 'cards resolved: 2' in out
+    # Only ⚙ Otags is reported as "would create" — ⚙ Buckets already exists.
+    assert f'{wb.NS}Otags' in out
+    assert 'Fields that WOULD be created' in out
+    assert f'{wb.NS}Buckets' not in out.split('Fields that WOULD be created')[1].split('\n')[0]
+    # READ-ONLY: no write-shaped call ever fired, and the client was closed.
+    assert client.write_methods == []
+    assert client.closed is True
+
+
+def test_dry_run_with_credential_reports_none_to_create_when_both_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R1: when BOTH ⚙ fields already exist, a credentialed dry-run reports NO
+    fields would be created (not a bogus creation claim)."""
+    monkeypatch.setenv('AIRTABLE_API_KEY', 'tok')
+    schema = {
+        'Card Name': 'fldCARDNAME',
+        f'{wb.NS}Buckets': 'fldBUCKETS',
+        f'{wb.NS}Otags': 'fldOTAGS',
+    }
+    client = MetaOnlyClient(schema)
+    monkeypatch.setattr(wb, 'AllowlistWriteClient', lambda *a, **k: client)
+    monkeypatch.setattr(wb, '_load_cards_from_lake', lambda card_name_field_id=None: (_CARDS, _NAME_TO_OID, _CARD_OTAG))
+
+    printed: list[str] = []
+    monkeypatch.setattr('builtins.print', lambda s='': printed.append(s))
+
+    rc = wb.main(['--dry-run'])
+    assert rc == 0
+    out = '\n'.join(printed)
+    assert 'cards resolved: 2' in out
+    assert 'Fields that WOULD be created' not in out  # both already exist
+    assert client.write_methods == []
+
+
+def test_dry_run_without_credential_reports_unknown_not_vacuous_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R1: an OFFLINE dry-run (no AIRTABLE_API_KEY) can't read the field-ID-keyed
+    lake or the schema, so it must NOT claim `cards resolved: 0` or that fields
+    "WOULD be created". It reports the plan is UNKNOWN pending API access."""
+    monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)
+
+    # Even if the loader is called with no field id, it can't resolve names.
+    monkeypatch.setattr(wb, '_load_cards_from_lake', lambda card_name_field_id=None: ({}, {}, {}))
+    # AllowlistWriteClient must NEVER be constructed without a credential.
+    monkeypatch.setattr(
+        wb,
+        'AllowlistWriteClient',
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError('must not build a client without a credential')),
+    )
+
+    printed: list[str] = []
+    monkeypatch.setattr('builtins.print', lambda s='': printed.append(s))
+
+    rc = wb.main(['--dry-run'])
+    assert rc == 0
+    out = '\n'.join(printed)
+    # It does NOT print a misleading concrete plan.
+    assert 'cards resolved: 0' not in out
+    assert 'Fields that WOULD be created' not in out
+    # It DOES say the plan is unknown / needs API access.
+    assert 'unknown' in out.lower()
+    assert 'AIRTABLE_API_KEY' in out
