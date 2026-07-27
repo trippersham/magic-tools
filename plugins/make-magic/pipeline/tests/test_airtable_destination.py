@@ -125,14 +125,14 @@ def _push(**overrides: Any) -> wb.PushReport:
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.parametrize('human_field', sorted(wb.HUMAN_DENYLIST))
+@pytest.mark.parametrize('human_field', sorted(wb._human_denylist()))
 def test_guard_refuses_every_human_card_field(human_field: str) -> None:
     """assert_no_human_fields RAISES for EACH Cards human field in the contract."""
     with pytest.raises(wb.HumanFieldWriteError):
         wb.assert_no_human_fields([human_field])
 
 
-@pytest.mark.parametrize('human_field', sorted(wb.HUMAN_DENYLIST))
+@pytest.mark.parametrize('human_field', sorted(wb._human_denylist()))
 def test_guard_refuses_human_field_mixed_with_allowed(human_field: str) -> None:
     """Even mixed with a legit derived field, a single human field is refused."""
     good = next(iter(wb.ALLOWLIST_NAMES))
@@ -158,7 +158,7 @@ def test_allowlist_is_exactly_the_two_card_fields() -> None:
 
 def test_allowlist_and_denylist_are_disjoint() -> None:
     """Structural invariant: engine-owned names never collide with human names."""
-    assert not (wb.ALLOWLIST_NAMES & wb.HUMAN_DENYLIST)
+    assert not (wb.ALLOWLIST_NAMES & wb._human_denylist())
 
 
 def test_denylist_loads_non_empty_with_card_name() -> None:
@@ -167,14 +167,14 @@ def test_denylist_loads_non_empty_with_card_name() -> None:
     which would happen if CARDS_TABLE_NAME stopped matching the golden-contract
     table key (e.g. after the 'Cards' -> 'Inventory Cards' rename). This asserts
     the key still resolves against the contract."""
-    denylist = wb.load_human_denylist()
+    denylist = wb._human_denylist()
     assert denylist, 'human denylist loaded EMPTY — the write-back guard is disabled (REGRESSION)'
     assert 'Card Name' in denylist
     # The contract key the loader indexes by must be the live table name.
     assert wb.CARDS_TABLE_NAME == 'Inventory Cards'
-    # And the module-level (import-time) denylist must likewise be populated.
-    assert wb.HUMAN_DENYLIST
-    assert 'Card Name' in wb.HUMAN_DENYLIST
+    # And the lazy accessor must likewise be populated (cached, same object).
+    assert wb._human_denylist()
+    assert 'Card Name' in wb._human_denylist()
 
 
 def test_denylist_is_the_cards_human_fields_from_golden_contract() -> None:
@@ -202,7 +202,7 @@ def test_denylist_is_the_cards_human_fields_from_golden_contract() -> None:
     # fields, so they are not in this (Cards-scoped) denylist.
     assert 'Strategy' not in denylist
     assert 'Commander' not in denylist
-    assert denylist == wb.HUMAN_DENYLIST
+    assert denylist == wb._human_denylist()
 
 
 def test_target_table_is_cards_not_decks() -> None:
@@ -240,7 +240,7 @@ def test_build_payload_maps_the_two_derived_fields() -> None:
 
 def test_build_payload_only_contains_allowlist_never_human() -> None:
     payload = wb.build_payload(_resolution())
-    assert not (set(payload) & wb.HUMAN_DENYLIST)
+    assert not (set(payload) & wb._human_denylist())
 
 
 def test_buckets_field_is_multiselect_with_full_crosswalk_options() -> None:
@@ -517,7 +517,9 @@ def test_client_resolves_cards_table_by_name_and_env_base_id(
                     {
                         'id': 'tblINVENTORY',
                         'name': 'Inventory Cards',  # matches the env override
-                        'fields': [{'name': f'{wb.NS}Buckets', 'id': 'fldB'}],
+                        # Carries the human Card fields so it structurally IS the
+                        # Cards table (FIX A binding), plus a derived field.
+                        'fields': [{'name': f'{wb.NS}Buckets', 'id': 'fldB'}, *_cards_table_fields()[2:]],
                     },
                 ]
             },
@@ -526,7 +528,8 @@ def test_client_resolves_cards_table_by_name_and_env_base_id(
     transport = httpx.MockTransport(handler)
     client = wb.AllowlistWriteClient('tok', _client=httpx.Client(transport=transport))
     name_to_id = client.list_fields()
-    assert name_to_id == {f'{wb.NS}Buckets': 'fldB'}
+    assert name_to_id[f'{wb.NS}Buckets'] == 'fldB'
+    assert 'Card Name' in name_to_id  # the resolved table is really the Cards table
     assert client._cards_table_id == 'tblINVENTORY'  # resolved by NAME
     # The meta URL used the ENV base id, not the old hard-coded appw7QPMoqktrgDc1.
     assert any('/meta/bases/appOTHER/tables' in u for u in seen_urls)
@@ -542,6 +545,108 @@ def test_client_raises_clear_error_when_cards_table_name_absent() -> None:
     client = wb.AllowlistWriteClient('tok', _client=httpx.Client(transport=transport))
     with pytest.raises(config.AirtableConfigError, match="'Inventory Cards' not found"):
         client.list_fields()
+
+
+#: A meta payload whose resolved Cards table has the human Card fields present —
+#: i.e. it structurally IS the inventory Cards table (the denylist is a subset).
+def _cards_table_fields() -> list[dict[str, str]]:
+    fields = [{'name': f'{wb.NS}Buckets', 'id': 'fldB'}, {'name': f'{wb.NS}Otags', 'id': 'fldO'}]
+    fields += [{'name': human, 'id': f'fldH{i}'} for i, human in enumerate(sorted(wb._human_denylist()))]
+    return fields
+
+
+def test_list_fields_accepts_real_cards_table() -> None:
+    """FIX A: a resolved table that CONTAINS the human Card fields (structurally
+    the inventory Cards table) passes the wrong-table binding check."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={'tables': [{'id': 'tblCARDS', 'name': 'Inventory Cards', 'fields': _cards_table_fields()}]},
+        )
+
+    transport = httpx.MockTransport(handler)
+    client = wb.AllowlistWriteClient('tok', _client=httpx.Client(transport=transport))
+    name_to_id = client.list_fields()  # must NOT raise
+    assert 'Card Name' in name_to_id
+    assert client._cards_table_id == 'tblCARDS'
+
+
+def test_list_fields_rejects_wrong_table_missing_card_fields() -> None:
+    """FIX A: a misconfigured AIRTABLE_CARDS_TABLE that resolves the WRONG table
+    (e.g. Decks, which lacks the Card human fields) is REFUSED with a clear
+    AirtableConfigError, before any create_field/PATCH can litter that table."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        # A 'Decks'-shaped table: it has NONE of the Cards human fields, so the
+        # denylist is NOT a subset -> the write target is not the Cards table.
+        return httpx.Response(
+            200,
+            json={
+                'tables': [
+                    {
+                        'id': 'tblDECKS',
+                        'name': 'Inventory Cards',  # name matches, but structure does not
+                        'fields': [
+                            {'name': 'Deck Name', 'id': 'fldD0'},
+                            {'name': 'Commander', 'id': 'fldD1'},
+                            {'name': f'{wb.NS}Buckets', 'id': 'fldB'},
+                        ],
+                    }
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    client = wb.AllowlistWriteClient('tok', _client=httpx.Client(transport=transport))
+    with pytest.raises(config.AirtableConfigError, match='not the inventory Cards table'):
+        client.list_fields()
+
+
+def test_import_is_side_effect_free_when_contract_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    """FIX B: importing the module (already imported) must not depend on the
+    filesystem. Point the lazy loader at a MISSING path and prove:
+      - re-importing / accessing module attrs does not crash;
+      - the FIRST denylist access raises a clear runtime error (fail-closed)."""
+    import importlib
+
+    missing = tmp_path / 'nope' / 'golden_contract.json'
+    # Reload the module fresh with a patched path resolver to prove import itself
+    # performs NO filesystem read / assert even when the contract is absent.
+    monkeypatch.setattr(wb, '_golden_contract_path', lambda: missing)
+    wb._human_denylist.cache_clear()
+    # Import (reload) succeeds with the contract absent — no import-time crash.
+    reloaded = importlib.reload(wb)
+    # But the FIRST real use fails loudly (missing file).
+    monkeypatch.setattr(reloaded, '_golden_contract_path', lambda: missing)
+    reloaded._human_denylist.cache_clear()
+    with pytest.raises(FileNotFoundError):
+        reloaded._human_denylist()
+    # Restore a clean module state for subsequent tests.
+    importlib.reload(wb)
+    wb._human_denylist.cache_clear()
+
+
+def test_lazy_loader_asserts_fire_at_first_use(monkeypatch: pytest.MonkeyPatch) -> None:
+    """FIX B: the non-empty + disjointness asserts moved into the lazy loader and
+    still fail-close on first use (not at import)."""
+    # Empty denylist -> the non-empty assert must fire.
+    monkeypatch.setattr(wb, 'load_human_denylist', lambda: frozenset())
+    wb._human_denylist.cache_clear()
+    with pytest.raises(AssertionError, match='denylist is empty'):
+        wb._human_denylist()
+    wb._human_denylist.cache_clear()
+
+    # A denylist that OVERLAPS the allowlist -> the disjointness assert must fire.
+    overlapping = frozenset({next(iter(wb.ALLOWLIST_NAMES))})
+    monkeypatch.setattr(wb, 'load_human_denylist', lambda: overlapping)
+    wb._human_denylist.cache_clear()
+    with pytest.raises(AssertionError, match='overlaps the human denylist'):
+        wb._human_denylist()
+    wb._human_denylist.cache_clear()
 
 
 def test_real_client_full_apply_does_not_crash_on_derived_field_ids() -> None:
@@ -565,8 +670,12 @@ def test_real_client_full_apply_does_not_crash_on_derived_field_ids() -> None:
                             'fields': [
                                 {'name': f'{wb.NS}Buckets', 'id': buckets_id},
                                 {'name': f'{wb.NS}Otags', 'id': otags_id},
-                                {'name': 'Card Name', 'id': 'fldHUMANxxxxxxxx'},
-                                {'name': 'Oracle Text', 'id': 'fldHUMAN2xxxxxxx'},
+                                # ALL the human Card fields so the resolved table
+                                # structurally IS the Cards table (FIX A binding).
+                                *[
+                                    {'name': human, 'id': f'fldHUMAN{i}'}
+                                    for i, human in enumerate(sorted(wb._human_denylist()))
+                                ],
                             ],
                         }
                     ]

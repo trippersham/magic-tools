@@ -63,6 +63,7 @@ import math
 import os
 import time
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -232,28 +233,38 @@ def load_human_denylist(path: Path | None = None) -> frozenset[str]:
     return frozenset(denied)
 
 
-#: Loaded once at import so the guard is cheap and the allowlist/denylist
-#: disjointness can be asserted structurally below.
-HUMAN_DENYLIST: frozenset[str] = load_human_denylist()
+@lru_cache(maxsize=1)
+def _human_denylist() -> frozenset[str]:
+    """Return the human-field DENYLIST, loaded LAZILY and cached on first use.
 
-# FAIL-CLOSED, checked at import time: an EMPTY denylist would silently degrade
-# the human-field guard to allowlist-only (no human field would ever be caught by
-# the denylist check). That happens if the golden contract is missing or its Cards
-# table key does not match CARDS_TABLE_NAME. Fail LOUDLY at import instead.
-assert HUMAN_DENYLIST, (
-    'FATAL: the human-field denylist is empty; regression/golden_contract.json is '
-    f"missing or its Cards-table key doesn't match CARDS_TABLE_NAME={CARDS_TABLE_NAME!r}. "
-    'The human-field write guard must never degrade to allowlist-only.'
-)
+    Deliberately NOT loaded at import: importing this module must be
+    side-effect-free (no filesystem read, no ``assert``) so the pipeline package
+    is not coupled to the sibling ``regression/`` dir merely by import. The load
+    (and the two fail-closed safety asserts below) run on first REAL use — i.e.
+    when a write is planned/guarded — so a missing/empty/mis-keyed contract still
+    fail-closes LOUDLY, just at first use instead of at import time.
 
-# STRUCTURAL INVARIANT, checked at import time: the fields this module is allowed
-# to write and the human fields it must never write are DISJOINT. If a future
-# edit ever names an allowlist field after a human field, this import fails loud.
-_OVERLAP = ALLOWLIST_NAMES & HUMAN_DENYLIST
-assert not _OVERLAP, (
-    f'FATAL: derived allowlist overlaps the human denylist: {sorted(_OVERLAP)}. '
-    'The write-back must never own a human-edited field name.'
-)
+    Two fail-closed asserts, checked here on first use:
+        1. NON-EMPTY: an empty denylist would silently degrade the human-field
+           guard to allowlist-only. That happens if the golden contract is missing
+           or its Cards-table key does not match :data:`CARDS_TABLE_NAME`. Fail
+           LOUD instead.
+        2. DISJOINTNESS: the fields this module may write and the human fields it
+           must never write must be DISJOINT; if an edit ever names an allowlist
+           field after a human field, this fails loud.
+    """
+    denylist = load_human_denylist()
+    assert denylist, (
+        'FATAL: the human-field denylist is empty; regression/golden_contract.json is '
+        f"missing or its Cards-table key doesn't match CARDS_TABLE_NAME={CARDS_TABLE_NAME!r}. "
+        'The human-field write guard must never degrade to allowlist-only.'
+    )
+    overlap = ALLOWLIST_NAMES & denylist
+    assert not overlap, (
+        f'FATAL: derived allowlist overlaps the human denylist: {sorted(overlap)}. '
+        'The write-back must never own a human-edited field name.'
+    )
+    return denylist
 
 
 def assert_no_human_fields(payload_fields: Any) -> None:
@@ -261,11 +272,11 @@ def assert_no_human_fields(payload_fields: Any) -> None:
     field outside the allowlist. Called before every request is built.
 
     Two independent checks so the failure mode is explicit:
-        1. intersection with :data:`HUMAN_DENYLIST` must be EMPTY (the core proof);
+        1. intersection with :func:`_human_denylist` must be EMPTY (the core proof);
         2. every field must be in :data:`ALLOWLIST_NAMES` (closed-set defense).
     """
     fields = set(payload_fields)
-    human = fields & HUMAN_DENYLIST
+    human = fields & _human_denylist()
     if human:
         raise HumanFieldWriteError(
             f'REFUSED: write payload contains human-edited Card field(s) {sorted(human)}. '
@@ -494,8 +505,25 @@ class AllowlistWriteClient:
         resp.raise_for_status()
         for table in resp.json().get('tables', []):
             if table.get('name') == self._cards_table_name:
-                self._cards_table_id = table.get('id')
                 name_to_id = {f['name']: f['id'] for f in table.get('fields', [])}
+                # WRONG-TABLE WRITE GUARD: bind the derived write to the REAL Cards
+                # table structurally. A misconfigured/hostile AIRTABLE_CARDS_TABLE
+                # (e.g. '=Decks') could resolve a table by NAME that is not the
+                # inventory Cards table; ensure_fields would then create the two ⚙
+                # fields on it and PATCH derived values onto its records. Require
+                # that the resolved table CONTAINS the human Card fields (the
+                # denylist is a SUBSET of its field names) — Decks lacks 'Card
+                # Name'/'Number Owned'/… so it is refused BEFORE any create/PATCH.
+                # This is an ADDITIONAL binding; it does not loosen any existing
+                # allowlist/denylist/wire guard.
+                missing_card_fields = _human_denylist() - set(name_to_id)
+                if missing_card_fields:
+                    raise AirtableConfigError(
+                        f'resolved table {self._cards_table_name!r} (id {table.get("id")!r}) is not the '
+                        f'inventory Cards table — it is missing the expected Card fields '
+                        f'{sorted(missing_card_fields)}; check AIRTABLE_CARDS_TABLE.'
+                    )
+                self._cards_table_id = table.get('id')
                 self.resolve_field_map(name_to_id)
                 return name_to_id
         raise AirtableConfigError(
