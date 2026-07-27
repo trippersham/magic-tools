@@ -1,11 +1,11 @@
-"""Ingest — hand-rolled per-source pullers landing raw data into the lake.
+"""Ingest — hand-rolled per-source pullers loading raw data into the lake.
 
 Each puller follows the same shape (data-architecture §ingest):
-``fetch -> watermark/updated_at check -> append-dedupe into raw/``, and is
+``fetch -> cursor/updated_at check -> append-dedupe into raw/``, and is
 FAIL-OPEN: a dead network degrades to a bundled snapshot (where one exists)
 rather than crashing a caller.
 
-Shared primitives live in :mod:`pipeline.ingest._common` (watermark + dedupe).
+Shared primitives live in :mod:`pipeline.ingest._common` (cursor + dedupe).
 Run a single stage as ``python -m pipeline.ingest.<source>`` or via the
 dispatcher ``python -m pipeline.ingest.run <source>``.
 
@@ -18,6 +18,6 @@ dispatcher ``python -m pipeline.ingest.run <source>``.
 
 from __future__ import annotations
 
-from pipeline.ingest._common import Watermark, dedupe, is_newer
+from pipeline.ingest._common import Cursor, dedupe, is_newer
 
-__all__ = ['Watermark', 'dedupe', 'is_newer']
+__all__ = ['Cursor', 'dedupe', 'is_newer']

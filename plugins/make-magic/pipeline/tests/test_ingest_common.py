@@ -1,11 +1,11 @@
 """TDD tests for the pure ingest primitives (``ingest/_common.py``).
 
-Everything here is OFFLINE and pure: the watermark store is a JSON file under
+Everything here is OFFLINE and pure: the cursor store is a JSON file under
 the env-overridden data root; ``dedupe`` is a pure function over rows. No
 network, no HTTP, no store/DuckDB — just the primitives the pullers build on.
 
 Coverage:
-    - Watermark: first-run has no watermark (None); write then read round-trips
+    - Cursor: first-run has no cursor (None); write then read round-trips
       per source; distinct sources are independent; a corrupt/missing file reads
       as empty (fail-open, never raises).
     - is_newer: skip-if-not-newer semantics on both ISO timestamps and opaque
@@ -24,57 +24,57 @@ from pipeline.ingest import _common
 
 @pytest.fixture()
 def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Point the store (and thus the watermark file) at an isolated tmp root."""
+    """Point the store (and thus the cursor file) at an isolated tmp root."""
     root = tmp_path / 'data'
     monkeypatch.setenv('MAKE_MAGIC_DATA_DIR', str(root))
     return root
 
 
 # --------------------------------------------------------------------------- #
-# Watermark read/write
+# Cursor read/write
 # --------------------------------------------------------------------------- #
 
 
-def test_first_run_has_no_watermark(data_dir: Path) -> None:
-    wm = _common.Watermark.load()
-    assert wm.get('oracle_tags') is None
+def test_first_run_has_no_cursor(data_dir: Path) -> None:
+    cursor = _common.Cursor.load()
+    assert cursor.get('oracle_tags') is None
 
 
 def test_write_then_read_roundtrips(data_dir: Path) -> None:
-    wm = _common.Watermark.load()
-    wm.set('oracle_tags', '2026-07-26T21:00:38.932+00:00')
-    wm.save()
+    cursor = _common.Cursor.load()
+    cursor.set('oracle_tags', '2026-07-26T21:00:38.932+00:00')
+    cursor.save()
 
-    reloaded = _common.Watermark.load()
+    reloaded = _common.Cursor.load()
     assert reloaded.get('oracle_tags') == '2026-07-26T21:00:38.932+00:00'
 
 
 def test_distinct_sources_are_independent(data_dir: Path) -> None:
-    wm = _common.Watermark.load()
-    wm.set('oracle_tags', 'tok-A')
-    wm.set('combos', 'tok-B')
-    wm.save()
+    cursor = _common.Cursor.load()
+    cursor.set('oracle_tags', 'tok-A')
+    cursor.set('combos', 'tok-B')
+    cursor.save()
 
-    reloaded = _common.Watermark.load()
+    reloaded = _common.Cursor.load()
     assert reloaded.get('oracle_tags') == 'tok-A'
     assert reloaded.get('combos') == 'tok-B'
     assert reloaded.get('scryfall_bulk') is None
 
 
-def test_corrupt_watermark_file_reads_as_empty(data_dir: Path) -> None:
-    # A garbage file must not crash a puller — fail-open to "no watermark".
-    path = _common.Watermark.path()
+def test_corrupt_cursor_file_reads_as_empty(data_dir: Path) -> None:
+    # A garbage file must not crash a puller — fail-open to "no cursor".
+    path = _common.Cursor.path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('{ not valid json ', encoding='utf-8')
 
-    wm = _common.Watermark.load()
-    assert wm.get('oracle_tags') is None
+    cursor = _common.Cursor.load()
+    assert cursor.get('oracle_tags') is None
 
 
-def test_missing_watermark_file_reads_as_empty(data_dir: Path) -> None:
-    assert not _common.Watermark.path().exists()
-    wm = _common.Watermark.load()
-    assert wm.get('anything') is None
+def test_missing_cursor_file_reads_as_empty(data_dir: Path) -> None:
+    assert not _common.Cursor.path().exists()
+    cursor = _common.Cursor.load()
+    assert cursor.get('anything') is None
 
 
 # --------------------------------------------------------------------------- #

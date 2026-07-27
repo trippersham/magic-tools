@@ -15,9 +15,9 @@ Design notes:
       field vocabulary (InventoryRow / TradeRow / Deck) — see
       skills/building-decks/references/airtable-schema.md.
     - FactSheet mirrors scripts/deck_factsheet.py build_factsheet() output KEYS
-      EXACTLY, plus forward-looking OPTIONAL fields (otag_buckets,
-      susceptibility) defaulted empty so Phase 4 can populate them without
-      breaking the contract.
+      EXACTLY, plus OPTIONAL fields (otag_buckets, susceptibility) defaulted
+      empty so a caller that omits the otag layer still produces a valid
+      contract.
 """
 
 from __future__ import annotations
@@ -229,15 +229,16 @@ class FactSheetFocusRelative(BaseModel):
 class FactSheet(BaseModel):
     """The neutral deck fact sheet — MIRRORS build_factsheet() output KEYS EXACTLY.
 
-    Existing keys (deck/shape/mana/keywords/interaction/card_advantage/
-    structural/coverage/cards/missing) are preserved and MUST NOT be renamed or
-    removed. Two forward-looking OPTIONAL fields, defaulted empty, let Phase 4
-    populate otag-derived facts without breaking this contract.
+    Core keys (deck/shape/mana/keywords/interaction/card_advantage/
+    structural/coverage/cards/missing) MUST NOT be renamed or removed. Two
+    OPTIONAL fields (otag_buckets, susceptibility), defaulted empty, carry the
+    otag-derived facts; a caller that omits the otag layer still produces a
+    valid contract.
 
     Focus-relative fields (``focus`` + ``focus_relative``) are additional OPTIONAL
     fields, also defaulted empty: they echo the deck's declared focus set and the
     three signals measuring actual card tags against it. Empty when the deck
-    declares no focus, so existing (no-focus) output stays byte-identical.
+    declares no focus, so no-focus output stays byte-identical.
     """
 
     model_config = ConfigDict(extra='forbid')
@@ -256,14 +257,14 @@ class FactSheet(BaseModel):
         description='Decklist names that did not resolve to a card.',
     )
 
-    # --- forward-looking (Phase 4), defaulted empty so the current shape holds --
+    # --- otag-derived, defaulted empty so the no-otag shape still validates -----
     otag_buckets: dict[str, int] = Field(
         default_factory=dict,
-        description='Oracle-tag bucket -> card count (populated in Phase 4).',
+        description='Oracle-tag bucket -> card count (empty if the otag layer is unavailable).',
     )
     susceptibility: list[str] = Field(
         default_factory=list,
-        description='Susceptibility signals / resilience gaps (populated in Phase 4).',
+        description='Susceptibility signals / resilience gaps (empty if the otag layer is unavailable).',
     )
 
     # --- focus-relative (additive, OPTIONAL), defaulted empty ----------------- #

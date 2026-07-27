@@ -27,17 +27,16 @@ Two layers of facts:
   2. OTAG facts (delegated to ``pipeline.transforms.deck_factsheet.factsheet_for``):
      the multi-label ``otag_buckets`` map (bucket -> nonland card count) and a
      data-grounded ``susceptibility`` list, computed from Scryfall oracle-tags
-     rolled up the tag DAG. This REPLACES the retired v1 oracle-text interaction
-     census (board-wipe/spot-removal/counterspell/protection/draw/ETB/land-fetch
-     regexes) — regex left 60%+ of nonlands uncategorized; otags do not.
+     rolled up the tag DAG. Otags categorize where an oracle-text regex census
+     would not — regex leaves 60%+ of nonlands uncategorized; otags do not.
 
-Bundled + self-refreshing otag dataset (Pilot #1): the otag layer routes through
-the Phase-3 ``ingest.oracle_tags`` puller's normal fetch -> watermark -> land
-path. On first ONLINE use it pulls the FULL daily oracle-tags file into the
-store's ``raw/`` layer (the source of ~84-92% coverage) and REUSES that cached
-landed copy on later runs (daily watermark — no 18 MB refetch). With no network
-it fails open to the bundled compressed snapshot (~20% baseline), and with no
-store at all it degrades to structured facts only.
+Bundled + self-refreshing otag dataset: the otag layer routes through the
+``ingest.oracle_tags`` puller's normal fetch -> cursor -> load path. On first
+ONLINE use it pulls the FULL daily oracle-tags file into the store's ``raw/``
+layer (the source of ~84-92% coverage) and REUSES that cached loaded copy on
+later runs (daily cursor — no 18 MB refetch). With no network it fails open to
+the bundled compressed snapshot (~20% baseline), and with no store at all it
+degrades to structured facts only.
 
 Graceful degradation (invariant I5): if the pipeline package or its otag data is
 unavailable, this script STILL emits the structured facts with
@@ -98,10 +97,9 @@ _OTAG_UNAVAILABLE = (
 # Scryfall STRUCTURED fields only. These back the offline fallback and are the
 # facts that would NOT change if a card were moved to a different deck.
 #
-# The v1 oracle-text interaction census (board-wipe/spot-removal/counterspell/
-# protection/draw/ETB/graveyard-recursion/land-fetch regexes and the coverage
-# built on them) was RETIRED here in Phase 4b and replaced by the pipeline's
-# otag buckets — see the delegation in build_factsheet().
+# Functional interaction categorization (removal/counters/protection/draw/...) is
+# NOT done here via oracle-text regex; it is delegated to the pipeline's otag
+# buckets — see the delegation in build_factsheet().
 # --------------------------------------------------------------------------- #
 
 
@@ -147,10 +145,9 @@ def _produces_mana(card: dict) -> bool:
 def _is_ramp_source(card: dict) -> bool:
     """A NONLAND is a ramp source if it produces mana (structured produced_mana).
 
-    v1 also matched a "search your library for … land … onto the battlefield"
-    REGEX; that land-fetch regex was retired in Phase 4b. The otag ``ramp``
-    bucket (pipeline layer) now captures land-ramp/tutor-to-play cards precisely;
-    this structured fallback keys on produced_mana only.
+    This structured fallback keys on produced_mana ONLY (no oracle-text regex).
+    Land-ramp / tutor-to-play cards that produce no mana themselves are captured
+    by the otag ``ramp`` bucket in the pipeline layer, not here.
     """
     if is_land(_type_line(card)):
         return False
@@ -308,21 +305,21 @@ def _rollup_to_card_otag(tags: list[dict]) -> dict[str, set[str]]:
 
 
 def _load_tags_via_puller() -> list[dict]:
-    """Get the FULL oracle-tags via the Phase-3 puller's normal path.
+    """Get the FULL oracle-tags via the ingest puller's normal path.
 
-    This is the "bundled + self-refreshing dataset" pattern (Pilot #1):
+    This is the "bundled + self-refreshing dataset" pattern:
 
-      * ``oracle_tags.run()`` does fetch -> **watermark** check -> land into the
+      * ``oracle_tags.sync()`` does fetch -> **cursor** check -> load into the
         store's ``raw/oracle_tags`` layer. On the FIRST online use it fetches the
-        full ~18 MB daily file (the source of ~84-92% coverage) and lands it; on
-        SUBSEQUENT runs the daily watermark short-circuits the re-land, so we do
+        full ~18 MB daily file (the source of ~84-92% coverage) and loads it; on
+        SUBSEQUENT runs the daily cursor short-circuits the re-load, so we do
         NOT refetch 18 MB every invocation — we REUSE the cached raw/ copy.
       * The puller itself FAILS OPEN to the bundled snapshot on any network/HTTP
         error, so this path still yields tags offline (just the capped baseline).
 
-    After landing, we read the tags back out of ``raw/oracle_tags`` with the
+    After loading, we read the tags back out of ``raw/oracle_tags`` with the
     rollup's own reader so the rolled-up map is built from whatever source the
-    puller actually landed (full when online/cached, snapshot when offline).
+    puller actually loaded (full when online/cached, snapshot when offline).
 
     Raises on any store/duckdb failure so the caller can fall back to loading the
     bundled snapshot directly (never crashing the fact sheet).
@@ -330,25 +327,25 @@ def _load_tags_via_puller() -> list[dict]:
     from pipeline.ingest import oracle_tags
     from pipeline.transforms import otag_rollup
 
-    # run() lands raw/oracle_tags (watermark-gated; fail-open to snapshot).
-    oracle_tags.run()
-    # Read back whatever was landed (full daily file when online/cached).
+    # sync() loads raw/oracle_tags (cursor-gated; fail-open to snapshot).
+    oracle_tags.sync()
+    # Read back whatever was loaded (full daily file when online/cached).
     return otag_rollup._load_raw_tags()
 
 
 def _load_card_otag() -> dict[str, set[str]] | None:
     """Build the ``oracle_id -> set[slug]`` closure, self-refreshing when online.
 
-    "Bundled + self-refreshing dataset" (Pilot #1). Source selection, in order:
+    "Bundled + self-refreshing dataset". Source selection, in order:
 
-      1. **Puller-backed (preferred):** route through ``oracle_tags.run()`` — its
-         fetch -> watermark -> land pipeline — to get the FULL oracle-tags into
+      1. **Puller-backed (preferred):** route through ``oracle_tags.sync()`` — its
+         fetch -> cursor -> load pipeline — to get the FULL oracle-tags into
          the store's ``raw/`` layer on first online use and REUSE that cached
-         landed copy on later runs (daily watermark; no 18 MB refetch). This is
-         what delivers the ~84-92% coverage. Read the landed tags back and roll
+         loaded copy on later runs (daily cursor; no 18 MB refetch). This is
+         what delivers the ~84-92% coverage. Read the loaded tags back and roll
          them up.
       2. **Snapshot fallback:** if the puller path raises (store/duckdb missing,
-         land error, etc.), load the bundled compressed snapshot directly
+         load error, etc.), load the bundled compressed snapshot directly
          (``oracle_tags._load_snapshot``) — the offline baseline (~20% coverage).
          Note the puller ALSO fails open to this snapshot internally on a network
          error; this second try only fires when the store machinery itself is
@@ -412,11 +409,11 @@ def _pipeline_factsheet(
 # Fallback fact sheet — structured facts only, when the otag layer is absent.
 #
 # Emits the SAME top-level shape as the pipeline (so it still validates against
-# contracts.FactSheet), with the regex-era census blocks degraded to their
-# structured subset: instant_speed is real (structured); the retired oracle-text
-# census fields are zeroed; coverage lists every nonland as uncategorized (an
-# honest "no otag signal" tell); otag_buckets is empty; and susceptibility
-# carries the clear "otag layer unavailable" diagnostic.
+# contracts.FactSheet), degraded to the structured subset: instant_speed is real
+# (structured); the functional interaction census fields are zeroed; coverage
+# lists every nonland as uncategorized (an honest "no otag signal" tell);
+# otag_buckets is empty; and susceptibility carries the clear "otag layer
+# unavailable" diagnostic.
 # --------------------------------------------------------------------------- #
 
 
@@ -499,8 +496,8 @@ def build_factsheet(
 
 
 # --------------------------------------------------------------------------- #
-# Decklist parsing (kept verbatim from v1 — inline-comment + set-annotation
-# stripping; skips blanks / comments / section headers).
+# Decklist parsing (inline-comment + set-annotation stripping; skips blanks /
+# comments / section headers).
 # --------------------------------------------------------------------------- #
 
 _DECK_LINE = re.compile(r'^\s*(?:(\d+)x?\s+)?(.+?)\s*$')

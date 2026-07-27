@@ -1,7 +1,7 @@
 """Normalize Commander Spellbook combos and detect them in a decklist.
 
 Reads ``raw/combos`` (variant records — see ``ingest.spellbook``), projects the
-fields we need, and lands a flat ``normalized/combo`` table:
+fields we need, and materializes a flat ``normalized/combo`` table:
 
     variant_id, card_names (list), card_oracle_ids (list), result (str)
 
@@ -130,7 +130,7 @@ def combos_in_deck(
 
 
 # --------------------------------------------------------------------------- #
-# I/O — read raw variants, land normalized combos, load them back.
+# I/O — read raw variants, materialize normalized combos, load them back.
 # --------------------------------------------------------------------------- #
 
 
@@ -145,8 +145,8 @@ def _load_raw_variants() -> list[dict]:
     return variants
 
 
-def _land(combos: list[Combo]) -> Path:
-    """Land normalized combos to ``normalized/combo``."""
+def _materialize(combos: list[Combo]) -> Path:
+    """Materialize normalized combos to ``normalized/combo``."""
     payload = [
         {
             'variant_id': c.variant_id,
@@ -193,10 +193,10 @@ def load_combos() -> list[Combo]:
 
 
 def build() -> Path:
-    """Read ``raw/combos``, normalize, land ``normalized/combo``; return the path."""
+    """Read ``raw/combos``, normalize, materialize ``normalized/combo``; return the path."""
     variants = _load_raw_variants()
     combos = normalize_variants(variants)
-    path = _land(combos)
+    path = _materialize(combos)
     log.info('combo: normalized %d variants into %d combos.', len(variants), len(combos))
     return path
 
@@ -204,7 +204,7 @@ def build() -> Path:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     path = build()
-    print(f'landed combo -> {path}')
+    print(f'materialized combo -> {path}')
 
 
 if __name__ == '__main__':

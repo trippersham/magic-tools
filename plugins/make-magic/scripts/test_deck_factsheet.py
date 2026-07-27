@@ -4,12 +4,11 @@ Run:
     uv run --with pytest --with typer --with httpx --with duckdb --with pydantic \
         pytest plugins/make-magic/scripts/test_deck_factsheet.py -q
 
-Phase 4b retired the script's OWN regex interaction/draw/ETB/land-fetch census and
-delegated the fact sheet to the pipeline's ``factsheet_for`` (multi-label otag
-buckets + data-grounded susceptibility). What stays in the script are the
-STRUCTURED-field facts (cmc curve, color pips, produced_mana ramp/fixing,
-keywords, instant-speed) — these back the graceful FALLBACK when the pipeline
-package or its otag snapshot is unavailable.
+The script delegates functional categorization to the pipeline's ``factsheet_for``
+(multi-label otag buckets + data-grounded susceptibility). What lives in the
+script are the STRUCTURED-field facts (cmc curve, color pips, produced_mana
+ramp/fixing, keywords, instant-speed) — these back the graceful FALLBACK when the
+pipeline package or its otag snapshot is unavailable.
 
 Governing invariants:
   - The output ALWAYS validates against ``contracts.FactSheet`` (same top-level
@@ -319,10 +318,10 @@ def test_load_card_otag_is_populated():
 
 
 # --------------------------------------------------------------------------- #
-# _load_card_otag source selection — bundled + self-refreshing (Pilot #1).
+# _load_card_otag source selection — bundled + self-refreshing.
 #
-# 1) Puller-backed: run() lands raw/oracle_tags (watermark-gated, fail-open to
-#    snapshot internally); we read the landed tags back and roll them up.
+# 1) Puller-backed: sync() loads raw/oracle_tags (cursor-gated, fail-open to
+#    snapshot internally); we read the loaded tags back and roll them up.
 # 2) Snapshot fallback: if the puller/store path raises, load the bundled
 #    snapshot directly.
 # 3) None: if even the snapshot cannot load -> structured-only fallback (I5).
@@ -347,18 +346,18 @@ _FAKE_TAGS = [
 
 
 def test_load_card_otag_routes_through_puller(monkeypatch):
-    # PREFERRED path: _load_card_otag must drive the puller (run -> land) and read
-    # the LANDED tags back, NOT call _load_snapshot directly. Prove run() is
-    # invoked and the rolled-up map comes from the puller-landed tags.
+    # PREFERRED path: _load_card_otag must drive the puller (sync -> load) and read
+    # the LOADED tags back, NOT call _load_snapshot directly. Prove sync() is
+    # invoked and the rolled-up map comes from the puller-loaded tags.
     import deck_factsheet
     from pipeline.ingest import oracle_tags
     from pipeline.transforms import otag_rollup
 
-    calls: dict[str, int] = {'run': 0, 'read_raw': 0, 'snapshot': 0}
+    calls: dict[str, int] = {'sync': 0, 'read_raw': 0, 'snapshot': 0}
 
-    def fake_run(*a, **k):
-        calls['run'] += 1
-        return None  # landed path (return value unused by the script)
+    def fake_sync(*a, **k):
+        calls['sync'] += 1
+        return None  # loaded path (return value unused by the script)
 
     def fake_read_raw():
         calls['read_raw'] += 1
@@ -368,21 +367,21 @@ def test_load_card_otag_routes_through_puller(monkeypatch):
         calls['snapshot'] += 1
         return _FAKE_TAGS
 
-    monkeypatch.setattr(oracle_tags, 'run', fake_run)
+    monkeypatch.setattr(oracle_tags, 'sync', fake_sync)
     monkeypatch.setattr(otag_rollup, '_load_raw_tags', fake_read_raw)
     monkeypatch.setattr(oracle_tags, '_load_snapshot', fake_snapshot)
 
     card_otag = deck_factsheet._load_card_otag()
 
-    assert calls['run'] == 1, "must drive the puller's fetch/watermark/land path"
-    assert calls['read_raw'] == 1, 'must read the LANDED raw tags back'
+    assert calls['sync'] == 1, "must drive the puller's fetch/cursor/load path"
+    assert calls['read_raw'] == 1, 'must read the LOADED raw tags back'
     assert calls['snapshot'] == 0, 'must NOT bypass the puller with a direct snapshot load'
     # Rollup: the card carries the leaf, so its closure has leaf + ancestor.
     assert card_otag == {'oid-a': {'sweeper', 'removal'}}
 
 
 def test_load_card_otag_falls_back_to_snapshot_when_puller_raises(monkeypatch):
-    # If the store/puller machinery is unusable (run raises), fall back to the
+    # If the store/puller machinery is unusable (sync raises), fall back to the
     # bundled snapshot directly — still fail-open, never crash.
     import deck_factsheet
     from pipeline.ingest import oracle_tags
@@ -396,7 +395,7 @@ def test_load_card_otag_falls_back_to_snapshot_when_puller_raises(monkeypatch):
         calls['snapshot'] += 1
         return _FAKE_TAGS
 
-    monkeypatch.setattr(oracle_tags, 'run', boom)
+    monkeypatch.setattr(oracle_tags, 'sync', boom)
     monkeypatch.setattr(oracle_tags, '_load_snapshot', fake_snapshot)
 
     card_otag = deck_factsheet._load_card_otag()
@@ -413,7 +412,7 @@ def test_load_card_otag_returns_none_when_all_sources_fail(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError('dead')
 
-    monkeypatch.setattr(oracle_tags, 'run', boom)
+    monkeypatch.setattr(oracle_tags, 'sync', boom)
     monkeypatch.setattr(oracle_tags, '_load_snapshot', boom)
 
     assert deck_factsheet._load_card_otag() is None

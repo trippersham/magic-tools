@@ -1,8 +1,6 @@
-"""Pipeline ``factsheet_for`` — the otag-powered deck fact sheet (Phase 4a mart).
+"""Pipeline ``factsheet_for`` — the otag-powered deck fact sheet mart.
 
-DISTINCT from ``scripts/deck_factsheet.py`` (which is READ-ONLY and stays the
-regex-era census). This pipeline version ADDS the payoff of adopting oracle
-tags: a multi-label ``otag_buckets`` map (bucket -> card count) and a
+Emits a multi-label ``otag_buckets`` map (bucket -> card count) and a
 data-grounded ``susceptibility`` list, on top of the structured facts. Its
 output validates against ``contracts.FactSheet`` (``model_validate``).
 
@@ -12,9 +10,10 @@ oracle_text). The otag join is supplied as ``card_otag`` — an
 ``oracle_id -> set[slug]`` map (the rolled-up slug closure from ``otag_rollup``).
 
 The structured facts (shape/mana/interaction/card_advantage/structural/keywords)
-are recomputed here from the same precision-first rules the scripts version uses,
-so this mart is self-contained and its ``coverage`` block can be REPLACED by the
-otag categorization (the whole point: regex left 60%+ uncategorized; otags don't).
+are recomputed here from the same precision-first rules used at the scripts
+boundary, so this mart is self-contained. Functional categorization comes from
+otag buckets rather than an oracle-text regex census (which leaves 60%+ of
+nonlands uncategorized).
 """
 
 from __future__ import annotations
@@ -273,8 +272,7 @@ def otag_buckets(cards: list[dict], card_otag: dict[str, set[str]]) -> dict[str,
 def _coverage(cards: list[dict], card_otag: dict[str, set[str]]) -> dict:
     """otag coverage: % of NONLAND cards that land in >=1 bucket.
 
-    This REPLACES the regex census's coverage — the adoption payoff. The
-    uncategorized list is the residual (cards no bucket claims), the synergy /
+    The uncategorized list is the residual (cards no bucket claims), the synergy /
     low-signal tell the reasoning layer inspects.
     """
     nonland = [c for c in cards if not is_land(_type_line(c))]
@@ -470,8 +468,8 @@ def factsheet_for(
     Returns:
         A dict that satisfies ``contracts.FactSheet.model_validate``. The
         structured facts mirror the scripts census; ``coverage`` is the OTAG
-        coverage (adoption payoff); ``otag_buckets`` + ``susceptibility`` are the
-        Phase-4 fields; ``focus`` + ``focus_relative`` are the focus-relative
+        coverage; ``otag_buckets`` + ``susceptibility`` are the otag-derived
+        fields; ``focus`` + ``focus_relative`` are the focus-relative
         signals (empty when no focus is supplied).
     """
     otag = card_otag or {}

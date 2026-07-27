@@ -1,6 +1,6 @@
 """``python -m pipeline.transforms.build`` — (re)build the normalized marts.
 
-Ensures the raw sources exist (running the Phase-3 pullers, which fail-open to
+Ensures the raw sources exist (running the ingest pullers, which fail-open to
 the bundled snapshots offline) and then materializes every normalized table via
 the ``driver.TABLES`` map (card_otag + combo).
 
@@ -26,13 +26,13 @@ log = logging.getLogger('make_magic.transforms.build')
 def ensure_raw() -> None:
     """Ensure ``raw/oracle_tags`` and ``raw/combos`` exist (pull if missing).
 
-    The pullers are watermark-gated + fail-open, so this is cheap when raw is
-    fresh and safe offline (lands the bundled snapshot on any fetch failure).
+    The pullers are cursor-gated + fail-open, so this is cheap when raw is
+    fresh and safe offline (loads the bundled snapshot on any fetch failure).
     """
     if not store.table_exists('raw', oracle_tags.SOURCE):
-        oracle_tags.run()
+        oracle_tags.sync()
     if not store.table_exists('raw', spellbook.SOURCE):
-        spellbook.run()
+        spellbook.sync()
 
 
 def run(*, ingest: bool = True) -> dict[str, str]:
@@ -54,7 +54,7 @@ def main() -> None:
     args = parser.parse_args()
     built = run(ingest=not args.no_ingest)
     for name, path in built.items():
-        print(f'landed {name} -> {path}')
+        print(f'built {name} -> {path}')
 
 
 if __name__ == '__main__':

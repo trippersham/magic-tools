@@ -111,9 +111,9 @@ def test_rollup_rows_are_distinct() -> None:
     assert rows.count(('oid-1', 'removal')) == 1
 
 
-def test_rollup_land_and_readback(data_dir: Path) -> None:
+def test_rollup_materialize_and_readback(data_dir: Path) -> None:
     rows = [('oid-1', 'removal'), ('oid-1', 'sweeper'), ('oid-2', 'ramp')]
-    path = otag_rollup._land(rows)
+    path = otag_rollup._materialize(rows)
     assert path.exists()
     with store.connect() as conn:
         got = set(store.read_parquet(conn, 'normalized', 'card_otag').fetchall())

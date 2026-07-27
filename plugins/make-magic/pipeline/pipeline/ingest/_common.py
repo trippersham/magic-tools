@@ -1,17 +1,17 @@
-"""Pure ingest primitives: watermark tracking + append-dedupe.
+"""Pure ingest primitives: incremental cursor tracking + append-dedupe.
 
 These are the TDD'd, side-effect-light building blocks every puller shares. The
 design (data-architecture §ingest): a puller does
-``fetch -> watermark/updated_at check (skip if not newer) -> append-dedupe into raw/``.
+``fetch -> cursor/updated_at check (skip if not newer) -> append-dedupe into raw/``.
 This module owns the first and third steps as pure-ish functions so the pullers
 stay thin and the gate logic is tested in isolation.
 
-Watermark storage: a single JSON map ``{source: token}`` at
-``data/raw/_watermarks.json``. ``token`` is whatever a source uses to detect
+Cursor storage: a single JSON map ``{source: token}`` at
+``data/raw/_cursors.json``. ``token`` is whatever a source uses to detect
 change — an ISO ``updated_at`` for Scryfall bulk, an HTTP ``ETag`` /
 ``Last-Modified`` for Spellbook, a ``Last Modified Time`` high-water for
 Airtable. Reads are FAIL-OPEN: a missing or corrupt file degrades to "no
-watermark" (forces a refresh) rather than crashing a caller.
+cursor" (forces a refresh) rather than crashing a caller.
 """
 
 from __future__ import annotations
@@ -27,13 +27,13 @@ from pipeline.store.paths import StorePaths
 
 log = logging.getLogger('make_magic.ingest')
 
-#: Filename of the per-source watermark map inside the raw/ layer dir.
-WATERMARK_FILENAME = '_watermarks.json'
+#: Filename of the per-source cursor map inside the raw/ layer dir.
+CURSOR_FILENAME = '_cursors.json'
 
 Row = TypeVar('Row', bound=Mapping[str, object])
 
 
-class Watermark:
+class Cursor:
     """A read/write map of ``{source: last_token}`` persisted as JSON.
 
     Load with :meth:`load` (fail-open), mutate via :meth:`set`, persist with
@@ -48,19 +48,19 @@ class Watermark:
 
     @staticmethod
     def path() -> Path:
-        """Resolve the watermark file path (``data/raw/_watermarks.json``).
+        """Resolve the cursor file path (``data/raw/_cursors.json``).
 
         Uses ``create=False`` so merely locating the file never materializes the
         ``raw/`` directory as a side effect.
         """
         raw_dir = StorePaths.resolve().layer_dir('raw', create=False)
-        return raw_dir / WATERMARK_FILENAME
+        return raw_dir / CURSOR_FILENAME
 
     # -- load / save ------------------------------------------------------- #
 
     @classmethod
-    def load(cls) -> Watermark:
-        """Load the watermark map, FAIL-OPEN.
+    def load(cls) -> Cursor:
+        """Load the cursor map, FAIL-OPEN.
 
         A missing file, unreadable file, invalid JSON, or non-dict payload all
         degrade to an empty map (so the puller treats everything as stale and
@@ -72,19 +72,19 @@ class Watermark:
         try:
             data = json.loads(path.read_text(encoding='utf-8'))
         except (OSError, ValueError) as exc:
-            log.warning('watermark: unreadable %s (%s); treating as empty.', path, exc)
+            log.warning('cursor: unreadable %s (%s); treating as empty.', path, exc)
             return cls()
         if not isinstance(data, dict):
-            log.warning('watermark: %s is not an object; treating as empty.', path)
+            log.warning('cursor: %s is not an object; treating as empty.', path)
             return cls()
         # Coerce to str->str, dropping any malformed entries defensively.
         tokens = {str(k): str(v) for k, v in data.items() if v is not None}
         return cls(tokens)
 
     def save(self) -> Path:
-        """Persist the map to ``data/raw/_watermarks.json`` (dir created)."""
+        """Persist the map to ``data/raw/_cursors.json`` (dir created)."""
         raw_dir = StorePaths.resolve().layer_dir('raw', create=True)
-        path = raw_dir / WATERMARK_FILENAME
+        path = raw_dir / CURSOR_FILENAME
         path.write_text(json.dumps(self._tokens, indent=2, sort_keys=True), encoding='utf-8')
         return path
 
@@ -95,7 +95,7 @@ class Watermark:
         return self._tokens.get(source)
 
     def set(self, source: str, token: str) -> None:
-        """Record ``token`` as the latest watermark for ``source`` (in memory)."""
+        """Record ``token`` as the latest cursor for ``source`` (in memory)."""
         self._tokens[source] = token
 
 
@@ -103,7 +103,7 @@ def is_newer(prior: str | None, incoming: str | None) -> bool:
     """Return True if ``incoming`` should be treated as newer than ``prior``.
 
     Semantics (the skip-if-not-newer gate):
-        - No prior watermark -> always newer (first run must fetch).
+        - No prior cursor -> always newer (first run must fetch).
         - No incoming token   -> never newer (nothing to compare; don't churn).
         - Both parse as ISO-8601 datetimes -> strict datetime comparison.
         - Otherwise -> opaque token equality (etag/Last-Modified/version string):

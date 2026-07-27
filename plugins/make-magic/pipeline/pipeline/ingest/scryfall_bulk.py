@@ -4,18 +4,18 @@ Flow (data-architecture §ingest, incremental step 3 — "the most annoying to
 refresh"):
     1. GET ``https://api.scryfall.com/bulk-data/oracle_cards`` metadata
        (``updated_at`` + ``download_uri``).
-    2. Watermark check: skip if ``updated_at`` is not newer than the last land.
-    3. Stream the ``download_uri`` JSON (~140 MB) and land to
+    2. Cursor check: skip if ``updated_at`` is not newer than the last load.
+    3. Stream the ``download_uri`` JSON (~140 MB) and load to
        ``raw/oracle_cards``.
 
 FETCH-ON-DEMAND, NOT BUNDLED: the oracle_cards file is ~140 MB, far too large to
 commit. There is no offline snapshot — instead the puller streams the file on
 demand and caches it as Parquet in ``raw/`` (which is git-ignored). ``max_cards``
-caps the number of cards landed, so verification/tests never pull the whole
-file. In production, call ``run()`` with no cap for a full refresh.
+caps the number of cards loaded, so verification/tests never pull the whole
+file. In production, call ``sync()`` with no cap for a full refresh.
 
 This is deliberately NOT fail-open to a bundled baseline (there is none); on
-failure it raises so a caller knows the (large, on-demand) fetch did not land.
+failure it raises so a caller knows the (large, on-demand) fetch did not load.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from typing import Any
 import httpx
 
 from pipeline import store
-from pipeline.ingest._common import Watermark, is_newer
+from pipeline.ingest._common import Cursor, is_newer
 
 log = logging.getLogger('make_magic.ingest.scryfall_bulk')
 
@@ -84,8 +84,8 @@ def _stream_cards(client: httpx.Client, download_uri: str, max_cards: int | None
                     return
 
 
-def _land(cards: list[dict[str, Any]]) -> Path:
-    """Land ``cards`` to ``raw/oracle_cards.parquet`` via the store.
+def _load(cards: list[dict[str, Any]]) -> Path:
+    """Load ``cards`` to ``raw/oracle_cards.parquet`` via the store.
 
     Scryfall oracle cards carry deeply nested/heterogeneous fields; to keep the
     Parquet schema stable and small we project the columns the pipeline needs
@@ -119,35 +119,35 @@ def _project(card: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def run(
+def sync(
     *,
     client: httpx.Client | None = None,
     force: bool = False,
     max_cards: int | None = None,
 ) -> Path:
-    """Pull oracle_cards into ``raw/oracle_cards``; return the landed path.
+    """Pull oracle_cards into ``raw/oracle_cards``; return the loaded path.
 
-    Watermark-gated (skip-if-not-newer). ``max_cards`` bounds the pull (None =
+    Cursor-gated (skip-if-not-newer). ``max_cards`` bounds the pull (None =
     full refresh, ~140 MB). NOT fail-open — there is no bundled snapshot; a fetch
     failure raises.
     """
-    wm = Watermark.load()
-    prior = wm.get(SOURCE)
+    cursor = Cursor.load()
+    prior = cursor.get(SOURCE)
     owns_client = client is None
     client = client or httpx.Client()
     try:
         download_uri, updated_at = _fetch_meta(client)
         if not force and not is_newer(prior, updated_at) and store.table_exists('raw', SOURCE):
-            log.info('oracle_cards: %s not newer than %s; skipping land.', updated_at, prior)
+            log.info('oracle_cards: %s not newer than %s; skipping load.', updated_at, prior)
             return store.StorePaths.resolve().parquet_path('raw', SOURCE, create=False)
         cards = list(_stream_cards(client, download_uri, max_cards))
-        path = _land(cards)
-        # A capped pull is NOT a full refresh; only advance the watermark on full.
+        path = _load(cards)
+        # A capped pull is NOT a full refresh; only advance the cursor on full.
         if max_cards is None:
-            wm.set(SOURCE, updated_at)
-            wm.save()
+            cursor.set(SOURCE, updated_at)
+            cursor.save()
         log.info(
-            'oracle_cards: landed %d cards (updated_at=%s, cap=%s).',
+            'oracle_cards: loaded %d cards (updated_at=%s, cap=%s).',
             len(cards),
             updated_at,
             max_cards,
@@ -167,12 +167,12 @@ def main() -> None:
         '--max-cards',
         type=int,
         default=None,
-        help='Cap cards landed (default: full ~140MB refresh).',
+        help='Cap cards loaded (default: full ~140MB refresh).',
     )
-    parser.add_argument('--force', action='store_true', help='Land even if not newer.')
+    parser.add_argument('--force', action='store_true', help='Load even if not newer.')
     args = parser.parse_args()
-    path = run(max_cards=args.max_cards, force=args.force)
-    print(f'landed oracle_cards -> {path}')
+    path = sync(max_cards=args.max_cards, force=args.force)
+    print(f'loaded oracle_cards -> {path}')
 
 
 if __name__ == '__main__':

@@ -1,11 +1,11 @@
-"""OFFLINE tests for the per-source pullers (parse/land + fail-open + safety).
+"""OFFLINE tests for the per-source pullers (parse/load + fail-open + safety).
 
 No network: HTTP is monkeypatched to return canned payloads. Each puller's
-parse/land is asserted by reading the landed Parquet back through the store. The
+parse/load is asserted by reading the loaded Parquet back through the store. The
 oracle_tags fail-open path is proven by making the mocked fetch RAISE and
-asserting the bundled snapshot lands. The Airtable safety property (GET-only) is
+asserting the bundled snapshot loads. The Airtable safety property (GET-only) is
 proven by (a) a unit test that the request wrapper rejects POST/PATCH/DELETE and
-(b) a mocked list-records pull that lands rows while only ever issuing GET.
+(b) a mocked list-records pull that loads rows while only ever issuing GET.
 """
 
 from __future__ import annotations
@@ -16,8 +16,14 @@ from typing import Any
 import httpx
 import pytest
 
-from pipeline import store
+from pipeline import config, store
 from pipeline.ingest import airtable, oracle_tags, scryfall_bulk, spellbook
+
+
+@pytest.fixture(autouse=True)
+def _clear_settings_cache() -> None:
+    """Settings is an lru_cached singleton; read env fresh for each test."""
+    config.get_settings.cache_clear()
 
 
 @pytest.fixture()
@@ -33,7 +39,7 @@ def _rows(layer: str, name: str) -> list[tuple[Any, ...]]:
 
 
 # --------------------------------------------------------------------------- #
-# oracle_tags: parse/land + watermark advance + fail-open to snapshot
+# oracle_tags: parse/load + cursor advance + fail-open to snapshot
 # --------------------------------------------------------------------------- #
 
 _TAGS_PAYLOAD = [
@@ -58,12 +64,12 @@ _TAGS_PAYLOAD = [
 ]
 
 
-def test_oracle_tags_parse_and_land(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_oracle_tags_parse_and_load(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_fetch(client: httpx.Client) -> tuple[list[dict[str, Any]], str]:
         return _TAGS_PAYLOAD, '2026-07-26T21:00:00+00:00'
 
     monkeypatch.setattr(oracle_tags, '_fetch_remote', fake_fetch)
-    path = oracle_tags.run(client=httpx.Client())
+    path = oracle_tags.sync(client=httpx.Client())
 
     assert path.exists()
     assert store.table_exists('raw', 'oracle_tags')
@@ -71,37 +77,37 @@ def test_oracle_tags_parse_and_land(data_dir: Path, monkeypatch: pytest.MonkeyPa
         n = store.read_parquet(conn, 'raw', 'oracle_tags').aggregate('count(*)').fetchone()[0]
     assert n == 2
 
-    # watermark advanced
-    from pipeline.ingest._common import Watermark
+    # cursor advanced
+    from pipeline.ingest._common import Cursor
 
-    assert Watermark.load().get('oracle_tags') == '2026-07-26T21:00:00+00:00'
+    assert Cursor.load().get('oracle_tags') == '2026-07-26T21:00:00+00:00'
 
 
 def test_oracle_tags_skips_when_not_newer(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from pipeline.ingest._common import Watermark
+    from pipeline.ingest._common import Cursor
 
-    wm = Watermark.load()
-    wm.set('oracle_tags', '2026-07-26T21:00:00+00:00')
-    wm.save()
+    cursor = Cursor.load()
+    cursor.set('oracle_tags', '2026-07-26T21:00:00+00:00')
+    cursor.save()
 
-    calls = {'land': 0}
-    real_land = oracle_tags._land
+    calls = {'load': 0}
+    real_load = oracle_tags._load
 
-    def counting_land(tags: list[dict[str, Any]]) -> Path:
-        calls['land'] += 1
-        return real_land(tags)
+    def counting_load(tags: list[dict[str, Any]]) -> Path:
+        calls['load'] += 1
+        return real_load(tags)
 
-    # Same updated_at as the stored watermark -> not newer -> skip land.
+    # Same updated_at as the stored cursor -> not newer -> skip load.
     def fake_fetch(client: httpx.Client) -> tuple[list[dict[str, Any]], str]:
         return _TAGS_PAYLOAD, '2026-07-26T21:00:00+00:00'
 
     monkeypatch.setattr(oracle_tags, '_fetch_remote', fake_fetch)
-    monkeypatch.setattr(oracle_tags, '_land', counting_land)
+    monkeypatch.setattr(oracle_tags, '_load', counting_load)
 
-    # First land a table so the skip branch can early-return it.
-    real_land(_TAGS_PAYLOAD)
-    oracle_tags.run(client=httpx.Client())
-    assert calls['land'] == 0  # skipped — not newer
+    # First load a table so the skip branch can early-return it.
+    real_load(_TAGS_PAYLOAD)
+    oracle_tags.sync(client=httpx.Client())
+    assert calls['load'] == 0  # skipped — not newer
 
 
 def test_oracle_tags_fail_open_to_snapshot(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -110,7 +116,7 @@ def test_oracle_tags_fail_open_to_snapshot(data_dir: Path, monkeypatch: pytest.M
 
     monkeypatch.setattr(oracle_tags, '_fetch_remote', boom)
     # Must NOT raise — falls back to the bundled snapshot.
-    path = oracle_tags.run(client=httpx.Client())
+    path = oracle_tags.sync(client=httpx.Client())
     assert path.exists()
     assert store.table_exists('raw', 'oracle_tags')
     with store.connect() as conn:
@@ -120,7 +126,7 @@ def test_oracle_tags_fail_open_to_snapshot(data_dir: Path, monkeypatch: pytest.M
 
 
 # --------------------------------------------------------------------------- #
-# spellbook: parse/land + fail-open
+# spellbook: parse/load + fail-open
 # --------------------------------------------------------------------------- #
 
 _COMBOS_PAYLOAD = [
@@ -130,11 +136,11 @@ _COMBOS_PAYLOAD = [
 ]
 
 
-def test_spellbook_parse_and_land_dedupes(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(spellbook, '_remote_watermark', lambda c: 'etag-1')
+def test_spellbook_parse_and_load_dedupes(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(spellbook, '_remote_cursor', lambda c: 'etag-1')
     monkeypatch.setattr(spellbook, '_fetch_remote', lambda c, m: _COMBOS_PAYLOAD)
 
-    path = spellbook.run(client=httpx.Client())
+    path = spellbook.sync(client=httpx.Client())
     assert path.exists()
     with store.connect() as conn:
         n = store.read_parquet(conn, 'raw', 'combos').aggregate('count(*)').fetchone()[0]
@@ -145,8 +151,8 @@ def test_spellbook_fail_open_to_snapshot(data_dir: Path, monkeypatch: pytest.Mon
     def boom(client: httpx.Client) -> str | None:
         raise httpx.ConnectError('down')
 
-    monkeypatch.setattr(spellbook, '_remote_watermark', boom)
-    path = spellbook.run(client=httpx.Client())
+    monkeypatch.setattr(spellbook, '_remote_cursor', boom)
+    path = spellbook.sync(client=httpx.Client())
     assert path.exists()
     with store.connect() as conn:
         n = store.read_parquet(conn, 'raw', 'combos').aggregate('count(*)').fetchone()[0]
@@ -193,7 +199,7 @@ def test_scryfall_bulk_streams_and_projects(data_dir: Path, monkeypatch: pytest.
         lambda c, uri, cap: iter(cards[:cap] if cap else cards),
     )
 
-    path = scryfall_bulk.run(client=httpx.Client(), max_cards=2)
+    path = scryfall_bulk.sync(client=httpx.Client(), max_cards=2)
     assert path.exists()
     with store.connect() as conn:
         rel = store.read_parquet(conn, 'raw', 'oracle_cards')
@@ -231,7 +237,7 @@ def test_scryfall_bulk_stream_decoder_parses_array() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Airtable safety: GET-only guard + mocked pull lands rows with no writes
+# Airtable safety: GET-only guard + mocked pull loads rows with no writes
 # --------------------------------------------------------------------------- #
 
 
@@ -256,13 +262,29 @@ def test_airtable_get_is_allowed_and_routes_through_guard() -> None:
     assert seen['method'] == 'GET'
 
 
-def test_airtable_pull_lands_rows_and_only_issues_get(
+#: Canned base schema for the mocked meta API — table NAMES -> ids/field ids.
+#: Mirrors the env-driven default table names (Cards/Decks/Trades/Chase Cards).
+_META_TABLES = {
+    'tables': [
+        {'id': 'tblDECKS', 'name': 'Decks', 'fields': [{'id': 'fldName', 'name': 'Name'}]},
+        {
+            'id': 'tblCHASE',
+            'name': 'Chase Cards',
+            'fields': [{'id': 'fldtLastMod', 'name': 'Last Modified'}],
+        },
+    ]
+}
+
+
+def test_airtable_pull_loads_rows_and_only_issues_get(
     data_dir: Path,
 ) -> None:
     methods: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         methods.append(request.method)
+        if '/meta/bases/' in str(request.url):  # schema resolution (name -> id)
+            return httpx.Response(200, json=_META_TABLES)
         return httpx.Response(
             200,
             json={
@@ -289,11 +311,11 @@ def test_airtable_pull_lands_rows_and_only_issues_get(
     with store.connect() as conn:
         n = store.read_parquet(conn, 'raw', 'airtable_decks').aggregate('count(*)').fetchone()[0]
     assert n == 2
-    # THE PROOF: every request issued was a GET.
+    # THE PROOF: every request issued was a GET (including schema resolution).
     assert methods and all(m == 'GET' for m in methods)
 
 
-def test_airtable_run_requires_token(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_airtable_sync_requires_token(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)
     with pytest.raises(RuntimeError, match='AIRTABLE_API_KEY'):
-        airtable.run()
+        airtable.sync()

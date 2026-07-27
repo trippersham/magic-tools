@@ -27,7 +27,15 @@ from typing import Any
 import httpx
 import pytest
 
+from pipeline import config
 from pipeline.adapters import airtable_writeback as wb
+
+
+@pytest.fixture(autouse=True)
+def _clear_settings_cache() -> None:
+    """Settings is an lru_cached singleton; read env fresh for each test."""
+    config.get_settings.cache_clear()
+
 
 # --------------------------------------------------------------------------- #
 # Fixtures: a representative Cards pull + oracle_id/otag join maps + a spy.
@@ -182,9 +190,20 @@ def test_denylist_is_the_cards_human_fields_from_golden_contract() -> None:
 
 
 def test_target_table_is_cards_not_decks() -> None:
-    """The retarget: the adapter now points at the Cards table id."""
-    assert wb.CARDS_TABLE_ID == 'tbl3UgZZPJGQhEFo8'
+    """The retarget: the adapter targets the Cards table BY NAME (env-driven).
+
+    The base/table/field ids are no longer hard-coded — the Cards table id is
+    resolved at runtime from the meta schema by the env-configured table NAME.
+    """
+    from pipeline import config
+
+    config.get_settings.cache_clear()
+    client = wb.AllowlistWriteClient('tok')
+    assert client._cards_table_name == config.get_settings().cards_table  # env-driven NAME
+    assert client._cards_table_id is None  # not resolved until list_fields() runs
+    assert not hasattr(wb, 'CARDS_TABLE_ID')  # no hard-coded id
     assert not hasattr(wb, 'DECKS_TABLE_ID')
+    assert not hasattr(wb, 'BASE_ID')
 
 
 # --------------------------------------------------------------------------- #
@@ -461,6 +480,54 @@ def test_wire_guard_derives_allowed_ids_and_id_to_name() -> None:
     assert 'fldHUMAN' not in client._allowed_ids
 
 
+def test_client_resolves_cards_table_by_name_and_env_base_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The client resolves the Cards table id BY NAME and uses the env base id —
+    proving the identity is env-driven / runtime-resolved, not hard-coded."""
+    monkeypatch.setenv('AIRTABLE_BASE_ID', 'appOTHER')
+    monkeypatch.setenv('AIRTABLE_CARDS_TABLE', 'Inventory Cards')
+    config.get_settings.cache_clear()
+
+    seen_urls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_urls.append(str(request.url))
+        return httpx.Response(
+            200,
+            json={
+                'tables': [
+                    {'id': 'tblOTHER', 'name': 'Some Other Table', 'fields': []},
+                    {
+                        'id': 'tblINVENTORY',
+                        'name': 'Inventory Cards',  # matches the env override
+                        'fields': [{'name': f'{wb.NS}Buckets', 'id': 'fldB'}],
+                    },
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    client = wb.AllowlistWriteClient('tok', _client=httpx.Client(transport=transport))
+    name_to_id = client.list_fields()
+    assert name_to_id == {f'{wb.NS}Buckets': 'fldB'}
+    assert client._cards_table_id == 'tblINVENTORY'  # resolved by NAME
+    # The meta URL used the ENV base id, not the old hard-coded appw7QPMoqktrgDc1.
+    assert any('/meta/bases/appOTHER/tables' in u for u in seen_urls)
+
+
+def test_client_raises_clear_error_when_cards_table_name_absent() -> None:
+    """A base missing the configured Cards table NAME fails LOUDLY, not silently."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={'tables': [{'id': 'tblX', 'name': 'Not Cards', 'fields': []}]})
+
+    transport = httpx.MockTransport(handler)
+    client = wb.AllowlistWriteClient('tok', _client=httpx.Client(transport=transport))
+    with pytest.raises(config.AirtableConfigError, match="'Inventory Cards' not found"):
+        client.list_fields()
+
+
 def test_real_client_full_apply_does_not_crash_on_derived_field_ids() -> None:
     """END-TO-END on the REAL client (mocked transport): a live apply resolves
     the schema (name->id), re-keys the payload by FIELD ID, and PATCHes — the
@@ -477,7 +544,8 @@ def test_real_client_full_apply_does_not_crash_on_derived_field_ids() -> None:
                 json={
                     'tables': [
                         {
-                            'id': wb.CARDS_TABLE_ID,
+                            'id': 'tblCARDSresolved',
+                            'name': 'Inventory Cards',  # resolved by NAME (env-driven default)
                             'fields': [
                                 {'name': f'{wb.NS}Buckets', 'id': buckets_id},
                                 {'name': f'{wb.NS}Otags', 'id': otags_id},

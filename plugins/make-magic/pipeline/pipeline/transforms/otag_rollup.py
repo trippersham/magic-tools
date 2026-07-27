@@ -1,6 +1,6 @@
-"""Roll each card's leaf oracle-tags up the tag DAG and land ``card_otag``.
+"""Roll each card's leaf oracle-tags up the tag DAG and materialize ``card_otag``.
 
-THE central Phase-4 transform. Scryfall's oracle-tags form a DAG (IS-A /
+THE central rollup transform. Scryfall's oracle-tags form a DAG (IS-A /
 broader<->narrower) whose ROOT tags carry ~0 direct taggings — cards carry only
 LEAF tags. So to see anything you must roll each card's leaves up to ALL their
 ancestors (research §"CRITICAL gotcha").
@@ -15,7 +15,7 @@ The graph rollup is done in PURE PYTHON (clean + unit-testable):
     4. Explode: for every ``(oracle_id, leaf)`` emit ``(oracle_id, slug)`` for
        the leaf AND every ancestor.
 
-The exploded long-form ``(oracle_id, slug)`` table is landed to
+The exploded long-form ``(oracle_id, slug)`` table is materialized to
 ``normalized/card_otag`` via ``store`` (SQL/DuckDB owns the later joins;
 this module owns the graph maths).
 """
@@ -110,7 +110,7 @@ def rollup_rows(
 
 
 # --------------------------------------------------------------------------- #
-# I/O — read raw tags, land the exploded normalized table.
+# I/O — read raw tags, materialize the exploded normalized table.
 # --------------------------------------------------------------------------- #
 
 
@@ -133,8 +133,8 @@ def _load_raw_tags() -> list[dict]:
     return tags
 
 
-def _land(rows: list[tuple[str, str]]) -> Path:
-    """Land ``(oracle_id, slug)`` rollup rows to ``normalized/card_otag``."""
+def _materialize(rows: list[tuple[str, str]]) -> Path:
+    """Materialize ``(oracle_id, slug)`` rollup rows to ``normalized/card_otag``."""
     payload = [{'oracle_id': oid, 'slug': slug} for oid, slug in rows]
     with store.connect() as conn:
         norm_dir = store.StorePaths.resolve().layer_dir('normalized', create=True)
@@ -153,13 +153,13 @@ def _land(rows: list[tuple[str, str]]) -> Path:
 
 
 def build() -> Path:
-    """Read ``raw/oracle_tags``, roll up the DAG, land ``normalized/card_otag``.
+    """Read ``raw/oracle_tags``, roll up the DAG, materialize ``normalized/card_otag``.
 
-    Returns the landed Parquet path.
+    Returns the materialized Parquet path.
     """
     tags = _load_raw_tags()
     rows = rollup_rows(tags)
-    path = _land(rows)
+    path = _materialize(rows)
     log.info(
         'card_otag: rolled %d tags into %d (oracle_id, slug) rows.',
         len(tags),
@@ -171,7 +171,7 @@ def build() -> Path:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     path = build()
-    print(f'landed card_otag -> {path}')
+    print(f'materialized card_otag -> {path}')
 
 
 if __name__ == '__main__':

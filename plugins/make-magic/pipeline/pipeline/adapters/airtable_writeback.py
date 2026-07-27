@@ -1,15 +1,13 @@
-"""Adapter: PUSH engine-derived per-CARD otag facts -> Airtable Cards (Phase 5).
+"""Adapter: PUSH engine-derived per-CARD otag facts -> Airtable Cards.
 
-Retargeted after design review. The engine used to write four deck-level ``⚙``
-fields onto the *Decks* table; that is GONE. Susceptibility/assessment is now
-reasoning-authored elsewhere, coverage % is local-only, and deck-level bucket
-histograms are Airtable rollups + the analysis layer — none are stored here.
-
-This adapter now owns exactly TWO derived fields on the *Cards* table
-(``tbl3UgZZPJGQhEFo8``). A card's otags are a PURE FUNCTION of the card (keyed to
-its Scryfall ``oracle_id``), so storing them on Cards is authoritative and never
-stale; Airtable rolls them up to decks natively (the "derived/bulk -> Local
-authoritative -> push to Airtable" authority rule).
+This adapter owns exactly TWO derived fields on the *Cards* table. The base
+id, the Cards table id, and the Card Name / field ids are NOT hard-coded:
+the base id + Cards table NAME come from env-driven :mod:`pipeline.config`, and
+the ``tbl…``/``fld…`` ids are resolved at runtime via the Airtable meta API — so
+the write-back is not locked to one Airtable instance. A card's otags are a PURE
+FUNCTION of the card (keyed to its Scryfall ``oracle_id``), so storing them on
+Cards is authoritative and never stale; Airtable rolls them up to decks natively
+(the "derived/bulk -> Local authoritative -> push to Airtable" authority rule).
 
     - ``⚙ Buckets`` — Airtable **multipleSelects** — the crosswalked functional
       buckets for the card (``crosswalk.buckets_for``: removal / ramp / draw /
@@ -18,10 +16,10 @@ authoritative -> push to Airtable" authority rule).
     - ``⚙ Otags``  — Airtable **multilineText** — the card's raw rolled-up
       Scryfall otag slugs (newline-joined), kept for fidelity / debugging.
 
-THE GOVERNING SAFETY PROPERTY (unchanged, only retargeted): this module may
-write ONLY the small :data:`DERIVED_FIELDS` allowlist it owns — engine-computed,
-namespace-prefixed fields on the Cards table. It must NEVER create, update, or
-delete any human-edited Card field (Card Name, Sets, Number Owned, Sources,
+THE GOVERNING SAFETY PROPERTY: this module may write ONLY the small
+:data:`DERIVED_FIELDS` allowlist it owns — engine-computed, namespace-prefixed
+fields on the Cards table. It must NEVER create, update, or delete any
+human-edited Card field (Card Name, Sets, Number Owned, Sources,
 Condition, Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art,
 Scryfall URL, Price (TCGPlayer), Color Identity, Decks, ...). That property is
 enforced STRUCTURALLY, not by convention, at three layers:
@@ -69,19 +67,19 @@ from typing import Any, Protocol
 
 import httpx
 
+from pipeline.config import AirtableConfigError, get_settings
 from pipeline.transforms.crosswalk import BUCKETS, buckets_for
 
 log = logging.getLogger('make_magic.adapters.airtable_writeback')
 
-BASE_ID = 'appw7QPMoqktrgDc1'
-#: NEW target (design review): the Cards table, NOT Decks.
-CARDS_TABLE_ID = 'tbl3UgZZPJGQhEFo8'
-#: Card Name (primary) field id — the pull lands columns by field id, so the
-#: lake loader reads the card name from this column, not a "Card Name" name.
-CARD_NAME_FIELD_ID = 'fldltxh7GLqkkSYgT'
 API_ROOT = 'https://api.airtable.com/v0'
 META_ROOT = 'https://api.airtable.com/v0/meta'
 HEADERS_UA = {'User-Agent': 'make-magic-plugin/2.0'}
+
+#: Card Name (primary) field NAME. The pull lands columns by field id, so the
+#: lake loader resolves this NAME to its per-base id at runtime (via the meta
+#: schema) to read the card-name column — no hard-coded ``fld…`` id.
+CARD_NAME_FIELD = 'Card Name'
 
 #: Airtable caps a single PATCH ``records[]`` array at 10 records. The apply path
 #: MUST chunk the resolved writes to this size; a full-inventory run of hundreds
@@ -208,7 +206,7 @@ def _golden_contract_path() -> Path:
 def load_human_denylist(path: Path | None = None) -> frozenset[str]:
     """Load the DENYLIST of human-edited **Cards** field names from the contract.
 
-    The write-back now targets the Cards table, so the fields it must never touch
+    The write-back targets the Cards table, so the fields it must never touch
     are the Cards table's human-edited fields: the Cards ``primary_field`` plus
     every ``required_fields`` entry any skill declares for the Cards table (Card
     Name, Sets, Number Owned, Sources, Condition, Card Type, Mana Cost, CMC,
@@ -425,9 +423,24 @@ class AllowlistWriteClient:
     names to ids via the meta schema before patching.
     """
 
-    def __init__(self, token: str, *, _client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        token: str,
+        *,
+        base_id: str | None = None,
+        cards_table_name: str | None = None,
+        _client: httpx.Client | None = None,
+    ) -> None:
         self.__client = _client or httpx.Client(timeout=30)
         self.__auth = {'Authorization': f'Bearer {token}', **HEADERS_UA}
+        #: Env-driven identity. Base id + Cards table NAME come from Settings
+        #: (overridable per instance); the Cards table ``tbl…`` id is discovered
+        #: from the meta schema by NAME in :meth:`list_fields` (never hard-coded).
+        settings = get_settings()
+        self._base_id = base_id or settings.airtable_base_id
+        self._cards_table_name = cards_table_name or settings.cards_table
+        #: Resolved lazily from the meta schema on the first :meth:`list_fields`.
+        self._cards_table_id: str | None = None
         #: id-keyed wire guard state, derived from the resolved allowlist
         #: name->id map. Empty until :meth:`resolve_field_map` (or
         #: :meth:`list_fields`) runs — so before resolution NO id can pass the
@@ -453,30 +466,51 @@ class AllowlistWriteClient:
     def list_fields(self) -> dict[str, str]:
         """Return ``{field_name: field_id}`` for the Cards table (meta API GET).
 
-        Also caches the id-keyed wire-guard state (:meth:`resolve_field_map`) so
-        the wire guard can validate the field-ID-keyed body it is about to send.
+        The Cards table is located by its env-driven NAME (:attr:`_cards_table_name`),
+        NOT a hard-coded ``tbl…`` id; its id is cached in :attr:`_cards_table_id`
+        for the subsequent record PATCH/field-create URLs. Also caches the
+        id-keyed wire-guard state (:meth:`resolve_field_map`) so the wire guard can
+        validate the field-ID-keyed body it is about to send. Raises
+        :class:`AirtableConfigError` if the named table is absent from the base.
         """
-        url = f'{META_ROOT}/bases/{BASE_ID}/tables'
+        url = f'{META_ROOT}/bases/{self._base_id}/tables'
         resp = self.__client.get(url, headers=self.__auth)
         resp.raise_for_status()
         for table in resp.json().get('tables', []):
-            if table.get('id') == CARDS_TABLE_ID:
+            if table.get('name') == self._cards_table_name:
+                self._cards_table_id = table.get('id')
                 name_to_id = {f['name']: f['id'] for f in table.get('fields', [])}
                 self.resolve_field_map(name_to_id)
                 return name_to_id
-        return {}
+        raise AirtableConfigError(
+            f'table {self._cards_table_name!r} not found in base {self._base_id!r}; '
+            'set AIRTABLE_CARDS_TABLE (and AIRTABLE_BASE_ID) for this instance.'
+        )
 
     def create_field(self, name: str, airtable_type: str, options: dict[str, Any] | None) -> None:
         """Create a DERIVED field on Cards. REFUSES any non-allowlisted name."""
         if name not in ALLOWLIST_NAMES:
             raise NonAllowlistFieldError(f'REFUSED: cannot create field {name!r} — not in the derived allowlist.')
         assert_no_human_fields([name])
-        url = f'{META_ROOT}/bases/{BASE_ID}/tables/{CARDS_TABLE_ID}/fields'
+        table_id = self._require_cards_table_id()
+        url = f'{META_ROOT}/bases/{self._base_id}/tables/{table_id}/fields'
         body: dict[str, Any] = {'name': name, 'type': airtable_type}
         if options:
             body['options'] = options
         resp = self.__client.post(url, headers=self.__auth, json=body)
         resp.raise_for_status()
+
+    def _require_cards_table_id(self) -> str:
+        """Return the resolved Cards table id, resolving it first if needed.
+
+        The id is discovered from the meta schema by NAME (:meth:`list_fields`);
+        this triggers that resolution on demand so create/patch URLs are never
+        built from a hard-coded id.
+        """
+        if self._cards_table_id is None:
+            self.list_fields()
+        assert self._cards_table_id is not None
+        return self._cards_table_id
 
     # --- records ------------------------------------------------------------ #
 
@@ -518,7 +552,8 @@ class AllowlistWriteClient:
         # The guard runs BEFORE id-resolution too (see push), but re-check here on
         # whatever is actually about to be transmitted — the true choke point.
         self._guarded_body(records)
-        url = f'{API_ROOT}/{BASE_ID}/{CARDS_TABLE_ID}'
+        table_id = self._require_cards_table_id()
+        url = f'{API_ROOT}/{self._base_id}/{table_id}'
         body = {'records': records, 'returnFieldsByFieldId': True}
         resp = self.__client.patch(url, headers=self.__auth, json=body)
         resp.raise_for_status()
@@ -699,13 +734,19 @@ def push(
 # --------------------------------------------------------------------------- #
 
 
-def _load_cards_from_lake() -> tuple[dict[str, str], dict[str, str], dict[str, set[str]]]:
+def _load_cards_from_lake(
+    card_name_field_id: str | None = None,
+) -> tuple[dict[str, str], dict[str, str], dict[str, set[str]]]:
     """Best-effort: load pulled Cards + the oracle_id join maps from the lake.
 
     Returns ``(cards, name_to_oracle_id, card_otag)``:
         - ``cards``: ``{airtable_record_id: card_name}`` from ``raw/airtable_cards``.
         - ``name_to_oracle_id``: ``{name: oracle_id}`` from ``raw/oracle_cards``.
         - ``card_otag``: ``{oracle_id: {slug}}`` from ``normalized/card_otag``.
+
+    ``card_name_field_id`` is the per-base Card Name ``fld…`` id (resolved at
+    runtime from the meta schema by NAME — no hard-coded id). When omitted, only
+    the ``'Card Name'`` display-name column fallback is used.
 
     The CLI's job here is to prove mechanics; a real deployment wires the reads.
     Returns empty maps if a source table is absent so ``--dry-run`` still runs.
@@ -726,12 +767,12 @@ def _load_cards_from_lake() -> tuple[dict[str, str], dict[str, str], dict[str, s
             # The Airtable pull stores columns by FIELD ID (returnFieldsByFieldId
             # =true, the durable key that survives renames), plus "_record_id".
             # So the human card name lives in the Card Name FIELD-ID column, not a
-            # "Card Name" name column. Read by field id, with a name-keyed fallback
-            # in case a future pull ever lands display names.
+            # "Card Name" name column. Read by the runtime-resolved field id, with
+            # a name-keyed fallback in case a pull ever lands display names.
             for row in rel.fetchall():
                 rec = dict(zip(cols, row, strict=False))
                 rid = rec.get('_record_id')
-                name = rec.get(CARD_NAME_FIELD_ID) or rec.get('Card Name')
+                name = (rec.get(card_name_field_id) if card_name_field_id else None) or rec.get(CARD_NAME_FIELD)
                 if rid and name:
                     cards[str(rid)] = str(name)
         if store.table_exists('raw', 'oracle_cards'):
@@ -775,15 +816,19 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
-    cards, name_to_oracle_id, card_otag = _load_cards_from_lake()
 
     client: AllowlistWriteClient | None = None
     do_write = (not args.dry_run) and args.apply
+    card_name_field_id: str | None = None
     if do_write:
         token = os.environ.get('AIRTABLE_API_KEY')
         if not token:
             raise RuntimeError('AIRTABLE_API_KEY is not set; cannot apply a live write.')
         client = AllowlistWriteClient(token)
+        # Resolve the per-base Card Name field id from the meta schema by NAME so
+        # the lake loader reads the field-ID-keyed card-name column correctly.
+        card_name_field_id = client.list_fields().get(CARD_NAME_FIELD)
+    cards, name_to_oracle_id, card_otag = _load_cards_from_lake(card_name_field_id)
     try:
         report = push(
             cards,

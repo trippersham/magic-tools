@@ -3,14 +3,14 @@
 Commander Spellbook data is MIT-licensed. Two endpoints exist:
     - bulk ``https://json.commanderspellbook.com/variants.json`` (~600 MB; too
       big to fetch/bundle) — but its HTTP ``Last-Modified``/``ETag`` headers are
-      the cheap incremental watermark signal.
+      the cheap incremental cursor signal.
     - paginated backend ``https://backend.commanderspellbook.com/variants/``
       (``results`` + ``next``) — bounded, fetch-friendly.
 
 Flow:
-    1. HEAD the bulk file for ``Last-Modified``/``ETag`` -> the watermark token.
-    2. Skip if not newer than the last land.
-    3. Page the backend API (bounded by ``max_combos``) and land to
+    1. HEAD the bulk file for ``Last-Modified``/``ETag`` -> the cursor token.
+    2. Skip if not newer than the last load.
+    3. Page the backend API (bounded by ``max_combos``) and load to
        ``raw/combos``.
     4. FAIL-OPEN: any failure falls back to the bundled snapshot
        (``data/snapshots/combos.json.gz`` — first 2,000 variants).
@@ -31,7 +31,7 @@ from typing import Any
 import httpx
 
 from pipeline import store
-from pipeline.ingest._common import Watermark, dedupe, is_newer
+from pipeline.ingest._common import Cursor, dedupe, is_newer
 
 log = logging.getLogger('make_magic.ingest.spellbook')
 
@@ -44,7 +44,7 @@ DEFAULT_MAX_COMBOS = 2000
 SNAPSHOT = Path(__file__).resolve().parents[2] / 'data' / 'snapshots' / 'combos.json.gz'
 
 
-def _remote_watermark(client: httpx.Client) -> str | None:
+def _remote_cursor(client: httpx.Client) -> str | None:
     """The bulk file's ``ETag`` (or ``Last-Modified``) — the change signal."""
     resp = client.head(BULK_URL, headers=HEADERS, timeout=30, follow_redirects=True)
     resp.raise_for_status()
@@ -70,8 +70,8 @@ def _load_snapshot() -> list[dict[str, Any]]:
         return json.load(f)
 
 
-def _land(combos: list[dict[str, Any]]) -> Path:
-    """Land combos to ``raw/combos.parquet`` (deduped on ``id``, last-wins)."""
+def _load(combos: list[dict[str, Any]]) -> Path:
+    """Load combos to ``raw/combos.parquet`` (deduped on ``id``, last-wins)."""
     combos = dedupe(combos, key='id')
     with store.connect() as conn:
         raw_dir = store.StorePaths.resolve().layer_dir('raw', create=True)
@@ -85,38 +85,38 @@ def _land(combos: list[dict[str, Any]]) -> Path:
     return path
 
 
-def run(
+def sync(
     *,
     client: httpx.Client | None = None,
     force: bool = False,
     max_combos: int = DEFAULT_MAX_COMBOS,
 ) -> Path:
-    """Pull combos into ``raw/combos``; return the landed Parquet path.
+    """Pull combos into ``raw/combos``; return the loaded Parquet path.
 
-    Watermark-gated on the bulk file's ETag/Last-Modified and FAIL-OPEN to the
+    Cursor-gated on the bulk file's ETag/Last-Modified and FAIL-OPEN to the
     bundled snapshot on any fetch failure.
     """
-    wm = Watermark.load()
-    prior = wm.get(SOURCE)
+    cursor = Cursor.load()
+    prior = cursor.get(SOURCE)
     owns_client = client is None
     client = client or httpx.Client()
     try:
-        token = _remote_watermark(client)
+        token = _remote_cursor(client)
         if not force and not is_newer(prior, token) and store.table_exists('raw', SOURCE):
-            log.info('combos: %s not newer than %s; skipping land.', token, prior)
+            log.info('combos: %s not newer than %s; skipping load.', token, prior)
             return store.StorePaths.resolve().parquet_path('raw', SOURCE, create=False)
         combos = _fetch_remote(client, max_combos)
-        path = _land(combos)
+        path = _load(combos)
         if token is not None:
-            wm.set(SOURCE, token)
-            wm.save()
-        log.info('combos: landed %d variants (watermark=%s).', len(combos), token)
+            cursor.set(SOURCE, token)
+            cursor.save()
+        log.info('combos: loaded %d variants (cursor=%s).', len(combos), token)
         return path
     except Exception as exc:
         log.warning('combos: fetch failed (%s); falling back to bundled snapshot.', exc)
         combos = _load_snapshot()
-        path = _land(combos)
-        log.info('combos: landed %d variants from snapshot.', len(combos))
+        path = _load(combos)
+        log.info('combos: loaded %d variants from snapshot.', len(combos))
         return path
     finally:
         if owns_client:
@@ -125,8 +125,8 @@ def run(
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
-    path = run()
-    print(f'landed combos -> {path}')
+    path = sync()
+    print(f'loaded combos -> {path}')
 
 
 if __name__ == '__main__':
