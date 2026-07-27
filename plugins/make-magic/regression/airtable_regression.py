@@ -21,7 +21,15 @@ depends on, then asserts that surface still exists in the live base.
 Standalone PEP-723 uv script — its own deps, no dependency on the pipeline/
 package. Talks to Airtable via the REST API directly (mirrors how the bundled
 Airtable MCP server authenticates: an Airtable Personal Access Token sent as a
-Bearer token, base/table addressed by ID).
+Bearer token). The Airtable IDENTITY is env-driven: the base id comes from
+AIRTABLE_BASE_ID (default = the turnkey base) and every table is addressed by
+NAME — the harness resolves the live per-base ``tbl…`` ids by NAME at runtime via
+the meta API (``GET /v0/meta/bases/{base}/tables``), mirroring
+``pipeline/config.py``'s ``AirtableResolver`` (re-implemented inline, GET-only +
+cached, because this standalone script cannot import the pipeline package). So a
+different Airtable instance runs this suite by exporting AIRTABLE_BASE_ID (and, if
+its tables are named differently, the AIRTABLE_*_TABLE overrides) — no contract
+edit required.
 
 Modes:
     --read-only   Reads + golden-contract assertions only. SAFE against a
@@ -42,9 +50,12 @@ Usage:
     # Discover what bases/tables a token can see (plumbing check):
     AIRTABLE_API_KEY=<pat> uv run --script airtable_regression.py list-bases
 
-Overrides (env or flag) for the contract's default IDs:
-    --base-id / AIRTABLE_BASE_ID
+Overrides (env or flag) for the contract's defaults:
+    --base-id / AIRTABLE_BASE_ID       base id (default = the turnkey base)
     --contract PATH   (defaults to golden_contract.json next to this script)
+    AIRTABLE_CARDS_TABLE / _DECKS_TABLE / _TRADES_TABLE / _CHASE_TABLE
+        Optional per-table NAME overrides (mirrors the pipeline's env vars) for a
+        base whose tables are named differently from the contract's live names.
 
 Exit code: 0 if every enabled check PASSes, 1 otherwise.
 
@@ -226,53 +237,104 @@ def load_contract(path: Path) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# Read checks: golden-contract assertions
+# Runtime name->id resolution (inline mirror of pipeline/config.AirtableResolver)
 # --------------------------------------------------------------------------- #
 
+#: Optional per-table NAME overrides, keyed by the contract's live table name.
+#: Mirrors the pipeline's AIRTABLE_*_TABLE env vars so a base whose tables are
+#: named differently can be pointed at without editing the contract. When unset,
+#: the contract's own (live) name is used as-is.
+TABLE_NAME_ENV_OVERRIDES: dict[str, str] = {
+    'Inventory Cards': 'AIRTABLE_CARDS_TABLE',
+    'Decks': 'AIRTABLE_DECKS_TABLE',
+    'Trades': 'AIRTABLE_TRADES_TABLE',
+    'Chase Cards': 'AIRTABLE_CHASE_TABLE',
+}
 
-def build_schema_index(
-    tables: list[dict[str, Any]],
-) -> dict[str, dict[str, Any]]:
-    """Index describe-table output by both table id and table name."""
-    index: dict[str, dict[str, Any]] = {}
-    for t in tables:
-        field_names = {f['name'] for f in t.get('fields', [])}
-        entry = {
-            'id': t.get('id'),
-            'name': t.get('name'),
-            'field_names': field_names,
-        }
-        if t.get('id'):
-            index[t['id']] = entry
-        if t.get('name'):
-            index[t['name']] = entry
-    return index
+
+def live_table_name(contract_name: str) -> str:
+    """Map a contract table name to the live name for this instance (env override)."""
+    env_var = TABLE_NAME_ENV_OVERRIDES.get(contract_name)
+    if env_var:
+        override = os.environ.get(env_var)
+        if override:
+            return override
+    return contract_name
+
+
+class SchemaResolver:
+    """Resolve table NAMES to per-base ``tbl…`` ids at runtime (GET-only, cached).
+
+    Inline mirror of ``pipeline/config.py``'s ``AirtableResolver``: this standalone
+    PEP-723 script cannot import the pipeline package, so it re-implements the small
+    resolve-by-name here. Fetches the base schema ONCE via the meta API and answers
+    every subsequent name->id / field-name query from the cached payload.
+    """
+
+    def __init__(self, client: AirtableClient, base_id: str) -> None:
+        self._client = client
+        self._base_id = base_id
+        self._by_name: dict[str, dict[str, Any]] | None = None
+
+    def _ensure_loaded(self) -> None:
+        if self._by_name is not None:
+            return
+        by_name: dict[str, dict[str, Any]] = {}
+        for t in self._client.list_tables(self._base_id):
+            name = t.get('name')
+            tid = t.get('id')
+            if not name or not tid:
+                continue
+            by_name[name] = {
+                'id': tid,
+                'name': name,
+                'field_names': {f['name'] for f in t.get('fields', []) if f.get('name')},
+            }
+        self._by_name = by_name
+
+    def resolve(self, contract_name: str) -> dict[str, Any] | None:
+        """Return the ``{id, name, field_names}`` entry for a contract table name.
+
+        Applies the AIRTABLE_*_TABLE override, then looks the live name up in the
+        cached base schema. Returns ``None`` when the table is absent (the caller
+        reports it as a FAILing contract assertion).
+        """
+        self._ensure_loaded()
+        assert self._by_name is not None
+        return self._by_name.get(live_table_name(contract_name))
+
+
+# --------------------------------------------------------------------------- #
+# Read checks: golden-contract assertions
+# --------------------------------------------------------------------------- #
 
 
 def run_read_checks(
     client: AirtableClient,
     base_id: str,
     contract: dict[str, Any],
+    resolver: SchemaResolver,
 ) -> list[FlowReport]:
-    """Assert every table is reachable and every contract field still exists."""
-    reports: list[FlowReport] = []
+    """Assert every table is reachable and every contract field still exists.
 
-    # One describe-table call for the whole base, reused across flows.
-    tables = client.list_tables(base_id)
-    schema = build_schema_index(tables)
+    Tables are addressed by NAME: the ``tbl…`` id is resolved at runtime from the
+    live base schema (via ``resolver``), never read from the contract.
+    """
+    reports: list[FlowReport] = []
 
     for skill, spec in contract['skills'].items():
         report = FlowReport(skill=skill)
         for table_name, tspec in spec['tables'].items():
-            table_id = tspec['id']
-            entry = schema.get(table_id) or schema.get(table_name)
+            entry = resolver.resolve(table_name)
             if entry is None:
                 report.add(
                     f'table:{table_name}',
                     Status.FAIL,
-                    f'table {table_name} ({table_id}) not reachable in base {base_id}',
+                    f'table {table_name!r} (live name {live_table_name(table_name)!r}) '
+                    f'not found in base {base_id}',
                 )
                 continue
+            table_id = entry['id']
 
             # Reachability probe: a live list_records call (maxRecords=1).
             try:
@@ -313,11 +375,25 @@ def run_write_roundtrip(
     client: AirtableClient,
     base_id: str,
     contract: dict[str, Any],
+    resolver: SchemaResolver,
 ) -> FlowReport:
-    """create -> read-back -> update -> verify -> DELETE. Cleans up on failure."""
+    """create -> read-back -> update -> verify -> DELETE. Cleans up on failure.
+
+    The scratch table is addressed by NAME; its ``tbl…`` id is resolved at runtime.
+    """
     report = FlowReport(skill='write-roundtrip')
     sw = contract['scratch_write']
-    table_id = sw['table_id']
+    scratch_table = sw['table']
+    entry = resolver.resolve(scratch_table)
+    if entry is None:
+        report.add(
+            'roundtrip',
+            Status.FAIL,
+            f'scratch table {scratch_table!r} (live name {live_table_name(scratch_table)!r}) '
+            f'not found in base {base_id}',
+        )
+        return report
+    table_id = entry['id']
     name_field = sw['name_field']
     update_field = sw['update_field']
     scratch_name = f'{sw["name_prefix"]}{int(time.time())}'
@@ -459,15 +535,18 @@ def check(
 
         resolved_base = _resolve_base_id(contract, base_id)
         mode = 'full' if full else 'read-only'
+        # One meta call resolves every contract table NAME -> live tbl… id, cached
+        # and reused across read checks + the write round-trip.
+        resolver = SchemaResolver(client, resolved_base)
 
         try:
-            reports = run_read_checks(client, resolved_base, contract)
+            reports = run_read_checks(client, resolved_base, contract, resolver)
         except AirtableError as e:
             typer.echo(f'ERROR (read checks): {e}', err=True)
             raise typer.Exit(1) from e
 
         if full:
-            reports.append(run_write_roundtrip(client, resolved_base, contract))
+            reports.append(run_write_roundtrip(client, resolved_base, contract, resolver))
         else:
             skip = FlowReport(skill='write-roundtrip')
             skip.add('roundtrip', Status.SKIP, 'skipped in --read-only mode')

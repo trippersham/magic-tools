@@ -1,24 +1,20 @@
 {
-  "$comment": "GOLDEN CONTRACT — the 'must not change' Airtable surface the three Airtable-as-source-of-truth skills depend on. DERIVED from the skill reference docs (managing-inventory/references/airtable-schema.md, building-decks/SKILL.md + strategy-schema.md, chasing-cards/SKILL.md). This is the Phase-0 baseline: if any table/field named here disappears or a write op path breaks, the happy-path workflow has regressed. Field names (not IDs) are asserted against describe-table because the skills address most fields by name in filterByFormula/fields params; field IDs are recorded for reference and for the ID-based writes chasing-cards performs.",
+  "$comment": "GOLDEN CONTRACT — the 'must not change' Airtable surface the three Airtable-as-source-of-truth skills depend on. DERIVED from the skill reference docs (managing-inventory/references/airtable-schema.md, building-decks/SKILL.md + strategy-schema.md, chasing-cards/SKILL.md). This is the Phase-0 baseline: if any table/field named here disappears or a write op path breaks, the happy-path workflow has regressed. Tables and fields are addressed by NAME (not per-base tbl…/fld… ids): names are stable across bases while ids are per-base, so the harness resolves the live tbl… ids by NAME at runtime via the Airtable meta API. The base id is likewise env-driven (AIRTABLE_BASE_ID) with a turnkey default, so a different Airtable instance can run this suite without editing the contract.",
   "base": {
     "id": "appw7QPMoqktrgDc1",
     "name": "Magic Inventory"
   },
   "tables": {
-    "Cards": {
-      "id": "tbl3UgZZPJGQhEFo8",
+    "Inventory Cards": {
       "primary_field": "Card Name"
     },
     "Decks": {
-      "id": "tblIfqVuVHNQza1K3",
       "primary_field": "Name"
     },
     "Trades": {
-      "id": "tblgqqIvTuz0l5SZM",
       "primary_field": "ID"
     },
     "Chase Cards": {
-      "id": "tblXsNtGgT7UQLPXZ",
       "primary_field": "Card Name"
     }
   },
@@ -26,8 +22,7 @@
     "managing-inventory": {
       "source": "skills/managing-inventory/SKILL.md + references/{airtable-schema,trades}.md",
       "tables": {
-        "Cards": {
-          "id": "tbl3UgZZPJGQhEFo8",
+        "Inventory Cards": {
           "required_fields": [
             "Card Name",
             "Sets",
@@ -50,7 +45,6 @@
           ]
         },
         "Decks": {
-          "id": "tblIfqVuVHNQza1K3",
           "required_fields": [
             "Name",
             "Owner",
@@ -64,7 +58,6 @@
           ]
         },
         "Trades": {
-          "id": "tblgqqIvTuz0l5SZM",
           "required_fields": [
             "Date",
             "From (Source)",
@@ -83,7 +76,6 @@
       "source": "skills/building-decks/SKILL.md + references/strategy-schema.md",
       "tables": {
         "Decks": {
-          "id": "tblIfqVuVHNQza1K3",
           "required_fields": [
             "Name",
             "Strategy",
@@ -92,8 +84,7 @@
             "Cards"
           ]
         },
-        "Cards": {
-          "id": "tbl3UgZZPJGQhEFo8",
+        "Inventory Cards": {
           "required_fields": [
             "Card Name",
             "Card Type",
@@ -105,7 +96,6 @@
           ]
         },
         "Chase Cards": {
-          "id": "tblXsNtGgT7UQLPXZ",
           "required_fields": [
             "Card Name",
             "Target Decks"
@@ -118,7 +108,6 @@
       "source": "skills/chasing-cards/SKILL.md",
       "tables": {
         "Chase Cards": {
-          "id": "tblXsNtGgT7UQLPXZ",
           "required_fields": [
             "Card Name",
             "Sets",
@@ -135,7 +124,6 @@
           ]
         },
         "Decks": {
-          "id": "tblIfqVuVHNQza1K3",
           "required_fields": [
             "Name",
             "Strategy",
@@ -148,9 +136,8 @@
     }
   },
   "scratch_write": {
-    "$comment": "Table the --full round-trip creates/updates/deletes a clearly-marked scratch record in. Chase Cards is chosen because it is a leaf table with no inbound links from human-edited records, a plain text primary field, and its own delete path exercised by chasing-cards. The round-trip NEVER touches Cards/Decks/Trades where a stray record could pollute deck formulas.",
+    "$comment": "Table the --full round-trip creates/updates/deletes a clearly-marked scratch record in. Chase Cards is chosen because it is a leaf table with no inbound links from human-edited records, a plain text primary field, and its own delete path exercised by chasing-cards. The round-trip NEVER touches Inventory Cards/Decks/Trades where a stray record could pollute deck formulas. The table is addressed by NAME; the harness resolves its live tbl… id at runtime.",
     "table": "Chase Cards",
-    "table_id": "tblXsNtGgT7UQLPXZ",
     "name_field": "Card Name",
     "update_field": "Oracle Text",
     "name_prefix": "__REGRESSION_SCRATCH__"

@@ -7,12 +7,14 @@
 | Table | ID | Purpose |
 |-------|----|---------|
 | Magic Cards | `tbliSupwHYSUcAY7l` | Legacy inventory (do not modify) |
-| Cards | `tbl3UgZZPJGQhEFo8` | Normalized — 1 row per card title |
+| Inventory Cards | `tbl3UgZZPJGQhEFo8` | Normalized — 1 row per card title |
 | Decks | `tblIfqVuVHNQza1K3` | Deck configurations |
 | Trades | `tblgqqIvTuz0l5SZM` | Card movement tracking |
 | Chase Cards | `tblXsNtGgT7UQLPXZ` | Pre-release / wanted cards tracking |
 
-### Cards table fields (`tbl3UgZZPJGQhEFo8`)
+### Inventory Cards table fields (`tbl3UgZZPJGQhEFo8`)
+
+> Note: the live table is named **"Inventory Cards"**. Elsewhere in these docs "Cards" is used as a shorthand label for this same table.
 
 | Field | Type | ID | Notes |
 |-------|------|----|-------|
@@ -47,8 +49,8 @@
 | Name | primary | |
 | Owner | text | |
 | Format | singleSelect | |
-| Commander | link -> Cards | |
-| Cards | link -> Cards | Non-commander, non-basic-land cards |
+| Commander | link -> Inventory Cards | |
+| Cards | link -> Inventory Cards | Non-commander, non-basic-land cards |
 | Plains/Islands/Swamps/Mountains/Forests/Wastes | number | Basic land counts |
 | Repeat Cards Count | number | Extra copies in deck beyond the linked records. See Multi-Copy Cards below |
 | Deck Size | formula | `Linked Cards + Commander + Basic Lands + Repeat Cards Count` |
@@ -71,8 +73,8 @@
 | From (Deck) | link -> Decks | Specificity when Source = "Deck" |
 | To (Destination) | singleSelect | Category: Library, Deck, Store, Person |
 | To (Deck) | link -> Decks | Specificity when Destination = "Deck" |
-| Cards into Destination | link -> Cards | |
-| Cards out of Destination | link -> Cards | |
+| Cards into Destination | link -> Inventory Cards | |
+| Cards out of Destination | link -> Inventory Cards | |
 | Cards into Destination (Count) | count | Count of Cards into Destination |
 | Cards out of Destination (Count) | count | Count of Cards out of Destination |
 | Status | singleSelect | Draft / Planned / Completed |
@@ -100,7 +102,7 @@
 | Price Last Updated | lastModifiedTime | `fldGkQ71BWcPuie2T` | Watches Price field |
 | Color Identity | multipleSelects | `fldEkalJKqK2ZecEv` | W/U/B/R/G/Colorless |
 | Target Decks | multipleRecordLinks -> Decks | `flduoZZRmVfpD6aSG` | Which decks want this card |
-| Is Land / Is Creature / Is Non-Creature | formula | various | Same pattern as Cards table |
+| Is Land / Is Creature / Is Non-Creature | formula | various | Same pattern as Inventory Cards table |
 | Created At | createdTime | `fldWqJ6dAj2mXNx4V` | |
 | Last Modified | lastModifiedTime | `fldtYh0qTTObjRkJ7` | |
 
