@@ -1,0 +1,7 @@
+{
+  "source": "oracle_tags",
+  "updated_at": "2026-07-26T21:00:38.932+00:00",
+  "download_uri": "https://data.scryfall.io/oracle-tags/oracle-tags-20260726210038.json",
+  "full_size_bytes": 18234051,
+  "trim": "full 4499-tag DAG; taggings capped at 8/tag (24510 of 229904 kept)"
+}

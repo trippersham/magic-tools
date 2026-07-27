@@ -7,12 +7,14 @@
 | Table | ID | Purpose |
 |-------|----|---------|
 | Magic Cards | `tbliSupwHYSUcAY7l` | Legacy inventory (do not modify) |
-| Cards | `tbl3UgZZPJGQhEFo8` | Normalized — 1 row per card title |
+| Inventory Cards | `tbl3UgZZPJGQhEFo8` | Normalized — 1 row per card title |
 | Decks | `tblIfqVuVHNQza1K3` | Deck configurations |
 | Trades | `tblgqqIvTuz0l5SZM` | Card movement tracking |
 | Chase Cards | `tblXsNtGgT7UQLPXZ` | Pre-release / wanted cards tracking |
 
-### Cards table fields (`tbl3UgZZPJGQhEFo8`)
+### Inventory Cards table fields (`tbl3UgZZPJGQhEFo8`)
+
+> Note: the live table is named **"Inventory Cards"**. Elsewhere in these docs "Cards" is used as a shorthand label for this same table.
 
 | Field | Type | ID | Notes |
 |-------|------|----|-------|
@@ -47,13 +49,15 @@
 | Name | primary | |
 | Owner | text | |
 | Format | singleSelect | |
-| Commander | link -> Cards | |
-| Cards | link -> Cards | Non-commander, non-basic-land cards |
+| Commander | link -> Inventory Cards | |
+| Cards | link -> Inventory Cards | Non-commander, non-basic-land cards |
 | Plains/Islands/Swamps/Mountains/Forests/Wastes | number | Basic land counts |
 | Repeat Cards Count | number | Extra copies in deck beyond the linked records. See Multi-Copy Cards below |
 | Deck Size | formula | `Linked Cards + Commander + Basic Lands + Repeat Cards Count` |
 | Notes | multilineText | |
-| Strategy | text | `fldvJRaoYfRZiM8zw` — Source of truth for what the deck optimizes for. See strategy-schema.md for convention |
+| Strategy | text | `fldvJRaoYfRZiM8zw` — Source of truth for what the deck AIMS to be (human-authored aspiration, prose). See strategy-schema.md for convention |
+| Focus Otags | multipleSelects or multilineText | The otags/buckets the deck CARES about — its intended functional identity in the tag vocabulary (bucket names and/or otag slugs). A CURATED subset (not the wide mechanical union the cards carry). Skill/reasoning-authored (or human) by building-decks (Operation 5) and written via the Airtable MCP; **the deterministic pipeline READS it but NEVER writes it**. Distinct from Strategy (prose aim) and Assessment (reality). See quadrant-theory.md |
+| Assessment | multilineText (long text) | Reasoning-authored by building-decks (Operation 5) and written via the Airtable MCP. What the deck ACTUALLY is, isn't, and needs — the Quadrant pre-mortem synthesis measuring actual card otags against Focus Otags (coverage of focus, thin/unprotected focus, off-focus noise) plus functional profile and structural gaps. Distinct from Strategy and Focus Otags; not engine-emitted. See quadrant-theory.md |
 | Chase Cards | link <- Chase Cards.Target Decks | `fldfoTmUWn5WpuT6u` — Inverse link, auto-populated |
 | Color Identity | text | `fldIXcQuMKd7PLyr9` — Deck's color identity (e.g. "WUR", "BG") |
 | Creatures / Nonbasic Lands / Non-Creature Spells | rollup | Via Is* helper fields |
@@ -69,8 +73,8 @@
 | From (Deck) | link -> Decks | Specificity when Source = "Deck" |
 | To (Destination) | singleSelect | Category: Library, Deck, Store, Person |
 | To (Deck) | link -> Decks | Specificity when Destination = "Deck" |
-| Cards into Destination | link -> Cards | |
-| Cards out of Destination | link -> Cards | |
+| Cards into Destination | link -> Inventory Cards | |
+| Cards out of Destination | link -> Inventory Cards | |
 | Cards into Destination (Count) | count | Count of Cards into Destination |
 | Cards out of Destination (Count) | count | Count of Cards out of Destination |
 | Status | singleSelect | Draft / Planned / Completed |
@@ -98,7 +102,7 @@
 | Price Last Updated | lastModifiedTime | `fldGkQ71BWcPuie2T` | Watches Price field |
 | Color Identity | multipleSelects | `fldEkalJKqK2ZecEv` | W/U/B/R/G/Colorless |
 | Target Decks | multipleRecordLinks -> Decks | `flduoZZRmVfpD6aSG` | Which decks want this card |
-| Is Land / Is Creature / Is Non-Creature | formula | various | Same pattern as Cards table |
+| Is Land / Is Creature / Is Non-Creature | formula | various | Same pattern as Inventory Cards table |
 | Created At | createdTime | `fldWqJ6dAj2mXNx4V` | |
 | Last Modified | lastModifiedTime | `fldtYh0qTTObjRkJ7` | |
 

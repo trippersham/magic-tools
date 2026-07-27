@@ -1,0 +1,145 @@
+{
+  "$comment": "GOLDEN CONTRACT — the 'must not change' Airtable surface the three Airtable-as-source-of-truth skills depend on. DERIVED from the skill reference docs (managing-inventory/references/airtable-schema.md, building-decks/SKILL.md + strategy-schema.md, chasing-cards/SKILL.md). This is the Phase-0 baseline: if any table/field named here disappears or a write op path breaks, the happy-path workflow has regressed. Tables and fields are addressed by NAME (not per-base tbl…/fld… ids): names are stable across bases while ids are per-base, so the harness resolves the live tbl… ids by NAME at runtime via the Airtable meta API. The base id is likewise env-driven (AIRTABLE_BASE_ID) with a turnkey default, so a different Airtable instance can run this suite without editing the contract.",
+  "base": {
+    "id": "appw7QPMoqktrgDc1",
+    "name": "Magic Inventory"
+  },
+  "tables": {
+    "Inventory Cards": {
+      "primary_field": "Card Name"
+    },
+    "Decks": {
+      "primary_field": "Name"
+    },
+    "Trades": {
+      "primary_field": "ID"
+    },
+    "Chase Cards": {
+      "primary_field": "Card Name"
+    }
+  },
+  "skills": {
+    "managing-inventory": {
+      "source": "skills/managing-inventory/SKILL.md + references/{airtable-schema,trades}.md",
+      "tables": {
+        "Inventory Cards": {
+          "required_fields": [
+            "Card Name",
+            "Sets",
+            "Number Owned",
+            "Sources",
+            "Condition",
+            "Card Type",
+            "Mana Cost",
+            "CMC",
+            "Power / Toughness",
+            "Oracle Text",
+            "Card Art",
+            "Scryfall URL",
+            "Price (TCGPlayer)",
+            "Color Identity",
+            "Repeat Number in Decks",
+            "Number in Decks",
+            "Number in Library",
+            "Decks"
+          ]
+        },
+        "Decks": {
+          "required_fields": [
+            "Name",
+            "Owner",
+            "Format",
+            "Commander",
+            "Cards",
+            "Repeat Cards Count",
+            "Deck Size",
+            "Notes",
+            "Strategy"
+          ]
+        },
+        "Trades": {
+          "required_fields": [
+            "Date",
+            "From (Source)",
+            "From (Deck)",
+            "To (Destination)",
+            "To (Deck)",
+            "Cards into Destination",
+            "Cards out of Destination",
+            "Status"
+          ]
+        }
+      },
+      "write_ops": ["create_record", "update_records", "delete_records"]
+    },
+    "building-decks": {
+      "source": "skills/building-decks/SKILL.md + references/strategy-schema.md",
+      "tables": {
+        "Decks": {
+          "required_fields": [
+            "Name",
+            "Strategy",
+            "Color Identity",
+            "Commander",
+            "Cards"
+          ]
+        },
+        "Inventory Cards": {
+          "required_fields": [
+            "Card Name",
+            "Card Type",
+            "CMC",
+            "Oracle Text",
+            "Color Identity",
+            "Number in Library",
+            "Decks"
+          ]
+        },
+        "Chase Cards": {
+          "required_fields": [
+            "Card Name",
+            "Target Decks"
+          ]
+        }
+      },
+      "write_ops": ["create_record"]
+    },
+    "chasing-cards": {
+      "source": "skills/chasing-cards/SKILL.md",
+      "tables": {
+        "Chase Cards": {
+          "required_fields": [
+            "Card Name",
+            "Sets",
+            "Card Type",
+            "Mana Cost",
+            "CMC",
+            "Oracle Text",
+            "Card Art",
+            "Scryfall URL",
+            "Price (TCGPlayer)",
+            "Color Identity",
+            "Target Decks",
+            "Power / Toughness"
+          ]
+        },
+        "Decks": {
+          "required_fields": [
+            "Name",
+            "Strategy",
+            "Color Identity",
+            "Commander"
+          ]
+        }
+      },
+      "write_ops": ["create_record", "update_records", "delete_records"]
+    }
+  },
+  "scratch_write": {
+    "$comment": "Table the --full round-trip creates/updates/deletes a clearly-marked scratch record in. Chase Cards is chosen because it is a leaf table with no inbound links from human-edited records, a plain text primary field, and its own delete path exercised by chasing-cards. The round-trip NEVER touches Inventory Cards/Decks/Trades where a stray record could pollute deck formulas. The table is addressed by NAME; the harness resolves its live tbl… id at runtime.",
+    "table": "Chase Cards",
+    "name_field": "Card Name",
+    "update_field": "Oracle Text",
+    "name_prefix": "__REGRESSION_SCRATCH__"
+  }
+}

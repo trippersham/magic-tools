@@ -1,0 +1,37 @@
+[
+  {
+    "oracle_id": "4457ed35-7c10-48c8-9b6c-cf9b3f31c0f7",
+    "name": "Lightning Bolt",
+    "cmc": 1.0,
+    "type_line": "Instant",
+    "color_identity": ["R"]
+  },
+  {
+    "oracle_id": "83f43730-1c1f-4150-8771-d901c54bedc4",
+    "name": "Sol Ring",
+    "cmc": 1.0,
+    "type_line": "Artifact",
+    "color_identity": []
+  },
+  {
+    "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+    "name": "Forest",
+    "cmc": 0.0,
+    "type_line": "Basic Land — Forest",
+    "color_identity": ["G"]
+  },
+  {
+    "oracle_id": "56603e91-2f4c-4a44-9d3e-6d1d0b7d1e18",
+    "name": "Counterspell",
+    "cmc": 2.0,
+    "type_line": "Instant",
+    "color_identity": ["U"]
+  },
+  {
+    "oracle_id": "0d2b0c5e-3a3d-4c6f-9c4e-9c2f6f9d7a11",
+    "name": "Wrath of God",
+    "cmc": 4.0,
+    "type_line": "Sorcery",
+    "color_identity": ["W"]
+  }
+]

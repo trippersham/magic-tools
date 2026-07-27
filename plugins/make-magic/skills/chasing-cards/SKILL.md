@@ -254,7 +254,7 @@ For double-faced cards: top-level `image_uris`, `oracle_text`, and `mana_cost` a
 | Oracle Text | `fldHSHDka12X4BiHL` | multilineText |
 | Card Art | `fldFvNmj0fqOnOVP3` | url |
 | Scryfall URL | `fldUjrCkvkBKcWqgh` | url |
-| Price | `fld8PpkaGej0qDA8x` | currency |
+| Price (TCGPlayer) | `fld8PpkaGej0qDA8x` | currency |
 | Color Identity | `fldEkalJKqK2ZecEv` | multipleSelects |
 | Target Decks | `flduoZZRmVfpD6aSG` | link -> Decks |
 | P/T | `fldnl2R4B7B9X2MlJ` | text |

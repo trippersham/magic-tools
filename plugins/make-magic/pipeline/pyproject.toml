@@ -1,0 +1,46 @@
+[project]
+name = "make-magic-pipeline"
+version = "0.1.0"
+description = "Lightweight normalized data layer + pipeline for make-magic (DuckDB medallion lake + Pydantic edge contracts). Additive to the Airtable source-of-truth workflow; never degrades it."
+requires-python = ">=3.12"
+dependencies = [
+    "duckdb>=1.1",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "pydantic-settings>=2",
+]
+
+[project.optional-dependencies]
+# Airtable adapter (pull-only in the pilot; derived write-back in P5).
+airtable = ["pyairtable>=3.0"]
+dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1"]
+
+[tool.uv]
+# Match the existing plugin scripts' reproducibility pin.
+exclude-newer = "2026-06-08T00:00:00Z"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pipeline"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# --- Style (rae-style python-styleguide: Pydantic-AI conventions) ---
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
+
+[tool.pyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"
+include = ["pipeline"]

@@ -1,6 +1,8 @@
 # Deck Strategy Schema
 
-The `Strategy` field on each Deck record in Airtable (`fldvJRaoYfRZiM8zw`) is the source of truth for what a deck optimizes for. This document defines the convention for writing and reading strategies.
+The `Strategy` field on each Deck record in Airtable (`fldvJRaoYfRZiM8zw`) is the source of truth for what a deck **aims** to be — a human-authored aspiration. This document defines the convention for writing and reading strategies.
+
+> **`Strategy` vs `Focus Otags` vs `Assessment`.** `Strategy` (this field) = what the deck AIMS to be, in prose (the plan). `Focus Otags` (Decks table, multipleSelects or long text) = the otags/buckets the deck CARES about — its intended functional identity in the tag vocabulary, a curated subset (not the wide set the cards mechanically carry); skill/human-authored and written via the Airtable MCP, and the deterministic pipeline READS it but NEVER writes it. `Assessment` (Decks table, long text) = what the deck ACTUALLY is, isn't, and needs — a reasoning synthesis measuring actual card otags against `Focus Otags`, authored by building-decks Operation 5 and written via the Airtable MCP. Never conflate them: `Strategy` is the prose aim and `Focus Otags` the intended mechanics (both inputs); `Assessment` is the reality-vs-intent output. See `references/quadrant-theory.md`.
 
 ## Convention
 

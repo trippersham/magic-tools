@@ -50,7 +50,7 @@ Read `references/query-patterns.md` for the correct patterns.
 
 | Table | ID | Purpose |
 |-------|----|---------|
-| Cards | `tbl3UgZZPJGQhEFo8` | Normalized inventory — 1 row per card title |
+| Inventory Cards | `tbl3UgZZPJGQhEFo8` | Normalized inventory — 1 row per card title |
 | Decks | `tblIfqVuVHNQza1K3` | Deck configurations |
 | Trades | `tblgqqIvTuz0l5SZM` | Card movement tracking |
 | Magic Cards | `tbliSupwHYSUcAY7l` | Legacy (do not modify) |
