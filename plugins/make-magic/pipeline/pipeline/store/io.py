@@ -2,18 +2,11 @@
 
 Callers never ``import duckdb`` or track the engine themselves — they hand a
 connection and a (layer, name) coordinate, and this module resolves paths,
-materializes Parquet, registers views, and attaches external SQLite.
+materializes Parquet, and registers views.
 
-Design (data-architecture §store): one io module owns read/write so the
-read/write split lives in exactly one place. Unlike the compsych Delta pattern
-(read via ``delta_scan``, write via delta-rs — because DuckDB's delta extension
-is read-only), plain Parquet is symmetric: DuckDB both writes (``COPY ... TO``)
-and reads (``read_parquet``) natively, so both sides live here with no second
-engine.
-
-``attach_sqlite`` is OPPORTUNISTIC: the Scryfall SQLite cache is ephemeral
-(``$TMPDIR``, dies with the session), so a missing file is normal — attach
-skips gracefully (logs + returns ``False``) rather than raising.
+One io module owns read/write so the split lives in exactly one place. Plain
+Parquet is symmetric — DuckDB both writes (``COPY ... TO``) and reads
+(``read_parquet``) natively — so both sides live here with no second engine.
 """
 
 from __future__ import annotations
@@ -111,32 +104,6 @@ def register_view(
     view = view_name or name
     conn.sql(f"CREATE OR REPLACE VIEW {view} AS SELECT * FROM read_parquet('{path}')")
     return view
-
-
-def attach_sqlite(
-    conn: duckdb.DuckDBPyConnection,
-    sqlite_path: str | os.PathLike[str],
-    alias: str,
-    *,
-    read_only: bool = True,
-) -> bool:
-    """Opportunistically ATTACH a SQLite database under ``alias``.
-
-    The Scryfall cache is ephemeral, so a missing file is expected: this logs
-    and returns ``False`` instead of raising. On success returns ``True`` and
-    the caller can join across ``<alias>.<table>``.
-    """
-    path = Path(sqlite_path)
-    if not path.exists():
-        log.info('attach_sqlite: %s absent; skipping (opportunistic).', path)
-        return False
-    # The bundled `sqlite` extension is needed to ATTACH a SQLite file. It ships
-    # with DuckDB, so install/load is offline (no network) and idempotent.
-    conn.install_extension('sqlite')
-    conn.load_extension('sqlite')
-    mode = ', READ_ONLY' if read_only else ''
-    conn.sql(f"ATTACH '{path}' AS {alias} (TYPE SQLITE{mode})")
-    return True
 
 
 def table_exists(layer: str, name: str) -> bool:

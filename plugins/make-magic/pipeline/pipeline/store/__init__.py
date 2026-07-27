@@ -13,7 +13,6 @@ respect to Airtable and skills.
 from __future__ import annotations
 
 from pipeline.store.io import (
-    attach_sqlite,
     connect,
     list_layer,
     read_parquet,
@@ -33,7 +32,6 @@ __all__ = [
     'ENV_DATA_DIR',
     'LAYERS',
     'StorePaths',
-    'attach_sqlite',
     'connect',
     'list_layer',
     'read_parquet',

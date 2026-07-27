@@ -10,14 +10,10 @@ Coverage:
       row count and a column value assert.
     - a JOIN across two parquet tables (cards + a synthetic card_otag mapping) —
       the analytical join the whole architecture rests on.
-    - attach_sqlite against a temp SQLite file -> join across the attached table
-      and a parquet table; AND attach_sqlite skips gracefully (returns False)
-      when the path is missing.
 """
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -138,53 +134,3 @@ def test_join_across_two_parquet_tables(data_dir: Path) -> None:
         ('Lightning Bolt', 'burn'),
         ('Wrath of God', 'board-wipe'),
     ]
-
-
-# --------------------------------------------------------------------------- #
-# attach_sqlite: opportunistic, joins across attached + parquet, skips gracefully
-# --------------------------------------------------------------------------- #
-
-
-def test_attach_sqlite_join_across_attached_and_parquet(data_dir: Path, tmp_path: Path) -> None:
-    # Build a tiny SQLite file resembling the ephemeral scryfall cache.
-    sqlite_path = tmp_path / 'cache.db'
-    sconn = sqlite3.connect(str(sqlite_path))
-    sconn.execute('CREATE TABLE prices (oracle_id TEXT PRIMARY KEY, usd REAL)')
-    sconn.executemany(
-        'INSERT INTO prices VALUES (?, ?)',
-        [
-            ('4457ed35-7c10-48c8-9b6c-cf9b3f31c0f7', 1.50),
-            ('83f43730-1c1f-4150-8771-d901c54bedc4', 2.49),
-        ],
-    )
-    sconn.commit()
-    sconn.close()
-
-    with store.connect() as conn:
-        cards = conn.read_json(str(FIXTURE))
-        store.write_parquet(conn, cards, 'raw', 'oracle_cards')
-        store.register_view(conn, 'raw', 'oracle_cards')
-
-        attached = store.attach_sqlite(conn, sqlite_path, 'cache')
-        assert attached is True
-
-        joined = conn.sql(
-            """
-            SELECT c.name, p.usd
-            FROM oracle_cards c
-            JOIN cache.prices p USING (oracle_id)
-            ORDER BY c.name
-            """
-        ).fetchall()
-
-    assert joined == [
-        ('Lightning Bolt', 1.50),
-        ('Sol Ring', 2.49),
-    ]
-
-
-def test_attach_sqlite_missing_file_skips_gracefully(data_dir: Path, tmp_path: Path) -> None:
-    missing = tmp_path / 'does_not_exist.db'
-    with store.connect() as conn:
-        result = store.attach_sqlite(conn, missing, 'cache')
-    assert result is False

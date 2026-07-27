@@ -20,13 +20,6 @@ TABLES: dict[str, Callable[[], Path]] = {
 }
 
 
-def build_table(name: str) -> Path:
-    """Build a single normalized table by name; raise ``KeyError`` if unknown."""
-    if name not in TABLES:
-        raise KeyError(f'Unknown normalized table {name!r}; known: {sorted(TABLES)}.')
-    return TABLES[name]()
-
-
 def build_all() -> dict[str, Path]:
     """Build every normalized table; return ``name -> landed Parquet path``."""
     return {name: fn() for name, fn in TABLES.items()}
