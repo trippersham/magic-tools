@@ -287,7 +287,7 @@ class FactSheet(BaseModel):
 
 
 class InventoryRow(BaseModel):
-    """An Airtable "Cards" table row (`tbl3UgZZPJGQhEFo8`): normalized 1-row-per
+    """An Airtable "Cards" table row: normalized 1-row-per
     -title inventory. Fields mirror the human-relevant columns; formula/rollup
     fields (Number in Decks/Library, Is Land/Creature) are DERIVED and excluded.
     """
@@ -315,7 +315,7 @@ class InventoryRow(BaseModel):
 
 
 class TradeRow(BaseModel):
-    """An Airtable "Trades" table row (`tblgqqIvTuz0l5SZM`): card movement.
+    """An Airtable "Trades" table row: card movement.
 
     Source/Destination are categories (Library/Deck/Store/Person); the *_deck
     fields add specificity when the category is "Deck".

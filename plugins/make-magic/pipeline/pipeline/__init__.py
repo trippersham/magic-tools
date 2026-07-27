@@ -11,7 +11,7 @@ data; it only reads (pulls) and derives. See
 Subpackages:
     contracts/  Pydantic v2 boundary models + generated JSON Schema (edges only).
     store/      DuckDB database file + raw/normalized/marts conventions + io.
-    sources/    One hand-rolled puller per source (watermark + append-dedupe).
+    sources/    One hand-rolled puller per source (cursor + append-dedupe).
     transforms/ SQL-per-table + a thin driver + declarative DQ checks.
     destinations/ Airtable (per-field authority), text decklists, MCP tools.
 """

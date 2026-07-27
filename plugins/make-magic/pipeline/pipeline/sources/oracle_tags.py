@@ -43,8 +43,13 @@ RATE_LIMIT_MS = 100
 SNAPSHOT = Path(__file__).resolve().parents[2] / 'data' / 'snapshots' / 'oracle_tags.json.gz'
 
 
-def _fetch_remote(client: httpx.Client) -> tuple[list[dict[str, Any]], str]:
-    """Fetch tags from Scryfall. Returns ``(tags, updated_at)``.
+def _fetch_meta(client: httpx.Client) -> tuple[str, str]:
+    """GET the cheap bulk-meta JSON. Returns ``(download_uri, updated_at)``.
+
+    This is the CURSOR probe: it fetches only the small metadata document (the
+    ``updated_at`` change token + the ``download_uri`` of the big payload) and
+    does NOT download the ~18 MB file. ``sync`` gates on ``updated_at`` BEFORE
+    calling :func:`_fetch_payload`, so a not-newer run never pays for the payload.
 
     Raises on any HTTP/network failure — the caller catches and falls back.
     """
@@ -53,7 +58,16 @@ def _fetch_remote(client: httpx.Client) -> tuple[list[dict[str, Any]], str]:
     meta_json = meta.json()
     updated_at = str(meta_json['updated_at'])
     download_uri = str(meta_json['download_uri'])
+    return download_uri, updated_at
 
+
+def _fetch_payload(client: httpx.Client, download_uri: str) -> list[dict[str, Any]]:
+    """GET the ~18 MB tags payload from ``download_uri``. Returns the tag list.
+
+    Called ONLY after the cursor gate in :func:`sync` passes (newer or forced),
+    so the big download is skipped on a not-newer run. Raises on any HTTP/network
+    failure — the caller catches and falls back to the bundled snapshot.
+    """
     time.sleep(RATE_LIMIT_MS / 1000)
     resp = client.get(download_uri, headers=HEADERS, timeout=120)
     resp.raise_for_status()
@@ -61,7 +75,7 @@ def _fetch_remote(client: httpx.Client) -> tuple[list[dict[str, Any]], str]:
     # Scryfall bulk downloads are a bare JSON array; be defensive if wrapped.
     if isinstance(tags, dict):
         tags = tags.get('data', [])
-    return list(tags), updated_at
+    return list(tags)
 
 
 def _load_snapshot() -> list[dict[str, Any]]:
@@ -99,12 +113,14 @@ def sync(*, client: httpx.Client | None = None, force: bool = False) -> Path:
     owns_client = client is None
     client = client or httpx.Client()
     try:
-        tags, updated_at = _fetch_remote(client)
-        if not force and not is_newer(prior, updated_at):
+        # 1. Cheap cursor probe FIRST — small meta JSON only, no big download.
+        download_uri, updated_at = _fetch_meta(client)
+        # 2. Cursor gate: skip the ~18 MB payload GET entirely if not newer.
+        if not force and not is_newer(prior, updated_at) and store.table_exists('raw', SOURCE):
             log.info('oracle_tags: %s not newer than %s; skipping load.', updated_at, prior)
-            # Still ensure a loaded table exists (first-run edge covered by is_newer).
-            if store.table_exists('raw', SOURCE):
-                return store.StorePaths.resolve().parquet_path('raw', SOURCE, create=False)
+            return store.StorePaths.resolve().parquet_path('raw', SOURCE, create=False)
+        # 3. Only now (newer, forced, or first-run) download the big payload + load.
+        tags = _fetch_payload(client, download_uri)
         path = _load(tags)
         cursor.set(SOURCE, updated_at)
         cursor.save()

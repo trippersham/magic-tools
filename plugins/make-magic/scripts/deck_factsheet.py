@@ -270,7 +270,7 @@ def _card_record(card: dict) -> dict:
 #
 # We add the pipeline package to sys.path with the SAME shim used to reach
 # scryfall_cache, then call the pipeline's DONE, tested transforms. We do NOT
-# re-implement the rollup, the crosswalk, or the puller's fetch/watermark/land
+# re-implement the rollup, the crosswalk, or the puller's fetch/cursor/land
 # logic here (constraint): the script is a CONSUMER of the pipeline's puller and
 # transforms. The otag source is self-refreshing (puller-backed, cached) with a
 # snapshot fallback; every layer and the delegation are try-guarded so a missing

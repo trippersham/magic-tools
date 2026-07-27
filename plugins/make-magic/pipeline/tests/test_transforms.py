@@ -366,8 +366,9 @@ def test_factsheet_for_no_focus_is_identical_to_pre_change() -> None:
 
 
 def test_factsheet_for_focus_bucket_level_coverage_and_thin() -> None:
-    # counters is well-supported (Hardened Scales); tokens is declared but the deck
-    # has 0 token cards -> thin. typal declared, 0 support -> thin.
+    # counters has a single supporter (Hardened Scales) -> coverage 1, still under
+    # the thin threshold (2) -> thin. tokens is declared but the deck has 0 token
+    # cards -> thin. typal declared, 0 support -> thin.
     focus = ['counters', 'tokens', 'typal']
     fs = deck_factsheet.factsheet_for(_FOCUS_DECK, card_otag=_FOCUS_OTAG, focus=focus)
     FactSheet.model_validate(fs)
@@ -380,7 +381,9 @@ def test_factsheet_for_focus_bucket_level_coverage_and_thin() -> None:
     # thin_focus = entries below the small support threshold.
     assert 'tokens' in fr['thin_focus']
     assert 'typal' in fr['thin_focus']
-    assert 'counters' not in fr['thin_focus'] or fr['coverage_of_focus']['counters'] >= 1
+    # counters has coverage 1, which is still below the thin threshold (2), so it
+    # IS flagged thin — a single supporter is not enough support.
+    assert 'counters' in fr['thin_focus']
 
 
 def test_factsheet_for_focus_slug_level_entry_resolves() -> None:
@@ -388,7 +391,9 @@ def test_factsheet_for_focus_slug_level_entry_resolves() -> None:
     # carrying that slug. `land-ramp` is a slug on Cultivate's closure.
     fs = deck_factsheet.factsheet_for(_FOCUS_DECK, card_otag=_FOCUS_OTAG, focus=['land-ramp'])
     assert fs['focus_relative']['coverage_of_focus']['land-ramp'] == 1
-    assert 'land-ramp' not in fs['focus_relative']['thin_focus'] or 1 < 2
+    # The slug resolved to exactly one supporting card (coverage 1), still below
+    # the thin threshold (2), so the slug-level entry IS flagged thin.
+    assert 'land-ramp' in fs['focus_relative']['thin_focus']
 
 
 def test_factsheet_for_off_focus_lists_prominent_non_focus_buckets() -> None:

@@ -7,7 +7,7 @@ the ``tbl…``/``fld…`` ids are resolved at runtime via the Airtable meta API 
 the write-back is not locked to one Airtable instance. A card's otags are a PURE
 FUNCTION of the card (keyed to its Scryfall ``oracle_id``), so storing them on
 Cards is authoritative and never stale; Airtable rolls them up to decks natively
-(the "derived/bulk -> Local authoritative -> push to Airtable" authority rule).
+(the "derived/bulk -> Local authoritative -> sync to Airtable" authority rule).
 
     - ``⚙ Buckets`` — Airtable **multipleSelects** — the crosswalked functional
       buckets for the card (``crosswalk.buckets_for``: removal / ramp / draw /
@@ -35,7 +35,8 @@ enforced STRUCTURALLY, not by convention, at three layers:
     3. A guarded client. :class:`AllowlistWriteClient` wraps the private httpx
        client; every mutating request is routed through :meth:`_guarded_body`,
        which re-runs the guard on the exact body about to leave the process. The
-       httpx client is name-mangled so callers cannot bypass the choke point.
+       httpx client is name-mangled (private), which deters accidental bypass of
+       the choke point — it is not a hard security boundary.
 
 Join model: each Airtable Card record -> its ``oracle_id`` (resolved from the
 card name against the Scryfall oracle-card table) -> its ``card_otag`` slug
@@ -235,6 +236,16 @@ def load_human_denylist(path: Path | None = None) -> frozenset[str]:
 #: disjointness can be asserted structurally below.
 HUMAN_DENYLIST: frozenset[str] = load_human_denylist()
 
+# FAIL-CLOSED, checked at import time: an EMPTY denylist would silently degrade
+# the human-field guard to allowlist-only (no human field would ever be caught by
+# the denylist check). That happens if the golden contract is missing or its Cards
+# table key does not match CARDS_TABLE_NAME. Fail LOUDLY at import instead.
+assert HUMAN_DENYLIST, (
+    'FATAL: the human-field denylist is empty; regression/golden_contract.json is '
+    f"missing or its Cards-table key doesn't match CARDS_TABLE_NAME={CARDS_TABLE_NAME!r}. "
+    'The human-field write guard must never degrade to allowlist-only.'
+)
+
 # STRUCTURAL INVARIANT, checked at import time: the fields this module is allowed
 # to write and the human fields it must never write are DISJOINT. If a future
 # edit ever names an allowlist field after a human field, this import fails loud.
@@ -422,8 +433,9 @@ class AllowlistWriteClient:
 
     Every mutating body is routed through :meth:`_guarded_body`, which re-runs
     :func:`assert_no_human_fields` on the exact fields about to be sent. The
-    httpx client is name-mangled (private) so there is no path to issue a raw
-    request that skips the guard. Uses ``use_field_ids=True`` by resolving field
+    httpx client is name-mangled (private), which deters accidental use of a raw
+    request that skips the guard (not a hard security boundary). Uses
+    ``use_field_ids=True`` by resolving field
     names to ids via the meta schema before patching.
     """
 
@@ -574,7 +586,7 @@ class AllowlistWriteClient:
 
 @dataclass
 class PushReport:
-    """Result of a (dry-run or applied) push."""
+    """Result of a (dry-run or applied) sync."""
 
     dry_run: bool
     applied: bool
@@ -681,7 +693,7 @@ def sync(
         return report
 
     if client is None:
-        raise ValueError('A live push (dry_run=False, apply=True) requires a client.')
+        raise ValueError('A live sync (dry_run=False, apply=True) requires a client.')
 
     # Schema first: create any missing derived fields, then resolve name->id.
     ensure_fields(client, dry_run=False, apply=True)

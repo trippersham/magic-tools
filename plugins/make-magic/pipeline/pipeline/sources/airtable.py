@@ -10,7 +10,8 @@ request goes through :meth:`GetOnlyClient.request`, which RAISES
 ``NonGetMethodError`` on any method other than GET. There is no code path in
 this module that constructs a POST/PATCH/PUT/DELETE — and even if one were added
 by mistake, the wrapper would reject it at runtime. The wrapper is the single
-choke point; the httpx client is private so callers can't bypass it.
+choke point; the httpx client is name-mangled (private), which deters accidental
+bypass — it is not a hard security boundary.
 
 Flow (data-architecture §Airtable pull):
     - Auth: ``AIRTABLE_API_KEY`` Bearer PAT (env).
@@ -82,7 +83,8 @@ class NonGetMethodError(RuntimeError):
 class GetOnlyClient:
     """A thin httpx wrapper that permits GET and ONLY GET.
 
-    The wrapped ``httpx.Client`` is private (name-mangled) so the sole way to
+    The wrapped ``httpx.Client`` is name-mangled (private), which deters
+    accidental bypass (not a hard security boundary), so the intended way to
     issue a request is :meth:`request`/:meth:`get`, both of which enforce the
     method guard. Any attempt to issue POST/PATCH/PUT/DELETE raises
     :class:`NonGetMethodError` before a byte leaves the process.
@@ -125,7 +127,7 @@ def _list_records(
     """List all records for a table (paginated), returning flattened rows.
 
     When ``since``/``since_field`` are given, adds a formula filter so only
-    records newer than the watermark are pulled (incremental). Records come back
+    records newer than the cursor are pulled (incremental). Records come back
     keyed by FIELD ID (``returnFieldsByFieldId=true``) for stable joins.
     """
     url = f'{API_ROOT}/{base_id}/{table_id}'

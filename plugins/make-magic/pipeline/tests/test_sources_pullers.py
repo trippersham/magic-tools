@@ -65,10 +65,14 @@ _TAGS_PAYLOAD = [
 
 
 def test_oracle_tags_parse_and_load(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_fetch(client: httpx.Client) -> tuple[list[dict[str, Any]], str]:
-        return _TAGS_PAYLOAD, '2026-07-26T21:00:00+00:00'
+    def fake_meta(client: httpx.Client) -> tuple[str, str]:
+        return 'http://x/uri', '2026-07-26T21:00:00+00:00'
 
-    monkeypatch.setattr(oracle_tags, '_fetch_remote', fake_fetch)
+    def fake_payload(client: httpx.Client, uri: str) -> list[dict[str, Any]]:
+        return _TAGS_PAYLOAD
+
+    monkeypatch.setattr(oracle_tags, '_fetch_meta', fake_meta)
+    monkeypatch.setattr(oracle_tags, '_fetch_payload', fake_payload)
     path = oracle_tags.sync(client=httpx.Client())
 
     assert path.exists()
@@ -90,31 +94,38 @@ def test_oracle_tags_skips_when_not_newer(data_dir: Path, monkeypatch: pytest.Mo
     cursor.set('oracle_tags', '2026-07-26T21:00:00+00:00')
     cursor.save()
 
-    calls = {'load': 0}
+    calls = {'load': 0, 'payload': 0}
     real_load = oracle_tags._load
 
     def counting_load(tags: list[dict[str, Any]]) -> Path:
         calls['load'] += 1
         return real_load(tags)
 
-    # Same updated_at as the stored cursor -> not newer -> skip load.
-    def fake_fetch(client: httpx.Client) -> tuple[list[dict[str, Any]], str]:
-        return _TAGS_PAYLOAD, '2026-07-26T21:00:00+00:00'
+    # Cheap meta says: same updated_at as the stored cursor -> not newer -> skip.
+    def fake_meta(client: httpx.Client) -> tuple[str, str]:
+        return 'http://x/uri', '2026-07-26T21:00:00+00:00'
 
-    monkeypatch.setattr(oracle_tags, '_fetch_remote', fake_fetch)
+    # The ~18 MB payload download MUST NOT run on a not-newer run.
+    def counting_payload(client: httpx.Client, uri: str) -> list[dict[str, Any]]:
+        calls['payload'] += 1
+        return _TAGS_PAYLOAD
+
+    monkeypatch.setattr(oracle_tags, '_fetch_meta', fake_meta)
+    monkeypatch.setattr(oracle_tags, '_fetch_payload', counting_payload)
     monkeypatch.setattr(oracle_tags, '_load', counting_load)
 
     # First load a table so the skip branch can early-return it.
     real_load(_TAGS_PAYLOAD)
     oracle_tags.sync(client=httpx.Client())
     assert calls['load'] == 0  # skipped — not newer
+    assert calls['payload'] == 0  # the big download was NOT issued
 
 
 def test_oracle_tags_fail_open_to_snapshot(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def boom(client: httpx.Client) -> tuple[list[dict[str, Any]], str]:
+    def boom(client: httpx.Client) -> tuple[str, str]:
         raise httpx.ConnectError('network down')
 
-    monkeypatch.setattr(oracle_tags, '_fetch_remote', boom)
+    monkeypatch.setattr(oracle_tags, '_fetch_meta', boom)
     # Must NOT raise — falls back to the bundled snapshot.
     path = oracle_tags.sync(client=httpx.Client())
     assert path.exists()
