@@ -4,9 +4,9 @@ Per the data-architecture decision, Pydantic lives ONLY at the edges: these are
 the objects a skill / MCP tool / future UI receives (object count ~1). The
 pipeline middle stays columnar (DuckDB/Parquet), never materialized as Pydantic.
 
-`model_json_schema()` over these models is the single source of truth for MCP
-`inputSchema`/`outputSchema` and future auto-forms — so export_schemas.py commits
-the generated JSON Schema and a test guards against drift.
+`model_json_schema()` over these models is the single source of truth for a
+language-agnostic contract (MCP `inputSchema`/`outputSchema`, TS types,
+auto-forms) — generate it on demand when a consumer needs it.
 
 Design notes:
     - `extra="forbid"` on every model: a boundary contract should reject unknown

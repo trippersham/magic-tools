@@ -3,17 +3,12 @@
 Covers, per model: a good example validates; a bad example is rejected
 (missing required / wrong type / extra field where forbidden). Plus:
     - FactSheet accepts a real build_factsheet()-shaped dict, verbatim.
-    - A schema-drift guard: regenerate schemas into a temp dir and assert they
-      byte-match the committed pipeline/contracts/schema/*.json.
 
 No network. No imports of deck_factsheet.py (we replicate its output SHAPE in a
 fixture so the contract can be verified without importing the script package).
 """
 
 from __future__ import annotations
-
-import json
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -25,7 +20,6 @@ from pipeline.contracts import (
     FactSheet,
     InventoryRow,
     TradeRow,
-    export_schemas,
 )
 
 # --------------------------------------------------------------------------- #
@@ -397,47 +391,3 @@ def test_trade_row_wrong_type_rejected() -> None:
 def test_trade_row_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError):
         TradeRow(from_source='Library', to_destination='Deck', mystery='x')  # type: ignore[call-arg]
-
-
-# --------------------------------------------------------------------------- #
-# Schema export + drift guard
-# --------------------------------------------------------------------------- #
-
-
-def test_export_schemas_writes_all_models(tmp_path: Path) -> None:
-    written = export_schemas.export_all(tmp_path)
-    names = {p.name for p in written}
-    assert names == {
-        'Card.json',
-        'DeckLine.json',
-        'Deck.json',
-        'FactSheet.json',
-        'InventoryRow.json',
-        'TradeRow.json',
-    }
-    for path in written:
-        # Valid JSON, pretty-printed, trailing newline.
-        text = path.read_text()
-        json.loads(text)
-        assert text.endswith('\n')
-
-
-def test_committed_schemas_match_regeneration(tmp_path: Path) -> None:
-    """Schema-drift guard: committed schema/*.json must byte-match a fresh export.
-
-    Fails if a model changed without re-running the exporter.
-    """
-    committed_dir = export_schemas.SCHEMA_DIR
-    assert committed_dir.exists(), (
-        f'Committed schema dir missing: {committed_dir}. '
-        'Run: uv run --project plugins/make-magic/pipeline '
-        'python -m pipeline.contracts.export_schemas'
-    )
-    export_schemas.export_all(tmp_path)
-    fresh = sorted(p.name for p in tmp_path.glob('*.json'))
-    committed = sorted(p.name for p in committed_dir.glob('*.json'))
-    assert fresh == committed, 'Set of schema files drifted'
-    for name in fresh:
-        fresh_bytes = (tmp_path / name).read_bytes()
-        committed_bytes = (committed_dir / name).read_bytes()
-        assert fresh_bytes == committed_bytes, f'{name} drifted from committed schema. Re-run the exporter.'
