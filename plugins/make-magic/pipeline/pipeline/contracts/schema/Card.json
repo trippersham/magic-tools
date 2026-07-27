@@ -1,0 +1,79 @@
+{
+  "additionalProperties": false,
+  "description": "A resolved card — a NARROW boundary object modeled on Scryfall's\noracle-card shape (NOT the full Scryfall blob).\n\nGrain: one printing-independent oracle card. `oracle_id` is the durable\nexternal join key used to upsert across surfaces.",
+  "properties": {
+    "color_identity": {
+      "description": "Color identity (Scryfall `color_identity`), e.g. ['B','G'].",
+      "items": {
+        "type": "string"
+      },
+      "title": "Color Identity",
+      "type": "array"
+    },
+    "colors": {
+      "description": "Colors of the card's mana cost (Scryfall `colors`), e.g. ['U','R'].",
+      "items": {
+        "type": "string"
+      },
+      "title": "Colors",
+      "type": "array"
+    },
+    "keywords": {
+      "description": "Scryfall structured `keywords` (e.g. Flash, Flying, Prowess).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Keywords",
+      "type": "array"
+    },
+    "mana_value": {
+      "description": "Converted mana cost / mana value (Scryfall `cmc`). Lands = 0.",
+      "title": "Mana Value",
+      "type": "number"
+    },
+    "name": {
+      "description": "Card name (Scryfall `name`).",
+      "title": "Name",
+      "type": "string"
+    },
+    "oracle_id": {
+      "description": "Scryfall oracle_id (durable, printing-independent join key).",
+      "title": "Oracle Id",
+      "type": "string"
+    },
+    "oracle_text": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Oracle rules text (Scryfall `oracle_text`); None if unavailable.",
+      "title": "Oracle Text"
+    },
+    "produced_mana": {
+      "description": "Mana this card can produce (Scryfall `produced_mana`).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Produced Mana",
+      "type": "array"
+    },
+    "type_line": {
+      "description": "Full type line (Scryfall `type_line`).",
+      "title": "Type Line",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "oracle_id",
+    "mana_value",
+    "type_line"
+  ],
+  "title": "Card",
+  "type": "object"
+}

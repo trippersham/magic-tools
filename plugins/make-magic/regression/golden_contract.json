@@ -1,0 +1,158 @@
+{
+  "$comment": "GOLDEN CONTRACT — the 'must not change' Airtable surface the three Airtable-as-source-of-truth skills depend on. DERIVED from the skill reference docs (managing-inventory/references/airtable-schema.md, building-decks/SKILL.md + strategy-schema.md, chasing-cards/SKILL.md). This is the Phase-0 baseline: if any table/field named here disappears or a write op path breaks, the happy-path workflow has regressed. Field names (not IDs) are asserted against describe-table because the skills address most fields by name in filterByFormula/fields params; field IDs are recorded for reference and for the ID-based writes chasing-cards performs.",
+  "base": {
+    "id": "appw7QPMoqktrgDc1",
+    "name": "Magic Inventory"
+  },
+  "tables": {
+    "Cards": {
+      "id": "tbl3UgZZPJGQhEFo8",
+      "primary_field": "Card Name"
+    },
+    "Decks": {
+      "id": "tblIfqVuVHNQza1K3",
+      "primary_field": "Name"
+    },
+    "Trades": {
+      "id": "tblgqqIvTuz0l5SZM",
+      "primary_field": "ID"
+    },
+    "Chase Cards": {
+      "id": "tblXsNtGgT7UQLPXZ",
+      "primary_field": "Card Name"
+    }
+  },
+  "skills": {
+    "managing-inventory": {
+      "source": "skills/managing-inventory/SKILL.md + references/{airtable-schema,trades}.md",
+      "tables": {
+        "Cards": {
+          "id": "tbl3UgZZPJGQhEFo8",
+          "required_fields": [
+            "Card Name",
+            "Sets",
+            "Number Owned",
+            "Sources",
+            "Condition",
+            "Card Type",
+            "Mana Cost",
+            "CMC",
+            "Power / Toughness",
+            "Oracle Text",
+            "Card Art",
+            "Scryfall URL",
+            "Price (TCGPlayer)",
+            "Color Identity",
+            "Repeat Number in Decks",
+            "Number in Decks",
+            "Number in Library",
+            "Decks"
+          ]
+        },
+        "Decks": {
+          "id": "tblIfqVuVHNQza1K3",
+          "required_fields": [
+            "Name",
+            "Owner",
+            "Format",
+            "Commander",
+            "Cards",
+            "Repeat Cards Count",
+            "Deck Size",
+            "Notes",
+            "Strategy"
+          ]
+        },
+        "Trades": {
+          "id": "tblgqqIvTuz0l5SZM",
+          "required_fields": [
+            "Date",
+            "From (Source)",
+            "From (Deck)",
+            "To (Destination)",
+            "To (Deck)",
+            "Cards into Destination",
+            "Cards out of Destination",
+            "Status"
+          ]
+        }
+      },
+      "write_ops": ["create_record", "update_records", "delete_records"]
+    },
+    "building-decks": {
+      "source": "skills/building-decks/SKILL.md + references/strategy-schema.md",
+      "tables": {
+        "Decks": {
+          "id": "tblIfqVuVHNQza1K3",
+          "required_fields": [
+            "Name",
+            "Strategy",
+            "Color Identity",
+            "Commander",
+            "Cards"
+          ]
+        },
+        "Cards": {
+          "id": "tbl3UgZZPJGQhEFo8",
+          "required_fields": [
+            "Card Name",
+            "Card Type",
+            "CMC",
+            "Oracle Text",
+            "Color Identity",
+            "Number in Library",
+            "Decks"
+          ]
+        },
+        "Chase Cards": {
+          "id": "tblXsNtGgT7UQLPXZ",
+          "required_fields": [
+            "Card Name",
+            "Target Decks"
+          ]
+        }
+      },
+      "write_ops": ["create_record"]
+    },
+    "chasing-cards": {
+      "source": "skills/chasing-cards/SKILL.md",
+      "tables": {
+        "Chase Cards": {
+          "id": "tblXsNtGgT7UQLPXZ",
+          "required_fields": [
+            "Card Name",
+            "Sets",
+            "Card Type",
+            "Mana Cost",
+            "CMC",
+            "Oracle Text",
+            "Card Art",
+            "Scryfall URL",
+            "Price (TCGPlayer)",
+            "Color Identity",
+            "Target Decks",
+            "Power / Toughness"
+          ]
+        },
+        "Decks": {
+          "id": "tblIfqVuVHNQza1K3",
+          "required_fields": [
+            "Name",
+            "Strategy",
+            "Color Identity",
+            "Commander"
+          ]
+        }
+      },
+      "write_ops": ["create_record", "update_records", "delete_records"]
+    }
+  },
+  "scratch_write": {
+    "$comment": "Table the --full round-trip creates/updates/deletes a clearly-marked scratch record in. Chase Cards is chosen because it is a leaf table with no inbound links from human-edited records, a plain text primary field, and its own delete path exercised by chasing-cards. The round-trip NEVER touches Cards/Decks/Trades where a stray record could pollute deck formulas.",
+    "table": "Chase Cards",
+    "table_id": "tblXsNtGgT7UQLPXZ",
+    "name_field": "Card Name",
+    "update_field": "Oracle Text",
+    "name_prefix": "__REGRESSION_SCRATCH__"
+  }
+}

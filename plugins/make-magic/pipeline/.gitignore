@@ -1,0 +1,19 @@
+# DuckDB working database + WAL
+data/*.duckdb
+data/*.duckdb.wal
+data/*.db
+
+# Generated lake layers (fetched/derived, rebuilt on demand; not committed).
+# Committed offline snapshots live under data/snapshots/ (NOT ignored).
+data/raw/
+data/normalized/
+data/marts/
+!data/snapshots/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+uv.lock

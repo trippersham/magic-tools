@@ -1,0 +1,9 @@
+{
+  "source": "combos",
+  "last_modified": "Sun, 26 Jul 2026 23:20:55 GMT",
+  "etag": "\"a0dd4dde4254b4051d3102f542ad3946\"",
+  "bulk_uri": "https://json.commanderspellbook.com/variants.json",
+  "api_uri": "https://backend.commanderspellbook.com/variants/",
+  "count": 2000,
+  "trim": "first 2000 variants via paginated backend API (full bulk variants.json is ~600MB, not bundled); MIT-licensed"
+}

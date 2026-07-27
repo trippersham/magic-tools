@@ -1,0 +1,129 @@
+{
+  "additionalProperties": false,
+  "description": "An Airtable \"Trades\" table row (`tblgqqIvTuz0l5SZM`): card movement.\n\nSource/Destination are categories (Library/Deck/Store/Person); the *_deck\nfields add specificity when the category is \"Deck\".",
+  "properties": {
+    "airtable_record_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Airtable record id (rec…), a durable join key.",
+      "title": "Airtable Record Id"
+    },
+    "cards_in": {
+      "description": "Cards into Destination (card names).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Cards In",
+      "type": "array"
+    },
+    "cards_out": {
+      "description": "Cards out of Destination (card names).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Cards Out",
+      "type": "array"
+    },
+    "completed_date": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Completed Date (ISO date).",
+      "title": "Completed Date"
+    },
+    "date": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Trade Date (ISO date).",
+      "title": "Date"
+    },
+    "from_deck": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "From (Deck) — specificity when Source = 'Deck'.",
+      "title": "From Deck"
+    },
+    "from_source": {
+      "description": "From (Source) category: Library / Deck / Store / Person.",
+      "title": "From Source",
+      "type": "string"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Reason / Notes.",
+      "title": "Notes"
+    },
+    "status": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Status: Draft / Planned / Completed.",
+      "title": "Status"
+    },
+    "to_deck": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "To (Deck) — specificity when Destination = 'Deck'.",
+      "title": "To Deck"
+    },
+    "to_destination": {
+      "description": "To (Destination) category: Library / Deck / Store / Person.",
+      "title": "To Destination",
+      "type": "string"
+    }
+  },
+  "required": [
+    "from_source",
+    "to_destination"
+  ],
+  "title": "TradeRow",
+  "type": "object"
+}
