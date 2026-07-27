@@ -24,8 +24,8 @@ from collections import Counter
 
 from pipeline.transforms.crosswalk import BUCKETS, buckets_for
 
-_CMC_BUCKETS = ("0", "1", "2", "3", "4", "5", "6", "7+")
-_PIP_SYMBOLS = ("W", "U", "B", "R", "G", "C")
+_CMC_BUCKETS = ('0', '1', '2', '3', '4', '5', '6', '7+')
+_PIP_SYMBOLS = ('W', 'U', 'B', 'R', 'G', 'C')
 
 #: A focus entry is "thin" when fewer than this many cards support it. Small by
 #: design: the point of `thin_focus` is "you care about X but have little of it".
@@ -39,62 +39,58 @@ _THIN_FOCUS_THRESHOLD = 2
 
 def is_land(type_line: str) -> bool:
     """A card is a land iff its FRONT face is a land (modal DFC spell // land is a spell)."""
-    front = (type_line or "").split("//")[0]
-    return "land" in front.lower()
+    front = (type_line or '').split('//')[0]
+    return 'land' in front.lower()
 
 
 def _text(card: dict) -> str:
-    return (card.get("oracle_text") or "").lower()
+    return (card.get('oracle_text') or '').lower()
 
 
 def _type_line(card: dict) -> str:
-    return card.get("type_line") or ""
+    return card.get('type_line') or ''
 
 
 def _is_creature(card: dict) -> bool:
-    return "creature" in _type_line(card).lower()
+    return 'creature' in _type_line(card).lower()
 
 
 def _is_instant_speed(card: dict) -> bool:
-    if "instant" in _type_line(card).lower():
+    if 'instant' in _type_line(card).lower():
         return True
-    return "flash" in {k.lower() for k in card.get("keywords", []) or []}
+    return 'flash' in {k.lower() for k in card.get('keywords', []) or []}
 
 
 _BOARD_WIPE_PATTERNS = (
-    re.compile(r"destroy all creatures"),
-    re.compile(r"destroy all (nonland )?permanents"),
-    re.compile(r"exile all creatures"),
-    re.compile(r"deals? \d+ damage to each creature"),
-    re.compile(r"all creatures get -"),
+    re.compile(r'destroy all creatures'),
+    re.compile(r'destroy all (nonland )?permanents'),
+    re.compile(r'exile all creatures'),
+    re.compile(r'deals? \d+ damage to each creature'),
+    re.compile(r'all creatures get -'),
 )
 _SPOT_REMOVAL_PATTERN = re.compile(
-    r"(destroy|exile) target "
-    r"(creature|permanent|artifact|enchantment|planeswalker|land|"
-    r"nonland permanent|creature or planeswalker|creature or enchantment|"
-    r"artifact or enchantment|artifact or creature)"
+    r'(destroy|exile) target '
+    r'(creature|permanent|artifact|enchantment|planeswalker|land|'
+    r'nonland permanent|creature or planeswalker|creature or enchantment|'
+    r'artifact or enchantment|artifact or creature)'
 )
-_COUNTER_PATTERN = re.compile(r"counter target")
-_PROTECTION_KEYWORDS = {"hexproof", "indestructible", "ward", "shroud"}
+_COUNTER_PATTERN = re.compile(r'counter target')
+_PROTECTION_KEYWORDS = {'hexproof', 'indestructible', 'ward', 'shroud'}
 _PROTECTION_TEXT_PATTERNS = (
-    re.compile(r"\b(hexproof|indestructible|shroud)\b"),
-    re.compile(r"\bward\b"),
-    re.compile(r"protection from"),
-    re.compile(r"phases? out"),
+    re.compile(r'\b(hexproof|indestructible|shroud)\b'),
+    re.compile(r'\bward\b'),
+    re.compile(r'protection from'),
+    re.compile(r'phases? out'),
 )
-_LAND_FETCH_PATTERN = re.compile(r"search your library for .{0,60}?\bland", re.DOTALL)
-_LAND_TO_BATTLEFIELD = re.compile(r"onto the battlefield")
+_LAND_FETCH_PATTERN = re.compile(r'search your library for .{0,60}?\bland', re.DOTALL)
+_LAND_TO_BATTLEFIELD = re.compile(r'onto the battlefield')
 _REPEATABLE_DRAW_PATTERNS = (
-    re.compile(r"at the beginning of .{0,80}?draw", re.DOTALL),
-    re.compile(r"whenever .{0,80}?draw a card", re.DOTALL),
+    re.compile(r'at the beginning of .{0,80}?draw', re.DOTALL),
+    re.compile(r'whenever .{0,80}?draw a card', re.DOTALL),
 )
-_ONE_SHOT_DRAW_PATTERN = re.compile(
-    r"draw (a|one|two|three|four|five|six|seven|\d+) cards?"
-)
-_ETB_PATTERN = re.compile(r"when(ever)? .{0,40}?enters", re.DOTALL)
-_GRAVEYARD_RECURSION_PATTERN = re.compile(
-    r"return .{0,60}?from .{0,30}?graveyard to the battlefield", re.DOTALL
-)
+_ONE_SHOT_DRAW_PATTERN = re.compile(r'draw (a|one|two|three|four|five|six|seven|\d+) cards?')
+_ETB_PATTERN = re.compile(r'when(ever)? .{0,40}?enters', re.DOTALL)
+_GRAVEYARD_RECURSION_PATTERN = re.compile(r'return .{0,60}?from .{0,30}?graveyard to the battlefield', re.DOTALL)
 
 
 def _is_board_wipe(c: dict) -> bool:
@@ -111,14 +107,14 @@ def _is_counterspell(c: dict) -> bool:
 
 
 def _is_protection(c: dict) -> bool:
-    if {k.lower() for k in c.get("keywords", []) or []} & _PROTECTION_KEYWORDS:
+    if {k.lower() for k in c.get('keywords', []) or []} & _PROTECTION_KEYWORDS:
         return True
     t = _text(c)
     return any(p.search(t) for p in _PROTECTION_TEXT_PATTERNS)
 
 
 def _produces_mana(c: dict) -> bool:
-    return bool(c.get("produced_mana"))
+    return bool(c.get('produced_mana'))
 
 
 def _is_land_fetch_ramp(c: dict) -> bool:
@@ -135,9 +131,7 @@ def _is_ramp_source(c: dict) -> bool:
 def _is_fixing_source(c: dict) -> bool:
     if is_land(_type_line(c)):
         return False
-    colors = {
-        m for m in (c.get("produced_mana") or []) if m in ("W", "U", "B", "R", "G")
-    }
+    colors = {m for m in (c.get('produced_mana') or []) if m in ('W', 'U', 'B', 'R', 'G')}
     return len(colors) > 1
 
 
@@ -156,7 +150,7 @@ def _has_etb(c: dict) -> bool:
 
 def _cmc_bucket(cmc: float) -> str:
     n = int(cmc or 0)
-    return "7+" if n >= 7 else str(n)
+    return '7+' if n >= 7 else str(n)
 
 
 # --------------------------------------------------------------------------- #
@@ -168,18 +162,14 @@ def _shape(cards: list[dict]) -> dict:
     nonland = [c for c in cards if not is_land(_type_line(c))]
     hist: dict[str, int] = dict.fromkeys(_CMC_BUCKETS, 0)
     for c in nonland:
-        hist[_cmc_bucket(c.get("cmc") or 0)] += 1
-    avg = (
-        round(sum(float(c.get("cmc") or 0) for c in nonland) / len(nonland), 2)
-        if nonland
-        else 0.0
-    )
+        hist[_cmc_bucket(c.get('cmc') or 0)] += 1
+    avg = round(sum(float(c.get('cmc') or 0) for c in nonland) / len(nonland), 2) if nonland else 0.0
     return {
-        "nonland_count": len(nonland),
-        "land_count": sum(1 for c in cards if is_land(_type_line(c))),
-        "cmc_histogram": hist,
-        "avg_cmc": avg,
-        "top_end_count": sum(1 for c in nonland if float(c.get("cmc") or 0) >= 6),
+        'nonland_count': len(nonland),
+        'land_count': sum(1 for c in cards if is_land(_type_line(c))),
+        'cmc_histogram': hist,
+        'avg_cmc': avg,
+        'top_end_count': sum(1 for c in nonland if float(c.get('cmc') or 0) >= 6),
     }
 
 
@@ -188,8 +178,8 @@ def _pip_counts(cards: list[dict]) -> dict:
     for c in cards:
         if is_land(_type_line(c)):
             continue
-        for sym in re.findall(r"\{([^}]+)\}", c.get("mana_cost") or ""):
-            for part in sym.split("/"):
+        for sym in re.findall(r'\{([^}]+)\}', c.get('mana_cost') or ''):
+            for part in sym.split('/'):
                 if part in counts:
                     counts[part] += 1
     return counts
@@ -197,19 +187,19 @@ def _pip_counts(cards: list[dict]) -> dict:
 
 def _mana(cards: list[dict]) -> dict:
     return {
-        "ramp_sources": sum(1 for c in cards if _is_ramp_source(c)),
-        "fixing_sources": sum(1 for c in cards if _is_fixing_source(c)),
-        "pip_counts": _pip_counts(cards),
+        'ramp_sources': sum(1 for c in cards if _is_ramp_source(c)),
+        'fixing_sources': sum(1 for c in cards if _is_fixing_source(c)),
+        'pip_counts': _pip_counts(cards),
     }
 
 
 def _interaction(cards: list[dict]) -> dict:
     return {
-        "board_wipes": sum(1 for c in cards if _is_board_wipe(c)),
-        "spot_removal": sum(1 for c in cards if _is_spot_removal(c)),
-        "counterspells": sum(1 for c in cards if _is_counterspell(c)),
-        "protection": sum(1 for c in cards if _is_protection(c)),
-        "instant_speed": sum(1 for c in cards if _is_instant_speed(c)),
+        'board_wipes': sum(1 for c in cards if _is_board_wipe(c)),
+        'spot_removal': sum(1 for c in cards if _is_spot_removal(c)),
+        'counterspells': sum(1 for c in cards if _is_counterspell(c)),
+        'protection': sum(1 for c in cards if _is_protection(c)),
+        'instant_speed': sum(1 for c in cards if _is_instant_speed(c)),
     }
 
 
@@ -220,35 +210,33 @@ def _card_advantage(cards: list[dict]) -> dict:
             repeatable += 1
         elif _is_one_shot_draw(c):
             one_shot += 1
-    return {"repeatable_draw": repeatable, "one_shot_draw": one_shot}
+    return {'repeatable_draw': repeatable, 'one_shot_draw': one_shot}
 
 
 def _structural(cards: list[dict]) -> dict:
     return {
-        "etb_creatures": sum(1 for c in cards if _is_creature(c) and _has_etb(c)),
-        "graveyard_recursion_present": any(
-            _GRAVEYARD_RECURSION_PATTERN.search(_text(c)) for c in cards
-        ),
+        'etb_creatures': sum(1 for c in cards if _is_creature(c) and _has_etb(c)),
+        'graveyard_recursion_present': any(_GRAVEYARD_RECURSION_PATTERN.search(_text(c)) for c in cards),
     }
 
 
 def _keywords(cards: list[dict]) -> dict:
     counter: Counter[str] = Counter()
     for c in cards:
-        for kw in c.get("keywords", []) or []:
+        for kw in c.get('keywords', []) or []:
             counter[kw] += 1
     return dict(counter)
 
 
 def _card_record(c: dict) -> dict:
     return {
-        "name": c.get("name", ""),
-        "cmc": c.get("cmc"),
-        "type_line": _type_line(c),
-        "keywords": c.get("keywords", []) or [],
-        "produced_mana": c.get("produced_mana"),
-        "is_land": is_land(_type_line(c)),
-        "oracle_text": c.get("oracle_text") or "",
+        'name': c.get('name', ''),
+        'cmc': c.get('cmc'),
+        'type_line': _type_line(c),
+        'keywords': c.get('keywords', []) or [],
+        'produced_mana': c.get('produced_mana'),
+        'is_land': is_land(_type_line(c)),
+        'oracle_text': c.get('oracle_text') or '',
     }
 
 
@@ -259,7 +247,7 @@ def _card_record(c: dict) -> dict:
 
 def _card_slugs(card: dict, card_otag: dict[str, set[str]]) -> set[str]:
     """The rolled-up slug closure for a card (empty if untagged / no oracle_id)."""
-    oid = card.get("oracle_id")
+    oid = card.get('oracle_id')
     if not oid:
         return set()
     return set(card_otag.get(str(oid), set()))
@@ -293,16 +281,16 @@ def _coverage(cards: list[dict], card_otag: dict[str, set[str]]) -> dict:
     total = len(nonland)
     if total == 0:
         return {
-            "categorized_pct": 0.0,
-            "uncategorized_pct": 0.0,
-            "uncategorized_cards": [],
+            'categorized_pct': 0.0,
+            'uncategorized_pct': 0.0,
+            'uncategorized_cards': [],
         }
     uncategorized = [c for c in nonland if not buckets_for(_card_slugs(c, card_otag))]
     categorized_n = total - len(uncategorized)
     return {
-        "categorized_pct": round(categorized_n / total * 100, 2),
-        "uncategorized_pct": round(len(uncategorized) / total * 100, 2),
-        "uncategorized_cards": [c.get("name", "") for c in uncategorized],
+        'categorized_pct': round(categorized_n / total * 100, 2),
+        'uncategorized_pct': round(len(uncategorized) / total * 100, 2),
+        'uncategorized_cards': [c.get('name', '') for c in uncategorized],
     }
 
 
@@ -321,57 +309,56 @@ def susceptibility(
     claim points at concrete numbers so it is auditable, not a vibe).
     """
     signals: list[str] = []
-    tokens = buckets.get("tokens", 0)
-    counters = buckets.get("counters", 0)
-    sweepers = interaction.get("board_wipes", 0)
-    recursion = structural.get("graveyard_recursion_present", False)
+    tokens = buckets.get('tokens', 0)
+    counters = buckets.get('counters', 0)
+    sweepers = interaction.get('board_wipes', 0)
+    recursion = structural.get('graveyard_recursion_present', False)
     board_units = tokens + counters
-    etb = structural.get("etb_creatures", 0)
+    etb = structural.get('etb_creatures', 0)
 
     # 1. Board-wipe susceptibility: a wide/go-tall board with little to rebuild.
     if board_units >= 6 and sweepers <= 1 and not recursion:
         signals.append(
-            f"Board wipes: {board_units} token/counter payoff cards "
-            f"({tokens} token, {counters} counter) but only {sweepers} sweeper(s) "
-            f"and no graveyard recursion to rebuild — a wrath erases the board state."
+            f'Board wipes: {board_units} token/counter payoff cards '
+            f'({tokens} token, {counters} counter) but only {sweepers} sweeper(s) '
+            f'and no graveyard recursion to rebuild — a wrath erases the board state.'
         )
 
     # 2. Can't protect the payoff / can't disrupt on the stack: 0 counterspells.
-    if interaction.get("counterspells", 0) == 0:
+    if interaction.get('counterspells', 0) == 0:
         signals.append(
-            "Stack interaction: 0 counterspells — cannot protect the payoff or "
-            "answer an opposing combo/spell before it resolves."
+            'Stack interaction: 0 counterspells — cannot protect the payoff or '
+            'answer an opposing combo/spell before it resolves.'
         )
 
     # 3. ETB / flicker engine reliant on creatures staying alive.
-    flicker = buckets.get("flicker", 0)
+    flicker = buckets.get('flicker', 0)
     if flicker >= 2 and etb >= 4 and sweepers <= 1:
         signals.append(
-            f"Board wipes hit the engine: {flicker} flicker + {etb} ETB creatures "
-            f"drive value, but only {sweepers} sweeper(s) of your own — a wrath "
-            f"strands the value engine."
+            f'Board wipes hit the engine: {flicker} flicker + {etb} ETB creatures '
+            f'drive value, but only {sweepers} sweeper(s) of your own — a wrath '
+            f'strands the value engine.'
         )
 
     # 4. Typal dependency (PTTD's tell): heavy changeling / typal-hero.
     typal = sum(
         1
         for c in cards
-        if not is_land(_type_line(c))
-        and _card_slugs(c, card_otag) & {"changeling", "typal-hero", "typal-share"}
+        if not is_land(_type_line(c)) and _card_slugs(c, card_otag) & {'changeling', 'typal-hero', 'typal-share'}
     )
     if typal >= 4:
         signals.append(
-            f"Typal hate / non-creature answers: {typal} cards depend on the tribal "
-            f"payoff (changeling / typal-hero) — typal hate or board wipes hit a "
-            f"hard dependency."
+            f'Typal hate / non-creature answers: {typal} cards depend on the tribal '
+            f'payoff (changeling / typal-hero) — typal hate or board wipes hit a '
+            f'hard dependency.'
         )
 
     # 5. Life-loss/aristocrat kill reliant, vulnerable to lifegain.
-    burn = buckets.get("burn", 0)
-    if burn >= 5 and buckets.get("removal", 0) <= 2:
+    burn = buckets.get('burn', 0)
+    if burn >= 5 and buckets.get('removal', 0) <= 2:
         signals.append(
-            f"Lifegain: {burn} burn/life-loss/drain cards carry the kill but only "
-            f"{buckets.get('removal', 0)} removal — opposing lifegain outpaces the clock."
+            f'Lifegain: {burn} burn/life-loss/drain cards carry the kill but only '
+            f'{buckets.get("removal", 0)} removal — opposing lifegain outpaces the clock.'
         )
 
     return signals
@@ -383,9 +370,7 @@ def susceptibility(
 # --------------------------------------------------------------------------- #
 
 
-def _card_supports_focus_entry(
-    card: dict, entry: str, card_otag: dict[str, set[str]]
-) -> bool:
+def _card_supports_focus_entry(card: dict, entry: str, card_otag: dict[str, set[str]]) -> bool:
     """Does one card support a single focus entry?
 
     A focus entry resolves at BOTH levels of the actual derived set:
@@ -433,9 +418,7 @@ def focus_relative(
 
     coverage: dict[str, int] = {}
     for entry in focus:
-        coverage[entry] = sum(
-            1 for c in nonland if _card_supports_focus_entry(c, entry, card_otag)
-        )
+        coverage[entry] = sum(1 for c in nonland if _card_supports_focus_entry(c, entry, card_otag))
 
     thin = [entry for entry in focus if coverage[entry] < _THIN_FOCUS_THRESHOLD]
 
@@ -450,9 +433,9 @@ def focus_relative(
     off = [b for b in BUCKETS if buckets.get(b, 0) > 0 and b not in declared_buckets]
 
     return {
-        "coverage_of_focus": coverage,
-        "thin_focus": thin,
-        "off_focus": off,
+        'coverage_of_focus': coverage,
+        'thin_focus': thin,
+        'off_focus': off,
     }
 
 
@@ -499,23 +482,21 @@ def factsheet_for(
     focus_block = (
         focus_relative(deck_cards, buckets, focus, otag)
         if focus
-        else {"coverage_of_focus": {}, "thin_focus": [], "off_focus": []}
+        else {'coverage_of_focus': {}, 'thin_focus': [], 'off_focus': []}
     )
     return {
-        "deck": deck,
-        "shape": _shape(deck_cards),
-        "mana": _mana(deck_cards),
-        "keywords": _keywords(deck_cards),
-        "interaction": interaction,
-        "card_advantage": _card_advantage(deck_cards),
-        "structural": structural,
-        "coverage": _coverage(deck_cards, otag),
-        "cards": [_card_record(c) for c in deck_cards],
-        "missing": missing or [],
-        "otag_buckets": buckets,
-        "susceptibility": susceptibility(
-            buckets, interaction, structural, deck_cards, otag
-        ),
-        "focus": list(focus),
-        "focus_relative": focus_block,
+        'deck': deck,
+        'shape': _shape(deck_cards),
+        'mana': _mana(deck_cards),
+        'keywords': _keywords(deck_cards),
+        'interaction': interaction,
+        'card_advantage': _card_advantage(deck_cards),
+        'structural': structural,
+        'coverage': _coverage(deck_cards, otag),
+        'cards': [_card_record(c) for c in deck_cards],
+        'missing': missing or [],
+        'otag_buckets': buckets,
+        'susceptibility': susceptibility(buckets, interaction, structural, deck_cards, otag),
+        'focus': list(focus),
+        'focus_relative': focus_block,
     }

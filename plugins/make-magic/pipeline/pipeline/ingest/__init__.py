@@ -20,4 +20,4 @@ from __future__ import annotations
 
 from pipeline.ingest._common import Watermark, dedupe, is_newer
 
-__all__ = ["Watermark", "dedupe", "is_newer"]
+__all__ = ['Watermark', 'dedupe', 'is_newer']

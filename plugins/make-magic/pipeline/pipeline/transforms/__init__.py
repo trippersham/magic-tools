@@ -19,4 +19,4 @@ from __future__ import annotations
 from pipeline.transforms.crosswalk import BUCKETS, buckets_for
 from pipeline.transforms.deck_factsheet import factsheet_for
 
-__all__ = ("BUCKETS", "buckets_for", "factsheet_for")
+__all__ = ('BUCKETS', 'buckets_for', 'factsheet_for')

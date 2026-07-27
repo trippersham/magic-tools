@@ -74,19 +74,19 @@ import typer
 
 app = typer.Typer()
 
-log = logging.getLogger("make_magic.deck_factsheet")
+log = logging.getLogger('make_magic.deck_factsheet')
 
 # CMC histogram buckets. 7+ collects everything at CMC >= 7.
-_CMC_BUCKETS = ("0", "1", "2", "3", "4", "5", "6", "7+")
-_PIP_SYMBOLS = ("W", "U", "B", "R", "G", "C")
+_CMC_BUCKETS = ('0', '1', '2', '3', '4', '5', '6', '7+')
+_PIP_SYMBOLS = ('W', 'U', 'B', 'R', 'G', 'C')
 
 #: Prefix that marks the graceful-degradation signal in ``susceptibility`` when
 #: the otag layer is unavailable. Kept as a constant so callers/tests can key on
 #: it without matching prose.
 _OTAG_UNAVAILABLE = (
-    "otag layer unavailable: the oracle-tag buckets and susceptibility signals "
-    "could not be computed (pipeline package or its snapshot is missing); "
-    "reporting structured facts only."
+    'otag layer unavailable: the oracle-tag buckets and susceptibility signals '
+    'could not be computed (pipeline package or its snapshot is missing); '
+    'reporting structured facts only.'
 )
 
 
@@ -112,12 +112,12 @@ def is_land(type_line: str) -> bool:
     Malakir Mire, type line "Instant // Land") is treated as the castable spell it
     is, not silently dropped from the nonland census/coverage.
     """
-    front = (type_line or "").split("//")[0]
-    return "land" in front.lower()
+    front = (type_line or '').split('//')[0]
+    return 'land' in front.lower()
 
 
 def _type_line(card: dict) -> str:
-    return card.get("type_line") or ""
+    return card.get('type_line') or ''
 
 
 def _is_instant_speed(card: dict) -> bool:
@@ -125,10 +125,10 @@ def _is_instant_speed(card: dict) -> bool:
 
     Structured signal (type line + Scryfall ``keywords``), NOT oracle-text regex.
     """
-    if "instant" in _type_line(card).lower():
+    if 'instant' in _type_line(card).lower():
         return True
-    kw = [k.lower() for k in card.get("keywords", []) or []]
-    return "flash" in kw
+    kw = [k.lower() for k in card.get('keywords', []) or []]
+    return 'flash' in kw
 
 
 # --- ramp & fixing (produced_mana — structured) ---------------------------- #
@@ -141,7 +141,7 @@ def _produces_mana(card: dict) -> bool:
     cast is cheapened ("this spell costs {1} less") have no produced_mana and
     correctly do NOT count as ramp.
     """
-    return bool(card.get("produced_mana"))
+    return bool(card.get('produced_mana'))
 
 
 def _is_ramp_source(card: dict) -> bool:
@@ -166,8 +166,8 @@ def _is_fixing_source(card: dict) -> bool:
     """
     if is_land(_type_line(card)):
         return False
-    pm = card.get("produced_mana") or []
-    colors = {m for m in pm if m in ("W", "U", "B", "R", "G")}
+    pm = card.get('produced_mana') or []
+    colors = {m for m in pm if m in ('W', 'U', 'B', 'R', 'G')}
     return len(colors) > 1
 
 
@@ -181,9 +181,9 @@ def _pip_counts(cards: list[dict]) -> dict:
     for c in cards:
         if is_land(_type_line(c)):
             continue
-        cost = c.get("mana_cost") or ""
-        for sym in re.findall(r"\{([^}]+)\}", cost):
-            for part in sym.split("/"):
+        cost = c.get('mana_cost') or ''
+        for sym in re.findall(r'\{([^}]+)\}', cost):
+            for part in sym.split('/'):
                 if part in counts:
                     counts[part] += 1
     return counts
@@ -194,9 +194,9 @@ def ramp_and_fixing(cards: list[dict]) -> dict:
     ramp = sum(1 for c in cards if _is_ramp_source(c))
     fixing = sum(1 for c in cards if _is_fixing_source(c))
     return {
-        "ramp_sources": ramp,
-        "fixing_sources": fixing,
-        "pip_counts": _pip_counts(cards),
+        'ramp_sources': ramp,
+        'fixing_sources': fixing,
+        'pip_counts': _pip_counts(cards),
     }
 
 
@@ -207,7 +207,7 @@ def keyword_census(cards: list[dict]) -> dict:
     """Count Scryfall `keywords` across the deck. Nonzero only, structured."""
     counter: Counter[str] = Counter()
     for c in cards:
-        for kw in c.get("keywords", []) or []:
+        for kw in c.get('keywords', []) or []:
             counter[kw] += 1
     return dict(counter)
 
@@ -217,7 +217,7 @@ def keyword_census(cards: list[dict]) -> dict:
 
 def _cmc_bucket(cmc: float) -> str:
     n = int(cmc or 0)
-    return "7+" if n >= 7 else str(n)
+    return '7+' if n >= 7 else str(n)
 
 
 def cmc_histogram(cards: list[dict]) -> dict:
@@ -226,7 +226,7 @@ def cmc_histogram(cards: list[dict]) -> dict:
     for c in cards:
         if is_land(_type_line(c)):
             continue
-        hist[_cmc_bucket(c.get("cmc") or 0)] += 1
+        hist[_cmc_bucket(c.get('cmc') or 0)] += 1
     return hist
 
 
@@ -234,23 +234,21 @@ def _avg_cmc(cards: list[dict]) -> float:
     nonland = [c for c in cards if not is_land(_type_line(c))]
     if not nonland:
         return 0.0
-    total = sum(float(c.get("cmc") or 0) for c in nonland)
+    total = sum(float(c.get('cmc') or 0) for c in nonland)
     return round(total / len(nonland), 2)
 
 
 def _top_end_count(cards: list[dict]) -> int:
-    return sum(
-        1 for c in cards if not is_land(_type_line(c)) and float(c.get("cmc") or 0) >= 6
-    )
+    return sum(1 for c in cards if not is_land(_type_line(c)) and float(c.get('cmc') or 0) >= 6)
 
 
 def _shape(cards: list[dict]) -> dict:
     return {
-        "nonland_count": sum(1 for c in cards if not is_land(_type_line(c))),
-        "land_count": sum(1 for c in cards if is_land(_type_line(c))),
-        "cmc_histogram": cmc_histogram(cards),
-        "avg_cmc": _avg_cmc(cards),
-        "top_end_count": _top_end_count(cards),
+        'nonland_count': sum(1 for c in cards if not is_land(_type_line(c))),
+        'land_count': sum(1 for c in cards if is_land(_type_line(c))),
+        'cmc_histogram': cmc_histogram(cards),
+        'avg_cmc': _avg_cmc(cards),
+        'top_end_count': _top_end_count(cards),
     }
 
 
@@ -260,13 +258,13 @@ def _shape(cards: list[dict]) -> dict:
 def _card_record(card: dict) -> dict:
     """Raw per-card facts so the LLM has material without re-fetching."""
     return {
-        "name": card.get("name", ""),
-        "cmc": card.get("cmc"),
-        "type_line": _type_line(card),
-        "keywords": card.get("keywords", []) or [],
-        "produced_mana": card.get("produced_mana"),
-        "is_land": is_land(_type_line(card)),
-        "oracle_text": card.get("oracle_text") or "",
+        'name': card.get('name', ''),
+        'cmc': card.get('cmc'),
+        'type_line': _type_line(card),
+        'keywords': card.get('keywords', []) or [],
+        'produced_mana': card.get('produced_mana'),
+        'is_land': is_land(_type_line(card)),
+        'oracle_text': card.get('oracle_text') or '',
     }
 
 
@@ -284,7 +282,7 @@ def _card_record(card: dict) -> dict:
 
 #: The pipeline package root (``plugins/make-magic/pipeline``) — the dir holding
 #: the importable ``pipeline`` package. Mirrors the scryfall_cache path shim.
-_PIPELINE_ROOT = Path(__file__).resolve().parents[1] / "pipeline"
+_PIPELINE_ROOT = Path(__file__).resolve().parents[1] / 'pipeline'
 
 
 def _ensure_pipeline_on_path() -> None:
@@ -363,7 +361,7 @@ def _load_card_otag() -> dict[str, set[str]] | None:
     try:
         _ensure_pipeline_on_path()
     except Exception as exc:
-        log.warning("otag layer: pipeline path setup failed (%s); degrading.", exc)
+        log.warning('otag layer: pipeline path setup failed (%s); degrading.', exc)
         return None
 
     # 1) Puller-backed: full dataset on first online use, cached thereafter.
@@ -371,9 +369,7 @@ def _load_card_otag() -> dict[str, set[str]] | None:
         tags = _load_tags_via_puller()
         return _rollup_to_card_otag(tags)
     except Exception as exc:
-        log.warning(
-            "otag layer: puller path failed (%s); trying bundled snapshot.", exc
-        )
+        log.warning('otag layer: puller path failed (%s); trying bundled snapshot.', exc)
 
     # 2) Snapshot fallback: bundled offline baseline (capped taggings).
     try:
@@ -381,7 +377,7 @@ def _load_card_otag() -> dict[str, set[str]] | None:
 
         return _rollup_to_card_otag(oracle_tags._load_snapshot())
     except Exception as exc:
-        log.warning("otag layer: snapshot load failed (%s); degrading.", exc)
+        log.warning('otag layer: snapshot load failed (%s); degrading.', exc)
         return None
 
 
@@ -406,11 +402,9 @@ def _pipeline_factsheet(
         _ensure_pipeline_on_path()
         from pipeline.transforms.deck_factsheet import factsheet_for
 
-        return factsheet_for(
-            cards, card_otag=card_otag, deck=deck, missing=missing, focus=focus
-        )
+        return factsheet_for(cards, card_otag=card_otag, deck=deck, missing=missing, focus=focus)
     except Exception as exc:
-        log.warning("otag layer: factsheet_for failed (%s); degrading.", exc)
+        log.warning('otag layer: factsheet_for failed (%s); degrading.', exc)
         return None
 
 
@@ -432,39 +426,39 @@ def _fallback_factsheet(
     missing: list[str] | None = None,
 ) -> dict:
     """Build the structured-only fact sheet (otag layer unavailable)."""
-    nonland_names = [c.get("name", "") for c in cards if not is_land(_type_line(c))]
+    nonland_names = [c.get('name', '') for c in cards if not is_land(_type_line(c))]
     return {
-        "deck": deck,
-        "shape": _shape(cards),
-        "mana": ramp_and_fixing(cards),
-        "keywords": keyword_census(cards),
+        'deck': deck,
+        'shape': _shape(cards),
+        'mana': ramp_and_fixing(cards),
+        'keywords': keyword_census(cards),
         # Retired regex census -> zeroed; instant_speed stays (structured).
-        "interaction": {
-            "board_wipes": 0,
-            "spot_removal": 0,
-            "counterspells": 0,
-            "protection": 0,
-            "instant_speed": sum(1 for c in cards if _is_instant_speed(c)),
+        'interaction': {
+            'board_wipes': 0,
+            'spot_removal': 0,
+            'counterspells': 0,
+            'protection': 0,
+            'instant_speed': sum(1 for c in cards if _is_instant_speed(c)),
         },
-        "card_advantage": {"repeatable_draw": 0, "one_shot_draw": 0},
-        "structural": {"etb_creatures": 0, "graveyard_recursion_present": False},
+        'card_advantage': {'repeatable_draw': 0, 'one_shot_draw': 0},
+        'structural': {'etb_creatures': 0, 'graveyard_recursion_present': False},
         # No otag data -> every nonland is uncategorized (honest degraded tell).
-        "coverage": {
-            "categorized_pct": 0.0,
-            "uncategorized_pct": 100.0 if nonland_names else 0.0,
-            "uncategorized_cards": nonland_names,
+        'coverage': {
+            'categorized_pct': 0.0,
+            'uncategorized_pct': 100.0 if nonland_names else 0.0,
+            'uncategorized_cards': nonland_names,
         },
-        "cards": [_card_record(c) for c in cards],
-        "missing": missing or [],
-        "otag_buckets": {},
-        "susceptibility": [_OTAG_UNAVAILABLE],
+        'cards': [_card_record(c) for c in cards],
+        'missing': missing or [],
+        'otag_buckets': {},
+        'susceptibility': [_OTAG_UNAVAILABLE],
         # Focus-relative signals need the otag layer to resolve; unavailable here.
         # The fields are still present (empty) so the contract holds.
-        "focus": [],
-        "focus_relative": {
-            "coverage_of_focus": {},
-            "thin_focus": [],
-            "off_focus": [],
+        'focus': [],
+        'focus_relative': {
+            'coverage_of_focus': {},
+            'thin_focus': [],
+            'off_focus': [],
         },
     }
 
@@ -509,7 +503,7 @@ def build_factsheet(
 # stripping; skips blanks / comments / section headers).
 # --------------------------------------------------------------------------- #
 
-_DECK_LINE = re.compile(r"^\s*(?:(\d+)x?\s+)?(.+?)\s*$")
+_DECK_LINE = re.compile(r'^\s*(?:(\d+)x?\s+)?(.+?)\s*$')
 
 
 def _parse_decklist(raw: str) -> list[tuple[int, str]]:
@@ -518,11 +512,11 @@ def _parse_decklist(raw: str) -> list[tuple[int, str]]:
     out: list[tuple[int, str]] = []
     for line in raw.splitlines():
         s = line.strip()
-        if not s or s.startswith(("#", "//")):
+        if not s or s.startswith(('#', '//')):
             continue
         # Strip inline comments ("1 Sol Ring  # COMMANDER" -> "1 Sol Ring").
-        s = re.split(r"\s+(?:#|//)", s, maxsplit=1)[0].strip()
-        if not s or s.endswith(":"):
+        s = re.split(r'\s+(?:#|//)', s, maxsplit=1)[0].strip()
+        if not s or s.endswith(':'):
             continue
         m = _DECK_LINE.match(s)
         if not m:
@@ -530,7 +524,7 @@ def _parse_decklist(raw: str) -> list[tuple[int, str]]:
         count = int(m.group(1)) if m.group(1) else 1
         name = m.group(2).strip()
         # Drop trailing set/collector annotations like "(C21) 123".
-        name = re.sub(r"\s*\([0-9A-Za-z]{2,5}\)\s*[\d\-A-Za-z]*$", "", name).strip()
+        name = re.sub(r'\s*\([0-9A-Za-z]{2,5}\)\s*[\d\-A-Za-z]*$', '', name).strip()
         if name:
             out.append((count, name))
     return out
@@ -558,17 +552,17 @@ def _card_fields(card: dict) -> dict:
     Carries ``oracle_id`` through — it is the durable join key for the otag
     layer (Scryfall cards, incl. DFCs, carry a single top-level oracle_id)."""
     face = card
-    if card.get("oracle_text") is None and card.get("card_faces"):
-        face = card["card_faces"][0]
+    if card.get('oracle_text') is None and card.get('card_faces'):
+        face = card['card_faces'][0]
     return {
-        "name": card.get("name", ""),
-        "oracle_id": card.get("oracle_id"),
-        "oracle_text": face.get("oracle_text", "") or "",
-        "type_line": card.get("type_line") or face.get("type_line", "") or "",
-        "cmc": card.get("cmc"),
-        "keywords": card.get("keywords", []) or [],
-        "produced_mana": card.get("produced_mana"),
-        "mana_cost": face.get("mana_cost", card.get("mana_cost", "")) or "",
+        'name': card.get('name', ''),
+        'oracle_id': card.get('oracle_id'),
+        'oracle_text': face.get('oracle_text', '') or '',
+        'type_line': card.get('type_line') or face.get('type_line', '') or '',
+        'cmc': card.get('cmc'),
+        'keywords': card.get('keywords', []) or [],
+        'produced_mana': card.get('produced_mana'),
+        'mana_cost': face.get('mana_cost', card.get('mana_cost', '')) or '',
     }
 
 
@@ -584,7 +578,7 @@ def _parse_focus(focus: str | None) -> list[str]:
         return []
     out: list[str] = []
     seen: set[str] = set()
-    for part in focus.split(","):
+    for part in focus.split(','):
         entry = part.strip()
         if entry and entry not in seen:
             seen.add(entry)
@@ -595,17 +589,15 @@ def _parse_focus(focus: str | None) -> list[str]:
 @app.command()
 def factsheet(
     path: str,
-    output: str = typer.Option(
-        None, "--output", help="Write JSON here instead of stdout"
-    ),
+    output: str = typer.Option(None, '--output', help='Write JSON here instead of stdout'),
     focus: str = typer.Option(
         None,
-        "--focus",
+        '--focus',
         help=(
-            "Optional comma-separated focus set (bucket names and/or otag slugs) "
+            'Optional comma-separated focus set (bucket names and/or otag slugs) '
             "the deck CARES about, e.g. 'counters,typal,tokens'. READ-ONLY: the "
             "fact sheet measures the deck's cards against it; nothing is written "
-            "back. Omit for no focus-relative analysis."
+            'back. Omit for no focus-relative analysis.'
         ),
     ),
 ) -> None:
@@ -626,16 +618,14 @@ def factsheet(
     deck_name = _deck_name_from_header(raw)
     focus_set = _parse_focus(focus)
     card_otag = _load_card_otag()  # None -> graceful fallback (I5).
-    report = build_factsheet(
-        cards, deck=deck_name, missing=missing, card_otag=card_otag, focus=focus_set
-    )
+    report = build_factsheet(cards, deck=deck_name, missing=missing, card_otag=card_otag, focus=focus_set)
     payload = json.dumps(report, indent=2)
     if output:
         Path(output).write_text(payload)
         typer.echo(
-            f"Wrote {output} — {report['shape']['nonland_count']} nonland, "
-            f"{report['shape']['land_count']} lands, {len(missing)} missing, "
-            f"{len(report['otag_buckets'])} otag buckets"
+            f'Wrote {output} — {report["shape"]["nonland_count"]} nonland, '
+            f'{report["shape"]["land_count"]} lands, {len(missing)} missing, '
+            f'{len(report["otag_buckets"])} otag buckets'
         )
     else:
         typer.echo(payload)
@@ -645,8 +635,8 @@ def _deck_name_from_header(raw: str) -> str | None:
     """First non-empty comment line is treated as the deck name, if present."""
     for line in raw.splitlines():
         s = line.strip()
-        if s.startswith("#"):
-            return s.lstrip("#").strip() or None
+        if s.startswith('#'):
+            return s.lstrip('#').strip() or None
         if s:
             return None
     return None
@@ -658,5 +648,5 @@ def main(ctx: typer.Context) -> None:
         typer.echo(ctx.get_help())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app()

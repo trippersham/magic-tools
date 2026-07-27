@@ -34,7 +34,7 @@ if TYPE_CHECKING:  # a query source: a SQL string or a DuckDB relation.
 
     RelationOrSelect = str | DuckDBPyRelation
 
-log = logging.getLogger("make_magic.store")
+log = logging.getLogger('make_magic.store')
 
 
 @contextmanager
@@ -75,11 +75,7 @@ def write_parquet(
     string. Returns the written Parquet path (dir created on demand).
     """
     path = StorePaths.resolve().parquet_path(layer, name)
-    rel = (
-        conn.sql(relation_or_select)
-        if isinstance(relation_or_select, str)
-        else relation_or_select
-    )
+    rel = conn.sql(relation_or_select) if isinstance(relation_or_select, str) else relation_or_select
     # COPY ... TO writes a single Parquet file; overwrites any existing one.
     conn.sql(f"COPY ({rel.sql_query()}) TO '{path}' (FORMAT PARQUET)")
     return path
@@ -93,7 +89,7 @@ def read_parquet(
     """Return a relation over ``data/<layer>/<name>.parquet`` (lazy; not fetched)."""
     path = StorePaths.resolve().parquet_path(layer, name, create=False)
     if not path.exists():
-        raise FileNotFoundError(f"No parquet at {path} ({layer}/{name}).")
+        raise FileNotFoundError(f'No parquet at {path} ({layer}/{name}).')
     return conn.read_parquet(str(path))
 
 
@@ -111,7 +107,7 @@ def register_view(
     """
     path = StorePaths.resolve().parquet_path(layer, name, create=False)
     if not path.exists():
-        raise FileNotFoundError(f"No parquet at {path} ({layer}/{name}).")
+        raise FileNotFoundError(f'No parquet at {path} ({layer}/{name}).')
     view = view_name or name
     conn.sql(f"CREATE OR REPLACE VIEW {view} AS SELECT * FROM read_parquet('{path}')")
     return view
@@ -132,13 +128,13 @@ def attach_sqlite(
     """
     path = Path(sqlite_path)
     if not path.exists():
-        log.info("attach_sqlite: %s absent; skipping (opportunistic).", path)
+        log.info('attach_sqlite: %s absent; skipping (opportunistic).', path)
         return False
     # The bundled `sqlite` extension is needed to ATTACH a SQLite file. It ships
     # with DuckDB, so install/load is offline (no network) and idempotent.
-    conn.install_extension("sqlite")
-    conn.load_extension("sqlite")
-    mode = ", READ_ONLY" if read_only else ""
+    conn.install_extension('sqlite')
+    conn.load_extension('sqlite')
+    mode = ', READ_ONLY' if read_only else ''
     conn.sql(f"ATTACH '{path}' AS {alias} (TYPE SQLITE{mode})")
     return True
 
@@ -153,4 +149,4 @@ def list_layer(layer: str) -> list[str]:
     layer_dir = StorePaths.resolve().layer_dir(layer, create=False)
     if not layer_dir.exists():
         return []
-    return sorted(p.stem for p in layer_dir.glob("*.parquet"))
+    return sorted(p.stem for p in layer_dir.glob('*.parquet'))

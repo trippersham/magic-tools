@@ -28,10 +28,10 @@ from pathlib import Path
 
 from pipeline import store
 
-log = logging.getLogger("make_magic.transforms.otag_rollup")
+log = logging.getLogger('make_magic.transforms.otag_rollup')
 
-RAW_SOURCE = "oracle_tags"
-NORMALIZED_TABLE = "card_otag"
+RAW_SOURCE = 'oracle_tags'
+NORMALIZED_TABLE = 'card_otag'
 
 
 # --------------------------------------------------------------------------- #
@@ -80,17 +80,17 @@ def rollup_rows(
     parents: dict[str, list[str]] = {}
     slug_of: dict[str, str] = {}
     for tag in tags:
-        tid = str(tag["id"])
+        tid = str(tag['id'])
         by_id[tid] = tag
-        parents[tid] = [str(p) for p in (tag.get("parent_ids") or [])]
-        slug_of[tid] = str(tag.get("slug") or tid)
+        parents[tid] = [str(p) for p in (tag.get('parent_ids') or [])]
+        slug_of[tid] = str(tag.get('slug') or tid)
 
     # card -> {leaf tag id}
     card_leaf: dict[str, set[str]] = {}
     for tag in tags:
-        tid = str(tag["id"])
-        for tg in tag.get("taggings") or []:
-            oid = tg.get("oracle_id")
+        tid = str(tag['id'])
+        for tg in tag.get('taggings') or []:
+            oid = tg.get('oracle_id')
             if oid is None:
                 continue
             card_leaf.setdefault(str(oid), set()).add(tid)
@@ -117,17 +117,17 @@ def rollup_rows(
 def _load_raw_tags() -> list[dict]:
     """Read ``raw/oracle_tags`` back as plain dicts (id/slug/parent_ids/taggings)."""
     with store.connect() as conn:
-        rel = store.read_parquet(conn, "raw", RAW_SOURCE)
-        cols = ["id", "slug", "parent_ids", "taggings"]
-        rows = rel.select(", ".join(cols)).fetchall()
+        rel = store.read_parquet(conn, 'raw', RAW_SOURCE)
+        cols = ['id', 'slug', 'parent_ids', 'taggings']
+        rows = rel.select(', '.join(cols)).fetchall()
     tags: list[dict] = []
     for tid, slug, parent_ids, taggings in rows:
         tags.append(
             {
-                "id": tid,
-                "slug": slug,
-                "parent_ids": parent_ids or [],
-                "taggings": taggings or [],
+                'id': tid,
+                'slug': slug,
+                'parent_ids': parent_ids or [],
+                'taggings': taggings or [],
             }
         )
     return tags
@@ -135,20 +135,18 @@ def _load_raw_tags() -> list[dict]:
 
 def _land(rows: list[tuple[str, str]]) -> Path:
     """Land ``(oracle_id, slug)`` rollup rows to ``normalized/card_otag``."""
-    payload = [{"oracle_id": oid, "slug": slug} for oid, slug in rows]
+    payload = [{'oracle_id': oid, 'slug': slug} for oid, slug in rows]
     with store.connect() as conn:
-        norm_dir = store.StorePaths.resolve().layer_dir("normalized", create=True)
-        tmp = norm_dir / f"_{NORMALIZED_TABLE}.tmp.json"
+        norm_dir = store.StorePaths.resolve().layer_dir('normalized', create=True)
+        tmp = norm_dir / f'_{NORMALIZED_TABLE}.tmp.json'
         # Explicit schema keeps an empty table well-typed (read_json would guess).
-        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        tmp.write_text(json.dumps(payload), encoding='utf-8')
         try:
             if payload:
                 rel = conn.read_json(str(tmp))
             else:
-                rel = conn.sql(
-                    "SELECT NULL::VARCHAR AS oracle_id, NULL::VARCHAR AS slug WHERE 1=0"
-                )
-            path = store.write_parquet(conn, rel, "normalized", NORMALIZED_TABLE)
+                rel = conn.sql('SELECT NULL::VARCHAR AS oracle_id, NULL::VARCHAR AS slug WHERE 1=0')
+            path = store.write_parquet(conn, rel, 'normalized', NORMALIZED_TABLE)
         finally:
             tmp.unlink(missing_ok=True)
     return path
@@ -163,7 +161,7 @@ def build() -> Path:
     rows = rollup_rows(tags)
     path = _land(rows)
     log.info(
-        "card_otag: rolled %d tags into %d (oracle_id, slug) rows.",
+        'card_otag: rolled %d tags into %d (oracle_id, slug) rows.',
         len(tags),
         len(rows),
     )
@@ -171,12 +169,10 @@ def build() -> Path:
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     path = build()
-    print(f"landed card_otag -> {path}")
+    print(f'landed card_otag -> {path}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -66,8 +66,8 @@ from typing import Annotated, Any, Self
 import httpx
 import typer
 
-AIRTABLE_BASE_URL = "https://api.airtable.com"
-DEFAULT_CONTRACT_PATH = Path(__file__).with_name("golden_contract.json")
+AIRTABLE_BASE_URL = 'https://api.airtable.com'
+DEFAULT_CONTRACT_PATH = Path(__file__).with_name('golden_contract.json')
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
 
@@ -78,16 +78,16 @@ app = typer.Typer(add_completion=False, no_args_is_help=False)
 
 
 class Status(StrEnum):
-    PASS = "PASS"
-    FAIL = "FAIL"
-    SKIP = "SKIP"
+    PASS = 'PASS'
+    FAIL = 'FAIL'
+    SKIP = 'SKIP'
 
 
 @dataclass
 class Check:
     name: str
     status: Status
-    detail: str = ""
+    detail: str = ''
 
 
 @dataclass
@@ -105,7 +105,7 @@ class FlowReport:
             return Status.SKIP
         return Status.PASS
 
-    def add(self, name: str, status: Status, detail: str = "") -> None:
+    def add(self, name: str, status: Status, detail: str = '') -> None:
         self.checks.append(Check(name=name, status=status, detail=detail))
 
 
@@ -131,14 +131,14 @@ class AirtableClient:
     """
 
     def __init__(self, api_key: str, base_url: str = AIRTABLE_BASE_URL) -> None:
-        api_key = (api_key or "").strip()
+        api_key = (api_key or '').strip()
         if not api_key:
             raise AirtableError(
-                "AIRTABLE_API_KEY is not set. Export an Airtable Personal Access Token before running the harness."
+                'AIRTABLE_API_KEY is not set. Export an Airtable Personal Access Token before running the harness.'
             )
         self._client = httpx.Client(
             base_url=base_url,
-            headers={"Authorization": f"Bearer {api_key}"},
+            headers={'Authorization': f'Bearer {api_key}'},
             timeout=30.0,
         )
 
@@ -155,21 +155,21 @@ class AirtableClient:
         try:
             resp = self._client.request(method, path, **kw)
         except httpx.HTTPError as e:  # network / DNS / timeout
-            raise AirtableError(f"{method} {path} — transport error: {e}") from e
+            raise AirtableError(f'{method} {path} — transport error: {e}') from e
         if resp.status_code >= 400:
             body = resp.text[:400]
-            raise AirtableError(f"{method} {path} — HTTP {resp.status_code}: {body}")
+            raise AirtableError(f'{method} {path} — HTTP {resp.status_code}: {body}')
         if not resp.content:
             return {}
         return resp.json()
 
     def list_bases(self) -> list[dict[str, Any]]:
-        data = self._request("GET", "/v0/meta/bases")
-        return data.get("bases", [])
+        data = self._request('GET', '/v0/meta/bases')
+        return data.get('bases', [])
 
     def list_tables(self, base_id: str) -> list[dict[str, Any]]:
-        data = self._request("GET", f"/v0/meta/bases/{base_id}/tables")
-        return data.get("tables", [])
+        data = self._request('GET', f'/v0/meta/bases/{base_id}/tables')
+        return data.get('tables', [])
 
     def list_records(
         self,
@@ -179,42 +179,38 @@ class AirtableClient:
         max_records: int = 1,
         fields: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        params: list[tuple[str, str]] = [("maxRecords", str(max_records))]
+        params: list[tuple[str, str]] = [('maxRecords', str(max_records))]
         for f in fields or []:
-            params.append(("fields[]", f))
-        data = self._request("GET", f"/v0/{base_id}/{table_id}", params=params)
-        return data.get("records", [])
+            params.append(('fields[]', f))
+        data = self._request('GET', f'/v0/{base_id}/{table_id}', params=params)
+        return data.get('records', [])
 
-    def create_record(
-        self, base_id: str, table_id: str, fields: dict[str, Any]
-    ) -> dict[str, Any]:
+    def create_record(self, base_id: str, table_id: str, fields: dict[str, Any]) -> dict[str, Any]:
         return self._request(
-            "POST",
-            f"/v0/{base_id}/{table_id}",
-            json={"fields": fields, "typecast": True},
+            'POST',
+            f'/v0/{base_id}/{table_id}',
+            json={'fields': fields, 'typecast': True},
         )
 
     def get_record(self, base_id: str, table_id: str, record_id: str) -> dict[str, Any]:
-        return self._request("GET", f"/v0/{base_id}/{table_id}/{record_id}")
+        return self._request('GET', f'/v0/{base_id}/{table_id}/{record_id}')
 
-    def update_record(
-        self, base_id: str, table_id: str, record_id: str, fields: dict[str, Any]
-    ) -> dict[str, Any]:
+    def update_record(self, base_id: str, table_id: str, record_id: str, fields: dict[str, Any]) -> dict[str, Any]:
         resp = self._request(
-            "PATCH",
-            f"/v0/{base_id}/{table_id}",
+            'PATCH',
+            f'/v0/{base_id}/{table_id}',
             json={
-                "records": [{"id": record_id, "fields": fields}],
-                "typecast": True,
+                'records': [{'id': record_id, 'fields': fields}],
+                'typecast': True,
             },
         )
-        return resp["records"][0]
+        return resp['records'][0]
 
     def delete_record(self, base_id: str, table_id: str, record_id: str) -> None:
         self._request(
-            "DELETE",
-            f"/v0/{base_id}/{table_id}",
-            params=[("records[]", record_id)],
+            'DELETE',
+            f'/v0/{base_id}/{table_id}',
+            params=[('records[]', record_id)],
         )
 
 
@@ -225,7 +221,7 @@ class AirtableClient:
 
 def load_contract(path: Path) -> dict[str, Any]:
     if not path.exists():
-        raise AirtableError(f"Golden contract not found: {path}")
+        raise AirtableError(f'Golden contract not found: {path}')
     return json.loads(path.read_text())
 
 
@@ -240,16 +236,16 @@ def build_schema_index(
     """Index describe-table output by both table id and table name."""
     index: dict[str, dict[str, Any]] = {}
     for t in tables:
-        field_names = {f["name"] for f in t.get("fields", [])}
+        field_names = {f['name'] for f in t.get('fields', [])}
         entry = {
-            "id": t.get("id"),
-            "name": t.get("name"),
-            "field_names": field_names,
+            'id': t.get('id'),
+            'name': t.get('name'),
+            'field_names': field_names,
         }
-        if t.get("id"):
-            index[t["id"]] = entry
-        if t.get("name"):
-            index[t["name"]] = entry
+        if t.get('id'):
+            index[t['id']] = entry
+        if t.get('name'):
+            index[t['name']] = entry
     return index
 
 
@@ -265,16 +261,16 @@ def run_read_checks(
     tables = client.list_tables(base_id)
     schema = build_schema_index(tables)
 
-    for skill, spec in contract["skills"].items():
+    for skill, spec in contract['skills'].items():
         report = FlowReport(skill=skill)
-        for table_name, tspec in spec["tables"].items():
-            table_id = tspec["id"]
+        for table_name, tspec in spec['tables'].items():
+            table_id = tspec['id']
             entry = schema.get(table_id) or schema.get(table_name)
             if entry is None:
                 report.add(
-                    f"table:{table_name}",
+                    f'table:{table_name}',
                     Status.FAIL,
-                    f"table {table_name} ({table_id}) not reachable in base {base_id}",
+                    f'table {table_name} ({table_id}) not reachable in base {base_id}',
                 )
                 continue
 
@@ -285,24 +281,24 @@ def run_read_checks(
             except AirtableError as e:
                 reachable = False
                 report.add(
-                    f"reach:{table_name}",
+                    f'reach:{table_name}',
                     Status.FAIL,
-                    f"list_records failed: {e}",
+                    f'list_records failed: {e}',
                 )
 
-            present = entry["field_names"]
-            missing = [f for f in tspec["required_fields"] if f not in present]
+            present = entry['field_names']
+            missing = [f for f in tspec['required_fields'] if f not in present]
             if missing:
                 report.add(
-                    f"fields:{table_name}",
+                    f'fields:{table_name}',
                     Status.FAIL,
-                    f"missing required field(s): {', '.join(missing)}",
+                    f'missing required field(s): {", ".join(missing)}',
                 )
             elif reachable:
                 report.add(
-                    f"fields:{table_name}",
+                    f'fields:{table_name}',
                     Status.PASS,
-                    f"{len(tspec['required_fields'])} field(s) present, table reachable",
+                    f'{len(tspec["required_fields"])} field(s) present, table reachable',
                 )
         reports.append(report)
     return reports
@@ -319,58 +315,58 @@ def run_write_roundtrip(
     contract: dict[str, Any],
 ) -> FlowReport:
     """create -> read-back -> update -> verify -> DELETE. Cleans up on failure."""
-    report = FlowReport(skill="write-roundtrip")
-    sw = contract["scratch_write"]
-    table_id = sw["table_id"]
-    name_field = sw["name_field"]
-    update_field = sw["update_field"]
-    scratch_name = f"{sw['name_prefix']}{int(time.time())}"
+    report = FlowReport(skill='write-roundtrip')
+    sw = contract['scratch_write']
+    table_id = sw['table_id']
+    name_field = sw['name_field']
+    update_field = sw['update_field']
+    scratch_name = f'{sw["name_prefix"]}{int(time.time())}'
 
     record_id: str | None = None
     try:
         # create
         created = client.create_record(base_id, table_id, {name_field: scratch_name})
-        record_id = created.get("id")
+        record_id = created.get('id')
         if not record_id:
-            report.add("create", Status.FAIL, "create returned no record id")
+            report.add('create', Status.FAIL, 'create returned no record id')
             return report
-        report.add("create", Status.PASS, f"created scratch record {record_id}")
+        report.add('create', Status.PASS, f'created scratch record {record_id}')
 
         # read-back
         fetched = client.get_record(base_id, table_id, record_id)
-        if fetched.get("fields", {}).get(name_field) == scratch_name:
-            report.add("read-back", Status.PASS, "name matches on read-back")
+        if fetched.get('fields', {}).get(name_field) == scratch_name:
+            report.add('read-back', Status.PASS, 'name matches on read-back')
         else:
             report.add(
-                "read-back",
+                'read-back',
                 Status.FAIL,
-                f"expected {name_field}={scratch_name!r}, got {fetched.get('fields', {}).get(name_field)!r}",
+                f'expected {name_field}={scratch_name!r}, got {fetched.get("fields", {}).get(name_field)!r}',
             )
 
         # update
-        marker = f"regression-marker-{int(time.time())}"
+        marker = f'regression-marker-{int(time.time())}'
         client.update_record(base_id, table_id, record_id, {update_field: marker})
         verify = client.get_record(base_id, table_id, record_id)
-        if verify.get("fields", {}).get(update_field) == marker:
-            report.add("update", Status.PASS, f"{update_field} updated + verified")
+        if verify.get('fields', {}).get(update_field) == marker:
+            report.add('update', Status.PASS, f'{update_field} updated + verified')
         else:
             report.add(
-                "update",
+                'update',
                 Status.FAIL,
-                f"expected {update_field}={marker!r}, got {verify.get('fields', {}).get(update_field)!r}",
+                f'expected {update_field}={marker!r}, got {verify.get("fields", {}).get(update_field)!r}',
             )
     except AirtableError as e:
-        report.add("roundtrip", Status.FAIL, str(e))
+        report.add('roundtrip', Status.FAIL, str(e))
     finally:
         if record_id is not None:
             try:
                 client.delete_record(base_id, table_id, record_id)
-                report.add("delete", Status.PASS, f"deleted scratch {record_id}")
+                report.add('delete', Status.PASS, f'deleted scratch {record_id}')
             except AirtableError as e:
                 report.add(
-                    "delete",
+                    'delete',
                     Status.FAIL,
-                    f"CLEANUP FAILED — scratch record {record_id} may remain: {e}",
+                    f'CLEANUP FAILED — scratch record {record_id} may remain: {e}',
                 )
     return report
 
@@ -381,19 +377,19 @@ def run_write_roundtrip(
 
 
 def print_report(reports: list[FlowReport], *, base_id: str, mode: str) -> bool:
-    print(f"\n=== Airtable Regression Harness — mode={mode} base={base_id} ===\n")
+    print(f'\n=== Airtable Regression Harness — mode={mode} base={base_id} ===\n')
     all_pass = True
     for r in reports:
-        icon = {"PASS": "[PASS]", "FAIL": "[FAIL]", "SKIP": "[SKIP]"}[r.status.value]
-        print(f"{icon} {r.skill}")
+        icon = {'PASS': '[PASS]', 'FAIL': '[FAIL]', 'SKIP': '[SKIP]'}[r.status.value]
+        print(f'{icon} {r.skill}')
         for c in r.checks:
-            sub = {"PASS": "  ok  ", "FAIL": "  XX  ", "SKIP": "  --  "}[c.status.value]
-            print(f"    {sub} {c.name}: {c.detail}")
+            sub = {'PASS': '  ok  ', 'FAIL': '  XX  ', 'SKIP': '  --  '}[c.status.value]
+            print(f'    {sub} {c.name}: {c.detail}')
         if r.status is Status.FAIL:
             all_pass = False
         print()
-    verdict = "PASS" if all_pass else "FAIL"
-    print(f"=== OVERALL: {verdict} ===\n")
+    verdict = 'PASS' if all_pass else 'FAIL'
+    print(f'=== OVERALL: {verdict} ===\n')
     return all_pass
 
 
@@ -403,37 +399,37 @@ def print_report(reports: list[FlowReport], *, base_id: str, mode: str) -> bool:
 
 
 def _resolve_base_id(contract: dict[str, Any], base_id_opt: str | None) -> str:
-    return base_id_opt or os.environ.get("AIRTABLE_BASE_ID") or contract["base"]["id"]
+    return base_id_opt or os.environ.get('AIRTABLE_BASE_ID') or contract['base']['id']
 
 
 @app.command()
 def check(
     read_only: Annotated[
         bool,
-        typer.Option("--read-only", help="Reads + contract assertions only (safe)."),
+        typer.Option('--read-only', help='Reads + contract assertions only (safe).'),
     ] = False,
     full: Annotated[
         bool,
-        typer.Option("--full", help="Adds the self-cleaning scratch write round-trip."),
+        typer.Option('--full', help='Adds the self-cleaning scratch write round-trip.'),
     ] = False,
     smoke_any_base: Annotated[
         bool,
         typer.Option(
-            "--smoke-any-base",
+            '--smoke-any-base',
             help=(
                 "Mechanics smoke: ignore the contract's base and just prove "
-                "HTTP/auth/reporting plumbing against the first base + table the "
-                "token can see. For use with a token that cannot see the real base."
+                'HTTP/auth/reporting plumbing against the first base + table the '
+                'token can see. For use with a token that cannot see the real base.'
             ),
         ),
     ] = False,
     base_id: Annotated[
         str | None,
-        typer.Option("--base-id", help="Override base ID (else env/contract default)."),
+        typer.Option('--base-id', help='Override base ID (else env/contract default).'),
     ] = None,
     contract_path: Annotated[
         Path,
-        typer.Option("--contract", help="Path to golden_contract.json."),
+        typer.Option('--contract', help='Path to golden_contract.json.'),
     ] = DEFAULT_CONTRACT_PATH,
 ) -> None:
     """Run the regression check. Default (no flag) behaves as --read-only."""
@@ -446,14 +442,14 @@ def check(
     try:
         contract = load_contract(contract_path)
     except AirtableError as e:
-        typer.echo(f"ERROR: {e}", err=True)
+        typer.echo(f'ERROR: {e}', err=True)
         raise typer.Exit(1) from e
 
-    api_key = os.environ.get("AIRTABLE_API_KEY", "")
+    api_key = os.environ.get('AIRTABLE_API_KEY', '')
     try:
         client = AirtableClient(api_key)
     except AirtableError as e:
-        typer.echo(f"ERROR: {e}", err=True)
+        typer.echo(f'ERROR: {e}', err=True)
         raise typer.Exit(1) from e
 
     with client:
@@ -462,19 +458,19 @@ def check(
             raise typer.Exit(0 if ok else 1)
 
         resolved_base = _resolve_base_id(contract, base_id)
-        mode = "full" if full else "read-only"
+        mode = 'full' if full else 'read-only'
 
         try:
             reports = run_read_checks(client, resolved_base, contract)
         except AirtableError as e:
-            typer.echo(f"ERROR (read checks): {e}", err=True)
+            typer.echo(f'ERROR (read checks): {e}', err=True)
             raise typer.Exit(1) from e
 
         if full:
             reports.append(run_write_roundtrip(client, resolved_base, contract))
         else:
-            skip = FlowReport(skill="write-roundtrip")
-            skip.add("roundtrip", Status.SKIP, "skipped in --read-only mode")
+            skip = FlowReport(skill='write-roundtrip')
+            skip.add('roundtrip', Status.SKIP, 'skipped in --read-only mode')
             reports.append(skip)
 
         ok = print_report(reports, base_id=resolved_base, mode=mode)
@@ -487,79 +483,77 @@ def _run_smoke(client: AirtableClient) -> bool:
     Does NOT use the golden contract or the real base. Lists bases, picks the
     first, describes its tables, and does a single list_records read.
     """
-    report = FlowReport(skill="mechanics-smoke")
+    report = FlowReport(skill='mechanics-smoke')
     try:
         bases = client.list_bases()
     except AirtableError as e:
-        report.add("list_bases", Status.FAIL, str(e))
-        print_report([report], base_id="(discovered)", mode="smoke")
+        report.add('list_bases', Status.FAIL, str(e))
+        print_report([report], base_id='(discovered)', mode='smoke')
         return False
 
     if not bases:
-        report.add("list_bases", Status.FAIL, "token can see zero bases")
-        print_report([report], base_id="(none)", mode="smoke")
+        report.add('list_bases', Status.FAIL, 'token can see zero bases')
+        print_report([report], base_id='(none)', mode='smoke')
         return False
 
     base = bases[0]
-    base_id = base["id"]
+    base_id = base['id']
     report.add(
-        "list_bases",
+        'list_bases',
         Status.PASS,
-        f"{len(bases)} base(s) visible; using {base.get('name')!r} ({base_id})",
+        f'{len(bases)} base(s) visible; using {base.get("name")!r} ({base_id})',
     )
 
     try:
         tables = client.list_tables(base_id)
     except AirtableError as e:
-        report.add("list_tables", Status.FAIL, str(e))
-        print_report([report], base_id=base_id, mode="smoke")
+        report.add('list_tables', Status.FAIL, str(e))
+        print_report([report], base_id=base_id, mode='smoke')
         return False
 
     if not tables:
-        report.add("list_tables", Status.FAIL, "base has zero tables")
-        print_report([report], base_id=base_id, mode="smoke")
+        report.add('list_tables', Status.FAIL, 'base has zero tables')
+        print_report([report], base_id=base_id, mode='smoke')
         return False
 
     t = tables[0]
     report.add(
-        "describe_table",
+        'describe_table',
         Status.PASS,
-        f"{len(tables)} table(s); first {t.get('name')!r} has {len(t.get('fields', []))} field(s)",
+        f'{len(tables)} table(s); first {t.get("name")!r} has {len(t.get("fields", []))} field(s)',
     )
 
     try:
-        recs = client.list_records(base_id, t["id"], max_records=1)
+        recs = client.list_records(base_id, t['id'], max_records=1)
         report.add(
-            "list_records",
+            'list_records',
             Status.PASS,
-            f"read {len(recs)} record(s) from {t.get('name')!r}",
+            f'read {len(recs)} record(s) from {t.get("name")!r}',
         )
     except AirtableError as e:
-        report.add("list_records", Status.FAIL, str(e))
-        print_report([report], base_id=base_id, mode="smoke")
+        report.add('list_records', Status.FAIL, str(e))
+        print_report([report], base_id=base_id, mode='smoke')
         return False
 
-    return print_report([report], base_id=base_id, mode="smoke")
+    return print_report([report], base_id=base_id, mode='smoke')
 
 
-@app.command("list-bases")
+@app.command('list-bases')
 def list_bases_cmd() -> None:
     """Print every base the token can see (plumbing / discovery helper)."""
-    api_key = os.environ.get("AIRTABLE_API_KEY", "")
+    api_key = os.environ.get('AIRTABLE_API_KEY', '')
     try:
         with AirtableClient(api_key) as client:
             bases = client.list_bases()
     except AirtableError as e:
-        typer.echo(f"ERROR: {e}", err=True)
+        typer.echo(f'ERROR: {e}', err=True)
         raise typer.Exit(1) from e
     if not bases:
-        typer.echo("(token can see zero bases)")
+        typer.echo('(token can see zero bases)')
         return
     for b in bases:
-        typer.echo(
-            f"{b['id']}  {b.get('name', '?')}  perm={b.get('permissionLevel', '?')}"
-        )
+        typer.echo(f'{b["id"]}  {b.get("name", "?")}  perm={b.get("permissionLevel", "?")}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app()

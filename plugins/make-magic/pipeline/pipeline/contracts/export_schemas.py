@@ -29,7 +29,7 @@ from pipeline.contracts.models import (
 )
 
 # Directory where committed schemas live (next to this file).
-SCHEMA_DIR = Path(__file__).resolve().parent / "schema"
+SCHEMA_DIR = Path(__file__).resolve().parent / 'schema'
 
 # The models to export. Order is irrelevant (one file each, sorted keys).
 MODELS: tuple[type[BaseModel], ...] = (
@@ -45,7 +45,7 @@ MODELS: tuple[type[BaseModel], ...] = (
 def _schema_bytes(model: type[BaseModel]) -> str:
     """Deterministic, pretty-printed JSON Schema for one model."""
     schema = model.model_json_schema()
-    return json.dumps(schema, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    return json.dumps(schema, indent=2, sort_keys=True, ensure_ascii=False) + '\n'
 
 
 def export_all(out_dir: Path = SCHEMA_DIR) -> list[Path]:
@@ -53,7 +53,7 @@ def export_all(out_dir: Path = SCHEMA_DIR) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     for model in MODELS:
-        path = out_dir / f"{model.__name__}.json"
+        path = out_dir / f'{model.__name__}.json'
         path.write_text(_schema_bytes(model))
         written.append(path)
     return written
@@ -62,8 +62,8 @@ def export_all(out_dir: Path = SCHEMA_DIR) -> list[Path]:
 def main() -> None:
     written = export_all()
     for path in written:
-        print(f"wrote {path}")
+        print(f'wrote {path}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

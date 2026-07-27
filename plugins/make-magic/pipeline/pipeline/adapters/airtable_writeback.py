@@ -71,17 +71,17 @@ import httpx
 
 from pipeline.transforms.crosswalk import BUCKETS, buckets_for
 
-log = logging.getLogger("make_magic.adapters.airtable_writeback")
+log = logging.getLogger('make_magic.adapters.airtable_writeback')
 
-BASE_ID = "appw7QPMoqktrgDc1"
+BASE_ID = 'appw7QPMoqktrgDc1'
 #: NEW target (design review): the Cards table, NOT Decks.
-CARDS_TABLE_ID = "tbl3UgZZPJGQhEFo8"
+CARDS_TABLE_ID = 'tbl3UgZZPJGQhEFo8'
 #: Card Name (primary) field id — the pull lands columns by field id, so the
 #: lake loader reads the card name from this column, not a "Card Name" name.
-CARD_NAME_FIELD_ID = "fldltxh7GLqkkSYgT"
-API_ROOT = "https://api.airtable.com/v0"
-META_ROOT = "https://api.airtable.com/v0/meta"
-HEADERS_UA = {"User-Agent": "make-magic-plugin/2.0"}
+CARD_NAME_FIELD_ID = 'fldltxh7GLqkkSYgT'
+API_ROOT = 'https://api.airtable.com/v0'
+META_ROOT = 'https://api.airtable.com/v0/meta'
+HEADERS_UA = {'User-Agent': 'make-magic-plugin/2.0'}
 
 #: Airtable caps a single PATCH ``records[]`` array at 10 records. The apply path
 #: MUST chunk the resolved writes to this size; a full-inventory run of hundreds
@@ -97,7 +97,7 @@ INTER_CHUNK_DELAY_S = 0.25
 #: visually unmistakable in the Airtable UI and guarantees the derived field
 #: names cannot collide with any human-edited field name (all of which are plain
 #: words: Card Name, Sets, Oracle Text, ...). See :data:`DERIVED_FIELDS`.
-NS = "⚙ "  # "⚙ "
+NS = '⚙ '  # "⚙ "
 
 
 @dataclass(frozen=True)
@@ -126,15 +126,15 @@ BUCKET_OPTIONS: tuple[str, ...] = BUCKETS
 #: enumerates field names.
 DERIVED_FIELDS: tuple[DerivedField, ...] = (
     DerivedField(
-        key="buckets",
-        name=f"{NS}Buckets",
-        airtable_type="multipleSelects",
-        options={"choices": [{"name": b} for b in BUCKET_OPTIONS]},
+        key='buckets',
+        name=f'{NS}Buckets',
+        airtable_type='multipleSelects',
+        options={'choices': [{'name': b} for b in BUCKET_OPTIONS]},
     ),
     DerivedField(
-        key="otags",
-        name=f"{NS}Otags",
-        airtable_type="multilineText",
+        key='otags',
+        name=f'{NS}Otags',
+        airtable_type='multilineText',
     ),
 )
 
@@ -143,8 +143,8 @@ DERIVED_FIELDS: tuple[DerivedField, ...] = (
 ALLOWLIST_NAMES: frozenset[str] = frozenset(f.name for f in DERIVED_FIELDS)
 
 #: Convenience handles onto the two field names (single source of truth = tuple).
-BUCKETS_FIELD: str = f"{NS}Buckets"
-OTAGS_FIELD: str = f"{NS}Otags"
+BUCKETS_FIELD: str = f'{NS}Buckets'
+OTAGS_FIELD: str = f'{NS}Otags'
 
 
 class HumanFieldWriteError(RuntimeError):
@@ -172,9 +172,9 @@ class ChunkWriteError(RuntimeError):
         self.chunks_completed = chunks_completed
         self.chunks_planned = chunks_planned
         super().__init__(
-            f"Chunked apply stopped after {chunks_completed}/{chunks_planned} "
-            "chunk(s) PATCHed successfully. Re-run to resume (idempotent upsert by "
-            "record id; completed chunks are simply re-written with identical values)."
+            f'Chunked apply stopped after {chunks_completed}/{chunks_planned} '
+            'chunk(s) PATCHed successfully. Re-run to resume (idempotent upsert by '
+            'record id; completed chunks are simply re-written with identical values).'
         )
 
 
@@ -193,7 +193,7 @@ class NonAllowlistFieldError(RuntimeError):
 # --------------------------------------------------------------------------- #
 
 #: The Cards table name in the golden contract (target of this write-back).
-CARDS_TABLE_NAME = "Cards"
+CARDS_TABLE_NAME = 'Cards'
 
 
 def _golden_contract_path() -> Path:
@@ -202,7 +202,7 @@ def _golden_contract_path() -> Path:
     This file lives at ``pipeline/pipeline/adapters/airtable_writeback.py``;
     ``parents[3]`` is the ``make-magic`` plugin root that holds ``regression/``.
     """
-    return Path(__file__).resolve().parents[3] / "regression" / "golden_contract.json"
+    return Path(__file__).resolve().parents[3] / 'regression' / 'golden_contract.json'
 
 
 def load_human_denylist(path: Path | None = None) -> frozenset[str]:
@@ -217,15 +217,15 @@ def load_human_denylist(path: Path | None = None) -> frozenset[str]:
     it in lock-step with the contract: if a Cards human field is added, it is
     automatically denied.
     """
-    contract = json.loads((path or _golden_contract_path()).read_text(encoding="utf-8"))
+    contract = json.loads((path or _golden_contract_path()).read_text(encoding='utf-8'))
     denied: set[str] = set()
-    cards_meta = contract.get("tables", {}).get(CARDS_TABLE_NAME, {})
-    pf = cards_meta.get("primary_field")
+    cards_meta = contract.get('tables', {}).get(CARDS_TABLE_NAME, {})
+    pf = cards_meta.get('primary_field')
     if pf:
         denied.add(pf)
-    for skill in contract.get("skills", {}).values():
-        cards_tbl = skill.get("tables", {}).get(CARDS_TABLE_NAME, {})
-        denied.update(cards_tbl.get("required_fields", []))
+    for skill in contract.get('skills', {}).values():
+        cards_tbl = skill.get('tables', {}).get(CARDS_TABLE_NAME, {})
+        denied.update(cards_tbl.get('required_fields', []))
     return frozenset(denied)
 
 
@@ -238,8 +238,8 @@ HUMAN_DENYLIST: frozenset[str] = load_human_denylist()
 # edit ever names an allowlist field after a human field, this import fails loud.
 _OVERLAP = ALLOWLIST_NAMES & HUMAN_DENYLIST
 assert not _OVERLAP, (
-    f"FATAL: derived allowlist overlaps the human denylist: {sorted(_OVERLAP)}. "
-    "The write-back must never own a human-edited field name."
+    f'FATAL: derived allowlist overlaps the human denylist: {sorted(_OVERLAP)}. '
+    'The write-back must never own a human-edited field name.'
 )
 
 
@@ -255,15 +255,15 @@ def assert_no_human_fields(payload_fields: Any) -> None:
     human = fields & HUMAN_DENYLIST
     if human:
         raise HumanFieldWriteError(
-            f"REFUSED: write payload contains human-edited Card field(s) {sorted(human)}. "
-            "This adapter may only write the derived allowlist "
-            f"{sorted(ALLOWLIST_NAMES)}; human fields are pull-only."
+            f'REFUSED: write payload contains human-edited Card field(s) {sorted(human)}. '
+            'This adapter may only write the derived allowlist '
+            f'{sorted(ALLOWLIST_NAMES)}; human fields are pull-only.'
         )
     non_allowed = fields - ALLOWLIST_NAMES
     if non_allowed:
         raise NonAllowlistFieldError(
-            f"REFUSED: write payload contains non-allowlisted field(s) "
-            f"{sorted(non_allowed)}. Only {sorted(ALLOWLIST_NAMES)} may be written."
+            f'REFUSED: write payload contains non-allowlisted field(s) '
+            f'{sorted(non_allowed)}. Only {sorted(ALLOWLIST_NAMES)} may be written.'
         )
 
 
@@ -316,13 +316,13 @@ def resolve_cards(
     for record_id in sorted(cards):
         name = cards[record_id]
         if not record_id:
-            log.warning("Skipping a Card with no Airtable record id.")
+            log.warning('Skipping a Card with no Airtable record id.')
             skipped.append(record_id)
             continue
         oid = name_to_oracle_id.get(name)
         if not oid:
             log.warning(
-                "SKIP Card %s (%r): no robust oracle_id match — not guessing.",
+                'SKIP Card %s (%r): no robust oracle_id match — not guessing.',
                 record_id,
                 name,
             )
@@ -331,7 +331,7 @@ def resolve_cards(
         slugs = card_otag.get(str(oid))
         if not slugs:
             log.warning(
-                "SKIP Card %s (%r, oracle_id=%s): no otag data — nothing to write.",
+                'SKIP Card %s (%r, oracle_id=%s): no otag data — nothing to write.',
                 record_id,
                 name,
                 oid,
@@ -340,11 +340,7 @@ def resolve_cards(
             continue
         buckets = tuple(sorted(buckets_for(set(slugs))))
         otags = tuple(sorted(str(s) for s in slugs))
-        resolved.append(
-            CardResolution(
-                record_id=record_id, oracle_id=str(oid), buckets=buckets, otags=otags
-            )
-        )
+        resolved.append(CardResolution(record_id=record_id, oracle_id=str(oid), buckets=buckets, otags=otags))
     return resolved, skipped
 
 
@@ -359,7 +355,7 @@ def build_payload(resolution: CardResolution) -> dict[str, Any]:
     """
     payload: dict[str, Any] = {
         BUCKETS_FIELD: list(resolution.buckets),
-        OTAGS_FIELD: "\n".join(resolution.otags),
+        OTAGS_FIELD: '\n'.join(resolution.otags),
     }
     assert_no_human_fields(payload.keys())  # defense-in-depth
     return payload
@@ -386,9 +382,7 @@ def plan_writes(
     resolved card keyed on the Airtable Card record id — so re-running with the
     same input yields the same plan (no new records, no dupes).
     """
-    resolved, _skipped = resolve_cards(
-        cards, name_to_oracle_id=name_to_oracle_id, card_otag=card_otag
-    )
+    resolved, _skipped = resolve_cards(cards, name_to_oracle_id=name_to_oracle_id, card_otag=card_otag)
     return [CardWrite(record_id=r.record_id, fields=build_payload(r)) for r in resolved]
 
 
@@ -399,7 +393,7 @@ def _chunk[T](records: list[T], size: int = MAX_RECORDS_PER_PATCH) -> list[list[
     upsert stays idempotent). E.g. 25 records -> [10, 10, 5].
     """
     if size < 1:
-        raise ValueError("chunk size must be >= 1")
+        raise ValueError('chunk size must be >= 1')
     return [records[i : i + size] for i in range(0, len(records), size)]
 
 
@@ -417,9 +411,7 @@ class SupportsWrite(Protocol):
     """Narrow port a writer needs: field-schema read/create + record patch."""
 
     def list_fields(self) -> dict[str, str]: ...
-    def create_field(
-        self, name: str, airtable_type: str, options: dict[str, Any] | None
-    ) -> None: ...
+    def create_field(self, name: str, airtable_type: str, options: dict[str, Any] | None) -> None: ...
     def patch_records(self, records: list[dict[str, Any]]) -> httpx.Response: ...
 
 
@@ -435,7 +427,7 @@ class AllowlistWriteClient:
 
     def __init__(self, token: str, *, _client: httpx.Client | None = None) -> None:
         self.__client = _client or httpx.Client(timeout=30)
-        self.__auth = {"Authorization": f"Bearer {token}", **HEADERS_UA}
+        self.__auth = {'Authorization': f'Bearer {token}', **HEADERS_UA}
         #: id-keyed wire guard state, derived from the resolved allowlist
         #: name->id map. Empty until :meth:`resolve_field_map` (or
         #: :meth:`list_fields`) runs — so before resolution NO id can pass the
@@ -455,12 +447,8 @@ class AllowlistWriteClient:
         field ids (and unknown ids) are deliberately excluded, so the wire guard
         can reject anything that is not one of the two derived ids.
         """
-        self._allowed_ids = frozenset(
-            fid for name, fid in name_to_id.items() if name in ALLOWLIST_NAMES
-        )
-        self._id_to_name = {
-            fid: name for name, fid in name_to_id.items() if name in ALLOWLIST_NAMES
-        }
+        self._allowed_ids = frozenset(fid for name, fid in name_to_id.items() if name in ALLOWLIST_NAMES)
+        self._id_to_name = {fid: name for name, fid in name_to_id.items() if name in ALLOWLIST_NAMES}
 
     def list_fields(self) -> dict[str, str]:
         """Return ``{field_name: field_id}`` for the Cards table (meta API GET).
@@ -468,29 +456,25 @@ class AllowlistWriteClient:
         Also caches the id-keyed wire-guard state (:meth:`resolve_field_map`) so
         the wire guard can validate the field-ID-keyed body it is about to send.
         """
-        url = f"{META_ROOT}/bases/{BASE_ID}/tables"
+        url = f'{META_ROOT}/bases/{BASE_ID}/tables'
         resp = self.__client.get(url, headers=self.__auth)
         resp.raise_for_status()
-        for table in resp.json().get("tables", []):
-            if table.get("id") == CARDS_TABLE_ID:
-                name_to_id = {f["name"]: f["id"] for f in table.get("fields", [])}
+        for table in resp.json().get('tables', []):
+            if table.get('id') == CARDS_TABLE_ID:
+                name_to_id = {f['name']: f['id'] for f in table.get('fields', [])}
                 self.resolve_field_map(name_to_id)
                 return name_to_id
         return {}
 
-    def create_field(
-        self, name: str, airtable_type: str, options: dict[str, Any] | None
-    ) -> None:
+    def create_field(self, name: str, airtable_type: str, options: dict[str, Any] | None) -> None:
         """Create a DERIVED field on Cards. REFUSES any non-allowlisted name."""
         if name not in ALLOWLIST_NAMES:
-            raise NonAllowlistFieldError(
-                f"REFUSED: cannot create field {name!r} — not in the derived allowlist."
-            )
+            raise NonAllowlistFieldError(f'REFUSED: cannot create field {name!r} — not in the derived allowlist.')
         assert_no_human_fields([name])
-        url = f"{META_ROOT}/bases/{BASE_ID}/tables/{CARDS_TABLE_ID}/fields"
-        body: dict[str, Any] = {"name": name, "type": airtable_type}
+        url = f'{META_ROOT}/bases/{BASE_ID}/tables/{CARDS_TABLE_ID}/fields'
+        body: dict[str, Any] = {'name': name, 'type': airtable_type}
         if options:
-            body["options"] = options
+            body['options'] = options
         resp = self.__client.post(url, headers=self.__auth, json=body)
         resp.raise_for_status()
 
@@ -512,14 +496,14 @@ class AllowlistWriteClient:
         is empty and NO id can pass.
         """
         for rec in records:
-            field_ids = set((rec.get("fields") or {}).keys())
+            field_ids = set((rec.get('fields') or {}).keys())
             unknown = field_ids - self._allowed_ids
             if unknown:
                 raise NonAllowlistFieldError(
-                    f"REFUSED: write body contains non-allowlisted field id(s) "
-                    f"{sorted(unknown)}. Only the derived field ids "
-                    f"{sorted(self._allowed_ids)} (== {sorted(ALLOWLIST_NAMES)}) "
-                    "may be written; a human field id or unknown id is refused."
+                    f'REFUSED: write body contains non-allowlisted field id(s) '
+                    f'{sorted(unknown)}. Only the derived field ids '
+                    f'{sorted(self._allowed_ids)} (== {sorted(ALLOWLIST_NAMES)}) '
+                    'may be written; a human field id or unknown id is refused.'
                 )
             # Belt-and-suspenders: the mapped names must ALSO pass the name guard.
             assert_no_human_fields(self._id_to_name[fid] for fid in field_ids)
@@ -534,8 +518,8 @@ class AllowlistWriteClient:
         # The guard runs BEFORE id-resolution too (see push), but re-check here on
         # whatever is actually about to be transmitted — the true choke point.
         self._guarded_body(records)
-        url = f"{API_ROOT}/{BASE_ID}/{CARDS_TABLE_ID}"
-        body = {"records": records, "returnFieldsByFieldId": True}
+        url = f'{API_ROOT}/{BASE_ID}/{CARDS_TABLE_ID}'
+        body = {'records': records, 'returnFieldsByFieldId': True}
         resp = self.__client.patch(url, headers=self.__auth, json=body)
         resp.raise_for_status()
         return resp
@@ -566,26 +550,22 @@ class PushReport:
 
     def render(self) -> str:
         lines: list[str] = []
-        mode = "DRY-RUN (no writes issued)" if self.dry_run else "APPLY"
-        lines.append(f"=== Airtable derived write-back -> Cards [{mode}] ===")
-        lines.append(f"Allowlist (engine-owned): {sorted(ALLOWLIST_NAMES)}")
+        mode = 'DRY-RUN (no writes issued)' if self.dry_run else 'APPLY'
+        lines.append(f'=== Airtable derived write-back -> Cards [{mode}] ===')
+        lines.append(f'Allowlist (engine-owned): {sorted(ALLOWLIST_NAMES)}')
         if self.fields_to_create:
-            lines.append(f"Fields that WOULD be created: {self.fields_to_create}")
+            lines.append(f'Fields that WOULD be created: {self.fields_to_create}')
         for w in self.planned:
-            lines.append(f"  upsert Cards/{w.record_id}:")
+            lines.append(f'  upsert Cards/{w.record_id}:')
             for name in sorted(w.fields):
                 val = w.fields[name]
-                shown = val if len(str(val)) <= 80 else f"{str(val)[:77]}..."
-                lines.append(f"    {name} = {shown!r}")
-        lines.append(
-            f"cards resolved: {len(self.planned)}  |  skipped (no match): {len(self.skipped)}"
-        )
-        verb = "would send" if self.dry_run else "sent"
-        lines.append(
-            f"PATCH chunks {verb} (<= {MAX_RECORDS_PER_PATCH} records each): {self.chunks_planned}"
-        )
-        lines.append(f"write requests issued: {self.write_requests_issued}")
-        return "\n".join(lines)
+                shown = val if len(str(val)) <= 80 else f'{str(val)[:77]}...'
+                lines.append(f'    {name} = {shown!r}')
+        lines.append(f'cards resolved: {len(self.planned)}  |  skipped (no match): {len(self.skipped)}')
+        verb = 'would send' if self.dry_run else 'sent'
+        lines.append(f'PATCH chunks {verb} (<= {MAX_RECORDS_PER_PATCH} records each): {self.chunks_planned}')
+        lines.append(f'write requests issued: {self.write_requests_issued}')
+        return '\n'.join(lines)
 
 
 # --------------------------------------------------------------------------- #
@@ -612,7 +592,7 @@ def ensure_fields(
     missing = [f for f in DERIVED_FIELDS if f.name not in existing]
     names = [f.name for f in missing]
     if dry_run or not apply:
-        log.info("[dry-run] would create derived fields: %s", names)
+        log.info('[dry-run] would create derived fields: %s', names)
         return names
     for f in missing:
         client.create_field(f.name, f.airtable_type, f.options)
@@ -645,18 +625,14 @@ def push(
         A :class:`PushReport`. In dry-run, ``write_requests_issued == 0``. Cards
         without a robust ``oracle_id`` match are in ``report.skipped``.
     """
-    resolved, skipped = resolve_cards(
-        cards, name_to_oracle_id=name_to_oracle_id, card_otag=card_otag
-    )
+    resolved, skipped = resolve_cards(cards, name_to_oracle_id=name_to_oracle_id, card_otag=card_otag)
     plan = [CardWrite(record_id=r.record_id, fields=build_payload(r)) for r in resolved]
     # Guard EVERY planned payload up front — before any request is even eligible.
     for w in plan:
         assert_no_human_fields(w.fields.keys())
 
     do_write = (not dry_run) and apply
-    report = PushReport(
-        dry_run=not do_write, applied=do_write, planned=plan, skipped=skipped
-    )
+    report = PushReport(dry_run=not do_write, applied=do_write, planned=plan, skipped=skipped)
     # How many PATCH chunks this plan maps to (Airtable's 10-records-per-request
     # cap). Reported in BOTH modes: in dry-run it is what we WOULD send.
     report.chunks_planned = _chunk_count(len(plan))
@@ -666,16 +642,14 @@ def push(
         return report
 
     if client is None:
-        raise ValueError("A live push (dry_run=False, apply=True) requires a client.")
+        raise ValueError('A live push (dry_run=False, apply=True) requires a client.')
 
     # Schema first: create any missing derived fields, then resolve name->id.
     ensure_fields(client, dry_run=False, apply=True)
     name_to_id = client.list_fields()
     missing_ids = ALLOWLIST_NAMES - set(name_to_id)
     if missing_ids:
-        raise RuntimeError(
-            f"Derived fields missing ids after ensure: {sorted(missing_ids)}"
-        )
+        raise RuntimeError(f'Derived fields missing ids after ensure: {sorted(missing_ids)}')
 
     # Chunk to Airtable's 10-records-per-PATCH cap. We chunk the NAME-keyed plan
     # so the human-field guard runs on real field NAMES for EACH chunk before it
@@ -697,16 +671,16 @@ def push(
             assert_no_human_fields(w.fields.keys())
             chunk_records.append(
                 {
-                    "id": w.record_id,
-                    "fields": {name_to_id[n]: v for n, v in w.fields.items()},
+                    'id': w.record_id,
+                    'fields': {name_to_id[n]: v for n, v in w.fields.items()},
                 }
             )
         try:
             client.patch_records(chunk_records)
         except Exception as exc:
             log.error(
-                "PATCH chunk %d/%d failed (%d chunk(s) completed): %s. "
-                "Stopping; re-run to resume (idempotent upsert by record id).",
+                'PATCH chunk %d/%d failed (%d chunk(s) completed): %s. '
+                'Stopping; re-run to resume (idempotent upsert by record id).',
                 i + 1,
                 len(plan_chunks),
                 report.write_requests_issued,
@@ -725,9 +699,7 @@ def push(
 # --------------------------------------------------------------------------- #
 
 
-def _load_cards_from_lake() -> tuple[
-    dict[str, str], dict[str, str], dict[str, set[str]]
-]:
+def _load_cards_from_lake() -> tuple[dict[str, str], dict[str, str], dict[str, set[str]]]:
     """Best-effort: load pulled Cards + the oracle_id join maps from the lake.
 
     Returns ``(cards, name_to_oracle_id, card_otag)``:
@@ -748,8 +720,8 @@ def _load_cards_from_lake() -> tuple[
     card_otag: dict[str, set[str]] = {}
 
     with store.connect() as conn:
-        if store.table_exists("raw", "airtable_cards"):
-            rel = store.read_parquet(conn, "raw", "airtable_cards")
+        if store.table_exists('raw', 'airtable_cards'):
+            rel = store.read_parquet(conn, 'raw', 'airtable_cards')
             cols = rel.columns
             # The Airtable pull stores columns by FIELD ID (returnFieldsByFieldId
             # =true, the durable key that survives renames), plus "_record_id".
@@ -758,18 +730,18 @@ def _load_cards_from_lake() -> tuple[
             # in case a future pull ever lands display names.
             for row in rel.fetchall():
                 rec = dict(zip(cols, row, strict=False))
-                rid = rec.get("_record_id")
-                name = rec.get(CARD_NAME_FIELD_ID) or rec.get("Card Name")
+                rid = rec.get('_record_id')
+                name = rec.get(CARD_NAME_FIELD_ID) or rec.get('Card Name')
                 if rid and name:
                     cards[str(rid)] = str(name)
-        if store.table_exists("raw", "oracle_cards"):
-            rel = store.read_parquet(conn, "raw", "oracle_cards")
-            for name, oid in rel.select("name, oracle_id").fetchall():
+        if store.table_exists('raw', 'oracle_cards'):
+            rel = store.read_parquet(conn, 'raw', 'oracle_cards')
+            for name, oid in rel.select('name, oracle_id').fetchall():
                 if name and oid:
                     name_to_oracle_id[str(name)] = str(oid)
-        if store.table_exists("normalized", "card_otag"):
-            rel = store.read_parquet(conn, "normalized", "card_otag")
-            for oid, slug in rel.select("oracle_id, slug").fetchall():
+        if store.table_exists('normalized', 'card_otag'):
+            rel = store.read_parquet(conn, 'normalized', 'card_otag')
+            for oid, slug in rel.select('oracle_id, slug').fetchall():
                 if oid and slug:
                     card_otag.setdefault(str(oid), set()).add(str(slug))
     return cards, name_to_oracle_id, card_otag
@@ -777,44 +749,40 @@ def _load_cards_from_lake() -> tuple[
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="python -m pipeline.adapters.airtable_writeback",
-        description="Push per-card derived otag facts to Airtable Cards (dry-run by default).",
+        prog='python -m pipeline.adapters.airtable_writeback',
+        description='Push per-card derived otag facts to Airtable Cards (dry-run by default).',
     )
     parser.add_argument(
-        "--dry-run",
-        dest="dry_run",
-        action="store_true",
+        '--dry-run',
+        dest='dry_run',
+        action='store_true',
         default=True,
-        help="Print the diff without writing (DEFAULT).",
+        help='Print the diff without writing (DEFAULT).',
     )
     parser.add_argument(
-        "--apply",
-        dest="apply",
-        action="store_true",
+        '--apply',
+        dest='apply',
+        action='store_true',
         default=False,
-        help="Actually write. Requires --no-dry-run too. Live writes need AIRTABLE_API_KEY.",
+        help='Actually write. Requires --no-dry-run too. Live writes need AIRTABLE_API_KEY.',
     )
     parser.add_argument(
-        "--no-dry-run",
-        dest="dry_run",
-        action="store_false",
-        help="Disable dry-run (still requires --apply to write).",
+        '--no-dry-run',
+        dest='dry_run',
+        action='store_false',
+        help='Disable dry-run (still requires --apply to write).',
     )
     args = parser.parse_args(argv)
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     cards, name_to_oracle_id, card_otag = _load_cards_from_lake()
 
     client: AllowlistWriteClient | None = None
     do_write = (not args.dry_run) and args.apply
     if do_write:
-        token = os.environ.get("AIRTABLE_API_KEY")
+        token = os.environ.get('AIRTABLE_API_KEY')
         if not token:
-            raise RuntimeError(
-                "AIRTABLE_API_KEY is not set; cannot apply a live write."
-            )
+            raise RuntimeError('AIRTABLE_API_KEY is not set; cannot apply a live write.')
         client = AllowlistWriteClient(token)
     try:
         report = push(
@@ -832,5 +800,5 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     raise SystemExit(main())

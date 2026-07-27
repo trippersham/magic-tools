@@ -36,12 +36,12 @@ import httpx
 from pipeline import store
 from pipeline.ingest._common import Watermark, is_newer
 
-log = logging.getLogger("make_magic.ingest.airtable")
+log = logging.getLogger('make_magic.ingest.airtable')
 
-BASE_ID = "appw7QPMoqktrgDc1"
-API_ROOT = "https://api.airtable.com/v0"
-META_ROOT = "https://api.airtable.com/v0/meta"
-HEADERS_UA = {"User-Agent": "make-magic-plugin/2.0"}
+BASE_ID = 'appw7QPMoqktrgDc1'
+API_ROOT = 'https://api.airtable.com/v0'
+META_ROOT = 'https://api.airtable.com/v0/meta'
+HEADERS_UA = {'User-Agent': 'make-magic-plugin/2.0'}
 RATE_LIMIT_MS = 210  # Airtable caps at 5 req/s per base; stay under.
 
 #: The human-edited tables mirrored (data-architecture: decks/trades/chase pull).
@@ -53,12 +53,12 @@ TABLES: dict[str, tuple[str, str | None]] = {
     # to Condition/Sources/links/etc. Full-refresh (None) is correct + safe for a
     # read-only derived mirror of a modest table. (To re-enable incremental, add a
     # whole-record "Last Modified" lastModifiedTime field to Cards and key on it.)
-    "cards": ("tbl3UgZZPJGQhEFo8", None),
-    "decks": ("tblIfqVuVHNQza1K3", None),  # no whole-record lastModified field
-    "trades": ("tblgqqIvTuz0l5SZM", None),
-    "chase_cards": (
-        "tblXsNtGgT7UQLPXZ",
-        "fldtYh0qTTObjRkJ7",
+    'cards': ('tbl3UgZZPJGQhEFo8', None),
+    'decks': ('tblIfqVuVHNQza1K3', None),  # no whole-record lastModified field
+    'trades': ('tblgqqIvTuz0l5SZM', None),
+    'chase_cards': (
+        'tblXsNtGgT7UQLPXZ',
+        'fldtYh0qTTObjRkJ7',
     ),  # Last Modified (whole-record lastModifiedTime)
 }
 
@@ -82,22 +82,20 @@ class GetOnlyClient:
 
     def __init__(self, token: str, *, _client: httpx.Client | None = None) -> None:
         self.__client = _client or httpx.Client(timeout=30)
-        self.__auth = {"Authorization": f"Bearer {token}", **HEADERS_UA}
+        self.__auth = {'Authorization': f'Bearer {token}', **HEADERS_UA}
 
-    def request(
-        self, method: str, url: str, *, params: dict[str, Any] | None = None
-    ) -> httpx.Response:
+    def request(self, method: str, url: str, *, params: dict[str, Any] | None = None) -> httpx.Response:
         """Issue a request — REJECTING any method other than GET."""
-        if method.upper() != "GET":
+        if method.upper() != 'GET':
             raise NonGetMethodError(
-                f"Airtable mirror is PULL-ONLY; refused {method!r} to {url}. This module must never mutate Airtable."
+                f'Airtable mirror is PULL-ONLY; refused {method!r} to {url}. This module must never mutate Airtable.'
             )
         headers = self.__auth
-        return self.__client.request("GET", url, params=params, headers=headers)
+        return self.__client.request('GET', url, params=params, headers=headers)
 
     def get(self, url: str, *, params: dict[str, Any] | None = None) -> httpx.Response:
         """Convenience GET (still routed through the guarded :meth:`request`)."""
-        return self.request("GET", url, params=params)
+        return self.request('GET', url, params=params)
 
     def close(self) -> None:
         self.__client.close()
@@ -112,27 +110,25 @@ def _list_records(
     records newer than the watermark are pulled (incremental). Records come back
     keyed by FIELD ID (``returnFieldsByFieldId=true``) for stable joins.
     """
-    url = f"{API_ROOT}/{BASE_ID}/{table_id}"
-    params: dict[str, Any] = {"pageSize": 100, "returnFieldsByFieldId": "true"}
+    url = f'{API_ROOT}/{BASE_ID}/{table_id}'
+    params: dict[str, Any] = {'pageSize': 100, 'returnFieldsByFieldId': 'true'}
     if since and since_field:
         # IS_AFTER({fld}, since) — Airtable filterByFormula over the modified field.
-        params["filterByFormula"] = (
-            f"IS_AFTER({{{since_field}}}, DATETIME_PARSE('{since}'))"
-        )
+        params['filterByFormula'] = f"IS_AFTER({{{since_field}}}, DATETIME_PARSE('{since}'))"
     rows: list[dict[str, Any]] = []
     offset: str | None = None
     while True:
         page_params = dict(params)
         if offset:
-            page_params["offset"] = offset
+            page_params['offset'] = offset
         resp = client.get(url, params=page_params)
         resp.raise_for_status()
         payload = resp.json()
-        for rec in payload.get("records", []):
-            row = {"_record_id": rec["id"], "_created_time": rec.get("createdTime")}
-            row.update(rec.get("fields", {}))
+        for rec in payload.get('records', []):
+            row = {'_record_id': rec['id'], '_created_time': rec.get('createdTime')}
+            row.update(rec.get('fields', {}))
             rows.append(row)
-        offset = payload.get("offset")
+        offset = payload.get('offset')
         if not offset:
             break
         time.sleep(RATE_LIMIT_MS / 1000)
@@ -147,24 +143,18 @@ def _land(table: str, rows: list[dict[str, Any]]) -> Path:
     avoided; instead DuckDB infers a union schema from the JSON. Empty tables
     land a zero-row Parquet with a minimal schema.
     """
-    name = f"airtable_{table}"
+    name = f'airtable_{table}'
     with store.connect() as conn:
-        raw_dir = store.StorePaths.resolve().layer_dir("raw", create=True)
-        tmp = raw_dir / f"_{name}.tmp.json"
+        raw_dir = store.StorePaths.resolve().layer_dir('raw', create=True)
+        tmp = raw_dir / f'_{name}.tmp.json'
         # json-encode field values that are dict/list so DuckDB gets stable text.
-        norm = [
-            {
-                k: (json.dumps(v) if isinstance(v, (dict, list)) else v)
-                for k, v in row.items()
-            }
-            for row in rows
-        ]
+        norm = [{k: (json.dumps(v) if isinstance(v, (dict, list)) else v) for k, v in row.items()} for row in rows]
         if not norm:
-            norm = [{"_record_id": None}]  # keep a schema even when empty
-        tmp.write_text(json.dumps(norm), encoding="utf-8")
+            norm = [{'_record_id': None}]  # keep a schema even when empty
+        tmp.write_text(json.dumps(norm), encoding='utf-8')
         try:
             rel = conn.read_json(str(tmp))
-            path = store.write_parquet(conn, rel, "raw", name)
+            path = store.write_parquet(conn, rel, 'raw', name)
         finally:
             tmp.unlink(missing_ok=True)
     return path
@@ -184,9 +174,9 @@ def run_table(
 ) -> Path:
     """Pull a single table into ``raw/airtable_<table>``; return the path."""
     if table not in TABLES:
-        raise ValueError(f"Unknown table {table!r}; expected one of {sorted(TABLES)}.")
+        raise ValueError(f'Unknown table {table!r}; expected one of {sorted(TABLES)}.')
     table_id, mod_field = TABLES[table]
-    source = f"airtable_{table}"
+    source = f'airtable_{table}'
     wm = Watermark.load()
     prior = wm.get(source)
 
@@ -199,7 +189,7 @@ def run_table(
         if new_wm and is_newer(prior, new_wm):
             wm.set(source, new_wm)
             wm.save()
-    log.info("airtable: landed %d rows for %s.", len(rows), table)
+    log.info('airtable: landed %d rows for %s.', len(rows), table)
     return path
 
 
@@ -208,9 +198,9 @@ def run(*, force: bool = False, tables: list[str] | None = None) -> dict[str, Pa
 
     Requires ``AIRTABLE_API_KEY``. PULL-ONLY: all requests are GET (guarded).
     """
-    token = os.environ.get("AIRTABLE_API_KEY")
+    token = os.environ.get('AIRTABLE_API_KEY')
     if not token:
-        raise RuntimeError("AIRTABLE_API_KEY is not set; cannot pull Airtable.")
+        raise RuntimeError('AIRTABLE_API_KEY is not set; cannot pull Airtable.')
     client = GetOnlyClient(token)
     try:
         targets = tables or list(TABLES)
@@ -220,13 +210,11 @@ def run(*, force: bool = False, tables: list[str] | None = None) -> dict[str, Pa
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     paths = run()
     for table, path in paths.items():
-        print(f"landed airtable_{table} -> {path}")
+        print(f'landed airtable_{table} -> {path}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

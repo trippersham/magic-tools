@@ -17,13 +17,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 #: Env var that overrides the resolved data root (absolute path). Tests set this.
-ENV_DATA_DIR = "MAKE_MAGIC_DATA_DIR"
+ENV_DATA_DIR = 'MAKE_MAGIC_DATA_DIR'
 
 #: The three medallion layers, in refinement order.
-LAYERS = ("raw", "normalized", "marts")
+LAYERS = ('raw', 'normalized', 'marts')
 
 #: DuckDB working-database filename inside the data root.
-DB_FILENAME = "make_magic.duckdb"
+DB_FILENAME = 'make_magic.duckdb'
 
 
 def _default_data_dir() -> Path:
@@ -36,7 +36,7 @@ def _default_data_dir() -> Path:
     snapshot loaders resolve, so raw/normalized/marts sit alongside the
     bundled snapshots.
     """
-    return Path(__file__).resolve().parents[2] / "data"
+    return Path(__file__).resolve().parents[2] / 'data'
 
 
 @dataclass(frozen=True)
@@ -54,15 +54,15 @@ class StorePaths:
 
     @property
     def raw(self) -> Path:
-        return self.data_dir / "raw"
+        return self.data_dir / 'raw'
 
     @property
     def normalized(self) -> Path:
-        return self.data_dir / "normalized"
+        return self.data_dir / 'normalized'
 
     @property
     def marts(self) -> Path:
-        return self.data_dir / "marts"
+        return self.data_dir / 'marts'
 
     @property
     def db_path(self) -> Path:
@@ -75,7 +75,7 @@ class StorePaths:
         ``ValueError`` for an unknown layer so typos fail loudly.
         """
         if layer not in LAYERS:
-            raise ValueError(f"Unknown layer {layer!r}; expected one of {LAYERS}.")
+            raise ValueError(f'Unknown layer {layer!r}; expected one of {LAYERS}.')
         path = self.data_dir / layer
         if create:
             path.mkdir(parents=True, exist_ok=True)
@@ -83,4 +83,4 @@ class StorePaths:
 
     def parquet_path(self, layer: str, name: str, *, create: bool = True) -> Path:
         """Full path to ``data/<layer>/<name>.parquet`` (dir created on demand)."""
-        return self.layer_dir(layer, create=create) / f"{name}.parquet"
+        return self.layer_dir(layer, create=create) / f'{name}.parquet'

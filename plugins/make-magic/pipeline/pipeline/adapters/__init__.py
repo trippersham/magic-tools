@@ -12,4 +12,4 @@ from __future__ import annotations
 
 from pipeline.adapters.airtable_writeback import ensure_fields, push
 
-__all__ = ("ensure_fields", "push")
+__all__ = ('ensure_fields', 'push')

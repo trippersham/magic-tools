@@ -12,7 +12,7 @@ dependencies = [
 [project.optional-dependencies]
 # Airtable adapter (pull-only in the pilot; derived write-back in P5).
 airtable = ["pyairtable>=3.0"]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1"]
 
 [tool.uv]
 # Match the existing plugin scripts' reproducibility pin.
@@ -27,3 +27,19 @@ packages = ["pipeline"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# --- Style (rae-style python-styleguide: Pydantic-AI conventions) ---
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
+
+[tool.pyright]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"
+include = ["pipeline"]

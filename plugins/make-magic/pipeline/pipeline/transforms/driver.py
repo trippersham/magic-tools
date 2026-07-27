@@ -23,7 +23,7 @@ TABLES: dict[str, Callable[[], Path]] = {
 def build_table(name: str) -> Path:
     """Build a single normalized table by name; raise ``KeyError`` if unknown."""
     if name not in TABLES:
-        raise KeyError(f"Unknown normalized table {name!r}; known: {sorted(TABLES)}.")
+        raise KeyError(f'Unknown normalized table {name!r}; known: {sorted(TABLES)}.')
     return TABLES[name]()
 
 

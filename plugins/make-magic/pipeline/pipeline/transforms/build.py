@@ -20,7 +20,7 @@ from pipeline import store
 from pipeline.ingest import oracle_tags, spellbook
 from pipeline.transforms import driver
 
-log = logging.getLogger("make_magic.transforms.build")
+log = logging.getLogger('make_magic.transforms.build')
 
 
 def ensure_raw() -> None:
@@ -29,9 +29,9 @@ def ensure_raw() -> None:
     The pullers are watermark-gated + fail-open, so this is cheap when raw is
     fresh and safe offline (lands the bundled snapshot on any fetch failure).
     """
-    if not store.table_exists("raw", oracle_tags.SOURCE):
+    if not store.table_exists('raw', oracle_tags.SOURCE):
         oracle_tags.run()
-    if not store.table_exists("raw", spellbook.SOURCE):
+    if not store.table_exists('raw', spellbook.SOURCE):
         spellbook.run()
 
 
@@ -44,22 +44,18 @@ def run(*, ingest: bool = True) -> dict[str, str]:
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
-    )
-    parser = argparse.ArgumentParser(
-        description="Build the normalized marts (card_otag + combo)."
-    )
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
+    parser = argparse.ArgumentParser(description='Build the normalized marts (card_otag + combo).')
     parser.add_argument(
-        "--no-ingest",
-        action="store_true",
-        help="Skip ensuring raw sources; build from existing raw/ only.",
+        '--no-ingest',
+        action='store_true',
+        help='Skip ensuring raw sources; build from existing raw/ only.',
     )
     args = parser.parse_args()
     built = run(ingest=not args.no_ingest)
     for name, path in built.items():
-        print(f"landed {name} -> {path}")
+        print(f'landed {name} -> {path}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -22,10 +22,10 @@ from pathlib import Path
 
 from pipeline import store
 
-log = logging.getLogger("make_magic.transforms.combo_detect")
+log = logging.getLogger('make_magic.transforms.combo_detect')
 
-RAW_SOURCE = "combos"
-NORMALIZED_TABLE = "combo"
+RAW_SOURCE = 'combos'
+NORMALIZED_TABLE = 'combo'
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,7 @@ class Combo:
 
 def _norm_name(name: str) -> str:
     """Case/space-insensitive card-name key for matching."""
-    return " ".join((name or "").split()).casefold()
+    return ' '.join((name or '').split()).casefold()
 
 
 # --------------------------------------------------------------------------- #
@@ -56,27 +56,27 @@ def _combo_from_variant(variant: dict) -> Combo | None:
     """
     names: list[str] = []
     oracle_ids: list[str] = []
-    for use in variant.get("uses") or []:
-        card = use.get("card") if isinstance(use, dict) else None
+    for use in variant.get('uses') or []:
+        card = use.get('card') if isinstance(use, dict) else None
         if not card:
             continue
-        name = card.get("name")
+        name = card.get('name')
         if name:
             names.append(str(name))
-            oid = card.get("oracleId")
-            oracle_ids.append(str(oid) if oid is not None else "")
+            oid = card.get('oracleId')
+            oracle_ids.append(str(oid) if oid is not None else '')
     if not names:
         return None
     results = [
-        p["feature"]["name"]
-        for p in (variant.get("produces") or [])
-        if isinstance(p, dict) and p.get("feature") and p["feature"].get("name")
+        p['feature']['name']
+        for p in (variant.get('produces') or [])
+        if isinstance(p, dict) and p.get('feature') and p['feature'].get('name')
     ]
     return Combo(
-        variant_id=str(variant.get("id")),
+        variant_id=str(variant.get('id')),
         card_names=tuple(names),
         card_oracle_ids=tuple(oracle_ids),
-        result="; ".join(results),
+        result='; '.join(results),
     )
 
 
@@ -137,11 +137,11 @@ def combos_in_deck(
 def _load_raw_variants() -> list[dict]:
     """Read ``raw/combos`` back as dicts (id/uses/produces)."""
     with store.connect() as conn:
-        rel = store.read_parquet(conn, "raw", RAW_SOURCE)
-        rows = rel.select("id, uses, produces").fetchall()
+        rel = store.read_parquet(conn, 'raw', RAW_SOURCE)
+        rows = rel.select('id, uses, produces').fetchall()
     variants: list[dict] = []
     for vid, uses, produces in rows:
-        variants.append({"id": vid, "uses": uses or [], "produces": produces or []})
+        variants.append({'id': vid, 'uses': uses or [], 'produces': produces or []})
     return variants
 
 
@@ -149,28 +149,28 @@ def _land(combos: list[Combo]) -> Path:
     """Land normalized combos to ``normalized/combo``."""
     payload = [
         {
-            "variant_id": c.variant_id,
-            "card_names": list(c.card_names),
-            "card_oracle_ids": list(c.card_oracle_ids),
-            "result": c.result,
+            'variant_id': c.variant_id,
+            'card_names': list(c.card_names),
+            'card_oracle_ids': list(c.card_oracle_ids),
+            'result': c.result,
         }
         for c in combos
     ]
     with store.connect() as conn:
-        norm_dir = store.StorePaths.resolve().layer_dir("normalized", create=True)
-        tmp = norm_dir / f"_{NORMALIZED_TABLE}.tmp.json"
-        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        norm_dir = store.StorePaths.resolve().layer_dir('normalized', create=True)
+        tmp = norm_dir / f'_{NORMALIZED_TABLE}.tmp.json'
+        tmp.write_text(json.dumps(payload), encoding='utf-8')
         try:
             if payload:
                 rel = conn.read_json(str(tmp))
             else:
                 rel = conn.sql(
-                    "SELECT NULL::VARCHAR AS variant_id, "
-                    "[]::VARCHAR[] AS card_names, "
-                    "[]::VARCHAR[] AS card_oracle_ids, "
-                    "NULL::VARCHAR AS result WHERE 1=0"
+                    'SELECT NULL::VARCHAR AS variant_id, '
+                    '[]::VARCHAR[] AS card_names, '
+                    '[]::VARCHAR[] AS card_oracle_ids, '
+                    'NULL::VARCHAR AS result WHERE 1=0'
                 )
-            path = store.write_parquet(conn, rel, "normalized", NORMALIZED_TABLE)
+            path = store.write_parquet(conn, rel, 'normalized', NORMALIZED_TABLE)
         finally:
             tmp.unlink(missing_ok=True)
     return path
@@ -179,14 +179,14 @@ def _land(combos: list[Combo]) -> Path:
 def load_combos() -> list[Combo]:
     """Load the landed ``normalized/combo`` table back into ``Combo`` objects."""
     with store.connect() as conn:
-        rel = store.read_parquet(conn, "normalized", NORMALIZED_TABLE)
-        rows = rel.select("variant_id, card_names, card_oracle_ids, result").fetchall()
+        rel = store.read_parquet(conn, 'normalized', NORMALIZED_TABLE)
+        rows = rel.select('variant_id, card_names, card_oracle_ids, result').fetchall()
     return [
         Combo(
             variant_id=str(vid),
             card_names=tuple(names or []),
             card_oracle_ids=tuple(oids or []),
-            result=result or "",
+            result=result or '',
         )
         for vid, names, oids, result in rows
     ]
@@ -197,19 +197,15 @@ def build() -> Path:
     variants = _load_raw_variants()
     combos = normalize_variants(variants)
     path = _land(combos)
-    log.info(
-        "combo: normalized %d variants into %d combos.", len(variants), len(combos)
-    )
+    log.info('combo: normalized %d variants into %d combos.', len(variants), len(combos))
     return path
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     path = build()
-    print(f"landed combo -> {path}")
+    print(f'landed combo -> {path}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

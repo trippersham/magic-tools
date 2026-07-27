@@ -24,13 +24,13 @@ import pytest
 
 from pipeline import store
 
-FIXTURE = Path(__file__).parent / "fixtures" / "sample_oracle_cards.json"
+FIXTURE = Path(__file__).parent / 'fixtures' / 'sample_oracle_cards.json'
 
 
 @pytest.fixture()
 def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point the store at an isolated tmp data root via the env override."""
-    root = tmp_path / "data"
+    root = tmp_path / 'data'
     monkeypatch.setenv(store.ENV_DATA_DIR, str(root))
     return root
 
@@ -43,24 +43,24 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_paths_resolve_under_env_override(data_dir: Path) -> None:
     paths = store.StorePaths.resolve()
     assert paths.data_dir == data_dir
-    assert paths.raw == data_dir / "raw"
-    assert paths.normalized == data_dir / "normalized"
-    assert paths.marts == data_dir / "marts"
-    assert paths.db_path == data_dir / "make_magic.duckdb"
+    assert paths.raw == data_dir / 'raw'
+    assert paths.normalized == data_dir / 'normalized'
+    assert paths.marts == data_dir / 'marts'
+    assert paths.db_path == data_dir / 'make_magic.duckdb'
 
 
 def test_layer_dir_created_on_demand(data_dir: Path) -> None:
     paths = store.StorePaths.resolve()
     assert not paths.raw.exists()
-    created = paths.layer_dir("raw")
+    created = paths.layer_dir('raw')
     assert created.exists() and created.is_dir()
-    assert created == data_dir / "raw"
+    assert created == data_dir / 'raw'
 
 
 def test_unknown_layer_rejected(data_dir: Path) -> None:
     paths = store.StorePaths.resolve()
     with pytest.raises(ValueError):
-        paths.layer_dir("bronze")
+        paths.layer_dir('bronze')
 
 
 # --------------------------------------------------------------------------- #
@@ -71,34 +71,32 @@ def test_unknown_layer_rejected(data_dir: Path) -> None:
 def test_write_then_read_parquet_roundtrip(data_dir: Path) -> None:
     with store.connect() as conn:
         rel = conn.read_json(str(FIXTURE))
-        path = store.write_parquet(conn, rel, "raw", "oracle_cards")
+        path = store.write_parquet(conn, rel, 'raw', 'oracle_cards')
         assert path.exists()
-        assert path == data_dir / "raw" / "oracle_cards.parquet"
+        assert path == data_dir / 'raw' / 'oracle_cards.parquet'
 
-        rows = store.read_parquet(conn, "raw", "oracle_cards")
-        result = rows.aggregate("count(*) AS n, max(cmc) AS max_cmc").fetchone()
+        rows = store.read_parquet(conn, 'raw', 'oracle_cards')
+        result = rows.aggregate('count(*) AS n, max(cmc) AS max_cmc').fetchone()
         assert result is not None
         n, max_cmc = result
         assert n == 5
         assert max_cmc == 4.0
 
-        bolt = (
-            rows.filter("name = 'Lightning Bolt'").project("color_identity").fetchone()
-        )
+        bolt = rows.filter("name = 'Lightning Bolt'").project('color_identity').fetchone()
         assert bolt is not None
-        assert list(bolt[0]) == ["R"]
+        assert list(bolt[0]) == ['R']
 
 
 def test_table_exists_and_list_layer(data_dir: Path) -> None:
     with store.connect() as conn:
-        assert store.list_layer("raw") == []
-        assert not store.table_exists("raw", "oracle_cards")
+        assert store.list_layer('raw') == []
+        assert not store.table_exists('raw', 'oracle_cards')
 
         rel = conn.read_json(str(FIXTURE))
-        store.write_parquet(conn, rel, "raw", "oracle_cards")
+        store.write_parquet(conn, rel, 'raw', 'oracle_cards')
 
-        assert store.table_exists("raw", "oracle_cards")
-        assert store.list_layer("raw") == ["oracle_cards"]
+        assert store.table_exists('raw', 'oracle_cards')
+        assert store.list_layer('raw') == ['oracle_cards']
 
 
 # --------------------------------------------------------------------------- #
@@ -109,7 +107,7 @@ def test_table_exists_and_list_layer(data_dir: Path) -> None:
 def test_join_across_two_parquet_tables(data_dir: Path) -> None:
     with store.connect() as conn:
         cards = conn.read_json(str(FIXTURE))
-        store.write_parquet(conn, cards, "raw", "oracle_cards")
+        store.write_parquet(conn, cards, 'raw', 'oracle_cards')
 
         # Tiny synthetic oracle-tag mapping (oracle_id -> otag slug).
         otag_rel = conn.sql(
@@ -121,10 +119,10 @@ def test_join_across_two_parquet_tables(data_dir: Path) -> None:
             ) AS t(oracle_id, otag)
             """
         )
-        store.write_parquet(conn, otag_rel, "normalized", "card_otag")
+        store.write_parquet(conn, otag_rel, 'normalized', 'card_otag')
 
-        store.register_view(conn, "raw", "oracle_cards")
-        store.register_view(conn, "normalized", "card_otag")
+        store.register_view(conn, 'raw', 'oracle_cards')
+        store.register_view(conn, 'normalized', 'card_otag')
 
         joined = conn.sql(
             """
@@ -136,9 +134,9 @@ def test_join_across_two_parquet_tables(data_dir: Path) -> None:
         ).fetchall()
 
     assert joined == [
-        ("Counterspell", "counterspell"),
-        ("Lightning Bolt", "burn"),
-        ("Wrath of God", "board-wipe"),
+        ('Counterspell', 'counterspell'),
+        ('Lightning Bolt', 'burn'),
+        ('Wrath of God', 'board-wipe'),
     ]
 
 
@@ -147,18 +145,16 @@ def test_join_across_two_parquet_tables(data_dir: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_attach_sqlite_join_across_attached_and_parquet(
-    data_dir: Path, tmp_path: Path
-) -> None:
+def test_attach_sqlite_join_across_attached_and_parquet(data_dir: Path, tmp_path: Path) -> None:
     # Build a tiny SQLite file resembling the ephemeral scryfall cache.
-    sqlite_path = tmp_path / "cache.db"
+    sqlite_path = tmp_path / 'cache.db'
     sconn = sqlite3.connect(str(sqlite_path))
-    sconn.execute("CREATE TABLE prices (oracle_id TEXT PRIMARY KEY, usd REAL)")
+    sconn.execute('CREATE TABLE prices (oracle_id TEXT PRIMARY KEY, usd REAL)')
     sconn.executemany(
-        "INSERT INTO prices VALUES (?, ?)",
+        'INSERT INTO prices VALUES (?, ?)',
         [
-            ("4457ed35-7c10-48c8-9b6c-cf9b3f31c0f7", 1.50),
-            ("83f43730-1c1f-4150-8771-d901c54bedc4", 2.49),
+            ('4457ed35-7c10-48c8-9b6c-cf9b3f31c0f7', 1.50),
+            ('83f43730-1c1f-4150-8771-d901c54bedc4', 2.49),
         ],
     )
     sconn.commit()
@@ -166,10 +162,10 @@ def test_attach_sqlite_join_across_attached_and_parquet(
 
     with store.connect() as conn:
         cards = conn.read_json(str(FIXTURE))
-        store.write_parquet(conn, cards, "raw", "oracle_cards")
-        store.register_view(conn, "raw", "oracle_cards")
+        store.write_parquet(conn, cards, 'raw', 'oracle_cards')
+        store.register_view(conn, 'raw', 'oracle_cards')
 
-        attached = store.attach_sqlite(conn, sqlite_path, "cache")
+        attached = store.attach_sqlite(conn, sqlite_path, 'cache')
         assert attached is True
 
         joined = conn.sql(
@@ -182,15 +178,13 @@ def test_attach_sqlite_join_across_attached_and_parquet(
         ).fetchall()
 
     assert joined == [
-        ("Lightning Bolt", 1.50),
-        ("Sol Ring", 2.49),
+        ('Lightning Bolt', 1.50),
+        ('Sol Ring', 2.49),
     ]
 
 
-def test_attach_sqlite_missing_file_skips_gracefully(
-    data_dir: Path, tmp_path: Path
-) -> None:
-    missing = tmp_path / "does_not_exist.db"
+def test_attach_sqlite_missing_file_skips_gracefully(data_dir: Path, tmp_path: Path) -> None:
+    missing = tmp_path / 'does_not_exist.db'
     with store.connect() as conn:
-        result = store.attach_sqlite(conn, missing, "cache")
+        result = store.attach_sqlite(conn, missing, 'cache')
     assert result is False

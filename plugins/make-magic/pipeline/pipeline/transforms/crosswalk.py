@@ -61,95 +61,91 @@ from __future__ import annotations
 
 BUCKET_ROOTS: dict[str, frozenset[str]] = {
     # Removal — spot + sweepers roll up to the `removal` root.
-    "removal": frozenset({"removal"}),
+    'removal': frozenset({'removal'}),
     # Ramp — mana acceleration / land-into-play (land-ramp/mana-rock roll up to `ramp`).
-    "ramp": frozenset({"ramp"}),
+    'ramp': frozenset({'ramp'}),
     # Card advantage / draw.
-    "draw": frozenset({"card-advantage"}),
+    'draw': frozenset({'card-advantage'}),
     # Token generation. `token-increaser` is the root, but the repeatable-token
     # LEAF family does NOT roll up to it, so fold those leaves in directly
     # (research §"broaden the bucket set").
-    "tokens": frozenset(
-        {"token-increaser", "repeatable-token-generator", "repeatable-creature-tokens"}
-    ),
+    'tokens': frozenset({'token-increaser', 'repeatable-token-generator', 'repeatable-creature-tokens'}),
     # +1/+1 (and similar) counter strategies. Beyond the `counter-increaser` root,
     # the gives-/gains-/repeatable-pp-counters LEAF family carries most real
     # counter cards (they don't all roll up to the root) — fold them in.
-    "counters": frozenset(
+    'counters': frozenset(
         {
-            "counter-increaser",
-            "pp-counters-matter",
-            "counters-matter",
-            "gives-pp-counters",
-            "gives-pp-counters-to-all",
-            "gains-pp-counters",
-            "repeatable-pp-counters",
+            'counter-increaser',
+            'pp-counters-matter',
+            'counters-matter',
+            'gives-pp-counters',
+            'gives-pp-counters-to-all',
+            'gains-pp-counters',
+            'repeatable-pp-counters',
         }
     ),
     # Burn / reach — CRITICAL: damage OR life-loss (see module docstring).
-    "burn": frozenset({"burn", "opponent-loses-life", "drain-life"}),
+    'burn': frozenset({'burn', 'opponent-loses-life', 'drain-life'}),
     # Tutors (all tutor-* leaves roll up to `tutor`).
-    "tutor": frozenset({"tutor"}),
+    'tutor': frozenset({'tutor'}),
     # Sacrifice outlets / aristocrat engines.
-    "sac": frozenset(
-        {"sacrifice-outlet", "free-sacrifice-outlet", "repeatable-sacrifice-outlet"}
-    ),
+    'sac': frozenset({'sacrifice-outlet', 'free-sacrifice-outlet', 'repeatable-sacrifice-outlet'}),
     # Hard counters (a distinct interaction axis from removal).
-    "counterspells": frozenset({"counterspell"}),
+    'counterspells': frozenset({'counterspell'}),
     # Flicker / blink value engines (ETB reuse).
-    "flicker": frozenset({"flicker"}),
+    'flicker': frozenset({'flicker'}),
     # Typal / tribal payoff — a core deck plan (PTTD is a changeling/typal deck).
     # There is no single `typal` root that all typal cards roll up to, so we key
     # on the typal LEAF family (research: fold in `typal-share`).
-    "typal": frozenset(
+    'typal': frozenset(
         {
-            "typal",
-            "typal-creature",
-            "typal-hero",
-            "typal-share",
-            "noncreature-typal",
-            "changeling",
+            'typal',
+            'typal-creature',
+            'typal-hero',
+            'typal-share',
+            'noncreature-typal',
+            'changeling',
         }
     ),
     # Anthem / team buff — static or repeatable board-wide power/toughness pump.
-    "anthem": frozenset({"power-boost-to-all", "toughness-boost-to-all", "anthem"}),
+    'anthem': frozenset({'power-boost-to-all', 'toughness-boost-to-all', 'anthem'}),
     # Combat / aggro enablers — extra combat damage, evasion granting, attack payoffs.
-    "combat": frozenset(
+    'combat': frozenset(
         {
-            "attacking-matters",
-            "attacking-matters-self",
-            "attack-trigger",
-            "gives-double-strike",
-            "gives-evasion",
-            "gives-flying",
-            "gives-trample",
-            "gives-menace",
+            'attacking-matters',
+            'attacking-matters-self',
+            'attack-trigger',
+            'gives-double-strike',
+            'gives-evasion',
+            'gives-flying',
+            'gives-trample',
+            'gives-menace',
         }
     ),
     # Protection — grant hexproof/indestructible/ward or protect-target effects.
     # (Distinct from `removal`; this is the resilience axis susceptibility keys on.)
-    "protection": frozenset(
+    'protection': frozenset(
         {
-            "protection",
-            "protects-creature",
-            "protects-all",
-            "gives-indestructible",
-            "gives-hexproof",
+            'protection',
+            'protects-creature',
+            'protects-all',
+            'gives-indestructible',
+            'gives-hexproof',
         }
     ),
     # --- FLAGGED GAP BUCKETS (heuristic, not root-backed; see docstring) ------ #
     # stax / resource denial — no clean root; `tax` slug + denial family.
-    "stax": frozenset({"tax", "cast-tax", "tax-attack", "tax-block"}),
+    'stax': frozenset({'tax', 'cast-tax', 'tax-attack', 'tax-block'}),
     # extra combat — lone leaf, no ancestors.
-    "extra_combat": frozenset({"extra-combat-phase"}),
+    'extra_combat': frozenset({'extra-combat-phase'}),
     # wincon — only the alternate-win family has a tag; general wincon is reasoning-layer.
-    "wincon": frozenset({"alternate-win-condition"}),
+    'wincon': frozenset({'alternate-win-condition'}),
 }
 
 #: Buckets whose coverage is a curated heuristic, NOT a root rollup. Downstream
 #: reporting flags these as lower-confidence (research: "no clean roots for
 #: stax / extra-combat / wincon — need heuristics").
-GAP_BUCKETS: frozenset[str] = frozenset({"stax", "extra_combat", "wincon"})
+GAP_BUCKETS: frozenset[str] = frozenset({'stax', 'extra_combat', 'wincon'})
 
 #: The canonical bucket vocabulary this crosswalk emits, in a stable order.
 BUCKETS: tuple[str, ...] = tuple(BUCKET_ROOTS.keys())

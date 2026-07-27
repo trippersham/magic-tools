@@ -33,16 +33,14 @@ import httpx
 from pipeline import store
 from pipeline.ingest._common import Watermark, is_newer
 
-log = logging.getLogger("make_magic.ingest.oracle_tags")
+log = logging.getLogger('make_magic.ingest.oracle_tags')
 
-SOURCE = "oracle_tags"
-BULK_META_URL = "https://api.scryfall.com/bulk-data/oracle-tags"
+SOURCE = 'oracle_tags'
+BULK_META_URL = 'https://api.scryfall.com/bulk-data/oracle-tags'
 # Mirror scripts/scryfall_cache.py: descriptive UA + courteous pacing.
-HEADERS = {"User-Agent": "make-magic-plugin/2.0"}
+HEADERS = {'User-Agent': 'make-magic-plugin/2.0'}
 RATE_LIMIT_MS = 100
-SNAPSHOT = (
-    Path(__file__).resolve().parents[2] / "data" / "snapshots" / "oracle_tags.json.gz"
-)
+SNAPSHOT = Path(__file__).resolve().parents[2] / 'data' / 'snapshots' / 'oracle_tags.json.gz'
 
 
 def _fetch_remote(client: httpx.Client) -> tuple[list[dict[str, Any]], str]:
@@ -53,8 +51,8 @@ def _fetch_remote(client: httpx.Client) -> tuple[list[dict[str, Any]], str]:
     meta = client.get(BULK_META_URL, headers=HEADERS, timeout=30)
     meta.raise_for_status()
     meta_json = meta.json()
-    updated_at = str(meta_json["updated_at"])
-    download_uri = str(meta_json["download_uri"])
+    updated_at = str(meta_json['updated_at'])
+    download_uri = str(meta_json['download_uri'])
 
     time.sleep(RATE_LIMIT_MS / 1000)
     resp = client.get(download_uri, headers=HEADERS, timeout=120)
@@ -62,13 +60,13 @@ def _fetch_remote(client: httpx.Client) -> tuple[list[dict[str, Any]], str]:
     tags = resp.json()
     # Scryfall bulk downloads are a bare JSON array; be defensive if wrapped.
     if isinstance(tags, dict):
-        tags = tags.get("data", [])
+        tags = tags.get('data', [])
     return list(tags), updated_at
 
 
 def _load_snapshot() -> list[dict[str, Any]]:
     """Load the bundled offline snapshot (gzipped JSON array of tags)."""
-    with gzip.open(SNAPSHOT, "rt", encoding="utf-8") as f:
+    with gzip.open(SNAPSHOT, 'rt', encoding='utf-8') as f:
         return json.load(f)
 
 
@@ -79,12 +77,12 @@ def _land(tags: list[dict[str, Any]]) -> Path:
     temp file and let ``read_json`` land it as Parquet.
     """
     with store.connect() as conn:
-        raw_dir = store.StorePaths.resolve().layer_dir("raw", create=True)
-        tmp = raw_dir / "_oracle_tags.tmp.json"
-        tmp.write_text(json.dumps(tags), encoding="utf-8")
+        raw_dir = store.StorePaths.resolve().layer_dir('raw', create=True)
+        tmp = raw_dir / '_oracle_tags.tmp.json'
+        tmp.write_text(json.dumps(tags), encoding='utf-8')
         try:
             rel = conn.read_json(str(tmp))
-            path = store.write_parquet(conn, rel, "raw", SOURCE)
+            path = store.write_parquet(conn, rel, 'raw', SOURCE)
         finally:
             tmp.unlink(missing_ok=True)
     return path
@@ -103,26 +101,20 @@ def run(*, client: httpx.Client | None = None, force: bool = False) -> Path:
     try:
         tags, updated_at = _fetch_remote(client)
         if not force and not is_newer(prior, updated_at):
-            log.info(
-                "oracle_tags: %s not newer than %s; skipping land.", updated_at, prior
-            )
+            log.info('oracle_tags: %s not newer than %s; skipping land.', updated_at, prior)
             # Still ensure a landed table exists (first-run edge covered by is_newer).
-            if store.table_exists("raw", SOURCE):
-                return store.StorePaths.resolve().parquet_path(
-                    "raw", SOURCE, create=False
-                )
+            if store.table_exists('raw', SOURCE):
+                return store.StorePaths.resolve().parquet_path('raw', SOURCE, create=False)
         path = _land(tags)
         wm.set(SOURCE, updated_at)
         wm.save()
-        log.info("oracle_tags: landed %d tags (updated_at=%s).", len(tags), updated_at)
+        log.info('oracle_tags: landed %d tags (updated_at=%s).', len(tags), updated_at)
         return path
     except Exception as exc:
-        log.warning(
-            "oracle_tags: fetch failed (%s); falling back to bundled snapshot.", exc
-        )
+        log.warning('oracle_tags: fetch failed (%s); falling back to bundled snapshot.', exc)
         tags = _load_snapshot()
         path = _land(tags)
-        log.info("oracle_tags: landed %d tags from snapshot.", len(tags))
+        log.info('oracle_tags: landed %d tags from snapshot.', len(tags))
         return path
     finally:
         if owns_client:
@@ -130,12 +122,10 @@ def run(*, client: httpx.Client | None = None, force: bool = False) -> Path:
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     path = run()
-    print(f"landed oracle_tags -> {path}")
+    print(f'landed oracle_tags -> {path}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

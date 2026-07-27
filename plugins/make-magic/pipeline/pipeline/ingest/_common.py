@@ -25,12 +25,12 @@ from typing import TypeVar
 
 from pipeline.store.paths import StorePaths
 
-log = logging.getLogger("make_magic.ingest")
+log = logging.getLogger('make_magic.ingest')
 
 #: Filename of the per-source watermark map inside the raw/ layer dir.
-WATERMARK_FILENAME = "_watermarks.json"
+WATERMARK_FILENAME = '_watermarks.json'
 
-Row = TypeVar("Row", bound=Mapping[str, object])
+Row = TypeVar('Row', bound=Mapping[str, object])
 
 
 class Watermark:
@@ -53,7 +53,7 @@ class Watermark:
         Uses ``create=False`` so merely locating the file never materializes the
         ``raw/`` directory as a side effect.
         """
-        raw_dir = StorePaths.resolve().layer_dir("raw", create=False)
+        raw_dir = StorePaths.resolve().layer_dir('raw', create=False)
         return raw_dir / WATERMARK_FILENAME
 
     # -- load / save ------------------------------------------------------- #
@@ -70,12 +70,12 @@ class Watermark:
         if not path.exists():
             return cls()
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(path.read_text(encoding='utf-8'))
         except (OSError, ValueError) as exc:
-            log.warning("watermark: unreadable %s (%s); treating as empty.", path, exc)
+            log.warning('watermark: unreadable %s (%s); treating as empty.', path, exc)
             return cls()
         if not isinstance(data, dict):
-            log.warning("watermark: %s is not an object; treating as empty.", path)
+            log.warning('watermark: %s is not an object; treating as empty.', path)
             return cls()
         # Coerce to str->str, dropping any malformed entries defensively.
         tokens = {str(k): str(v) for k, v in data.items() if v is not None}
@@ -83,11 +83,9 @@ class Watermark:
 
     def save(self) -> Path:
         """Persist the map to ``data/raw/_watermarks.json`` (dir created)."""
-        raw_dir = StorePaths.resolve().layer_dir("raw", create=True)
+        raw_dir = StorePaths.resolve().layer_dir('raw', create=True)
         path = raw_dir / WATERMARK_FILENAME
-        path.write_text(
-            json.dumps(self._tokens, indent=2, sort_keys=True), encoding="utf-8"
-        )
+        path.write_text(json.dumps(self._tokens, indent=2, sort_keys=True), encoding='utf-8')
         return path
 
     # -- accessors --------------------------------------------------------- #
@@ -129,7 +127,7 @@ def _parse_iso(value: str) -> datetime | None:
     """Parse an ISO-8601 timestamp (tolerating a trailing ``Z``); else None."""
     try:
         # Normalize a trailing 'Z' to an explicit UTC offset for fromisoformat.
-        normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+        normalized = value[:-1] + '+00:00' if value.endswith('Z') else value
         return datetime.fromisoformat(normalized)
     except (ValueError, AttributeError):
         return None
