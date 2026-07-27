@@ -31,9 +31,9 @@ from typing import Any
 import httpx
 
 from pipeline import store
-from pipeline.ingest._common import Cursor, is_newer
+from pipeline.sources._common import Cursor, is_newer
 
-log = logging.getLogger('make_magic.ingest.oracle_tags')
+log = logging.getLogger('make_magic.sources.oracle_tags')
 
 SOURCE = 'oracle_tags'
 BULK_META_URL = 'https://api.scryfall.com/bulk-data/oracle-tags'

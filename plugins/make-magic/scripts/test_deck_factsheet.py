@@ -350,7 +350,7 @@ def test_load_card_otag_routes_through_puller(monkeypatch):
     # the LOADED tags back, NOT call _load_snapshot directly. Prove sync() is
     # invoked and the rolled-up map comes from the puller-loaded tags.
     import deck_factsheet
-    from pipeline.ingest import oracle_tags
+    from pipeline.sources import oracle_tags
     from pipeline.transforms import otag_rollup
 
     calls: dict[str, int] = {'sync': 0, 'read_raw': 0, 'snapshot': 0}
@@ -384,7 +384,7 @@ def test_load_card_otag_falls_back_to_snapshot_when_puller_raises(monkeypatch):
     # If the store/puller machinery is unusable (sync raises), fall back to the
     # bundled snapshot directly — still fail-open, never crash.
     import deck_factsheet
-    from pipeline.ingest import oracle_tags
+    from pipeline.sources import oracle_tags
 
     calls: dict[str, int] = {'snapshot': 0}
 
@@ -407,7 +407,7 @@ def test_load_card_otag_falls_back_to_snapshot_when_puller_raises(monkeypatch):
 def test_load_card_otag_returns_none_when_all_sources_fail(monkeypatch):
     # No puller, no snapshot -> None so the caller degrades to structured-only.
     import deck_factsheet
-    from pipeline.ingest import oracle_tags
+    from pipeline.sources import oracle_tags
 
     def boom(*a, **k):
         raise RuntimeError('dead')

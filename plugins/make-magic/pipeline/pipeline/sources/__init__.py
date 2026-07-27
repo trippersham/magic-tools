@@ -1,13 +1,13 @@
-"""Ingest — hand-rolled per-source pullers loading raw data into the lake.
+"""Sources — hand-rolled per-source pullers loading raw data into the lake.
 
-Each puller follows the same shape (data-architecture §ingest):
+Each puller follows the same shape (data-architecture §sources):
 ``fetch -> cursor/updated_at check -> append-dedupe into raw/``, and is
 FAIL-OPEN: a dead network degrades to a bundled snapshot (where one exists)
 rather than crashing a caller.
 
-Shared primitives live in :mod:`pipeline.ingest._common` (cursor + dedupe).
-Run a single stage as ``python -m pipeline.ingest.<source>`` or via the
-dispatcher ``python -m pipeline.ingest.run <source>``.
+Shared primitives live in :mod:`pipeline.sources._common` (cursor + dedupe).
+Run a single stage as ``python -m pipeline.sources.<source>`` or via the
+dispatcher ``python -m pipeline.sources.run <source>``.
 
     SOURCES:
         oracle_tags   -> Scryfall oracle-tags bulk (bundled snapshot baseline)
@@ -18,6 +18,6 @@ dispatcher ``python -m pipeline.ingest.run <source>``.
 
 from __future__ import annotations
 
-from pipeline.ingest._common import Cursor, dedupe, is_newer
+from pipeline.sources._common import Cursor, dedupe, is_newer
 
 __all__ = ['Cursor', 'dedupe', 'is_newer']

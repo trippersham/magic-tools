@@ -28,7 +28,7 @@ import httpx
 import pytest
 
 from pipeline import config
-from pipeline.adapters import airtable_writeback as wb
+from pipeline.destinations import airtable as wb
 
 
 @pytest.fixture(autouse=True)
@@ -110,14 +110,14 @@ class SpyClient:
 
 
 def _push(**overrides: Any) -> wb.PushReport:
-    """Call push() with the standard offline join maps (override as needed)."""
+    """Call sync() with the standard offline join maps (override as needed)."""
     kwargs: dict[str, Any] = {
         'cards': _CARDS,
         'name_to_oracle_id': _NAME_TO_OID,
         'card_otag': _CARD_OTAG,
     }
     kwargs.update(overrides)
-    return wb.push(**kwargs)
+    return wb.sync(**kwargs)
 
 
 # --------------------------------------------------------------------------- #
@@ -159,6 +159,22 @@ def test_allowlist_is_exactly_the_two_card_fields() -> None:
 def test_allowlist_and_denylist_are_disjoint() -> None:
     """Structural invariant: engine-owned names never collide with human names."""
     assert not (wb.ALLOWLIST_NAMES & wb.HUMAN_DENYLIST)
+
+
+def test_denylist_loads_non_empty_with_card_name() -> None:
+    """SAFETY: the human denylist MUST load non-empty and contain the primary
+    Card field. An empty denylist would silently disable the write-back guard —
+    which would happen if CARDS_TABLE_NAME stopped matching the golden-contract
+    table key (e.g. after the 'Cards' -> 'Inventory Cards' rename). This asserts
+    the key still resolves against the contract."""
+    denylist = wb.load_human_denylist()
+    assert denylist, 'human denylist loaded EMPTY — the write-back guard is disabled (REGRESSION)'
+    assert 'Card Name' in denylist
+    # The contract key the loader indexes by must be the live table name.
+    assert wb.CARDS_TABLE_NAME == 'Inventory Cards'
+    # And the module-level (import-time) denylist must likewise be populated.
+    assert wb.HUMAN_DENYLIST
+    assert 'Card Name' in wb.HUMAN_DENYLIST
 
 
 def test_denylist_is_the_cards_human_fields_from_golden_contract() -> None:
@@ -332,7 +348,7 @@ def test_dry_run_issues_zero_writes_even_with_spy_client() -> None:
 
 
 def test_default_is_dry_run() -> None:
-    """push() with no flags must NOT write."""
+    """sync() with no flags must NOT write."""
     spy = SpyClient()
     report = _push(client=spy)
     assert report.dry_run is True
@@ -562,7 +578,7 @@ def test_real_client_full_apply_does_not_crash_on_derived_field_ids() -> None:
 
     transport = httpx.MockTransport(handler)
     client = wb.AllowlistWriteClient('tok', _client=httpx.Client(transport=transport))
-    report = wb.push(
+    report = wb.sync(
         _CARDS,
         name_to_oracle_id=_NAME_TO_OID,
         card_otag=_CARD_OTAG,
@@ -646,7 +662,7 @@ def test_apply_chunks_25_writes_into_three_patches_of_10_10_5(
 
     monkeypatch.setattr(wb, 'assert_no_human_fields', _tracking_guard)
 
-    report = wb.push(
+    report = wb.sync(
         cards,
         name_to_oracle_id=name_to_oid,
         card_otag=card_otag,
@@ -671,7 +687,7 @@ def test_chunk_size_never_exceeds_ten() -> None:
     cards, name_to_oid, card_otag = _many_cards(23)
     existing = {f.name: f'fld_{i}' for i, f in enumerate(wb.DERIVED_FIELDS)}
     spy = GuardSpyClient(existing_fields=existing)
-    wb.push(
+    wb.sync(
         cards,
         name_to_oracle_id=name_to_oid,
         card_otag=card_otag,
@@ -686,7 +702,7 @@ def test_chunk_size_never_exceeds_ten() -> None:
 def test_dry_run_reports_chunk_count_and_issues_zero_writes() -> None:
     cards, name_to_oid, card_otag = _many_cards(25)
     spy = GuardSpyClient()
-    report = wb.push(
+    report = wb.sync(
         cards,
         name_to_oracle_id=name_to_oid,
         card_otag=card_otag,
@@ -705,7 +721,7 @@ def test_chunk_error_stops_and_reports_partial_progress() -> None:
     # Fail on the 2nd chunk: chunk 1 succeeds, chunk 2 errors, chunk 3 never sent.
     spy = GuardSpyClient(existing_fields=existing, fail_on_chunk=2)
     with pytest.raises(wb.ChunkWriteError) as excinfo:
-        wb.push(
+        wb.sync(
             cards,
             name_to_oracle_id=name_to_oid,
             card_otag=card_otag,

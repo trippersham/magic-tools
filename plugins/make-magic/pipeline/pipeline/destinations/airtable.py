@@ -1,6 +1,6 @@
-"""Adapter: PUSH engine-derived per-CARD otag facts -> Airtable Cards.
+"""Airtable destination: SYNC engine-derived per-CARD otag facts -> Airtable Cards.
 
-This adapter owns exactly TWO derived fields on the *Cards* table. The base
+This reverse-ETL destination owns exactly TWO derived fields on the *Cards* table. The base
 id, the Cards table id, and the Card Name / field ids are NOT hard-coded:
 the base id + Cards table NAME come from env-driven :mod:`pipeline.config`, and
 the ``tbl…``/``fld…`` ids are resolved at runtime via the Airtable meta API — so
@@ -44,12 +44,12 @@ closure -> ``buckets_for``. A card that does not robustly resolve to an
 Upsert is keyed on the Airtable Card **record id** with ``use_field_ids=True``,
 so re-running is idempotent (no dupes, no thrash).
 
-Dry-run is the DEFAULT. :func:`push` and :func:`ensure_fields` print the diff /
+Dry-run is the DEFAULT. :func:`sync` and :func:`ensure_fields` print the diff /
 schema mutation they WOULD apply and issue ZERO write requests unless the caller
 passes ``dry_run=False`` AND ``apply=True`` (belt-and-suspenders: a real write
 requires both).
 
-Transport mirrors ``ingest/airtable.py`` (httpx + Bearer PAT); ``pyairtable`` is
+Transport mirrors ``sources/airtable.py`` (httpx + Bearer PAT); ``pyairtable`` is
 declared as the ``airtable`` extra but is NOT required here.
 """
 
@@ -70,7 +70,7 @@ import httpx
 from pipeline.config import AirtableConfigError, get_settings
 from pipeline.transforms.crosswalk import BUCKETS, buckets_for
 
-log = logging.getLogger('make_magic.adapters.airtable_writeback')
+log = logging.getLogger('make_magic.destinations.airtable')
 
 API_ROOT = 'https://api.airtable.com/v0'
 META_ROOT = 'https://api.airtable.com/v0/meta'
@@ -100,7 +100,7 @@ NS = '⚙ '  # "⚙ "
 
 @dataclass(frozen=True)
 class DerivedField:
-    """One engine-owned Airtable field this adapter is authorized to write.
+    """One engine-owned Airtable field this destination is authorized to write.
 
     ``name`` is the Airtable field name (namespace-prefixed). ``airtable_type`` is
     the Airtable schema type used by :func:`ensure_fields` when creating it.
@@ -190,14 +190,18 @@ class NonAllowlistFieldError(RuntimeError):
 # contract so it stays in sync.
 # --------------------------------------------------------------------------- #
 
-#: The Cards table name in the golden contract (target of this write-back).
-CARDS_TABLE_NAME = 'Cards'
+#: The Cards table KEY in the golden contract (target of this write-back). This
+#: indexes the STATIC contract (its table keys use the live name "Inventory
+#: Cards"). It is DELIBERATELY distinct from ``config.Settings.cards_table`` (which
+#: resolves the LIVE schema by name); the two happen to share the same string but
+#: are separate concerns — one keys the committed contract, the other hits the API.
+CARDS_TABLE_NAME = 'Inventory Cards'
 
 
 def _golden_contract_path() -> Path:
     """Locate ``regression/golden_contract.json`` relative to this package.
 
-    This file lives at ``pipeline/pipeline/adapters/airtable_writeback.py``;
+    This file lives at ``pipeline/pipeline/destinations/airtable.py``;
     ``parents[3]`` is the ``make-magic`` plugin root that holds ``regression/``.
     """
     return Path(__file__).resolve().parents[3] / 'regression' / 'golden_contract.json'
@@ -549,7 +553,7 @@ class AllowlistWriteClient:
         by field ID (``use_field_ids=True``). The guard runs on the raw field
         keys one final time before the request leaves the process.
         """
-        # The guard runs BEFORE id-resolution too (see push), but re-check here on
+        # The guard runs BEFORE id-resolution too (see sync), but re-check here on
         # whatever is actually about to be transmitted — the true choke point.
         self._guarded_body(records)
         table_id = self._require_cards_table_id()
@@ -604,7 +608,7 @@ class PushReport:
 
 
 # --------------------------------------------------------------------------- #
-# ensure_fields + push (public API)
+# ensure_fields + sync (public API)
 # --------------------------------------------------------------------------- #
 
 
@@ -634,7 +638,7 @@ def ensure_fields(
     return names
 
 
-def push(
+def sync(
     cards: dict[str, str],
     *,
     name_to_oracle_id: dict[str, str],
@@ -643,7 +647,7 @@ def push(
     dry_run: bool = True,
     apply: bool = False,
 ) -> PushReport:
-    """Push per-card derived otag facts onto Cards records. DRY-RUN BY DEFAULT.
+    """Sync per-card derived otag facts onto Cards records. DRY-RUN BY DEFAULT.
 
     Args:
         cards: ``{airtable_record_id: card_name}`` — the pulled Cards records.
@@ -790,8 +794,8 @@ def _load_cards_from_lake(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog='python -m pipeline.adapters.airtable_writeback',
-        description='Push per-card derived otag facts to Airtable Cards (dry-run by default).',
+        prog='python -m pipeline.destinations.airtable',
+        description='Sync per-card derived otag facts to Airtable Cards (dry-run by default).',
     )
     parser.add_argument(
         '--dry-run',
@@ -830,7 +834,7 @@ def main(argv: list[str] | None = None) -> int:
         card_name_field_id = client.list_fields().get(CARD_NAME_FIELD)
     cards, name_to_oracle_id, card_otag = _load_cards_from_lake(card_name_field_id)
     try:
-        report = push(
+        report = sync(
             cards,
             name_to_oracle_id=name_to_oracle_id,
             card_otag=card_otag,

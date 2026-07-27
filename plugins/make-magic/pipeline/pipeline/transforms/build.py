@@ -17,7 +17,7 @@ import argparse
 import logging
 
 from pipeline import store
-from pipeline.ingest import oracle_tags, spellbook
+from pipeline.sources import oracle_tags, spellbook
 from pipeline.transforms import driver
 
 log = logging.getLogger('make_magic.transforms.build')

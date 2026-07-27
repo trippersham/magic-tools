@@ -154,7 +154,7 @@ def test_crosswalk_slugs_exist_in_dag_snapshot() -> None:
     """Every committed bucket slug must exist in the oracle-tags DAG snapshot,
     else the curation silently under-matches."""
     # Snapshot lives at the project-root data/snapshots (parents[2] of the module,
-    # matching how ingest.oracle_tags resolves it).
+    # matching how sources.oracle_tags resolves it).
     snapshot = Path(otag_rollup.__file__).resolve().parents[2] / 'data' / 'snapshots' / 'oracle_tags.json.gz'
     with gzip.open(snapshot, 'rt', encoding='utf-8') as f:
         tags = json.load(f)

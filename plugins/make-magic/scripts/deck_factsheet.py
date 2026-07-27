@@ -31,7 +31,7 @@ Two layers of facts:
      would not — regex leaves 60%+ of nonlands uncategorized; otags do not.
 
 Bundled + self-refreshing otag dataset: the otag layer routes through the
-``ingest.oracle_tags`` puller's normal fetch -> cursor -> load path. On first
+``sources.oracle_tags`` puller's normal fetch -> cursor -> load path. On first
 ONLINE use it pulls the FULL daily oracle-tags file into the store's ``raw/``
 layer (the source of ~84-92% coverage) and REUSES that cached loaded copy on
 later runs (daily cursor — no 18 MB refetch). With no network it fails open to
@@ -305,7 +305,7 @@ def _rollup_to_card_otag(tags: list[dict]) -> dict[str, set[str]]:
 
 
 def _load_tags_via_puller() -> list[dict]:
-    """Get the FULL oracle-tags via the ingest puller's normal path.
+    """Get the FULL oracle-tags via the sources puller's normal path.
 
     This is the "bundled + self-refreshing dataset" pattern:
 
@@ -324,7 +324,7 @@ def _load_tags_via_puller() -> list[dict]:
     Raises on any store/duckdb failure so the caller can fall back to loading the
     bundled snapshot directly (never crashing the fact sheet).
     """
-    from pipeline.ingest import oracle_tags
+    from pipeline.sources import oracle_tags
     from pipeline.transforms import otag_rollup
 
     # sync() loads raw/oracle_tags (cursor-gated; fail-open to snapshot).
@@ -370,7 +370,7 @@ def _load_card_otag() -> dict[str, set[str]] | None:
 
     # 2) Snapshot fallback: bundled offline baseline (capped taggings).
     try:
-        from pipeline.ingest import oracle_tags
+        from pipeline.sources import oracle_tags
 
         return _rollup_to_card_otag(oracle_tags._load_snapshot())
     except Exception as exc:

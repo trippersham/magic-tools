@@ -25,7 +25,7 @@ from typing import TypeVar
 
 from pipeline.store.paths import StorePaths
 
-log = logging.getLogger('make_magic.ingest')
+log = logging.getLogger('make_magic.sources')
 
 #: Filename of the per-source cursor map inside the raw/ layer dir.
 CURSOR_FILENAME = '_cursors.json'

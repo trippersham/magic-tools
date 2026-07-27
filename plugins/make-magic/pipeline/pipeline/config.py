@@ -18,7 +18,7 @@ one Airtable instance. This module makes the identity **configuration**:
       differently, the ``AIRTABLE_*_TABLE`` overrides) and the ids are discovered.
 
 The resolver is deliberately GET-only in spirit (it only ever reads schema),
-mirroring the pull-only ethos of the ingest layer; the meta client it is handed
+mirroring the pull-only ethos of the sources layer; the meta client it is handed
 is expected to issue GET requests exclusively.
 
 Environment variables (prefix ``AIRTABLE_``):

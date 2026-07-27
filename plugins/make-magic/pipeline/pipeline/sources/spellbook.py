@@ -31,9 +31,9 @@ from typing import Any
 import httpx
 
 from pipeline import store
-from pipeline.ingest._common import Cursor, dedupe, is_newer
+from pipeline.sources._common import Cursor, dedupe, is_newer
 
-log = logging.getLogger('make_magic.ingest.spellbook')
+log = logging.getLogger('make_magic.sources.spellbook')
 
 SOURCE = 'combos'
 BULK_URL = 'https://json.commanderspellbook.com/variants.json'

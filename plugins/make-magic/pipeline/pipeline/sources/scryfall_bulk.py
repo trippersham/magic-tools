@@ -30,9 +30,9 @@ from typing import Any
 import httpx
 
 from pipeline import store
-from pipeline.ingest._common import Cursor, is_newer
+from pipeline.sources._common import Cursor, is_newer
 
-log = logging.getLogger('make_magic.ingest.scryfall_bulk')
+log = logging.getLogger('make_magic.sources.scryfall_bulk')
 
 SOURCE = 'oracle_cards'
 BULK_META_URL = 'https://api.scryfall.com/bulk-data/oracle_cards'

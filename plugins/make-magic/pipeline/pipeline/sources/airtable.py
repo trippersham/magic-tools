@@ -38,9 +38,9 @@ import httpx
 
 from pipeline import store
 from pipeline.config import AirtableResolver, get_settings
-from pipeline.ingest._common import Cursor, is_newer
+from pipeline.sources._common import Cursor, is_newer
 
-log = logging.getLogger('make_magic.ingest.airtable')
+log = logging.getLogger('make_magic.sources.airtable')
 
 API_ROOT = 'https://api.airtable.com/v0'
 META_ROOT = 'https://api.airtable.com/v0/meta'

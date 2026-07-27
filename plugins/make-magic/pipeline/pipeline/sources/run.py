@@ -1,16 +1,16 @@
-"""Ingest dispatcher: ``python -m pipeline.ingest.run <source> [args...]``.
+"""Sources dispatcher: ``python -m pipeline.sources.run <source> [args...]``.
 
 A no-orchestrator CLI (data-architecture §"No orchestrator"): each source is a
 plain module with a ``main()``; this dispatcher just routes to it so a stage can
-run as either ``python -m pipeline.ingest.run oracle_tags`` or directly
-``python -m pipeline.ingest.oracle_tags``.
+run as either ``python -m pipeline.sources.run oracle_tags`` or directly
+``python -m pipeline.sources.oracle_tags``.
 """
 
 from __future__ import annotations
 
 import sys
 
-from pipeline.ingest import airtable, oracle_tags, scryfall_bulk, spellbook
+from pipeline.sources import airtable, oracle_tags, scryfall_bulk, spellbook
 
 SOURCES = {
     'oracle_tags': oracle_tags.main,
@@ -26,13 +26,13 @@ def main() -> None:
     if len(sys.argv) < 2 or sys.argv[1] not in SOURCES:
         avail = ', '.join(sorted(SOURCES))
         print(
-            f'usage: python -m pipeline.ingest.run <source>\n  sources: {avail}',
+            f'usage: python -m pipeline.sources.run <source>\n  sources: {avail}',
             file=sys.stderr,
         )
         raise SystemExit(2)
     source = sys.argv[1]
     # Hand remaining args to the target module's argparse (if any).
-    sys.argv = [f'pipeline.ingest.{source}', *sys.argv[2:]]
+    sys.argv = [f'pipeline.sources.{source}', *sys.argv[2:]]
     SOURCES[source]()
 
 

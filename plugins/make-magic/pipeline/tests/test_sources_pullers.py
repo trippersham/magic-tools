@@ -17,7 +17,7 @@ import httpx
 import pytest
 
 from pipeline import config, store
-from pipeline.ingest import airtable, oracle_tags, scryfall_bulk, spellbook
+from pipeline.sources import airtable, oracle_tags, scryfall_bulk, spellbook
 
 
 @pytest.fixture(autouse=True)
@@ -78,13 +78,13 @@ def test_oracle_tags_parse_and_load(data_dir: Path, monkeypatch: pytest.MonkeyPa
     assert n == 2
 
     # cursor advanced
-    from pipeline.ingest._common import Cursor
+    from pipeline.sources._common import Cursor
 
     assert Cursor.load().get('oracle_tags') == '2026-07-26T21:00:00+00:00'
 
 
 def test_oracle_tags_skips_when_not_newer(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from pipeline.ingest._common import Cursor
+    from pipeline.sources._common import Cursor
 
     cursor = Cursor.load()
     cursor.set('oracle_tags', '2026-07-26T21:00:00+00:00')

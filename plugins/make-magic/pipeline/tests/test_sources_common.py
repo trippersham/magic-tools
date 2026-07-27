@@ -1,4 +1,4 @@
-"""TDD tests for the pure ingest primitives (``ingest/_common.py``).
+"""TDD tests for the pure sources primitives (``sources/_common.py``).
 
 Everything here is OFFLINE and pure: the cursor store is a JSON file under
 the env-overridden data root; ``dedupe`` is a pure function over rows. No
@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from pipeline.ingest import _common
+from pipeline.sources import _common
 
 
 @pytest.fixture()

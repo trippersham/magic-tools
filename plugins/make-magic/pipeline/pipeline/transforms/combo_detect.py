@@ -1,6 +1,6 @@
 """Normalize Commander Spellbook combos and detect them in a decklist.
 
-Reads ``raw/combos`` (variant records — see ``ingest.spellbook``), projects the
+Reads ``raw/combos`` (variant records — see ``sources.spellbook``), projects the
 fields we need, and materializes a flat ``normalized/combo`` table:
 
     variant_id, card_names (list), card_oracle_ids (list), result (str)
