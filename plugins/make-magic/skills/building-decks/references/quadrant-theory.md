@@ -7,6 +7,32 @@ inputs: the deck's stated `Strategy` and a **neutral fact sheet** emitted by
 `deck_factsheet.py`. The output is a narrative pre-mortem plus a shopping list — never a
 percentage bar chart.
 
+## Strategy vs Focus Otags vs Assessment — aim, intended mechanics, reality-vs-intent
+
+Three distinct fields on the Decks table, and the diagnosis is the bridge between them:
+
+- **`Strategy` = what the deck AIMS to be.** Human-authored aspiration in prose (win
+  condition, archetype, key mechanics). An **input** you read; never overwritten by this
+  diagnostic.
+- **`Focus Otags` = the otags/buckets the deck CARES about — its intended functional
+  identity.** The deck's aim expressed in the tag vocabulary: bucket names (`counters`,
+  `tokens`, `removal`, …) and/or specific otag slugs. It is a **curated subset** — the cards
+  underneath carry a much *wider* set of otags, so `Focus Otags` captures intent, not the
+  mechanical union. Skill/reasoning-authored (or human-authored) and written via the Airtable
+  MCP; an **input** the diagnosis measures against.
+- **`Assessment` = what the deck ACTUALLY is, isn't, and needs.** The **output** of this
+  pre-mortem: a reasoning SYNTHESIS that measures the actual card otags AGAINST `Focus Otags`
+  — coverage of what the deck cares about, thin/unprotected focus items (susceptibility), and
+  off-plan noise — plus the deck's functional profile and structural gaps.
+
+Both `Focus Otags` and `Assessment` are **authored by the building-decks skill** and written
+via the Airtable MCP (`mcp__airtable__*`), the same write path a skill already uses. **The
+deterministic pipeline never writes either; it only READS `Focus Otags`.** The engine's
+`susceptibility` and `otag_buckets` (from `deck_factsheet`, computed off the cards'
+engine-written `⚙ Buckets`/`⚙ Otags` — the wide, actual set) are the **inputs** the synthesis
+reasons over — susceptibility is an input that *feeds* the Assessment, not a standalone
+Airtable field.
+
 ## The reframe: quadrants are questions, not buckets
 
 The retired v1 of this tool scored every card into a quadrant and tallied the result. That
@@ -44,8 +70,16 @@ often under-invest here. This is why the **resilience profile** (below) is the l
 Two inputs, cleanly divided:
 
 - **The script owns facts and counts.** `deck_factsheet.py` emits objective, verifiable
-  numbers: curve, ramp, an interaction census by type and speed, a keyword census, card
-  advantage, coverage %. It **never** assigns a role, wincon, engine, or quadrant.
+  numbers: curve, ramp/fixing, a keyword census, card advantage, instant-speed, and — from
+  the bundled oracle-tag data engine — a multi-label **`otag_buckets`** map and a
+  data-grounded **`susceptibility`** list. It **never** assigns a role, wincon, engine, or
+  quadrant.
+- **Where the buckets come from.** `otag_buckets` are Scryfall community oracle-tags rolled
+  **up the tag DAG** (leaf tags → all ancestors) and crosswalked to deck-balance buckets
+  (`removal`, `ramp`, `draw`, `tokens`, `counters`, `burn`, `tutor`, `sac`, `counterspells`,
+  `flicker`, `typal`, `anthem`, `combat`, `protection`, …). Multi-label is intentional:
+  Cultivate is `ramp` **and** `tutor`. This replaced the retired oracle-text interaction
+  regexes that left 60%+ of nonlands uncategorized and mis-labeled synergy cards.
 - **Reasoning owns roles.** The LLM decides what the wincon is, what the engine does, what
   the loss-condition is, and what the plan is in each game-state — from the Strategy and the
   facts together.
@@ -61,35 +95,55 @@ offense elsewhere — so it's reasoning. Arithmetic over 100 cards is where LLMs
 role assignment is where regexes invert meaning. The split keeps each on the side it's good
 at.
 
-## The resilience profile is the lead signal
+## Susceptibility + the resilience profile are the lead signal
 
 Sutcliffe's "Losing is the hardest quadrant" is the measurable core of the diagnosis, and it
-is where Commander decks silently die. The fact sheet's **resilience profile** is the
-concrete, deterministic read on it:
+is where Commander decks silently die. Two fact-sheet reads carry it — and both are **inputs
+that feed the `Assessment` synthesis**, not outputs in their own right:
 
-- **board wipes** (`interaction.board_wipes`) — can the deck reset a board it's losing?
+**`susceptibility` — data-grounded weakness signals.** The data engine emits a list of
+count-cited weakness strings — e.g. "board wipes: N token/counter payoff cards but only M
+sweepers and no recursion → a wrath erases the board", "0 counterspells → cannot protect the
+payoff", "typal hate: N cards depend on the tribal payoff". Each signal **cites the numbers
+driving it**, so it is auditable, not a vibe. Lead the pre-mortem here.
+
+**The resilience profile — the structured read.** Alongside susceptibility, read:
+
+- **the `protection` / `removal` / `counterspells` buckets** (`otag_buckets`) — can the deck
+  defend its pieces, answer a threat, disrupt on the stack?
 - **instant-speed answers** (`interaction.instant_speed`) — can it respond, or only act on
-  its own turn? (This is the highest-value fully-deterministic signal.)
-- **protection** (`interaction.protection`) — can it defend its own key pieces?
-- **ramp** (`mana.ramp_sources`) — can it recover tempo / cast its way out?
+  its own turn? (This is a fully-deterministic structured signal.)
+- **ramp** (`mana.ramp_sources`, or the `ramp` bucket) — can it recover tempo / cast out?
 - **curve** (`shape.cmc_histogram`, `shape.avg_cmc`, `shape.top_end_count`) — is it too slow
   to stabilize before it dies?
 
-Lead the pre-mortem with this. A deck can look powerful and still fold to a sweeper or a
-faster deck because it has zero instant-speed answers — that gap is invisible to a wincon
-count but obvious in the resilience profile.
+A deck can look powerful and still fold to a sweeper because it has zero instant-speed answers
+— that gap is invisible to a wincon count but surfaces in `susceptibility` + the buckets.
+
+**When `susceptibility` is empty**, that is not a clean bill of health: it means no
+conservative threshold tripped (or the otag layer was unavailable — see below). Still read
+the buckets and curve, and lean on the Strategy.
+
+**Graceful degradation.** If `otag_buckets` is `{}` and `susceptibility` holds a single
+`otag layer unavailable: …` string, the data engine could not load. Fall back to the
+structured facts (curve, `mana.ramp_sources`, `interaction.instant_speed`, `keywords`) and
+weight the Strategy harder — never read empty buckets as "the deck does nothing." You still
+synthesize and write an `Assessment` from those structured facts + reasoning; it is thinner
+and less richly grounded than one built on the otag inputs, but it is not skipped.
 
 ## Coverage % is a confidence signal, not a verdict
 
-`coverage.uncategorized_pct` is the share of nonland cards that matched **no** interaction /
-ramp / repeatable-draw census category. It is a **feature**, read as trust:
+`coverage.uncategorized_pct` is the share of nonland cards that landed in **no** otag bucket.
+It is a **feature**, read as trust:
 
-- **High uncategorized %** → the deck's value is synergy-carried and invisible to
-  precision-first counts. **Weight the Strategy over the numbers.** A go-wide or aristocrats
-  deck can be 60%+ uncategorized and completely functional — the counts just can't see a 3/3
-  that wins through a board plan.
-- **Low uncategorized %** → the deck's plan lives in explicit-text cards (removal, ramp,
-  draw), so the counts are a more faithful picture.
+- **High uncategorized %** → the deck's value is synergy-carried and invisible even to the
+  otag buckets. **Weight the Strategy over the numbers.** A go-wide or aristocrats deck can be
+  60%+ uncategorized and completely functional — the buckets can't see a 3/3 that wins through
+  a board plan. (Offline, the bundled snapshot samples taggings, so uncategorized % runs
+  higher than it would against the full daily oracle-tag dataset — treat a high offline number
+  as "trust the Strategy," not as a deck flaw.)
+- **Low uncategorized %** → the deck's plan lives in cards the tag DAG recognizes (removal,
+  ramp, draw, tokens…), so the buckets are a more faithful picture.
 
 Coverage % never appears as a verdict. It tells you *how much to trust the other numbers.*
 
@@ -110,23 +164,50 @@ between this list and the script's output is a bug.**
 | `mana.fixing_sources` | int | Ramp sources producing >1 color or any-color |
 | `mana.pip_counts` | object | Colored/colorless pip counts across nonland costs (`W`,`U`,`B`,`R`,`G`,`C`) |
 | `keywords` | object | Scryfall `keywords` census, nonzero only (e.g. `Flying`, `Flash`) |
-| `interaction.board_wipes` | int | Destroy-all / damage-to-each-creature / mass -X/-X sweepers |
-| `interaction.spot_removal` | int | Explicit "destroy/exile target \<permanent-type>" |
+| `otag_buckets` | object | **Oracle-tag bucket → nonland-card count** (multi-label; nonzero only). A primary **input to the Assessment**. `{}` when the otag layer is unavailable. |
+| `susceptibility` | string[] | **Data-grounded, count-cited weakness signals** — an **input to the Assessment**, not an Airtable field. A single `otag layer unavailable: …` string when the data engine could not load. |
+| `interaction.board_wipes` | int | Sweepers (structured/regex census, still emitted) |
+| `interaction.spot_removal` | int | Targeted destroy/exile of a permanent |
 | `interaction.counterspells` | int | "counter target" |
-| `interaction.protection` | int | hexproof/indestructible/ward/shroud kw, "protection from", or phase-out |
-| `interaction.instant_speed` | int | Type-line Instant **or** Flash keyword |
-| `card_advantage.repeatable_draw` | int | Recurring draw triggers ("at the beginning of…draw", "whenever…draw a card") |
-| `card_advantage.one_shot_draw` | int | "draw N cards" not covered by a repeatable trigger |
+| `interaction.protection` | int | hexproof/indestructible/ward/shroud/"protection from"/phase-out |
+| `interaction.instant_speed` | int | Type-line Instant **or** Flash keyword (structured) |
+| `card_advantage.repeatable_draw` | int | Recurring draw triggers |
+| `card_advantage.one_shot_draw` | int | One-shot "draw N cards" (non-repeatable) |
 | `structural.etb_creatures` | int | Creatures with a "when(ever) … enters" trigger |
 | `structural.graveyard_recursion_present` | bool | Any "return … from … graveyard to the battlefield" |
-| `coverage.categorized_pct` | float | % of nonland cards hitting ≥1 census category |
+| `coverage.categorized_pct` | float | % of nonland cards landing in ≥1 otag bucket |
 | `coverage.uncategorized_pct` | float | The synergy tell (see above) |
 | `coverage.uncategorized_cards` | string[] | Names of the uncategorized cards |
 | `cards[]` | object[] | Per-card records: `name`, `cmc`, `type_line`, `keywords`, `produced_mana`, `is_land`, `oracle_text` |
 | `missing` | string[] | Names the Scryfall cache could not resolve |
 
+The `otag_buckets` / `coverage` / `susceptibility` fields are produced by the bundled
+oracle-tag data engine (pipeline). When it is unavailable the script degrades gracefully:
+`otag_buckets == {}`, the interaction census fields drop to their structured subset
+(`instant_speed` stays; the oracle-text census fields are zeroed), and `susceptibility`
+carries the `otag layer unavailable` signal — the structured facts (curve, ramp, keywords)
+are always present.
+
 The script never emits a quadrant, role, or "good"/"bad" label. If you find yourself wanting
 one from the JSON, that judgment is yours to make.
+
+## Where each signal lives — inputs vs the Airtable output
+
+Keep the fact-sheet inputs distinct from the Airtable Decks fields:
+
+| Signal | Where it lives | Authored by |
+|--------|----------------|-------------|
+| `susceptibility` | `deck_factsheet` JSON (fact-sheet **input**) | Deterministic engine — **not** an Airtable field |
+| `otag_buckets` | `deck_factsheet` JSON (fact-sheet **input**) | Deterministic engine — **not** an Airtable field |
+| `⚙ Buckets` / `⚙ Otags` | Cards table (per card) | Deterministic engine (pipeline) — the wide, **actual** set |
+| `Strategy` | Decks table (`fldvJRaoYfRZiM8zw`), long text | Human — the deck's **aim** in prose (an input you read) |
+| `Focus Otags` | Decks table, multipleSelects or long text | **Skill-authored** (or human) by building-decks, written via Airtable MCP; **pipeline reads it, never writes it** — the intended identity (an input the diagnosis measures against) |
+| `Assessment` | Decks table, long text | **Reasoning-authored** by building-decks, written via Airtable MCP — the **output** (reality-vs-intent: is / isn't / needs) |
+
+The pre-mortem's payload lands in the Decks `Assessment` field, distinct from both `Strategy`
+and `Focus Otags`. `susceptibility` and `otag_buckets` are fact-sheet inputs that feed the
+`Assessment` synthesis — they are never written to Airtable as standalone Decks fields.
+`Focus Otags` is the one Decks field the pipeline consumes as an input but never writes.
 
 ## Archetype frames the pre-mortem's expectations
 
@@ -166,9 +247,10 @@ Reasoning the pre-mortem from Strategy + facts:
 - **Winning** — **the win is real and identified: a big X-cost burn spell off a ramped mana
   pool.** It is fast once online but interruptible (a single counter or a fog turn blanks the
   payoff turn). This is the wincon — the deck absolutely *can* close.
-- **Losing** — this is the hole. `instant_speed` low + `protection` ~0 + `board_wipes` 0–1
-  means almost no way to answer a board it's behind on or protect the X-spell turn. The
-  resilience profile is the weak point.
+- **Losing** — this is the hole. `instant_speed` low + a thin/empty `protection` bucket +
+  `board_wipes` 0–1 means almost no way to answer a board it's behind on or protect the
+  X-spell turn — and `susceptibility` flags the 0-counterspell gap directly. The resilience
+  profile is the weak point.
 
 **Loss condition:** a faster or more resilient board races Ozai before the mana is assembled,
 and Ozai has no instant-speed answer to stabilize — it dies with the winning spell still in

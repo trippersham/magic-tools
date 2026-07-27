@@ -53,7 +53,9 @@
 | Repeat Cards Count | number | Extra copies in deck beyond the linked records. See Multi-Copy Cards below |
 | Deck Size | formula | `Linked Cards + Commander + Basic Lands + Repeat Cards Count` |
 | Notes | multilineText | |
-| Strategy | text | `fldvJRaoYfRZiM8zw` — Source of truth for what the deck optimizes for. See strategy-schema.md for convention |
+| Strategy | text | `fldvJRaoYfRZiM8zw` — Source of truth for what the deck AIMS to be (human-authored aspiration, prose). See strategy-schema.md for convention |
+| Focus Otags | multipleSelects or multilineText | The otags/buckets the deck CARES about — its intended functional identity in the tag vocabulary (bucket names and/or otag slugs). A CURATED subset (not the wide mechanical union the cards carry). Skill/reasoning-authored (or human) by building-decks (Operation 5) and written via the Airtable MCP; **the deterministic pipeline READS it but NEVER writes it**. Distinct from Strategy (prose aim) and Assessment (reality). See quadrant-theory.md |
+| Assessment | multilineText (long text) | Reasoning-authored by building-decks (Operation 5) and written via the Airtable MCP. What the deck ACTUALLY is, isn't, and needs — the Quadrant pre-mortem synthesis measuring actual card otags against Focus Otags (coverage of focus, thin/unprotected focus, off-focus noise) plus functional profile and structural gaps. Distinct from Strategy and Focus Otags; not engine-emitted. See quadrant-theory.md |
 | Chase Cards | link <- Chase Cards.Target Decks | `fldfoTmUWn5WpuT6u` — Inverse link, auto-populated |
 | Color Identity | text | `fldIXcQuMKd7PLyr9` — Deck's color identity (e.g. "WUR", "BG") |
 | Creatures / Nonbasic Lands / Non-Creature Spells | rollup | Via Is* helper fields |

@@ -312,11 +312,36 @@ its archetype? This is a reasoning task, **not a card-scoring tally**. The quadr
 questions about the deck's plan — Development (don't fall behind), Parity (break a stall),
 Winning (what/how-fast/how-interruptible is the actual win), Losing (the out when behind). You
 answer them by reasoning over the deck's **Strategy** plus a **neutral fact sheet** from
-`deck_factsheet.py`. The output is a narrative pre-mortem plus a shopping list, **never a
-percentage table**.
+`deck_factsheet.py`. The output is a reasoning-authored **`Assessment`** — a narrative
+pre-mortem plus a shopping list, **never a percentage table** — which you write back to the
+deck's `Assessment` field in Airtable.
+
+**`Strategy` vs `Focus Otags` vs `Assessment`** — three distinct fields on the Decks table,
+and you must keep them apart:
+
+- **`Strategy` = what the deck AIMS to be.** A human-authored aspiration (the win condition,
+  archetype, key mechanics). It is the *plan* in prose, an input you read but never overwrite
+  here.
+- **`Focus Otags` = the otags/buckets the deck CARES about.** The deck's intended functional
+  identity, expressed in the tag vocabulary — bucket names (`counters`, `tokens`, `removal`,
+  `ramp`, …) and/or specific otag slugs. This is a **curated subset**: the cards underneath
+  carry a much *wider* set of otags, so `Focus Otags` captures the deck's INTENT, not the
+  mechanical union of everything it happens to tag. It is skill/reasoning-authored (or
+  human-authored) and written to `Focus Otags` via the Airtable MCP.
+- **`Assessment` = what the deck ACTUALLY is, isn't, and needs.** A reasoning SYNTHESIS *you*
+  produce, measuring the actual card otags AGAINST `Focus Otags`: coverage of what you care
+  about, thin/unprotected focus items, and off-plan noise. It is the *reality* measured
+  against the intent.
+
+Both `Focus Otags` and `Assessment` are **written by this skill** — you author them and write
+them via the Airtable MCP (`mcp__airtable__*`), the same write path any skill uses. **The
+deterministic pipeline never writes them; it only READS `Focus Otags`.** The engine's
+`susceptibility` + `otag_buckets` (from `deck_factsheet`, from the cards' engine-written
+`⚙ Buckets`/`⚙ Otags`) are the *wide, actual* inputs your synthesis reasons over.
+Susceptibility is an INPUT to the Assessment, not a standalone Airtable field.
 
 <reference file="quadrant-theory.md" section="The reframe: quadrants are questions, not buckets">
-Read quadrant-theory.md for the pre-mortem method, the deterministic/reasoning split, the resilience profile, the fact-sheet field reference, and the limitations (notably: cEDH is out of scope, and why the card-scoring premise was retired).
+Read quadrant-theory.md for the pre-mortem method, the deterministic/reasoning split, the Strategy / Focus Otags / Assessment triad, the otag_buckets + susceptibility lead signals (the Assessment inputs), the actual-vs-focus signals (coverage_of_focus / thin_focus / off_focus), the fact-sheet field reference, and the limitations (notably: cEDH is out of scope, and why the card-scoring premise was retired).
 </reference>
 
 <diagnose-workflow>
@@ -324,8 +349,9 @@ Read quadrant-theory.md for the pre-mortem method, the deterministic/reasoning s
 **Step 1: Read the deck's Strategy → archetype and win condition**
 
 Same `get_record` as Operation 1 (the `<primary-constraint>` applies — never diagnose
-without the Strategy). The Strategy *is* the plan: extract the win condition and the
-`Archetype:` line, which frames the per-game-state expectations (see
+without the Strategy), but add `Focus Otags` to the `fields` list so you read the intended
+identity alongside the aim (Step 3b). The Strategy *is* the plan: extract the win condition
+and the `Archetype:` line, which frames the per-game-state expectations (see
 `references/strategy-schema.md`).
 
 **Step 2: Get the EXACT current decklist**
@@ -337,24 +363,82 @@ memory. Write the card names to a decklist file for the fact sheet.
 ```bash
 uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/deck_factsheet.py factsheet <decklist> --output /tmp/<deck>-facts.json
 ```
-This emits **neutral facts only** — curve, ramp, an interaction census by type and speed, a
-keyword census, card advantage, and `coverage.uncategorized_pct`. It assigns **no** quadrant,
-role, or wincon. Any `missing` names are reported — resolve or note them.
+This emits **neutral facts only** — curve, ramp/fixing, a keyword census, card advantage,
+instant-speed, plus the two otag-derived fields that carry the diagnosis: **`otag_buckets`**
+(a multi-label oracle-tag bucket → nonland-card count map — `removal`, `ramp`, `draw`,
+`tokens`, `counters`, `burn`, `tutor`, `sac`, `counterspells`, `flicker`, `typal`, `anthem`,
+`combat`, `protection`, …) and **`susceptibility`** (data-grounded, count-cited weakness
+signals). It assigns **no** quadrant, role, or wincon. Any `missing` names are reported —
+resolve or note them.
+
+**Graceful degradation:** if the otag layer is unavailable, `otag_buckets` is `{}` and
+`susceptibility` contains a single `otag layer unavailable: …` string. When you see that,
+fall back to the structured facts (curve, ramp, instant-speed, keywords) and lean harder on
+the Strategy — do NOT treat empty buckets as "the deck does nothing."
+
+**Step 3b: Read or propose the deck's `Focus Otags` → its intended functional identity**
+
+Read the deck's `Focus Otags` field alongside the Strategy (add it to the `get_record`
+`fields` list in Step 1). `Focus Otags` is the curated set of buckets/otags the deck is
+**built around** — its intended identity in the tag vocabulary, distinct from the wide,
+actual set the cards mechanically carry.
+
+- **If `Focus Otags` is already set**, use it as-is — it is the intent you measure against.
+- **If it is empty**, propose one: read the fact sheet's `otag_buckets` (the wide actual set)
+  and the Strategy's `Key mechanics` line, then **curate down** to the handful of buckets/otag
+  slugs the deck is genuinely built around (e.g. a tokens/counters go-wide deck's focus is
+  `tokens`, `counters`, `anthem` — not the incidental `ramp` and `removal` every deck runs).
+  This is a subset expressing intent, never the mechanical union. Present the proposed focus
+  to the user, then write it (Step 3c). If you cannot confidently curate one, proceed without
+  it — the Assessment degrades gracefully (Step 7).
+
+**Step 3c: Write `Focus Otags` to the Decks field (via Airtable MCP)**
+
+Persist the curated focus to the deck's `Focus Otags` field using the normal MCP write path.
+This field is **skill-authored** (or human-authored) — the deterministic pipeline READS it but
+NEVER writes it. If the field does not yet exist on the Decks table, create it first
+(`multipleSelects` for pick-list buckets, or `multilineText` for freeform bucket + otag-slug
+lists), then populate it:
+
+```
+# Create the field once if it is not already on the Decks table:
+mcp__airtable__create_field
+  baseId: appw7QPMoqktrgDc1
+  tableId: tblIfqVuVHNQza1K3
+  name: Focus Otags
+  type: multipleSelects   # or multilineText for freeform bucket + otag-slug lists
+
+# Write / refresh the curated focus:
+mcp__airtable__update_records
+  baseId: appw7QPMoqktrgDc1
+  tableId: tblIfqVuVHNQza1K3
+  records:
+    - id: <deck_record_id>
+      fields:
+        Focus Otags: <curated buckets/otag slugs — the deck's intended identity>
+```
+
+Never write `Focus Otags` from the mechanical union of `otag_buckets` — that would make it the
+actual set, not the intended one. Curate to intent.
 
 **Step 4: Reason the per-quadrant plan (from facts + Strategy)**
 
-For each game-state, state the deck's plan — from the engine, not a count. Lead with the
-**resilience profile** (`board_wipes`, `instant_speed`, `protection`, `ramp`, curve) — it is
-the measurable core of "Losing is the hardest quadrant."
+For each game-state, state the deck's plan — from the engine, not a count. Lead with
+**`susceptibility`** (the deck's measurable resilience gaps — each signal cites the counts
+driving it) and the **`otag_buckets`** distribution — together they are the measurable core
+of "Losing is the hardest quadrant." Read a game-state's plan off the buckets that serve it
+(e.g. `ramp`+curve for Development; `draw`+`tutor`+the engine buckets for Parity;
+`removal`+`counterspells`+`protection`+`sac` for Losing), never a single count.
 
-- **Development** — plan not to fall behind early? (curve, ramp, early interaction)
-- **Parity** — plan to break a stall / grind ahead? (the engine, card advantage)
+- **Development** — plan not to fall behind early? (`ramp` bucket, curve, early `removal`)
+- **Parity** — plan to break a stall / grind ahead? (`draw`/`tutor` + the payoff buckets)
 - **Winning** — what *is* the win, and is it resilient / fast / interruptible? (from Strategy)
-- **Losing** — the out when behind / swept / raced? (resilience profile)
+- **Losing** — the out when behind / swept / raced? (`susceptibility` + `protection`/`removal`)
 
 **When `coverage.uncategorized_pct` is high, weight the Strategy over the counts** — the
-deck's value is synergy-carried and invisible to the census. Cite the fact sheet's numbers
-only as supporting evidence ("2 wipes, 0 instant-speed protection"), never as a verdict.
+deck's value is synergy-carried and invisible even to the otag buckets. Cite the fact sheet's
+numbers (a `susceptibility` signal, a bucket count) only as supporting evidence, never as a
+verdict.
 
 **Step 5: Name the loss-condition**
 
@@ -372,20 +456,88 @@ fetching to keep the scan tractable.
 See airtable-schema.md for the Cards table fields (Number Owned, Number in Library, Oracle Text) and Chase Cards structure.
 </reference>
 
-**Step 7: Present the pre-mortem** (narrative + shopping list, NOT a percentage table)
+**Step 7: Synthesize the Assessment** (narrative + shopping list, NOT a percentage table)
+
+This is the payload. Reason the fact-sheet inputs (`susceptibility` + `otag_buckets`, the wide
+actual set) against **both** the `Strategy` (prose aim) **and** `Focus Otags` (intended
+identity) into an `Assessment` — what the deck ACTUALLY is, isn't, and needs. The Assessment
+now measures actual-vs-focus along three axes:
+
+- **Coverage of focus** — for each bucket/otag in `Focus Otags`, does the actual card set
+  (`otag_buckets`) back it up? A focus item with few cards behind it is intent the deck hasn't
+  paid for. *(Once the pipeline exposes it, this is the `coverage_of_focus` signal — the
+  mapping of each `Focus Otags` item to its actual card count.)*
+- **Thin / unprotected focus** — a focus item that is present but shallow, or a payoff the
+  deck cares about that has no protection/answer defending it (cross-reference
+  `susceptibility`). This is susceptibility scoped to what the deck *intends*. *(Pipeline
+  signal: `thin_focus`.)*
+- **Off-focus noise** — prominent card otags/buckets that sit OUTSIDE `Focus Otags`: mechanical
+  weight the deck spends on things it doesn't claim to care about. *(Pipeline signal:
+  `off_focus`.)*
+
+These signals are the pipeline's future READ-only outputs derived from `Focus Otags` +
+`otag_buckets`; describe them plainly from the two sets until they land in the fact sheet. Use
+this shape:
 
 ```
 ## [Deck] — Quadrant Pre-Mortem (archetype: X · synergy-driven: low|med|high from coverage%)
-Resilience: N wipes · N instant-speed answers · N protection · N ramp · curve peak C · N at 6+
-[if uncategorized % high] NOTE: X% synergy-carried & invisible to counts → weight Strategy over numbers.
+Focus: <the deck's Focus Otags, e.g. tokens · counters · anthem>
+Buckets: <top otag_buckets (actual), e.g. tokens 8 · counters 5 · ramp 6 · removal 4>
+Coverage of focus: <each focus item → actual count; flag items the cards don't back up>
+Thin/unprotected focus: <focus payoffs that are shallow or undefended; from susceptibility>
+Off-focus noise: <prominent actual buckets outside the focus>
+Susceptibility: <each susceptibility signal, count-cited; or "none flagged">
+[if uncategorized % high] NOTE: X% synergy-carried & invisible to buckets → weight Strategy over numbers.
+[if otag layer unavailable] NOTE: otag layer unavailable → structured facts only; lean on Strategy.
+[if Focus Otags unset] NOTE: no focus set → Assessment from structured facts + Strategy only.
 - Development — <plan not to fall behind early> — ok|risk
 - Parity — <plan to break a stall / grind ahead> — ok|risk
 - Winning — <the actual win from Strategy: what, how fast, how interruptible> — ok|risk
 - Losing — <the out when behind/swept/raced> — ok|risk
 Loss condition: <game-state where, if it goes there, you lose — threat-relative>
-Prescription: add <card TYPE> for [quadrant]; trim from [over-covered]
+Prescription: add <card TYPE> for [quadrant / thin focus item]; trim [off-focus noise]
 Owned fills: <inventory cards that plug it> (+ chase flags)
 ```
+
+Present it to the user, and — because it is the deck's living reality-check — persist it.
+
+**Step 8: Write the Assessment to the Decks `Assessment` field (via Airtable MCP)**
+
+Persist the synthesis to the deck's `Assessment` field (Decks table, long text) using the
+normal MCP write path. If the `Assessment` field does not yet exist on the Decks table, create
+it first, then populate it:
+
+```
+# Create the field once (long text) if it is not already on the Decks table:
+mcp__airtable__create_field
+  baseId: appw7QPMoqktrgDc1
+  tableId: tblIfqVuVHNQza1K3
+  name: Assessment
+  type: multilineText
+
+# Write / refresh the synthesis:
+mcp__airtable__update_records
+  baseId: appw7QPMoqktrgDc1
+  tableId: tblIfqVuVHNQza1K3
+  records:
+    - id: <deck_record_id>
+      fields:
+        Assessment: <the pre-mortem synthesis from Step 7>
+```
+
+Never overwrite `Strategy` — `Strategy` is the human-authored aim (an input); `Focus Otags` is
+the deck's intended identity (skill/human-authored, pipeline read-only); `Assessment` is
+*your* reasoning-authored reality-check. They are three separate fields and serve separate
+purposes.
+
+**Graceful degradation:** if `Focus Otags` is unset and you could not confidently propose one,
+synthesize the `Assessment` from `susceptibility` + `otag_buckets` + Strategy alone (the
+pre-focus method) — just omit the coverage-of-focus / thin-focus / off-focus lines. If the
+otag layer itself is unavailable (empty `otag_buckets`, `susceptibility` carrying the `otag
+layer unavailable` signal), still synthesize and write an `Assessment` — just build it from
+the structured facts (curve, ramp, instant-speed, keywords) plus the Strategy. The Assessment
+is thinner and less richly grounded, but it is still written from structured facts +
+reasoning, not skipped.
 
 </diagnose-workflow>
 
