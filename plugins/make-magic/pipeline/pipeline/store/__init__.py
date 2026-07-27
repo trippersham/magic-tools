@@ -27,7 +27,7 @@ from pipeline.store.paths import (
     StorePaths,
 )
 
-__all__ = [
+__all__ = (
     'DB_FILENAME',
     'ENV_DATA_DIR',
     'LAYERS',
@@ -38,4 +38,4 @@ __all__ = [
     'register_view',
     'table_exists',
     'write_parquet',
-]
+)

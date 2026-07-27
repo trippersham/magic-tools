@@ -25,7 +25,7 @@ from pipeline.contracts.models import (
     TradeRow,
 )
 
-__all__ = [
+__all__ = (
     'Card',
     'Deck',
     'DeckLine',
@@ -40,4 +40,4 @@ __all__ = [
     'FactSheetStructural',
     'InventoryRow',
     'TradeRow',
-]
+)

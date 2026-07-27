@@ -20,4 +20,4 @@ from __future__ import annotations
 
 from pipeline.sources._common import Cursor, dedupe, is_newer
 
-__all__ = ['Cursor', 'dedupe', 'is_newer']
+__all__ = ('Cursor', 'dedupe', 'is_newer')
