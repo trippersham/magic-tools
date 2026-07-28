@@ -15,6 +15,7 @@ import yaml
 
 from pipeline import store
 from pipeline.collection.adapters.local_yaml import LocalYamlStore
+from pipeline.collection.errors import CollectionError
 from pipeline.contracts import Card, Deck, DeckCard, Trade
 
 
@@ -365,7 +366,7 @@ def test_unquoted_comma_flow_entry_raises_actionable_error(adapter: LocalYamlSto
     (decks / 'gruul-aggro.yaml').write_text(
         'name: Gruul Aggro\ncards:\n  - { card: Grumgully, the Generous, role: commander }\n'
     )
-    with pytest.raises(ValueError, match='comma') as exc:
+    with pytest.raises(CollectionError, match='comma') as exc:
         adapter.get_deck('Gruul Aggro')
     assert 'gruul-aggro.yaml' in str(exc.value)
 
@@ -386,7 +387,7 @@ def test_malformed_non_dict_deck_yaml_raises_value_error(adapter: LocalYamlStore
     decks = _collection_dir() / 'decks'
     decks.mkdir(parents=True, exist_ok=True)
     (decks / 'gruul-aggro.yaml').write_text('- just\n- a\n- list\n')
-    with pytest.raises(ValueError, match=r'gruul-aggro\.yaml'):
+    with pytest.raises(CollectionError, match=r'gruul-aggro\.yaml'):
         adapter.get_deck('Gruul Aggro')
 
 
@@ -394,7 +395,7 @@ def test_inventory_unquoted_comma_flow_entry_raises(adapter: LocalYamlStore) -> 
     """The inventory reader is equally loud about the flow-comma trap."""
     (_collection_dir()).mkdir(parents=True, exist_ok=True)
     (_collection_dir() / 'inventory.yaml').write_text('- { card: Grumgully, the Generous, owned: 1 }\n')
-    with pytest.raises(ValueError, match='comma'):
+    with pytest.raises(CollectionError, match='comma'):
         adapter.list_inventory()
 
 

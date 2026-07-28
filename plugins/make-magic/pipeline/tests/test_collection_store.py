@@ -268,8 +268,8 @@ def test_get_store_airtable_requires_api_key(data_dir: Path, monkeypatch: pytest
     monkeypatch.setenv('MAKE_MAGIC_BACKEND', 'airtable')
     monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)
     config.get_settings.cache_clear()
-    # Missing-creds is a user-facing config failure -> CollectionError (a
-    # ValueError subclass, so the clean-error CLI wrapper catches it).
+    # Missing-creds is a user-facing config failure -> CollectionError (which the
+    # clean-error CLI wrapper catches).
     with pytest.raises(CollectionError, match='AIRTABLE_API_KEY'):
         get_store(_NullResolver())
 

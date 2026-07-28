@@ -25,6 +25,8 @@ from pipeline import store as _store
 from pipeline.collection.errors import CollectionError
 
 if TYPE_CHECKING:
+    from duckdb import DuckDBPyConnection
+
     from pipeline.contracts import Card, ChaseCard, Deck, OwnedCard, Trade
 
 #: Env var that pins the backend explicitly (highest precedence).
@@ -141,9 +143,9 @@ class AppState(BaseModel):
     onboarded: bool = Field(default=False, description='True once the user has made a backend choice.')
 
 
-def _ensure_app_state_table(conn: object) -> None:
+def _ensure_app_state_table(conn: DuckDBPyConnection) -> None:
     """Create the `app_state` table if it does not yet exist (idempotent)."""
-    conn.execute(  # type: ignore[attr-defined]
+    conn.execute(
         f'CREATE TABLE IF NOT EXISTS {_APP_STATE_TABLE} (key VARCHAR PRIMARY KEY, backend VARCHAR, onboarded BOOLEAN)'
     )
 

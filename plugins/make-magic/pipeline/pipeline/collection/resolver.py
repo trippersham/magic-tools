@@ -20,7 +20,7 @@ import os
 import tempfile
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
@@ -48,7 +48,7 @@ class _Transient(Enum):
 _TRANSIENT = _Transient.RESULT
 
 
-def _card_from_scryfall(data: dict) -> Card:
+def _card_from_scryfall(data: dict[str, Any]) -> Card:
     """Map a Scryfall card dict -> `contracts.Card` (front face for DFCs)."""
     face = data
     if data.get('oracle_text') is None and data.get('card_faces'):
@@ -79,7 +79,7 @@ class ScryfallResolver:
     def __init__(self, *, cache_path: Path | None = None, client: httpx.Client | None = None) -> None:
         self._client = client or httpx.Client(timeout=30, headers={'User-Agent': 'make-magic-plugin/2.0'})
         self._cache_path = cache_path
-        self._mem: dict[str, dict | None] = {}
+        self._mem: dict[str, dict[str, Any] | None] = {}
         if cache_path is not None and cache_path.exists():
             try:
                 self._mem = json.loads(cache_path.read_text())
@@ -98,7 +98,7 @@ class ScryfallResolver:
         data = self._mem[name]
         return _card_from_scryfall(data) if data else None
 
-    def _fetch(self, name: str) -> dict | _Transient | None:
+    def _fetch(self, name: str) -> dict[str, Any] | _Transient | None:
         """Return a card dict (found), ``None`` (definitive 404), or ``_TRANSIENT``.
 
         Only a real card OR a confirmed 404 is a DEFINITIVE result the caller may

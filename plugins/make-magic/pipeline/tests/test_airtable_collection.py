@@ -33,6 +33,7 @@ from pipeline.collection.adapters.airtable_collection import (
     ReadOnlyStoreError,
     _RecordClient,
 )
+from pipeline.collection.errors import CollectionError
 from pipeline.config import AirtableResolver
 from pipeline.contracts import Deck, DeckCard, Trade
 
@@ -538,7 +539,7 @@ def test_save_deck_update_patches_existing_record() -> None:
 def test_save_deck_unresolved_card_raises() -> None:
     fake = _inv_id_fixture()
     deck = Deck(name='Gruul Aggro', cards=[DeckCard(name='Card Not In Inventory')])
-    with pytest.raises(ValueError, match='Card Not In Inventory'):
+    with pytest.raises(CollectionError, match='Card Not In Inventory'):
         _store(fake, writes_enabled=True).save_deck(deck)
 
 
@@ -638,7 +639,7 @@ def test_log_trade_writes_card_and_deck_links() -> None:
 def test_log_trade_unresolved_card_raises() -> None:
     fake = FakeAirtable({'tblTrades': [], 'tblCards': []})
     trade = Trade(from_source='Store', to_destination='Library', cards_in=['Ghost Card'])
-    with pytest.raises(ValueError, match='Ghost Card'):
+    with pytest.raises(CollectionError, match='Ghost Card'):
         _store(fake, writes_enabled=True).log_trade(trade)
 
 

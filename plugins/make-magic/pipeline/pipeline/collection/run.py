@@ -24,10 +24,11 @@ import argparse
 import json
 import os
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from pipeline.collection import (
     CollectionError,
@@ -58,11 +59,11 @@ def _store(*, writes_enabled: bool = False) -> CollectionStore:
     return get_store(writes_enabled=writes_enabled)
 
 
-def _dump(models: object) -> str:
+def _dump(models: BaseModel | Sequence[BaseModel]) -> str:
     """JSON for a list of pydantic models (or one model)."""
-    if isinstance(models, list):
-        return json.dumps([m.model_dump(mode='json') for m in models], indent=2)
-    return models.model_dump_json(indent=2)  # type: ignore[attr-defined]
+    if isinstance(models, BaseModel):
+        return models.model_dump_json(indent=2)
+    return json.dumps([m.model_dump(mode='json') for m in models], indent=2)
 
 
 # --------------------------------------------------------------------------- #
@@ -312,7 +313,10 @@ def _build_store(
 
         token = os.environ.get('AIRTABLE_API_KEY')
         if not token:
-            raise SystemExit('copy: backend `airtable` requires AIRTABLE_API_KEY to be set.')
+            raise CollectionError(
+                'Backend is `airtable` but AIRTABLE_API_KEY is not set. Export an Airtable '
+                'Personal Access Token, or use a local backend for offline mode.'
+            )
         return AirtableCollectionStore.from_settings(token, writes_enabled=writes_enabled)
 
     from pipeline.collection import resolver as resolver_mod
