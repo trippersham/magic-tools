@@ -110,6 +110,7 @@ def _project(card: dict[str, Any]) -> dict[str, Any]:
         'oracle_id': card.get('oracle_id'),
         'name': card.get('name'),
         'cmc': card.get('cmc'),
+        'mana_cost': card.get('mana_cost'),
         'type_line': card.get('type_line'),
         'colors': card.get('colors', []),
         'color_identity': card.get('color_identity', []),
