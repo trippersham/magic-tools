@@ -16,6 +16,10 @@ card back name-only.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
+from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import httpx
@@ -24,10 +28,24 @@ from pipeline.contracts import Card
 from pipeline.store.paths import StorePaths
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from types import TracebackType
 
 _NAMED_URL = 'https://api.scryfall.com/cards/named'
 _CACHE_FILENAME = 'scryfall_names.json'
+
+
+class _Transient(Enum):
+    """Sentinel: a lookup failed TRANSIENTLY (network / timeout / non-404 HTTP).
+
+    Distinct from ``None`` (a definitive 404 = card not found, safe to negatively
+    cache): a transient result must NOT be written to the in-memory map or disk,
+    so the next run RETRIES rather than permanently stripping enrichment.
+    """
+
+    RESULT = 0
+
+
+_TRANSIENT = _Transient.RESULT
 
 
 def _card_from_scryfall(data: dict) -> Card:
@@ -70,31 +88,78 @@ class ScryfallResolver:
 
     def get_card(self, name: str) -> Card | None:
         if name not in self._mem:
-            self._mem[name] = self._fetch(name)
+            result = self._fetch(name)
+            if result is _TRANSIENT:
+                # Transient failure (network / timeout / non-404): fail-open for
+                # THIS run (name-only card) but do NOT cache — the next run retries.
+                return None
+            self._mem[name] = result
             self._flush()
         data = self._mem[name]
         return _card_from_scryfall(data) if data else None
 
-    def _fetch(self, name: str) -> dict | None:
+    def _fetch(self, name: str) -> dict | _Transient | None:
+        """Return a card dict (found), ``None`` (definitive 404), or ``_TRANSIENT``.
+
+        Only a real card OR a confirmed 404 is a DEFINITIVE result the caller may
+        cache; any network error / timeout / non-404 HTTP status is transient and
+        must not poison the cache.
+        """
         try:
             resp = self._client.get(_NAMED_URL, params={'exact': name})
             if resp.status_code == 404:
                 resp = self._client.get(_NAMED_URL, params={'fuzzy': name})
             if resp.status_code == 404:
-                return None
-            resp.raise_for_status()
+                return None  # definitive: card not found -> negatively cacheable
+            resp.raise_for_status()  # non-404 4xx/5xx -> HTTPStatusError below
             return resp.json()
         except httpx.HTTPError:
-            return None  # fail-open: unresolved -> name-only card
+            return _TRANSIENT  # network/timeout/5xx: do NOT cache, retry next run
 
     def _flush(self) -> None:
         if self._cache_path is None:
             return
         try:
             self._cache_path.parent.mkdir(parents=True, exist_ok=True)
-            self._cache_path.write_text(json.dumps(self._mem))
+            # Atomic write: dump to a temp file in the SAME dir, then os.replace
+            # (atomic rename) so a concurrent `collection` run never observes a
+            # half-written cache. The read path self-heals, but writes stay clean.
+            fd, tmp_name = tempfile.mkstemp(dir=self._cache_path.parent, suffix='.tmp')
+            try:
+                with os.fdopen(fd, 'w') as fh:
+                    json.dump(self._mem, fh)
+                os.replace(tmp_name, self._cache_path)
+            except BaseException:
+                Path(tmp_name).unlink(missing_ok=True)
+                raise
         except OSError:
             pass
+
+    # --- lifecycle ----------------------------------------------------------- #
+
+    def close(self) -> None:
+        """Close the underlying httpx client (idempotent)."""
+        self._client.close()
+
+    def __del__(self) -> None:
+        # Best-effort cleanup for the short-lived CLI path (which builds the
+        # resolver via `default_card_resolver` and doesn't use the context
+        # manager) — avoids httpx's unclosed-client ResourceWarning. Guarded
+        # because a partially-constructed instance may lack `_client`.
+        client = getattr(self, '_client', None)
+        if client is not None:
+            client.close()
+
+    def __enter__(self) -> ScryfallResolver:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.close()
 
 
 def default_card_resolver() -> ScryfallResolver:

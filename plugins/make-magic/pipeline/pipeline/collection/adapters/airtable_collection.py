@@ -48,6 +48,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import httpx
 
+from pipeline.collection.errors import CollectionError
 from pipeline.config import AirtableConfigError, AirtableResolver, get_settings
 from pipeline.contracts import ChaseCard, Deck, DeckCard, OwnedCard, Trade
 
@@ -372,7 +373,7 @@ class AirtableCollectionStore:
             else:
                 ids.append(rid)
         if missing:
-            raise ValueError(
+            raise CollectionError(
                 f'Cannot resolve {kind} link(s) — not found in the Airtable base: '
                 f'{missing!r}. Add them first (e.g. via add_card), then retry.'
             )

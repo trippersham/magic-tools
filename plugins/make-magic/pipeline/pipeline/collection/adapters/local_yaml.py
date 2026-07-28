@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import yaml
 
 from pipeline import store as _store
+from pipeline.collection.errors import CollectionError
 from pipeline.contracts import ChaseCard, Deck, DeckCard, OwnedCard, Trade
 
 if TYPE_CHECKING:
@@ -53,19 +54,21 @@ def _validate_card_entry(entry: Any, allowed: set[str], *, path: Path, index: in
     ``card``). Returns the entry unchanged when valid.
     """
     if not isinstance(entry, dict):
-        raise ValueError(f'Malformed card entry #{index} in {path}: expected a mapping, got {type(entry).__name__}.')
+        raise CollectionError(
+            f'Malformed card entry #{index} in {path}: expected a mapping, got {type(entry).__name__}.'
+        )
     unexpected = sorted(k for k in entry if k not in allowed)
     null_valued = sorted(k for k, v in entry.items() if v is None and k != 'card')
     if unexpected or null_valued:
         offending = sorted(set(unexpected) | set(null_valued))
-        raise ValueError(
+        raise CollectionError(
             f'Malformed card entry #{index} in {path}: unexpected/empty key(s) {offending!r}. '
             f'This usually means a card name containing a comma was left unquoted in YAML flow '
             f"style (e.g. `{{ card: Grumgully, the Generous }}`). Quote such names: "
             f'`- card: "Grumgully, the Generous"`. Known keys: {sorted(allowed)!r}.'
         )
     if 'card' not in entry:
-        raise ValueError(f'Malformed card entry #{index} in {path}: missing required `card` key.')
+        raise CollectionError(f'Malformed card entry #{index} in {path}: missing required `card` key.')
     return entry
 
 
@@ -106,8 +109,20 @@ class LocalYamlStore:
             return []
         data = yaml.safe_load(path.read_text()) or []
         if not isinstance(data, list):
-            raise ValueError(f'Expected a YAML list at {path}, got {type(data).__name__}.')
+            raise CollectionError(f'Expected a YAML list at {path}, got {type(data).__name__}.')
         return data
+
+    @staticmethod
+    def _row_card(row: dict[str, Any], *, path: Path) -> str:
+        """Return a write-path row's ``card`` ref, or raise a clean error.
+
+        The write verbs read raw rows (not via ``_validate_card_entry``); a
+        hand-edited row missing ``card`` would otherwise raise a bare ``KeyError``
+        that the CLI wrapper no longer swallows. Surface a clear `CollectionError`.
+        """
+        if 'card' not in row:
+            raise CollectionError(f'Malformed row in {path}: missing required `card` key: {row!r}.')
+        return row['card']
 
     @staticmethod
     def _write_yaml(path: Path, data: object) -> None:
@@ -170,8 +185,9 @@ class LocalYamlStore:
         sets: list[str] | None = None,
         sources: list[str] | None = None,
     ) -> None:
-        rows = self._read_list(self._inventory_path())
-        existing = next((r for r in rows if r['card'] == ref), None)
+        path = self._inventory_path()
+        rows = self._read_list(path)
+        existing = next((r for r in rows if self._row_card(r, path=path) == ref), None)
         if existing is None:
             new_row: dict[str, Any] = {'card': ref, 'owned': 0}
             rows.append(new_row)
@@ -188,17 +204,19 @@ class LocalYamlStore:
         self._write_yaml(self._inventory_path(), rows)
 
     def set_quantity(self, ref: str, qty: int) -> None:
-        rows = self._read_list(self._inventory_path())
-        existing = next((r for r in rows if r['card'] == ref), None)
+        path = self._inventory_path()
+        rows = self._read_list(path)
+        existing = next((r for r in rows if self._row_card(r, path=path) == ref), None)
         if existing is None:
             rows.append({'card': ref, 'owned': qty})
         else:
             existing['owned'] = qty
-        self._write_yaml(self._inventory_path(), rows)
+        self._write_yaml(path, rows)
 
     def remove_card(self, ref: str) -> None:
-        rows = [r for r in self._read_list(self._inventory_path()) if r['card'] != ref]
-        self._write_yaml(self._inventory_path(), rows)
+        path = self._inventory_path()
+        rows = [r for r in self._read_list(path) if self._row_card(r, path=path) != ref]
+        self._write_yaml(path, rows)
 
     # --- Chase --------------------------------------------------------------- #
 
@@ -303,7 +321,7 @@ class LocalYamlStore:
 
     def _load_deck_from_dict(self, data: dict[str, Any], *, path: Path) -> Deck:
         if not isinstance(data, dict) or 'name' not in data:
-            raise ValueError(
+            raise CollectionError(
                 f'Malformed deck YAML at {path}: expected a mapping with a `name` key, '
                 f'got {type(data).__name__}.'
             )

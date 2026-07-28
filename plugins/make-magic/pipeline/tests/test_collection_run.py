@@ -273,3 +273,44 @@ def test_unknown_field_prints_clean_error(
     err = capsys.readouterr().err
     assert 'unknown deck field' in err
     assert 'Traceback' not in err
+
+
+def test_genuine_keyerror_is_not_swallowed(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A real defect (raw KeyError from a verb handler) must NOT be flattened to a
+    clean `error:` line — it should propagate so the bug is visible (Fix 2)."""
+
+    def _boom(_argv: list[str]) -> None:
+        raise KeyError('internal invariant broken')
+
+    monkeypatch.setitem(cli.VERBS, 'list-decks', _boom)
+    with pytest.raises(KeyError, match='internal invariant broken'):
+        _run(monkeypatch, 'list-decks')
+
+
+def test_genuine_runtimeerror_is_not_swallowed(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A raw RuntimeError from a bug is not masked by the CLI wrapper (Fix 2)."""
+
+    def _boom(_argv: list[str]) -> None:
+        raise RuntimeError('unexpected')
+
+    monkeypatch.setitem(cli.VERBS, 'list-decks', _boom)
+    with pytest.raises(RuntimeError, match='unexpected'):
+        _run(monkeypatch, 'list-decks')
+
+
+def test_save_deck_bad_json_prints_clean_error(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, tmp_path: Path
+) -> None:
+    """Bad user JSON for save-deck is user input -> clean `error:` line, no traceback."""
+    bad = tmp_path / 'bad.json'
+    bad.write_text('{"name": 123, "cards": "not-a-list"')  # invalid + malformed
+    with pytest.raises(SystemExit) as ei:
+        _run(monkeypatch, 'save-deck', '--from-json', str(bad))
+    assert ei.value.code == 1
+    err = capsys.readouterr().err
+    assert err.startswith('error: ')
+    assert 'Traceback' not in err

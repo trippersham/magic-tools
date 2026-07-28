@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 from pydantic import BaseModel, ConfigDict, Field
 
 from pipeline import store as _store
+from pipeline.collection.errors import CollectionError
 
 if TYPE_CHECKING:
     from pipeline.contracts import Card, ChaseCard, Deck, OwnedCard, Trade
@@ -199,10 +200,23 @@ def resolve_backend() -> str:
     """
     env = os.getenv(ENV_BACKEND)
     if env:
-        return env
+        # An EXPLICIT env is a deliberate user choice: normalize case/whitespace,
+        # then validate — a typo (e.g. 'Airtabel') must fail LOUDLY, never fall
+        # through to a silent 'local' that `status` would then mislabel.
+        normalized = env.strip().lower()
+        if normalized not in _VALID_BACKENDS:
+            raise CollectionError(
+                f'Invalid {ENV_BACKEND}={env!r}; choose one of {list(_VALID_BACKENDS)}.'
+            )
+        return normalized
     state = read_app_state()
     if state.onboarded and state.backend:
-        return state.backend
+        # A PERSISTED backend could be corrupt (hand-edited DB / older schema).
+        # Normalize + validate; if it's garbage, IGNORE it (fall through to
+        # creds/local) rather than trust it — never construct a store we can't.
+        persisted = state.backend.strip().lower()
+        if persisted in _VALID_BACKENDS:
+            return persisted
     if _creds_present():
         return 'airtable'
     return 'local'
@@ -271,7 +285,7 @@ def get_store(resolver: CardResolver | None = None, *, writes_enabled: bool = Fa
 
         token = os.environ.get('AIRTABLE_API_KEY')
         if not token:
-            raise RuntimeError(
+            raise CollectionError(
                 'Backend is `airtable` but AIRTABLE_API_KEY is not set. Export an Airtable '
                 'Personal Access Token, or set MAKE_MAGIC_BACKEND=local for offline mode.'
             )

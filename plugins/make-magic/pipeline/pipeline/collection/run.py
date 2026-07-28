@@ -27,12 +27,16 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from pydantic import ValidationError
+
 from pipeline.collection import (
+    CollectionError,
     copy_collection,
     get_store,
     onboard,
     onboarding_status,
 )
+from pipeline.config import AirtableConfigError
 from pipeline.contracts import Deck, Trade
 
 if TYPE_CHECKING:
@@ -117,7 +121,7 @@ def _get_deck(argv: list[str]) -> None:
     if args.field:
         allowed = sorted(set(Deck.model_fields) | {'commanders'})
         if args.field not in allowed:
-            raise ValueError(f'unknown deck field {args.field!r}; choose from {allowed}')
+            raise CollectionError(f'unknown deck field {args.field!r}; choose from {allowed}')
         value = getattr(deck, args.field)
         print(json.dumps(value) if isinstance(value, list) else value)
     else:
@@ -129,7 +133,12 @@ def _save_deck(argv: list[str]) -> None:
     parser.add_argument('--from-json', required=True, help='Path to a JSON Deck (- for stdin).')
     args = parser.parse_args(argv)
     raw = sys.stdin.read() if args.from_json == '-' else Path(args.from_json).read_text()
-    deck = Deck.model_validate_json(raw)
+    try:
+        deck = Deck.model_validate_json(raw)
+    except ValidationError as exc:
+        # Bad USER-supplied JSON is clean input error, not a defect — surface it
+        # as a one-line `error:` rather than a raw ValidationError traceback.
+        raise CollectionError(f'invalid deck JSON: {exc}') from exc
     _store(writes_enabled=True).save_deck(deck)
     print(f'save-deck: {deck.name}')
 
@@ -398,12 +407,19 @@ def main() -> None:
         )
         raise SystemExit(2)
     verb = sys.argv[1]
+    # `ReadOnlyStoreError` lives in the lazily-imported Airtable adapter; import it
+    # here so the local-only path never triggers the adapter import.
+    from pipeline.collection.adapters.airtable_collection import ReadOnlyStoreError
+
     try:
         VERBS[verb](sys.argv[2:])
-    except (FileNotFoundError, ValueError, KeyError, RuntimeError) as exc:
-        # Expected, user-facing failures (unknown deck, bad --field, missing creds,
-        # Airtable schema/read-only errors): surface a clean one-line message on
-        # stderr instead of a raw traceback. SystemExit (argparse, guards) passes through.
+    except (FileNotFoundError, CollectionError, ReadOnlyStoreError, AirtableConfigError) as exc:
+        # EXPECTED, user-facing failures only (unknown deck, bad --field, malformed
+        # YAML, bad user JSON, missing creds, Airtable schema/read-only errors):
+        # surface a clean one-line message instead of a raw traceback. A genuine
+        # bug (KeyError / RuntimeError / ValidationError / AttributeError) is NOT
+        # caught here — it tracebacks so the defect stays visible. SystemExit
+        # (argparse, guards) passes through untouched.
         print(f'error: {exc}', file=sys.stderr)
         raise SystemExit(1) from exc
 
