@@ -22,11 +22,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pipeline.collection import CardResolver, get_store, resolve_backend
+from pipeline.collection import (
+    CardResolver,
+    copy_collection,
+    get_store,
+    onboard,
+    onboarding_status,
+)
 from pipeline.contracts import Trade
 
 if TYPE_CHECKING:
@@ -71,9 +78,31 @@ def _dump(models: object) -> str:
 def _status(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection status')
     parser.parse_args(argv)
-    backend = resolve_backend()
+    status = onboarding_status()
+    backend = status.effective_backend
     label = 'local (collection/ YAML)' if backend == 'local' else 'airtable (records adapter)'
-    print(json.dumps({'backend': backend, 'source_of_record': label}, indent=2))
+    out: dict[str, object] = {
+        'backend': backend,
+        'source_of_record': label,
+        'onboarded': status.onboarded,
+        'needs_onboarding': status.needs_onboarding,
+    }
+    if status.needs_onboarding:
+        # Actionable nag — nothing hard-blocks (reads default to local), but tell
+        # the user how to pin their backend so subsequent runs never re-prompt.
+        out['message'] = (
+            'No backend configured — defaulting reads to local. Run '
+            '`collection onboard --backend local|airtable` to pin your source of record.'
+        )
+    print(json.dumps(out, indent=2))
+
+
+def _onboard(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection onboard')
+    parser.add_argument('--backend', required=True, choices=('local', 'airtable'))
+    args = parser.parse_args(argv)
+    onboard(args.backend)
+    print(f'onboard: backend set to {args.backend} (persisted; will not re-prompt).')
 
 
 # --------------------------------------------------------------------------- #
@@ -236,6 +265,8 @@ def _log_trade(argv: list[str]) -> None:
     parser.add_argument('--from-json', help='Path to a JSON Trade (- for stdin).')
     parser.add_argument('--from-source', dest='from_source')
     parser.add_argument('--to-destination', dest='to_destination')
+    parser.add_argument('--from-deck', dest='from_deck', default=None, help="From (Deck) when Source == 'Deck'.")
+    parser.add_argument('--to-deck', dest='to_deck', default=None, help="To (Deck) when Destination == 'Deck'.")
     parser.add_argument('--status', default=None)
     parser.add_argument('--notes', default=None)
     parser.add_argument('--card-in', dest='cards_in', action='append', default=None)
@@ -250,6 +281,8 @@ def _log_trade(argv: list[str]) -> None:
         trade = Trade(
             from_source=args.from_source,
             to_destination=args.to_destination,
+            from_deck=args.from_deck,
+            to_deck=args.to_deck,
             status=args.status,
             notes=args.notes,
             cards_in=args.cards_in or [],
@@ -262,6 +295,58 @@ def _log_trade(argv: list[str]) -> None:
 # --------------------------------------------------------------------------- #
 # Factsheet (offline behavioral verb — Phase 1.4)
 # --------------------------------------------------------------------------- #
+
+
+def _build_store(
+    backend: str, *, writes_enabled: bool = False, data_dir: str | None = None
+) -> CollectionStore:
+    """Construct a store for an EXPLICIT backend (bypassing `resolve_backend`).
+
+    Used by ``copy`` to build the source + destination independently. A local
+    store may be pointed at an explicit ``data_dir`` (its ``collection/`` child)
+    so a local->local copy can target a distinct dir within one process.
+    """
+    if backend == 'airtable':
+        from pipeline.collection.adapters.airtable_collection import AirtableCollectionStore
+
+        token = os.environ.get('AIRTABLE_API_KEY')
+        if not token:
+            raise SystemExit('copy: backend `airtable` requires AIRTABLE_API_KEY to be set.')
+        return AirtableCollectionStore.from_settings(token, writes_enabled=writes_enabled)
+
+    from pipeline.collection.adapters.local_yaml import LocalYamlStore
+
+    root = Path(data_dir).resolve() / 'collection' if data_dir else None
+    return LocalYamlStore(resolver=_load_resolver(), collection_root=root)
+
+
+def _copy(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection copy')
+    parser.add_argument('--from', dest='src', required=True, choices=('local', 'airtable'))
+    parser.add_argument('--to', dest='dst', required=True, choices=('local', 'airtable'))
+    parser.add_argument(
+        '--confirm',
+        action='store_true',
+        help='Required for any `--to airtable` — guards against an accidental live production write.',
+    )
+    parser.add_argument(
+        '--dest-data-dir',
+        dest='dest_data_dir',
+        default=None,
+        help='For `--to local`: write the destination collection under this data dir.',
+    )
+    args = parser.parse_args(argv)
+
+    if args.dst == 'airtable' and not args.confirm:
+        parser.error(
+            '`--to airtable` writes to a LIVE base — pass --confirm to proceed. '
+            '(This guards against an accidental production write.)'
+        )
+
+    source = _build_store(args.src, writes_enabled=False)
+    dest = _build_store(args.dst, writes_enabled=True, data_dir=args.dest_data_dir)
+    report = copy_collection(source, dest)
+    print(report.model_dump_json(indent=2))
 
 
 def _factsheet(argv: list[str]) -> None:
@@ -283,6 +368,8 @@ def _factsheet(argv: list[str]) -> None:
 
 VERBS = {
     'status': _status,
+    'onboard': _onboard,
+    'copy': _copy,
     # decks
     'list-decks': _list_decks,
     'get-deck': _get_deck,

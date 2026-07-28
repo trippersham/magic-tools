@@ -7,12 +7,17 @@ the Airtable adapter + onboarding/copy land in Tasks 2/3.
 
 from __future__ import annotations
 
+from pipeline.collection.copy import copy_collection
 from pipeline.collection.store import (
     ENV_BACKEND,
     AppState,
+    BackendName,
     CardResolver,
     CollectionStore,
+    OnboardingStatus,
     get_store,
+    onboard,
+    onboarding_status,
     read_app_state,
     resolve_backend,
     write_app_state,
@@ -21,9 +26,14 @@ from pipeline.collection.store import (
 __all__ = (
     'ENV_BACKEND',
     'AppState',
+    'BackendName',
     'CardResolver',
     'CollectionStore',
+    'OnboardingStatus',
+    'copy_collection',
     'get_store',
+    'onboard',
+    'onboarding_status',
     'read_app_state',
     'resolve_backend',
     'write_app_state',

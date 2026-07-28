@@ -31,6 +31,17 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return root
 
 
+@pytest.fixture()
+def unonboarded_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A tmp data dir with NO backend env / creds — the un-onboarded state."""
+    root = tmp_path / 'data'
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(root))
+    monkeypatch.delenv('MAKE_MAGIC_BACKEND', raising=False)
+    monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)
+    monkeypatch.setattr(cli, '_load_resolver', lambda: _StubResolver())
+    return root
+
+
 def _run(monkeypatch: pytest.MonkeyPatch, *argv: str) -> None:
     monkeypatch.setattr('sys.argv', ['collection', *argv])
     cli.main()
@@ -144,6 +155,88 @@ def test_log_trade_then_list(
     rows = json.loads(capsys.readouterr().out)
     assert rows[0]['from_source'] == 'Library'
     assert rows[0]['status'] == 'Draft'
+
+
+def test_log_trade_deck_flags(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Phase 3.3: --from-deck / --to-deck wire to the Trade contract (no --from-json)."""
+    _run(
+        monkeypatch,
+        'log-trade',
+        '--from-source',
+        'Deck',
+        '--to-destination',
+        'Deck',
+        '--from-deck',
+        'Gruul Aggro',
+        '--to-deck',
+        'Mono Blue',
+    )
+    capsys.readouterr()
+    _run(monkeypatch, 'list-trades')
+    rows = json.loads(capsys.readouterr().out)
+    assert rows[0]['from_deck'] == 'Gruul Aggro'
+    assert rows[0]['to_deck'] == 'Mono Blue'
+
+
+# --------------------------------------------------------------------------- #
+# onboarding: status nags un-onboarded, onboard persists + silences the nag
+# --------------------------------------------------------------------------- #
+
+
+def test_status_nags_when_unonboarded(
+    unonboarded_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _run(monkeypatch, 'status')
+    out = json.loads(capsys.readouterr().out)
+    assert out['backend'] == 'local'  # defaults to local, nothing hard-blocks
+    assert out['needs_onboarding'] is True
+    assert 'onboard' in out['message']
+
+
+def test_onboard_persists_and_silences_nag(
+    unonboarded_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _run(monkeypatch, 'onboard', '--backend', 'local')
+    assert 'local' in capsys.readouterr().out
+    _run(monkeypatch, 'status')
+    out = json.loads(capsys.readouterr().out)
+    assert out['backend'] == 'local'
+    assert out['needs_onboarding'] is False
+    assert 'message' not in out
+
+
+def test_onboard_verb_registered() -> None:
+    assert 'onboard' in cli.VERBS
+    assert 'copy' in cli.VERBS
+
+
+# --------------------------------------------------------------------------- #
+# copy verb: local -> local is trivially exercisable; --to airtable needs confirm
+# --------------------------------------------------------------------------- #
+
+
+def test_copy_to_airtable_refuses_without_confirm(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    with pytest.raises(SystemExit) as ei:
+        _run(monkeypatch, 'copy', '--from', 'local', '--to', 'airtable')
+    assert ei.value.code != 0
+    err = capsys.readouterr().err
+    assert '--confirm' in err
+
+
+def test_copy_local_to_local(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, tmp_path: Path
+) -> None:
+    _run(monkeypatch, 'add-card', 'Sol Ring', '--qty', '2')
+    capsys.readouterr()
+    # copy local -> local into a SECOND data dir (dest env override).
+    dest_dir = tmp_path / 'dest'
+    _run(monkeypatch, 'copy', '--from', 'local', '--to', 'local', '--dest-data-dir', str(dest_dir))
+    report = json.loads(capsys.readouterr().out)
+    assert report['inventory'] == 1
 
 
 def test_unknown_verb_exits_2(monkeypatch: pytest.MonkeyPatch) -> None:

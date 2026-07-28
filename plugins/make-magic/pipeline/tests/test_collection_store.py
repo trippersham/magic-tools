@@ -31,8 +31,9 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point the store at an isolated tmp data root via the env override."""
     root = tmp_path / 'data'
     monkeypatch.setenv(store.ENV_DATA_DIR, str(root))
-    # Ensure no explicit backend env leaks in from the host.
+    # Ensure no explicit backend env / creds leak in from the host.
     monkeypatch.delenv('MAKE_MAGIC_BACKEND', raising=False)
+    monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)
     return root
 
 
@@ -80,6 +81,95 @@ def test_resolve_backend_defaults_to_local(data_dir: Path) -> None:
 def test_resolve_backend_honors_persisted_state(data_dir: Path) -> None:
     write_app_state(AppState(backend='local', onboarded=True))
     assert resolve_backend() == 'local'
+
+
+# --- full precedence (Task 3) --------------------------------------------- #
+
+
+def test_resolve_backend_env_wins_over_everything(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit MAKE_MAGIC_BACKEND beats persisted state AND creds auto-detect."""
+    write_app_state(AppState(backend='local', onboarded=True))
+    monkeypatch.setenv('AIRTABLE_API_KEY', 'fake-token')
+    monkeypatch.setenv('MAKE_MAGIC_BACKEND', 'local')
+    assert resolve_backend() == 'local'
+    monkeypatch.setenv('MAKE_MAGIC_BACKEND', 'airtable')
+    assert resolve_backend() == 'airtable'
+
+
+def test_resolve_backend_persisted_state_beats_creds(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An onboarded 'local' choice sticks even when creds are present."""
+    write_app_state(AppState(backend='local', onboarded=True))
+    monkeypatch.setenv('AIRTABLE_API_KEY', 'fake-token')
+    assert resolve_backend() == 'local'
+
+
+def test_resolve_backend_autodetects_airtable_from_creds(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """No env, not onboarded, but AIRTABLE_API_KEY present -> 'airtable'."""
+    monkeypatch.setenv('AIRTABLE_API_KEY', 'fake-token')
+    assert resolve_backend() == 'airtable'
+
+
+def test_resolve_backend_autodetect_ignores_unonboarded_state_backend(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A backend written WITHOUT onboarding is ignored (only onboarded choices stick)."""
+    write_app_state(AppState(backend='airtable', onboarded=False))
+    # No creds, not onboarded -> safe default local (the stray backend is ignored).
+    assert resolve_backend() == 'local'
+
+
+def test_resolve_backend_defaults_local_without_creds(data_dir: Path) -> None:
+    """Nothing explicit, not onboarded, no creds -> safe default 'local'."""
+    assert resolve_backend() == 'local'
+
+
+# --- onboarding ----------------------------------------------------------- #
+
+
+def test_onboarding_status_defaults(data_dir: Path) -> None:
+    from pipeline.collection import onboarding_status
+
+    status = onboarding_status()
+    assert status.onboarded is False
+    assert status.effective_backend == 'local'
+    assert status.needs_onboarding is True
+
+
+def test_onboarding_status_after_onboard(data_dir: Path) -> None:
+    from pipeline.collection import onboard, onboarding_status
+
+    onboard('local')
+    status = onboarding_status()
+    assert status.onboarded is True
+    assert status.effective_backend == 'local'
+    assert status.needs_onboarding is False
+
+
+def test_onboard_persists_choice_and_flag(data_dir: Path) -> None:
+    from pipeline.collection import onboard
+
+    onboard('airtable')
+    state = read_app_state()
+    assert state.backend == 'airtable'
+    assert state.onboarded is True
+    assert resolve_backend() == 'airtable'
+
+
+def test_onboarding_status_creds_present_not_nagging(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Creds-present is effectively-onboarded (airtable) — no nag even un-onboarded."""
+    from pipeline.collection import onboarding_status
+
+    monkeypatch.setenv('AIRTABLE_API_KEY', 'fake-token')
+    status = onboarding_status()
+    assert status.needs_onboarding is False
+    assert status.effective_backend == 'airtable'
+
+
+def test_onboard_rejects_unknown_backend(data_dir: Path) -> None:
+    from pipeline.collection import onboard
+
+    with pytest.raises(ValueError, match=r'local|airtable'):
+        onboard('sqlite')  # type: ignore[arg-type]
 
 
 # --------------------------------------------------------------------------- #

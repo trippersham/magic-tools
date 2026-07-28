@@ -6,16 +6,18 @@ table CRUD. `CardResolver` is the hydration seam — a name -> `Card | None`
 lookup an adapter uses to fill the base-`Card` enrichment on read.
 
 `app_state` (backend + onboarded + room for watermarks) lives in the existing
-`make_magic.duckdb` via `store/io.connect`. Backend resolution here is the
-Task-1 skeleton: full precedence (env -> app_state -> creds -> onboarding) lands
-in Task 3; for now `resolve_backend()` honors the persisted `app_state` and
-defaults to `'local'` when nothing is configured.
+`make_magic.duckdb` via `store/io.connect`. `resolve_backend()` applies the full
+precedence — explicit `MAKE_MAGIC_BACKEND` env -> an ONBOARDED `app_state.backend`
+choice -> creds auto-detect (`AIRTABLE_API_KEY` present -> airtable) -> the safe
+`'local'` default. `onboard()` persists the choice so runs never re-prompt, and
+`onboarding_status()` tells the CLI whether to nag (creds-present counts as
+effectively-onboarded, so an Airtable user is never nagged).
 """
 
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -24,8 +26,15 @@ from pipeline import store as _store
 if TYPE_CHECKING:
     from pipeline.contracts import Card, ChaseCard, Deck, OwnedCard, Trade
 
-#: Env var that pins the backend explicitly (highest precedence — wired in Task 3).
+#: Env var that pins the backend explicitly (highest precedence).
 ENV_BACKEND = 'MAKE_MAGIC_BACKEND'
+
+#: Env var whose presence auto-detects Airtable mode (an Airtable PAT).
+ENV_AIRTABLE_KEY = 'AIRTABLE_API_KEY'
+
+#: The two backends the collection layer knows how to resolve.
+BackendName = Literal['local', 'airtable']
+_VALID_BACKENDS: tuple[BackendName, ...] = ('local', 'airtable')
 
 #: The DuckDB table that persists onboarding / backend / watermark state.
 _APP_STATE_TABLE = 'app_state'
@@ -162,24 +171,81 @@ def write_app_state(state: AppState) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Backend resolution (Task-1 skeleton)
+# Backend resolution + onboarding
 # --------------------------------------------------------------------------- #
+
+
+def _creds_present() -> bool:
+    """True when an Airtable PAT is exported (the auto-detect signal).
+
+    Backend selection keys on the PRESENCE OF CREDS, never on the base id: the
+    turnkey default base id in ``config.Settings`` means a base id is ALWAYS
+    resolvable, so it carries no signal about which backend the user wants.
+    """
+    return bool(os.getenv(ENV_AIRTABLE_KEY))
 
 
 def resolve_backend() -> str:
     """Resolve the active backend name.
 
-    Task-1 skeleton precedence: explicit `MAKE_MAGIC_BACKEND` env -> persisted
-    `app_state.backend` -> `'local'`. The creds auto-detect + onboarding prompt
-    branches land in Task 3.
+    Full precedence (highest first):
+        1. explicit ``MAKE_MAGIC_BACKEND`` env (``local`` | ``airtable``);
+        2. a persisted, ONBOARDED ``app_state.backend`` choice;
+        3. auto-detect: ``AIRTABLE_API_KEY`` present -> ``airtable`` (do NOT key
+           on base id — the turnkey default makes it always present);
+        4. the safe default ``local`` (nothing hard-blocks when un-onboarded).
     """
     env = os.getenv(ENV_BACKEND)
     if env:
         return env
     state = read_app_state()
-    if state.backend:
+    if state.onboarded and state.backend:
         return state.backend
+    if _creds_present():
+        return 'airtable'
     return 'local'
+
+
+class OnboardingStatus(BaseModel):
+    """A snapshot of onboarding state used to decide whether to nag.
+
+    ``needs_onboarding`` is the single flag the CLI surfaces: it is True ONLY
+    when the user has neither made a persisted choice NOR pinned a backend NOR
+    exported creds (creds-present is treated as effectively-onboarded, so an
+    Airtable user is never nagged). ``effective_backend`` is whatever
+    ``resolve_backend`` would pick right now.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    onboarded: bool = Field(description='True once a backend choice is persisted to app_state.')
+    effective_backend: str = Field(description="The backend resolve_backend() would pick right now.")
+    needs_onboarding: bool = Field(description='True when the CLI should prompt the user to run `onboard`.')
+
+
+def onboarding_status() -> OnboardingStatus:
+    """Compute the current :class:`OnboardingStatus` (no side effects)."""
+    state = read_app_state()
+    effective = resolve_backend()
+    # No nag when: an explicit choice is persisted, a backend env is pinned, or
+    # creds are present (an Airtable user auto-detected in — effectively onboarded).
+    settled = state.onboarded or bool(os.getenv(ENV_BACKEND)) or _creds_present()
+    return OnboardingStatus(
+        onboarded=state.onboarded,
+        effective_backend=effective,
+        needs_onboarding=not settled,
+    )
+
+
+def onboard(backend: BackendName) -> None:
+    """Persist the chosen backend + ``onboarded=True`` so runs never re-prompt.
+
+    ``backend`` must be ``'local'`` or ``'airtable'``; anything else raises a
+    clear ``ValueError``.
+    """
+    if backend not in _VALID_BACKENDS:
+        raise ValueError(f'Unknown backend {backend!r}; choose one of {list(_VALID_BACKENDS)}.')
+    write_app_state(AppState(backend=backend, onboarded=True))
 
 
 def get_store(resolver: CardResolver, *, writes_enabled: bool = False) -> CollectionStore:

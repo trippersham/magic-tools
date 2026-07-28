@@ -72,13 +72,20 @@ def _validate_card_entry(entry: Any, allowed: set[str], *, path: Path, index: in
 class LocalYamlStore:
     """The local YAML implementation of `CollectionStore`."""
 
-    def __init__(self, resolver: CardResolver) -> None:
+    def __init__(self, resolver: CardResolver, *, collection_root: Path | None = None) -> None:
         self._resolver = resolver
+        #: Optional explicit ``collection/`` dir. When None, resolved off the
+        #: env-driven ``StorePaths`` (the normal case); an explicit root lets the
+        #: one-shot ``copy`` point a destination at a distinct dir without env
+        #: juggling (source + dest can differ within one process).
+        self._collection_root = collection_root
 
     # --- paths / io helpers -------------------------------------------------- #
 
     @property
     def _root(self) -> Path:
+        if self._collection_root is not None:
+            return self._collection_root
         return _store.StorePaths.resolve().collection
 
     def _inventory_path(self) -> Path:
