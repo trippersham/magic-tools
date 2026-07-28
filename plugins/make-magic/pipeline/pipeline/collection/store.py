@@ -53,8 +53,10 @@ class CardResolver(Protocol):
     """The hydration seam: resolve a card name to an enriched `Card` (or None).
 
     Kept narrow on purpose — an adapter takes a `CardResolver` and uses it to
-    fill base-`Card` enrichment on read, without importing any concrete resolver
-    (the interim Scryfall-cache impl lives at the script edge).
+    fill base-`Card` enrichment on read, without importing any concrete resolver.
+    The package default is `resolver.default_card_resolver` (used by `get_store`
+    when none is injected); tests inject a stub, and #5 swaps the default for a
+    pipeline-backed (DuckDB over `scryfall_bulk`) resolver.
     """
 
     def get_card(self, name: str) -> Card | None:
@@ -248,10 +250,14 @@ def onboard(backend: BackendName) -> None:
     write_app_state(AppState(backend=backend, onboarded=True))
 
 
-def get_store(resolver: CardResolver, *, writes_enabled: bool = False) -> CollectionStore:
+def get_store(resolver: CardResolver | None = None, *, writes_enabled: bool = False) -> CollectionStore:
     """Construct the `CollectionStore` for the resolved backend.
 
     - ``local`` -> the YAML adapter, which HYDRATES enrichment via ``resolver``.
+      When ``resolver`` is omitted, the package default
+      (:func:`pipeline.collection.resolver.default_card_resolver`) is used — so no
+      caller has to wire one in (the CLI no longer injects one from the script
+      edge). Tests pass a stub.
     - ``airtable`` -> the record-CRUD adapter built from env-driven ``Settings``
       (requires ``AIRTABLE_API_KEY``); it hydrates enrichment DIRECTLY from the
       Airtable row, so it ignores ``resolver`` (the asymmetry documented in the
@@ -271,6 +277,7 @@ def get_store(resolver: CardResolver, *, writes_enabled: bool = False) -> Collec
             )
         return AirtableCollectionStore.from_settings(token, writes_enabled=writes_enabled)
 
+    from pipeline.collection import resolver as resolver_mod
     from pipeline.collection.adapters.local_yaml import LocalYamlStore
 
-    return LocalYamlStore(resolver=resolver)
+    return LocalYamlStore(resolver=resolver or resolver_mod.default_card_resolver())

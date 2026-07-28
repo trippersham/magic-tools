@@ -27,7 +27,7 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / 'data'
     monkeypatch.setenv(store.ENV_DATA_DIR, str(root))
     monkeypatch.setenv('MAKE_MAGIC_BACKEND', 'local')
-    monkeypatch.setattr(cli, '_load_resolver', lambda: _StubResolver())
+    monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _StubResolver())
     return root
 
 
@@ -38,7 +38,7 @@ def unonboarded_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv(store.ENV_DATA_DIR, str(root))
     monkeypatch.delenv('MAKE_MAGIC_BACKEND', raising=False)
     monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)
-    monkeypatch.setattr(cli, '_load_resolver', lambda: _StubResolver())
+    monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _StubResolver())
     return root
 
 

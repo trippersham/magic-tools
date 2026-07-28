@@ -1,19 +1,32 @@
-#!/usr/bin/env bash
-# Thin wrapper for the backend-agnostic collection CLI.
-#
-# Forwards every argument to:
-#     uv run --project <pipeline> python -m pipeline.collection.run <args...>
-#
-# The active backend is auto-resolved by the pipeline (local YAML vs Airtable
-# records). Override it explicitly by exporting MAKE_MAGIC_BACKEND=local|airtable
-# before calling, e.g.:
-#     MAKE_MAGIC_BACKEND=local scripts/collection status
-#
-# This wrapper only shortens the invocation; it changes no behavior.
-set -euo pipefail
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["make-magic-pipeline", "typer>=0.12"]
+# [tool.uv]
+# exclude-newer = "2026-06-08T00:00:00Z"
+# [tool.uv.sources]
+# make-magic-pipeline = { path = "../pipeline", editable = true }
+# ///
+"""Executable entry for the backend-agnostic `collection` CLI.
 
-# Resolve the plugin root (parent of this scripts/ dir), robust to symlinks.
-_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
-_PLUGIN_ROOT="$(cd -- "${_SCRIPT_DIR}/.." >/dev/null 2>&1 && pwd -P)"
+House convention (raelabs plugins): a plugin-invoked CLI that depends on a local
+package is a PEP-723 script that pins that package via ``[tool.uv.sources]`` as an
+editable path dep and is invoked DIRECTLY — no ``python -m``, no console-script
+install step. ``uv run --script`` resolves the editable ``make-magic-pipeline``
+dependency (relative to this file's dir) on each invocation. The dispatcher logic
+lives in ``pipeline.collection.run`` (kept importable so the test-suite drives it).
 
-exec uv run --project "${_PLUGIN_ROOT}/pipeline" python -m pipeline.collection.run "$@"
+Backend auto-resolves (local YAML vs Airtable records); override explicitly with
+``MAKE_MAGIC_BACKEND=local|airtable``. Usage:
+    ${CLAUDE_PLUGIN_ROOT}/scripts/collection <verb> [args...]
+
+``typer`` is declared only because the ``factsheet`` verb bridges to
+``scripts/deck_factsheet.py`` (a typer tool); card hydration itself is
+package-native (``pipeline.collection.resolver``) and needs no script edge.
+Dropping ``typer`` here would require decoupling ``factsheet`` from that script.
+"""
+
+from pipeline.collection.run import main
+
+if __name__ == '__main__':
+    main()

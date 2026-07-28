@@ -11,11 +11,11 @@ Verbs print STABLE, parseable output — JSON where a skill consumes structured
 data (``get-deck``, ``list-*``, ``factsheet``, ``status``), and a short
 confirmation line for writes.
 
-Hydration seam: the concrete ``CardResolver`` is the interim Scryfall-cache
-resolver at the SCRIPT EDGE (``scripts/collection_resolver.py``) — the pipeline
-package never imports ``scripts/``, so we load it lazily via a path shim, exactly
-as ``scripts/deck_factsheet.py`` reaches the pipeline. The Airtable adapter
-hydrates directly from the row and ignores the resolver (documented asymmetry).
+Hydration: the local adapter fills base-``Card`` enrichment via the package
+default ``CardResolver`` (``pipeline.collection.resolver``), which ``get_store``
+supplies — so this dispatcher injects nothing (no ``scripts/`` edge). The Airtable
+adapter hydrates directly from the row and ignores the resolver (documented
+asymmetry).
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pipeline.collection import (
-    CardResolver,
     copy_collection,
     get_store,
     onboard,
@@ -39,28 +38,20 @@ from pipeline.contracts import Deck, Trade
 if TYPE_CHECKING:
     from pipeline.collection import CollectionStore
 
-#: The repo's ``scripts/`` dir (sibling of the pipeline package root), where the
-#: interim Scryfall-cache resolver lives (the layer allowed to import scripts).
+#: The repo's ``scripts/`` dir (sibling of the pipeline package root). Only the
+#: ``factsheet`` verb reaches it (bridging to ``scripts/deck_factsheet.py``); card
+#: hydration no longer uses a script-edge resolver (it's package-native now).
 _SCRIPTS_DIR = Path(__file__).resolve().parents[3] / 'scripts'
-
-
-def _load_resolver() -> CardResolver:
-    """Load the interim Scryfall-cache-backed resolver from the script edge."""
-    root = str(_SCRIPTS_DIR)
-    if root not in sys.path:
-        sys.path.insert(0, root)
-    from collection_resolver import ScryfallCacheResolver  # pyright: ignore[reportMissingImports]
-
-    return ScryfallCacheResolver()
 
 
 def _store(*, writes_enabled: bool = False) -> CollectionStore:
     """Resolve the active backend and construct its store.
 
     ``writes_enabled`` opts the Airtable adapter into mutations (ignored by the
-    local adapter, which always writes to YAML).
+    local adapter, which always writes to YAML). The local adapter's resolver is
+    supplied by ``get_store`` (the package default) — nothing is injected here.
     """
-    return get_store(_load_resolver(), writes_enabled=writes_enabled)
+    return get_store(writes_enabled=writes_enabled)
 
 
 def _dump(models: object) -> str:
@@ -315,10 +306,11 @@ def _build_store(
             raise SystemExit('copy: backend `airtable` requires AIRTABLE_API_KEY to be set.')
         return AirtableCollectionStore.from_settings(token, writes_enabled=writes_enabled)
 
+    from pipeline.collection import resolver as resolver_mod
     from pipeline.collection.adapters.local_yaml import LocalYamlStore
 
     root = Path(data_dir).resolve() / 'collection' if data_dir else None
-    return LocalYamlStore(resolver=_load_resolver(), collection_root=root)
+    return LocalYamlStore(resolver=resolver_mod.default_card_resolver(), collection_root=root)
 
 
 def _copy(argv: list[str]) -> None:

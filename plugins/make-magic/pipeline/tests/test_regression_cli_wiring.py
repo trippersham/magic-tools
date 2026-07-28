@@ -103,7 +103,7 @@ def test_collection_cli_airtable_mode_lists_records_via_transport_double(
 
     fake = FakeAirtable({'tblCards': [_inv_row('recSol', 'Sol Ring')]})
 
-    def _fake_store(resolver: Any, *, writes_enabled: bool = False) -> Any:
+    def _fake_store(resolver: Any = None, *, writes_enabled: bool = False) -> Any:
         from pipeline.collection.adapters.airtable_collection import AirtableCollectionStore
 
         client = httpx.Client(transport=httpx.MockTransport(fake.handler))
@@ -112,7 +112,6 @@ def test_collection_cli_airtable_mode_lists_records_via_transport_double(
     config.get_settings.cache_clear()
     monkeypatch.setenv('MAKE_MAGIC_BACKEND', 'airtable')
     monkeypatch.setattr(cli, 'get_store', _fake_store)
-    monkeypatch.setattr(cli, '_load_resolver', lambda: None)
     monkeypatch.setattr('sys.argv', ['collection', 'list-inventory'])
 
     cli.main()
