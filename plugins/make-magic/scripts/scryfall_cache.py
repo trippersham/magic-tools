@@ -165,6 +165,18 @@ class ScryfallCache:
         usd = card.get("prices", {}).get("usd")
         return float(usd) if usd else None
 
+    def get_price_usd(self, name: str) -> str | None:
+        """Return the raw live USD price STRING (Scryfall `prices.usd`), or None.
+
+        The volatile price is served live (never on the `Card` contract). Returned
+        as the raw string (e.g. `"1.23"`) so consumers that persist it keep the
+        exact Scryfall shape rather than a lossy float round-trip.
+        """
+        card = self.get_card(name)
+        if not card:
+            return None
+        return card.get("prices", {}).get("usd")
+
     def cache_stats(self) -> dict:
         return {
             "backend": "pipeline-lake",

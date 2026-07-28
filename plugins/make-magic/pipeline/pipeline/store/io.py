@@ -69,8 +69,16 @@ def write_parquet(
     """
     path = StorePaths.resolve().parquet_path(layer, name)
     rel = conn.sql(relation_or_select) if isinstance(relation_or_select, str) else relation_or_select
-    # COPY ... TO writes a single Parquet file; overwrites any existing one.
-    conn.sql(f"COPY ({rel.sql_query()}) TO '{path}' (FORMAT PARQUET)")
+    # Atomic write: COPY to a temp file in the SAME dir, then os.replace() it into
+    # place (an atomic rename on POSIX). A mid-write crash leaves the temp file
+    # (cleaned up here) and the prior Parquet at `path` fully intact — the old
+    # in-place COPY could truncate the whole bulk on a partial write.
+    tmp = path.with_name(f'{path.name}.{os.getpid()}.tmp')
+    try:
+        conn.sql(f"COPY ({rel.sql_query()}) TO '{tmp}' (FORMAT PARQUET)")
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
     return path
 
 

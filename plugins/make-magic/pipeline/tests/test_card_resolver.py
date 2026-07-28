@@ -412,3 +412,51 @@ def test_fetch_card_raw_unresolved_returns_none(lake: Path) -> None:
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
     assert resolver_mod.fetch_card_raw('Nope XYZ', client=client) is None
+
+
+# --------------------------------------------------------------------------- #
+# V2 — boundary hydration: the extended card-dim fields (presentation + otags)
+# survive hydrate-on-read at the STORE boundary, end to end.
+#
+# A REAL lake (oracle_cards with presentation + card_otag data) + a REAL
+# DuckDBCardResolver + a REAL LocalYamlStore. We assert the ACTUAL values (not
+# just structural presence): `art_crop` (presentation) and `otags` (functional)
+# make it from the Parquet through the resolver and out of the store's hydrated
+# contract objects.
+# --------------------------------------------------------------------------- #
+
+
+def test_extended_fields_survive_hydrate_on_read_at_store_boundary(lake: Path) -> None:
+    """Deck + inventory read through LocalYamlStore carry the lake's actual
+    art_crop + otags values (offline, real resolver, real store)."""
+    from pipeline.collection.adapters.local_yaml import LocalYamlStore
+
+    # Seed hand-editable YAML referencing lake-present cards (Sol Ring has otags).
+    root = lake / 'collection'
+    (root / 'decks').mkdir(parents=True, exist_ok=True)
+    (root / 'decks' / 'ramp-deck.yaml').write_text(
+        'name: Ramp Deck\ncards:\n  - card: Sol Ring\n  - card: Llanowar Elves\n'
+    )
+    (root / 'inventory.yaml').write_text('- card: Sol Ring\n  owned: 2\n')
+
+    store_ = LocalYamlStore(resolver=DuckDBCardResolver(client=_BoomClient()))
+
+    # Deck boundary: the hydrated DeckCards carry presentation + functional fields.
+    deck = store_.get_deck('Ramp Deck')
+    sol = next(c for c in deck.cards if c.name == 'Sol Ring')
+    assert sol.art_crop == 'https://img/sol-ring.jpg'  # presentation, actual value
+    assert set(sol.otags) == {'ramp', 'mana-rock'}  # functional, actual values
+    assert 'ramp' in sol.otag_buckets
+    assert sol.set_name == 'Commander 2021'
+
+    llan = next(c for c in deck.cards if c.name == 'Llanowar Elves')
+    assert llan.power == '1'  # presentation string preserved
+    assert set(llan.otags) == {'ramp', 'mana-dork'}
+
+    # Inventory boundary: the same enrichment hydrates onto the OwnedCard.
+    owned = store_.list_inventory()
+    assert len(owned) == 1
+    assert owned[0].name == 'Sol Ring'
+    assert owned[0].owned == 2  # the persisted, non-derivable fact
+    assert owned[0].art_crop == 'https://img/sol-ring.jpg'  # hydrated presentation
+    assert set(owned[0].otags) == {'ramp', 'mana-rock'}  # hydrated functional tags

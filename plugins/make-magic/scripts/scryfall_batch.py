@@ -3,10 +3,13 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
+#     "make-magic-pipeline",
 #     "httpx",
 #     "typer",
 #     "pydantic",
 # ]
+# [tool.uv.sources]
+# make-magic-pipeline = { path = "../pipeline", editable = true }
 # [tool.uv]
 # exclude-newer = "2026-06-08T00:00:00Z"
 # ///
@@ -22,27 +25,40 @@ Output: JSON array with Scryfall metadata merged in:
 The "id" field (Airtable record ID) is passed through unchanged.
 Cards not found on Scryfall get "scryfall": null with an "error" key.
 
-Uses scryfall_cache.py for all Scryfall lookups (session-scoped caching).
+#5 Task 6b: this script is a CONSUMER of the package card resolver
+(`pipeline.collection.resolver`) — it resolves each name to an enriched `Card`
+(card_type / mana_cost / cmc / oracle_text / power / toughness / art_crop /
+scryfall_uri / set_name / color_identity) and gets the live price SEPARATELY
+(price is volatile and NOT on the `Card` contract — served live via the
+scryfall_cache façade). The hand-rolled Scryfall projection is retired; the OUTPUT
+JSON shape (the `scryfall` metadata block keys the managing-inventory skill
+consumes) is unchanged.
+
+Package access (house convention, same as `scripts/collection`): this PEP-723
+script pins the local package via `[tool.uv.sources]` as an editable path dep, so
+`uv run` resolves `pipeline` on invocation — the package never imports `scripts/`.
 
 Usage:
     ./scryfall_batch.py input.json output.json
     uv run --script scryfall_batch.py input.json output.json
 
 Maintenance:
-    uv add --script scryfall_batch.py 'package-name'
     uvx ruff format scryfall_batch.py
     uvx ruff check scryfall_batch.py
 """
 
+from __future__ import annotations
+
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
 import typer
 from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).parent))
-from scryfall_cache import ScryfallCache
 
 
 class ScryfallMetadata(BaseModel):
@@ -59,37 +75,82 @@ class ScryfallMetadata(BaseModel):
     color_identity: list[str] = []
 
 
-def _get_face_field(card: dict, field: str, default: str = "") -> str:
-    """Get a field from top-level or first card face (for double-faced cards)."""
-    value = card.get(field, default)
-    if not value and card.get("card_faces"):
-        value = card["card_faces"][0].get(field, default)
-    return value
+class _Resolver(Protocol):
+    """The card-resolver seam: name -> enriched `Card` (or None). Structurally the
+    package `CardResolver` port; injected for tests."""
+
+    def get_card(self, name: str) -> object | None: ...
 
 
-def extract_metadata(card: dict) -> ScryfallMetadata:
-    """Extract inventory-relevant fields from a Scryfall card object."""
-    image_uris = card.get("image_uris") or {}
-    if not image_uris and card.get("card_faces"):
-        image_uris = card["card_faces"][0].get("image_uris", {})
+def metadata_from_card(card: object, price_usd: str | None) -> ScryfallMetadata:
+    """Project a resolved `contracts.Card` (+ the live price) into the metadata
+    block, preserving the exact output shape the managing-inventory skill consumes.
 
-    oracle_text = card.get("oracle_text", "")
-    if not oracle_text and card.get("card_faces"):
-        oracle_text = " // ".join(f.get("oracle_text", "") for f in card["card_faces"])
-
+    Enrichment comes from the card dim (`Card`); the price is passed in separately
+    (volatile, served live, never a static `Card` field).
+    """
     return ScryfallMetadata(
-        card_type=card.get("type_line", ""),
-        mana_cost=_get_face_field(card, "mana_cost"),
-        cmc=card.get("cmc", 0),
-        oracle_text=oracle_text,
-        power=card.get("power") or _get_face_field(card, "power") or None,
-        toughness=card.get("toughness") or _get_face_field(card, "toughness") or None,
-        art_crop=image_uris.get("art_crop", ""),
-        scryfall_uri=card.get("scryfall_uri", ""),
-        price_usd=card.get("prices", {}).get("usd"),
-        set_name=card.get("set_name", ""),
-        color_identity=card.get("color_identity", []),
+        card_type=card.type_line or "",
+        mana_cost=card.mana_cost or "",
+        cmc=card.mana_value if card.mana_value is not None else 0,
+        oracle_text=card.oracle_text or "",
+        power=card.power,
+        toughness=card.toughness,
+        art_crop=card.art_crop or "",
+        scryfall_uri=card.scryfall_uri or "",
+        price_usd=price_usd,
+        set_name=card.set_name or "",
+        color_identity=list(card.color_identity or []),
     )
+
+
+def _process_entry(
+    card_entry: dict,
+    *,
+    resolver: _Resolver,
+    price_lookup: Callable[[str], str | None],
+    echo: Callable[[str], None],
+) -> dict:
+    """Resolve + price ONE entry, merging the metadata into the record-keyed dict.
+
+    A resolved name gets a full `scryfall` metadata block (enrichment from the
+    resolver + a live price); an unresolved name gets `scryfall: null` + an
+    `error`. The Airtable record `id` is passed through unchanged. Price is looked
+    up ONLY for a resolved card.
+    """
+    name = card_entry["name"]
+    card = resolver.get_card(name)
+    if card is not None:
+        price_usd = price_lookup(name)
+        card_entry["scryfall"] = metadata_from_card(card, price_usd).model_dump()
+    else:
+        card_entry["scryfall"] = None
+        card_entry["error"] = f"Not found on Scryfall: {name}"
+        echo("  WARNING: not found")
+    return card_entry
+
+
+def run_batch(
+    cards: list[dict],
+    *,
+    resolver: _Resolver,
+    price_lookup: Callable[[str], str | None],
+    echo: Callable[[str], None] = lambda _msg: None,
+) -> list[dict]:
+    """Resolve + price every entry, merging metadata into each record-keyed dict.
+
+    Thin loop over `_process_entry`; the resolver is the enrichment source and the
+    price is looked up separately (live). Output shape matches the prior projection.
+    """
+    results: list[dict] = []
+    for i, card_entry in enumerate(cards):
+        echo(f"[{i + 1}/{len(cards)}] {card_entry['name']}")
+        results.append(
+            _process_entry(
+                card_entry, resolver=resolver, price_lookup=price_lookup, echo=echo
+            )
+        )
+    return results
 
 
 def main(
@@ -100,26 +161,26 @@ def main(
         ..., help="Output JSON file with Scryfall metadata merged in"
     ),
 ) -> None:
-    """Fetch Scryfall metadata for a batch of MTG cards."""
+    """Fetch Scryfall metadata for a batch of MTG cards (resolver + live price)."""
+    from pipeline.collection.resolver import default_card_resolver
+    from scryfall_cache import ScryfallCache
+
     cards = json.loads(input_path.read_text())
-    results = []
+    resolver = default_card_resolver()
     cache = ScryfallCache()
 
+    results: list[dict] = []
     for i, card_entry in enumerate(cards):
-        name = card_entry["name"]
-        typer.echo(f"[{i + 1}/{len(cards)}] {name}")
-
-        data = cache.get_card(name)
-
-        if data:
-            card_entry["scryfall"] = extract_metadata(data).model_dump()
-        else:
-            card_entry["scryfall"] = None
-            card_entry["error"] = f"Not found on Scryfall: {name}"
-            typer.echo("  WARNING: not found")
-
-        results.append(card_entry)
-
+        typer.echo(f"[{i + 1}/{len(cards)}] {card_entry['name']}")
+        results.append(
+            _process_entry(
+                card_entry,
+                resolver=resolver,
+                price_lookup=cache.get_price_usd,
+                echo=typer.echo,
+            )
+        )
+        # Checkpoint every 50 records (preserves prior partial-flush behavior).
         if len(results) % 50 == 0:
             output_path.write_text(json.dumps(results, indent=2))
 

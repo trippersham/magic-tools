@@ -121,10 +121,23 @@ def _is_land_fetch_ramp(c: dict) -> bool:
     return bool(_LAND_FETCH_PATTERN.search(t)) and bool(_LAND_TO_BATTLEFIELD.search(t))
 
 
+def structured_ramp(c: dict) -> bool:
+    """A NONLAND ramp source keyed on structured ``produced_mana`` ONLY.
+
+    The precision-first, regex-free ramp signal (no oracle-text). This is the
+    baseline the scripts fallback census reuses so there is ONE copy of the
+    produced_mana ramp rule; the pipeline path layers ``_is_land_fetch_ramp`` on
+    top of it (see ``_is_ramp_source``).
+    """
+    if is_land(_type_line(c)):
+        return False
+    return _produces_mana(c)
+
+
 def _is_ramp_source(c: dict) -> bool:
     if is_land(_type_line(c)):
         return False
-    return _produces_mana(c) or _is_land_fetch_ramp(c)
+    return structured_ramp(c) or _is_land_fetch_ramp(c)
 
 
 def _is_fixing_source(c: dict) -> bool:
