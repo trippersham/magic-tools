@@ -9,6 +9,9 @@ Turns ingested oracle-tags into deck-level functional categorization:
     - ``deck_factsheet`` — the pipeline ``factsheet_for`` that emits a
       ``contracts.FactSheet``-valid dict (multi-label otag_buckets +
       susceptibility + the structured facts).
+    - ``spoilers``     — reconcile ``raw/spoilers`` previews to Scryfall
+      identities via the card resolver -> ``normalized/spoilers`` (the ``Spoiler``
+      contract); "new since last sync" derives from the lake.
 """
 
 from __future__ import annotations

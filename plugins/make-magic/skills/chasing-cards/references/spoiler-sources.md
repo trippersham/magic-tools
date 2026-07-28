@@ -11,20 +11,31 @@ MythicSpoiler often has cards hours or days before Scryfall. The sync engine use
 
 ### How it works
 
-The spoiler sync script (`${CLAUDE_PLUGIN_ROOT}/scripts/spoiler_sync.py`) runs in three phases:
+The spoiler sync script (`${CLAUDE_PLUGIN_ROOT}/scripts/spoiler_sync.py`) is a thin façade over
+the pipeline's spoiler lineage. It runs two phases:
 
-1. **Phase 1: MythicSpoiler scraping** — scrapes set index pages + newspoilers.html for new card entries. Cards discovered here have slugs and images but no structured metadata.
-2. **Phase 2: Scryfall API** — queries Scryfall for all cards in the target sets using ETag-based caching. Provides full metadata (oracle text, mana cost, type line, etc.).
-3. **Phase 3: Reconciliation** — attempts to match unconfirmed MythicSpoiler entries to their Scryfall counterparts using fuzzy name matching.
+1. **Phase 1: MythicSpoiler scraping** (`pipeline.sources.spoilers`) — scrapes set index pages +
+   newspoilers.html for card entries and lands them in the lake's `raw/spoilers` Parquet (append-
+   deduped on `(set_code, slug)`). Cards discovered here have slugs and images but no structured
+   metadata.
+2. **Phase 2: Reconciliation** (`pipeline.transforms.spoilers`) — reconciles each slug to a
+   Scryfall identity via the lake-backed **card resolver** (the card dim), writing the reconciled
+   previews to `normalized/spoilers` (the `Spoiler` contract). A confirmed match carries an
+   `oracle_id` + `confirmed=True`; an unreconciled preview stays `oracle_id=None,
+   confirmed=False`.
 
 ### State tracking
 
-Local SQLite database (`spoiler_cache.db`) tracks:
-- All known cards with source attribution (first_seen_source: mythicspoiler or scryfall)
-- Confirmation status (confirmed_by_scryfall flag)
-- MythicSpoiler slug ↔ Scryfall ID linkage
-- ETag for Scryfall API caching
-- Sync timestamps
+State lives in the **pipeline lake** (DuckDB/Parquet under `MAKE_MAGIC_DATA_DIR`) — there is **no
+SQLite `spoiler_cache.db`**:
+- `raw/spoilers` — every scraped preview row (slug, image, set code), append-deduped across runs.
+- `normalized/spoilers` — the reconciled `Spoiler` records: slug, set_code, name,
+  `oracle_id` (null until Scryfall-confirmed), source (`mythicspoiler`/`scryfall`),
+  `first_seen_cursor`, `confirmed`.
+- **"New since last sync"** derives from the lake — slugs present in the current scrape but absent
+  from the prior `normalized/spoilers` table (a snapshot-diff), replacing the old SQLite `meta`
+  watermark and seen-slug/seen-id sets. Each newly-seen row is stamped with the spoiler cursor as
+  its `first_seen_cursor`; that cursor is preserved on re-runs.
 
 ### CLI Commands
 
@@ -48,7 +59,10 @@ uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/spoiler_sync.py list --new
 ## Known Limitations
 
 - **MythicSpoiler HTML structure** can change without notice — scraping may break
+- **MythicSpoiler unreachable** — the scrape fails open, keeping the last `raw/spoilers` snapshot
+  (no crash); on a first-ever run with a dead network you simply get an empty table
 - **MythicSpoiler 404s** are normal for sets not yet on the site
-- **Fuzzy matching** in Phase 3 uses slug-to-name conversion which can fail on unusual card names
-- **Scryfall rate limiting** — 100ms between requests, 429 responses trigger 30-65s cooldown
-- **ETag caching** — Scryfall returns 304 Not Modified when no changes, saving bandwidth
+- **Reconciliation** uses slug-to-name conversion handed to the card resolver, which can fail on
+  unusual card names (the preview stays unconfirmed until a later run resolves it)
+- **Scryfall rate limiting** — the resolver rate-limits its live fallbacks; already-landed cards
+  resolve offline from the lake

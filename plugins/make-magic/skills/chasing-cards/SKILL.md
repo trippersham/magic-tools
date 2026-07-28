@@ -71,7 +71,11 @@ identical either way.
 - **uv** -- the CLI and helper scripts run via `uv run` (PEP 723 inline metadata for scripts)
 - **A populated backend** -- local mode reads `collection/` YAML under `MAKE_MAGIC_DATA_DIR`;
   Airtable mode needs the connector enabled via `/mcp`
-- **Scryfall cache** -- the spoiler cache persists across sessions in `spoiler_cache.db`
+- **The pipeline lake** -- spoiler state persists across sessions in the DuckDB/Parquet lake
+  under `MAKE_MAGIC_DATA_DIR` (raw scrape in `raw/spoilers`, reconciled previews in
+  `normalized/spoilers`). There is **no SQLite file** -- `spoiler_sync.py` is a thin façade over
+  the pipeline's `sources.spoilers` + `transforms.spoilers`, and "new since last sync" derives
+  from the lake (current snapshot vs. the prior normalized table), not a local database.
 
 ## Operation Router
 
@@ -101,17 +105,19 @@ uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/spoiler_sync.py list --new
 
 <output-capture-pattern>
 
-**stdout:** JSON with sync results -- new cards found, confirmation counts
-**stderr:** Progress messages, rate limit warnings
+**stdout:** A human-readable summary -- the phase progress plus a `─── Summary ───` block
+listing **New since last sync** (name + set), the **Confirmed by Scryfall** count, and the
+**Total cards in lake**. `status` and `list` print rich tables (Set / Total / Confirmed /
+Unconfirmed for `status`; Set / Name / Source / Confirmed for `list`). Read the summary directly
+-- there is no JSON envelope.
 
 ```bash
-result=$(uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/spoiler_sync.py sync msh 2>/dev/null)
-echo "$result" | jq '.new_cards'
+uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/spoiler_sync.py sync msh
 ```
 
 </output-capture-pattern>
 
-**After syncing:** Report new cards found since last sync. Ask if user wants to generate chase recommendations (workflow 2).
+**After syncing:** Report new cards found since last sync (the `New since last sync` lines). Ask if user wants to generate chase recommendations (workflow 2).
 
 <reference file="spoiler-sources.md" section="Sync Engine">
 For source hierarchy, phase details, state tracking, and known limitations, see references/spoiler-sources.md.
