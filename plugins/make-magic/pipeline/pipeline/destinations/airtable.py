@@ -167,17 +167,27 @@ DERIVED_CARD_FIELDS: frozenset[str] = frozenset(
     }
 )
 
-#: THE CHASE-CARDS CARD-DIM DERIVED FIELDS (#5, 5b-3, corrected against the LIVE
-#: base tblXsNtGgT7UQLPXZ). The Chase Cards table is a SEPARATE Airtable table but
-#: it carries the SAME nine Scryfall-pure columns as Inventory Cards — verified on
-#: the live base — so the chase derived allowlist is exactly those nine (identical
-#: to :data:`DERIVED_CARD_FIELDS`, aliased here for the CHASE binding). Chase LACKS
-#: only the two engine ⚙ otag fields (⚙ Buckets / ⚙ Otags), which is why the chase
-#: allowlist is the nine derived columns and nothing else. This is the closed
-#: authorization set for the CHASE table; it is a DIFFERENT table from Inventory
-#: (its own allowlist/denylist/guard binding) and MUST equal the golden contract's
-#: ``tables."Chase Cards".derived_fields`` (drift guard at first use).
-CHASE_DERIVED_CARD_FIELDS: frozenset[str] = DERIVED_CARD_FIELDS
+#: THE CHASE-CARDS CARD-DIM DERIVED FIELDS (#5, 5b-3, #5 otag extension against the
+#: LIVE base tblXsNtGgT7UQLPXZ). The Chase Cards table is a SEPARATE Airtable table
+#: that now carries the SAME ELEVEN engine-derived columns as Inventory Cards: the
+#: nine Scryfall-pure columns (:data:`DERIVED_CARD_FIELDS`) PLUS the two engine ⚙
+#: otag fields (⚙ Buckets / ⚙ Otags), which were just added to the live Chase table
+#: to match Inventory. So the chase derived set is those eleven.
+#:
+#: ASYMMETRY (deliberate) vs Inventory's :data:`DERIVED_CARD_FIELDS` (nine): the two
+#: constants are NO LONGER identical. Inventory's INLINE derived-write emits only the
+#: nine Scryfall columns — its two ⚙ fields are populated by the SEPARATE otag SYNC
+#: path (:func:`sync` / :func:`build_payload`), so the ⚙ fields sit on the Inventory
+#: ALLOWLIST but not in its inline-write set. Chase has NO otag sync path, so the
+#: chase INLINE write is the ONLY way ⚙ Buckets / ⚙ Otags ever land on Chase — which
+#: is why the two ⚙ fields are in :data:`CHASE_DERIVED_CARD_FIELDS` (and thus emitted
+#: by :func:`build_chase_derived_card_payload`), not just on the allowlist.
+#:
+#: This is the closed authorization set for the CHASE table; it is a DIFFERENT table
+#: from Inventory (its own allowlist/denylist/guard binding) and MUST equal the
+#: golden contract's ``tables."Chase Cards".derived_fields`` (drift guard at first
+#: use).
+CHASE_DERIVED_CARD_FIELDS: frozenset[str] = DERIVED_CARD_FIELDS | frozenset(f.name for f in DERIVED_FIELDS)
 
 #: THE ALLOWLIST. The ONLY Airtable fields this adapter may ever touch: the two
 #: engine-created ⚙ fields PLUS the card-dim derived Scryfall columns. Adding a
@@ -187,10 +197,13 @@ CHASE_DERIVED_CARD_FIELDS: frozenset[str] = DERIVED_CARD_FIELDS
 ALLOWLIST_NAMES: frozenset[str] = frozenset(f.name for f in DERIVED_FIELDS) | DERIVED_CARD_FIELDS
 
 #: THE CHASE ALLOWLIST. The ONLY Chase Cards fields the inline chase derived-write
-#: may touch: the nine Scryfall-pure derived columns (which INCLUDE Price
-#: (TCGPlayer) — Chase HAS that column, sourced live). No ⚙ fields (Chase lacks
-#: them; the otag sync does not target Chase). Closed set, diffed against the chase
-#: denylist at first use.
+#: may touch: the ELEVEN engine-derived columns — the nine Scryfall-pure columns
+#: (which INCLUDE Price (TCGPlayer) — Chase HAS that column, sourced live) PLUS the
+#: two engine ⚙ otag fields (⚙ Buckets / ⚙ Otags), which now EXIST on the live Chase
+#: table. Unlike Inventory (whose ⚙ come from the separate otag SYNC), Chase has NO
+#: otag sync, so the inline write is chase's only path to ⚙ — hence they are BOTH on
+#: the allowlist AND in :data:`CHASE_DERIVED_CARD_FIELDS` (emitted by the payload
+#: builder). Closed set, diffed against the chase denylist at first use.
 CHASE_ALLOWLIST_NAMES: frozenset[str] = CHASE_DERIVED_CARD_FIELDS
 
 #: THE CHASE WRONG-TABLE PROBE. The chase human fields the LIVE Chase Cards table
@@ -204,7 +217,10 @@ CHASE_ALLOWLIST_NAMES: frozenset[str] = CHASE_DERIVED_CARD_FIELDS
 #: chase human field is still refused. (The chase contract denylist — Card Name /
 #: Sets / Target Decks — happens to be a subset of the live table now that Chase
 #: has the full nine derived cols, so it would also pass; the tight probe is kept
-#: for the clearer wrong-table intent and the probe/denylist split.)
+#: for the clearer wrong-table intent and the probe/denylist split. Now that Chase
+#: has the full eleven derived cols (nine Scryfall + ⚙ Buckets + ⚙ Otags), the
+#: contract chase denylist is still a subset of the live table, but the tight probe
+#: is kept for intent.)
 CHASE_PROBE_FIELDS: frozenset[str] = frozenset({'Card Name', 'Target Decks'})
 
 #: Convenience handles onto the two ⚙ field names (single source of truth = tuple).
@@ -484,7 +500,8 @@ def assert_no_chase_human_fields(payload_fields: Any) -> None:
 
     Bound to the CHASE allowlist (:data:`CHASE_ALLOWLIST_NAMES`) + chase denylist
     (:func:`_chase_human_denylist`), so a chase human field (Card Name / Target
-    Decks / …) fails CLOSED and only the five chase derived columns may be written.
+    Decks / …) fails CLOSED and only the eleven chase derived columns (nine Scryfall
+    + ⚙ Buckets + ⚙ Otags) may be written.
     """
     _assert_within_binding(payload_fields, allowlist=CHASE_ALLOWLIST_NAMES, denylist=_chase_human_denylist())
 
@@ -684,18 +701,40 @@ def build_derived_card_payload(card: Any, price_usd: str | None) -> dict[str, An
 
 
 def build_chase_derived_card_payload(card: Any, price_usd: str | None) -> dict[str, Any]:
-    """Build the NINE-field chase derived write payload for ONE resolved card (5b-3).
+    """Build the ELEVEN-field chase derived write payload for ONE resolved card (#5).
 
-    Corrected against the LIVE base: the Chase Cards table carries the SAME nine
-    Scryfall-pure columns as Inventory Cards (including Price (TCGPlayer), sourced
-    LIVE), so this reuses :func:`build_derived_card_payload` verbatim — the chase
-    payload is byte-for-byte the inventory derived payload; only the WRITE TARGET
-    (the Chase Cards table) and the guard binding differ. Kept as a thin, explicit
-    alias so callers/tests reading "chase payload" find it here. The chase guard
-    (:func:`assert_no_chase_human_fields`) is re-run as defense-in-depth. Idempotent:
-    same Card + price -> identical payload.
+    The Chase Cards table now carries the SAME eleven engine-derived columns as
+    Inventory: the nine Scryfall-pure columns (including Price (TCGPlayer), sourced
+    LIVE) PLUS the two engine ⚙ otag fields (⚙ Buckets / ⚙ Otags), which were just
+    added to the live Chase table. So this payload is:
+
+        (1) the nine Scryfall columns from :func:`build_derived_card_payload`, PLUS
+        (2) the two ⚙ fields, formatted with the SAME logic :func:`build_payload`
+            uses for the Inventory otag SYNC — ``⚙ Buckets`` as the multipleSelects
+            LIST of bucket names (from ``card.otag_buckets``), ``⚙ Otags`` as the raw
+            slugs newline-joined into multilineText (from ``card.otags``).
+
+    ASYMMETRY (deliberate): the OWNED inline write (:func:`build_derived_card_payload`)
+    stays NINE — Inventory's ⚙ fields are populated by the separate otag SYNC path.
+    CHASE has NO otag sync, so this inline write is chase's ONLY path to ⚙, which is
+    why it emits eleven. A card with empty ``otag_buckets`` / ``otags`` writes EMPTY ⚙
+    (an empty list / empty string) — fail-open and valid, never a crash.
+
+    Emits EXACTLY the keys in :data:`CHASE_DERIVED_CARD_FIELDS`; there is no branch
+    that copies an arbitrary field name, so a human field cannot appear structurally.
+    The chase guard (:func:`assert_no_chase_human_fields`) is re-run as
+    defense-in-depth. Idempotent: same Card + price -> identical payload.
     """
     payload = build_derived_card_payload(card, price_usd)
+    # The two ⚙ otag fields, formatted EXACTLY as the Inventory otag sync
+    # (:func:`build_payload`) does: buckets -> multipleSelects list, otags ->
+    # newline-joined multilineText. Sourced from the resolver Card (populated in P2).
+    payload[BUCKETS_FIELD] = list(card.otag_buckets or [])
+    payload[OTAGS_FIELD] = '\n'.join(card.otags or [])
+    # STRUCTURAL invariant: the emitted keys are EXACTLY the closed chase derived set.
+    assert set(payload) == CHASE_DERIVED_CARD_FIELDS, (
+        f'chase derived payload keys {sorted(payload)} != CHASE_DERIVED_CARD_FIELDS {sorted(CHASE_DERIVED_CARD_FIELDS)}'
+    )
     assert_no_chase_human_fields(payload.keys())  # defense-in-depth (chase guard)
     return payload
 
@@ -836,7 +875,8 @@ class AllowlistWriteClient:
         #: (``probe_fields=None`` -> the full Inventory denylist, byte-for-byte the
         #: original guard). For Chase the contract's denylist is a SUPERSET of the
         #: live table's fields (the chasing-cards skill declares an aspirational
-        #: fuller schema than the live 5-derived + Card Name/Target Decks table), so
+        #: fuller schema than the live eleven-derived + Card Name/Target Decks
+        #: table), so
         #: probing with the full denylist would wrongly REJECT the real Chase table;
         #: the chase caller passes a tight, live-accurate probe (Card Name +
         #: Target Decks) that still rejects a genuinely-wrong table (Decks lacks
@@ -1328,24 +1368,29 @@ def write_chase_derived_fields(
     apply: bool = False,
     dry_run: bool = True,
 ) -> DerivedWriteReport:
-    """Guarded write of the NINE Chase Cards DERIVED columns. DRY-RUN default (5b-3).
+    """Guarded write of the ELEVEN Chase Cards DERIVED columns. DRY-RUN default (#5).
 
-    The Chase Cards analogue of :func:`write_derived_fields`. Corrected against the
-    LIVE base: the Chase table carries the SAME nine Scryfall-pure columns as
-    Inventory (INCLUDING Price (TCGPlayer)), so for each pulled chase Card it sources
-    the nine derived columns from the lake ``resolver.get_card`` PLUS a LIVE price
-    (``price_fetcher(name)`` — price is NOT on the Card contract), maps them via
-    :func:`build_chase_derived_card_payload` (== the inventory payload), and writes
-    them through the CHASE-bound guard (:func:`assert_no_chase_human_fields` + a
-    chase-bound :meth:`AllowlistWriteClient._guarded_body`) to the Chase Cards table.
-    Keyed on the Airtable record id; idempotent. Chunked at
-    :data:`MAX_RECORDS_PER_PATCH`.
+    The Chase Cards analogue of :func:`write_derived_fields`. The Chase table now
+    carries the SAME eleven engine-derived columns as Inventory: the nine Scryfall-
+    pure columns (INCLUDING Price (TCGPlayer)) PLUS the two engine ⚙ otag fields (⚙
+    Buckets / ⚙ Otags). For each pulled chase Card it sources the nine derived
+    columns from the lake ``resolver.get_card`` PLUS a LIVE price (``price_fetcher(
+    name)`` — price is NOT on the Card contract) PLUS the two ⚙ fields from the same
+    Card's ``otag_buckets`` / ``otags`` (populated in P2), maps them via
+    :func:`build_chase_derived_card_payload`, and writes them through the CHASE-bound
+    guard (:func:`assert_no_chase_human_fields` + a chase-bound
+    :meth:`AllowlistWriteClient._guarded_body`) to the Chase Cards table. Keyed on the
+    Airtable record id; idempotent. Chunked at :data:`MAX_RECORDS_PER_PATCH`.
+
+    ASYMMETRY vs Inventory (:func:`write_derived_fields`, nine): Inventory's ⚙ fields
+    come from the separate otag SYNC path, but Chase has NO otag sync — so this inline
+    write is chase's ONLY path to ⚙, hence eleven columns.
 
     BACKEND GUARD: when ``resolve_backend() != 'airtable'`` (local mode) this is a
     strict NO-OP — ZERO Airtable calls — returning a plan flagged
     ``skipped_no_airtable``.
 
-    The nine columns ALREADY EXIST on the live Chase Cards table — this NEVER
+    The eleven columns ALREADY EXIST on the live Chase Cards table — this NEVER
     creates them. It resolves the existing ids and FAILS LOUD if any is missing.
 
     Args:

@@ -5,16 +5,22 @@ adapter — AFTER persisting the chase facts (Card Name + Target Decks) — writ
 NINE Chase Cards Scryfall-DERIVED columns for THAT ONE card via the 5b-3 primitive,
 INLINE, following the mutation's apply semantics (apply=True, not dry-run).
 
-Corrected against the LIVE base (tblXsNtGgT7UQLPXZ): the Chase Cards table carries
-the SAME nine Scryfall-pure columns as Inventory Cards — Card Type, Mana Cost, CMC,
-Power / Toughness, Oracle Text, Card Art, Scryfall URL, Price (TCGPlayer), Color
-Identity — INCLUDING a live-sourced price. Chase LACKS only the two engine ⚙ otag
-fields. The write reuses the adapter's existing httpx connection and is best-effort
-(fail-open) so it can never break the chase mutation.
+Corrected against the LIVE base (tblXsNtGgT7UQLPXZ): the Chase Cards table now carries
+the SAME ELEVEN engine-derived columns as Inventory Cards — the nine Scryfall-pure
+columns (Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art,
+Scryfall URL, Price (TCGPlayer), Color Identity — INCLUDING a live-sourced price)
+PLUS the two engine ⚙ otag fields (⚙ Buckets / ⚙ Otags), which were just added to the
+live Chase table. Unlike Inventory (whose ⚙ come from the separate otag SYNC), Chase
+has NO otag sync, so this inline write is chase's ONLY path to ⚙. The write reuses the
+adapter's existing httpx connection and is best-effort (fail-open) so it can never
+break the chase mutation.
 
 Safety proofs (task guardrails):
-    (a) `add_chase` (new + existing) in airtable-mode writes ALL NINE chase derived
-        cols + a live price, keyed by chase field id;
+    (a) `add_chase` (new + existing) in airtable-mode writes ALL ELEVEN chase derived
+        cols — the nine Scryfall + a live price, ⚙ Buckets as a LIST of bucket names,
+        ⚙ Otags as newline-joined text — keyed by chase field id;
+    (a2) a card with EMPTY otag_buckets/otags writes EMPTY ⚙ (empty list / empty
+        string) — no crash;
     (b) the chase write NEVER touches a chase human field (Card Name / Target Decks /
         Sets / Priority / Status / Target Price) — the CHASE guard fails CLOSED;
     (c) LOCAL-mode chase add makes ZERO Airtable calls (the primitive self-guards
@@ -53,7 +59,8 @@ _CHASE_FIELDS: dict[str, str] = {
     'Sets': 'fldChaseSets',
     'Target Decks': 'fldTargetDecks',
     'Price Last Updated': 'fldChasePriceUpd',
-    # the nine chase derived cols (the chase allowlist) — identical to Inventory
+    # the eleven chase derived cols (the chase allowlist) — now identical to the
+    # Inventory engine-derived set: nine Scryfall + the two engine ⚙ otag fields.
     'Card Type': 'fldChaseType',
     'Mana Cost': 'fldChaseMana',
     'CMC': 'fldChaseCmc',
@@ -63,6 +70,8 @@ _CHASE_FIELDS: dict[str, str] = {
     'Scryfall URL': 'fldChaseUrl',
     'Price (TCGPlayer)': 'fldChasePrice',
     'Color Identity': 'fldChaseColor',
+    f'{wb.NS}Buckets': 'fldChaseBuckets',
+    f'{wb.NS}Otags': 'fldChaseOtags',
 }
 
 # The Inventory Cards table is still present in the base (the owned inline write
@@ -115,6 +124,13 @@ def _meta_payload() -> dict[str, Any]:
     return {'tables': tables}
 
 
+#: Otag facts for Sol Ring, populated in P2 (the resolver Card carries them). The
+#: chase inline write sources ⚙ Buckets from ``otag_buckets`` (multipleSelects list)
+#: and ⚙ Otags from ``otags`` (newline-joined multilineText) — SAME formatting the
+#: Inventory otag sync (build_payload) uses.
+_SOL_BUCKETS = ['ramp']
+_SOL_OTAGS = ['mana-rock', 'ramp']
+
 _SOL_RING = Card(
     name='Sol Ring',
     oracle_id='oid-sol',
@@ -126,6 +142,8 @@ _SOL_RING = Card(
     art_crop='https://img.scryfall.io/sol.jpg',
     scryfall_uri='https://scryfall.com/card/sol',
     set_name='Commander',
+    otag_buckets=list(_SOL_BUCKETS),
+    otags=list(_SOL_OTAGS),
 )
 
 
@@ -240,7 +258,8 @@ def _chase_derived_write_bodies(fake: FakeAirtable) -> list[dict[str, Any]]:
 
 
 # --------------------------------------------------------------------------- #
-# (a) add_chase writes ALL NINE chase derived cols + a live price (new + existing).
+# (a) add_chase writes ALL ELEVEN chase derived cols — nine Scryfall + a live price
+#     + ⚙ Buckets (list) + ⚙ Otags (text) (new + existing).
 # --------------------------------------------------------------------------- #
 
 
@@ -256,18 +275,27 @@ def test_add_chase_new_writes_chase_derived_columns_inline() -> None:
     assert len(posts) == 1
     assert posts[0]['fields'][_CHASE_FIELDS['Card Name']] == 'Sol Ring'
 
-    # Then ALL NINE chase derived columns were PATCHed onto the new record.
+    # Then ALL ELEVEN chase derived columns were PATCHed onto the new record.
     derived = _chase_derived_write_bodies(fake)
     assert len(derived) == 1
     rec = derived[0]['records'][0]
     assert rec['id'] == 'recNew1'
     chase_derived_ids = {_CHASE_FIELDS[n] for n in wb.CHASE_DERIVED_CARD_FIELDS}
     assert set(rec['fields']) == chase_derived_ids
-    # The nine == the Inventory derived set (Chase carries the same columns).
-    assert wb.CHASE_DERIVED_CARD_FIELDS == wb.DERIVED_CARD_FIELDS
-    assert len(chase_derived_ids) == 9
+    # The eleven == the nine Inventory Scryfall cols + the two ⚙ otag fields. This is
+    # the deliberate asymmetry: Inventory's inline write emits nine (its ⚙ come from
+    # the separate otag sync); chase has no sync so its inline write emits eleven.
+    gear_fields = {f'{wb.NS}Buckets', f'{wb.NS}Otags'}
+    expected_chase_derived = wb.DERIVED_CARD_FIELDS | gear_fields
+    assert expected_chase_derived == wb.CHASE_DERIVED_CARD_FIELDS
+    assert wb.CHASE_DERIVED_CARD_FIELDS != wb.DERIVED_CARD_FIELDS  # asymmetry
+    assert len(chase_derived_ids) == 11
     # The LIVE price landed in Price (TCGPlayer).
     assert rec['fields'][_CHASE_FIELDS['Price (TCGPlayer)']] == _LIVE_PRICE
+    # ⚙ Buckets is a LIST of bucket names (multipleSelects); ⚙ Otags is the raw slugs
+    # newline-joined into text — the SAME formatting the Inventory otag sync uses.
+    assert rec['fields'][_CHASE_FIELDS[f'{wb.NS}Buckets']] == _SOL_BUCKETS
+    assert rec['fields'][_CHASE_FIELDS[f'{wb.NS}Otags']] == '\n'.join(_SOL_OTAGS)
     # The card dim AND the live-price fetcher were consulted for that card.
     assert resolver.seen == ['Sol Ring']
     assert price.seen == ['Sol Ring']
@@ -286,6 +314,40 @@ def test_add_chase_existing_refreshes_chase_derived_columns_inline() -> None:
     chase_derived_ids = {_CHASE_FIELDS[n] for n in wb.CHASE_DERIVED_CARD_FIELDS}
     assert set(rec['fields']) == chase_derived_ids
     assert rec['fields'][_CHASE_FIELDS['Price (TCGPlayer)']] == _LIVE_PRICE
+    assert rec['fields'][_CHASE_FIELDS[f'{wb.NS}Buckets']] == _SOL_BUCKETS
+    assert rec['fields'][_CHASE_FIELDS[f'{wb.NS}Otags']] == '\n'.join(_SOL_OTAGS)
+
+
+# --------------------------------------------------------------------------- #
+# (a2) a card with EMPTY otag_buckets/otags writes EMPTY ⚙ (no crash).
+# --------------------------------------------------------------------------- #
+
+
+def test_add_chase_empty_otags_writes_empty_gear_fields() -> None:
+    """A resolved card carrying NO otag data still writes all eleven cols; the two ⚙
+    fields land EMPTY (empty list / empty string) — fail-open and valid, no crash."""
+    bare = Card(
+        name='Bare Card',
+        oracle_id='oid-bare',
+        mana_value=2.0,
+        mana_cost='{2}',
+        type_line='Artifact',
+        color_identity=[],
+        oracle_text='Does nothing.',
+        art_crop='https://img.scryfall.io/bare.jpg',
+        scryfall_uri='https://scryfall.com/card/bare',
+        set_name='Commander',
+        # otag_buckets / otags default to empty lists.
+    )
+    fake = FakeAirtable(chase=[])
+    _store(fake, resolver=StubResolver({'Bare Card': bare})).add_chase('Bare Card')
+    derived = _chase_derived_write_bodies(fake)
+    assert len(derived) == 1
+    rec = derived[0]['records'][0]
+    chase_derived_ids = {_CHASE_FIELDS[n] for n in wb.CHASE_DERIVED_CARD_FIELDS}
+    assert set(rec['fields']) == chase_derived_ids  # all eleven still emitted
+    assert rec['fields'][_CHASE_FIELDS[f'{wb.NS}Buckets']] == []
+    assert rec['fields'][_CHASE_FIELDS[f'{wb.NS}Otags']] == ''
 
 
 # --------------------------------------------------------------------------- #

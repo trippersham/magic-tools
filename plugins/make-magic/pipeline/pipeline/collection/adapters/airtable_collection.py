@@ -420,22 +420,24 @@ class AirtableCollectionStore:
     # --- inline CHASE derived-column write (#5 / 5b-3) ----------------------- #
 
     def _write_chase_derived_inline(self, name: str, record_id: str | None) -> None:
-        """Persist the NINE Chase Cards DERIVED columns for ONE card, INLINE, best-effort.
+        """Persist the ELEVEN Chase Cards DERIVED columns for ONE card, INLINE, best-effort.
 
         The Chase Cards analogue of :meth:`_write_derived_inline`. Called AFTER a
         chase MUTATION (``add_chase`` create/update) has persisted its human/owned
-        chase facts (Card Name + Target Decks). Corrected against the LIVE base: the
-        Chase table carries the SAME nine Scryfall-derived columns as Inventory
-        (Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art,
-        Scryfall URL, Price (TCGPlayer), Color Identity — including a LIVE price), so
-        it writes all nine for THAT card via the 5b-3 primitive
-        :func:`destinations.airtable.write_chase_derived_fields`, following the
-        mutation's apply semantics (``apply=True``, NOT dry-run).
+        chase facts (Card Name + Target Decks). The Chase table now carries the SAME
+        eleven engine-derived columns as Inventory: the nine Scryfall-derived columns
+        (Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art, Scryfall
+        URL, Price (TCGPlayer), Color Identity — including a LIVE price) PLUS the two
+        engine ⚙ otag fields (⚙ Buckets / ⚙ Otags), so it writes all eleven for THAT
+        card via the primitive :func:`destinations.airtable.write_chase_derived_fields`,
+        following the mutation's apply semantics (``apply=True``, NOT dry-run). Unlike
+        Inventory (whose ⚙ come from the separate otag SYNC), Chase has NO otag sync,
+        so this inline write is chase's ONLY path to the two ⚙ fields.
 
         Safety properties (mirroring the owned hook):
             - The primitive SELF-GUARDS on ``resolve_backend()``: in local mode it
               is a strict NO-OP (zero Airtable calls).
-            - It writes ONLY the nine chase-allowlisted derived columns — NEVER any
+            - It writes ONLY the eleven chase-allowlisted derived columns — NEVER any
               chase human field (#6 wrote Card Name / Target Decks). The CHASE-bound
               guard (:func:`assert_no_chase_human_fields` + the chase wire guard)
               enforces the derived-vs-human partition on the Chase table.
@@ -789,11 +791,13 @@ class AirtableCollectionStore:
                 merged = current + [rid for rid in target_ids if rid not in current]
                 self._client.update_record(table_id, existing['id'], {self._fid(t, self._CHASE_TARGET_DECKS): merged})
 
-        # INLINE CHASE derived-column write (#5, 5b-3): follow the chase-facts
-        # mutation. Writes the FIVE chase derived columns (Card Type, CMC, Mana
-        # Cost, Oracle Text, Color Identity) for this card via the CHASE-bound
-        # guarded primitive — best-effort / fail-open, backend-guarded, never
-        # touching a chase human field.
+        # INLINE CHASE derived-column write (#5): follow the chase-facts mutation.
+        # Writes the ELEVEN chase derived columns (nine Scryfall — Card Type, Mana
+        # Cost, CMC, Power / Toughness, Oracle Text, Card Art, Scryfall URL, Price
+        # (TCGPlayer), Color Identity — PLUS ⚙ Buckets / ⚙ Otags) for this card via
+        # the CHASE-bound guarded primitive — best-effort / fail-open, backend-
+        # guarded, never touching a chase human field. Chase has NO otag sync, so
+        # this inline write is chase's only path to the two ⚙ fields.
         self._write_chase_derived_inline(ref, record_id)
 
         skipped = [
