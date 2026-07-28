@@ -128,6 +128,13 @@ def test_save_deck_then_get_and_field_verbs(
     _run(monkeypatch, 'get-deck', 'Gruul Aggro', '--field', 'focus_otags')
     assert json.loads(capsys.readouterr().out) == ['sacrifice', 'tokens']
 
+    # `commanders` is a derived list[DeckCard] — it must serialize (regression:
+    # it crashed the handler's plain json.dumps since DeckCard isn't natively
+    # JSON-serializable; found by dogfooding `get-deck --field commanders`).
+    _run(monkeypatch, 'get-deck', 'Gruul Aggro', '--field', 'commanders')
+    commanders = json.loads(capsys.readouterr().out)
+    assert [c['name'] for c in commanders] == ['Grumgully, the Generous']
+
     _run(monkeypatch, 'list-decks')
     assert 'Gruul Aggro' in capsys.readouterr().out
 

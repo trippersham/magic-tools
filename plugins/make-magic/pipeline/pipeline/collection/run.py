@@ -124,7 +124,15 @@ def _get_deck(argv: list[str]) -> None:
         if args.field not in allowed:
             raise CollectionError(f'unknown deck field {args.field!r}; choose from {allowed}')
         value = getattr(deck, args.field)
-        print(json.dumps(value) if isinstance(value, list) else value)
+        if isinstance(value, list):
+            # A list field may hold scalars (``focus_otags`` -> list[str]) or
+            # pydantic models (``commanders`` -> list[DeckCard]); serialize models
+            # via pydantic so ``--field commanders`` doesn't blow up on json.dumps.
+            print(json.dumps([v.model_dump(mode='json') if isinstance(v, BaseModel) else v for v in value], indent=2))
+        elif isinstance(value, BaseModel):
+            print(value.model_dump_json(indent=2))
+        else:
+            print('' if value is None else value)
     else:
         print(deck.model_dump_json(indent=2))
 
