@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -32,6 +33,14 @@ if TYPE_CHECKING:
 
 _NAMED_URL = 'https://api.scryfall.com/cards/named'
 _CACHE_FILENAME = 'scryfall_names.json'
+
+#: Scryfall asks for ~50-100ms between requests; pace to that so a deck-sized
+#: burst of per-card lookups doesn't trip 429s (a wall of transient failures that
+#: leaves a deck un-hydrated). The #5 bulk resolver removes per-card lookups.
+_MIN_INTERVAL = 0.1
+#: Bounded retries on a throttle/unavailable (429/503), honoring Retry-After.
+_MAX_RETRIES = 3
+_RETRYABLE_STATUS = frozenset({429, 503})
 
 
 class _Transient(Enum):
@@ -76,9 +85,17 @@ class ScryfallResolver:
     card back name-only.
     """
 
-    def __init__(self, *, cache_path: Path | None = None, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        cache_path: Path | None = None,
+        client: httpx.Client | None = None,
+        min_interval: float = _MIN_INTERVAL,
+    ) -> None:
         self._client = client or httpx.Client(timeout=30, headers={'User-Agent': 'make-magic-plugin/2.0'})
         self._cache_path = cache_path
+        self._min_interval = min_interval  # tests pass 0.0 to skip pacing sleeps
+        self._last_request = 0.0
         self._mem: dict[str, dict[str, Any] | None] = {}
         if cache_path is not None and cache_path.exists():
             try:
@@ -106,15 +123,40 @@ class ScryfallResolver:
         must not poison the cache.
         """
         try:
-            resp = self._client.get(_NAMED_URL, params={'exact': name})
+            resp = self._request({'exact': name})
             if resp.status_code == 404:
-                resp = self._client.get(_NAMED_URL, params={'fuzzy': name})
+                resp = self._request({'fuzzy': name})
             if resp.status_code == 404:
                 return None  # definitive: card not found -> negatively cacheable
             resp.raise_for_status()  # non-404 4xx/5xx -> HTTPStatusError below
             return resp.json()
         except httpx.HTTPError:
             return _TRANSIENT  # network/timeout/5xx: do NOT cache, retry next run
+
+    def _request(self, params: dict[str, str]) -> httpx.Response:
+        """GET the named endpoint, PACED + with bounded retry on 429/503.
+
+        Paces to ``_min_interval`` between requests (Scryfall's courtesy ask) so a
+        deck-sized burst doesn't get throttled, and retries a throttle/unavailable
+        response (honoring ``Retry-After``) up to ``_MAX_RETRIES`` before giving the
+        caller the final response (whose ``raise_for_status`` makes it transient).
+        """
+        resp: httpx.Response | None = None
+        for attempt in range(_MAX_RETRIES + 1):
+            if self._min_interval:
+                wait = self._min_interval - (time.monotonic() - self._last_request)
+                if wait > 0:
+                    time.sleep(wait)
+            resp = self._client.get(_NAMED_URL, params=params)
+            self._last_request = time.monotonic()
+            if resp.status_code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES:
+                retry_after = resp.headers.get('Retry-After', '')
+                backoff = float(retry_after) if retry_after.isdigit() else self._min_interval * (2**attempt) + 0.25
+                time.sleep(backoff)
+                continue
+            return resp
+        assert resp is not None
+        return resp
 
     def _flush(self) -> None:
         if self._cache_path is None:

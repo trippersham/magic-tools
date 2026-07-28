@@ -47,7 +47,7 @@ def test_404_is_negatively_cached_no_refetch(tmp_path: Path) -> None:
         calls['n'] += 1
         return httpx.Response(404, json={'object': 'error'})
 
-    r1 = ScryfallResolver(cache_path=cache, client=_client(handler))
+    r1 = ScryfallResolver(cache_path=cache, client=_client(handler), min_interval=0.0)
     assert r1.get_card('Nonesuch') is None
     r1.close()
 
@@ -57,7 +57,7 @@ def test_404_is_negatively_cached_no_refetch(tmp_path: Path) -> None:
     assert first_calls >= 1
 
     # A fresh resolver reads the cached null and does NOT hit the network again.
-    r2 = ScryfallResolver(cache_path=cache, client=_client(handler))
+    r2 = ScryfallResolver(cache_path=cache, client=_client(handler), min_interval=0.0)
     assert r2.get_card('Nonesuch') is None
     assert calls['n'] == first_calls  # no additional network calls
     r2.close()
@@ -72,10 +72,10 @@ def test_transient_error_not_cached_and_retries(tmp_path: Path) -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         state['calls'] += 1
         if state['fail']:
-            return httpx.Response(503, json={'object': 'error'})
+            return httpx.Response(500, json={"object": "error"})
         return httpx.Response(200, json=_SOL_RING)
 
-    resolver = ScryfallResolver(cache_path=cache, client=_client(handler))
+    resolver = ScryfallResolver(cache_path=cache, client=_client(handler), min_interval=0.0)
 
     # First lookup: transient 5xx -> None, and NOTHING negatively cached.
     assert resolver.get_card('Sol Ring') is None
@@ -103,13 +103,35 @@ def test_connect_error_not_cached_and_retries(tmp_path: Path) -> None:
             raise httpx.ConnectError('boom', request=request)
         return httpx.Response(200, json=_SOL_RING)
 
-    resolver = ScryfallResolver(cache_path=cache, client=_client(handler))
+    resolver = ScryfallResolver(cache_path=cache, client=_client(handler), min_interval=0.0)
     assert resolver.get_card('Sol Ring') is None
     if cache.exists():
         assert 'Sol Ring' not in json.loads(cache.read_text())
 
     state['fail'] = False
     assert resolver.get_card('Sol Ring') is not None
+    resolver.close()
+
+
+def test_retries_on_429_then_succeeds(tmp_path: Path) -> None:
+    """A 429 throttle is RETRIED within a single lookup (honoring Retry-After), so
+    a deck-sized burst resolves instead of collapsing to name-only. Two 429s then
+    a 200 -> get_card succeeds in one call. (Dogfooding: an un-paced burst got
+    429'd and left a real deck un-hydrated.)"""
+    cache = tmp_path / 'scryfall_names.json'
+    state = {'n': 0}
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        state['n'] += 1
+        if state['n'] <= 2:
+            return httpx.Response(429, headers={'Retry-After': '0'}, json={'object': 'error'})
+        return httpx.Response(200, json=_SOL_RING)
+
+    resolver = ScryfallResolver(cache_path=cache, client=_client(handler), min_interval=0.0)
+    card = resolver.get_card('Sol Ring')
+    assert card is not None
+    assert card.name == 'Sol Ring'
+    assert state['n'] == 3  # two 429s retried, then a 200
     resolver.close()
 
 
@@ -123,7 +145,7 @@ def test_context_manager_closes_client(tmp_path: Path) -> None:
         return httpx.Response(200, json=_SOL_RING)
 
     client = _client(handler)
-    with ScryfallResolver(cache_path=tmp_path / 'c.json', client=client) as resolver:
+    with ScryfallResolver(cache_path=tmp_path / 'c.json', client=client, min_interval=0.0) as resolver:
         assert resolver.get_card('Sol Ring') is not None
     assert client.is_closed
 
@@ -139,7 +161,7 @@ def test_cache_write_is_atomic(tmp_path: Path) -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(404, json={'object': 'error'})
 
-    resolver = ScryfallResolver(cache_path=cache, client=_client(handler))
+    resolver = ScryfallResolver(cache_path=cache, client=_client(handler), min_interval=0.0)
     resolver.get_card('Whatever')
     resolver.close()
 
