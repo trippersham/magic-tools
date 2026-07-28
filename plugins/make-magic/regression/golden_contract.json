@@ -6,7 +6,19 @@
   },
   "tables": {
     "Inventory Cards": {
-      "primary_field": "Card Name"
+      "primary_field": "Card Name",
+      "$derived_comment": "CARD-DIM / ENGINE-DERIVED classification (#5). These Inventory Cards columns are a PURE FUNCTION of the card's Scryfall identity (keyed to oracle_id), so the pipeline's card-dim write-back OWNS them: they are engine-writable, NOT human-authoritative — even though the skills READ them. This partitions the Cards fields: everything in required_fields that is NOT listed here stays human/collection-authoritative (the write-back denylist), and these derived fields join the ⚙ Buckets / ⚙ Otags allowlist. The regression harness still checks each of these exists on the live table (they remain in required_fields); this list only reclassifies write-authority. Disjoint by construction from #6's owned-facts write surface (Card Name / Number Owned / Foil Count / Condition / Sets / Sources).",
+      "derived_fields": [
+        "Card Type",
+        "Mana Cost",
+        "CMC",
+        "Power / Toughness",
+        "Oracle Text",
+        "Card Art",
+        "Scryfall URL",
+        "Price (TCGPlayer)",
+        "Color Identity"
+      ]
     },
     "Decks": {
       "primary_field": "Name"

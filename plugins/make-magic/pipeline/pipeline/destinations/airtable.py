@@ -16,13 +16,17 @@ Cards is authoritative and never stale; Airtable rolls them up to decks natively
     - ``⚙ Otags``  — Airtable **multilineText** — the card's raw rolled-up
       Scryfall otag slugs (newline-joined), kept for fidelity / debugging.
 
-THE GOVERNING SAFETY PROPERTY: this module may write ONLY the small
-:data:`DERIVED_FIELDS` allowlist it owns — engine-computed, namespace-prefixed
-fields on the Cards table. It must NEVER create, update, or delete any
-human-edited Card field (Card Name, Sets, Number Owned, Sources,
-Condition, Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art,
-Scryfall URL, Price (TCGPlayer), Color Identity, Decks, ...). That property is
-enforced STRUCTURALLY, not by convention, at three layers:
+THE GOVERNING SAFETY PROPERTY: this module may write ONLY the fields in its
+:data:`ALLOWLIST_NAMES` — the CARD-DIM / engine-derived fields it owns. Those are
+(a) the two engine-created namespace-prefixed ⚙ fields (``⚙ Buckets`` / ``⚙
+Otags``) and (b) the Scryfall-derived Cards columns that are a PURE FUNCTION of
+the card's identity (:data:`DERIVED_CARD_FIELDS`: Card Type, Mana Cost, CMC,
+Power / Toughness, Oracle Text, Card Art, Scryfall URL, Price (TCGPlayer), Color
+Identity). It must NEVER create, update, or delete any human/collection-edited
+Card field (Card Name, Sets, Number Owned, Sources, Condition, Number in
+Library, Decks, ...) — those stay pull-only / owned by the collection layer (#6)
+and the human. That property is enforced STRUCTURALLY, not by convention, at
+three layers:
 
     1. Payload construction. :func:`build_payload` emits ONLY keys drawn from
        :data:`DERIVED_FIELDS`. There is no code path that copies an arbitrary
@@ -121,10 +125,10 @@ class DerivedField:
 #: :func:`ensure_fields` time, so any bucket ``buckets_for`` can emit is writable.
 BUCKET_OPTIONS: tuple[str, ...] = BUCKETS
 
-#: THE ALLOWLIST. The ONLY Airtable fields this adapter may ever touch. Each maps
-#: a per-card derived value to a namespace-prefixed CARDS field. Adding a field
-#: here is the ONLY way to authorize a new write; nothing else in this module
-#: enumerates field names.
+#: THE ENGINE-CREATABLE DERIVED FIELDS. The two namespace-prefixed ⚙ fields this
+#: adapter both CREATES (schema mutation via :func:`ensure_fields`) and WRITES.
+#: Each maps a per-card derived value to a namespace-prefixed CARDS field. These
+#: do not exist on a fresh base, so the adapter is authorized to create them.
 DERIVED_FIELDS: tuple[DerivedField, ...] = (
     DerivedField(
         key='buckets',
@@ -139,11 +143,38 @@ DERIVED_FIELDS: tuple[DerivedField, ...] = (
     ),
 )
 
-#: The set of field NAMES the allowlist authorizes. Frozen so it can be used as a
-#: membership check and diffed against the denylist at import time.
-ALLOWLIST_NAMES: frozenset[str] = frozenset(f.name for f in DERIVED_FIELDS)
+#: THE CARD-DIM / ENGINE-DERIVED SCRYFALL FIELDS (#5 reclassification). These are
+#: plain (non-namespaced) Inventory Cards columns that already EXIST on the live
+#: table and are a PURE FUNCTION of the card's Scryfall identity (keyed to
+#: oracle_id) — so the card-dim write-back OWNS them and may write them, even
+#: though the skills also READ them. Unlike the ⚙ fields above, the adapter never
+#: CREATES these (they already exist); it only writes them. This list MUST match
+#: the golden contract's ``tables."Inventory Cards".derived_fields`` — the lazy
+#: denylist loader asserts that equality at first use (drift guard). This is the
+#: closed authorization set: the ONLY way to authorize a new derived write is to
+#: add it here AND to the contract's derived_fields.
+DERIVED_CARD_FIELDS: frozenset[str] = frozenset(
+    {
+        'Card Type',
+        'Mana Cost',
+        'CMC',
+        'Power / Toughness',
+        'Oracle Text',
+        'Card Art',
+        'Scryfall URL',
+        'Price (TCGPlayer)',
+        'Color Identity',
+    }
+)
 
-#: Convenience handles onto the two field names (single source of truth = tuple).
+#: THE ALLOWLIST. The ONLY Airtable fields this adapter may ever touch: the two
+#: engine-created ⚙ fields PLUS the card-dim derived Scryfall columns. Adding a
+#: field here is the ONLY way to authorize a new write; nothing else in this
+#: module enumerates writable field names. Frozen so it can be used as a
+#: membership check and diffed against the denylist at first use.
+ALLOWLIST_NAMES: frozenset[str] = frozenset(f.name for f in DERIVED_FIELDS) | DERIVED_CARD_FIELDS
+
+#: Convenience handles onto the two ⚙ field names (single source of truth = tuple).
 BUCKETS_FIELD: str = f'{NS}Buckets'
 OTAGS_FIELD: str = f'{NS}Otags'
 
@@ -210,17 +241,36 @@ def _golden_contract_path() -> Path:
     return Path(__file__).resolve().parents[3] / 'regression' / 'golden_contract.json'
 
 
-def load_human_denylist(path: Path | None = None) -> frozenset[str]:
-    """Load the DENYLIST of human-edited **Cards** field names from the contract.
+def load_contract_derived_fields(path: Path | None = None) -> frozenset[str]:
+    """Load the CARD-DIM / engine-derived Cards field names from the contract.
 
-    The write-back targets the Cards table, so the fields it must never touch
-    are the Cards table's human-edited fields: the Cards ``primary_field`` plus
-    every ``required_fields`` entry any skill declares for the Cards table (Card
-    Name, Sets, Number Owned, Sources, Condition, Card Type, Mana Cost, CMC,
-    Power / Toughness, Oracle Text, Card Art, Scryfall URL, Price (TCGPlayer),
-    Color Identity, Decks, ...). Deriving it here (rather than hard-coding) keeps
-    it in lock-step with the contract: if a Cards human field is added, it is
-    automatically denied.
+    These are the Inventory Cards columns classified as a pure function of the
+    card's Scryfall identity (``tables."Inventory Cards".derived_fields``). They
+    are engine-writable and therefore EXCLUDED from the human denylist even though
+    they appear in ``required_fields`` (the regression harness still checks they
+    exist on the live table). Sourcing this from the contract keeps the derived-
+    vs-human split single-homed; the module's :data:`DERIVED_CARD_FIELDS` mirror
+    is asserted equal at first use (drift guard in :func:`_human_denylist`).
+    """
+    contract = json.loads((path or _golden_contract_path()).read_text(encoding='utf-8'))
+    cards_meta = contract.get('tables', {}).get(CARDS_TABLE_NAME, {})
+    return frozenset(cards_meta.get('derived_fields', []))
+
+
+def load_human_denylist(path: Path | None = None) -> frozenset[str]:
+    """Load the DENYLIST of human/collection-owned **Cards** field names.
+
+    The write-back targets the Cards table, so the fields it must never touch are
+    the Cards table's human/collection-authoritative fields: the Cards
+    ``primary_field`` plus every ``required_fields`` entry any skill declares for
+    the Cards table (Card Name, Sets, Number Owned, Sources, Condition, Number in
+    Library, Decks, ...) — MINUS the card-dim / engine-derived Scryfall columns
+    (:func:`load_contract_derived_fields`: Card Type, Mana Cost, CMC, Power /
+    Toughness, Oracle Text, Card Art, Scryfall URL, Price (TCGPlayer), Color
+    Identity), which the engine OWNS (#5) and so are on the allowlist, not the
+    denylist. Deriving it here (rather than hard-coding) keeps it in lock-step
+    with the contract: a new Cards human field is automatically denied, and a
+    field reclassified as derived is automatically allowed.
     """
     contract = json.loads((path or _golden_contract_path()).read_text(encoding='utf-8'))
     denied: set[str] = set()
@@ -231,6 +281,9 @@ def load_human_denylist(path: Path | None = None) -> frozenset[str]:
     for skill in contract.get('skills', {}).values():
         cards_tbl = skill.get('tables', {}).get(CARDS_TABLE_NAME, {})
         denied.update(cards_tbl.get('required_fields', []))
+    # Reclassify: the engine-derived Scryfall columns are OWNED by the write-back
+    # (they land on the allowlist), so they are NOT human-denied.
+    denied -= load_contract_derived_fields(path)
     return frozenset(denied)
 
 
@@ -245,7 +298,7 @@ def _human_denylist() -> frozenset[str]:
     when a write is planned/guarded — so a missing/empty/mis-keyed contract still
     fail-closes LOUDLY, just at first use instead of at import time.
 
-    Two fail-closed asserts, checked here on first use:
+    Three fail-closed asserts, checked here on first use:
         1. NON-EMPTY: an empty denylist would silently degrade the human-field
            guard to allowlist-only. That happens if the golden contract is missing
            or its Cards-table key does not match :data:`CARDS_TABLE_NAME`. Fail
@@ -253,6 +306,11 @@ def _human_denylist() -> frozenset[str]:
         2. DISJOINTNESS: the fields this module may write and the human fields it
            must never write must be DISJOINT; if an edit ever names an allowlist
            field after a human field, this fails loud.
+        3. NO DRIFT: the contract's card-dim ``derived_fields`` must EXACTLY match
+           the module's :data:`DERIVED_CARD_FIELDS` mirror, and every one must be
+           on the allowlist. If the contract and code drift (a field reclassified
+           in one but not the other), the derived-vs-human partition is
+           inconsistent — fail loud rather than silently mis-authorize a write.
     """
     denylist = load_human_denylist()
     assert denylist, (
@@ -264,6 +322,18 @@ def _human_denylist() -> frozenset[str]:
     assert not overlap, (
         f'FATAL: derived allowlist overlaps the human denylist: {sorted(overlap)}. '
         'The write-back must never own a human-edited field name.'
+    )
+    contract_derived = load_contract_derived_fields()
+    assert contract_derived == DERIVED_CARD_FIELDS, (
+        'FATAL: the golden contract card-dim derived_fields '
+        f'{sorted(contract_derived)} do not match the module DERIVED_CARD_FIELDS '
+        f'{sorted(DERIVED_CARD_FIELDS)}. The derived-vs-human split must be single-homed; '
+        'reconcile regression/golden_contract.json with destinations/airtable.py.'
+    )
+    unauthorized = DERIVED_CARD_FIELDS - ALLOWLIST_NAMES
+    assert not unauthorized, (
+        f'FATAL: contract-derived fields {sorted(unauthorized)} are not on the allowlist; '
+        'every card-dim derived field must be writable.'
     )
     return denylist
 
@@ -788,10 +858,17 @@ def sync(
     if client is None:
         raise ValueError('A live sync (dry_run=False, apply=True) requires a client.')
 
-    # Schema first: create any missing derived fields, then resolve name->id.
+    # Schema first: create any missing engine ⚙ fields, then resolve name->id.
     ensure_fields(client, dry_run=False, apply=True)
     name_to_id = client.list_fields()
-    missing_ids = ALLOWLIST_NAMES - set(name_to_id)
+    # Only the field names this plan actually WRITES need a resolved id. This otag
+    # sync emits just the two ⚙ fields (build_payload); the wider card-dim derived
+    # Scryfall columns on the allowlist are written by the dual-write path (5b) and
+    # need not resolve here. Requiring ids for the whole allowlist would wrongly
+    # fail on a base that (correctly) lacks a ⚙ field only until ensure creates it,
+    # or on the never-created Scryfall columns in an otag-only run.
+    written_names = {n for w in plan for n in w.fields}
+    missing_ids = written_names - set(name_to_id)
     if missing_ids:
         raise RuntimeError(f'Derived fields missing ids after ensure: {sorted(missing_ids)}')
 
