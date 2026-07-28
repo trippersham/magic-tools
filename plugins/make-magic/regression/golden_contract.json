@@ -27,7 +27,19 @@
       "primary_field": "ID"
     },
     "Chase Cards": {
-      "primary_field": "Card Name"
+      "primary_field": "Card Name",
+      "$derived_comment": "CARD-DIM / ENGINE-DERIVED classification (#5, 5b-3). The live Chase Cards table carries the SAME nine Scryfall-pure columns as Inventory Cards (verified against the live base tblXsNtGgT7UQLPXZ), so the pipeline's chase card-dim write-back OWNS exactly these nine — they are engine-writable, NOT human-authoritative — even though the skills READ them. Chase LACKS only the two engine ⚙ otag fields (⚙ Buckets / ⚙ Otags), which is why the chase allowlist is the nine derived columns and NOTHING else. Everything in the chase skills' required_fields that is NOT listed here stays human/collection-authoritative (the chase write-back denylist: Card Name / Sets / Target Decks); the live table's further human/system fields (Trades (In)/(Out), Is Land/Creature/Non-Creature, Created At, Price Last Updated, Created, Last Modified) are not on the allowlist and so are refused by the closed-set guard regardless. Mirrors the Inventory 'derived_fields' structure so the chase derived-vs-human split is single-homed in the contract.",
+      "derived_fields": [
+        "Card Type",
+        "Mana Cost",
+        "CMC",
+        "Power / Toughness",
+        "Oracle Text",
+        "Card Art",
+        "Scryfall URL",
+        "Price (TCGPlayer)",
+        "Color Identity"
+      ]
     }
   },
   "skills": {

@@ -2,26 +2,28 @@
 
 When a card is ADDED or UPDATED on the Chase Cards table in airtable mode, the
 adapter — AFTER persisting the chase facts (Card Name + Target Decks) — writes the
-FIVE Chase Cards Scryfall-DERIVED columns for THAT ONE card via the 5b-3 primitive,
-INLINE, following the mutation's apply semantics (apply=True, not dry-run). The
-Chase table has a SMALLER derived schema than Inventory Cards (no Power/Toughness,
-Card Art, Scryfall URL, Price), so the chase write covers exactly five columns:
-Card Type, CMC, Mana Cost, Oracle Text, Color Identity. The write reuses the
-adapter's existing httpx connection and is best-effort (fail-open) so it can never
-break the chase mutation.
+NINE Chase Cards Scryfall-DERIVED columns for THAT ONE card via the 5b-3 primitive,
+INLINE, following the mutation's apply semantics (apply=True, not dry-run).
+
+Corrected against the LIVE base (tblXsNtGgT7UQLPXZ): the Chase Cards table carries
+the SAME nine Scryfall-pure columns as Inventory Cards — Card Type, Mana Cost, CMC,
+Power / Toughness, Oracle Text, Card Art, Scryfall URL, Price (TCGPlayer), Color
+Identity — INCLUDING a live-sourced price. Chase LACKS only the two engine ⚙ otag
+fields. The write reuses the adapter's existing httpx connection and is best-effort
+(fail-open) so it can never break the chase mutation.
 
 Safety proofs (task guardrails):
-    (a) `add_chase` (new + existing) in airtable-mode writes the five chase derived
-        cols, keyed by chase field id;
+    (a) `add_chase` (new + existing) in airtable-mode writes ALL NINE chase derived
+        cols + a live price, keyed by chase field id;
     (b) the chase write NEVER touches a chase human field (Card Name / Target Decks /
-        Priority / Status / Target Price) — the CHASE guard fails CLOSED;
+        Sets / Priority / Status / Target Price) — the CHASE guard fails CLOSED;
     (c) LOCAL-mode chase add makes ZERO Airtable calls (the primitive self-guards
         on the backend);
     (d) a pure read (list_chase) makes NO chase derived write;
     (e) a resolve-failure fails open (chase facts still persist).
 
 No real network: every request is served by an in-memory httpx.MockTransport;
-the card-dim resolver is a stub.
+the card-dim resolver and the live-price fetcher are stubs.
 """
 
 from __future__ import annotations
@@ -39,20 +41,27 @@ from pipeline.contracts import Card
 from pipeline.destinations import airtable as wb
 
 # --------------------------------------------------------------------------- #
-# Schema: the Chase Cards table has the five derived cols + its human fields
-# (Card Name, Target Decks). Field ids are synthetic but internally consistent.
-# The Decks table carries a deck so the Target Decks link resolves.
+# Schema: the Chase Cards table has the NINE derived cols + its human/system
+# fields (Card Name, Sets, Target Decks, Price Last Updated, …). Field ids are
+# synthetic but internally consistent. The Decks table carries a deck so the
+# Target Decks link resolves.
 # --------------------------------------------------------------------------- #
 
 _CHASE_FIELDS: dict[str, str] = {
-    # chase human fields (the chase denylist)
+    # chase human / system / link fields (never written)
     'Card Name': 'fldChaseName',
+    'Sets': 'fldChaseSets',
     'Target Decks': 'fldTargetDecks',
-    # the five chase derived cols (the chase allowlist)
+    'Price Last Updated': 'fldChasePriceUpd',
+    # the nine chase derived cols (the chase allowlist) — identical to Inventory
     'Card Type': 'fldChaseType',
-    'CMC': 'fldChaseCmc',
     'Mana Cost': 'fldChaseMana',
+    'CMC': 'fldChaseCmc',
+    'Power / Toughness': 'fldChasePT',
     'Oracle Text': 'fldChaseText',
+    'Card Art': 'fldChaseArt',
+    'Scryfall URL': 'fldChaseUrl',
+    'Price (TCGPlayer)': 'fldChasePrice',
     'Color Identity': 'fldChaseColor',
 }
 
@@ -90,6 +99,8 @@ _TABLES: dict[str, tuple[str, dict[str, str]]] = {
     'Trades': ('tblTrades', {'Date': 'fldDate'}),
 }
 
+_LIVE_PRICE = '3.14'
+
 
 def _meta_payload() -> dict[str, Any]:
     tables = []
@@ -126,6 +137,18 @@ class StubResolver:
     def get_card(self, name: str) -> Card | None:
         self.seen.append(name)
         return self._cards.get(name)
+
+
+class StubPriceFetcher:
+    """A LIVE-price fetcher double: records the names it priced, returns a fixed price."""
+
+    def __init__(self, price: str | None = _LIVE_PRICE) -> None:
+        self._price = price
+        self.seen: list[str] = []
+
+    def __call__(self, name: str) -> str | None:
+        self.seen.append(name)
+        return self._price
 
 
 class FakeAirtable:
@@ -187,11 +210,14 @@ def _store(
     *,
     writes_enabled: bool = True,
     resolver: StubResolver | None = None,
+    price_fetcher: StubPriceFetcher | None = None,
 ) -> AirtableCollectionStore:
     transport = httpx.MockTransport(fake.handler)
     client = httpx.Client(transport=transport)
     store = AirtableCollectionStore.from_settings('fake-token', writes_enabled=writes_enabled, client=client)
     store._derived_resolver = resolver or StubResolver({'Sol Ring': _SOL_RING})
+    # Inject a stub LIVE-price fetcher so the chase derived write never hits network.
+    store._derived_price_fetcher = price_fetcher or StubPriceFetcher()
     return store
 
 
@@ -214,14 +240,15 @@ def _chase_derived_write_bodies(fake: FakeAirtable) -> list[dict[str, Any]]:
 
 
 # --------------------------------------------------------------------------- #
-# (a) add_chase writes the five chase derived cols (new + existing).
+# (a) add_chase writes ALL NINE chase derived cols + a live price (new + existing).
 # --------------------------------------------------------------------------- #
 
 
 def test_add_chase_new_writes_chase_derived_columns_inline() -> None:
     fake = FakeAirtable(chase=[])
     resolver = StubResolver({'Sol Ring': _SOL_RING})
-    note = _store(fake, resolver=resolver).add_chase('Sol Ring')
+    price = StubPriceFetcher()
+    note = _store(fake, resolver=resolver, price_fetcher=price).add_chase('Sol Ring')
     assert note is None
 
     # The chase facts were POSTed first.
@@ -229,15 +256,21 @@ def test_add_chase_new_writes_chase_derived_columns_inline() -> None:
     assert len(posts) == 1
     assert posts[0]['fields'][_CHASE_FIELDS['Card Name']] == 'Sol Ring'
 
-    # Then the five chase derived columns were PATCHed onto the new record.
+    # Then ALL NINE chase derived columns were PATCHed onto the new record.
     derived = _chase_derived_write_bodies(fake)
     assert len(derived) == 1
     rec = derived[0]['records'][0]
     assert rec['id'] == 'recNew1'
     chase_derived_ids = {_CHASE_FIELDS[n] for n in wb.CHASE_DERIVED_CARD_FIELDS}
     assert set(rec['fields']) == chase_derived_ids
-    # The card dim WAS consulted for that card (no price fetcher — chase has none).
+    # The nine == the Inventory derived set (Chase carries the same columns).
+    assert wb.CHASE_DERIVED_CARD_FIELDS == wb.DERIVED_CARD_FIELDS
+    assert len(chase_derived_ids) == 9
+    # The LIVE price landed in Price (TCGPlayer).
+    assert rec['fields'][_CHASE_FIELDS['Price (TCGPlayer)']] == _LIVE_PRICE
+    # The card dim AND the live-price fetcher were consulted for that card.
     assert resolver.seen == ['Sol Ring']
+    assert price.seen == ['Sol Ring']
 
 
 def test_add_chase_existing_refreshes_chase_derived_columns_inline() -> None:
@@ -248,7 +281,11 @@ def test_add_chase_existing_refreshes_chase_derived_columns_inline() -> None:
     _store(fake).add_chase('Sol Ring', for_deck='Ramp Deck')
     derived = _chase_derived_write_bodies(fake)
     assert len(derived) == 1
-    assert derived[0]['records'][0]['id'] == 'recSol'
+    rec = derived[0]['records'][0]
+    assert rec['id'] == 'recSol'
+    chase_derived_ids = {_CHASE_FIELDS[n] for n in wb.CHASE_DERIVED_CARD_FIELDS}
+    assert set(rec['fields']) == chase_derived_ids
+    assert rec['fields'][_CHASE_FIELDS['Price (TCGPlayer)']] == _LIVE_PRICE
 
 
 # --------------------------------------------------------------------------- #
@@ -260,8 +297,9 @@ def test_inline_chase_write_never_touches_a_chase_human_field() -> None:
     fake = FakeAirtable(chase=[])
     _store(fake).add_chase('Sol Ring')
     human_ids = {_CHASE_FIELDS[n] for n in wb._chase_human_denylist() if n in _CHASE_FIELDS}
-    # Card Name AND Target Decks must be in the denylist and never written.
+    # Card Name, Sets AND Target Decks must be in the denylist and never written.
     assert _CHASE_FIELDS['Card Name'] in human_ids
+    assert _CHASE_FIELDS['Sets'] in human_ids
     assert _CHASE_FIELDS['Target Decks'] in human_ids
     for body in _chase_derived_write_bodies(fake):
         for rec in body['records']:
@@ -270,7 +308,7 @@ def test_inline_chase_write_never_touches_a_chase_human_field() -> None:
 
 def test_chase_guard_fails_closed_on_a_chase_human_field() -> None:
     """The CHASE guard refuses any chase human field name outright."""
-    for human in ('Card Name', 'Target Decks'):
+    for human in ('Card Name', 'Sets', 'Target Decks'):
         with pytest.raises(wb.HumanFieldWriteError):
             wb.assert_no_chase_human_fields([human])
 
@@ -350,6 +388,7 @@ def test_local_chase_add_makes_no_airtable_calls(monkeypatch: pytest.MonkeyPatch
     report = wb.write_chase_derived_fields(
         {'recX': 'Sol Ring'},
         resolver=StubResolver({'Sol Ring': _SOL_RING}),
+        price_fetcher=StubPriceFetcher(),
         client=None,
         apply=True,
         dry_run=False,

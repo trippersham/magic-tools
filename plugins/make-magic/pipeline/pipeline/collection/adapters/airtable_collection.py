@@ -44,7 +44,10 @@ Cards table has **no** ``Priority`` / ``Status`` / ``Target Price`` columns, so
 ``add_chase``'s ``priority`` / ``status`` / ``target_price`` arguments are
 **not persistable** here and are silently skipped (the local YAML adapter, which
 is schema-free, DOES retain them). ``add_chase`` returns a human-readable note
-listing any such dropped fields so a caller can surface the limitation.
+listing any such dropped fields so a caller can surface the limitation. It DOES,
+however, carry the nine Scryfall-derived columns (Card Type … Price (TCGPlayer) …
+Color Identity) — verified on the live base — which the inline chase derived-write
+(5b-3) refreshes after each chase mutation.
 """
 
 from __future__ import annotations
@@ -417,20 +420,22 @@ class AirtableCollectionStore:
     # --- inline CHASE derived-column write (#5 / 5b-3) ----------------------- #
 
     def _write_chase_derived_inline(self, name: str, record_id: str | None) -> None:
-        """Persist the FIVE Chase Cards DERIVED columns for ONE card, INLINE, best-effort.
+        """Persist the NINE Chase Cards DERIVED columns for ONE card, INLINE, best-effort.
 
         The Chase Cards analogue of :meth:`_write_derived_inline`. Called AFTER a
         chase MUTATION (``add_chase`` create/update) has persisted its human/owned
-        chase facts (Card Name + Target Decks). It writes the five chase derived
-        columns (Card Type, CMC, Mana Cost, Oracle Text, Color Identity) for THAT
-        card via the 5b-3 primitive
+        chase facts (Card Name + Target Decks). Corrected against the LIVE base: the
+        Chase table carries the SAME nine Scryfall-derived columns as Inventory
+        (Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art,
+        Scryfall URL, Price (TCGPlayer), Color Identity — including a LIVE price), so
+        it writes all nine for THAT card via the 5b-3 primitive
         :func:`destinations.airtable.write_chase_derived_fields`, following the
         mutation's apply semantics (``apply=True``, NOT dry-run).
 
         Safety properties (mirroring the owned hook):
             - The primitive SELF-GUARDS on ``resolve_backend()``: in local mode it
               is a strict NO-OP (zero Airtable calls).
-            - It writes ONLY the five chase-allowlisted derived columns — NEVER any
+            - It writes ONLY the nine chase-allowlisted derived columns — NEVER any
               chase human field (#6 wrote Card Name / Target Decks). The CHASE-bound
               guard (:func:`assert_no_chase_human_fields` + the chase wire guard)
               enforces the derived-vs-human partition on the Chase table.
@@ -447,9 +452,11 @@ class AirtableCollectionStore:
 
             client = self._ensure_chase_derived_writer()
             resolver = self._ensure_derived_resolver()
+            price_fetcher = self._ensure_derived_price_fetcher()
             _wb.write_chase_derived_fields(
                 {record_id: name},
                 resolver=resolver,
+                price_fetcher=price_fetcher,
                 client=client,
                 apply=True,
                 dry_run=False,
@@ -470,7 +477,7 @@ class AirtableCollectionStore:
         is an ``AllowlistWriteClient`` bound to the CHASE table: its
         ``cards_table_name`` is the Chase Cards table, and its allowlist / denylist /
         guard are the CHASE ones — so the wrong-table guard binds to Chase Cards and
-        only the five chase derived columns may ever be written.
+        only the nine chase derived columns may ever be written.
         """
         if self._chase_derived_writer is None:
             from pipeline.destinations.airtable import (
