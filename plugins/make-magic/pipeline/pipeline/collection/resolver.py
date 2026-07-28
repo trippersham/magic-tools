@@ -46,6 +46,8 @@ _RETRYABLE_STATUS = frozenset({429, 503})
 #: Cap it: after ``_MAX_RETRIES`` throttles the lookup still falls to name-only.
 _MAX_BACKOFF = 5.0
 
+__all__ = ('ScryfallResolver', 'default_card_resolver')
+
 
 class _Transient(Enum):
     """Sentinel: a lookup failed TRANSIENTLY (network / timeout / non-404 HTTP).

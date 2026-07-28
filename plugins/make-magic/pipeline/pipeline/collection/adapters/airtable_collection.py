@@ -81,6 +81,8 @@ BASIC_LAND_FIELDS: tuple[tuple[str, str], ...] = (
 #: are persisted as NUMBER counts on Decks, not as ``Cards`` link rows.
 BASIC_LAND_TO_FIELD: dict[str, str] = {land: field for field, land in BASIC_LAND_FIELDS}
 
+__all__ = ('AirtableCollectionStore', 'ReadOnlyStoreError')
+
 
 class ReadOnlyStoreError(RuntimeError):
     """Raised when a mutating call is made on a read-only Airtable store.
