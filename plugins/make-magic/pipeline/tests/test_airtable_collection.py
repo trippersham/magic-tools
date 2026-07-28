@@ -10,8 +10,10 @@ Covered:
     - meta -> AirtableResolver name->id resolution (no hard-coded ids).
     - list_inventory maps an Inventory Cards row -> OwnedCard, hydrating the
       enrichment DIRECTLY from the row (no CardResolver).
-    - a deck reconstruction round-trip (commander + maindeck + basics), with
-      link record ids resolved to card names.
+    - a deck reconstruction round-trip (commander + maindeck + basics): link
+      record ids resolved to names, then each card HYDRATED via an injected
+      `CardResolver` (deck reads carry type/CMC/oracle_id, not name-only) — the
+      fact sheet needs that enrichment. Basics carry a basic-land type.
     - filterByFormula is built for name lookups.
     - a comma-containing card name survives the wire (no truncation).
     - the write guard blocks a mutating call unless writes are enabled.
@@ -21,7 +23,7 @@ Covered:
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -35,7 +37,34 @@ from pipeline.collection.adapters.airtable_collection import (
 )
 from pipeline.collection.errors import CollectionError
 from pipeline.config import AirtableResolver
-from pipeline.contracts import Deck, DeckCard, Trade
+from pipeline.contracts import Card, Deck, DeckCard, Trade
+
+
+class _StubCardResolver:
+    """A `CardResolver` double: canned enrichment for the deck-fixture cards so
+    deck reads HYDRATE without the network, and tests can ASSERT the reconstructed
+    DeckCards carry real type/CMC/oracle_id. Regression guard: deck cards used to
+    come back name-only (breaking the fact sheet against a real base)."""
+
+    _CARDS: ClassVar[dict[str, dict[str, Any]]] = {
+        'Grumgully, the Generous': {
+            'name': 'Grumgully, the Generous',
+            'oracle_id': 'oid-grum',
+            'mana_value': 3.0,
+            'type_line': 'Legendary Creature — Goblin Shaman',
+        },
+        'Sol Ring': {'name': 'Sol Ring', 'oracle_id': 'oid-sol', 'mana_value': 1.0, 'type_line': 'Artifact'},
+        'Llanowar Elves': {
+            'name': 'Llanowar Elves',
+            'oracle_id': 'oid-llan',
+            'mana_value': 1.0,
+            'type_line': 'Creature — Elf Druid',
+        },
+    }
+
+    def get_card(self, name: str) -> Card | None:
+        data = self._CARDS.get(name)
+        return Card(**data) if data else None
 
 # --------------------------------------------------------------------------- #
 # Fixtures: synthetic per-base schema (meta) + record payloads.
@@ -201,7 +230,12 @@ def _clear_settings_cache() -> None:
 def _store(fake: FakeAirtable, *, writes_enabled: bool = False) -> AirtableCollectionStore:
     transport = httpx.MockTransport(fake.handler)
     client = httpx.Client(transport=transport)
-    return AirtableCollectionStore.from_settings('fake-token', writes_enabled=writes_enabled, client=client)
+    # Inject a stub CardResolver so deck reads hydrate WITHOUT the network (deck
+    # cards are resolver-hydrated, like the local adapter — the fact sheet needs
+    # oracle_id + enrichment, which the Airtable link fields don't carry).
+    return AirtableCollectionStore.from_settings(
+        'fake-token', writes_enabled=writes_enabled, client=client, card_resolver=_StubCardResolver()
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -362,15 +396,24 @@ def test_deck_reconstruction_round_trip() -> None:
     assert deck.assessment is None
     assert deck.focus_otags == []
     assert deck.airtable_record_id == 'recDeck'
-    # commander resolved from link -> role=commander.
+    # commander resolved from link -> role=commander, AND HYDRATED via the
+    # resolver (regression: deck cards used to come back name-only, so the fact
+    # sheet got nothing against a real base).
     assert [c.name for c in deck.commanders] == ['Grumgully, the Generous']
+    cmdr = deck.commanders[0]
+    assert cmdr.type_line == 'Legendary Creature — Goblin Shaman'
+    assert cmdr.mana_value == 3.0
+    assert cmdr.oracle_id == 'oid-grum'
     by_name = {c.name: c for c in deck.cards}
-    # maindeck links resolved to names.
-    assert 'Sol Ring' in by_name
+    # maindeck links resolved to names + hydrated (type/CMC/oracle_id present).
     assert by_name['Sol Ring'].role is None
-    assert 'Llanowar Elves' in by_name
-    # basic-land counts -> DeckCard per nonzero count with that quantity.
+    assert by_name['Sol Ring'].type_line == 'Artifact'
+    assert by_name['Sol Ring'].oracle_id == 'oid-sol'
+    assert by_name['Llanowar Elves'].oracle_id == 'oid-llan'
+    # basic-land counts -> DeckCard per nonzero count, with a basic-land type so
+    # the fact sheet's land/nonland split is correct.
     assert by_name['Forest'].quantity == 8
+    assert by_name['Forest'].type_line == 'Basic Land — Forest'
     assert by_name['Mountain'].quantity == 5
 
 

@@ -27,7 +27,7 @@ from pipeline.collection import copy_collection
 from pipeline.collection.adapters.airtable_collection import AirtableCollectionStore, ReadOnlyStoreError
 from pipeline.collection.adapters.local_yaml import LocalYamlStore
 from pipeline.contracts import Card, Deck, DeckCard, Trade
-from tests.test_airtable_collection import _FIELDS, FakeAirtable
+from tests.test_airtable_collection import _FIELDS, FakeAirtable, _StubCardResolver
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -52,7 +52,9 @@ def local_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> LocalYamlSto
 def _airtable_store(fake: FakeAirtable, *, writes_enabled: bool = True) -> AirtableCollectionStore:
     transport = httpx.MockTransport(fake.handler)
     client = httpx.Client(transport=transport)
-    return AirtableCollectionStore.from_settings('fake-token', writes_enabled=writes_enabled, client=client)
+    return AirtableCollectionStore.from_settings(
+        'fake-token', writes_enabled=writes_enabled, client=client, card_resolver=_StubCardResolver()
+    )
 
 
 def _seeded_fake(*, cards: list[str], decks: list[str]) -> FakeAirtable:

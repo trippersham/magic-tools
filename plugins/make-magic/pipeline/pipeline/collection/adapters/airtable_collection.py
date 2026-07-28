@@ -55,6 +55,8 @@ from pipeline.contracts import ChaseCard, Deck, DeckCard, OwnedCard, Trade
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from pipeline.collection.store import CardResolver
+
 API_ROOT = 'https://api.airtable.com/v0'
 META_ROOT = 'https://api.airtable.com/v0/meta'
 HEADERS_UA = {'User-Agent': 'make-magic-plugin/2.0'}
@@ -267,6 +269,7 @@ class AirtableCollectionStore:
         decks_table: str,
         trades_table: str,
         chase_table: str,
+        card_resolver: CardResolver | None = None,
     ) -> None:
         self._client = client
         self._resolver = resolver
@@ -274,6 +277,17 @@ class AirtableCollectionStore:
         self._decks_table = decks_table
         self._trades_table = trades_table
         self._chase_table = chase_table
+        # DECK cards are hydrated via a `CardResolver` (Scryfall -> oracle_id +
+        # full enrichment), same as the local adapter — the Airtable link fields
+        # only carry names/record-ids, and the fact sheet needs oracle_id (otags)
+        # + type/CMC/oracle_text. (Inventory rows carry enrichment but no
+        # oracle_id, so a row-join alone can't feed the otag layer.) Tests inject
+        # a stub; #5 swaps the default for a pipeline-backed resolver.
+        if card_resolver is None:
+            from pipeline.collection.resolver import default_card_resolver
+
+            card_resolver = default_card_resolver()
+        self._card_resolver = card_resolver
 
     # --- construction -------------------------------------------------------- #
 
@@ -284,11 +298,14 @@ class AirtableCollectionStore:
         *,
         writes_enabled: bool = False,
         client: httpx.Client | None = None,
+        card_resolver: CardResolver | None = None,
     ) -> AirtableCollectionStore:
         """Build the store from env-driven `Settings` (base id + table names).
 
         ``client`` is an injectable ``httpx.Client`` (tests pass one wired to a
-        ``MockTransport`` — no network, no creds).
+        ``MockTransport`` — no network, no creds). ``card_resolver`` is the deck-card
+        hydration seam (tests pass a stub so deck reads make no Scryfall calls); it
+        defaults to the package resolver.
         """
         settings = get_settings()
         record_client = _RecordClient(
@@ -305,6 +322,7 @@ class AirtableCollectionStore:
             decks_table=settings.decks_table,
             trades_table=settings.trades_table,
             chase_table=settings.chase_table,
+            card_resolver=card_resolver,
         )
 
     # --- id/name helpers ----------------------------------------------------- #
@@ -670,17 +688,24 @@ class AirtableCollectionStore:
                 out[r['id']] = str(name)
         return out
 
+    def _hydrate(self, name: str) -> dict[str, Any]:
+        """Resolver enrichment for `name` as base-`Card` fields (name-only if unresolved)."""
+        card = self._card_resolver.get_card(name)
+        return card.model_dump() if card is not None else {'name': name}
+
     def _row_to_deck(self, rec: dict[str, Any], name_map: dict[str, str]) -> Deck:
         t = self._decks_table
         cards: list[DeckCard] = []
         for rid in _as_list(self._get(t, rec, self._DECK_COMMANDER)):
-            cards.append(DeckCard(name=name_map.get(rid, rid), role='commander'))
+            cards.append(DeckCard(**self._hydrate(name_map.get(rid, rid)), role='commander'))
         for rid in _as_list(self._get(t, rec, self._DECK_CARDS)):
-            cards.append(DeckCard(name=name_map.get(rid, rid)))
+            cards.append(DeckCard(**self._hydrate(name_map.get(rid, rid))))
         for field_name, land_name in BASIC_LAND_FIELDS:
             count = int(self._get(t, rec, field_name) or 0)
             if count:
-                cards.append(DeckCard(name=land_name, quantity=count))
+                # Basics carry a known land type so the fact sheet's land/nonland
+                # split is correct without a resolver round-trip per basic.
+                cards.append(DeckCard(name=land_name, quantity=count, type_line=f'Basic Land — {land_name}'))
         return Deck(
             name=str(self._get(t, rec, self._DECK_NAME)),
             strategy=self._get(t, rec, self._DECK_STRATEGY),

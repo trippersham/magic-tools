@@ -29,7 +29,7 @@ from pipeline import config, store
 from pipeline.collection.adapters.airtable_collection import AirtableCollectionStore
 from pipeline.collection.adapters.local_yaml import LocalYamlStore
 from pipeline.contracts import Card, Deck, DeckCard, Trade
-from tests.test_airtable_collection import _FIELDS, FakeAirtable
+from tests.test_airtable_collection import _FIELDS, FakeAirtable, _StubCardResolver
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -82,7 +82,9 @@ def airtable_factory(monkeypatch: pytest.MonkeyPatch) -> _StoreFactory:
         fake = FakeAirtable({'tblCards': cards, 'tblDecks': decks, 'tblChase': [], 'tblTrades': []})
         transport = httpx.MockTransport(fake.handler)
         client = httpx.Client(transport=transport)
-        return AirtableCollectionStore.from_settings('fake-token', writes_enabled=True, client=client)
+        return AirtableCollectionStore.from_settings(
+            'fake-token', writes_enabled=True, client=client, card_resolver=_StubCardResolver()
+        )
 
     return make  # type: ignore[return-value]
 
