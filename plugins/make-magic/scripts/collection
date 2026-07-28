@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["make-magic-pipeline", "typer>=0.12"]
+# dependencies = ["make-magic-pipeline"]
 # [tool.uv]
 # exclude-newer = "2026-06-08T00:00:00Z"
 # [tool.uv.sources]
@@ -20,10 +20,11 @@ Backend auto-resolves (local YAML vs Airtable records); override explicitly with
 ``MAKE_MAGIC_BACKEND=local|airtable``. Usage:
     ${CLAUDE_PLUGIN_ROOT}/scripts/collection <verb> [args...]
 
-``typer`` is declared only because the ``factsheet`` verb bridges to
-``scripts/deck_factsheet.py`` (a typer tool); card hydration itself is
-package-native (``pipeline.collection.resolver``) and needs no script edge.
-Dropping ``typer`` here would require decoupling ``factsheet`` from that script.
+No ``typer`` needed: card hydration is package-native
+(``pipeline.collection.resolver``), and the ``factsheet`` verb imports
+``factsheet_from_deck`` from ``scripts/deck_factsheet.py``, whose typer CLI is
+imported LAZILY (only when that script is run directly) — so importing the
+function drags in no typer.
 """
 
 from pipeline.collection.run import main
