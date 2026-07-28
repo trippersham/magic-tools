@@ -12,7 +12,7 @@ Each strategy entry follows this structure:
 Commander: <name> (<color identity>)
 Archetype: <primary archetype> / <secondary if applicable>
 Win conditions: <how the deck wins>
-Key mechanics: <comma-separated keywords matching TAG_STRATEGY_SYNONYMS vocabulary>
+Key mechanics: <comma-separated keywords matching BUCKET_STRATEGY_SYNONYMS vocabulary>
 Lines:
 - <line of play 1>
 - <line of play 2>
@@ -22,7 +22,7 @@ What doesn't fit: <negative selection criteria>
 
 ## Key Mechanics Vocabulary
 
-The `Key mechanics` line uses keywords that map to the card tagger's `TAG_STRATEGY_SYNONYMS` dictionary. Common keywords:
+The `Key mechanics` line uses keywords that map to the card tagger's `BUCKET_STRATEGY_SYNONYMS` dictionary (which keys each otag bucket to the strategy keywords it satisfies). Common keywords:
 
 - **Spellslinger axis:** spellslinger, instant, sorcery, noncreature, prowess, magecraft, copy, storm, lesson
 - **Blink axis:** blink, etb, flicker, stax, protection, evasion, value
@@ -99,11 +99,12 @@ heuristics.
 
 ## How the Tagger Uses Strategy
 
-The card tagger's `TAG_STRATEGY_SYNONYMS` maps mechanic tags (like "Magecraft") to strategy keywords (like "spellslinger"). When scoring a card for a deck:
+The card tagger's `BUCKET_STRATEGY_SYNONYMS` maps each otag **bucket** (like `flicker` or
+`sac`) to strategy keywords (like "blink" or "aristocrats"). When scoring a card for a deck:
 
-1. The card's mechanic tags are looked up in `TAG_STRATEGY_SYNONYMS`
-2. Each tag's synonym list is compared against the deck's `Key mechanics`
+1. The card's otag buckets (its `tags`) are looked up in `BUCKET_STRATEGY_SYNONYMS`
+2. Each bucket's synonym list is compared against the deck's `Key mechanics`
 3. Overlap generates a score — more overlapping keywords = higher score
-4. Strategy-specific deep patterns provide additional scoring bonuses
+4. Strategy-specific deep patterns (oracle-text substring signals) provide additional scoring bonuses
 
 The actual per-deck strategies live in Airtable, not here. Read them at runtime via `get_record` on the Decks table.
