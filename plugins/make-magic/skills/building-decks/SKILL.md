@@ -371,9 +371,11 @@ e.g. `get-deck "<deck>" --field focus_otags`.
 
 **Guard:** on a deck that has never had a focus/assessment set, `focus_otags` comes back `[]`
 and `assessment` `null` — that is the *unset* signal (not an error). You create/write them at
-the later steps (`Focus Otags` at Step 3c, the `Assessment` at the Assessment write step). The
-CLI abstracts away the Airtable field-existence problem — no `422 UNKNOWN_FIELD_NAME` handling
-is needed at the skill layer.
+the later steps (`Focus Otags` at Step 3c, the `Assessment` at the Assessment write step). In
+**local** mode the write is seamless (just a YAML key). In **Airtable** mode the Decks table must
+ALREADY have `Focus Otags` and `Assessment` columns — the CLI does NOT auto-create columns, and a
+write to a missing column fails with a clear "field not on base" error, so create them in Airtable
+first (tracked in issue #11).
 
 **Step 2: Get the EXACT current decklist**
 
@@ -426,9 +428,10 @@ the deterministic pipeline READS it but NEVER writes it:
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection set-focus-otags "<deck>" tokens counters anthem
 ```
-Pass one otag/bucket slug per argument. The CLI handles field creation / storage in either
-backend (a `multipleSelects` or `multilineText` column in Airtable, a YAML list locally) — no
-manual field-creation step. Never write `Focus Otags` from the mechanical union of
+Pass one otag/bucket slug per argument. Storage is a YAML list locally (seamless), or a
+`multipleSelects`/`multilineText` column in Airtable — which must ALREADY EXIST (the CLI does not
+create columns; writing a missing column fails with a clear error — issue #11). Never write
+`Focus Otags` from the mechanical union of
 `otag_buckets` — that would make it the actual set, not the intended one. Curate to intent.
 
 **Step 4: Reason the per-quadrant plan (from facts + Strategy)**
@@ -515,8 +518,9 @@ Present it to the user, and — because it is the deck's living reality-check �
 
 **Step 8: Write the Assessment to the deck's `Assessment` field (via the CLI)**
 
-Persist the synthesis with one CLI call — the CLI handles field creation / storage in either
-backend, so there is no manual `create_field` step:
+Persist the synthesis with one CLI call. Locally this is a YAML key (seamless); in Airtable mode
+the Decks `Assessment` column must already exist (the CLI does not create columns — a write to a
+missing column fails with a clear error; see issue #11):
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection set-assessment "<deck>" "<the pre-mortem synthesis from Step 7>"

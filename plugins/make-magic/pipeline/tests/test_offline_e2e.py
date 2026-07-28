@@ -3,12 +3,16 @@
 Seeds a sample `collection/decks/gruul-aggro.yaml`, resolves it through the local
 YAML adapter (with a stub resolver — NO network), runs the offline factsheet
 entry point, and asserts:
-    - a valid `FactSheet` with populated `otag_buckets` + a `susceptibility`
-      signal is emitted;
-    - ZERO Airtable / network calls happen (the Airtable client + httpx are
-      monkeypatched to blow up if touched).
+    - a valid `FactSheet` with `otag_buckets` and/or a `susceptibility` signal is
+      emitted;
+    - the local path constructs NO Airtable client and makes no raw-socket network
+      call — `socket.connect`/`create_connection` are denied and the Airtable
+      `GetOnlyClient` factory is poisoned to raise if touched.
 
-This directly encodes issue #6 Scenario 1 (offline pipeline, zero Airtable/MCP).
+This encodes issue #6 Scenario 1's ZERO-Airtable/MCP guarantee (the criterion is
+zero *Airtable/MCP*, not zero Scryfall — the otag layer fails open to its bundled
+snapshot when the network is denied). Broader ingest->marts offline coverage is
+tracked in #13.
 """
 
 from __future__ import annotations

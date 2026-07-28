@@ -233,14 +233,16 @@ def _add_chase(argv: list[str]) -> None:
     parser.add_argument('--status', default=None)
     parser.add_argument('--target-price', dest='target_price', type=float, default=None)
     args = parser.parse_args(argv)
-    _store(writes_enabled=True).add_chase(
+    note = _store(writes_enabled=True).add_chase(
         args.ref,
         priority=args.priority,
         for_deck=args.for_deck,
         status=args.status,
         target_price=args.target_price,
     )
-    print(f'add-chase: {args.ref}')
+    # Surface any adapter note (e.g. Airtable can't persist priority/status/
+    # target-price — no such columns) so the drop isn't silent at the CLI.
+    print(f'add-chase: {args.ref}' + (f' ({note})' if note else ''))
 
 
 def _remove_chase(argv: list[str]) -> None:

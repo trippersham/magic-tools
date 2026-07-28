@@ -23,10 +23,10 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/collection log-trade \
   --card-in "Lavaleaper" --card-out "Horizon Stone" \
   --status Completed --notes "swap into Ozai"
 ```
-`--card-in` / `--card-out` are repeatable.
+`--card-in` / `--card-out` are repeatable. For deck specificity, add `--from-deck` / `--to-deck`
+(e.g. `--to-destination Deck --to-deck "Ozai"`).
 
-**JSON form** — use this when you need `to_deck` / `from_deck` specificity (the flag form has no
-`--to-deck`):
+**JSON form** — an equivalent for scripted/bulk entry (accepts the full Trade shape on stdin):
 ```bash
 echo '{
   "from_source": "Library",

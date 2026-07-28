@@ -627,13 +627,16 @@ def _run_smoke(client: AirtableClient) -> bool:
 
 # --------------------------------------------------------------------------- #
 # CLI-equivalence checks (Phase 2.2): drive the `collection` CLI -> Airtable
-# adapter and assert SAME-RESULTS equivalence vs the golden contract (design
-# Scenario 4 / non-regression = "same results, not same calls").
+# adapter (design Scenario 4 / non-regression = "same results, not same calls").
+# SCOPE: this is a REACHABILITY smoke — it asserts each domain's read verb reaches
+# the live base and returns parseable records via the CLI->adapter path. It does
+# NOT yet compare record VALUES/counts against a captured golden baseline; that
+# value-level equivalence is tracked in #13.
 # --------------------------------------------------------------------------- #
 
 #: Each golden-contract domain -> the read verb that surfaces it through the
-#: CLI -> Airtable adapter. Same-results equivalence: the CLI must return the
-#: same records the contract guarantees exist (not the same MCP/HTTP call trace).
+#: CLI -> Airtable adapter (reachability + parseable-records smoke; see the scope
+#: note above).
 CLI_LIST_VERBS: dict[str, str] = {
     'Decks': 'list-decks',
     'Inventory Cards': 'list-inventory',
