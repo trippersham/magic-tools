@@ -11,11 +11,13 @@ connect-error) so no network is touched. Covers:
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import httpx
+import pytest
 
-from pipeline.collection.resolver import ScryfallResolver
+from pipeline.collection.resolver import _MAX_BACKOFF, _MAX_RETRIES, ScryfallResolver
 
 _SOL_RING = {
     'name': 'Sol Ring',
@@ -72,7 +74,7 @@ def test_transient_error_not_cached_and_retries(tmp_path: Path) -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         state['calls'] += 1
         if state['fail']:
-            return httpx.Response(500, json={"object": "error"})
+            return httpx.Response(500, json={'object': 'error'})
         return httpx.Response(200, json=_SOL_RING)
 
     resolver = ScryfallResolver(cache_path=cache, client=_client(handler), min_interval=0.0)
@@ -133,6 +135,36 @@ def test_retries_on_429_then_succeeds(tmp_path: Path) -> None:
     assert card.name == 'Sol Ring'
     assert state['n'] == 3  # two 429s retried, then a 200
     resolver.close()
+
+
+def test_huge_retry_after_is_capped_no_hang(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A hostile ``Retry-After: 3600`` must NOT be honored verbatim (a 1-hour
+    mid-read hang). Every retry sleep is capped at ``_MAX_BACKOFF``, so after the
+    bounded retries the lookup RETURNS name-only (None) — quickly, not in an hour.
+
+    ``time.sleep`` is spied (never really slept) so the OFFLINE suite stays fast
+    while proving the cap: no requested sleep exceeds ``_MAX_BACKOFF`` (a raw
+    ``3600`` would fail this) and wall-clock stays trivially small."""
+    cache = tmp_path / 'scryfall_names.json'
+    slept: list[float] = []
+    monkeypatch.setattr('pipeline.collection.resolver.time.sleep', slept.append)
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, headers={'Retry-After': '3600'}, json={'object': 'error'})
+
+    resolver = ScryfallResolver(cache_path=cache, client=_client(handler), min_interval=0.0)
+    start = time.monotonic()
+    result = resolver.get_card('Sol Ring')
+    elapsed = time.monotonic() - start
+    resolver.close()
+
+    # Falls through to a transient failure after _MAX_RETRIES throttles -> None.
+    assert result is None
+    # It DID retry (bounded), and NO sleep honored the hostile 3600s Retry-After.
+    assert len(slept) == _MAX_RETRIES
+    assert max(slept) <= _MAX_BACKOFF, f'a sleep of {max(slept)}s exceeded the cap'
+    # Real wall-clock is trivial (sleeps are spied) — proving no hour-long hang.
+    assert elapsed < 3.0
 
 
 # --------------------------------------------------------------------------- #

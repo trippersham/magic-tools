@@ -423,6 +423,77 @@ def test_list_decks_reconstructs_all() -> None:
     assert [c.name for c in decks[0].commanders] == ['Grumgully, the Generous']
 
 
+class _ExplodingResolver:
+    """A `CardResolver` whose `get_card` RAISES — proves a code path made NO
+    resolver calls (any hydration attempt would blow up)."""
+
+    def get_card(self, name: str) -> Card | None:
+        raise AssertionError(f'resolver.get_card({name!r}) called — list_decks must be name-only')
+
+
+def test_list_decks_does_not_hydrate_via_resolver() -> None:
+    """`list_decks` (list/copy) needs only names/roles/quantities — it must NOT
+    make paced per-card Scryfall lookups (O(decks*cards), >9 min live). Inject a
+    resolver that raises on any call; a name-only `list_decks` still succeeds."""
+    transport = httpx.MockTransport(_deck_fixture().handler)
+    client = httpx.Client(transport=transport)
+    store = AirtableCollectionStore.from_settings(
+        'fake-token', client=client, card_resolver=_ExplodingResolver()
+    )
+    [deck] = store.list_decks()
+    assert deck.name == 'Gruul Aggro'
+    # commander + maindeck resolved to NAMES + ROLES (no enrichment needed).
+    assert [c.name for c in deck.commanders] == ['Grumgully, the Generous']
+    by_name = {c.name: c for c in deck.cards}
+    assert by_name['Sol Ring'].role is None
+    assert by_name['Llanowar Elves'].role is None
+    # basics still carry their known land type (no resolver round-trip).
+    assert by_name['Forest'].quantity == 8
+    assert by_name['Forest'].type_line == 'Basic Land — Forest'
+
+
+def test_get_deck_still_hydrates_with_exploding_list_path() -> None:
+    """Sanity: the name-only list path does not leak into `get_deck`, which MUST
+    still hydrate (the stub resolver supplies enrichment)."""
+    deck = _store(_deck_fixture()).get_deck('Gruul Aggro')
+    assert deck.commanders[0].oracle_id == 'oid-grum'
+
+
+class _FuzzyDriftResolver:
+    """A `CardResolver` that fuzzy-renames the link name (``Sol Rin`` ->
+    ``Sol Ring``) — models Scryfall's fuzzy match returning a different `name`."""
+
+    def get_card(self, name: str) -> Card | None:
+        return Card(name='Sol Ring', oracle_id='oid-sol', mana_value=1.0, type_line='Artifact')
+
+
+def test_hydration_preserves_airtable_link_name() -> None:
+    """The Airtable link name is authoritative: a resolver whose fuzzy match
+    returns a slightly-different name must NOT silently rename the DeckCard — the
+    original link name is kept, while enrichment (type_line/oracle_id) is taken
+    from the resolved card."""
+    inv = _FIELDS['Inventory Cards']
+    d = _FIELDS['Decks']
+    fake = FakeAirtable(
+        {
+            'tblCards': [{'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Rin'}}],
+            'tblDecks': [{'id': 'recDeck', 'fields': {d['Name']: 'Typo Deck', d['Cards']: ['recSol']}}],
+        }
+    )
+    transport = httpx.MockTransport(fake.handler)
+    client = httpx.Client(transport=transport)
+    store = AirtableCollectionStore.from_settings(
+        'fake-token', client=client, card_resolver=_FuzzyDriftResolver()
+    )
+    deck = store.get_deck('Typo Deck')
+    [card] = deck.cards
+    # base link name is authoritative (no fuzzy drift to 'Sol Ring')...
+    assert card.name == 'Sol Rin'
+    # ...but enrichment still comes from the resolved card.
+    assert card.type_line == 'Artifact'
+    assert card.oracle_id == 'oid-sol'
+
+
 def test_set_assessment_and_focus_otags_write_field_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """When a base DOES carry Assessment / Focus Otags, the setters write them.
 

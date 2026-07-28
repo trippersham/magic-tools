@@ -41,6 +41,10 @@ _MIN_INTERVAL = 0.1
 #: Bounded retries on a throttle/unavailable (429/503), honoring Retry-After.
 _MAX_RETRIES = 3
 _RETRYABLE_STATUS = frozenset({429, 503})
+#: Cap any single retry sleep (seconds). A server ``Retry-After`` can be huge
+#: (e.g. ``3600``) — honoring it verbatim would hang a ``get_card`` mid-read.
+#: Cap it: after ``_MAX_RETRIES`` throttles the lookup still falls to name-only.
+_MAX_BACKOFF = 5.0
 
 
 class _Transient(Enum):
@@ -151,7 +155,11 @@ class ScryfallResolver:
             self._last_request = time.monotonic()
             if resp.status_code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES:
                 retry_after = resp.headers.get('Retry-After', '')
-                backoff = float(retry_after) if retry_after.isdigit() else self._min_interval * (2**attempt) + 0.25
+                backoff = (
+                    min(float(retry_after), _MAX_BACKOFF)
+                    if retry_after.isdigit()
+                    else min(self._min_interval * (2**attempt) + 0.25, _MAX_BACKOFF)
+                )
                 time.sleep(backoff)
                 continue
             return resp

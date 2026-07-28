@@ -2,9 +2,12 @@
 hydrated end-to-end — the gate that FakeAirtable doubles + stub resolvers missed.
 
 Deselected by default (`addopts = -m "not live"` in pyproject) so the normal
-suite stays OFFLINE + fast. Run it explicitly, with creds sourced:
+suite stays OFFLINE + fast. Run it explicitly FROM the `pipeline/` dir, with
+creds sourced — ``../.env`` resolves to ``plugins/make-magic/.env`` (one level
+up from `pipeline/`), which holds ``AIRTABLE_API_KEY``:
 
-    set -a && . ../.env && set +a          # exports AIRTABLE_API_KEY
+    cd plugins/make-magic/pipeline
+    set -a && . ../.env && set +a          # -> plugins/make-magic/.env
     uv run --extra dev pytest -m live -q
 
 It is READ-ONLY (never writes to the base) but DOES hit the live Airtable base +

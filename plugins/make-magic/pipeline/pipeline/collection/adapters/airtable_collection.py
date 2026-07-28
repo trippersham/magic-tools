@@ -15,10 +15,15 @@ This module mirrors that choice and reuses:
       :class:`ReadOnlyStoreError` unless the adapter was built with
       ``writes_enabled=True``.
 
-Field-mapping asymmetry with the local adapter (design note): the Airtable
-Inventory Cards row already carries the Scryfall enrichment columns (Card Type,
-CMC, Mana Cost, Oracle Text, Color Identity, …), so this adapter hydrates the
-base-`Card` portion DIRECTLY from the row — it needs **no** `CardResolver`.
+Hydration sources (design note): they differ by read.
+    - INVENTORY / chase / trade reads hydrate the base-`Card` portion DIRECTLY
+      from the Airtable enrichment columns (Card Type, CMC, Mana Cost, Oracle
+      Text, Color Identity, …) — **no** `CardResolver`.
+    - DECK reads via ``get_deck`` hydrate each card through the injected
+      `CardResolver` (Scryfall -> oracle_id + full enrichment): the Decks link
+      fields only carry names/record-ids, and the fact sheet needs oracle_id.
+    - ``list_decks`` (list / copy) is NAME-ONLY — it makes NO resolver calls, so
+      listing stays O(rows) instead of O(rows*cards) paced lookups.
 
 Deck reconstruction (design): a `Deck.cards` list is rebuilt from
     - the ``Commander`` link  -> `DeckCard(role='commander')`
@@ -211,8 +216,10 @@ def _as_list(value: Any) -> list[str]:
 class AirtableCollectionStore:
     """The Airtable-records implementation of `CollectionStore`.
 
-    Reads come back fully hydrated from the Airtable enrichment columns (no
-    `CardResolver`); writes are opt-in (see :class:`ReadOnlyStoreError`).
+    Inventory / chase / trade reads hydrate from the Airtable enrichment columns
+    (no `CardResolver`). Deck reads via ``get_deck`` hydrate cards through the
+    injected `CardResolver`; ``list_decks`` is name-only (no resolver calls).
+    Writes are opt-in (see :class:`ReadOnlyStoreError`).
     """
 
     # Inventory Cards field NAMES (resolved to ids at runtime).
@@ -689,17 +696,38 @@ class AirtableCollectionStore:
         return out
 
     def _hydrate(self, name: str) -> dict[str, Any]:
-        """Resolver enrichment for `name` as base-`Card` fields (name-only if unresolved)."""
-        card = self._card_resolver.get_card(name)
-        return card.model_dump() if card is not None else {'name': name}
+        """Resolver enrichment for `name` as base-`Card` fields (name-only if unresolved).
 
-    def _row_to_deck(self, rec: dict[str, Any], name_map: dict[str, str]) -> Deck:
+        The Airtable link NAME is authoritative: a resolver fuzzy-match may return
+        a slightly-different Scryfall name (e.g. ``Sol Rin`` -> ``Sol Ring``), so we
+        override ``name`` with the original link name — enrichment (type/CMC/
+        oracle_id) still comes from the resolved card, but no silent rename.
+        """
+        card = self._card_resolver.get_card(name)
+        if card is None:
+            return {'name': name}
+        fields = card.model_dump()
+        fields['name'] = name  # keep the authoritative Airtable link name
+        return fields
+
+    def _row_to_deck(self, rec: dict[str, Any], name_map: dict[str, str], *, hydrate: bool) -> Deck:
+        """Reconstruct a `Deck` from a Decks row.
+
+        ``hydrate`` gates per-card resolver lookups: ``get_deck`` passes ``True``
+        (the fact sheet needs oracle_id + type/CMC/oracle_text); ``list_decks``
+        passes ``False`` -> name-only DeckCards (name + role + quantity + basic-land
+        type) with NO resolver calls, so list/copy stay O(rows), not O(rows*cards).
+        """
         t = self._decks_table
+
+        def _fields(name: str) -> dict[str, Any]:
+            return self._hydrate(name) if hydrate else {'name': name}
+
         cards: list[DeckCard] = []
         for rid in _as_list(self._get(t, rec, self._DECK_COMMANDER)):
-            cards.append(DeckCard(**self._hydrate(name_map.get(rid, rid)), role='commander'))
+            cards.append(DeckCard(**_fields(name_map.get(rid, rid)), role='commander'))
         for rid in _as_list(self._get(t, rec, self._DECK_CARDS)):
-            cards.append(DeckCard(**self._hydrate(name_map.get(rid, rid))))
+            cards.append(DeckCard(**_fields(name_map.get(rid, rid))))
         for field_name, land_name in BASIC_LAND_FIELDS:
             count = int(self._get(t, rec, field_name) or 0)
             if count:
@@ -725,13 +753,15 @@ class AirtableCollectionStore:
         rec = self._find_deck_record(name)
         if rec is None:
             raise FileNotFoundError(f'No Airtable Decks record named {name!r}.')
-        return self._row_to_deck(rec, self._inventory_name_map())
+        return self._row_to_deck(rec, self._inventory_name_map(), hydrate=True)
 
     def list_decks(self) -> list[Deck]:
         table_id = self._resolver.table_id(self._decks_table)
         rows = self._client.list_records(table_id)
         name_map = self._inventory_name_map()
-        return [self._row_to_deck(r, name_map) for r in rows]
+        # Name-only: list/copy need names/roles/quantities, not per-card enrichment.
+        # Hydrating every card here is O(rows*cards) paced Scryfall lookups.
+        return [self._row_to_deck(r, name_map, hydrate=False) for r in rows]
 
     def save_deck(self, deck: Deck) -> None:
         """Persist the WHOLE deck: metadata + full membership.

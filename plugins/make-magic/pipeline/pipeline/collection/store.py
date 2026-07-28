@@ -275,9 +275,11 @@ def get_store(resolver: CardResolver | None = None, *, writes_enabled: bool = Fa
       caller has to wire one in (the CLI no longer injects one from the script
       edge). Tests pass a stub.
     - ``airtable`` -> the record-CRUD adapter built from env-driven ``Settings``
-      (requires ``AIRTABLE_API_KEY``); it hydrates enrichment DIRECTLY from the
-      Airtable row, so it ignores ``resolver`` (the asymmetry documented in the
-      design). ``writes_enabled`` opts the Airtable store into mutations.
+      (requires ``AIRTABLE_API_KEY``). It ignores this ``resolver`` argument and
+      wires its OWN card resolver internally: inventory/chase/trade reads hydrate
+      DIRECTLY from the Airtable row (no resolver), while deck reads via
+      ``get_deck`` hydrate cards through that internal `CardResolver` and
+      ``list_decks`` is name-only. ``writes_enabled`` opts it into mutations.
 
     The Airtable branch no longer raises ``NotImplementedError`` (Task 2).
     """
