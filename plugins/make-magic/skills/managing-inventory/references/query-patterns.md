@@ -1,6 +1,19 @@
-# Query Patterns
+# Query Patterns — Optional / ad-hoc (Airtable-only, read-mostly)
 
-Efficient querying patterns for the Magic Inventory Airtable base. Use these patterns to minimize token cost and API calls.
+> **Scope / status.** These are efficient **read** patterns for **human ad-hoc exploration** of
+> the Magic Inventory Airtable base via the `/mcp` connector — the field sets and
+> `filterByFormula` shapes that keep an exploratory `list_records` / `search_records` cheap.
+> They are **not** a skill data path.
+>
+> **Skills READ and WRITE through the backend-agnostic `collection` CLI** — `get-deck` returns
+> a whole deck's `cards[]` in one call, `list-inventory` / `list-decks` / `list-chase` /
+> `list-trades` enumerate, and the write verbs persist. No skill's executable step may
+> create/update/delete via `mcp__airtable__*`, and none needs to hand-write a `filterByFormula`.
+> Reach for the patterns below only when you (a human) are connected via `/mcp` and want to
+> hand-run a targeted read against the live base (e.g. a big server-side prefilter over the
+> whole inventory before scanning).
+
+Efficient querying patterns for the Magic Inventory Airtable base. Use these to minimize token cost and API calls **when exploring the base directly**.
 
 ---
 

@@ -1,4 +1,18 @@
-# Airtable Schema — Magic Inventory
+# Airtable Schema — Optional / ad-hoc (Airtable-only, read-mostly)
+
+> **Scope / status.** This is a **read-mostly reference for human ad-hoc exploration**
+> of the Airtable base via the `/mcp` connector — table/field IDs, `filterByFormula`
+> targets, and relationship shapes. It is **not** the skill's data path.
+>
+> **Skills WRITE (and normally READ) only through the `collection` CLI**, which is
+> backend-agnostic (local YAML *or* Airtable, resolved automatically). No skill's
+> executable step may create/update/delete via `mcp__airtable__*`. Use the tables below
+> only when you (a human) are connected to Airtable via `/mcp` and want to poke at raw
+> rows, verify a field id, or hand-write an exploratory `filterByFormula` — never as the
+> mechanism a skill uses to persist a change.
+>
+> When Airtable is the active backend, the CLI already resolves these tables/fields for
+> you; this appendix just documents what sits underneath.
 
 ## Base: Magic Inventory (`appw7QPMoqktrgDc1`)
 
@@ -41,6 +55,7 @@
 | Decks | multipleRecordLinks -> Decks | `fld7JS3yjDpokRlba` | |
 | Decks (as Commander) | multipleRecordLinks -> Decks | `fld6QRELImbLqapBO` | Inverse of Decks.Commander |
 | Trades (In) / Trades (Out) | multipleRecordLinks -> Trades | various | |
+| ⚙ Buckets / ⚙ Otags | multilineText / multipleSelects | various | **Engine-written** oracle-tag buckets + otag slugs (the wide, *actual* set). Deterministic pipeline writes these; do not hand-edit. Consumed by the fact sheet's `otag_buckets`. |
 
 ### Decks table fields
 
@@ -55,9 +70,9 @@
 | Repeat Cards Count | number | Extra copies in deck beyond the linked records. See Multi-Copy Cards below |
 | Deck Size | formula | `Linked Cards + Commander + Basic Lands + Repeat Cards Count` |
 | Notes | multilineText | |
-| Strategy | text | `fldvJRaoYfRZiM8zw` — Source of truth for what the deck AIMS to be (human-authored aspiration, prose). See strategy-schema.md for convention |
-| Focus Otags | multipleSelects or multilineText | The otags/buckets the deck CARES about — its intended functional identity in the tag vocabulary (bucket names and/or otag slugs). A CURATED subset (not the wide mechanical union the cards carry). Skill/reasoning-authored (or human) by building-decks (Operation 5) and written via the Airtable MCP; **the deterministic pipeline READS it but NEVER writes it**. Distinct from Strategy (prose aim) and Assessment (reality). See quadrant-theory.md |
-| Assessment | multilineText (long text) | Reasoning-authored by building-decks (Operation 5) and written via the Airtable MCP. What the deck ACTUALLY is, isn't, and needs — the Quadrant pre-mortem synthesis measuring actual card otags against Focus Otags (coverage of focus, thin/unprotected focus, off-focus noise) plus functional profile and structural gaps. Distinct from Strategy and Focus Otags; not engine-emitted. See quadrant-theory.md |
+| Strategy | text | `fldvJRaoYfRZiM8zw` — Source of truth for what the deck AIMS to be (human-authored aspiration, prose). CLI: `get-deck <name> --field strategy` / `set-strategy`. See strategy-schema.md |
+| Focus Otags | multipleSelects or multilineText | The otags/buckets the deck CARES about — its intended functional identity (a CURATED subset, not the wide mechanical union). CLI: `get-deck <name> --field focus_otags` / `set-focus-otags`; **the deterministic pipeline READS it but NEVER writes it**. Distinct from Strategy (prose aim) and Assessment (reality). See quadrant-theory.md |
+| Assessment | multilineText (long text) | What the deck ACTUALLY is, isn't, and needs — the Quadrant pre-mortem synthesis. CLI: `get-deck <name> --field assessment` / `set-assessment`. Distinct from Strategy and Focus Otags; not engine-emitted. See quadrant-theory.md |
 | Chase Cards | link <- Chase Cards.Target Decks | `fldfoTmUWn5WpuT6u` — Inverse link, auto-populated |
 | Color Identity | text | `fldIXcQuMKd7PLyr9` — Deck's color identity (e.g. "WUR", "BG") |
 | Creatures / Nonbasic Lands / Non-Creature Spells | rollup | Via Is* helper fields |
@@ -81,9 +96,7 @@
 | Completed Date | date | |
 | Reason / Notes | text | |
 
-**Source/Destination model:** Source and Destination are categories (Library, Deck, Store, Person). The Deck fields provide specificity when the category is "Deck". Example: swapping a card from Library into a deck -> From (Source) = "Library", To (Destination) = "Deck", To (Deck) = [the deck].
-
-**Note:** Look up current deck records at runtime via `mcp__airtable__list_records` on the Decks table.
+**Source/Destination model:** Source and Destination are categories (Library, Deck, Store, Person). The Deck fields provide specificity when the category is "Deck". Example: swapping a card from Library into a deck -> From (Source) = "Library", To (Destination) = "Deck", To (Deck) = [the deck]. To *record* such a trade, use the CLI `log-trade` verb (the JSON form carries `to_deck` / `from_deck`; see trades.md) — not a hand-written `mcp__airtable__create_record`.
 
 ### Chase Cards table fields
 
@@ -101,10 +114,16 @@
 | Price (TCGPlayer) | currency | `fld8PpkaGej0qDA8x` | |
 | Price Last Updated | lastModifiedTime | `fldGkQ71BWcPuie2T` | Watches Price field |
 | Color Identity | multipleSelects | `fldEkalJKqK2ZecEv` | W/U/B/R/G/Colorless |
-| Target Decks | multipleRecordLinks -> Decks | `flduoZZRmVfpD6aSG` | Which decks want this card |
+| Target Decks | multipleRecordLinks -> Decks | `flduoZZRmVfpD6aSG` | Which decks want this card. CLI: `add-chase <name> --for-deck <deck>` |
 | Is Land / Is Creature / Is Non-Creature | formula | various | Same pattern as Inventory Cards table |
 | Created At | createdTime | `fldWqJ6dAj2mXNx4V` | |
 | Last Modified | lastModifiedTime | `fldtYh0qTTObjRkJ7` | |
+
+> **Airtable-mode caveat (chase priority/status/target-price).** The chase workflow's
+> `--priority` / `--status` / `--target-price` have **no columns on the live Airtable
+> base**, so in Airtable mode the CLI silently skips them (Card Name + Target Decks are
+> written). Local mode retains all three. Do not add them by hand-editing rows expecting
+> the CLI to round-trip them in Airtable mode.
 
 ### Multi-Copy Cards (Non-Singleton Decks)
 
@@ -114,7 +133,13 @@ Airtable link fields only support one link per record — you cannot link the sa
 
 **On each Card:** `Repeat Number in Decks` = extra copies of that card across all decks beyond the one counted by the link. For Wretched Throng (4 in one deck), Repeat Number in Decks = 3.
 
-**When loading a non-singleton deck:**
+> **CLI note.** When persisting a decklist through the `collection` CLI, per-card
+> multiplicity is carried by `DeckCard.quantity` in the JSON you pass to `save-deck` —
+> the CLI maps that onto the repeat-field bookkeeping above when the Airtable backend is
+> active, and stores it directly in YAML when local. The manual repeat-field steps below
+> are the *underlying* Airtable mechanics for human inspection, not a skill write path.
+
+**When loading a non-singleton deck (underlying Airtable mechanics):**
 1. Link each unique non-basic-land card once to the Deck's Cards field (as normal)
 2. Set basic land counts (as normal)
 3. For cards with qty > 1: sum (qty - 1) across the deck → set Deck's `Repeat Cards Count`

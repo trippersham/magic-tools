@@ -1,34 +1,58 @@
-# Managing Trades
+# Managing Trades (via the `collection` CLI)
+
+Trades are recorded through the backend-agnostic CLI — identical in local YAML and Airtable
+mode. No `mcp__airtable__*` write step.
 
 ## Source/Destination Model
 
 Trades track card movement between locations using a category + specificity pattern:
 
 - **From (Source)** / **To (Destination)** — category: Library, Deck, Store, Person
-- **From (Deck)** / **To (Deck)** — link to specific Deck record (only when category = "Deck")
+- **From (Deck)** / **To (Deck)** — the specific Deck (only when the category is "Deck")
 - **Cards into Destination** — cards entering the destination
 - **Cards out of Destination** — cards leaving the destination
 
-**Example:** Swap Horizon Stone for Lavaleaper in Ozai deck from Library:
-- From (Source) = "Library"
-- To (Destination) = "Deck", To (Deck) = Ozai
-- Cards into Destination = [Lavaleaper]
-- Cards out of Destination = [Horizon Stone]
-
 ## Record a Trade
 
-1. Create card records for any new cards (see [cards.md](cards.md) for Scryfall fetch)
-2. Create Trade record:
-   - Date, Status (Draft / Planned / Completed)
-   - From (Source), From (Deck) if applicable
-   - To (Destination), To (Deck) if applicable
-   - Cards into Destination / Cards out of Destination (links to Cards)
-3. Update affected deck Cards link fields
-4. Update Number Owned if cards enter/leave the collection
+First add any brand-new cards to inventory (`add-card "<name>" --qty <n>`), then log the trade.
+
+**Flag form** (no deck specificity — `from_source` / `to_destination` are categories only):
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection log-trade \
+  --from-source Library --to-destination Deck \
+  --card-in "Lavaleaper" --card-out "Horizon Stone" \
+  --status Completed --notes "swap into Ozai"
+```
+`--card-in` / `--card-out` are repeatable.
+
+**JSON form** — use this when you need `to_deck` / `from_deck` specificity (the flag form has no
+`--to-deck`):
+```bash
+echo '{
+  "from_source": "Library",
+  "to_destination": "Deck",
+  "to_deck": "Ozai",
+  "cards_in": ["Lavaleaper"],
+  "cards_out": ["Horizon Stone"],
+  "status": "Completed"
+}' | ${CLAUDE_PLUGIN_ROOT}/scripts/collection log-trade --from-json -
+```
+
+**Example** — swap Horizon Stone for Lavaleaper in the Ozai deck from Library:
+- `from_source` = "Library"
+- `to_destination` = "Deck", `to_deck` = "Ozai"
+- `cards_in` = ["Lavaleaper"], `cards_out` = ["Horizon Stone"]
+
+## Reading trades
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection list-trades
+```
 
 ## Trade Lifecycle
 
-Trades follow a **Draft -> Planned -> Completed** status progression:
+Trades follow a **Draft -> Planned -> Completed** status progression (pass via `--status` or the
+JSON `status` field):
 
 | Status | Meaning |
 |--------|---------|
@@ -36,8 +60,5 @@ Trades follow a **Draft -> Planned -> Completed** status progression:
 | Planned | Cards decided, awaiting execution |
 | Completed | Trade executed, inventory updated |
 
-**On completion:**
-- Set Completed Date
-- Update deck card lists (add/remove linked cards)
-- Adjust Number Owned on affected card records
-- Verify Deck Size formula still matches expected totals
+**On completion**, reflect the move in the affected deck (`save-deck` with the updated
+`cards[]`) and in inventory (`set-quantity` for counts that changed).

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Thin wrapper for the backend-agnostic collection CLI.
+#
+# Forwards every argument to:
+#     uv run --project <pipeline> python -m pipeline.collection.run <args...>
+#
+# The active backend is auto-resolved by the pipeline (local YAML vs Airtable
+# records). Override it explicitly by exporting MAKE_MAGIC_BACKEND=local|airtable
+# before calling, e.g.:
+#     MAKE_MAGIC_BACKEND=local scripts/collection status
+#
+# This wrapper only shortens the invocation; it changes no behavior.
+set -euo pipefail
+
+# Resolve the plugin root (parent of this scripts/ dir), robust to symlinks.
+_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
+_PLUGIN_ROOT="$(cd -- "${_SCRIPT_DIR}/.." >/dev/null 2>&1 && pwd -P)"
+
+exec uv run --project "${_PLUGIN_ROOT}/pipeline" python -m pipeline.collection.run "$@"
