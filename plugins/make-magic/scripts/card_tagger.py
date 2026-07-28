@@ -181,7 +181,9 @@ def card_fits_color_identity(card_colors: list[str], deck_colors: set[str]) -> b
     return set(card_colors).issubset(deck_colors)
 
 
-def compute_tag_strategy_overlap(card_tags: list[str], strategy_keywords: list[str]) -> tuple[float, list[str]]:
+def compute_tag_strategy_overlap(
+    card_tags: list[str], strategy_keywords: list[str]
+) -> tuple[float, list[str]]:
     """Score how well a card's otag BUCKETS align with a deck's strategy via the
     bucket->strategy synonym layer."""
     kw_set = {k.lower() for k in strategy_keywords}
@@ -217,7 +219,9 @@ def score_card_for_deck(card: dict, deck: dict) -> tuple[float, list[str], str]:
     reasons: list[str] = []
 
     oracle = (card.get("oracle_text") or "").lower()
-    primary_strategy = (card.get("primary_strategy") or deck.get("primary_strategy", "")).lower()
+    primary_strategy = (
+        card.get("primary_strategy") or deck.get("primary_strategy", "")
+    ).lower()
     synergy_kw = [kw.lower() for kw in deck.get("synergy_keywords", [])]
 
     # 1. Bucket->Strategy synonym scoring
@@ -267,7 +271,10 @@ def score_card_for_deck(card: dict, deck: dict) -> tuple[float, list[str], str]:
             reasons.append("Theft synergy")
 
     if "spellslinger" in primary_strategy:
-        if "magecraft" in oracle or "whenever you cast or copy an instant or sorcery" in oracle:
+        if (
+            "magecraft" in oracle
+            or "whenever you cast or copy an instant or sorcery" in oracle
+        ):
             score += 5.0
             reasons.append("Magecraft / spellslinger trigger")
         if "instant" in oracle and "sorcery" in oracle and "whenever" in oracle:
@@ -292,7 +299,9 @@ def score_card_for_deck(card: dict, deck: dict) -> tuple[float, list[str], str]:
             reasons.append("Impulse draw for card advantage")
 
     if "blink" in primary_strategy or "etb" in primary_strategy:
-        if ("exile" in oracle and "return" in oracle and "battlefield" in oracle) or "flicker" in oracle:
+        if (
+            "exile" in oracle and "return" in oracle and "battlefield" in oracle
+        ) or "flicker" in oracle:
             score += 5.0
             reasons.append("Blink/flicker effect")
         if "enters" in oracle and ("when " in oracle or "whenever" in oracle):
@@ -309,7 +318,9 @@ def score_card_for_deck(card: dict, deck: dict) -> tuple[float, list[str], str]:
         if "sacrifice" in oracle:
             score += 2.0
             reasons.append("Sacrifice synergy")
-        if "each opponent" in oracle and ("loses" in oracle or "sacrifices" in oracle or "discards" in oracle):
+        if "each opponent" in oracle and (
+            "loses" in oracle or "sacrifices" in oracle or "discards" in oracle
+        ):
             score += 2.5
             reasons.append("Group punishment / drain")
         if "persist" in _kw_lower(card) or "undying" in _kw_lower(card):
@@ -368,12 +379,6 @@ def score_card_for_deck(card: dict, deck: dict) -> tuple[float, list[str], str]:
             reasons.append("Has Learn")
 
     # 4. Small bonuses
-    rarity = card.get("rarity", "")
-    if rarity == "mythic":
-        score += 0.3
-    elif rarity == "rare":
-        score += 0.15
-
     if card.get("is_legendary") and card.get("is_creature"):
         score += 0.2
 
@@ -412,12 +417,18 @@ def generate_recommendations(
         deck_colors = parse_color_identity(deck.get("color_identity", ""))
         deck_name = deck.get("deck_name", "")
 
-        valid_cards = [c for c in cards if card_fits_color_identity(c.get("color_identity", []), deck_colors)]
+        valid_cards = [
+            c
+            for c in cards
+            if card_fits_color_identity(c.get("color_identity", []), deck_colors)
+        ]
 
         scored = []
         for card in valid_cards:
             tags = card.get("tags", card.get("mechanic_tags", []))
-            if card.get("is_land", False) or ("Land" in (card.get("type_line") or card.get("card_type") or "")):
+            if card.get("is_land", False) or (
+                "Land" in (card.get("type_line") or card.get("card_type") or "")
+            ):
                 if not any(t in tags for t in ["ramp", "flicker"]):
                     continue
 
@@ -461,7 +472,9 @@ def generate_recommendations(
     results["summary"] = {
         "total_recommendations": len(all_recs),
         "unique_cards": len(card_counts),
-        "most_recommended": [{"card": c, "deck_count": n} for c, n in card_counts.most_common(10)],
+        "most_recommended": [
+            {"card": c, "deck_count": n} for c, n in card_counts.most_common(10)
+        ],
     }
 
     return results
@@ -514,12 +527,16 @@ def tag_set(
     zero = sum(1 for c in processed if not c["tags"])
     typer.echo(f"\nTotal: {len(processed)} cards, {len(tc)} unique tags", err=True)
     if processed:
-        typer.echo(f"Zero-tag cards: {zero} ({zero / len(processed) * 100:.1f}%)", err=True)
+        typer.echo(
+            f"Zero-tag cards: {zero} ({zero / len(processed) * 100:.1f}%)", err=True
+        )
 
 
 @app.command()
 def tag_file(
-    input_path: Path = typer.Argument(..., help="JSON file with card names (or objects with a `name`)"),
+    input_path: Path = typer.Argument(
+        ..., help="JSON file with card names (or objects with a `name`)"
+    ),
     output: Path = typer.Option(None, "--output", "-o"),
 ) -> None:
     """Tag cards named in a JSON input file (otag buckets via the card dim)."""

@@ -214,6 +214,44 @@ def test_load_spoilers_filters(data_dir: Path) -> None:
     assert {s.slug for s in tr_spoilers.load_spoilers(only_new=True)} == {'a', 'b'}
 
 
+def test_confirmation_flips_then_sticks_across_runs(data_dir: Path) -> None:
+    """A slug's confirmation is monotonic: unconfirmed -> confirmed carries forward.
+
+    RUN1 (resolver miss): the slug stays ``confirmed=False``, ``oracle_id=None``,
+    ``source='mythicspoiler'``. RUN2 (same raw, resolver now HITS): it flips to
+    ``confirmed=True`` with the resolved ``oracle_id`` + ``source='scryfall'``.
+    RUN3 (same raw, resolver misses again): the confirmation STICKS — still
+    confirmed, oracle_id + scryfall source retained via prior carry-forward.
+    """
+    raw = [{'slug': 'solRing', 'image_url': 'i', 'set_code': 'eoe', 'detail_url': 'd'}]
+
+    # RUN1 — resolver misses everything.
+    _land_raw(raw)
+    tr_spoilers.build(resolver=_StubResolver({}))
+    run1 = {s.slug: s for s in tr_spoilers.load_spoilers()}['solRing']
+    assert run1.confirmed is False
+    assert run1.oracle_id is None
+    assert run1.source == 'mythicspoiler'
+
+    # RUN2 — same raw snapshot, resolver now HITS ("solRing" -> "sol Ring").
+    _land_raw(raw)
+    tr_spoilers.build(resolver=_StubResolver({'sol Ring': Card(name='Sol Ring', oracle_id='oid-sol')}))
+    run2 = {s.slug: s for s in tr_spoilers.load_spoilers()}['solRing']
+    assert run2.confirmed is True
+    assert run2.oracle_id == 'oid-sol'
+    assert run2.name == 'Sol Ring'
+    assert run2.source == 'scryfall'
+
+    # RUN3 — same raw, resolver misses again; confirmation must STICK.
+    _land_raw(raw)
+    tr_spoilers.build(resolver=_StubResolver({}))
+    run3 = {s.slug: s for s in tr_spoilers.load_spoilers()}['solRing']
+    assert run3.confirmed is True
+    assert run3.oracle_id == 'oid-sol'
+    assert run3.name == 'Sol Ring'
+    assert run3.source == 'scryfall'
+
+
 def test_reconcile_is_idempotent_on_rerun(data_dir: Path) -> None:
     _land_raw([{'slug': 'a', 'image_url': 'i', 'set_code': 'eoe', 'detail_url': 'd'}])
     resolver = _StubResolver({})
