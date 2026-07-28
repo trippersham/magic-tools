@@ -23,6 +23,7 @@ from pipeline.contracts.models import (
     FactSheetShape,
     FactSheetStructural,
     OwnedCard,
+    Spoiler,
     Trade,
 )
 
@@ -41,5 +42,6 @@ __all__ = (
     'FactSheetShape',
     'FactSheetStructural',
     'OwnedCard',
+    'Spoiler',
     'Trade',
 )

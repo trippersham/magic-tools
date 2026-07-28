@@ -116,6 +116,13 @@ def _project(card: dict[str, Any]) -> dict[str, Any]:
         'produced_mana': card.get('produced_mana', []),
         'keywords': card.get('keywords', []),
         'oracle_text': card.get('oracle_text'),
+        # --- #5 presentation fields (all present in the daily oracle_cards bulk;
+        #     price is NOT projected — it is volatile and served live) --- #
+        'power': card.get('power'),
+        'toughness': card.get('toughness'),
+        'art_crop': card.get('image_uris', {}).get('art_crop'),
+        'scryfall_uri': card.get('scryfall_uri'),
+        'set_name': card.get('set_name'),
     }
 
 

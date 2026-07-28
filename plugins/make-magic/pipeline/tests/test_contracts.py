@@ -23,6 +23,7 @@ from pipeline.contracts import (
     DeckCard,
     FactSheet,
     OwnedCard,
+    Spoiler,
     Trade,
 )
 
@@ -140,6 +141,44 @@ def test_card_unresolved_name_only() -> None:
     assert card.type_line is None
     assert card.colors == []
     assert card.oracle_text is None
+
+
+def test_card_dim_presentation_fields() -> None:
+    """#5 card-dim presentation fields carry through and default to None."""
+    card = Card(
+        name='Llanowar Elves',
+        power='1',
+        toughness='1',
+        art_crop='https://cards.scryfall.io/art_crop/front/6/a/6a0b230b.jpg',
+        scryfall_uri='https://scryfall.com/card/fdn/227/llanowar-elves',
+        set_name='Foundations',
+    )
+    assert card.power == '1'
+    assert card.toughness == '1'
+    assert card.art_crop.startswith('https://')
+    assert card.scryfall_uri.startswith('https://')
+    assert card.set_name == 'Foundations'
+
+
+def test_card_dim_presentation_defaults_none() -> None:
+    """A name-only Card still validates; presentation fields default to None."""
+    card = Card(name='Mysterious Spoiler')
+    assert card.power is None
+    assert card.toughness is None
+    assert card.art_crop is None
+    assert card.scryfall_uri is None
+    assert card.set_name is None
+
+
+def test_card_dim_otag_fields() -> None:
+    """#5 otag fields carry through and default to empty lists."""
+    card = Card(name='Academy Manufactor', otag_buckets=['ramp', 'draw'], otags=['ramp', 'card-draw'])
+    assert card.otag_buckets == ['ramp', 'draw']
+    assert card.otags == ['ramp', 'card-draw']
+    # Defaulted empty on a name-only card.
+    bare = Card(name='Bare')
+    assert bare.otag_buckets == []
+    assert bare.otags == []
 
 
 def test_card_missing_name_rejected() -> None:
@@ -469,3 +508,42 @@ def test_trade_wrong_type_rejected() -> None:
 def test_trade_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError):
         Trade(from_source='Library', to_destination='Deck', mystery='x')  # type: ignore[call-arg]
+
+
+# --------------------------------------------------------------------------- #
+# Spoiler — a reconciled preview row (MythicSpoiler <-> Scryfall)
+# --------------------------------------------------------------------------- #
+
+
+def test_spoiler_good() -> None:
+    spoiler = Spoiler(
+        slug='new-mythic-creature',
+        set_code='EOE',
+        name='New Mythic Creature',
+        oracle_id='4457ed35-7c10-48c8-9b6c-cf9b3f31c0f7',
+        source='scryfall',
+        first_seen_cursor='2026-07-27T00:00:00+00:00',
+        confirmed=True,
+    )
+    assert spoiler.slug == 'new-mythic-creature'
+    assert spoiler.set_code == 'EOE'
+    assert spoiler.source == 'scryfall'
+    assert spoiler.confirmed is True
+
+
+def test_spoiler_defaults() -> None:
+    """Unconfirmed preview: oracle_id/first_seen_cursor null, confirmed False."""
+    spoiler = Spoiler(slug='mystery', set_code='EOE', name='Mystery Card', source='mythicspoiler')
+    assert spoiler.oracle_id is None
+    assert spoiler.first_seen_cursor is None
+    assert spoiler.confirmed is False
+
+
+def test_spoiler_missing_required_rejected() -> None:
+    with pytest.raises(ValidationError):
+        Spoiler(slug='x', set_code='EOE', name='X')  # type: ignore[call-arg]  # missing source
+
+
+def test_spoiler_extra_field_forbidden() -> None:
+    with pytest.raises(ValidationError):
+        Spoiler(slug='x', set_code='EOE', name='X', source='scryfall', mystery='y')  # type: ignore[call-arg]

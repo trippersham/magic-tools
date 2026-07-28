@@ -85,6 +85,35 @@ class Card(BaseModel):
         default=None,
         description='Oracle rules text (Scryfall `oracle_text`); None if unavailable.',
     )
+    # --- #5 card-dim additions (presentation + functional tags), all nullable/defaulted --- #
+    power: str | None = Field(
+        default=None,
+        description='Creature power (Scryfall `power`, a string — may be `*`); None if non-creature/unresolved.',
+    )
+    toughness: str | None = Field(
+        default=None,
+        description='Creature toughness (Scryfall `toughness`, a string — may be `*`); None if non-creature.',
+    )
+    art_crop: str | None = Field(
+        default=None,
+        description='Art-crop image URL (Scryfall `image_uris.art_crop`); None if unresolved.',
+    )
+    scryfall_uri: str | None = Field(
+        default=None,
+        description='Canonical Scryfall page URL for the card (Scryfall `scryfall_uri`); None if unresolved.',
+    )
+    set_name: str | None = Field(
+        default=None,
+        description="The card's set name (Scryfall `set_name`); distinct from OwnedCard.sets (printings owned).",
+    )
+    otag_buckets: list[str] = Field(
+        default_factory=list,
+        description='Crosswalked functional buckets from the card dim (empty if the otag layer is unavailable).',
+    )
+    otags: list[str] = Field(
+        default_factory=list,
+        description='Raw rolled-up oracle-tag slugs from the card dim (empty if the otag layer is unavailable).',
+    )
 
 
 class OwnedCard(Card):
@@ -143,14 +172,14 @@ class Deck(BaseModel):
         default=None,
         description=(
             'Reasoning-authored reality synthesis (Airtable Decks.Assessment; the Quadrant '
-            'pre-mortem — what the deck ACTUALLY is, isn\'t, and needs). Distinct from `strategy` '
+            "pre-mortem — what the deck ACTUALLY is, isn't, and needs). Distinct from `strategy` "
             '(prose aim) and `focus_otags` (declared functional identity). See quadrant-theory.md.'
         ),
     )
     focus_otags: list[str] = Field(
         default_factory=list,
         description=(
-            'The deck\'s declared NARROW focus set (Airtable Decks.Focus Otags): the buckets/otag '
+            "The deck's declared NARROW focus set (Airtable Decks.Focus Otags): the buckets/otag "
             'slugs the deck CARES about — a curated subset, skill/reasoning-authored by '
             'building-decks. The deterministic pipeline READS it but never writes it.'
         ),
@@ -373,3 +402,39 @@ class Trade(BaseModel):
     completed_date: str | None = Field(default=None, description='Completed Date (ISO date).')
     notes: str | None = Field(default=None, description='Reason / Notes.')
     airtable_record_id: str | None = Field(default=None, description='Airtable record id (rec…), a durable join key.')
+
+
+# --------------------------------------------------------------------------- #
+# Spoiler — a reconciled preview row (MythicSpoiler <-> Scryfall). Mirrors the
+# prior spoiler_cache.db row shape so chasing-cards' status/list output is
+# unchanged; oracle_id/confirmed carry the MythicSpoiler->Scryfall reconciliation.
+# --------------------------------------------------------------------------- #
+
+
+class Spoiler(BaseModel):
+    """A reconciled spoiler/preview card.
+
+    Carries a preview seen on MythicSpoiler or Scryfall through to a confirmed
+    Scryfall identity. `oracle_id` is null until Scryfall-confirmed (`confirmed`);
+    `first_seen_cursor` is the lake cursor at which the row first appeared,
+    replacing the old SQLite `meta` watermark.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    slug: str = Field(description='Stable preview slug (MythicSpoiler slug); the durable dedup key.')
+    set_code: str = Field(description='Set code the preview belongs to, e.g. `EOE`.')
+    name: str = Field(description='Card name as previewed.')
+    oracle_id: str | None = Field(
+        default=None,
+        description='Scryfall oracle_id once reconciled; None until Scryfall-confirmed.',
+    )
+    source: str = Field(description='Where the preview was seen: `mythicspoiler` or `scryfall`.')
+    first_seen_cursor: str | None = Field(
+        default=None,
+        description='Lake cursor at which this preview first appeared (replaces the SQLite meta watermark).',
+    )
+    confirmed: bool = Field(
+        default=False,
+        description='Whether the preview has been reconciled to a Scryfall identity.',
+    )

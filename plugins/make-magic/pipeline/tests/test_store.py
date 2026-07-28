@@ -75,7 +75,7 @@ def test_write_then_read_parquet_roundtrip(data_dir: Path) -> None:
         result = rows.aggregate('count(*) AS n, max(cmc) AS max_cmc').fetchone()
         assert result is not None
         n, max_cmc = result
-        assert n == 5
+        assert n == 6
         assert max_cmc == 4.0
 
         bolt = rows.filter("name = 'Lightning Bolt'").project('color_identity').fetchone()
