@@ -167,12 +167,48 @@ DERIVED_CARD_FIELDS: frozenset[str] = frozenset(
     }
 )
 
+#: THE CHASE-CARDS CARD-DIM DERIVED FIELDS (#5, 5b-3). The Chase Cards table is a
+#: SEPARATE Airtable table with a SMALLER derived schema than Inventory Cards: it
+#: has NO Power/Toughness, Card Art, Scryfall URL, or Price column. So the chase
+#: derived allowlist is exactly these five Scryfall-pure columns, sourced from the
+#: resolver ``Card`` (never a price — Chase has no Price col). This is the closed
+#: authorization set for the CHASE table; it is DISJOINT in concept from the
+#: Inventory allowlist (a different table entirely) and MUST equal the golden
+#: contract's ``tables."Chase Cards".derived_fields`` (drift guard at first use).
+CHASE_DERIVED_CARD_FIELDS: frozenset[str] = frozenset(
+    {
+        'Card Type',
+        'CMC',
+        'Mana Cost',
+        'Oracle Text',
+        'Color Identity',
+    }
+)
+
 #: THE ALLOWLIST. The ONLY Airtable fields this adapter may ever touch: the two
 #: engine-created ⚙ fields PLUS the card-dim derived Scryfall columns. Adding a
 #: field here is the ONLY way to authorize a new write; nothing else in this
 #: module enumerates writable field names. Frozen so it can be used as a
 #: membership check and diffed against the denylist at first use.
 ALLOWLIST_NAMES: frozenset[str] = frozenset(f.name for f in DERIVED_FIELDS) | DERIVED_CARD_FIELDS
+
+#: THE CHASE ALLOWLIST. The ONLY Chase Cards fields the inline chase derived-write
+#: may touch: the five Scryfall-pure derived columns. No ⚙ fields (the otag sync
+#: does not target Chase) and no price. Closed set, diffed against the chase
+#: denylist at first use.
+CHASE_ALLOWLIST_NAMES: frozenset[str] = CHASE_DERIVED_CARD_FIELDS
+
+#: THE CHASE WRONG-TABLE PROBE. The chase human fields the LIVE Chase Cards table
+#: is GUARANTEED to have (its primary ``Card Name`` + the ``Target Decks`` link the
+#: read/write paths use). Used as :attr:`AllowlistWriteClient._probe_fields` for the
+#: chase binding because the contract's chase denylist is a SUPERSET of the live
+#: table (the chasing-cards skill declares an aspirational fuller schema — Sets /
+#: Card Art / Scryfall URL / Price / Power / Toughness — that the live 5-derived
+#: table lacks), so probing with the full denylist would wrongly reject the real
+#: Chase table. This tight probe still rejects a genuinely-wrong table (Decks lacks
+#: 'Card Name'); the full chase WRITE denylist is unchanged, so writing any wider
+#: chase human field is still refused.
+CHASE_PROBE_FIELDS: frozenset[str] = frozenset({'Card Name', 'Target Decks'})
 
 #: Convenience handles onto the two ⚙ field names (single source of truth = tuple).
 BUCKETS_FIELD: str = f'{NS}Buckets'
@@ -231,6 +267,11 @@ class NonAllowlistFieldError(RuntimeError):
 #: are separate concerns — one keys the committed contract, the other hits the API.
 CARDS_TABLE_NAME = 'Inventory Cards'
 
+#: The Chase Cards table KEY in the golden contract (target of the 5b-3 inline
+#: chase derived-write). Same distinction as :data:`CARDS_TABLE_NAME`: it indexes
+#: the STATIC contract, not the live schema (which config resolves by name).
+CHASE_TABLE_NAME = 'Chase Cards'
+
 
 def _golden_contract_path() -> Path:
     """Locate ``regression/golden_contract.json`` relative to this package.
@@ -241,49 +282,70 @@ def _golden_contract_path() -> Path:
     return Path(__file__).resolve().parents[3] / 'regression' / 'golden_contract.json'
 
 
-def load_contract_derived_fields(path: Path | None = None) -> frozenset[str]:
-    """Load the CARD-DIM / engine-derived Cards field names from the contract.
+def load_contract_derived_fields(
+    path: Path | None = None,
+    *,
+    table_name: str = CARDS_TABLE_NAME,
+) -> frozenset[str]:
+    """Load the CARD-DIM / engine-derived field names for ``table_name`` from the contract.
 
-    These are the Inventory Cards columns classified as a pure function of the
+    For Inventory Cards these are the columns classified as a pure function of the
     card's Scryfall identity (``tables."Inventory Cards".derived_fields``). They
     are engine-writable and therefore EXCLUDED from the human denylist even though
     they appear in ``required_fields`` (the regression harness still checks they
     exist on the live table). Sourcing this from the contract keeps the derived-
     vs-human split single-homed; the module's :data:`DERIVED_CARD_FIELDS` mirror
     is asserted equal at first use (drift guard in :func:`_human_denylist`).
+
+    Chase Cards has no ``derived_fields`` key in the contract (the contract only
+    reclassifies the Inventory table), so 5b-3 passes an explicit
+    ``derived_override`` at the guard layer instead — see
+    :data:`CHASE_DERIVED_CARD_FIELDS` and :func:`_chase_human_denylist`.
     """
     contract = json.loads((path or _golden_contract_path()).read_text(encoding='utf-8'))
-    cards_meta = contract.get('tables', {}).get(CARDS_TABLE_NAME, {})
-    return frozenset(cards_meta.get('derived_fields', []))
+    tbl_meta = contract.get('tables', {}).get(table_name, {})
+    return frozenset(tbl_meta.get('derived_fields', []))
 
 
-def load_human_denylist(path: Path | None = None) -> frozenset[str]:
-    """Load the DENYLIST of human/collection-owned **Cards** field names.
+def load_human_denylist(
+    path: Path | None = None,
+    *,
+    table_name: str = CARDS_TABLE_NAME,
+    derived_override: frozenset[str] | None = None,
+) -> frozenset[str]:
+    """Load the DENYLIST of human/collection-owned field names for ``table_name``.
 
-    The write-back targets the Cards table, so the fields it must never touch are
-    the Cards table's human/collection-authoritative fields: the Cards
+    The write-back targets ``table_name``, so the fields it must never touch are
+    that table's human/collection-authoritative fields: the table
     ``primary_field`` plus every ``required_fields`` entry any skill declares for
-    the Cards table (Card Name, Sets, Number Owned, Sources, Condition, Number in
-    Library, Decks, ...) — MINUS the card-dim / engine-derived Scryfall columns
-    (:func:`load_contract_derived_fields`: Card Type, Mana Cost, CMC, Power /
-    Toughness, Oracle Text, Card Art, Scryfall URL, Price (TCGPlayer), Color
-    Identity), which the engine OWNS (#5) and so are on the allowlist, not the
-    denylist. Deriving it here (rather than hard-coding) keeps it in lock-step
-    with the contract: a new Cards human field is automatically denied, and a
-    field reclassified as derived is automatically allowed.
+    it (for Inventory Cards: Card Name, Sets, Number Owned, Sources, Condition,
+    Number in Library, Decks, ...; for Chase Cards: Card Name, Target Decks, ...)
+    — MINUS the card-dim / engine-derived Scryfall columns the engine OWNS (#5)
+    and so are on the allowlist, not the denylist.
+
+    The derived reclassification source is: ``derived_override`` when given (5b-3
+    passes :data:`CHASE_DERIVED_CARD_FIELDS` for Chase, whose contract entry has no
+    ``derived_fields`` key), else the table's contract ``derived_fields``
+    (:func:`load_contract_derived_fields`). Deriving the denylist here (rather than
+    hard-coding) keeps it in lock-step with the contract: a new human field is
+    automatically denied, and a field reclassified as derived is automatically
+    allowed.
     """
     contract = json.loads((path or _golden_contract_path()).read_text(encoding='utf-8'))
     denied: set[str] = set()
-    cards_meta = contract.get('tables', {}).get(CARDS_TABLE_NAME, {})
-    pf = cards_meta.get('primary_field')
+    tbl_meta = contract.get('tables', {}).get(table_name, {})
+    pf = tbl_meta.get('primary_field')
     if pf:
         denied.add(pf)
     for skill in contract.get('skills', {}).values():
-        cards_tbl = skill.get('tables', {}).get(CARDS_TABLE_NAME, {})
-        denied.update(cards_tbl.get('required_fields', []))
+        skill_tbl = skill.get('tables', {}).get(table_name, {})
+        denied.update(skill_tbl.get('required_fields', []))
     # Reclassify: the engine-derived Scryfall columns are OWNED by the write-back
     # (they land on the allowlist), so they are NOT human-denied.
-    denied -= load_contract_derived_fields(path)
+    derived = (
+        derived_override if derived_override is not None else load_contract_derived_fields(path, table_name=table_name)
+    )
+    denied -= derived
     return frozenset(denied)
 
 
@@ -338,28 +400,84 @@ def _human_denylist() -> frozenset[str]:
     return denylist
 
 
-def assert_no_human_fields(payload_fields: Any) -> None:
-    """Guard: refuse any payload that touches a human (denylisted) field, or any
-    field outside the allowlist. Called before every request is built.
+@lru_cache(maxsize=1)
+def _chase_human_denylist() -> frozenset[str]:
+    """Return the CHASE Cards human-field DENYLIST, loaded LAZILY and cached (5b-3).
 
-    Two independent checks so the failure mode is explicit:
-        1. intersection with :func:`_human_denylist` must be EMPTY (the core proof);
-        2. every field must be in :data:`ALLOWLIST_NAMES` (closed-set defense).
+    The exact analogue of :func:`_human_denylist` for the Chase Cards table: it
+    derives the chase human/collection-owned fields (Card Name + Target Decks +
+    any other chase ``required_fields`` — e.g. Sets/Priority/Status/Target Price if
+    a base has them) from the golden contract, MINUS the five chase derived columns
+    (:data:`CHASE_DERIVED_CARD_FIELDS`), which the engine OWNS. The three fail-closed
+    asserts (non-empty, disjointness, no-drift) are the SAME shape as the Inventory
+    guard, bound to the CHASE table — so this GENERALIZES the guard to a second
+    table without touching (or weakening) the Inventory guard above.
+    """
+    denylist = load_human_denylist(table_name=CHASE_TABLE_NAME, derived_override=CHASE_DERIVED_CARD_FIELDS)
+    assert denylist, (
+        'FATAL: the chase human-field denylist is empty; regression/golden_contract.json is '
+        f"missing or its Chase-table key doesn't match CHASE_TABLE_NAME={CHASE_TABLE_NAME!r}. "
+        'The chase human-field write guard must never degrade to allowlist-only.'
+    )
+    overlap = CHASE_ALLOWLIST_NAMES & denylist
+    assert not overlap, (
+        f'FATAL: chase derived allowlist overlaps the chase human denylist: {sorted(overlap)}. '
+        'The chase write-back must never own a human-edited field name.'
+    )
+    unauthorized = CHASE_DERIVED_CARD_FIELDS - CHASE_ALLOWLIST_NAMES
+    assert not unauthorized, (
+        f'FATAL: chase derived fields {sorted(unauthorized)} are not on the chase allowlist; '
+        'every chase derived field must be writable.'
+    )
+    return denylist
+
+
+def _assert_within_binding(payload_fields: Any, *, allowlist: frozenset[str], denylist: frozenset[str]) -> None:
+    """Parameterized guard core: refuse fields outside ``allowlist`` / inside ``denylist``.
+
+    The shared enforcement both the Inventory guard (:func:`assert_no_human_fields`)
+    and the chase guard (:func:`assert_no_chase_human_fields`) delegate to, so the
+    two tables share ONE implementation and the chase generalization cannot drift
+    from — or weaken — the Inventory one. Two independent checks so the failure mode
+    is explicit:
+        1. intersection with ``denylist`` must be EMPTY (the core proof);
+        2. every field must be in ``allowlist`` (closed-set defense).
     """
     fields = set(payload_fields)
-    human = fields & _human_denylist()
+    human = fields & denylist
     if human:
         raise HumanFieldWriteError(
-            f'REFUSED: write payload contains human-edited Card field(s) {sorted(human)}. '
-            'This adapter may only write the derived allowlist '
-            f'{sorted(ALLOWLIST_NAMES)}; human fields are pull-only.'
+            f'REFUSED: write payload contains human-edited field(s) {sorted(human)}. '
+            f'This adapter may only write the derived allowlist {sorted(allowlist)}; '
+            'human fields are pull-only.'
         )
-    non_allowed = fields - ALLOWLIST_NAMES
+    non_allowed = fields - allowlist
     if non_allowed:
         raise NonAllowlistFieldError(
             f'REFUSED: write payload contains non-allowlisted field(s) '
-            f'{sorted(non_allowed)}. Only {sorted(ALLOWLIST_NAMES)} may be written.'
+            f'{sorted(non_allowed)}. Only {sorted(allowlist)} may be written.'
         )
+
+
+def assert_no_human_fields(payload_fields: Any) -> None:
+    """Guard (Inventory Cards): refuse any payload that touches a human (denylisted)
+    field, or any field outside the allowlist. Called before every request is built.
+
+    A thin Inventory-bound wrapper over :func:`_assert_within_binding`, preserving
+    the exact original behavior (allowlist = :data:`ALLOWLIST_NAMES`, denylist =
+    :func:`_human_denylist`).
+    """
+    _assert_within_binding(payload_fields, allowlist=ALLOWLIST_NAMES, denylist=_human_denylist())
+
+
+def assert_no_chase_human_fields(payload_fields: Any) -> None:
+    """Guard (Chase Cards, 5b-3): the chase analogue of :func:`assert_no_human_fields`.
+
+    Bound to the CHASE allowlist (:data:`CHASE_ALLOWLIST_NAMES`) + chase denylist
+    (:func:`_chase_human_denylist`), so a chase human field (Card Name / Target
+    Decks / …) fails CLOSED and only the five chase derived columns may be written.
+    """
+    _assert_within_binding(payload_fields, allowlist=CHASE_ALLOWLIST_NAMES, denylist=_chase_human_denylist())
 
 
 # --------------------------------------------------------------------------- #
@@ -556,6 +674,34 @@ def build_derived_card_payload(card: Any, price_usd: str | None) -> dict[str, An
     return payload
 
 
+def build_chase_derived_card_payload(card: Any) -> dict[str, Any]:
+    """Build the FIVE-field chase derived write payload for ONE resolved card (5b-3).
+
+    The Chase Cards analogue of :func:`build_derived_card_payload`, but for the
+    SMALLER chase derived schema: it sources exactly the five Scryfall-pure columns
+    the Chase table has (Card Type, CMC, Mana Cost, Oracle Text, Color Identity)
+    from the lake ``contracts.Card``. There is NO price (Chase has no Price column)
+    and NO Power/Toughness, Card Art, or Scryfall URL. Emits EXACTLY the keys in
+    :data:`CHASE_DERIVED_CARD_FIELDS`; there is no branch that copies an arbitrary
+    field name, so a chase human field cannot appear structurally. The chase guard
+    (:func:`assert_no_chase_human_fields`) is re-run as defense-in-depth. Idempotent:
+    same Card -> identical payload.
+    """
+    payload: dict[str, Any] = {
+        'Card Type': card.type_line or '',
+        'CMC': card.mana_value if card.mana_value is not None else 0,
+        'Mana Cost': card.mana_cost or '',
+        'Oracle Text': card.oracle_text or '',
+        'Color Identity': list(card.color_identity or []),
+    }
+    # STRUCTURAL invariant: the emitted keys are EXACTLY the closed chase derived set.
+    assert set(payload) == CHASE_DERIVED_CARD_FIELDS, (
+        f'chase derived payload keys {sorted(payload)} != CHASE_DERIVED_CARD_FIELDS {sorted(CHASE_DERIVED_CARD_FIELDS)}'
+    )
+    assert_no_chase_human_fields(payload.keys())  # defense-in-depth (chase guard)
+    return payload
+
+
 @dataclass
 class DerivedWriteReport:
     """Result of a (dry-run, applied, or local-no-op) derived-column write."""
@@ -660,6 +806,10 @@ class AllowlistWriteClient:
         *,
         base_id: str | None = None,
         cards_table_name: str | None = None,
+        allowlist: frozenset[str] | None = None,
+        denylist_fn: Any | None = None,
+        guard: Any | None = None,
+        probe_fields: frozenset[str] | None = None,
         _client: httpx.Client | None = None,
     ) -> None:
         self.__client = _client or httpx.Client(timeout=30)
@@ -670,6 +820,32 @@ class AllowlistWriteClient:
         settings = get_settings()
         self._base_id = base_id or settings.airtable_base_id
         self._cards_table_name = cards_table_name or settings.cards_table
+        #: The table BINDING (5b-3 generalization). Defaults to the Inventory Cards
+        #: binding (allowlist = :data:`ALLOWLIST_NAMES`, denylist = the Inventory
+        #: human denylist, guard = :func:`assert_no_human_fields`) so every existing
+        #: caller is byte-for-byte unchanged. The chase inline write passes the CHASE
+        #: allowlist / denylist / guard so the SAME machinery binds to a second table
+        #: without weakening the Inventory guard.
+        self._allowlist = allowlist if allowlist is not None else ALLOWLIST_NAMES
+        self._denylist_fn = denylist_fn if denylist_fn is not None else _human_denylist
+        self._guard = guard if guard is not None else assert_no_human_fields
+        #: The WRONG-TABLE PROBE set — the human fields whose presence proves the
+        #: resolved table IS the intended write-target (see :meth:`list_fields`).
+        #: SEPARATE from the write denylist because the two answer different
+        #: questions: the denylist is the closed set of fields that must NEVER be
+        #: WRITTEN (kept FULL — no weakening), while the probe is the set the guard
+        #: requires to be PRESENT to accept the table. For Inventory they coincide
+        #: (``probe_fields=None`` -> the full Inventory denylist, byte-for-byte the
+        #: original guard). For Chase the contract's denylist is a SUPERSET of the
+        #: live table's fields (the chasing-cards skill declares an aspirational
+        #: fuller schema than the live 5-derived + Card Name/Target Decks table), so
+        #: probing with the full denylist would wrongly REJECT the real Chase table;
+        #: the chase caller passes a tight, live-accurate probe (Card Name +
+        #: Target Decks) that still rejects a genuinely-wrong table (Decks lacks
+        #: 'Card Name'). The WRITE denylist stays full, so writing any of the wider
+        #: chase human fields is still refused — the guard is generalized, not
+        #: loosened.
+        self._probe_fields = probe_fields
         #: Resolved lazily from the meta schema on the first :meth:`list_fields`.
         self._cards_table_id: str | None = None
         #: id-keyed wire guard state, derived from the resolved allowlist
@@ -691,8 +867,8 @@ class AllowlistWriteClient:
         field ids (and unknown ids) are deliberately excluded, so the wire guard
         can reject anything that is not one of the two derived ids.
         """
-        self._allowed_ids = frozenset(fid for name, fid in name_to_id.items() if name in ALLOWLIST_NAMES)
-        self._id_to_name = {fid: name for name, fid in name_to_id.items() if name in ALLOWLIST_NAMES}
+        self._allowed_ids = frozenset(fid for name, fid in name_to_id.items() if name in self._allowlist)
+        self._id_to_name = {fid: name for name, fid in name_to_id.items() if name in self._allowlist}
 
     def list_fields(self) -> dict[str, str]:
         """Return ``{field_name: field_id}`` for the Cards table (meta API GET).
@@ -710,22 +886,27 @@ class AllowlistWriteClient:
         for table in resp.json().get('tables', []):
             if table.get('name') == self._cards_table_name:
                 name_to_id = {f['name']: f['id'] for f in table.get('fields', [])}
-                # WRONG-TABLE WRITE GUARD: bind the derived write to the REAL Cards
-                # table structurally. A misconfigured/hostile AIRTABLE_CARDS_TABLE
-                # (e.g. '=Decks') could resolve a table by NAME that is not the
-                # inventory Cards table; ensure_fields would then create the two ⚙
-                # fields on it and PATCH derived values onto its records. Require
-                # that the resolved table CONTAINS the human Card fields (the
-                # denylist is a SUBSET of its field names) — Decks lacks 'Card
-                # Name'/'Number Owned'/… so it is refused BEFORE any create/PATCH.
-                # This is an ADDITIONAL binding; it does not loosen any existing
-                # allowlist/denylist/wire guard.
-                missing_card_fields = _human_denylist() - set(name_to_id)
+                # WRONG-TABLE WRITE GUARD: bind the derived write to the REAL target
+                # table structurally. A misconfigured/hostile table NAME (e.g.
+                # '=Decks') could resolve a table by NAME that is not the intended
+                # one; the write would then PATCH derived values onto its records.
+                # Require that the resolved table CONTAINS this binding's human
+                # fields (its denylist is a SUBSET of the table's field names) —
+                # e.g. Decks lacks 'Card Name'/'Number Owned'/… (Inventory binding)
+                # or 'Target Decks' (chase binding) so it is refused BEFORE any
+                # create/PATCH. The probe DEFAULTS to the full write denylist so the
+                # INVENTORY guard is byte-for-byte the original; a caller whose live
+                # schema is a SUBSET of its contract denylist (Chase) passes a tight,
+                # live-accurate probe (Card Name + Target Decks) via ``probe_fields``.
+                # The WRITE denylist stays FULL regardless, so this is an ADDITIONAL
+                # binding; it does not loosen any allowlist/denylist/wire guard.
+                probe = self._probe_fields if self._probe_fields is not None else self._denylist_fn()
+                missing_card_fields = probe - set(name_to_id)
                 if missing_card_fields:
                     raise AirtableConfigError(
                         f'resolved table {self._cards_table_name!r} (id {table.get("id")!r}) is not the '
-                        f'inventory Cards table — it is missing the expected Card fields '
-                        f'{sorted(missing_card_fields)}; check AIRTABLE_CARDS_TABLE.'
+                        f'inventory Cards table — it is missing the expected fields '
+                        f'{sorted(missing_card_fields)}; check the configured table name.'
                     )
                 self._cards_table_id = table.get('id')
                 self.resolve_field_map(name_to_id)
@@ -737,9 +918,9 @@ class AllowlistWriteClient:
 
     def create_field(self, name: str, airtable_type: str, options: dict[str, Any] | None) -> None:
         """Create a DERIVED field on Cards. REFUSES any non-allowlisted name."""
-        if name not in ALLOWLIST_NAMES:
+        if name not in self._allowlist:
             raise NonAllowlistFieldError(f'REFUSED: cannot create field {name!r} — not in the derived allowlist.')
-        assert_no_human_fields([name])
+        self._guard([name])
         table_id = self._require_cards_table_id()
         url = f'{META_ROOT}/bases/{self._base_id}/tables/{table_id}/fields'
         body: dict[str, Any] = {'name': name, 'type': airtable_type}
@@ -784,11 +965,11 @@ class AllowlistWriteClient:
                 raise NonAllowlistFieldError(
                     f'REFUSED: write body contains non-allowlisted field id(s) '
                     f'{sorted(unknown)}. Only the derived field ids '
-                    f'{sorted(self._allowed_ids)} (== {sorted(ALLOWLIST_NAMES)}) '
+                    f'{sorted(self._allowed_ids)} (== {sorted(self._allowlist)}) '
                     'may be written; a human field id or unknown id is refused.'
                 )
             # Belt-and-suspenders: the mapped names must ALSO pass the name guard.
-            assert_no_human_fields(self._id_to_name[fid] for fid in field_ids)
+            self._guard(self._id_to_name[fid] for fid in field_ids)
 
     def patch_records(self, records: list[dict[str, Any]]) -> httpx.Response:
         """PATCH derived fields onto existing Cards records (upsert by id).
@@ -1127,6 +1308,115 @@ def write_derived_fields(
         except Exception as exc:
             log.error(
                 'Derived PATCH chunk %d/%d failed (%d completed): %s. Re-run to resume.',
+                i + 1,
+                len(plan_chunks),
+                report.write_requests_issued,
+                exc,
+            )
+            raise ChunkWriteError(
+                chunks_completed=report.write_requests_issued,
+                chunks_planned=len(plan_chunks),
+            ) from exc
+        report.write_requests_issued += 1
+    return report
+
+
+def write_chase_derived_fields(
+    cards: dict[str, str],
+    *,
+    resolver: _SupportsGetCard,
+    client: SupportsWrite | None = None,
+    apply: bool = False,
+    dry_run: bool = True,
+) -> DerivedWriteReport:
+    """Guarded write of the FIVE Chase Cards DERIVED columns. DRY-RUN default (5b-3).
+
+    The Chase Cards analogue of :func:`write_derived_fields`. It targets a SEPARATE
+    table with a SMALLER derived schema: for each pulled chase Card it sources the
+    five chase derived columns (Card Type, CMC, Mana Cost, Oracle Text, Color
+    Identity) from the lake ``resolver.get_card`` — there is NO price (Chase has no
+    Price column) — maps them via :func:`build_chase_derived_card_payload`, and
+    writes them through the CHASE-bound guard (:func:`assert_no_chase_human_fields`
+    + a chase-bound :meth:`AllowlistWriteClient._guarded_body`). Keyed on the
+    Airtable record id; idempotent. Chunked at :data:`MAX_RECORDS_PER_PATCH`.
+
+    BACKEND GUARD: when ``resolve_backend() != 'airtable'`` (local mode) this is a
+    strict NO-OP — ZERO Airtable calls — returning a plan flagged
+    ``skipped_no_airtable``.
+
+    The five columns ALREADY EXIST on the live Chase Cards table — this NEVER
+    creates them. It resolves the existing ids and FAILS LOUD if any is missing.
+
+    Args:
+        cards: ``{airtable_record_id: card_name}`` — the chase records to refresh.
+        resolver: the card-dim resolver (name -> enriched ``Card``); unresolvable
+            names are SKIPPED, never guessed.
+        client: an :class:`AllowlistWriteClient` built with the CHASE binding (or a
+            double). Only touched on a real (``dry_run=False and apply=True``) run.
+        apply / dry_run: a real write requires BOTH ``dry_run=False`` AND
+            ``apply=True`` (belt-and-suspenders).
+    """
+    from pipeline.collection.store import resolve_backend
+
+    backend = resolve_backend()
+    do_write = (not dry_run) and apply
+
+    if backend != 'airtable':
+        # NO-OP: local mode never touches Airtable. Return a flagged empty plan.
+        return DerivedWriteReport(
+            backend=backend,
+            dry_run=not do_write,
+            applied=False,
+            skipped_no_airtable=True,
+        )
+
+    # Resolve + project each card to its CHASE derived payload (skip unresolvable).
+    plan: list[CardWrite] = []
+    skipped: list[str] = []
+    for record_id in sorted(cards):
+        name = cards[record_id]
+        card = resolver.get_card(name)
+        if card is None or not card.oracle_id:
+            log.warning('SKIP Chase %s (%r): resolver returned no card — not guessing.', record_id, name)
+            skipped.append(record_id)
+            continue
+        payload = build_chase_derived_card_payload(card)
+        assert_no_chase_human_fields(payload.keys())  # up-front chase guard
+        plan.append(CardWrite(record_id=record_id, fields=payload))
+
+    report = DerivedWriteReport(backend=backend, dry_run=not do_write, applied=do_write, planned=plan, skipped=skipped)
+    report.chunks_planned = _chunk_count(len(plan))
+
+    if not do_write:
+        return report
+
+    if client is None:
+        raise ValueError('A live chase derived write (dry_run=False, apply=True) requires a client.')
+
+    # Resolve existing field ids — the five columns already EXIST; never create.
+    name_to_id = client.list_fields()
+    written_names = {n for w in plan for n in w.fields}
+    missing_ids = written_names - set(name_to_id)
+    if missing_ids:
+        raise RuntimeError(
+            f'Chase derived columns missing ids on the live table: {sorted(missing_ids)}. '
+            'These columns must already EXIST on Chase Cards — this primitive never '
+            'creates them. Reconcile the Airtable schema.'
+        )
+
+    plan_chunks = _chunk(plan)
+    for i, plan_chunk in enumerate(plan_chunks):
+        if i > 0 and INTER_CHUNK_DELAY_S > 0:
+            time.sleep(INTER_CHUNK_DELAY_S)
+        chunk_records: list[dict[str, Any]] = []
+        for w in plan_chunk:
+            assert_no_chase_human_fields(w.fields.keys())  # guard EACH chunk's names
+            chunk_records.append({'id': w.record_id, 'fields': {name_to_id[n]: v for n, v in w.fields.items()}})
+        try:
+            client.patch_records(chunk_records)
+        except Exception as exc:
+            log.error(
+                'Chase derived PATCH chunk %d/%d failed (%d completed): %s. Re-run to resume.',
                 i + 1,
                 len(plan_chunks),
                 report.write_requests_issued,

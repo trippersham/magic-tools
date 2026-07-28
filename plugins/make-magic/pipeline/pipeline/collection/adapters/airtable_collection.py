@@ -324,6 +324,11 @@ class AirtableCollectionStore:
         #: substitute stubs without a real lake / network.
         self._derived_resolver: Any | None = None
         self._derived_price_fetcher: Any | None = None
+        #: Lazily-built CHASE-bound guarded derived-column writer (#5, 5b-3),
+        #: reusing THIS adapter's httpx connection + PAT. Distinct from the owned
+        #: writer above because it binds to a DIFFERENT table (Chase Cards) with a
+        #: DIFFERENT allowlist/denylist. Built on the first inline chase write.
+        self._chase_derived_writer: Any | None = None
 
     # --- inline derived-column write (#5 / 5b-2) ----------------------------- #
 
@@ -408,6 +413,84 @@ class AirtableCollectionStore:
 
             self._derived_price_fetcher = _live_price_fetcher()
         return self._derived_price_fetcher
+
+    # --- inline CHASE derived-column write (#5 / 5b-3) ----------------------- #
+
+    def _write_chase_derived_inline(self, name: str, record_id: str | None) -> None:
+        """Persist the FIVE Chase Cards DERIVED columns for ONE card, INLINE, best-effort.
+
+        The Chase Cards analogue of :meth:`_write_derived_inline`. Called AFTER a
+        chase MUTATION (``add_chase`` create/update) has persisted its human/owned
+        chase facts (Card Name + Target Decks). It writes the five chase derived
+        columns (Card Type, CMC, Mana Cost, Oracle Text, Color Identity) for THAT
+        card via the 5b-3 primitive
+        :func:`destinations.airtable.write_chase_derived_fields`, following the
+        mutation's apply semantics (``apply=True``, NOT dry-run).
+
+        Safety properties (mirroring the owned hook):
+            - The primitive SELF-GUARDS on ``resolve_backend()``: in local mode it
+              is a strict NO-OP (zero Airtable calls).
+            - It writes ONLY the five chase-allowlisted derived columns — NEVER any
+              chase human field (#6 wrote Card Name / Target Decks). The CHASE-bound
+              guard (:func:`assert_no_chase_human_fields` + the chase wire guard)
+              enforces the derived-vs-human partition on the Chase table.
+            - FAIL-OPEN on the derived side: a resolve failure or transport error is
+              loud-logged and SWALLOWED so it never breaks the chase mutation whose
+              chase facts already succeeded.
+
+        A missing ``record_id`` is a no-op.
+        """
+        if not record_id:
+            return
+        try:
+            from pipeline.destinations import airtable as _wb
+
+            client = self._ensure_chase_derived_writer()
+            resolver = self._ensure_derived_resolver()
+            _wb.write_chase_derived_fields(
+                {record_id: name},
+                resolver=resolver,
+                client=client,
+                apply=True,
+                dry_run=False,
+            )
+        except Exception as exc:  # fail-open: the chase mutation already succeeded.
+            log.warning(
+                'Inline chase derived-column write for %r (record %s) failed and was skipped '
+                '(chase facts persisted; derived write is best-effort): %s',
+                name,
+                record_id,
+                exc,
+            )
+
+    def _ensure_chase_derived_writer(self) -> Any:
+        """Build (once) the CHASE-bound guarded derived writer over the SHARED httpx client.
+
+        Reuses THIS adapter's httpx connection + PAT (no second socket). The writer
+        is an ``AllowlistWriteClient`` bound to the CHASE table: its
+        ``cards_table_name`` is the Chase Cards table, and its allowlist / denylist /
+        guard are the CHASE ones — so the wrong-table guard binds to Chase Cards and
+        only the five chase derived columns may ever be written.
+        """
+        if self._chase_derived_writer is None:
+            from pipeline.destinations.airtable import (
+                CHASE_ALLOWLIST_NAMES,
+                CHASE_PROBE_FIELDS,
+                AllowlistWriteClient,
+                _chase_human_denylist,
+                assert_no_chase_human_fields,
+            )
+
+            self._chase_derived_writer = AllowlistWriteClient(
+                self._token,
+                cards_table_name=self._chase_table,
+                allowlist=CHASE_ALLOWLIST_NAMES,
+                denylist_fn=_chase_human_denylist,
+                guard=assert_no_chase_human_fields,
+                probe_fields=CHASE_PROBE_FIELDS,
+                _client=self._client.httpx_client,
+            )
+        return self._chase_derived_writer
 
     @property
     def _token(self) -> str:
@@ -685,26 +768,26 @@ class AirtableCollectionStore:
         if for_deck is not None:
             target_ids = self._resolve_links([for_deck], self._deck_id_map(), kind='target deck')
 
+        record_id: str | None
         if existing is None:
             fields: dict[str, Any] = {self._fid(t, self._CHASE_NAME): ref}
             if target_ids:
                 fields[self._fid(t, self._CHASE_TARGET_DECKS)] = target_ids
-            self._client.create_record(table_id, fields)
-        elif target_ids:
-            current = _as_list(self._get(t, existing, self._CHASE_TARGET_DECKS))
-            merged = current + [rid for rid in target_ids if rid not in current]
-            self._client.update_record(table_id, existing['id'], {self._fid(t, self._CHASE_TARGET_DECKS): merged})
+            created = self._client.create_record(table_id, fields)
+            record_id = created.get('id')
+        else:
+            record_id = existing['id']
+            if target_ids:
+                current = _as_list(self._get(t, existing, self._CHASE_TARGET_DECKS))
+                merged = current + [rid for rid in target_ids if rid not in current]
+                self._client.update_record(table_id, existing['id'], {self._fid(t, self._CHASE_TARGET_DECKS): merged})
 
-        # NOTE (#5, 5b-2): the inline derived-column write is DELIBERATELY NOT
-        # wired on the chase path yet — the 5b-1 primitive + AllowlistWriteClient
-        # are Inventory-Cards-table-bound (its wrong-table guard requires the
-        # human owned-facts denylist — Number Owned / Sources / Sets / … — to be
-        # present, and it writes all nine derived columns). The live Chase Cards
-        # table has NEITHER those human fields NOR the full nine derived columns
-        # (no Power/Toughness, Card Art, Scryfall URL, Price), so retargeting the
-        # primitive at it would trip the wrong-table guard AND fail-loud on a
-        # missing derived-field id. This structural mismatch is escalated
-        # (NEEDS_CONTEXT) rather than forced with a fragile hook.
+        # INLINE CHASE derived-column write (#5, 5b-3): follow the chase-facts
+        # mutation. Writes the FIVE chase derived columns (Card Type, CMC, Mana
+        # Cost, Oracle Text, Color Identity) for this card via the CHASE-bound
+        # guarded primitive — best-effort / fail-open, backend-guarded, never
+        # touching a chase human field.
+        self._write_chase_derived_inline(ref, record_id)
 
         skipped = [
             label
