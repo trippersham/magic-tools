@@ -244,3 +244,32 @@ def test_unknown_verb_exits_2(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(SystemExit) as ei:
         cli.main()
     assert ei.value.code == 2
+
+
+def test_unknown_deck_prints_clean_error_no_traceback(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """An expected failure (unknown deck) surfaces `error: …` on stderr + exit 1,
+    NOT a raw FileNotFoundError traceback (Fable-5 E2E finding)."""
+    with pytest.raises(SystemExit) as ei:
+        _run(monkeypatch, 'get-deck', 'Nope')
+    assert ei.value.code == 1
+    err = capsys.readouterr().err
+    assert err.startswith('error: ')
+    assert 'Traceback' not in err
+
+
+def test_unknown_field_prints_clean_error(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, tmp_path: Path
+) -> None:
+    """`get-deck --field <bogus>` gives a clean, actionable error (not AttributeError)."""
+    deck_json = tmp_path / 'd.json'
+    deck_json.write_text('{"name":"D","cards":[{"name":"Sol Ring","role":"commander"}]}')
+    _run(monkeypatch, 'save-deck', '--from-json', str(deck_json))
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as ei:
+        _run(monkeypatch, 'get-deck', 'D', '--field', 'bogusfield')
+    assert ei.value.code == 1
+    err = capsys.readouterr().err
+    assert 'unknown deck field' in err
+    assert 'Traceback' not in err

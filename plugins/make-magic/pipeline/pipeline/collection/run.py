@@ -34,7 +34,7 @@ from pipeline.collection import (
     onboard,
     onboarding_status,
 )
-from pipeline.contracts import Trade
+from pipeline.contracts import Deck, Trade
 
 if TYPE_CHECKING:
     from pipeline.collection import CollectionStore
@@ -124,6 +124,9 @@ def _get_deck(argv: list[str]) -> None:
     args = parser.parse_args(argv)
     deck = _store().get_deck(args.name)
     if args.field:
+        allowed = sorted(set(Deck.model_fields) | {'commanders'})
+        if args.field not in allowed:
+            raise ValueError(f'unknown deck field {args.field!r}; choose from {allowed}')
         value = getattr(deck, args.field)
         print(json.dumps(value) if isinstance(value, list) else value)
     else:
@@ -134,8 +137,6 @@ def _save_deck(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection save-deck')
     parser.add_argument('--from-json', required=True, help='Path to a JSON Deck (- for stdin).')
     args = parser.parse_args(argv)
-    from pipeline.contracts import Deck
-
     raw = sys.stdin.read() if args.from_json == '-' else Path(args.from_json).read_text()
     deck = Deck.model_validate_json(raw)
     _store(writes_enabled=True).save_deck(deck)
@@ -405,7 +406,14 @@ def main() -> None:
         )
         raise SystemExit(2)
     verb = sys.argv[1]
-    VERBS[verb](sys.argv[2:])
+    try:
+        VERBS[verb](sys.argv[2:])
+    except (FileNotFoundError, ValueError, KeyError, RuntimeError) as exc:
+        # Expected, user-facing failures (unknown deck, bad --field, missing creds,
+        # Airtable schema/read-only errors): surface a clean one-line message on
+        # stderr instead of a raw traceback. SystemExit (argparse, guards) passes through.
+        print(f'error: {exc}', file=sys.stderr)
+        raise SystemExit(1) from exc
 
 
 if __name__ == '__main__':

@@ -144,13 +144,13 @@ Full trade model with lifecycle and examples.
      --from-source Library --to-destination Deck \
      --card-in "Lavaleaper" --card-out "Horizon Stone" --status Completed
    ```
-   For deck specificity (`to_deck` / `from_deck`), use the JSON form — the flag form has no
-   `--to-deck`:
+   For deck specificity, add `--from-deck` / `--to-deck` flags:
    ```bash
-   echo '{"from_source":"Library","to_destination":"Deck","to_deck":"Ozai",
-          "cards_in":["Lavaleaper"],"cards_out":["Horizon Stone"],"status":"Completed"}' \
-     | ${CLAUDE_PLUGIN_ROOT}/scripts/collection log-trade --from-json -
+   ${CLAUDE_PLUGIN_ROOT}/scripts/collection log-trade \
+     --from-source Library --to-destination Deck --to-deck "Ozai" \
+     --card-in "Lavaleaper" --card-out "Horizon Stone" --status Completed
    ```
+   (A `--from-json -` form accepting a full Trade JSON on stdin also works for scripted/bulk entry.)
 3. Reflect the move in the deck (`save-deck` with the updated `cards[]`) and inventory (`set-quantity`) as needed
 
 **Source/Destination model:** Source and Destination are categories (Library, Deck, Store, Person). The Deck fields provide specificity when the category is "Deck".
