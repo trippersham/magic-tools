@@ -291,7 +291,7 @@ def test_add_chase_new_writes_chase_derived_columns_inline() -> None:
     assert wb.CHASE_DERIVED_CARD_FIELDS != wb.DERIVED_CARD_FIELDS  # asymmetry
     assert len(chase_derived_ids) == 11
     # The LIVE price landed in Price (TCGPlayer).
-    assert rec['fields'][_CHASE_FIELDS['Price (TCGPlayer)']] == _LIVE_PRICE
+    assert rec['fields'][_CHASE_FIELDS['Price (TCGPlayer)']] == float(_LIVE_PRICE)  # currency: float, not str
     # ⚙ Buckets is a LIST of bucket names (multipleSelects); ⚙ Otags is the raw slugs
     # newline-joined into text — the SAME formatting the Inventory otag sync uses.
     assert rec['fields'][_CHASE_FIELDS[f'{wb.NS}Buckets']] == _SOL_BUCKETS
@@ -313,7 +313,7 @@ def test_add_chase_existing_refreshes_chase_derived_columns_inline() -> None:
     assert rec['id'] == 'recSol'
     chase_derived_ids = {_CHASE_FIELDS[n] for n in wb.CHASE_DERIVED_CARD_FIELDS}
     assert set(rec['fields']) == chase_derived_ids
-    assert rec['fields'][_CHASE_FIELDS['Price (TCGPlayer)']] == _LIVE_PRICE
+    assert rec['fields'][_CHASE_FIELDS['Price (TCGPlayer)']] == float(_LIVE_PRICE)  # currency: float, not str
     assert rec['fields'][_CHASE_FIELDS[f'{wb.NS}Buckets']] == _SOL_BUCKETS
     assert rec['fields'][_CHASE_FIELDS[f'{wb.NS}Otags']] == '\n'.join(_SOL_OTAGS)
 

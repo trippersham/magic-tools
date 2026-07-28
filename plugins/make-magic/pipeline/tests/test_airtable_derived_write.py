@@ -180,8 +180,9 @@ def test_build_derived_payload_maps_the_nine_fields() -> None:
     assert payload['Power / Toughness'] == '2/2'
     assert payload['Card Art'] == 'https://img.scryfall.io/grizzly.jpg'
     assert payload['Scryfall URL'] == 'https://scryfall.com/card/grizzly'
-    assert payload['Price (TCGPlayer)'] == '0.10'
-    assert payload['Color Identity'] == ['G']
+    assert payload['Price (TCGPlayer)'] == 0.10  # coerced to float for the currency column
+    assert isinstance(payload['Price (TCGPlayer)'], float)
+    assert payload['Color Identity'] == ['Green']  # single-letter G -> the Airtable option name
 
 
 def test_build_derived_payload_omits_powertoughness_for_noncreature() -> None:
@@ -213,8 +214,8 @@ def test_build_derived_payload_price_is_live_not_from_card() -> None:
     assert not hasattr(_GRIZZLY, 'price')
     hi = wb.build_derived_card_payload(_GRIZZLY, price_usd='9.99')
     lo = wb.build_derived_card_payload(_GRIZZLY, price_usd='0.01')
-    assert hi['Price (TCGPlayer)'] == '9.99'
-    assert lo['Price (TCGPlayer)'] == '0.01'
+    assert hi['Price (TCGPlayer)'] == 9.99  # coerced to float (currency column)
+    assert lo['Price (TCGPlayer)'] == 0.01
 
 
 # --------------------------------------------------------------------------- #

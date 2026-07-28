@@ -668,6 +668,35 @@ def _power_toughness(card: Any) -> str:
     return f'{power or ""}/{toughness or ""}'
 
 
+def _coerce_price(price_usd: str | None) -> float | None:
+    """Coerce the live Scryfall price to a float for the Airtable currency column.
+
+    Scryfall serves ``prices.usd`` as a STRING (e.g. ``'3.94'``), but the Airtable
+    ``Price (TCGPlayer)`` field is a ``currency`` (number) type that rejects a
+    string with a 422. Return a float, or ``None`` (clears the cell) for a missing
+    or non-numeric price — fail-open, never raise.
+    """
+    if price_usd is None:
+        return None
+    try:
+        return float(price_usd)
+    except (TypeError, ValueError):
+        return None
+
+
+#: Scryfall serves color identity as single letters; the Airtable ``Color Identity``
+#: ``multipleSelects`` column uses full color NAMES (verified against the live base:
+#: existing rows are ``["Black"]``, ``["Green","Red"]``, …). Writing a single letter
+#: that is not an existing option 422s (the write does not ``typecast``), so map to
+#: the canonical names both the Inventory and Chase tables carry. Colorless -> ``[]``.
+_COLOR_IDENTITY_NAMES = {'W': 'White', 'U': 'Blue', 'B': 'Black', 'R': 'Red', 'G': 'Green', 'C': 'Colorless'}
+
+
+def _color_identity(card: Any) -> list[str]:
+    """Map the Card's single-letter color identity to the Airtable option names."""
+    return [_COLOR_IDENTITY_NAMES.get(c, c) for c in (card.color_identity or [])]
+
+
 def build_derived_card_payload(card: Any, price_usd: str | None) -> dict[str, Any]:
     """Build the nine-field derived write payload for ONE resolved card.
 
@@ -678,8 +707,10 @@ def build_derived_card_payload(card: Any, price_usd: str | None) -> dict[str, An
     structurally. The 5a guard (:func:`assert_no_human_fields`) is re-run as
     defense-in-depth. Idempotent: same Card + price -> identical payload.
 
-    Field mapping mirrors ``scripts/scryfall_batch.metadata_from_card`` (the
-    canonical Card -> derived-column projection) so the two never drift.
+    Values are coerced to the Airtable COLUMN types (verified against the live
+    base): ``Price (TCGPlayer)`` -> float (currency), ``Color Identity`` -> full
+    color names (``multipleSelects``). A string price or single-letter color
+    would 422 the real PATCH (the mock transport does not type-check).
     """
     payload: dict[str, Any] = {
         'Card Type': card.type_line or '',
@@ -689,8 +720,8 @@ def build_derived_card_payload(card: Any, price_usd: str | None) -> dict[str, An
         'Oracle Text': card.oracle_text or '',
         'Card Art': card.art_crop or '',
         'Scryfall URL': card.scryfall_uri or '',
-        'Price (TCGPlayer)': price_usd,
-        'Color Identity': list(card.color_identity or []),
+        'Price (TCGPlayer)': _coerce_price(price_usd),
+        'Color Identity': _color_identity(card),
     }
     # STRUCTURAL invariant: the emitted keys are EXACTLY the closed derived set.
     assert set(payload) == DERIVED_CARD_FIELDS, (
