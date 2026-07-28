@@ -10,8 +10,9 @@ from __future__ import annotations
 
 from pipeline.contracts.models import (
     Card,
+    ChaseCard,
     Deck,
-    DeckLine,
+    DeckCard,
     FactSheet,
     FactSheetCard,
     FactSheetCardAdvantage,
@@ -21,14 +22,15 @@ from pipeline.contracts.models import (
     FactSheetMana,
     FactSheetShape,
     FactSheetStructural,
-    InventoryRow,
-    TradeRow,
+    OwnedCard,
+    Trade,
 )
 
 __all__ = (
     'Card',
+    'ChaseCard',
     'Deck',
-    'DeckLine',
+    'DeckCard',
     'FactSheet',
     'FactSheetCard',
     'FactSheetCardAdvantage',
@@ -38,6 +40,6 @@ __all__ = (
     'FactSheetMana',
     'FactSheetShape',
     'FactSheetStructural',
-    'InventoryRow',
-    'TradeRow',
+    'OwnedCard',
+    'Trade',
 )

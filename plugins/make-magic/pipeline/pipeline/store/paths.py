@@ -68,6 +68,16 @@ class StorePaths:
     def db_path(self) -> Path:
         return self.data_dir / DB_FILENAME
 
+    @property
+    def collection(self) -> Path:
+        """The hand-editable ``collection/`` dir (decks/inventory/chase/trades YAML).
+
+        Resolved off the SAME data root as the lake + DuckDB so a single
+        ``MAKE_MAGIC_DATA_DIR`` override relocates the whole store (lake, db, and
+        collection) together — the cleanest one-knob option for tests + isolation.
+        """
+        return self.data_dir / 'collection'
+
     def layer_dir(self, layer: str, *, create: bool = True) -> Path:
         """Return the directory for ``layer`` (one of :data:`LAYERS`).
 

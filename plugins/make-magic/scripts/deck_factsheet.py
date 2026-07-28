@@ -496,6 +496,55 @@ def build_factsheet(
 
 
 # --------------------------------------------------------------------------- #
+# Deck entry point — build a fact sheet from a resolved ``contracts.Deck``.
+#
+# The SECOND entry point (alongside raw-text ``_parse_decklist``): a caller that
+# already has a ``Deck`` from the CollectionStore (local YAML in offline mode)
+# hands its hydrated ``DeckCard``s straight in, no Scryfall fetch. Each DeckCard
+# is a hydrated base-``Card`` (name + Scryfall enrichment), which we map into the
+# flat card-dict shape the fact functions + the pipeline transform consume.
+# ``mana_value`` maps to ``cmc`` and ``mana_cost`` (Scryfall `mana_cost`) is
+# carried through so pip_counts computes on this path (unresolved cards degrade
+# to an empty mana cost, i.e. zero pips).
+# --------------------------------------------------------------------------- #
+
+
+def _deck_card_to_fields(card) -> dict:  # a contracts.DeckCard (duck-typed)
+    """Map a hydrated ``DeckCard`` to the flat fact-function card dict.
+
+    Carries ``oracle_id`` (the durable otag join key) and ``cmc`` (from
+    ``mana_value``). Missing enrichment (unresolved card) stays null/empty so the
+    census degrades honestly rather than crashing.
+    """
+    return {
+        'name': card.name,
+        'oracle_id': card.oracle_id,
+        'oracle_text': card.oracle_text or '',
+        'type_line': card.type_line or '',
+        'cmc': card.mana_value,
+        'keywords': list(card.keywords or []),
+        'produced_mana': card.produced_mana,
+        # Scryfall `mana_cost` (e.g. `{2}{G}{G}`) drives pip_counts; hydrated on
+        # the Card contract. Unresolved cards have None -> '' (zero pips).
+        'mana_cost': getattr(card, 'mana_cost', None) or '',
+    }
+
+
+def factsheet_from_deck(deck, focus: list[str] | None = None) -> dict:  # a contracts.Deck
+    """Build a neutral fact sheet from a resolved ``contracts.Deck``.
+
+    The offline entry point: the deck's ``DeckCard``s are already hydrated (via
+    the CollectionStore's ``CardResolver``), so NO Scryfall fetch happens here.
+    Loads the otag closure (self-refreshing / snapshot / degrade) exactly like the
+    text path, then delegates to ``build_factsheet``. Output validates against
+    ``contracts.FactSheet``.
+    """
+    cards = [_deck_card_to_fields(c) for c in deck.cards]
+    card_otag = _load_card_otag()  # None -> graceful fallback (I5).
+    return build_factsheet(cards, deck=deck.name, missing=[], card_otag=card_otag, focus=focus or [])
+
+
+# --------------------------------------------------------------------------- #
 # Decklist parsing (inline-comment + set-annotation stripping; skips blanks /
 # comments / section headers).
 # --------------------------------------------------------------------------- #

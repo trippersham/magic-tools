@@ -1,0 +1,325 @@
+"""Collection dispatcher: ``python -m pipeline.collection.run <verb> [args...]``.
+
+Mirrors ``sources/run.py`` (delta D2): a plain ``sys.argv`` dispatcher routing to
+a per-verb ``argparse`` handler — no Typer, no new dep. This is the SINGLE,
+backend-agnostic data surface the three skills (building-decks, chasing-cards,
+managing-inventory) bind to in BOTH modes; the active backend is resolved by
+``get_store`` (local YAML or Airtable records), so a verb's behavior is identical
+regardless of source of record.
+
+Verbs print STABLE, parseable output — JSON where a skill consumes structured
+data (``get-deck``, ``list-*``, ``factsheet``, ``status``), and a short
+confirmation line for writes.
+
+Hydration seam: the concrete ``CardResolver`` is the interim Scryfall-cache
+resolver at the SCRIPT EDGE (``scripts/collection_resolver.py``) — the pipeline
+package never imports ``scripts/``, so we load it lazily via a path shim, exactly
+as ``scripts/deck_factsheet.py`` reaches the pipeline. The Airtable adapter
+hydrates directly from the row and ignores the resolver (documented asymmetry).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from pipeline.collection import CardResolver, get_store, resolve_backend
+from pipeline.contracts import Trade
+
+if TYPE_CHECKING:
+    from pipeline.collection import CollectionStore
+
+#: The repo's ``scripts/`` dir (sibling of the pipeline package root), where the
+#: interim Scryfall-cache resolver lives (the layer allowed to import scripts).
+_SCRIPTS_DIR = Path(__file__).resolve().parents[3] / 'scripts'
+
+
+def _load_resolver() -> CardResolver:
+    """Load the interim Scryfall-cache-backed resolver from the script edge."""
+    root = str(_SCRIPTS_DIR)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from collection_resolver import ScryfallCacheResolver  # pyright: ignore[reportMissingImports]
+
+    return ScryfallCacheResolver()
+
+
+def _store(*, writes_enabled: bool = False) -> CollectionStore:
+    """Resolve the active backend and construct its store.
+
+    ``writes_enabled`` opts the Airtable adapter into mutations (ignored by the
+    local adapter, which always writes to YAML).
+    """
+    return get_store(_load_resolver(), writes_enabled=writes_enabled)
+
+
+def _dump(models: object) -> str:
+    """JSON for a list of pydantic models (or one model)."""
+    if isinstance(models, list):
+        return json.dumps([m.model_dump(mode='json') for m in models], indent=2)
+    return models.model_dump_json(indent=2)  # type: ignore[attr-defined]
+
+
+# --------------------------------------------------------------------------- #
+# Meta
+# --------------------------------------------------------------------------- #
+
+
+def _status(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection status')
+    parser.parse_args(argv)
+    backend = resolve_backend()
+    label = 'local (collection/ YAML)' if backend == 'local' else 'airtable (records adapter)'
+    print(json.dumps({'backend': backend, 'source_of_record': label}, indent=2))
+
+
+# --------------------------------------------------------------------------- #
+# Decks
+# --------------------------------------------------------------------------- #
+
+
+def _list_decks(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection list-decks')
+    parser.parse_args(argv)
+    for deck in _store().list_decks():
+        print(deck.name)
+
+
+def _get_deck(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection get-deck')
+    parser.add_argument('name')
+    parser.add_argument('--field', help='Print only this Deck field (e.g. strategy, assessment, focus_otags).')
+    args = parser.parse_args(argv)
+    deck = _store().get_deck(args.name)
+    if args.field:
+        value = getattr(deck, args.field)
+        print(json.dumps(value) if isinstance(value, list) else value)
+    else:
+        print(deck.model_dump_json(indent=2))
+
+
+def _save_deck(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection save-deck')
+    parser.add_argument('--from-json', required=True, help='Path to a JSON Deck (- for stdin).')
+    args = parser.parse_args(argv)
+    from pipeline.contracts import Deck
+
+    raw = sys.stdin.read() if args.from_json == '-' else Path(args.from_json).read_text()
+    deck = Deck.model_validate_json(raw)
+    _store(writes_enabled=True).save_deck(deck)
+    print(f'save-deck: {deck.name}')
+
+
+def _set_strategy(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection set-strategy')
+    parser.add_argument('name')
+    parser.add_argument('text')
+    args = parser.parse_args(argv)
+    _store(writes_enabled=True).set_strategy(args.name, args.text)
+    print(f'set-strategy: {args.name}')
+
+
+def _set_assessment(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection set-assessment')
+    parser.add_argument('name')
+    parser.add_argument('text')
+    args = parser.parse_args(argv)
+    _store(writes_enabled=True).set_assessment(args.name, args.text)
+    print(f'set-assessment: {args.name}')
+
+
+def _set_focus_otags(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection set-focus-otags')
+    parser.add_argument('name')
+    parser.add_argument('otag', nargs='+', help='One or more focus otag/bucket slugs.')
+    args = parser.parse_args(argv)
+    _store(writes_enabled=True).set_focus_otags(args.name, list(args.otag))
+    print(f'set-focus-otags: {args.name} -> {args.otag}')
+
+
+# --------------------------------------------------------------------------- #
+# Inventory
+# --------------------------------------------------------------------------- #
+
+
+def _list_inventory(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection list-inventory')
+    parser.parse_args(argv)
+    print(_dump(_store().list_inventory()))
+
+
+def _add_card(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection add-card')
+    parser.add_argument('ref')
+    parser.add_argument('--qty', type=int, default=1)
+    parser.add_argument('--condition', action='append', default=None)
+    parser.add_argument('--foil', type=int, default=0)
+    parser.add_argument('--set', dest='sets', action='append', default=None)
+    parser.add_argument('--source', dest='sources', action='append', default=None)
+    args = parser.parse_args(argv)
+    _store(writes_enabled=True).add_card(
+        args.ref, args.qty, condition=args.condition, foil=args.foil, sets=args.sets, sources=args.sources
+    )
+    print(f'add-card: {args.ref} x{args.qty}')
+
+
+def _set_quantity(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection set-quantity')
+    parser.add_argument('ref')
+    parser.add_argument('qty', type=int)
+    args = parser.parse_args(argv)
+    _store(writes_enabled=True).set_quantity(args.ref, args.qty)
+    print(f'set-quantity: {args.ref} = {args.qty}')
+
+
+def _remove_card(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection remove-card')
+    parser.add_argument('ref')
+    args = parser.parse_args(argv)
+    _store(writes_enabled=True).remove_card(args.ref)
+    print(f'remove-card: {args.ref}')
+
+
+# --------------------------------------------------------------------------- #
+# Chase
+# --------------------------------------------------------------------------- #
+
+
+def _list_chase(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection list-chase')
+    parser.parse_args(argv)
+    print(_dump(_store().list_chase()))
+
+
+def _add_chase(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection add-chase')
+    parser.add_argument('ref')
+    parser.add_argument('--priority', type=int, default=None)
+    parser.add_argument('--for-deck', dest='for_deck', default=None)
+    parser.add_argument('--status', default=None)
+    parser.add_argument('--target-price', dest='target_price', type=float, default=None)
+    args = parser.parse_args(argv)
+    _store(writes_enabled=True).add_chase(
+        args.ref,
+        priority=args.priority,
+        for_deck=args.for_deck,
+        status=args.status,
+        target_price=args.target_price,
+    )
+    print(f'add-chase: {args.ref}')
+
+
+def _remove_chase(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection remove-chase')
+    parser.add_argument('ref')
+    args = parser.parse_args(argv)
+    _store(writes_enabled=True).remove_chase(args.ref)
+    print(f'remove-chase: {args.ref}')
+
+
+# --------------------------------------------------------------------------- #
+# Trades
+# --------------------------------------------------------------------------- #
+
+
+def _list_trades(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection list-trades')
+    parser.parse_args(argv)
+    print(_dump(_store().list_trades()))
+
+
+def _log_trade(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection log-trade')
+    parser.add_argument('--from-json', help='Path to a JSON Trade (- for stdin).')
+    parser.add_argument('--from-source', dest='from_source')
+    parser.add_argument('--to-destination', dest='to_destination')
+    parser.add_argument('--status', default=None)
+    parser.add_argument('--notes', default=None)
+    parser.add_argument('--card-in', dest='cards_in', action='append', default=None)
+    parser.add_argument('--card-out', dest='cards_out', action='append', default=None)
+    args = parser.parse_args(argv)
+    if args.from_json:
+        raw = sys.stdin.read() if args.from_json == '-' else Path(args.from_json).read_text()
+        trade = Trade.model_validate_json(raw)
+    else:
+        if not args.from_source or not args.to_destination:
+            parser.error('either --from-json or both --from-source and --to-destination are required')
+        trade = Trade(
+            from_source=args.from_source,
+            to_destination=args.to_destination,
+            status=args.status,
+            notes=args.notes,
+            cards_in=args.cards_in or [],
+            cards_out=args.cards_out or [],
+        )
+    _store(writes_enabled=True).log_trade(trade)
+    print('log-trade: recorded')
+
+
+# --------------------------------------------------------------------------- #
+# Factsheet (offline behavioral verb — Phase 1.4)
+# --------------------------------------------------------------------------- #
+
+
+def _factsheet(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog='collection factsheet')
+    parser.add_argument('name')
+    parser.add_argument('--focus', default=None, help='Comma-separated focus set.')
+    args = parser.parse_args(argv)
+    deck = _store().get_deck(args.name)
+
+    root = str(_SCRIPTS_DIR)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from deck_factsheet import factsheet_from_deck  # pyright: ignore[reportMissingImports]
+
+    focus = [f.strip() for f in args.focus.split(',')] if args.focus else None
+    report = factsheet_from_deck(deck, focus=focus)
+    print(json.dumps(report, indent=2))
+
+
+VERBS = {
+    'status': _status,
+    # decks
+    'list-decks': _list_decks,
+    'get-deck': _get_deck,
+    'save-deck': _save_deck,
+    'set-strategy': _set_strategy,
+    'set-assessment': _set_assessment,
+    'set-focus-otags': _set_focus_otags,
+    # inventory
+    'list-inventory': _list_inventory,
+    'add-card': _add_card,
+    'set-quantity': _set_quantity,
+    'remove-card': _remove_card,
+    # chase
+    'list-chase': _list_chase,
+    'add-chase': _add_chase,
+    'remove-chase': _remove_chase,
+    # trades
+    'list-trades': _list_trades,
+    'log-trade': _log_trade,
+    # behavioral
+    'factsheet': _factsheet,
+}
+
+__all__ = ('main',)
+
+
+def main() -> None:
+    if len(sys.argv) < 2 or sys.argv[1] not in VERBS:
+        avail = ', '.join(sorted(VERBS))
+        print(
+            f'usage: python -m pipeline.collection.run <verb> [args...]\n  verbs: {avail}',
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    verb = sys.argv[1]
+    VERBS[verb](sys.argv[2:])
+
+
+if __name__ == '__main__':
+    main()

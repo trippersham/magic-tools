@@ -10,6 +10,11 @@ data/normalized/
 data/marts/
 !data/snapshots/
 
+# Local hand-editable collection store (per-user working data: decks/inventory/
+# chase/trades YAML). Never committed — the tracked sample lives under
+# tests/fixtures/collection/. Does NOT touch the committed data/snapshots/.
+data/collection/
+
 # Python
 __pycache__/
 *.pyc
