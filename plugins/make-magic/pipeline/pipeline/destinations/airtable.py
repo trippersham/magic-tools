@@ -499,6 +499,104 @@ class CardWrite:
     fields: dict[str, Any]
 
 
+# --------------------------------------------------------------------------- #
+# Card-dim DERIVED-COLUMN payload (5b-1): map a resolved Card + LIVE price onto
+# the nine already-existing Scryfall-derived Inventory Cards columns.
+# --------------------------------------------------------------------------- #
+
+#: The mapping from an Airtable derived column NAME to how it is sourced from a
+#: resolved ``contracts.Card`` (+ the LIVE price, injected separately — price is
+#: NOT on the Card contract). This is the single place the projection lives, so a
+#: schema drift surfaces here. Every KEY is in :data:`DERIVED_CARD_FIELDS` (the
+#: builder asserts that), so the payload can never carry a non-derived field.
+
+
+def _power_toughness(card: Any) -> str:
+    """Render ``Power / Toughness`` as ``"P/T"`` for creatures, else empty.
+
+    A non-creature (no power AND no toughness) yields ``''`` rather than ``'/'``
+    so the derived column is blanked, matching the human-facing convention.
+    """
+    power = card.power
+    toughness = card.toughness
+    if power is None and toughness is None:
+        return ''
+    return f'{power or ""}/{toughness or ""}'
+
+
+def build_derived_card_payload(card: Any, price_usd: str | None) -> dict[str, Any]:
+    """Build the nine-field derived write payload for ONE resolved card.
+
+    Sources the enrichment from the lake ``contracts.Card`` and the volatile price
+    from the LIVE ``price_usd`` argument (never the Card — price is not a Card
+    field). Emits EXACTLY the keys in :data:`DERIVED_CARD_FIELDS`; there is no
+    branch that copies an arbitrary field name, so a human field cannot appear
+    structurally. The 5a guard (:func:`assert_no_human_fields`) is re-run as
+    defense-in-depth. Idempotent: same Card + price -> identical payload.
+
+    Field mapping mirrors ``scripts/scryfall_batch.metadata_from_card`` (the
+    canonical Card -> derived-column projection) so the two never drift.
+    """
+    payload: dict[str, Any] = {
+        'Card Type': card.type_line or '',
+        'Mana Cost': card.mana_cost or '',
+        'CMC': card.mana_value if card.mana_value is not None else 0,
+        'Power / Toughness': _power_toughness(card),
+        'Oracle Text': card.oracle_text or '',
+        'Card Art': card.art_crop or '',
+        'Scryfall URL': card.scryfall_uri or '',
+        'Price (TCGPlayer)': price_usd,
+        'Color Identity': list(card.color_identity or []),
+    }
+    # STRUCTURAL invariant: the emitted keys are EXACTLY the closed derived set.
+    assert set(payload) == DERIVED_CARD_FIELDS, (
+        f'derived payload keys {sorted(payload)} != DERIVED_CARD_FIELDS {sorted(DERIVED_CARD_FIELDS)}'
+    )
+    assert_no_human_fields(payload.keys())  # defense-in-depth (5a guard reused)
+    return payload
+
+
+@dataclass
+class DerivedWriteReport:
+    """Result of a (dry-run, applied, or local-no-op) derived-column write."""
+
+    backend: str
+    dry_run: bool
+    applied: bool
+    planned: list[CardWrite] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
+    write_requests_issued: int = 0
+    chunks_planned: int = 0
+    #: True when the backend is NOT airtable (local mode): the primitive is a
+    #: NO-OP and issued ZERO Airtable calls. NEVER set on an airtable run.
+    skipped_no_airtable: bool = False
+
+    def render(self) -> str:
+        lines: list[str] = []
+        mode = 'DRY-RUN (no writes issued)' if self.dry_run else 'APPLY'
+        lines.append(f'=== Airtable card-dim DERIVED-column write-back -> Cards [{mode}] ===')
+        lines.append(f'backend: {self.backend}')
+        if self.skipped_no_airtable:
+            lines.append(
+                'Backend is not `airtable` (local mode): NO Airtable calls issued. '
+                'The lake is canonical; derived columns are only synced when '
+                'MAKE_MAGIC_BACKEND=airtable.'
+            )
+            return '\n'.join(lines)
+        lines.append(f'Derived columns: {sorted(DERIVED_CARD_FIELDS)}')
+        for w in self.planned:
+            lines.append(f'  upsert Cards/{w.record_id}:')
+            for name in sorted(w.fields):
+                val = w.fields[name]
+                shown = val if len(str(val)) <= 80 else f'{str(val)[:77]}...'
+                lines.append(f'    {name} = {shown!r}')
+        lines.append(f'cards resolved: {len(self.planned)}  |  skipped (no resolve): {len(self.skipped)}')
+        verb = 'would send' if self.dry_run else 'sent'
+        lines.append(f'PATCH chunks {verb} (<= {MAX_RECORDS_PER_PATCH} records each): {self.chunks_planned}')
+        lines.append(f'write requests issued: {self.write_requests_issued}')
+        return '\n'.join(lines)
+
+
 def plan_writes(
     cards: dict[str, str],
     *,
@@ -916,6 +1014,206 @@ def sync(
 
 
 # --------------------------------------------------------------------------- #
+# Card-dim DERIVED-column write primitive (5b-1) + explicit refresh.
+# --------------------------------------------------------------------------- #
+
+
+class _SupportsGetCard(Protocol):
+    """The CardResolver seam the primitive needs: name -> enriched Card | None."""
+
+    def get_card(self, name: str) -> Any | None: ...
+
+
+def write_derived_fields(
+    cards: dict[str, str],
+    *,
+    resolver: _SupportsGetCard,
+    price_fetcher: Any,
+    client: SupportsWrite | None = None,
+    apply: bool = False,
+    dry_run: bool = True,
+) -> DerivedWriteReport:
+    """Guarded write of the nine Scryfall-DERIVED columns onto Cards. DRY-RUN default.
+
+    THE PRIMITIVE both 5b parts share. For each pulled Card it sources the nine
+    derived columns from the lake ``resolver.get_card`` + a LIVE price
+    (``price_fetcher(name)`` — price is NOT on the Card contract), maps them to the
+    EXACT Airtable field names via :func:`build_derived_card_payload`, and writes
+    them through the SAME 5a allowlist guard (:func:`assert_no_human_fields` +
+    :meth:`AllowlistWriteClient._guarded_body`). Keyed on the Airtable record id;
+    re-running writes identical values (idempotent). Chunked at
+    :data:`MAX_RECORDS_PER_PATCH`.
+
+    BACKEND GUARD (governs 5b): when ``resolve_backend() != 'airtable'`` (local
+    mode) this is a strict NO-OP — it makes ZERO Airtable calls (does not even
+    touch ``client``) and returns a plan flagged ``skipped_no_airtable``. The lake
+    is canonical; the derived columns are only synced when Airtable is active.
+
+    The nine columns ALREADY EXIST on the live base — this NEVER creates them
+    (no ``ensure_fields`` for the Scryfall cols). It resolves the existing ids and
+    FAILS LOUD if any is missing.
+
+    Args:
+        cards: ``{airtable_record_id: card_name}`` — the pulled Cards to refresh.
+        resolver: the card-dim resolver (name -> enriched ``Card``); unresolvable
+            names are SKIPPED, never guessed.
+        price_fetcher: a callable ``name -> price string | None`` (the LIVE price;
+            consulted only for resolved cards).
+        client: an :class:`AllowlistWriteClient` (or double). Only touched on a
+            real (``dry_run=False and apply=True``) airtable run.
+        apply / dry_run: a real write requires BOTH ``dry_run=False`` AND
+            ``apply=True`` (belt-and-suspenders).
+    """
+    from pipeline.collection.store import resolve_backend
+
+    backend = resolve_backend()
+
+    do_write = (not dry_run) and apply
+
+    if backend != 'airtable':
+        # NO-OP: local mode never touches Airtable. Return a flagged empty plan.
+        return DerivedWriteReport(
+            backend=backend,
+            dry_run=not do_write,
+            applied=False,
+            skipped_no_airtable=True,
+        )
+
+    # Resolve + project each card to its derived payload (skip the unresolvable).
+    plan: list[CardWrite] = []
+    skipped: list[str] = []
+    for record_id in sorted(cards):
+        name = cards[record_id]
+        card = resolver.get_card(name)
+        if card is None or not card.oracle_id:
+            log.warning('SKIP Card %s (%r): resolver returned no card — not guessing.', record_id, name)
+            skipped.append(record_id)
+            continue
+        price_usd = price_fetcher(name)
+        payload = build_derived_card_payload(card, price_usd)
+        assert_no_human_fields(payload.keys())  # up-front guard, before any request
+        plan.append(CardWrite(record_id=record_id, fields=payload))
+
+    report = DerivedWriteReport(backend=backend, dry_run=not do_write, applied=do_write, planned=plan, skipped=skipped)
+    report.chunks_planned = _chunk_count(len(plan))
+
+    if not do_write:
+        return report
+
+    if client is None:
+        raise ValueError('A live derived write (dry_run=False, apply=True) requires a client.')
+
+    # Resolve existing field ids — the nine columns already EXIST; never create.
+    name_to_id = client.list_fields()
+    written_names = {n for w in plan for n in w.fields}
+    missing_ids = written_names - set(name_to_id)
+    if missing_ids:
+        raise RuntimeError(
+            f'Derived Scryfall columns missing ids on the live table: {sorted(missing_ids)}. '
+            'These columns must already EXIST on Inventory Cards — this primitive never '
+            'creates them. Reconcile the Airtable schema.'
+        )
+
+    plan_chunks = _chunk(plan)
+    for i, plan_chunk in enumerate(plan_chunks):
+        if i > 0 and INTER_CHUNK_DELAY_S > 0:
+            time.sleep(INTER_CHUNK_DELAY_S)
+        chunk_records: list[dict[str, Any]] = []
+        for w in plan_chunk:
+            assert_no_human_fields(w.fields.keys())  # guard EACH chunk's names
+            chunk_records.append({'id': w.record_id, 'fields': {name_to_id[n]: v for n, v in w.fields.items()}})
+        try:
+            client.patch_records(chunk_records)
+        except Exception as exc:
+            log.error(
+                'Derived PATCH chunk %d/%d failed (%d completed): %s. Re-run to resume.',
+                i + 1,
+                len(plan_chunks),
+                report.write_requests_issued,
+                exc,
+            )
+            raise ChunkWriteError(
+                chunks_completed=report.write_requests_issued,
+                chunks_planned=len(plan_chunks),
+            ) from exc
+        report.write_requests_issued += 1
+    return report
+
+
+def default_card_resolver() -> Any:
+    """Return the package default card-dim resolver (lazy import to avoid cycles).
+
+    Indirected here so the CLI / tests can monkeypatch it on this module without
+    reaching into ``collection.resolver``.
+    """
+    from pipeline.collection.resolver import default_card_resolver as _dcr
+
+    return _dcr()
+
+
+def _live_price_fetcher() -> Any:
+    """Return a ``name -> live USD price string | None`` callable.
+
+    Sources the volatile price LIVE (never the lake Card) via the shared
+    ``fetch_card_raw`` path (Scryfall ``prices.usd``), reusing one httpx client
+    across the run. Fails open per card: an unresolved/erroring name -> None.
+    """
+    from pipeline.collection.resolver import fetch_card_raw
+
+    client = httpx.Client(timeout=30, headers=HEADERS_UA)
+
+    def _price(name: str) -> str | None:
+        data = fetch_card_raw(name, client=client)
+        if not data:
+            return None
+        return (data.get('prices') or {}).get('usd')
+
+    return _price
+
+
+def refresh_derived_columns(
+    *,
+    apply: bool = False,
+    dry_run: bool = True,
+) -> DerivedWriteReport:
+    """Explicit BULK refresh: write the derived columns for ALL pulled Cards.
+
+    The public entry point behind the ``--refresh`` CLI verb. DRY-RUN BY DEFAULT
+    (a real write requires ``--no-dry-run --apply``). Backend-guarded via
+    :func:`write_derived_fields`: in local mode it is a NO-OP with zero Airtable
+    calls. Loads the Cards records from the lake, resolves each via the card dim,
+    and sources the live price per card.
+    """
+    from pipeline.collection.store import resolve_backend
+
+    backend = resolve_backend()
+    do_write = (not dry_run) and apply
+
+    # LOCAL mode: never build a client, never call the lake schema. Short-circuit.
+    if backend != 'airtable':
+        return DerivedWriteReport(backend=backend, dry_run=not do_write, applied=False, skipped_no_airtable=True)
+
+    token = os.environ.get('AIRTABLE_API_KEY')
+    if not token:
+        raise RuntimeError('Backend is `airtable` but AIRTABLE_API_KEY is not set; cannot refresh derived columns.')
+    client = AllowlistWriteClient(token)
+    try:
+        schema = client.list_fields()  # read-only meta GET (also binds the Cards table)
+        card_name_field_id = schema.get(CARD_NAME_FIELD)
+        cards, _n2o, _otag = _load_cards_from_lake(card_name_field_id)
+        return write_derived_fields(
+            cards,
+            resolver=default_card_resolver(),
+            price_fetcher=_live_price_fetcher(),
+            client=client,
+            apply=apply,
+            dry_run=dry_run,
+        )
+    finally:
+        client.close()
+
+
+# --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
 
@@ -999,9 +1297,30 @@ def main(argv: list[str] | None = None) -> int:
         action='store_false',
         help='Disable dry-run (still requires --apply to write).',
     )
+    parser.add_argument(
+        '--refresh',
+        dest='refresh',
+        action='store_true',
+        default=False,
+        help=(
+            'CARD-DIM DERIVED refresh: write the nine Scryfall-derived Cards columns '
+            '(Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art, '
+            'Scryfall URL, Price (TCGPlayer), Color Identity) for every pulled Card, '
+            'sourced from the card dim + a live price. Dry-run by default; a real write '
+            'requires --no-dry-run --apply. NO-OP (zero Airtable calls) unless the '
+            'active backend is airtable.'
+        ),
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
+
+    # --refresh runs the card-dim DERIVED-column primitive (5b-1) instead of the
+    # otag ⚙-field sync. Backend-guarded + dry-run by default inside the entry point.
+    if args.refresh:
+        report = refresh_derived_columns(apply=args.apply, dry_run=args.dry_run)
+        print(report.render())
+        return 0
 
     client: AllowlistWriteClient | None = None
     do_write = (not args.dry_run) and args.apply
