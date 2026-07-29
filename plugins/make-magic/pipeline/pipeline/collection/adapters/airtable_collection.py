@@ -979,7 +979,32 @@ class AirtableCollectionStore:
         rec = self._find_deck_record(name)
         if rec is None:
             raise FileNotFoundError(f'No Airtable Decks record named {name!r}.')
-        return self._row_to_deck(rec, self._inventory_name_map(), hydrate=True)
+        deck = self._row_to_deck(rec, self._inventory_name_map(), hydrate=True)
+        # Integrity surface (hydrated read only) — flag, never mutate/raise.
+        self._warn_unresolved_cards(deck)  # #16
+        return deck
+
+    def _warn_unresolved_cards(self, deck: Deck) -> None:
+        """#16: surface deck cards the resolver could not hydrate (name-only).
+
+        A resolver miss yields a `DeckCard` with ``oracle_id is None`` and no
+        enrichment; on the hydrated ``get_deck`` path that silent degradation is
+        logged as a WARNING naming the count + the unresolved card names. The
+        name-only ``list_decks`` path never calls this (nothing was hydrated).
+
+        Basic lands are excluded: they are reconstructed directly from the count
+        columns (no resolver round-trip by design), so their ``oracle_id is None``
+        is intentional, not a resolution failure.
+        """
+        unresolved = [c.name for c in deck.cards if c.oracle_id is None and c.name not in BASIC_LAND_TO_FIELD]
+        if unresolved:
+            log.warning(
+                "get-deck '%s': %d of %d cards did not resolve and are name-only: %s",
+                deck.name,
+                len(unresolved),
+                len(deck.cards),
+                unresolved,
+            )
 
     def list_decks(self) -> list[Deck]:
         table_id = self._resolver.table_id(self._decks_table)

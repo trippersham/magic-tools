@@ -494,6 +494,68 @@ def test_hydration_preserves_airtable_link_name() -> None:
     assert card.oracle_id == 'oid-sol'
 
 
+# --------------------------------------------------------------------------- #
+# #16 — surface unresolved (name-only) deck cards in get_deck
+# --------------------------------------------------------------------------- #
+
+
+def _partial_resolve_fixture() -> FakeAirtable:
+    """A deck whose maindeck mixes a resolvable card (Sol Ring) with an
+    unresolvable one (the stub resolver has no entry for it)."""
+    inv = _FIELDS['Inventory Cards']
+    d = _FIELDS['Decks']
+    cards = [
+        {'id': 'recGrum', 'fields': {inv['Card Name']: 'Grumgully, the Generous'}},
+        {'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}},
+        {'id': 'recGhost', 'fields': {inv['Card Name']: 'Unresolvable Card'}},
+    ]
+    deck = {
+        'id': 'recDeck',
+        'fields': {
+            d['Name']: 'Gruul Aggro',
+            d['Commander']: ['recGrum'],
+            d['Cards']: ['recSol', 'recGhost'],
+        },
+    }
+    return FakeAirtable({'tblCards': cards, 'tblDecks': [deck]})
+
+
+def test_get_deck_warns_on_unresolved_name_only_cards(caplog: pytest.LogCaptureFixture) -> None:
+    """#16: a get-deck over a deck with >=1 card the resolver can't hydrate must
+    log a WARNING naming the count + the unresolved card names, so the silent
+    name-only degradation (oracle_id=None, no enrichment) is VISIBLE."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        deck = _store(_partial_resolve_fixture()).get_deck('Gruul Aggro')
+    # resolution behaviour is unchanged: the miss still comes back name-only.
+    by_name = {c.name: c for c in deck.cards}
+    assert by_name['Sol Ring'].oracle_id == 'oid-sol'
+    assert by_name['Unresolvable Card'].oracle_id is None
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == 'WARNING']
+    assert len(warnings) == 1, warnings
+    msg = warnings[0]
+    assert 'Gruul Aggro' in msg
+    assert 'Unresolvable Card' in msg
+    # names the count of unresolved-of-total (1 of 3: commander + 2 maindeck).
+    assert '1 of 3' in msg
+    # a fully-resolved card is NOT listed.
+    assert 'Sol Ring' not in msg
+
+
+def test_get_deck_no_warning_when_all_resolve(caplog: pytest.LogCaptureFixture) -> None:
+    """#16: a fully-resolved deck logs NOTHING (no false alarm)."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        _store(_deck_fixture()).get_deck('Gruul Aggro')
+    assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
+
+
+def test_list_decks_does_not_warn_on_name_only(caplog: pytest.LogCaptureFixture) -> None:
+    """#16: the deliberately name-only ``list_decks`` path must NOT trip the
+    unresolved-card warning (it never hydrates, so 'unresolved' is meaningless)."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        _store(_partial_resolve_fixture()).list_decks()
+    assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
+
+
 def test_set_assessment_and_focus_otags_write_field_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """When a base DOES carry Assessment / Focus Otags, the setters write them.
 
