@@ -108,6 +108,7 @@ _FIELDS: dict[str, dict[str, str]] = {
         'Mountains': 'fldMountains',
         'Forests': 'fldForests',
         'Wastes': 'fldWastes',
+        'Deck Size': 'fldDeckSize',
     },
     'Trades': {
         'Date': 'fldDate',
@@ -553,6 +554,63 @@ def test_list_decks_does_not_warn_on_name_only(caplog: pytest.LogCaptureFixture)
     unresolved-card warning (it never hydrates, so 'unresolved' is meaningless)."""
     with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
         _store(_partial_resolve_fixture()).list_decks()
+    assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
+
+
+# --------------------------------------------------------------------------- #
+# #17 — deck-size integrity check vs Airtable Deck Size in get_deck
+# --------------------------------------------------------------------------- #
+
+
+def _deck_size_fixture(deck_size: int | None) -> FakeAirtable:
+    """A deck reconstructing to Σquantity == 15 (Sol Ring 1 + Forests 8 + Mountains
+    5 + commander 1); ``deck_size`` sets the Airtable ``Deck Size`` oracle field
+    (or omits it when None)."""
+    inv = _FIELDS['Inventory Cards']
+    d = _FIELDS['Decks']
+    cards = [
+        {'id': 'recGrum', 'fields': {inv['Card Name']: 'Grumgully, the Generous'}},
+        {'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}},
+    ]
+    fields = {
+        d['Name']: 'Gruul Aggro',
+        d['Commander']: ['recGrum'],
+        d['Cards']: ['recSol'],
+        d['Forests']: 8,
+        d['Mountains']: 5,
+    }
+    if deck_size is not None:
+        fields[d['Deck Size']] = deck_size
+    return FakeAirtable({'tblCards': cards, 'tblDecks': [{'id': 'recDeck', 'fields': fields}]})
+
+
+def test_get_deck_warns_on_deck_size_gap(caplog: pytest.LogCaptureFixture) -> None:
+    """#17: reconstructed Σquantity (15) != Airtable Deck Size (18) logs a WARNING
+    naming both numbers + the gap; the deck is not mutated."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        deck = _store(_deck_size_fixture(18)).get_deck('Gruul Aggro')
+    assert sum(c.quantity for c in deck.cards) == 15  # not mutated
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == 'WARNING']
+    assert len(warnings) == 1, warnings
+    msg = warnings[0]
+    assert 'Gruul Aggro' in msg
+    assert '15' in msg  # reconstructed
+    assert '18' in msg  # Airtable Deck Size
+    assert '3' in msg  # gap
+
+
+def test_get_deck_no_warning_when_deck_size_matches(caplog: pytest.LogCaptureFixture) -> None:
+    """#17: reconstructed Σquantity == Deck Size -> no warning."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        _store(_deck_size_fixture(15)).get_deck('Gruul Aggro')
+    assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
+
+
+def test_get_deck_no_size_check_when_field_absent(caplog: pytest.LogCaptureFixture) -> None:
+    """#17: no ``Deck Size`` value -> no check, no error, no warning."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        deck = _store(_deck_size_fixture(None)).get_deck('Gruul Aggro')
+    assert sum(c.quantity for c in deck.cards) == 15
     assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
 
 

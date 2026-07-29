@@ -266,6 +266,9 @@ class AirtableCollectionStore:
     _DECK_COMMANDER: ClassVar[str] = 'Commander'
     _DECK_CARDS: ClassVar[str] = 'Cards'
     _DECK_REPEAT: ClassVar[str] = 'Repeat Cards Count'
+    #: Airtable formula field = intended total (Σ card quantities + basics). Read
+    #: as the integrity oracle in ``get_deck``; absent on some bases (optional read).
+    _DECK_SIZE: ClassVar[str] = 'Deck Size'
 
     # Chase Cards field NAMES.
     _CHASE_NAME: ClassVar[str] = 'Card Name'
@@ -980,8 +983,9 @@ class AirtableCollectionStore:
         if rec is None:
             raise FileNotFoundError(f'No Airtable Decks record named {name!r}.')
         deck = self._row_to_deck(rec, self._inventory_name_map(), hydrate=True)
-        # Integrity surface (hydrated read only) — flag, never mutate/raise.
+        # Integrity surfaces (hydrated read only) — flag, never mutate/raise.
         self._warn_unresolved_cards(deck)  # #16
+        self._check_deck_size(deck, rec)  # #17
         return deck
 
     def _warn_unresolved_cards(self, deck: Deck) -> None:
@@ -1004,6 +1008,28 @@ class AirtableCollectionStore:
                 len(unresolved),
                 len(deck.cards),
                 unresolved,
+            )
+
+    def _check_deck_size(self, deck: Deck, rec: dict[str, Any]) -> None:
+        """#17: compare reconstructed Σquantity against Airtable's ``Deck Size``.
+
+        ``Deck Size`` is a Decks formula field = the intended total (Σ card
+        quantities + basics). When present and it differs from the reconstructed
+        Σquantity, log a WARNING naming both numbers + the gap. Absent field ->
+        no check. Never mutates the deck, never raises.
+        """
+        raw_size = self._get_optional(self._decks_table, rec, self._DECK_SIZE)
+        if raw_size is None:
+            return
+        expected = int(raw_size)
+        reconstructed = sum(c.quantity for c in deck.cards)
+        if reconstructed != expected:
+            log.warning(
+                "get-deck '%s': reconstructed %d cards but Airtable Deck Size is %d (gap of %d)",
+                deck.name,
+                reconstructed,
+                expected,
+                expected - reconstructed,
             )
 
     def list_decks(self) -> list[Deck]:
