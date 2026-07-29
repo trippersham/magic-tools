@@ -3,10 +3,10 @@
 Flow (data-architecture §ingest, incremental step 3 — "the most annoying to
 refresh"):
     1. GET ``https://api.scryfall.com/bulk-data/oracle_cards`` metadata
-       (``updated_at`` + ``download_uri``).
+       (``updated_at`` + ``jsonl_download_uri``).
     2. Cursor check: skip if ``updated_at`` is not newer than the last load.
-    3. Stream the ``download_uri`` JSON (~140 MB) and load to
-       ``raw/oracle_cards``.
+    3. Stream the ``jsonl_download_uri`` gzipped JSONL (~24 MB compressed) and load
+       to ``raw/oracle_cards``.
 
 FETCH-ON-DEMAND, NOT BUNDLED: the oracle_cards file is ~140 MB, far too large to
 commit. There is no offline snapshot — instead the puller streams the file on
@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+import zlib
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -41,47 +42,45 @@ RATE_LIMIT_MS = 100
 
 
 def _fetch_meta(client: httpx.Client) -> tuple[str, str]:
-    """Return ``(download_uri, updated_at)`` for the oracle_cards bulk file."""
+    """Return ``(jsonl_download_uri, updated_at)`` for the oracle_cards bulk file.
+
+    Scryfall now serves bulk data as gzipped JSONL; the metadata exposes the file
+    URL as ``jsonl_download_uri`` (the older ``download_uri`` JSON-array field was
+    removed in 2026).
+    """
     resp = client.get(BULK_META_URL, headers=HEADERS, timeout=30)
     resp.raise_for_status()
     meta = resp.json()
-    return str(meta['download_uri']), str(meta['updated_at'])
+    return str(meta['jsonl_download_uri']), str(meta['updated_at'])
 
 
 def _stream_cards(client: httpx.Client, download_uri: str, max_cards: int | None) -> Iterator[dict[str, Any]]:
-    """Stream cards from the bulk download, stopping after ``max_cards``.
+    """Stream cards from the gzipped-JSONL bulk download, stopping after ``max_cards``.
 
-    The bulk file is a single JSON array; we stream bytes and incrementally
-    decode top-level objects so a bounded pull never buffers the whole ~140 MB.
+    Scryfall's bulk file is GZIPPED JSONL — one JSON object per line, served as
+    ``application/gzip`` (not HTTP ``Content-Encoding``, so httpx does not
+    auto-inflate it). We gunzip incrementally and split on the ASCII ``\\n`` byte
+    (UTF-8-safe: a newline never occurs inside a multi-byte sequence) so a bounded
+    pull never buffers the whole ~140 MB.
     """
     time.sleep(RATE_LIMIT_MS / 1000)
     count = 0
+    gunzip = zlib.decompressobj(16 + zlib.MAX_WBITS)  # 16 => expect a gzip header
+    buf = b''
     with client.stream('GET', download_uri, headers=HEADERS, timeout=120) as resp:
         resp.raise_for_status()
-        decoder = json.JSONDecoder()
-        buf = ''
-        started = False
-        for chunk in resp.iter_text():
-            buf += chunk
-            if not started:
-                idx = buf.find('[')
-                if idx == -1:
-                    continue
-                buf = buf[idx + 1 :]
-                started = True
-            while True:
-                buf = buf.lstrip().lstrip(',').lstrip()
-                if not buf or buf[0] == ']':
-                    break
-                try:
-                    obj, end = decoder.raw_decode(buf)
-                except json.JSONDecodeError:
-                    break  # need more bytes
-                buf = buf[end:]
-                yield obj
-                count += 1
-                if max_cards is not None and count >= max_cards:
-                    return
+        for chunk in resp.iter_bytes():
+            buf += gunzip.decompress(chunk)
+            while (nl := buf.find(b'\n')) != -1:
+                line, buf = buf[:nl].strip(), buf[nl + 1 :]
+                if line:
+                    yield json.loads(line)
+                    count += 1
+                    if max_cards is not None and count >= max_cards:
+                        return
+        buf += gunzip.flush()
+        if (line := buf.strip()) and (max_cards is None or count < max_cards):
+            yield json.loads(line)
 
 
 def _load(cards: list[dict[str, Any]]) -> Path:
