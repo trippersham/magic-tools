@@ -614,6 +614,50 @@ def test_get_deck_no_size_check_when_field_absent(caplog: pytest.LogCaptureFixtu
     assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
 
 
+# --------------------------------------------------------------------------- #
+# #15 — regression guard: basics reconstruction from count columns
+# --------------------------------------------------------------------------- #
+
+
+def test_basics_reconstructed_from_count_columns() -> None:
+    """#15 regression guard: basic-land count columns (Forests/Islands/…) must
+    reconstruct into ``DeckCard``s with the right quantity + type, and their
+    copies must be included in Σquantity. This FAILS if the ``BASIC_LAND_FIELDS``
+    loop in ``_row_to_deck`` is removed."""
+    inv = _FIELDS['Inventory Cards']
+    d = _FIELDS['Decks']
+    fake = FakeAirtable(
+        {
+            'tblCards': [
+                {'id': 'recGrum', 'fields': {inv['Card Name']: 'Grumgully, the Generous'}},
+                {'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}},
+            ],
+            'tblDecks': [
+                {
+                    'id': 'recDeck',
+                    'fields': {
+                        d['Name']: 'Gruul Aggro',
+                        d['Commander']: ['recGrum'],
+                        d['Cards']: ['recSol'],
+                        d['Forests']: 6,
+                        d['Islands']: 4,
+                    },
+                }
+            ],
+        }
+    )
+    deck = _store(fake).get_deck('Gruul Aggro')
+    by_name = {c.name: c for c in deck.cards}
+    # basics present as DeckCards with the right quantity + basic-land type.
+    assert by_name['Forest'].quantity == 6
+    assert by_name['Forest'].type_line == 'Basic Land — Forest'
+    assert by_name['Forest'].role is None
+    assert by_name['Island'].quantity == 4
+    assert by_name['Island'].type_line == 'Basic Land — Island'
+    # Σquantity includes the basics (commander 1 + Sol Ring 1 + 6 + 4 = 12).
+    assert sum(c.quantity for c in deck.cards) == 12
+
+
 def test_set_assessment_and_focus_otags_write_field_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """When a base DOES carry Assessment / Focus Otags, the setters write them.
 
