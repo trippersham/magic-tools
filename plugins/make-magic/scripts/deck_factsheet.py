@@ -3,13 +3,13 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "httpx",  # transitive: required by scryfall_cache
-#     "typer",
-#     "duckdb>=1.1",  # pipeline otag layer (transforms/store); fail-open if absent
-#     "pydantic>=2.7",  # pipeline contracts (FactSheet); fail-open if absent
+#     "make-magic-pipeline",  # pipeline contracts/transforms + scryfall_cache's package import
+#     "typer",                # this script's CLI
 # ]
 # [tool.uv]
 # exclude-newer = "2026-06-08T00:00:00Z"
+# [tool.uv.sources]
+# make-magic-pipeline = { path = "../pipeline", editable = true }
 # ///
 """
 MTG deck fact sheet — emits a NEUTRAL, verifiable JSON fact sheet for a decklist.

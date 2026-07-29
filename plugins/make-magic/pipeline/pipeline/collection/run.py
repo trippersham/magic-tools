@@ -193,11 +193,11 @@ def _list_inventory(argv: list[str]) -> None:
 def _add_card(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection add-card')
     parser.add_argument('ref')
-    parser.add_argument('--qty', type=int, default=1)
-    parser.add_argument('--condition', action='append', default=None)
-    parser.add_argument('--foil', type=int, default=0)
-    parser.add_argument('--set', dest='sets', action='append', default=None)
-    parser.add_argument('--source', dest='sources', action='append', default=None)
+    parser.add_argument('--qty', type=int, default=1, help='copies to add (default 1)')
+    parser.add_argument('--condition', action='append', default=None, help='condition, e.g. Near Mint (repeatable)')
+    parser.add_argument('--foil', type=int, default=0, help='FOIL copies as an int COUNT, e.g. --foil 1 (default 0)')
+    parser.add_argument('--set', dest='sets', action='append', default=None, help='set name (repeatable)')
+    parser.add_argument('--source', dest='sources', action='append', default=None, help='source (repeatable)')
     args = parser.parse_args(argv)
     _store(writes_enabled=True).add_card(
         args.ref, args.qty, condition=args.condition, foil=args.foil, sets=args.sets, sources=args.sources

@@ -21,21 +21,24 @@ inline — no script needed.
    {
      "name": "<Deck Name>",
      "cards": [
+       {"name": "Krenko, Mob Boss", "role": "commander"},
        {"name": "Llanowar Elves", "quantity": 1},
        {"name": "Lightning Bolt", "quantity": 4}
      ]
    }
    JSON
    ```
-   The resolver hydrates each card's Scryfall metadata from its name. Per-card multiplicity
-   travels as `DeckCard.quantity` — the adapter maps it onto the Airtable Repeat fields, or
-   stores it directly in YAML.
+   The commander is a card in `cards[]` with `"role": "commander"` — NOT a top-level field
+   (a top-level `commander` key is rejected as an extra input). The resolver hydrates each
+   card's Scryfall metadata from its name. Per-card multiplicity travels as `DeckCard.quantity`
+   — the adapter maps it onto the Airtable Repeat fields, or stores it directly in YAML.
 5. For loose copies entering the collection, `add-card "<name>" --qty <n>` (or `set-quantity`
    to correct a count)
 
-> The `Deck` model keeps the commander distinct from the 99 non-commander cards; `save-deck`
-> links each to the correct field. Basic-land counts and repeat-field bookkeeping are handled by
-> the adapter from the JSON you pass — you never write those Airtable fields by hand.
+> The deck's commander(s) are simply the `cards[]` entries whose `role` is `"commander"`
+> (exposed programmatically via the derived `Deck.commanders` property — there is no separate
+> commander field). Basic-land counts and repeat-field bookkeeping are handled by the adapter
+> from the JSON you pass — you never write those Airtable fields by hand.
 
 ## Query Deck Contents
 
@@ -43,8 +46,9 @@ inline — no script needed.
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "<Deck Name>"   # full JSON incl. cards[]
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection list-decks               # enumerate names
 ```
-`get-deck` returns `name`, `strategy`, `commander`, `color_identity`, and the full `cards[]`
-(each with `name`, `mana_cost`, `type_line`, `mana_value`, `oracle_text`) in one call.
+`get-deck` returns `name`, `strategy`, `assessment`, `focus_otags`, and the full `cards[]`
+(each with `name`, `mana_cost`, `type_line`, `mana_value`, `oracle_text`, and `role`) in one
+call. The commander is the `cards[]` entry tagged `"role": "commander"`.
 
 ## Deck Analysis
 
@@ -57,5 +61,5 @@ Compute analysis over the `cards[]` returned by `get-deck`:
 
 ### Gotchas
 
-- Commander is a distinct field, not one of the 99 `cards[]` — set it on the `Deck` JSON, not as a card entry.
+- Commander is a card entry in `cards[]` tagged `"role": "commander"` — NOT a top-level `commander` key (that is rejected). `get-deck` then returns the derived `commanders`.
 - Double-faced cards resolve via `card_faces[0]` automatically; metadata does not come back empty.
