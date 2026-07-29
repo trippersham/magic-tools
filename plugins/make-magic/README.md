@@ -1,158 +1,130 @@
 # make-magic
 
-Magic: The Gathering deck building, card chasing, and inventory management for
-Claude Code — backed by a shared Airtable base and Scryfall.
+MTG deck building, card chasing, and inventory management for Claude Code —
+powered by **Scryfall**, with an **optional** shared Airtable base.
 
-Skills included: **building-decks**, **chasing-cards**, **managing-inventory**.
+Skills: **building-decks**, **chasing-cards**, **managing-inventory**.
 
-The skills, commands, and behavior are identical no matter how you install. Only
-the setup steps differ per platform.
+> **Works out of the box — no account, no credential.** Card data comes from
+> Scryfall; your collection lives in a local store by default. Point it at a
+> shared Airtable base only if you want to (see [Airtable (optional)](#airtable-optional)).
 
----
-
-## Prerequisites
-
-- **Node.js** (18+). The bundled Airtable MCP server runs on Node. On Claude
-  Code on the web ("Cowork") Node is already installed, so there's nothing to do
-  there.
-- **`uv`** — used by the Python helper scripts. You do **not** need to install
-  it: the plugin self-provisions `uv` on session start (a `SessionStart` hook
-  runs `ensure-uv.sh`, which fetches a pinned `uv` into a local cache if it isn't
-  already on your PATH). macOS/Linux only.
-- Nothing else. No global installs, no build step.
-
-Supported OS: **macOS / Linux** (Windows is not supported).
+Supported OS: **macOS / Linux**. You do **not** need to install `uv` — the plugin
+self-provisions a pinned copy on session start. Node 18+ is only needed for the
+optional Airtable MCP.
 
 ---
 
 ## Install
 
-Pick your target below. You need to do two things everywhere: **install the
-plugin** and **set the `AIRTABLE_API_KEY` credential**.
-
-### Tab: Claude Code (CLI)
-
-**1. Add the marketplace, then install the plugin.** From the Claude Code TUI
-(slash commands) or your shell (`claude ...`):
-
 ```bash
 claude plugin marketplace add trippersham/magic-tools
 claude plugin install make-magic@magic-tools
 ```
 
-(Equivalently, from inside the TUI: `/plugin marketplace add trippersham/magic-tools`
-then `/plugin install make-magic@magic-tools`.)
+Then `/reload-plugins` (or restart Claude Code).
 
-**2. Reload.** If you installed from the TUI, run `/reload-plugins`, or restart
-Claude Code.
-
-**3. Set the credential.** See [Credential](#credential) below — locally you use
-a gitignored `.env` file or a shell export.
-
-### Tab: Claude Code (Desktop)
-
-**1. Open Settings** from the profile menu.
-
-**2. Go to Plugins → Add → Add marketplace** and enter:
-
-```
-trippersham/magic-tools
-```
-
-**3. Install `make-magic`** from the plugin list for the `magic-tools`
-marketplace.
-
-The CLI commands work here too if you have a terminal:
-
-```bash
-claude plugin marketplace add trippersham/magic-tools
-claude plugin install make-magic@magic-tools
-```
-
-**4. Set the credential.** See [Credential](#credential) below — a gitignored
-`.env` file or a shell export.
-
-### Tab: Claude Code on the web ("Cowork")
-
-**1. Enablement is already committed.** This repository ships a
-`.claude/settings.json` that registers the `magic-tools` marketplace and enables
-`make-magic`, so a Cowork session that opens this repo loads the plugin at
-startup. You do **not** run `plugin marketplace add` / `plugin install` in
-Cowork.
-
-**2. Set the credential** in the environment's **Environment Variables** field:
-
-```
-AIRTABLE_API_KEY = <your Airtable token>
-```
-
-See [Credential](#credential) for what token to use.
+- **Desktop:** Settings → Plugins → Add marketplace `trippersham/magic-tools` → install `make-magic`.
+- **Web (Cowork):** this repo's `.claude/settings.json` enables the plugin automatically — nothing to install.
 
 ---
 
-## Credential
+## Verify — no credentials needed
 
-The Airtable MCP server needs `AIRTABLE_API_KEY` — an Airtable **Personal Access
-Token** that can read the owner's shared "Magic Inventory" base. The base data is
-already populated and shared; you don't create or seed anything, you just need a
-token with read access to it.
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection status
+```
 
-**Scope the token narrowly.** The bundled MCP server exposes write tools
-(create/update/delete records, create/update tables and fields, `upload_attachment`),
-so a read-only workflow is best served by a **read-scoped, minimal PAT** — grant only
-the `data.records:read` / `schema.bases:read` scopes and limit it to the "Magic
-Inventory" base. That way the token's scope, not the tooling, bounds the blast radius.
+Expect `"backend": "local"`. That single command proves `uv` self-provisioned, the
+pipeline loaded, and you're ready — with zero setup.
 
-Resolution order (see `.mcp.json`):
+---
 
+## Quickstart (local mode)
+
+Just talk to the skills — *"build a Krenko goblins deck"*, *"what should I chase
+for my Krenko deck?"*, *"add Sol Ring to my inventory"* — or drive the CLI directly:
+
+```bash
+C="${CLAUDE_PLUGIN_ROOT}/scripts/collection"
+
+"$C" onboard --backend local              # pin local as your source of record (optional — local is the default)
+"$C" add-card "Sol Ring"                   # add an owned card (hydrated live from Scryfall)
+"$C" add-card "Krenko, Mob Boss" --qty 1 --foil 1   # --foil is a COUNT, not true/false
+"$C" add-chase "Ragavan, Nimble Pilferer"  # track a card you want to acquire
+"$C" save-deck --from-json - <<'JSON'
+{
+  "name": "Krenko Goblins",
+  "cards": [
+    {"name": "Krenko, Mob Boss", "role": "commander"},
+    {"name": "Goblin Chieftain"},
+    {"name": "Lightning Bolt", "quantity": 1}
+  ]
+}
+JSON
+"$C" get-deck "Krenko Goblins"             # full deck JSON incl. cards[]
+"$C" factsheet "Krenko Goblins"            # neutral curve / ramp / interaction / otag analysis
+```
+
+The **commander** is a `cards[]` entry tagged `"role": "commander"` — not a
+top-level field. Run any verb with `-h` for its flags (e.g. `collection add-card -h`).
+
+**Where local data lives:** under `MAKE_MAGIC_DATA_DIR` (default: the plugin's
+`pipeline/data/`). Set that env var to relocate the whole store — lake, DuckDB, and
+`collection/` YAML — somewhere else (tests and isolated setups use it).
+
+Card resolution is offline-first from a local DuckDB lake with a live Scryfall
+fallback, so day-one usage works immediately; you never have to bulk-download
+anything to get started.
+
+---
+
+## Airtable (optional)
+
+Prefer a shared, multi-device Airtable base as your source of record instead of
+local YAML? Opt in:
+
+1. **Choose the backend** — `collection onboard --backend airtable`, or set
+   `MAKE_MAGIC_BACKEND=airtable`. (Resolution order: explicit `MAKE_MAGIC_BACKEND`
+   → your onboarded choice → `AIRTABLE_API_KEY` present → else `local`.)
+2. **Provide the credential** — `AIRTABLE_API_KEY`, an Airtable **Personal Access
+   Token** with read access to the shared "Magic Inventory" base.
+
+**Scope the token narrowly.** The bundled Airtable MCP exposes write tools, so a
+read-mostly workflow is best served by a **read-scoped, minimal PAT** — grant only
+`data.records:read` / `schema.bases:read`, limited to the "Magic Inventory" base.
+
+**Where to set it** (resolution order, see `.mcp.json`):
 1. An ambient `AIRTABLE_API_KEY` in the environment always wins.
-2. Otherwise, if a gitignored `plugins/make-magic/.env` exists, it is sourced.
+2. Otherwise a gitignored `plugins/make-magic/.env` is sourced:
+   ```bash
+   # plugins/make-magic/.env   (gitignored — copy from .env.example)
+   AIRTABLE_API_KEY=your_token_here
+   ```
+   On **Cowork**, set it in the environment's **Environment Variables** field instead.
 
-### Local (CLI / Desktop)
+<details>
+<summary>Optional: resolve the token from 1Password (local, macOS/Linux)</summary>
 
-Create a gitignored `.env` next to the plugin (copy from `.env.example`):
-
-```bash
-# plugins/make-magic/.env   (gitignored)
-AIRTABLE_API_KEY=your_token_here
-```
-
-Or export it in your shell before starting Claude Code:
-
-```bash
-export AIRTABLE_API_KEY=your_token_here
-```
-
-### Cowork
-
-Set `AIRTABLE_API_KEY` in the environment's **Environment Variables** field (see
-the Cowork install tab above). Do not commit tokens.
-
-### Optional: 1Password (local, macOS/Linux)
-
-Instead of pasting a raw token into `.env`, you can resolve it at load time from
-the 1Password CLI. Put this one line in the gitignored `plugins/make-magic/.env`
-(placeholders only — substitute your own account, vault, and item):
+Instead of a raw token in `.env`, resolve it at load time (placeholders only —
+substitute your own account/vault/item; the gitignored `.env` keeps the `op://`
+path out of the repo):
 
 ```bash
 export AIRTABLE_API_KEY="$(op read --account <your-1p-account> 'op://<Vault>/<Item>/credential')"
 ```
-
-The `.env` file is gitignored, so the real `op://` path stays out of the repo.
+</details>
 
 ---
 
-## Verify it works
+## How it works
 
-After install + credential, start a session in a checkout of this repo and try a
-skill, e.g.:
+- **Card data** — Scryfall, offline-first via a local DuckDB "medallion" lake
+  (`raw → normalized → marts`), with a paced live fallback for cache misses.
+- **Collection** — local `collection/` YAML by default, or Airtable records when
+  configured. The skills read/write through one backend-agnostic `collection` CLI.
+- **Analysis** — a neutral fact sheet (curve, pips, ramp, interaction, otag
+  buckets) plus otag-informed strategy fit; the skills own the judgment calls.
 
-```
-Show me what's in my Magic inventory.
-```
-
-This exercises the Airtable MCP (proving the bundled server booted) and the helper
-scripts (proving `uv` self-provisioned).
-
-If the Airtable MCP fails to start, check that `AIRTABLE_API_KEY` is set for your
-platform per [Credential](#credential) above.
+Env vars: `MAKE_MAGIC_BACKEND` (`local` | `airtable`), `MAKE_MAGIC_DATA_DIR`
+(local store location), `AIRTABLE_API_KEY` (Airtable mode only).

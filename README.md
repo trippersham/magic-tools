@@ -1,54 +1,26 @@
 # magic-tools
 
-A Claude Code plugin marketplace for Magic: The Gathering card inventory management.
+A Claude Code plugin marketplace for Magic: The Gathering.
 
-## What's Included
+## make-magic
 
-- **make-magic plugin**: Manage your MTG card inventory using Airtable as a database and Scryfall for card metadata. Includes workflows for loading decks, recording trades, backfilling card data, and tracking your collection.
+Deck building, card chasing, and inventory management — powered by **Scryfall**,
+with an **optional** shared Airtable base. Skills: **building-decks**,
+**chasing-cards**, **managing-inventory**.
 
-## Installation
+**Works out of the box with no account or credential** — card data from Scryfall,
+your collection in a local store by default. Airtable is opt-in.
 
 ```bash
-claude plugins add https://github.com/trippwickersham/magic-tools
+claude plugin marketplace add trippersham/magic-tools
+claude plugin install make-magic@magic-tools
 ```
 
-## Prerequisites
+Then `/reload-plugins` (or restart). Verify with `${CLAUDE_PLUGIN_ROOT}/scripts/collection status`
+(expect `"backend": "local"`) — no credentials needed.
 
-1. **Enable Airtable connector**: Run `/mcp` in Claude Code, then enable and authenticate with Airtable
+→ **Full quickstart, local-mode usage, and optional Airtable setup:
+[plugins/make-magic/README.md](plugins/make-magic/README.md).**
 
-2. **Clone Airtable base template**: [Airtable Base Template](https://airtable.com/placeholder-template-link) - duplicate this to your workspace
-
-3. **Install uv**: Required for running the Scryfall batch metadata script
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-
-## Cardlist Format
-
-Place your deck lists in a `cardlists/` directory in your project. Each file should contain one card per line:
-
-```
-<quantity> <card name>
-```
-
-Example (`cardlists/modern-burn.txt`):
-```
-4 Lightning Bolt
-4 Goblin Guide
-4 Monastery Swiftspear
-2 Eidolon of the Great Revel
-```
-
-## Usage
-
-Once installed, invoke the skill:
-
-```
-/managing-inventory
-```
-
-The skill provides workflows for:
-- Loading decks from cardlists into Airtable
-- Recording trades and acquisitions
-- Backfilling Scryfall metadata (prices, sets, images)
-- Querying your inventory
+Supported OS: macOS / Linux. `uv` self-provisions; Node 18+ is only needed for the
+optional Airtable MCP.
