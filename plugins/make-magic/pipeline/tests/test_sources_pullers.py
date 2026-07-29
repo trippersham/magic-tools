@@ -179,12 +179,18 @@ def test_scryfall_bulk_streams_and_projects(data_dir: Path, monkeypatch: pytest.
     cards = [
         {
             'oracle_id': 'o1',
-            'name': 'Lightning Bolt',
+            'name': 'Llanowar Elves',
             'cmc': 1.0,
-            'type_line': 'Instant',
-            'colors': ['R'],
-            'color_identity': ['R'],
+            'type_line': 'Creature — Elf Druid',
+            'colors': ['G'],
+            'color_identity': ['G'],
+            'produced_mana': ['G'],
             'keywords': [],
+            'power': '1',
+            'toughness': '1',
+            'image_uris': {'art_crop': 'https://cards.scryfall.io/art_crop/front/6/a/6a0b230b.jpg'},
+            'scryfall_uri': 'https://scryfall.com/card/fdn/227/llanowar-elves',
+            'set_name': 'Foundations',
             'extra': 'dropped',
         },
         {
@@ -196,6 +202,8 @@ def test_scryfall_bulk_streams_and_projects(data_dir: Path, monkeypatch: pytest.
             'color_identity': [],
             'produced_mana': ['C'],
             'keywords': [],
+            'scryfall_uri': 'https://scryfall.com/card/c21/263/sol-ring',
+            'set_name': 'Commander 2021',
         },
     ]
 
@@ -216,9 +224,20 @@ def test_scryfall_bulk_streams_and_projects(data_dir: Path, monkeypatch: pytest.
         rel = store.read_parquet(conn, 'raw', 'oracle_cards')
         n = rel.aggregate('count(*)').fetchone()[0]
         cols = rel.columns
+        # The creature row exposes the widened presentation columns non-null.
+        elves = rel.filter("name = 'Llanowar Elves'").fetchone()
+        row = dict(zip(cols, elves, strict=True))
     assert n == 2
     assert 'extra' not in cols  # projected away
     assert 'oracle_id' in cols and 'produced_mana' in cols
+    # W1: widened presentation columns present.
+    for col in ('power', 'toughness', 'art_crop', 'scryfall_uri', 'set_name'):
+        assert col in cols
+    assert row['power'] == '1'
+    assert row['toughness'] == '1'
+    assert row['art_crop'] == 'https://cards.scryfall.io/art_crop/front/6/a/6a0b230b.jpg'
+    assert row['scryfall_uri'] == 'https://scryfall.com/card/fdn/227/llanowar-elves'
+    assert row['set_name'] == 'Foundations'
 
 
 def test_scryfall_bulk_stream_decoder_parses_array() -> None:

@@ -66,14 +66,9 @@ import json
 import logging
 import re
 import sys
-from collections import Counter
 from pathlib import Path
 
 log = logging.getLogger('make_magic.deck_factsheet')
-
-# CMC histogram buckets. 7+ collects everything at CMC >= 7.
-_CMC_BUCKETS = ('0', '1', '2', '3', '4', '5', '6', '7+')
-_PIP_SYMBOLS = ('W', 'U', 'B', 'R', 'G', 'C')
 
 #: Prefix that marks the graceful-degradation signal in ``susceptibility`` when
 #: the otag layer is unavailable. Kept as a constant so callers/tests can key on
@@ -86,28 +81,42 @@ _OTAG_UNAVAILABLE = (
 
 
 # --------------------------------------------------------------------------- #
-# STRUCTURED-FACT functions — no network, no oracle-text regex, no I/O.
+# STRUCTURED-FACT functions — ONE copy of the math lives in the shared pipeline
+# transform (``pipeline.transforms.deck_factsheet``); this script is a CONSUMER.
 #
-# Each takes a list of Scryfall-shaped card dicts (already face-normalized via
-# _card_fields at the CLI boundary) and returns objective counts derived from
-# Scryfall STRUCTURED fields only. These back the offline fallback and are the
-# facts that would NOT change if a card were moved to a different deck.
+# The in-script census math (shape / mana / pip / keyword / cmc / per-card /
+# instant-speed / is_land) was DELETED in #5 Task 6a and is now sourced from the
+# transform via ``_facts()``. The wrappers below preserve the script's public
+# names (kept for its tests + the CLI shell) but delegate to the single copy, so
+# the fact sheet output is byte-identical while there is no duplicated logic.
 #
-# Functional interaction categorization (removal/counters/protection/draw/...) is
-# NOT done here via oracle-text regex; it is delegated to the pipeline's otag
-# buckets — see the delegation in build_factsheet().
+# The transform import is LAZY (never at module top level) so the script keeps
+# its graceful degradation (invariant I5): if the pipeline package is missing the
+# fallback path is not reachable anyway (it needs the same transform), but the
+# import failure surfaces as the normal degrade, never a hard crash on load.
 # --------------------------------------------------------------------------- #
 
 
-def is_land(type_line: str) -> bool:
-    """A card is a land iff its FRONT face is a land.
+def _facts():
+    """Return the shared ``pipeline.transforms.deck_factsheet`` module (lazy).
 
-    Uses only the front face so a modal DFC spell // land (e.g. Malakir Rebirth //
-    Malakir Mire, type line "Instant // Land") is treated as the castable spell it
-    is, not silently dropped from the nonland census/coverage.
+    The SOLE home for the structured-fact math + the otag mart. Adds the pipeline
+    package root to sys.path first (idempotent) so the PEP-723 script — which does
+    not vendor the package — can reach it.
     """
-    front = (type_line or '').split('//')[0]
-    return 'land' in front.lower()
+    _ensure_pipeline_on_path()
+    from pipeline.transforms import deck_factsheet as _t
+
+    return _t
+
+
+def is_land(type_line: str) -> bool:
+    """A card is a land iff its FRONT face is a land (delegates to the transform).
+
+    Front-face only so a modal DFC spell // land (e.g. Malakir Rebirth // Malakir
+    Mire, "Instant // Land") is treated as the castable spell it is.
+    """
+    return _facts().is_land(type_line)
 
 
 def _type_line(card: dict) -> str:
@@ -115,150 +124,56 @@ def _type_line(card: dict) -> str:
 
 
 def _is_instant_speed(card: dict) -> bool:
-    """Instant-speed iff type line is an Instant OR the card has Flash.
-
-    Structured signal (type line + Scryfall ``keywords``), NOT oracle-text regex.
-    """
-    if 'instant' in _type_line(card).lower():
-        return True
-    kw = [k.lower() for k in card.get('keywords', []) or []]
-    return 'flash' in kw
-
-
-# --- ramp & fixing (produced_mana — structured) ---------------------------- #
-
-
-def _produces_mana(card: dict) -> bool:
-    """A nonland produces mana iff Scryfall's structured produced_mana is set.
-
-    The precise, structured signal — no regex over 'add {...}'. Cards whose own
-    cast is cheapened ("this spell costs {1} less") have no produced_mana and
-    correctly do NOT count as ramp.
-    """
-    return bool(card.get('produced_mana'))
-
-
-def _is_ramp_source(card: dict) -> bool:
-    """A NONLAND is a ramp source if it produces mana (structured produced_mana).
-
-    This structured fallback keys on produced_mana ONLY (no oracle-text regex).
-    Land-ramp / tutor-to-play cards that produce no mana themselves are captured
-    by the otag ``ramp`` bucket in the pipeline layer, not here.
-    """
-    if is_land(_type_line(card)):
-        return False
-    return _produces_mana(card)
-
-
-def _is_fixing_source(card: dict) -> bool:
-    """A NONLAND ramp source that produces >1 distinct color or any-color.
-
-    'Any color' shows up in produced_mana as all five colors (Scryfall lists the
-    concrete colors a source can produce). >1 distinct WUBRG color => fixing.
-    Colorless-only (['C']) is ramp but not fixing.
-    """
-    if is_land(_type_line(card)):
-        return False
-    pm = card.get('produced_mana') or []
-    colors = {m for m in pm if m in ('W', 'U', 'B', 'R', 'G')}
-    return len(colors) > 1
-
-
-def _pip_counts(cards: list[dict]) -> dict:
-    """Count colored/colorless mana pips across nonland mana costs.
-
-    Structural fact from the mana cost symbols. Hybrid/Phyrexian pips are
-    counted once per listed color symbol.
-    """
-    counts = dict.fromkeys(_PIP_SYMBOLS, 0)
-    for c in cards:
-        if is_land(_type_line(c)):
-            continue
-        cost = c.get('mana_cost') or ''
-        for sym in re.findall(r'\{([^}]+)\}', cost):
-            for part in sym.split('/'):
-                if part in counts:
-                    counts[part] += 1
-    return counts
+    """Instant-speed iff type line is an Instant OR the card has Flash (transform)."""
+    return _facts()._is_instant_speed(card)
 
 
 def ramp_and_fixing(cards: list[dict]) -> dict:
-    """Count ramp sources, fixing sources, and pip distribution (nonland only)."""
-    ramp = sum(1 for c in cards if _is_ramp_source(c))
-    fixing = sum(1 for c in cards if _is_fixing_source(c))
+    """Ramp/fixing/pip distribution (nonland only), structured-only fallback rule.
+
+    Ramp keys on structured ``produced_mana`` ONLY (the transform's
+    ``structured_ramp`` — the regex-free baseline); the pipeline path additionally
+    counts land-fetch ramp. Fixing + pip counts reuse the transform's copy.
+    """
+    t = _facts()
+    ramp = sum(1 for c in cards if t.structured_ramp(c))
+    fixing = sum(1 for c in cards if t._is_fixing_source(c))
     return {
         'ramp_sources': ramp,
         'fixing_sources': fixing,
-        'pip_counts': _pip_counts(cards),
+        'pip_counts': t._pip_counts(cards),
     }
-
-
-# --- keyword census (Scryfall `keywords` — structured) --------------------- #
 
 
 def keyword_census(cards: list[dict]) -> dict:
-    """Count Scryfall `keywords` across the deck. Nonzero only, structured."""
-    counter: Counter[str] = Counter()
-    for c in cards:
-        for kw in c.get('keywords', []) or []:
-            counter[kw] += 1
-    return dict(counter)
-
-
-# --- shape (cmc curve — structured) ---------------------------------------- #
-
-
-def _cmc_bucket(cmc: float) -> str:
-    n = int(cmc or 0)
-    return '7+' if n >= 7 else str(n)
+    """Count Scryfall `keywords` across the deck (nonzero only) — transform copy."""
+    return _facts()._keywords(cards)
 
 
 def cmc_histogram(cards: list[dict]) -> dict:
-    """CMC histogram over NONLAND cards, bucketed 0..6 and 7+."""
-    hist = dict.fromkeys(_CMC_BUCKETS, 0)
-    for c in cards:
-        if is_land(_type_line(c)):
-            continue
-        hist[_cmc_bucket(c.get('cmc') or 0)] += 1
-    return hist
+    """CMC histogram over NONLAND cards, bucketed 0..6 and 7+ (from the shape mart)."""
+    return _facts()._shape(cards)['cmc_histogram']
 
 
 def _avg_cmc(cards: list[dict]) -> float:
-    nonland = [c for c in cards if not is_land(_type_line(c))]
-    if not nonland:
-        return 0.0
-    total = sum(float(c.get('cmc') or 0) for c in nonland)
-    return round(total / len(nonland), 2)
+    return _facts()._shape(cards)['avg_cmc']
 
 
 def _top_end_count(cards: list[dict]) -> int:
-    return sum(1 for c in cards if not is_land(_type_line(c)) and float(c.get('cmc') or 0) >= 6)
+    return _facts()._shape(cards)['top_end_count']
 
 
 def _shape(cards: list[dict]) -> dict:
-    return {
-        'nonland_count': sum(1 for c in cards if not is_land(_type_line(c))),
-        'land_count': sum(1 for c in cards if is_land(_type_line(c))),
-        'cmc_histogram': cmc_histogram(cards),
-        'avg_cmc': _avg_cmc(cards),
-        'top_end_count': _top_end_count(cards),
-    }
+    return _facts()._shape(cards)
 
 
-# --- per-card records ------------------------------------------------------ #
+def _pip_counts(cards: list[dict]) -> dict:
+    return _facts()._pip_counts(cards)
 
 
 def _card_record(card: dict) -> dict:
-    """Raw per-card facts so the LLM has material without re-fetching."""
-    return {
-        'name': card.get('name', ''),
-        'cmc': card.get('cmc'),
-        'type_line': _type_line(card),
-        'keywords': card.get('keywords', []) or [],
-        'produced_mana': card.get('produced_mana'),
-        'is_land': is_land(_type_line(card)),
-        'oracle_text': card.get('oracle_text') or '',
-    }
+    """Raw per-card facts so the LLM has material without re-fetching (transform)."""
+    return _facts()._card_record(card)
 
 
 # --------------------------------------------------------------------------- #
@@ -418,8 +333,16 @@ def _fallback_factsheet(
     deck: str | None = None,
     missing: list[str] | None = None,
 ) -> dict:
-    """Build the structured-only fact sheet (otag layer unavailable)."""
-    nonland_names = [c.get('name', '') for c in cards if not is_land(_type_line(c))]
+    """Build the structured-only fact sheet (otag layer unavailable).
+
+    Every structured block is sourced from the shared transform (via the
+    delegating wrappers above): ``_shape`` / ``ramp_and_fixing`` / ``keyword_census``
+    / ``_is_instant_speed`` / ``_card_record``, plus the transform's ``_coverage``
+    over an EMPTY otag map (every nonland uncategorized — the honest degraded
+    tell). The functional census (interaction/card_advantage/structural) is zeroed
+    because it needs the otag layer, which is absent here.
+    """
+    t = _facts()
     return {
         'deck': deck,
         'shape': _shape(cards),
@@ -435,12 +358,9 @@ def _fallback_factsheet(
         },
         'card_advantage': {'repeatable_draw': 0, 'one_shot_draw': 0},
         'structural': {'etb_creatures': 0, 'graveyard_recursion_present': False},
-        # No otag data -> every nonland is uncategorized (honest degraded tell).
-        'coverage': {
-            'categorized_pct': 0.0,
-            'uncategorized_pct': 100.0 if nonland_names else 0.0,
-            'uncategorized_cards': nonland_names,
-        },
+        # No otag data -> every nonland is uncategorized (transform's coverage over
+        # an empty otag map: categorized 0%, all nonland names uncategorized).
+        'coverage': t._coverage(cards, {}),
         'cards': [_card_record(c) for c in cards],
         'missing': missing or [],
         'otag_buckets': {},

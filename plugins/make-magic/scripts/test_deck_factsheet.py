@@ -20,6 +20,7 @@ Governing invariants:
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -31,7 +32,7 @@ _PIPELINE = Path(__file__).resolve().parents[1] / 'pipeline'
 if str(_PIPELINE) not in sys.path:
     sys.path.insert(0, str(_PIPELINE))
 
-from deck_factsheet import (
+from deck_factsheet import (  # noqa: E402
     _avg_cmc,
     _fallback_factsheet,
     _load_card_otag,
@@ -616,3 +617,171 @@ def test_parse_decklist_handles_counts_comments_and_annotations():
     names = [n for _c, n in parsed]
     assert 'Commander' not in names
     assert all('#' not in n for n in names)
+
+
+# --------------------------------------------------------------------------- #
+# 6a — byte-identical fact sheet across the consolidation refactor.
+#
+# The GOLDEN captures the fact-sheet output BEFORE the in-script math was deleted
+# and routed through the shared ``transforms.deck_factsheet``. It exercises BOTH
+# entry points: ``build_factsheet`` (the text path) and ``factsheet_from_deck``
+# (the hydrated-Deck path), each in its pipeline-backed AND its degraded fallback
+# form. The refactor MUST keep every byte identical — this is the hard gate.
+# --------------------------------------------------------------------------- #
+
+_GOLDEN = json.loads((Path(__file__).resolve().parent / 'fixtures' / 'golden' / 'factsheet_golden.json').read_text())
+
+
+def _golden_card(name: str, **kw) -> dict:
+    d = {
+        'name': name,
+        'type_line': '',
+        'oracle_text': '',
+        'cmc': 0.0,
+        'keywords': [],
+        'produced_mana': None,
+        'mana_cost': '',
+        'oracle_id': None,
+    }
+    d.update(kw)
+    return d
+
+
+def _golden_text_cards() -> list[dict]:
+    return [
+        _golden_card(
+            'Sol Ring',
+            type_line='Artifact',
+            oracle_text='{T}: Add {C}{C}.',
+            cmc=1,
+            produced_mana=['C'],
+            mana_cost='{1}',
+            oracle_id='sol-oid',
+        ),
+        _golden_card(
+            'Llanowar Elves',
+            type_line='Creature — Elf Druid',
+            oracle_text='{T}: Add {G}.',
+            cmc=1,
+            produced_mana=['G'],
+            mana_cost='{G}',
+            oracle_id='llan-oid',
+        ),
+        _golden_card(
+            'Chromatic Lantern',
+            type_line='Artifact',
+            cmc=3,
+            produced_mana=['W', 'U', 'B', 'R', 'G'],
+            mana_cost='{3}',
+            oracle_id='chrom-oid',
+        ),
+        _golden_card(
+            'Ambush Viper',
+            type_line='Creature — Snake',
+            cmc=3,
+            keywords=['Flash', 'Deathtouch'],
+            mana_cost='{1}{G}{G}',
+            oracle_id='viper-oid',
+        ),
+        _golden_card(
+            'Wrath of God',
+            type_line='Sorcery',
+            oracle_text='Destroy all creatures.',
+            cmc=4,
+            mana_cost='{2}{W}{W}',
+            oracle_id='wrath-oid',
+        ),
+        _golden_card(
+            'Forest',
+            type_line='Basic Land — Forest',
+            produced_mana=['G'],
+            oracle_id='forest-oid',
+        ),
+    ]
+
+
+def test_fallback_factsheet_is_byte_identical_to_golden():
+    """Text path, degraded (card_otag=None) — the structured-only fallback."""
+    fs = _fallback_factsheet(_golden_text_cards(), deck='Golden Deck', missing=['Bogus Card'])
+    assert fs == _GOLDEN['fallback']
+
+
+def test_pipeline_factsheet_is_byte_identical_to_golden():
+    """Text path, pipeline-backed (real otag map + focus) — via build_factsheet."""
+    otag = {
+        'sol-oid': {'ramp', 'mana-rock'},
+        'llan-oid': {'ramp'},
+        'chrom-oid': {'ramp'},
+        'wrath-oid': {'removal', 'sweeper'},
+    }
+    fs = build_factsheet(
+        _golden_text_cards(),
+        deck='Golden Deck',
+        missing=['Bogus Card'],
+        card_otag=otag,
+        focus=['ramp', 'tokens'],
+    )
+    assert fs == _GOLDEN['pipeline']
+
+
+def _golden_deck():
+    from pipeline.contracts import Deck, DeckCard
+
+    cards = [
+        DeckCard(
+            name='Sol Ring',
+            oracle_id='sol-oid',
+            mana_value=1.0,
+            type_line='Artifact',
+            produced_mana=['C'],
+            mana_cost='{1}',
+            oracle_text='{T}: Add {C}{C}.',
+        ),
+        DeckCard(
+            name='Llanowar Elves',
+            oracle_id='llan-oid',
+            mana_value=1.0,
+            type_line='Creature — Elf Druid',
+            produced_mana=['G'],
+            mana_cost='{G}',
+            oracle_text='{T}: Add {G}.',
+        ),
+        DeckCard(
+            name='Ambush Viper',
+            oracle_id='viper-oid',
+            mana_value=3.0,
+            type_line='Creature — Snake',
+            keywords=['Flash', 'Deathtouch'],
+            mana_cost='{1}{G}{G}',
+        ),
+        DeckCard(
+            name='Forest',
+            oracle_id='forest-oid',
+            mana_value=0.0,
+            type_line='Basic Land — Forest',
+            produced_mana=['G'],
+        ),
+    ]
+    return Deck(name='Deck Path Golden', cards=cards)
+
+
+def test_factsheet_from_deck_pipeline_is_byte_identical_to_golden(monkeypatch):
+    """Hydrated-Deck path, pipeline-backed — the second entry point."""
+    import deck_factsheet
+
+    monkeypatch.setattr(
+        deck_factsheet,
+        '_load_card_otag',
+        lambda: {'sol-oid': {'ramp'}, 'llan-oid': {'ramp'}},
+    )
+    fs = deck_factsheet.factsheet_from_deck(_golden_deck(), focus=['ramp'])
+    assert fs == _GOLDEN['deck_pipeline']
+
+
+def test_factsheet_from_deck_fallback_is_byte_identical_to_golden(monkeypatch):
+    """Hydrated-Deck path, degraded (otag load returns None) — the fallback."""
+    import deck_factsheet
+
+    monkeypatch.setattr(deck_factsheet, '_load_card_otag', lambda: None)
+    fs = deck_factsheet.factsheet_from_deck(_golden_deck())
+    assert fs == _GOLDEN['deck_fallback']

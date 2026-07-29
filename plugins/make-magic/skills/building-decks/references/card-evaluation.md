@@ -17,7 +17,7 @@ How to evaluate cards for decks using the tagger scripts and Claude reasoning.
 ```bash
 uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/card_tagger.py tag-card "<name>"
 ```
-Returns: name, tags, type_line, mana_cost, cmc, color_identity, oracle_text, art_crop, scryfall_uri, price_usd
+Returns: name, tags (the card's otag buckets), type_line, mana_cost, cmc, color_identity, oracle_text, art_crop, scryfall_uri, power_toughness, keywords, set. (Price is not on the output — served live via `scryfall_cache.py`.)
 
 ### Tag an entire set
 ```bash
@@ -32,15 +32,21 @@ uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/scryfall_cache.py get-card "<name>
 
 ## Interpreting Tags
 
-Each card gets zero or more mechanic tags from the 54-pattern tagger. Tags map to strategy keywords via `TAG_STRATEGY_SYNONYMS`. Examples:
+Each card's `tags` are its **otag buckets** — functional-category membership sourced straight
+from the card dim (the crosswalk over its rolled-up oracle tags), **not** confidence-scored
+regex labels. The bucket vocabulary is: `removal`, `ramp`, `draw`, `tokens`, `counters`,
+`burn`, `tutor`, `sac`, `counterspells`, `flicker`, `typal`, `anthem`, `combat`, `protection`,
+`stax`, `extra_combat`, `wincon`. Note the granularity: fine combat labels (deathtouch, double
+strike, equipment) now collapse into the single `combat` bucket. Buckets map to strategy
+keywords via `BUCKET_STRATEGY_SYNONYMS`. Examples:
 
-| Tag | Maps to strategies |
-|-----|--------------------|
-| Magecraft | spellslinger, instant, sorcery, noncreature, prowess |
-| ETB trigger | blink, etb, flicker |
-| Sacrifice Outlet | aristocrats, sacrifice |
-| Deathtouch | deathtouch, fight, removal |
-| Treasure generation | ramp, mana, big mana, spellslinger, burn |
+| Bucket | Maps to strategies |
+|--------|--------------------|
+| ramp | ramp, mana, big mana, lands-matter |
+| flicker | blink, etb, flicker, value |
+| sac | aristocrats, sacrifice, graveyard |
+| combat | combat, aggro, voltron, evasion |
+| tokens | tokens, go-wide, aristocrats, sacrifice |
 
 ## Scoring Tiers
 
@@ -58,7 +64,7 @@ When scoring cards against a deck's strategy:
 1. **Read the deck's Strategy** from Airtable (`get_record` on Decks table)
 2. **Parse key mechanics** from the Strategy field
 3. **Tag the candidate card(s)** using the tagger
-4. **Score**: tag→strategy synonym overlap + oracle text keyword matching + strategy-specific deep patterns
+4. **Score**: bucket→strategy synonym overlap (via `BUCKET_STRATEGY_SYNONYMS`) + oracle text keyword matching + strategy-specific deep patterns
 5. **Compare** against existing deck cards at the same CMC slot / role
 6. **Present** verdict with specific strategy alignment rationale
 

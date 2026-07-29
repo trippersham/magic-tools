@@ -114,7 +114,11 @@ Parse the deck's Strategy field for:
 - "What doesn't fit" exclusion criteria
 
 Compare against the card's:
-- Mechanic tags (from tagger output)
+- **Otag buckets** (the tagger's `tags` — `ramp`, `draw`, `tokens`, `removal`, `flicker`,
+  `sac`, `counters`, `combat`, … — membership from the card dim, a **data-grounded** signal
+  for whether the card serves the Strategy's wants; e.g. "Academy Manufactor → buckets
+  `ramp`/`draw`/`tokens`, matches a Food-economy plan"). The buckets **inform** the verdict;
+  they do not decide it — the fit call stays reasoning-owned.
 - Oracle text (keyword matching)
 - CMC slot and card type
 
@@ -155,13 +159,16 @@ done
 uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/card_tagger.py tag-set <set_code> --output /tmp/<set_code>-tagged.json
 ```
 
-The tagger outputs JSON with each card's tags, type_line, mana_cost, cmc, color_identity, oracle_text, art_crop, scryfall_uri, price_usd.
+The tagger outputs JSON with each card's `tags` (its otag buckets), type_line, mana_cost, cmc,
+color_identity, oracle_text, art_crop, scryfall_uri, power_toughness, keywords, and set. (Price
+is not on the tagger output — it is volatile and served live; fetch it from `scryfall_cache.py`
+when needed.)
 
 **Step 3: Score cards against each deck**
 
 For each card in the tagged set:
 1. Filter by color identity — never recommend cards outside the deck's color identity
-2. Look up each tag in `TAG_STRATEGY_SYNONYMS` to get strategy keywords
+2. Look up each otag bucket (the card's `tags`) in `BUCKET_STRATEGY_SYNONYMS` to get strategy keywords
 3. Count overlapping keywords with the deck's Key mechanics
 4. Add oracle text keyword matches
 5. Sum for total score

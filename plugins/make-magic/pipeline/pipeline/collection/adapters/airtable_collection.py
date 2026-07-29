@@ -44,11 +44,15 @@ Cards table has **no** ``Priority`` / ``Status`` / ``Target Price`` columns, so
 ``add_chase``'s ``priority`` / ``status`` / ``target_price`` arguments are
 **not persistable** here and are silently skipped (the local YAML adapter, which
 is schema-free, DOES retain them). ``add_chase`` returns a human-readable note
-listing any such dropped fields so a caller can surface the limitation.
+listing any such dropped fields so a caller can surface the limitation. It DOES,
+however, carry the nine Scryfall-derived columns (Card Type … Price (TCGPlayer) …
+Color Identity) — verified on the live base — which the inline chase derived-write
+(5b-3) refreshes after each chase mutation.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import httpx
@@ -61,6 +65,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from pipeline.collection.store import CardResolver
+
+log = logging.getLogger('make_magic.collection.airtable')
 
 API_ROOT = 'https://api.airtable.com/v0'
 META_ROOT = 'https://api.airtable.com/v0/meta'
@@ -116,6 +122,21 @@ class _RecordClient:
         self.__auth = {'Authorization': f'Bearer {token}', **HEADERS_UA}
         self._base_id = base_id
         self._writes_enabled = writes_enabled
+        #: Retained so the inline derived-column write (#5, 5b-2) can build its
+        #: guarded ``AllowlistWriteClient`` REUSING this same httpx connection and
+        #: PAT — no per-mutation client/connection churn. Read-only handles.
+        self._token = token
+
+    @property
+    def httpx_client(self) -> httpx.Client:
+        """The underlying httpx client, exposed for connection REUSE only.
+
+        The inline derived-column write path (#5) constructs its own guarded
+        ``AllowlistWriteClient`` over this same connection so a collection
+        mutation does not open a second socket. The write guard is enforced by
+        that client, not here; this is purely a connection handle.
+        """
+        return self.__client
 
     # --- meta (SupportsMetaTables) ------------------------------------------ #
 
@@ -297,6 +318,192 @@ class AirtableCollectionStore:
 
             card_resolver = default_card_resolver()
         self._card_resolver = card_resolver
+        #: Lazily-built guarded derived-column writer (#5, 5b-2), reusing THIS
+        #: adapter's httpx connection + PAT. Built on the first inline write so a
+        #: read-only store never constructs it.
+        self._derived_writer: Any | None = None
+        #: Card-dim resolver + live price fetcher for the inline derived write,
+        #: injected LAZILY (defaults to the package card dim). Held so tests can
+        #: substitute stubs without a real lake / network.
+        self._derived_resolver: Any | None = None
+        self._derived_price_fetcher: Any | None = None
+        #: Lazily-built CHASE-bound guarded derived-column writer (#5, 5b-3),
+        #: reusing THIS adapter's httpx connection + PAT. Distinct from the owned
+        #: writer above because it binds to a DIFFERENT table (Chase Cards) with a
+        #: DIFFERENT allowlist/denylist. Built on the first inline chase write.
+        self._chase_derived_writer: Any | None = None
+
+    # --- inline derived-column write (#5 / 5b-2) ----------------------------- #
+
+    def _write_derived_inline(self, name: str, record_id: str | None) -> None:
+        """Persist the Scryfall-DERIVED columns for ONE card, INLINE, best-effort.
+
+        Called AFTER a collection MUTATION (owned/chase add or update) has
+        persisted its human/owned facts. It writes the nine card-dim derived
+        columns (Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card
+        Art, Scryfall URL, Price (TCGPlayer), Color Identity) for THAT card via
+        the 5b-1 primitive :func:`destinations.airtable.write_derived_fields`,
+        following the mutation's apply semantics (``apply=True``, NOT dry-run — a
+        user-initiated mutation, not a bulk refresh).
+
+        Safety properties:
+            - The 5b-1 primitive SELF-GUARDS on ``resolve_backend()``: in local
+              mode it is a strict NO-OP (zero Airtable calls). This adapter is the
+              airtable path, but the primitive's guard is the enforcement.
+            - It writes ONLY the allowlisted derived columns — NEVER any human /
+              owned field #6 wrote (the primitive's 5a guard enforces the
+              derived-vs-human partition on every payload + at the wire).
+            - FAIL-OPEN on the derived side: a resolve failure or transport error
+              is loud-logged and SWALLOWED so it never breaks the collection
+              mutation whose owned/chase facts already succeeded.
+
+        A missing ``record_id`` (the mutation did not surface one) is a no-op.
+        """
+        if not record_id:
+            return
+        try:
+            from pipeline.destinations import airtable as _wb
+
+            client = self._ensure_derived_writer()
+            resolver = self._ensure_derived_resolver()
+            price_fetcher = self._ensure_derived_price_fetcher()
+            _wb.write_derived_fields(
+                {record_id: name},
+                resolver=resolver,
+                price_fetcher=price_fetcher,
+                client=client,
+                apply=True,
+                dry_run=False,
+            )
+        except Exception as exc:  # fail-open: the collection mutation already succeeded.
+            log.warning(
+                'Inline derived-column write for %r (record %s) failed and was skipped '
+                '(owned/chase facts persisted; derived write is best-effort): %s',
+                name,
+                record_id,
+                exc,
+            )
+
+    def _ensure_derived_writer(self) -> Any:
+        """Build (once) the guarded derived-column writer over the SHARED httpx client.
+
+        Reuses THIS adapter's httpx connection + PAT so an inline write does not
+        open a second socket per mutation (5b-1 connection-churn concern). The
+        writer is an ``AllowlistWriteClient`` — the same structural allowlist +
+        wire guard the bulk refresh uses.
+        """
+        if self._derived_writer is None:
+            from pipeline.destinations.airtable import AllowlistWriteClient
+
+            self._derived_writer = AllowlistWriteClient(
+                self._token,
+                _client=self._client.httpx_client,
+            )
+        return self._derived_writer
+
+    def _ensure_derived_resolver(self) -> Any:
+        """The card-dim resolver used for inline derived writes (lazy default)."""
+        if self._derived_resolver is None:
+            from pipeline.destinations.airtable import default_card_resolver
+
+            self._derived_resolver = default_card_resolver()
+        return self._derived_resolver
+
+    def _ensure_derived_price_fetcher(self) -> Any:
+        """The LIVE price fetcher used for inline derived writes (lazy default)."""
+        if self._derived_price_fetcher is None:
+            from pipeline.destinations.airtable import _live_price_fetcher
+
+            self._derived_price_fetcher = _live_price_fetcher()
+        return self._derived_price_fetcher
+
+    # --- inline CHASE derived-column write (#5 / 5b-3) ----------------------- #
+
+    def _write_chase_derived_inline(self, name: str, record_id: str | None) -> None:
+        """Persist the ELEVEN Chase Cards DERIVED columns for ONE card, INLINE, best-effort.
+
+        The Chase Cards analogue of :meth:`_write_derived_inline`. Called AFTER a
+        chase MUTATION (``add_chase`` create/update) has persisted its human/owned
+        chase facts (Card Name + Target Decks). The Chase table now carries the SAME
+        eleven engine-derived columns as Inventory: the nine Scryfall-derived columns
+        (Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art, Scryfall
+        URL, Price (TCGPlayer), Color Identity — including a LIVE price) PLUS the two
+        engine ⚙ otag fields (⚙ Buckets / ⚙ Otags), so it writes all eleven for THAT
+        card via the primitive :func:`destinations.airtable.write_chase_derived_fields`,
+        following the mutation's apply semantics (``apply=True``, NOT dry-run). Unlike
+        Inventory (whose ⚙ come from the separate otag SYNC), Chase has NO otag sync,
+        so this inline write is chase's ONLY path to the two ⚙ fields.
+
+        Safety properties (mirroring the owned hook):
+            - The primitive SELF-GUARDS on ``resolve_backend()``: in local mode it
+              is a strict NO-OP (zero Airtable calls).
+            - It writes ONLY the eleven chase-allowlisted derived columns — NEVER any
+              chase human field (#6 wrote Card Name / Target Decks). The CHASE-bound
+              guard (:func:`assert_no_chase_human_fields` + the chase wire guard)
+              enforces the derived-vs-human partition on the Chase table.
+            - FAIL-OPEN on the derived side: a resolve failure or transport error is
+              loud-logged and SWALLOWED so it never breaks the chase mutation whose
+              chase facts already succeeded.
+
+        A missing ``record_id`` is a no-op.
+        """
+        if not record_id:
+            return
+        try:
+            from pipeline.destinations import airtable as _wb
+
+            client = self._ensure_chase_derived_writer()
+            resolver = self._ensure_derived_resolver()
+            price_fetcher = self._ensure_derived_price_fetcher()
+            _wb.write_chase_derived_fields(
+                {record_id: name},
+                resolver=resolver,
+                price_fetcher=price_fetcher,
+                client=client,
+                apply=True,
+                dry_run=False,
+            )
+        except Exception as exc:  # fail-open: the chase mutation already succeeded.
+            log.warning(
+                'Inline chase derived-column write for %r (record %s) failed and was skipped '
+                '(chase facts persisted; derived write is best-effort): %s',
+                name,
+                record_id,
+                exc,
+            )
+
+    def _ensure_chase_derived_writer(self) -> Any:
+        """Build (once) the CHASE-bound guarded derived writer over the SHARED httpx client.
+
+        Reuses THIS adapter's httpx connection + PAT (no second socket). The writer
+        is an ``AllowlistWriteClient`` bound to the CHASE table: its
+        ``cards_table_name`` is the Chase Cards table, and its allowlist / denylist /
+        guard are the CHASE ones — so the wrong-table guard binds to Chase Cards and
+        only the nine chase derived columns may ever be written.
+        """
+        if self._chase_derived_writer is None:
+            from pipeline.destinations.airtable import (
+                CHASE_ALLOWLIST_NAMES,
+                CHASE_PROBE_FIELDS,
+                AllowlistWriteClient,
+                _chase_human_denylist,
+                assert_no_chase_human_fields,
+            )
+
+            self._chase_derived_writer = AllowlistWriteClient(
+                self._token,
+                cards_table_name=self._chase_table,
+                allowlist=CHASE_ALLOWLIST_NAMES,
+                denylist_fn=_chase_human_denylist,
+                guard=assert_no_chase_human_fields,
+                probe_fields=CHASE_PROBE_FIELDS,
+                _client=self._client.httpx_client,
+            )
+        return self._chase_derived_writer
+
+    @property
+    def _token(self) -> str:
+        return self._client._token
 
     # --- construction -------------------------------------------------------- #
 
@@ -457,7 +664,9 @@ class AirtableCollectionStore:
         if existing is None:
             fields: dict[str, Any] = {self._fid(self._cards_table, self._INV_NAME): ref}
             self._set_owned_fields(fields, qty, condition, foil, sets, sources)
-            self._client.create_record(table_id, fields)
+            created = self._client.create_record(table_id, fields)
+            # INLINE derived-column write (#5): follow the owned-facts mutation.
+            self._write_derived_inline(ref, created.get('id'))
             return
         cur_owned = int(self._get(self._cards_table, existing, self._INV_OWNED) or 0)
         cur_foil = int(self._get(self._cards_table, existing, self._INV_FOIL) or 0)
@@ -471,6 +680,8 @@ class AirtableCollectionStore:
         if sources:
             fields[self._fid(self._cards_table, self._INV_SOURCES)] = sources
         self._client.update_record(table_id, existing['id'], fields)
+        # INLINE derived-column refresh (#5): follow the owned-facts update.
+        self._write_derived_inline(ref, existing['id'])
 
     def _set_owned_fields(
         self,
@@ -496,12 +707,14 @@ class AirtableCollectionStore:
         existing = self._find_inventory_record(ref)
         owned_fid = self._fid(self._cards_table, self._INV_OWNED)
         if existing is None:
-            self._client.create_record(
+            created = self._client.create_record(
                 table_id,
                 {self._fid(self._cards_table, self._INV_NAME): ref, owned_fid: qty},
             )
+            self._write_derived_inline(ref, created.get('id'))
             return
         self._client.update_record(table_id, existing['id'], {owned_fid: qty})
+        self._write_derived_inline(ref, existing['id'])
 
     def remove_card(self, ref: str) -> None:
         table_id = self._resolver.table_id(self._cards_table)
@@ -564,15 +777,28 @@ class AirtableCollectionStore:
         if for_deck is not None:
             target_ids = self._resolve_links([for_deck], self._deck_id_map(), kind='target deck')
 
+        record_id: str | None
         if existing is None:
             fields: dict[str, Any] = {self._fid(t, self._CHASE_NAME): ref}
             if target_ids:
                 fields[self._fid(t, self._CHASE_TARGET_DECKS)] = target_ids
-            self._client.create_record(table_id, fields)
-        elif target_ids:
-            current = _as_list(self._get(t, existing, self._CHASE_TARGET_DECKS))
-            merged = current + [rid for rid in target_ids if rid not in current]
-            self._client.update_record(table_id, existing['id'], {self._fid(t, self._CHASE_TARGET_DECKS): merged})
+            created = self._client.create_record(table_id, fields)
+            record_id = created.get('id')
+        else:
+            record_id = existing['id']
+            if target_ids:
+                current = _as_list(self._get(t, existing, self._CHASE_TARGET_DECKS))
+                merged = current + [rid for rid in target_ids if rid not in current]
+                self._client.update_record(table_id, existing['id'], {self._fid(t, self._CHASE_TARGET_DECKS): merged})
+
+        # INLINE CHASE derived-column write (#5): follow the chase-facts mutation.
+        # Writes the ELEVEN chase derived columns (nine Scryfall — Card Type, Mana
+        # Cost, CMC, Power / Toughness, Oracle Text, Card Art, Scryfall URL, Price
+        # (TCGPlayer), Color Identity — PLUS ⚙ Buckets / ⚙ Otags) for this card via
+        # the CHASE-bound guarded primitive — best-effort / fail-open, backend-
+        # guarded, never touching a chase human field. Chase has NO otag sync, so
+        # this inline write is chase's only path to the two ⚙ fields.
+        self._write_chase_derived_inline(ref, record_id)
 
         skipped = [
             label
@@ -594,9 +820,7 @@ class AirtableCollectionStore:
 
     # --- Trades -------------------------------------------------------------- #
 
-    def _row_to_trade(
-        self, rec: dict[str, Any], inv_map: dict[str, str], deck_map: dict[str, str]
-    ) -> Trade:
+    def _row_to_trade(self, rec: dict[str, Any], inv_map: dict[str, str], deck_map: dict[str, str]) -> Trade:
         t = self._trades_table
         from_deck_ids = _as_list(self._get(t, rec, self._TRADE_FROM_DECK))
         to_deck_ids = _as_list(self._get(t, rec, self._TRADE_TO_DECK))

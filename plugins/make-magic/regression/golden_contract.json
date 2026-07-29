@@ -6,7 +6,19 @@
   },
   "tables": {
     "Inventory Cards": {
-      "primary_field": "Card Name"
+      "primary_field": "Card Name",
+      "$derived_comment": "CARD-DIM / ENGINE-DERIVED classification (#5). These Inventory Cards columns are a PURE FUNCTION of the card's Scryfall identity (keyed to oracle_id), so the pipeline's card-dim write-back OWNS them: they are engine-writable, NOT human-authoritative — even though the skills READ them. This partitions the Cards fields: everything in required_fields that is NOT listed here stays human/collection-authoritative (the write-back denylist), and these derived fields join the ⚙ Buckets / ⚙ Otags allowlist. The regression harness still checks each of these exists on the live table (they remain in required_fields); this list only reclassifies write-authority. Disjoint by construction from #6's owned-facts write surface (Card Name / Number Owned / Foil Count / Condition / Sets / Sources).",
+      "derived_fields": [
+        "Card Type",
+        "Mana Cost",
+        "CMC",
+        "Power / Toughness",
+        "Oracle Text",
+        "Card Art",
+        "Scryfall URL",
+        "Price (TCGPlayer)",
+        "Color Identity"
+      ]
     },
     "Decks": {
       "primary_field": "Name"
@@ -15,7 +27,21 @@
       "primary_field": "ID"
     },
     "Chase Cards": {
-      "primary_field": "Card Name"
+      "primary_field": "Card Name",
+      "$derived_comment": "CARD-DIM / ENGINE-DERIVED classification (#5, 5b-3, #5 otag extension). The live Chase Cards table now carries the SAME ELEVEN engine-derived columns as Inventory Cards (verified against the live base tblXsNtGgT7UQLPXZ): the nine Scryfall-pure columns PLUS the two engine ⚙ otag fields (⚙ Buckets / ⚙ Otags), which were just added to the live Chase table to match Inventory. The pipeline's chase card-dim write-back OWNS exactly these eleven — they are engine-writable, NOT human-authoritative — even though the skills READ them. ASYMMETRY vs Inventory: Inventory's inline write emits only its nine Scryfall columns (its ⚙ fields come from the separate otag SYNC path), whereas Chase has NO otag sync, so the chase INLINE write is the ONLY path to ⚙ on Chase — which is why the two ⚙ fields are listed in the chase derived_fields here (emitted by the chase payload builder), not just on the allowlist. Everything in the chase skills' required_fields that is NOT listed here stays human/collection-authoritative (the chase write-back denylist: Card Name / Sets / Target Decks); the live table's further human/system fields (Trades (In)/(Out), Is Land/Creature/Non-Creature, Created At, Price Last Updated, Created, Last Modified) are not on the allowlist and so are refused by the closed-set guard regardless. Mirrors the Inventory 'derived_fields' structure so the chase derived-vs-human split is single-homed in the contract.",
+      "derived_fields": [
+        "Card Type",
+        "Mana Cost",
+        "CMC",
+        "Power / Toughness",
+        "Oracle Text",
+        "Card Art",
+        "Scryfall URL",
+        "Price (TCGPlayer)",
+        "Color Identity",
+        "⚙ Buckets",
+        "⚙ Otags"
+      ]
     }
   },
   "skills": {

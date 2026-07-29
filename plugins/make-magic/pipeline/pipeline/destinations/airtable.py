@@ -16,13 +16,17 @@ Cards is authoritative and never stale; Airtable rolls them up to decks natively
     - ``⚙ Otags``  — Airtable **multilineText** — the card's raw rolled-up
       Scryfall otag slugs (newline-joined), kept for fidelity / debugging.
 
-THE GOVERNING SAFETY PROPERTY: this module may write ONLY the small
-:data:`DERIVED_FIELDS` allowlist it owns — engine-computed, namespace-prefixed
-fields on the Cards table. It must NEVER create, update, or delete any
-human-edited Card field (Card Name, Sets, Number Owned, Sources,
-Condition, Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art,
-Scryfall URL, Price (TCGPlayer), Color Identity, Decks, ...). That property is
-enforced STRUCTURALLY, not by convention, at three layers:
+THE GOVERNING SAFETY PROPERTY: this module may write ONLY the fields in its
+:data:`ALLOWLIST_NAMES` — the CARD-DIM / engine-derived fields it owns. Those are
+(a) the two engine-created namespace-prefixed ⚙ fields (``⚙ Buckets`` / ``⚙
+Otags``) and (b) the Scryfall-derived Cards columns that are a PURE FUNCTION of
+the card's identity (:data:`DERIVED_CARD_FIELDS`: Card Type, Mana Cost, CMC,
+Power / Toughness, Oracle Text, Card Art, Scryfall URL, Price (TCGPlayer), Color
+Identity). It must NEVER create, update, or delete any human/collection-edited
+Card field (Card Name, Sets, Number Owned, Sources, Condition, Number in
+Library, Decks, ...) — those stay pull-only / owned by the collection layer (#6)
+and the human. That property is enforced STRUCTURALLY, not by convention, at
+three layers:
 
     1. Payload construction. :func:`build_payload` emits ONLY keys drawn from
        :data:`DERIVED_FIELDS`. There is no code path that copies an arbitrary
@@ -121,10 +125,10 @@ class DerivedField:
 #: :func:`ensure_fields` time, so any bucket ``buckets_for`` can emit is writable.
 BUCKET_OPTIONS: tuple[str, ...] = BUCKETS
 
-#: THE ALLOWLIST. The ONLY Airtable fields this adapter may ever touch. Each maps
-#: a per-card derived value to a namespace-prefixed CARDS field. Adding a field
-#: here is the ONLY way to authorize a new write; nothing else in this module
-#: enumerates field names.
+#: THE ENGINE-CREATABLE DERIVED FIELDS. The two namespace-prefixed ⚙ fields this
+#: adapter both CREATES (schema mutation via :func:`ensure_fields`) and WRITES.
+#: Each maps a per-card derived value to a namespace-prefixed CARDS field. These
+#: do not exist on a fresh base, so the adapter is authorized to create them.
 DERIVED_FIELDS: tuple[DerivedField, ...] = (
     DerivedField(
         key='buckets',
@@ -139,11 +143,87 @@ DERIVED_FIELDS: tuple[DerivedField, ...] = (
     ),
 )
 
-#: The set of field NAMES the allowlist authorizes. Frozen so it can be used as a
-#: membership check and diffed against the denylist at import time.
-ALLOWLIST_NAMES: frozenset[str] = frozenset(f.name for f in DERIVED_FIELDS)
+#: THE CARD-DIM / ENGINE-DERIVED SCRYFALL FIELDS (#5 reclassification). These are
+#: plain (non-namespaced) Inventory Cards columns that already EXIST on the live
+#: table and are a PURE FUNCTION of the card's Scryfall identity (keyed to
+#: oracle_id) — so the card-dim write-back OWNS them and may write them, even
+#: though the skills also READ them. Unlike the ⚙ fields above, the adapter never
+#: CREATES these (they already exist); it only writes them. This list MUST match
+#: the golden contract's ``tables."Inventory Cards".derived_fields`` — the lazy
+#: denylist loader asserts that equality at first use (drift guard). This is the
+#: closed authorization set: the ONLY way to authorize a new derived write is to
+#: add it here AND to the contract's derived_fields.
+DERIVED_CARD_FIELDS: frozenset[str] = frozenset(
+    {
+        'Card Type',
+        'Mana Cost',
+        'CMC',
+        'Power / Toughness',
+        'Oracle Text',
+        'Card Art',
+        'Scryfall URL',
+        'Price (TCGPlayer)',
+        'Color Identity',
+    }
+)
 
-#: Convenience handles onto the two field names (single source of truth = tuple).
+#: THE CHASE-CARDS CARD-DIM DERIVED FIELDS (#5, 5b-3, #5 otag extension against the
+#: LIVE base tblXsNtGgT7UQLPXZ). The Chase Cards table is a SEPARATE Airtable table
+#: that now carries the SAME ELEVEN engine-derived columns as Inventory Cards: the
+#: nine Scryfall-pure columns (:data:`DERIVED_CARD_FIELDS`) PLUS the two engine ⚙
+#: otag fields (⚙ Buckets / ⚙ Otags), which were just added to the live Chase table
+#: to match Inventory. So the chase derived set is those eleven.
+#:
+#: ASYMMETRY (deliberate) vs Inventory's :data:`DERIVED_CARD_FIELDS` (nine): the two
+#: constants are NO LONGER identical. Inventory's INLINE derived-write emits only the
+#: nine Scryfall columns — its two ⚙ fields are populated by the SEPARATE otag SYNC
+#: path (:func:`sync` / :func:`build_payload`), so the ⚙ fields sit on the Inventory
+#: ALLOWLIST but not in its inline-write set. Chase has NO otag sync path, so the
+#: chase INLINE write is the ONLY way ⚙ Buckets / ⚙ Otags ever land on Chase — which
+#: is why the two ⚙ fields are in :data:`CHASE_DERIVED_CARD_FIELDS` (and thus emitted
+#: by :func:`build_chase_derived_card_payload`), not just on the allowlist.
+#:
+#: This is the closed authorization set for the CHASE table; it is a DIFFERENT table
+#: from Inventory (its own allowlist/denylist/guard binding) and MUST equal the
+#: golden contract's ``tables."Chase Cards".derived_fields`` (drift guard at first
+#: use).
+CHASE_DERIVED_CARD_FIELDS: frozenset[str] = DERIVED_CARD_FIELDS | frozenset(f.name for f in DERIVED_FIELDS)
+
+#: THE ALLOWLIST. The ONLY Airtable fields this adapter may ever touch: the two
+#: engine-created ⚙ fields PLUS the card-dim derived Scryfall columns. Adding a
+#: field here is the ONLY way to authorize a new write; nothing else in this
+#: module enumerates writable field names. Frozen so it can be used as a
+#: membership check and diffed against the denylist at first use.
+ALLOWLIST_NAMES: frozenset[str] = frozenset(f.name for f in DERIVED_FIELDS) | DERIVED_CARD_FIELDS
+
+#: THE CHASE ALLOWLIST. The ONLY Chase Cards fields the inline chase derived-write
+#: may touch: the ELEVEN engine-derived columns — the nine Scryfall-pure columns
+#: (which INCLUDE Price (TCGPlayer) — Chase HAS that column, sourced live) PLUS the
+#: two engine ⚙ otag fields (⚙ Buckets / ⚙ Otags), which now EXIST on the live Chase
+#: table. Unlike Inventory (whose ⚙ come from the separate otag SYNC), Chase has NO
+#: otag sync, so the inline write is chase's only path to ⚙ — hence they are BOTH on
+#: the allowlist AND in :data:`CHASE_DERIVED_CARD_FIELDS` (emitted by the payload
+#: builder). Closed set, diffed against the chase denylist at first use.
+CHASE_ALLOWLIST_NAMES: frozenset[str] = CHASE_DERIVED_CARD_FIELDS
+
+#: THE CHASE WRONG-TABLE PROBE. The chase human fields the LIVE Chase Cards table
+#: is GUARANTEED to have (its primary ``Card Name`` + the ``Target Decks`` link the
+#: read/write paths use). Used as :attr:`AllowlistWriteClient._probe_fields` for the
+#: chase binding, kept as a tight, live-accurate probe SEPARATE from the write
+#: denylist: it answers "is the resolved table really Chase Cards?" (both these
+#: link/primary fields present), whereas the denylist answers "which fields may
+#: never be WRITTEN?". A tight probe still rejects a genuinely-wrong table (Decks
+#: lacks 'Card Name'); the full chase WRITE denylist is unchanged, so writing any
+#: chase human field is still refused. (The chase contract denylist — Card Name /
+#: Sets / Target Decks — happens to be a subset of the live table now that Chase
+#: has the full nine derived cols, so it would also pass; the tight probe is kept
+#: for the clearer wrong-table intent and the probe/denylist split. Now that Chase
+#: has the full eleven derived cols (nine Scryfall + ⚙ Buckets + ⚙ Otags), the
+#: contract chase denylist is still a subset of the live table, but the tight probe
+#: is kept for intent.)
+CHASE_PROBE_FIELDS: frozenset[str] = frozenset({'Card Name', 'Target Decks'})
+
+#: Convenience handles onto the two ⚙ field names (single source of truth = tuple).
 BUCKETS_FIELD: str = f'{NS}Buckets'
 OTAGS_FIELD: str = f'{NS}Otags'
 
@@ -200,6 +280,11 @@ class NonAllowlistFieldError(RuntimeError):
 #: are separate concerns — one keys the committed contract, the other hits the API.
 CARDS_TABLE_NAME = 'Inventory Cards'
 
+#: The Chase Cards table KEY in the golden contract (target of the 5b-3 inline
+#: chase derived-write). Same distinction as :data:`CARDS_TABLE_NAME`: it indexes
+#: the STATIC contract, not the live schema (which config resolves by name).
+CHASE_TABLE_NAME = 'Chase Cards'
+
 
 def _golden_contract_path() -> Path:
     """Locate ``regression/golden_contract.json`` relative to this package.
@@ -210,27 +295,72 @@ def _golden_contract_path() -> Path:
     return Path(__file__).resolve().parents[3] / 'regression' / 'golden_contract.json'
 
 
-def load_human_denylist(path: Path | None = None) -> frozenset[str]:
-    """Load the DENYLIST of human-edited **Cards** field names from the contract.
+def load_contract_derived_fields(
+    path: Path | None = None,
+    *,
+    table_name: str = CARDS_TABLE_NAME,
+) -> frozenset[str]:
+    """Load the CARD-DIM / engine-derived field names for ``table_name`` from the contract.
 
-    The write-back targets the Cards table, so the fields it must never touch
-    are the Cards table's human-edited fields: the Cards ``primary_field`` plus
-    every ``required_fields`` entry any skill declares for the Cards table (Card
-    Name, Sets, Number Owned, Sources, Condition, Card Type, Mana Cost, CMC,
-    Power / Toughness, Oracle Text, Card Art, Scryfall URL, Price (TCGPlayer),
-    Color Identity, Decks, ...). Deriving it here (rather than hard-coding) keeps
-    it in lock-step with the contract: if a Cards human field is added, it is
-    automatically denied.
+    For Inventory Cards these are the columns classified as a pure function of the
+    card's Scryfall identity (``tables."Inventory Cards".derived_fields``). They
+    are engine-writable and therefore EXCLUDED from the human denylist even though
+    they appear in ``required_fields`` (the regression harness still checks they
+    exist on the live table). Sourcing this from the contract keeps the derived-
+    vs-human split single-homed; the module's :data:`DERIVED_CARD_FIELDS` mirror
+    is asserted equal at first use (drift guard in :func:`_human_denylist`).
+
+    Chase Cards ALSO has a ``derived_fields`` key in the contract (the same nine
+    columns as Inventory — verified against the live base). The chase guard
+    (:func:`_chase_human_denylist`) still passes an explicit ``derived_override`` for
+    the denylist derivation AND asserts the contract's chase ``derived_fields``
+    equals :data:`CHASE_DERIVED_CARD_FIELDS` (drift guard), so the chase split is
+    single-homed in the contract too.
+    """
+    contract = json.loads((path or _golden_contract_path()).read_text(encoding='utf-8'))
+    tbl_meta = contract.get('tables', {}).get(table_name, {})
+    return frozenset(tbl_meta.get('derived_fields', []))
+
+
+def load_human_denylist(
+    path: Path | None = None,
+    *,
+    table_name: str = CARDS_TABLE_NAME,
+    derived_override: frozenset[str] | None = None,
+) -> frozenset[str]:
+    """Load the DENYLIST of human/collection-owned field names for ``table_name``.
+
+    The write-back targets ``table_name``, so the fields it must never touch are
+    that table's human/collection-authoritative fields: the table
+    ``primary_field`` plus every ``required_fields`` entry any skill declares for
+    it (for Inventory Cards: Card Name, Sets, Number Owned, Sources, Condition,
+    Number in Library, Decks, ...; for Chase Cards: Card Name, Target Decks, ...)
+    — MINUS the card-dim / engine-derived Scryfall columns the engine OWNS (#5)
+    and so are on the allowlist, not the denylist.
+
+    The derived reclassification source is: ``derived_override`` when given (5b-3
+    passes :data:`CHASE_DERIVED_CARD_FIELDS` for Chase, whose contract entry has no
+    ``derived_fields`` key), else the table's contract ``derived_fields``
+    (:func:`load_contract_derived_fields`). Deriving the denylist here (rather than
+    hard-coding) keeps it in lock-step with the contract: a new human field is
+    automatically denied, and a field reclassified as derived is automatically
+    allowed.
     """
     contract = json.loads((path or _golden_contract_path()).read_text(encoding='utf-8'))
     denied: set[str] = set()
-    cards_meta = contract.get('tables', {}).get(CARDS_TABLE_NAME, {})
-    pf = cards_meta.get('primary_field')
+    tbl_meta = contract.get('tables', {}).get(table_name, {})
+    pf = tbl_meta.get('primary_field')
     if pf:
         denied.add(pf)
     for skill in contract.get('skills', {}).values():
-        cards_tbl = skill.get('tables', {}).get(CARDS_TABLE_NAME, {})
-        denied.update(cards_tbl.get('required_fields', []))
+        skill_tbl = skill.get('tables', {}).get(table_name, {})
+        denied.update(skill_tbl.get('required_fields', []))
+    # Reclassify: the engine-derived Scryfall columns are OWNED by the write-back
+    # (they land on the allowlist), so they are NOT human-denied.
+    derived = (
+        derived_override if derived_override is not None else load_contract_derived_fields(path, table_name=table_name)
+    )
+    denied -= derived
     return frozenset(denied)
 
 
@@ -245,7 +375,7 @@ def _human_denylist() -> frozenset[str]:
     when a write is planned/guarded — so a missing/empty/mis-keyed contract still
     fail-closes LOUDLY, just at first use instead of at import time.
 
-    Two fail-closed asserts, checked here on first use:
+    Three fail-closed asserts, checked here on first use:
         1. NON-EMPTY: an empty denylist would silently degrade the human-field
            guard to allowlist-only. That happens if the golden contract is missing
            or its Cards-table key does not match :data:`CARDS_TABLE_NAME`. Fail
@@ -253,6 +383,11 @@ def _human_denylist() -> frozenset[str]:
         2. DISJOINTNESS: the fields this module may write and the human fields it
            must never write must be DISJOINT; if an edit ever names an allowlist
            field after a human field, this fails loud.
+        3. NO DRIFT: the contract's card-dim ``derived_fields`` must EXACTLY match
+           the module's :data:`DERIVED_CARD_FIELDS` mirror, and every one must be
+           on the allowlist. If the contract and code drift (a field reclassified
+           in one but not the other), the derived-vs-human partition is
+           inconsistent — fail loud rather than silently mis-authorize a write.
     """
     denylist = load_human_denylist()
     assert denylist, (
@@ -265,31 +400,110 @@ def _human_denylist() -> frozenset[str]:
         f'FATAL: derived allowlist overlaps the human denylist: {sorted(overlap)}. '
         'The write-back must never own a human-edited field name.'
     )
+    contract_derived = load_contract_derived_fields()
+    assert contract_derived == DERIVED_CARD_FIELDS, (
+        'FATAL: the golden contract card-dim derived_fields '
+        f'{sorted(contract_derived)} do not match the module DERIVED_CARD_FIELDS '
+        f'{sorted(DERIVED_CARD_FIELDS)}. The derived-vs-human split must be single-homed; '
+        'reconcile regression/golden_contract.json with destinations/airtable.py.'
+    )
+    unauthorized = DERIVED_CARD_FIELDS - ALLOWLIST_NAMES
+    assert not unauthorized, (
+        f'FATAL: contract-derived fields {sorted(unauthorized)} are not on the allowlist; '
+        'every card-dim derived field must be writable.'
+    )
     return denylist
 
 
-def assert_no_human_fields(payload_fields: Any) -> None:
-    """Guard: refuse any payload that touches a human (denylisted) field, or any
-    field outside the allowlist. Called before every request is built.
+@lru_cache(maxsize=1)
+def _chase_human_denylist() -> frozenset[str]:
+    """Return the CHASE Cards human-field DENYLIST, loaded LAZILY and cached (5b-3).
 
-    Two independent checks so the failure mode is explicit:
-        1. intersection with :func:`_human_denylist` must be EMPTY (the core proof);
-        2. every field must be in :data:`ALLOWLIST_NAMES` (closed-set defense).
+    The exact analogue of :func:`_human_denylist` for the Chase Cards table: it
+    derives the chase human/collection-owned fields (Card Name + Sets + Target
+    Decks + any other chase ``required_fields``) from the golden contract, MINUS the
+    nine chase derived columns (:data:`CHASE_DERIVED_CARD_FIELDS`), which the engine
+    OWNS. The three fail-closed
+    asserts (non-empty, disjointness, no-drift) are the SAME shape as the Inventory
+    guard, bound to the CHASE table — so this GENERALIZES the guard to a second
+    table without touching (or weakening) the Inventory guard above.
+    """
+    denylist = load_human_denylist(table_name=CHASE_TABLE_NAME, derived_override=CHASE_DERIVED_CARD_FIELDS)
+    assert denylist, (
+        'FATAL: the chase human-field denylist is empty; regression/golden_contract.json is '
+        f"missing or its Chase-table key doesn't match CHASE_TABLE_NAME={CHASE_TABLE_NAME!r}. "
+        'The chase human-field write guard must never degrade to allowlist-only.'
+    )
+    overlap = CHASE_ALLOWLIST_NAMES & denylist
+    assert not overlap, (
+        f'FATAL: chase derived allowlist overlaps the chase human denylist: {sorted(overlap)}. '
+        'The chase write-back must never own a human-edited field name.'
+    )
+    # NO DRIFT: the contract's chase card-dim derived_fields must EXACTLY match the
+    # module's CHASE_DERIVED_CARD_FIELDS mirror, so the chase derived-vs-human split
+    # is single-homed in the contract (same guarantee the Inventory guard enforces).
+    contract_chase_derived = load_contract_derived_fields(table_name=CHASE_TABLE_NAME)
+    assert contract_chase_derived == CHASE_DERIVED_CARD_FIELDS, (
+        'FATAL: the golden contract chase derived_fields '
+        f'{sorted(contract_chase_derived)} do not match the module CHASE_DERIVED_CARD_FIELDS '
+        f'{sorted(CHASE_DERIVED_CARD_FIELDS)}. The chase derived-vs-human split must be '
+        'single-homed; reconcile regression/golden_contract.json with destinations/airtable.py.'
+    )
+    unauthorized = CHASE_DERIVED_CARD_FIELDS - CHASE_ALLOWLIST_NAMES
+    assert not unauthorized, (
+        f'FATAL: chase derived fields {sorted(unauthorized)} are not on the chase allowlist; '
+        'every chase derived field must be writable.'
+    )
+    return denylist
+
+
+def _assert_within_binding(payload_fields: Any, *, allowlist: frozenset[str], denylist: frozenset[str]) -> None:
+    """Parameterized guard core: refuse fields outside ``allowlist`` / inside ``denylist``.
+
+    The shared enforcement both the Inventory guard (:func:`assert_no_human_fields`)
+    and the chase guard (:func:`assert_no_chase_human_fields`) delegate to, so the
+    two tables share ONE implementation and the chase generalization cannot drift
+    from — or weaken — the Inventory one. Two independent checks so the failure mode
+    is explicit:
+        1. intersection with ``denylist`` must be EMPTY (the core proof);
+        2. every field must be in ``allowlist`` (closed-set defense).
     """
     fields = set(payload_fields)
-    human = fields & _human_denylist()
+    human = fields & denylist
     if human:
         raise HumanFieldWriteError(
-            f'REFUSED: write payload contains human-edited Card field(s) {sorted(human)}. '
-            'This adapter may only write the derived allowlist '
-            f'{sorted(ALLOWLIST_NAMES)}; human fields are pull-only.'
+            f'REFUSED: write payload contains human-edited field(s) {sorted(human)}. '
+            f'This adapter may only write the derived allowlist {sorted(allowlist)}; '
+            'human fields are pull-only.'
         )
-    non_allowed = fields - ALLOWLIST_NAMES
+    non_allowed = fields - allowlist
     if non_allowed:
         raise NonAllowlistFieldError(
             f'REFUSED: write payload contains non-allowlisted field(s) '
-            f'{sorted(non_allowed)}. Only {sorted(ALLOWLIST_NAMES)} may be written.'
+            f'{sorted(non_allowed)}. Only {sorted(allowlist)} may be written.'
         )
+
+
+def assert_no_human_fields(payload_fields: Any) -> None:
+    """Guard (Inventory Cards): refuse any payload that touches a human (denylisted)
+    field, or any field outside the allowlist. Called before every request is built.
+
+    A thin Inventory-bound wrapper over :func:`_assert_within_binding`, preserving
+    the exact original behavior (allowlist = :data:`ALLOWLIST_NAMES`, denylist =
+    :func:`_human_denylist`).
+    """
+    _assert_within_binding(payload_fields, allowlist=ALLOWLIST_NAMES, denylist=_human_denylist())
+
+
+def assert_no_chase_human_fields(payload_fields: Any) -> None:
+    """Guard (Chase Cards, 5b-3): the chase analogue of :func:`assert_no_human_fields`.
+
+    Bound to the CHASE allowlist (:data:`CHASE_ALLOWLIST_NAMES`) + chase denylist
+    (:func:`_chase_human_denylist`), so a chase human field (Card Name / Target
+    Decks / …) fails CLOSED and only the eleven chase derived columns (nine Scryfall
+    + ⚙ Buckets + ⚙ Otags) may be written.
+    """
+    _assert_within_binding(payload_fields, allowlist=CHASE_ALLOWLIST_NAMES, denylist=_chase_human_denylist())
 
 
 # --------------------------------------------------------------------------- #
@@ -429,6 +643,174 @@ class CardWrite:
     fields: dict[str, Any]
 
 
+# --------------------------------------------------------------------------- #
+# Card-dim DERIVED-COLUMN payload (5b-1): map a resolved Card + LIVE price onto
+# the nine already-existing Scryfall-derived Inventory Cards columns.
+# --------------------------------------------------------------------------- #
+
+#: The mapping from an Airtable derived column NAME to how it is sourced from a
+#: resolved ``contracts.Card`` (+ the LIVE price, injected separately — price is
+#: NOT on the Card contract). This is the single place the projection lives, so a
+#: schema drift surfaces here. Every KEY is in :data:`DERIVED_CARD_FIELDS` (the
+#: builder asserts that), so the payload can never carry a non-derived field.
+
+
+def _power_toughness(card: Any) -> str:
+    """Render ``Power / Toughness`` as ``"P/T"`` for creatures, else empty.
+
+    A non-creature (no power AND no toughness) yields ``''`` rather than ``'/'``
+    so the derived column is blanked, matching the human-facing convention.
+    """
+    power = card.power
+    toughness = card.toughness
+    if power is None and toughness is None:
+        return ''
+    return f'{power or ""}/{toughness or ""}'
+
+
+def _coerce_price(price_usd: str | None) -> float | None:
+    """Coerce the live Scryfall price to a float for the Airtable currency column.
+
+    Scryfall serves ``prices.usd`` as a STRING (e.g. ``'3.94'``), but the Airtable
+    ``Price (TCGPlayer)`` field is a ``currency`` (number) type that rejects a
+    string with a 422. Return a float, or ``None`` (clears the cell) for a missing
+    or non-numeric price — fail-open, never raise.
+    """
+    if price_usd is None:
+        return None
+    try:
+        return float(price_usd)
+    except (TypeError, ValueError):
+        return None
+
+
+#: Scryfall serves color identity as single letters; the Airtable ``Color Identity``
+#: ``multipleSelects`` column uses full color NAMES (verified against the live base:
+#: existing rows are ``["Black"]``, ``["Green","Red"]``, …). Writing a single letter
+#: that is not an existing option 422s (the write does not ``typecast``), so map to
+#: the canonical names both the Inventory and Chase tables carry. Colorless -> ``[]``.
+_COLOR_IDENTITY_NAMES = {'W': 'White', 'U': 'Blue', 'B': 'Black', 'R': 'Red', 'G': 'Green', 'C': 'Colorless'}
+
+
+def _color_identity(card: Any) -> list[str]:
+    """Map the Card's single-letter color identity to the Airtable option names."""
+    return [_COLOR_IDENTITY_NAMES.get(c, c) for c in (card.color_identity or [])]
+
+
+def build_derived_card_payload(card: Any, price_usd: str | None) -> dict[str, Any]:
+    """Build the nine-field derived write payload for ONE resolved card.
+
+    Sources the enrichment from the lake ``contracts.Card`` and the volatile price
+    from the LIVE ``price_usd`` argument (never the Card — price is not a Card
+    field). Emits EXACTLY the keys in :data:`DERIVED_CARD_FIELDS`; there is no
+    branch that copies an arbitrary field name, so a human field cannot appear
+    structurally. The 5a guard (:func:`assert_no_human_fields`) is re-run as
+    defense-in-depth. Idempotent: same Card + price -> identical payload.
+
+    Values are coerced to the Airtable COLUMN types (verified against the live
+    base): ``Price (TCGPlayer)`` -> float (currency), ``Color Identity`` -> full
+    color names (``multipleSelects``). A string price or single-letter color
+    would 422 the real PATCH (the mock transport does not type-check).
+    """
+    payload: dict[str, Any] = {
+        'Card Type': card.type_line or '',
+        'Mana Cost': card.mana_cost or '',
+        'CMC': card.mana_value if card.mana_value is not None else 0,
+        'Power / Toughness': _power_toughness(card),
+        'Oracle Text': card.oracle_text or '',
+        'Card Art': card.art_crop or '',
+        'Scryfall URL': card.scryfall_uri or '',
+        'Price (TCGPlayer)': _coerce_price(price_usd),
+        'Color Identity': _color_identity(card),
+    }
+    # STRUCTURAL invariant: the emitted keys are EXACTLY the closed derived set.
+    assert set(payload) == DERIVED_CARD_FIELDS, (
+        f'derived payload keys {sorted(payload)} != DERIVED_CARD_FIELDS {sorted(DERIVED_CARD_FIELDS)}'
+    )
+    assert_no_human_fields(payload.keys())  # defense-in-depth (5a guard reused)
+    return payload
+
+
+def build_chase_derived_card_payload(card: Any, price_usd: str | None) -> dict[str, Any]:
+    """Build the ELEVEN-field chase derived write payload for ONE resolved card (#5).
+
+    The Chase Cards table now carries the SAME eleven engine-derived columns as
+    Inventory: the nine Scryfall-pure columns (including Price (TCGPlayer), sourced
+    LIVE) PLUS the two engine ⚙ otag fields (⚙ Buckets / ⚙ Otags), which were just
+    added to the live Chase table. So this payload is:
+
+        (1) the nine Scryfall columns from :func:`build_derived_card_payload`, PLUS
+        (2) the two ⚙ fields, formatted with the SAME logic :func:`build_payload`
+            uses for the Inventory otag SYNC — ``⚙ Buckets`` as the multipleSelects
+            LIST of bucket names (from ``card.otag_buckets``), ``⚙ Otags`` as the raw
+            slugs newline-joined into multilineText (from ``card.otags``).
+
+    ASYMMETRY (deliberate): the OWNED inline write (:func:`build_derived_card_payload`)
+    stays NINE — Inventory's ⚙ fields are populated by the separate otag SYNC path.
+    CHASE has NO otag sync, so this inline write is chase's ONLY path to ⚙, which is
+    why it emits eleven. A card with empty ``otag_buckets`` / ``otags`` writes EMPTY ⚙
+    (an empty list / empty string) — fail-open and valid, never a crash.
+
+    Emits EXACTLY the keys in :data:`CHASE_DERIVED_CARD_FIELDS`; there is no branch
+    that copies an arbitrary field name, so a human field cannot appear structurally.
+    The chase guard (:func:`assert_no_chase_human_fields`) is re-run as
+    defense-in-depth. Idempotent: same Card + price -> identical payload.
+    """
+    payload = build_derived_card_payload(card, price_usd)
+    # The two ⚙ otag fields, formatted EXACTLY as the Inventory otag sync
+    # (:func:`build_payload`) does: buckets -> multipleSelects list, otags ->
+    # newline-joined multilineText. Sourced from the resolver Card (populated in P2).
+    payload[BUCKETS_FIELD] = list(card.otag_buckets or [])
+    payload[OTAGS_FIELD] = '\n'.join(card.otags or [])
+    # STRUCTURAL invariant: the emitted keys are EXACTLY the closed chase derived set.
+    assert set(payload) == CHASE_DERIVED_CARD_FIELDS, (
+        f'chase derived payload keys {sorted(payload)} != CHASE_DERIVED_CARD_FIELDS {sorted(CHASE_DERIVED_CARD_FIELDS)}'
+    )
+    assert_no_chase_human_fields(payload.keys())  # defense-in-depth (chase guard)
+    return payload
+
+
+@dataclass
+class DerivedWriteReport:
+    """Result of a (dry-run, applied, or local-no-op) derived-column write."""
+
+    backend: str
+    dry_run: bool
+    applied: bool
+    planned: list[CardWrite] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
+    write_requests_issued: int = 0
+    chunks_planned: int = 0
+    #: True when the backend is NOT airtable (local mode): the primitive is a
+    #: NO-OP and issued ZERO Airtable calls. NEVER set on an airtable run.
+    skipped_no_airtable: bool = False
+
+    def render(self) -> str:
+        lines: list[str] = []
+        mode = 'DRY-RUN (no writes issued)' if self.dry_run else 'APPLY'
+        lines.append(f'=== Airtable card-dim DERIVED-column write-back -> Cards [{mode}] ===')
+        lines.append(f'backend: {self.backend}')
+        if self.skipped_no_airtable:
+            lines.append(
+                'Backend is not `airtable` (local mode): NO Airtable calls issued. '
+                'The lake is canonical; derived columns are only synced when '
+                'MAKE_MAGIC_BACKEND=airtable.'
+            )
+            return '\n'.join(lines)
+        lines.append(f'Derived columns: {sorted(DERIVED_CARD_FIELDS)}')
+        for w in self.planned:
+            lines.append(f'  upsert Cards/{w.record_id}:')
+            for name in sorted(w.fields):
+                val = w.fields[name]
+                shown = val if len(str(val)) <= 80 else f'{str(val)[:77]}...'
+                lines.append(f'    {name} = {shown!r}')
+        lines.append(f'cards resolved: {len(self.planned)}  |  skipped (no resolve): {len(self.skipped)}')
+        verb = 'would send' if self.dry_run else 'sent'
+        lines.append(f'PATCH chunks {verb} (<= {MAX_RECORDS_PER_PATCH} records each): {self.chunks_planned}')
+        lines.append(f'write requests issued: {self.write_requests_issued}')
+        return '\n'.join(lines)
+
+
 def plan_writes(
     cards: dict[str, str],
     *,
@@ -492,6 +874,10 @@ class AllowlistWriteClient:
         *,
         base_id: str | None = None,
         cards_table_name: str | None = None,
+        allowlist: frozenset[str] | None = None,
+        denylist_fn: Any | None = None,
+        guard: Any | None = None,
+        probe_fields: frozenset[str] | None = None,
         _client: httpx.Client | None = None,
     ) -> None:
         self.__client = _client or httpx.Client(timeout=30)
@@ -502,6 +888,33 @@ class AllowlistWriteClient:
         settings = get_settings()
         self._base_id = base_id or settings.airtable_base_id
         self._cards_table_name = cards_table_name or settings.cards_table
+        #: The table BINDING (5b-3 generalization). Defaults to the Inventory Cards
+        #: binding (allowlist = :data:`ALLOWLIST_NAMES`, denylist = the Inventory
+        #: human denylist, guard = :func:`assert_no_human_fields`) so every existing
+        #: caller is byte-for-byte unchanged. The chase inline write passes the CHASE
+        #: allowlist / denylist / guard so the SAME machinery binds to a second table
+        #: without weakening the Inventory guard.
+        self._allowlist = allowlist if allowlist is not None else ALLOWLIST_NAMES
+        self._denylist_fn = denylist_fn if denylist_fn is not None else _human_denylist
+        self._guard = guard if guard is not None else assert_no_human_fields
+        #: The WRONG-TABLE PROBE set — the human fields whose presence proves the
+        #: resolved table IS the intended write-target (see :meth:`list_fields`).
+        #: SEPARATE from the write denylist because the two answer different
+        #: questions: the denylist is the closed set of fields that must NEVER be
+        #: WRITTEN (kept FULL — no weakening), while the probe is the set the guard
+        #: requires to be PRESENT to accept the table. For Inventory they coincide
+        #: (``probe_fields=None`` -> the full Inventory denylist, byte-for-byte the
+        #: original guard). For Chase the contract's denylist is a SUPERSET of the
+        #: live table's fields (the chasing-cards skill declares an aspirational
+        #: fuller schema than the live eleven-derived + Card Name/Target Decks
+        #: table), so
+        #: probing with the full denylist would wrongly REJECT the real Chase table;
+        #: the chase caller passes a tight, live-accurate probe (Card Name +
+        #: Target Decks) that still rejects a genuinely-wrong table (Decks lacks
+        #: 'Card Name'). The WRITE denylist stays full, so writing any of the wider
+        #: chase human fields is still refused — the guard is generalized, not
+        #: loosened.
+        self._probe_fields = probe_fields
         #: Resolved lazily from the meta schema on the first :meth:`list_fields`.
         self._cards_table_id: str | None = None
         #: id-keyed wire guard state, derived from the resolved allowlist
@@ -523,8 +936,8 @@ class AllowlistWriteClient:
         field ids (and unknown ids) are deliberately excluded, so the wire guard
         can reject anything that is not one of the two derived ids.
         """
-        self._allowed_ids = frozenset(fid for name, fid in name_to_id.items() if name in ALLOWLIST_NAMES)
-        self._id_to_name = {fid: name for name, fid in name_to_id.items() if name in ALLOWLIST_NAMES}
+        self._allowed_ids = frozenset(fid for name, fid in name_to_id.items() if name in self._allowlist)
+        self._id_to_name = {fid: name for name, fid in name_to_id.items() if name in self._allowlist}
 
     def list_fields(self) -> dict[str, str]:
         """Return ``{field_name: field_id}`` for the Cards table (meta API GET).
@@ -542,22 +955,27 @@ class AllowlistWriteClient:
         for table in resp.json().get('tables', []):
             if table.get('name') == self._cards_table_name:
                 name_to_id = {f['name']: f['id'] for f in table.get('fields', [])}
-                # WRONG-TABLE WRITE GUARD: bind the derived write to the REAL Cards
-                # table structurally. A misconfigured/hostile AIRTABLE_CARDS_TABLE
-                # (e.g. '=Decks') could resolve a table by NAME that is not the
-                # inventory Cards table; ensure_fields would then create the two ⚙
-                # fields on it and PATCH derived values onto its records. Require
-                # that the resolved table CONTAINS the human Card fields (the
-                # denylist is a SUBSET of its field names) — Decks lacks 'Card
-                # Name'/'Number Owned'/… so it is refused BEFORE any create/PATCH.
-                # This is an ADDITIONAL binding; it does not loosen any existing
-                # allowlist/denylist/wire guard.
-                missing_card_fields = _human_denylist() - set(name_to_id)
+                # WRONG-TABLE WRITE GUARD: bind the derived write to the REAL target
+                # table structurally. A misconfigured/hostile table NAME (e.g.
+                # '=Decks') could resolve a table by NAME that is not the intended
+                # one; the write would then PATCH derived values onto its records.
+                # Require that the resolved table CONTAINS this binding's human
+                # fields (its denylist is a SUBSET of the table's field names) —
+                # e.g. Decks lacks 'Card Name'/'Number Owned'/… (Inventory binding)
+                # or 'Target Decks' (chase binding) so it is refused BEFORE any
+                # create/PATCH. The probe DEFAULTS to the full write denylist so the
+                # INVENTORY guard is byte-for-byte the original; a caller whose live
+                # schema is a SUBSET of its contract denylist (Chase) passes a tight,
+                # live-accurate probe (Card Name + Target Decks) via ``probe_fields``.
+                # The WRITE denylist stays FULL regardless, so this is an ADDITIONAL
+                # binding; it does not loosen any allowlist/denylist/wire guard.
+                probe = self._probe_fields if self._probe_fields is not None else self._denylist_fn()
+                missing_card_fields = probe - set(name_to_id)
                 if missing_card_fields:
                     raise AirtableConfigError(
                         f'resolved table {self._cards_table_name!r} (id {table.get("id")!r}) is not the '
-                        f'inventory Cards table — it is missing the expected Card fields '
-                        f'{sorted(missing_card_fields)}; check AIRTABLE_CARDS_TABLE.'
+                        f'inventory Cards table — it is missing the expected fields '
+                        f'{sorted(missing_card_fields)}; check the configured table name.'
                     )
                 self._cards_table_id = table.get('id')
                 self.resolve_field_map(name_to_id)
@@ -569,9 +987,9 @@ class AllowlistWriteClient:
 
     def create_field(self, name: str, airtable_type: str, options: dict[str, Any] | None) -> None:
         """Create a DERIVED field on Cards. REFUSES any non-allowlisted name."""
-        if name not in ALLOWLIST_NAMES:
+        if name not in self._allowlist:
             raise NonAllowlistFieldError(f'REFUSED: cannot create field {name!r} — not in the derived allowlist.')
-        assert_no_human_fields([name])
+        self._guard([name])
         table_id = self._require_cards_table_id()
         url = f'{META_ROOT}/bases/{self._base_id}/tables/{table_id}/fields'
         body: dict[str, Any] = {'name': name, 'type': airtable_type}
@@ -616,11 +1034,11 @@ class AllowlistWriteClient:
                 raise NonAllowlistFieldError(
                     f'REFUSED: write body contains non-allowlisted field id(s) '
                     f'{sorted(unknown)}. Only the derived field ids '
-                    f'{sorted(self._allowed_ids)} (== {sorted(ALLOWLIST_NAMES)}) '
+                    f'{sorted(self._allowed_ids)} (== {sorted(self._allowlist)}) '
                     'may be written; a human field id or unknown id is refused.'
                 )
             # Belt-and-suspenders: the mapped names must ALSO pass the name guard.
-            assert_no_human_fields(self._id_to_name[fid] for fid in field_ids)
+            self._guard(self._id_to_name[fid] for fid in field_ids)
 
     def patch_records(self, records: list[dict[str, Any]]) -> httpx.Response:
         """PATCH derived fields onto existing Cards records (upsert by id).
@@ -788,10 +1206,17 @@ def sync(
     if client is None:
         raise ValueError('A live sync (dry_run=False, apply=True) requires a client.')
 
-    # Schema first: create any missing derived fields, then resolve name->id.
+    # Schema first: create any missing engine ⚙ fields, then resolve name->id.
     ensure_fields(client, dry_run=False, apply=True)
     name_to_id = client.list_fields()
-    missing_ids = ALLOWLIST_NAMES - set(name_to_id)
+    # Only the field names this plan actually WRITES need a resolved id. This otag
+    # sync emits just the two ⚙ fields (build_payload); the wider card-dim derived
+    # Scryfall columns on the allowlist are written by the dual-write path (5b) and
+    # need not resolve here. Requiring ids for the whole allowlist would wrongly
+    # fail on a base that (correctly) lacks a ⚙ field only until ensure creates it,
+    # or on the never-created Scryfall columns in an otag-only run.
+    written_names = {n for w in plan for n in w.fields}
+    missing_ids = written_names - set(name_to_id)
     if missing_ids:
         raise RuntimeError(f'Derived fields missing ids after ensure: {sorted(missing_ids)}')
 
@@ -836,6 +1261,326 @@ def sync(
             ) from exc
         report.write_requests_issued += 1
     return report
+
+
+# --------------------------------------------------------------------------- #
+# Card-dim DERIVED-column write primitive (5b-1) + explicit refresh.
+# --------------------------------------------------------------------------- #
+
+
+class _SupportsGetCard(Protocol):
+    """The CardResolver seam the primitive needs: name -> enriched Card | None."""
+
+    def get_card(self, name: str) -> Any | None: ...
+
+
+def write_derived_fields(
+    cards: dict[str, str],
+    *,
+    resolver: _SupportsGetCard,
+    price_fetcher: Any,
+    client: SupportsWrite | None = None,
+    apply: bool = False,
+    dry_run: bool = True,
+) -> DerivedWriteReport:
+    """Guarded write of the nine Scryfall-DERIVED columns onto Cards. DRY-RUN default.
+
+    THE PRIMITIVE both 5b parts share. For each pulled Card it sources the nine
+    derived columns from the lake ``resolver.get_card`` + a LIVE price
+    (``price_fetcher(name)`` — price is NOT on the Card contract), maps them to the
+    EXACT Airtable field names via :func:`build_derived_card_payload`, and writes
+    them through the SAME 5a allowlist guard (:func:`assert_no_human_fields` +
+    :meth:`AllowlistWriteClient._guarded_body`). Keyed on the Airtable record id;
+    re-running writes identical values (idempotent). Chunked at
+    :data:`MAX_RECORDS_PER_PATCH`.
+
+    BACKEND GUARD (governs 5b): when ``resolve_backend() != 'airtable'`` (local
+    mode) this is a strict NO-OP — it makes ZERO Airtable calls (does not even
+    touch ``client``) and returns a plan flagged ``skipped_no_airtable``. The lake
+    is canonical; the derived columns are only synced when Airtable is active.
+
+    The nine columns ALREADY EXIST on the live base — this NEVER creates them
+    (no ``ensure_fields`` for the Scryfall cols). It resolves the existing ids and
+    FAILS LOUD if any is missing.
+
+    Args:
+        cards: ``{airtable_record_id: card_name}`` — the pulled Cards to refresh.
+        resolver: the card-dim resolver (name -> enriched ``Card``); unresolvable
+            names are SKIPPED, never guessed.
+        price_fetcher: a callable ``name -> price string | None`` (the LIVE price;
+            consulted only for resolved cards).
+        client: an :class:`AllowlistWriteClient` (or double). Only touched on a
+            real (``dry_run=False and apply=True``) airtable run.
+        apply / dry_run: a real write requires BOTH ``dry_run=False`` AND
+            ``apply=True`` (belt-and-suspenders).
+    """
+    from pipeline.collection.store import resolve_backend
+
+    backend = resolve_backend()
+
+    do_write = (not dry_run) and apply
+
+    if backend != 'airtable':
+        # NO-OP: local mode never touches Airtable. Return a flagged empty plan.
+        return DerivedWriteReport(
+            backend=backend,
+            dry_run=not do_write,
+            applied=False,
+            skipped_no_airtable=True,
+        )
+
+    # Resolve + project each card to its derived payload (skip the unresolvable).
+    plan: list[CardWrite] = []
+    skipped: list[str] = []
+    for record_id in sorted(cards):
+        name = cards[record_id]
+        card = resolver.get_card(name)
+        if card is None or not card.oracle_id:
+            log.warning('SKIP Card %s (%r): resolver returned no card — not guessing.', record_id, name)
+            skipped.append(record_id)
+            continue
+        price_usd = price_fetcher(name)
+        payload = build_derived_card_payload(card, price_usd)
+        assert_no_human_fields(payload.keys())  # up-front guard, before any request
+        plan.append(CardWrite(record_id=record_id, fields=payload))
+
+    report = DerivedWriteReport(backend=backend, dry_run=not do_write, applied=do_write, planned=plan, skipped=skipped)
+    report.chunks_planned = _chunk_count(len(plan))
+
+    if not do_write:
+        return report
+
+    if client is None:
+        raise ValueError('A live derived write (dry_run=False, apply=True) requires a client.')
+
+    # Resolve existing field ids — the nine columns already EXIST; never create.
+    name_to_id = client.list_fields()
+    written_names = {n for w in plan for n in w.fields}
+    missing_ids = written_names - set(name_to_id)
+    if missing_ids:
+        raise RuntimeError(
+            f'Derived Scryfall columns missing ids on the live table: {sorted(missing_ids)}. '
+            'These columns must already EXIST on Inventory Cards — this primitive never '
+            'creates them. Reconcile the Airtable schema.'
+        )
+
+    plan_chunks = _chunk(plan)
+    for i, plan_chunk in enumerate(plan_chunks):
+        if i > 0 and INTER_CHUNK_DELAY_S > 0:
+            time.sleep(INTER_CHUNK_DELAY_S)
+        chunk_records: list[dict[str, Any]] = []
+        for w in plan_chunk:
+            assert_no_human_fields(w.fields.keys())  # guard EACH chunk's names
+            chunk_records.append({'id': w.record_id, 'fields': {name_to_id[n]: v for n, v in w.fields.items()}})
+        try:
+            client.patch_records(chunk_records)
+        except Exception as exc:
+            log.error(
+                'Derived PATCH chunk %d/%d failed (%d completed): %s. Re-run to resume.',
+                i + 1,
+                len(plan_chunks),
+                report.write_requests_issued,
+                exc,
+            )
+            raise ChunkWriteError(
+                chunks_completed=report.write_requests_issued,
+                chunks_planned=len(plan_chunks),
+            ) from exc
+        report.write_requests_issued += 1
+    return report
+
+
+def write_chase_derived_fields(
+    cards: dict[str, str],
+    *,
+    resolver: _SupportsGetCard,
+    price_fetcher: Any,
+    client: SupportsWrite | None = None,
+    apply: bool = False,
+    dry_run: bool = True,
+) -> DerivedWriteReport:
+    """Guarded write of the ELEVEN Chase Cards DERIVED columns. DRY-RUN default (#5).
+
+    The Chase Cards analogue of :func:`write_derived_fields`. The Chase table now
+    carries the SAME eleven engine-derived columns as Inventory: the nine Scryfall-
+    pure columns (INCLUDING Price (TCGPlayer)) PLUS the two engine ⚙ otag fields (⚙
+    Buckets / ⚙ Otags). For each pulled chase Card it sources the nine derived
+    columns from the lake ``resolver.get_card`` PLUS a LIVE price (``price_fetcher(
+    name)`` — price is NOT on the Card contract) PLUS the two ⚙ fields from the same
+    Card's ``otag_buckets`` / ``otags`` (populated in P2), maps them via
+    :func:`build_chase_derived_card_payload`, and writes them through the CHASE-bound
+    guard (:func:`assert_no_chase_human_fields` + a chase-bound
+    :meth:`AllowlistWriteClient._guarded_body`) to the Chase Cards table. Keyed on the
+    Airtable record id; idempotent. Chunked at :data:`MAX_RECORDS_PER_PATCH`.
+
+    ASYMMETRY vs Inventory (:func:`write_derived_fields`, nine): Inventory's ⚙ fields
+    come from the separate otag SYNC path, but Chase has NO otag sync — so this inline
+    write is chase's ONLY path to ⚙, hence eleven columns.
+
+    BACKEND GUARD: when ``resolve_backend() != 'airtable'`` (local mode) this is a
+    strict NO-OP — ZERO Airtable calls — returning a plan flagged
+    ``skipped_no_airtable``.
+
+    The eleven columns ALREADY EXIST on the live Chase Cards table — this NEVER
+    creates them. It resolves the existing ids and FAILS LOUD if any is missing.
+
+    Args:
+        cards: ``{airtable_record_id: card_name}`` — the chase records to refresh.
+        resolver: the card-dim resolver (name -> enriched ``Card``); unresolvable
+            names are SKIPPED, never guessed.
+        price_fetcher: a callable ``name -> price string | None`` (the LIVE price;
+            consulted only for resolved cards — Chase HAS a Price column).
+        client: an :class:`AllowlistWriteClient` built with the CHASE binding (or a
+            double). Only touched on a real (``dry_run=False and apply=True``) run.
+        apply / dry_run: a real write requires BOTH ``dry_run=False`` AND
+            ``apply=True`` (belt-and-suspenders).
+    """
+    from pipeline.collection.store import resolve_backend
+
+    backend = resolve_backend()
+    do_write = (not dry_run) and apply
+
+    if backend != 'airtable':
+        # NO-OP: local mode never touches Airtable. Return a flagged empty plan.
+        return DerivedWriteReport(
+            backend=backend,
+            dry_run=not do_write,
+            applied=False,
+            skipped_no_airtable=True,
+        )
+
+    # Resolve + project each card to its CHASE derived payload (skip unresolvable).
+    plan: list[CardWrite] = []
+    skipped: list[str] = []
+    for record_id in sorted(cards):
+        name = cards[record_id]
+        card = resolver.get_card(name)
+        if card is None or not card.oracle_id:
+            log.warning('SKIP Chase %s (%r): resolver returned no card — not guessing.', record_id, name)
+            skipped.append(record_id)
+            continue
+        price_usd = price_fetcher(name)
+        payload = build_chase_derived_card_payload(card, price_usd)
+        assert_no_chase_human_fields(payload.keys())  # up-front chase guard
+        plan.append(CardWrite(record_id=record_id, fields=payload))
+
+    report = DerivedWriteReport(backend=backend, dry_run=not do_write, applied=do_write, planned=plan, skipped=skipped)
+    report.chunks_planned = _chunk_count(len(plan))
+
+    if not do_write:
+        return report
+
+    if client is None:
+        raise ValueError('A live chase derived write (dry_run=False, apply=True) requires a client.')
+
+    # Resolve existing field ids — the nine columns already EXIST; never create.
+    name_to_id = client.list_fields()
+    written_names = {n for w in plan for n in w.fields}
+    missing_ids = written_names - set(name_to_id)
+    if missing_ids:
+        raise RuntimeError(
+            f'Chase derived columns missing ids on the live table: {sorted(missing_ids)}. '
+            'These columns must already EXIST on Chase Cards — this primitive never '
+            'creates them. Reconcile the Airtable schema.'
+        )
+
+    plan_chunks = _chunk(plan)
+    for i, plan_chunk in enumerate(plan_chunks):
+        if i > 0 and INTER_CHUNK_DELAY_S > 0:
+            time.sleep(INTER_CHUNK_DELAY_S)
+        chunk_records: list[dict[str, Any]] = []
+        for w in plan_chunk:
+            assert_no_chase_human_fields(w.fields.keys())  # guard EACH chunk's names
+            chunk_records.append({'id': w.record_id, 'fields': {name_to_id[n]: v for n, v in w.fields.items()}})
+        try:
+            client.patch_records(chunk_records)
+        except Exception as exc:
+            log.error(
+                'Chase derived PATCH chunk %d/%d failed (%d completed): %s. Re-run to resume.',
+                i + 1,
+                len(plan_chunks),
+                report.write_requests_issued,
+                exc,
+            )
+            raise ChunkWriteError(
+                chunks_completed=report.write_requests_issued,
+                chunks_planned=len(plan_chunks),
+            ) from exc
+        report.write_requests_issued += 1
+    return report
+
+
+def default_card_resolver() -> Any:
+    """Return the package default card-dim resolver (lazy import to avoid cycles).
+
+    Indirected here so the CLI / tests can monkeypatch it on this module without
+    reaching into ``collection.resolver``.
+    """
+    from pipeline.collection.resolver import default_card_resolver as _dcr
+
+    return _dcr()
+
+
+def _live_price_fetcher() -> Any:
+    """Return a ``name -> live USD price string | None`` callable.
+
+    Sources the volatile price LIVE (never the lake Card) via the shared
+    ``fetch_card_raw`` path (Scryfall ``prices.usd``), reusing one httpx client
+    across the run. Fails open per card: an unresolved/erroring name -> None.
+    """
+    from pipeline.collection.resolver import fetch_card_raw
+
+    client = httpx.Client(timeout=30, headers=HEADERS_UA)
+
+    def _price(name: str) -> str | None:
+        data = fetch_card_raw(name, client=client)
+        if not data:
+            return None
+        return (data.get('prices') or {}).get('usd')
+
+    return _price
+
+
+def refresh_derived_columns(
+    *,
+    apply: bool = False,
+    dry_run: bool = True,
+) -> DerivedWriteReport:
+    """Explicit BULK refresh: write the derived columns for ALL pulled Cards.
+
+    The public entry point behind the ``--refresh`` CLI verb. DRY-RUN BY DEFAULT
+    (a real write requires ``--no-dry-run --apply``). Backend-guarded via
+    :func:`write_derived_fields`: in local mode it is a NO-OP with zero Airtable
+    calls. Loads the Cards records from the lake, resolves each via the card dim,
+    and sources the live price per card.
+    """
+    from pipeline.collection.store import resolve_backend
+
+    backend = resolve_backend()
+    do_write = (not dry_run) and apply
+
+    # LOCAL mode: never build a client, never call the lake schema. Short-circuit.
+    if backend != 'airtable':
+        return DerivedWriteReport(backend=backend, dry_run=not do_write, applied=False, skipped_no_airtable=True)
+
+    token = os.environ.get('AIRTABLE_API_KEY')
+    if not token:
+        raise RuntimeError('Backend is `airtable` but AIRTABLE_API_KEY is not set; cannot refresh derived columns.')
+    client = AllowlistWriteClient(token)
+    try:
+        schema = client.list_fields()  # read-only meta GET (also binds the Cards table)
+        card_name_field_id = schema.get(CARD_NAME_FIELD)
+        cards, _n2o, _otag = _load_cards_from_lake(card_name_field_id)
+        return write_derived_fields(
+            cards,
+            resolver=default_card_resolver(),
+            price_fetcher=_live_price_fetcher(),
+            client=client,
+            apply=apply,
+            dry_run=dry_run,
+        )
+    finally:
+        client.close()
 
 
 # --------------------------------------------------------------------------- #
@@ -922,9 +1667,30 @@ def main(argv: list[str] | None = None) -> int:
         action='store_false',
         help='Disable dry-run (still requires --apply to write).',
     )
+    parser.add_argument(
+        '--refresh',
+        dest='refresh',
+        action='store_true',
+        default=False,
+        help=(
+            'CARD-DIM DERIVED refresh: write the nine Scryfall-derived Cards columns '
+            '(Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art, '
+            'Scryfall URL, Price (TCGPlayer), Color Identity) for every pulled Card, '
+            'sourced from the card dim + a live price. Dry-run by default; a real write '
+            'requires --no-dry-run --apply. NO-OP (zero Airtable calls) unless the '
+            'active backend is airtable.'
+        ),
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
+
+    # --refresh runs the card-dim DERIVED-column primitive (5b-1) instead of the
+    # otag ⚙-field sync. Backend-guarded + dry-run by default inside the entry point.
+    if args.refresh:
+        report = refresh_derived_columns(apply=args.apply, dry_run=args.dry_run)
+        print(report.render())
+        return 0
 
     client: AllowlistWriteClient | None = None
     do_write = (not args.dry_run) and args.apply

@@ -33,5 +33,23 @@
     "cmc": 4.0,
     "type_line": "Sorcery",
     "color_identity": ["W"]
+  },
+  {
+    "oracle_id": "6a0b230b-d391-4998-a3f7-7b158a0ec2cd",
+    "name": "Llanowar Elves",
+    "cmc": 1.0,
+    "type_line": "Creature — Elf Druid",
+    "color_identity": ["G"],
+    "colors": ["G"],
+    "produced_mana": ["G"],
+    "keywords": [],
+    "oracle_text": "{T}: Add {G}.",
+    "power": "1",
+    "toughness": "1",
+    "image_uris": {
+      "art_crop": "https://cards.scryfall.io/art_crop/front/6/a/6a0b230b-d391-4998-a3f7-7b158a0ec2cd.jpg"
+    },
+    "scryfall_uri": "https://scryfall.com/card/fdn/227/llanowar-elves",
+    "set_name": "Foundations"
   }
 ]

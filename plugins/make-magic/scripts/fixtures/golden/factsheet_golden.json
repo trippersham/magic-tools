@@ -1,0 +1,539 @@
+{
+  "deck_fallback": {
+    "card_advantage": {
+      "one_shot_draw": 0,
+      "repeatable_draw": 0
+    },
+    "cards": [
+      {
+        "cmc": 1.0,
+        "is_land": false,
+        "keywords": [],
+        "name": "Sol Ring",
+        "oracle_text": "{T}: Add {C}{C}.",
+        "produced_mana": [
+          "C"
+        ],
+        "type_line": "Artifact"
+      },
+      {
+        "cmc": 1.0,
+        "is_land": false,
+        "keywords": [],
+        "name": "Llanowar Elves",
+        "oracle_text": "{T}: Add {G}.",
+        "produced_mana": [
+          "G"
+        ],
+        "type_line": "Creature \u2014 Elf Druid"
+      },
+      {
+        "cmc": 3.0,
+        "is_land": false,
+        "keywords": [
+          "Flash",
+          "Deathtouch"
+        ],
+        "name": "Ambush Viper",
+        "oracle_text": "",
+        "produced_mana": [],
+        "type_line": "Creature \u2014 Snake"
+      },
+      {
+        "cmc": 0.0,
+        "is_land": true,
+        "keywords": [],
+        "name": "Forest",
+        "oracle_text": "",
+        "produced_mana": [
+          "G"
+        ],
+        "type_line": "Basic Land \u2014 Forest"
+      }
+    ],
+    "coverage": {
+      "categorized_pct": 0.0,
+      "uncategorized_cards": [
+        "Sol Ring",
+        "Llanowar Elves",
+        "Ambush Viper"
+      ],
+      "uncategorized_pct": 100.0
+    },
+    "deck": "Deck Path Golden",
+    "focus": [],
+    "focus_relative": {
+      "coverage_of_focus": {},
+      "off_focus": [],
+      "thin_focus": []
+    },
+    "interaction": {
+      "board_wipes": 0,
+      "counterspells": 0,
+      "instant_speed": 1,
+      "protection": 0,
+      "spot_removal": 0
+    },
+    "keywords": {
+      "Deathtouch": 1,
+      "Flash": 1
+    },
+    "mana": {
+      "fixing_sources": 0,
+      "pip_counts": {
+        "B": 0,
+        "C": 0,
+        "G": 3,
+        "R": 0,
+        "U": 0,
+        "W": 0
+      },
+      "ramp_sources": 2
+    },
+    "missing": [],
+    "otag_buckets": {},
+    "shape": {
+      "avg_cmc": 1.67,
+      "cmc_histogram": {
+        "0": 0,
+        "1": 2,
+        "2": 0,
+        "3": 1,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7+": 0
+      },
+      "land_count": 1,
+      "nonland_count": 3,
+      "top_end_count": 0
+    },
+    "structural": {
+      "etb_creatures": 0,
+      "graveyard_recursion_present": false
+    },
+    "susceptibility": [
+      "otag layer unavailable: the oracle-tag buckets and susceptibility signals could not be computed (pipeline package or its snapshot is missing); reporting structured facts only."
+    ]
+  },
+  "deck_pipeline": {
+    "card_advantage": {
+      "one_shot_draw": 0,
+      "repeatable_draw": 0
+    },
+    "cards": [
+      {
+        "cmc": 1.0,
+        "is_land": false,
+        "keywords": [],
+        "name": "Sol Ring",
+        "oracle_text": "{T}: Add {C}{C}.",
+        "produced_mana": [
+          "C"
+        ],
+        "type_line": "Artifact"
+      },
+      {
+        "cmc": 1.0,
+        "is_land": false,
+        "keywords": [],
+        "name": "Llanowar Elves",
+        "oracle_text": "{T}: Add {G}.",
+        "produced_mana": [
+          "G"
+        ],
+        "type_line": "Creature \u2014 Elf Druid"
+      },
+      {
+        "cmc": 3.0,
+        "is_land": false,
+        "keywords": [
+          "Flash",
+          "Deathtouch"
+        ],
+        "name": "Ambush Viper",
+        "oracle_text": "",
+        "produced_mana": [],
+        "type_line": "Creature \u2014 Snake"
+      },
+      {
+        "cmc": 0.0,
+        "is_land": true,
+        "keywords": [],
+        "name": "Forest",
+        "oracle_text": "",
+        "produced_mana": [
+          "G"
+        ],
+        "type_line": "Basic Land \u2014 Forest"
+      }
+    ],
+    "coverage": {
+      "categorized_pct": 66.67,
+      "uncategorized_cards": [
+        "Ambush Viper"
+      ],
+      "uncategorized_pct": 33.33
+    },
+    "deck": "Deck Path Golden",
+    "focus": [
+      "ramp"
+    ],
+    "focus_relative": {
+      "coverage_of_focus": {
+        "ramp": 2
+      },
+      "off_focus": [],
+      "thin_focus": []
+    },
+    "interaction": {
+      "board_wipes": 0,
+      "counterspells": 0,
+      "instant_speed": 1,
+      "protection": 0,
+      "spot_removal": 0
+    },
+    "keywords": {
+      "Deathtouch": 1,
+      "Flash": 1
+    },
+    "mana": {
+      "fixing_sources": 0,
+      "pip_counts": {
+        "B": 0,
+        "C": 0,
+        "G": 3,
+        "R": 0,
+        "U": 0,
+        "W": 0
+      },
+      "ramp_sources": 2
+    },
+    "missing": [],
+    "otag_buckets": {
+      "ramp": 2
+    },
+    "shape": {
+      "avg_cmc": 1.67,
+      "cmc_histogram": {
+        "0": 0,
+        "1": 2,
+        "2": 0,
+        "3": 1,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7+": 0
+      },
+      "land_count": 1,
+      "nonland_count": 3,
+      "top_end_count": 0
+    },
+    "structural": {
+      "etb_creatures": 0,
+      "graveyard_recursion_present": false
+    },
+    "susceptibility": [
+      "Stack interaction: 0 counterspells \u2014 cannot protect the payoff or answer an opposing combo/spell before it resolves."
+    ]
+  },
+  "fallback": {
+    "card_advantage": {
+      "one_shot_draw": 0,
+      "repeatable_draw": 0
+    },
+    "cards": [
+      {
+        "cmc": 1,
+        "is_land": false,
+        "keywords": [],
+        "name": "Sol Ring",
+        "oracle_text": "{T}: Add {C}{C}.",
+        "produced_mana": [
+          "C"
+        ],
+        "type_line": "Artifact"
+      },
+      {
+        "cmc": 1,
+        "is_land": false,
+        "keywords": [],
+        "name": "Llanowar Elves",
+        "oracle_text": "{T}: Add {G}.",
+        "produced_mana": [
+          "G"
+        ],
+        "type_line": "Creature \u2014 Elf Druid"
+      },
+      {
+        "cmc": 3,
+        "is_land": false,
+        "keywords": [],
+        "name": "Chromatic Lantern",
+        "oracle_text": "",
+        "produced_mana": [
+          "W",
+          "U",
+          "B",
+          "R",
+          "G"
+        ],
+        "type_line": "Artifact"
+      },
+      {
+        "cmc": 3,
+        "is_land": false,
+        "keywords": [
+          "Flash",
+          "Deathtouch"
+        ],
+        "name": "Ambush Viper",
+        "oracle_text": "",
+        "produced_mana": null,
+        "type_line": "Creature \u2014 Snake"
+      },
+      {
+        "cmc": 4,
+        "is_land": false,
+        "keywords": [],
+        "name": "Wrath of God",
+        "oracle_text": "Destroy all creatures.",
+        "produced_mana": null,
+        "type_line": "Sorcery"
+      },
+      {
+        "cmc": 0.0,
+        "is_land": true,
+        "keywords": [],
+        "name": "Forest",
+        "oracle_text": "",
+        "produced_mana": [
+          "G"
+        ],
+        "type_line": "Basic Land \u2014 Forest"
+      }
+    ],
+    "coverage": {
+      "categorized_pct": 0.0,
+      "uncategorized_cards": [
+        "Sol Ring",
+        "Llanowar Elves",
+        "Chromatic Lantern",
+        "Ambush Viper",
+        "Wrath of God"
+      ],
+      "uncategorized_pct": 100.0
+    },
+    "deck": "Golden Deck",
+    "focus": [],
+    "focus_relative": {
+      "coverage_of_focus": {},
+      "off_focus": [],
+      "thin_focus": []
+    },
+    "interaction": {
+      "board_wipes": 0,
+      "counterspells": 0,
+      "instant_speed": 1,
+      "protection": 0,
+      "spot_removal": 0
+    },
+    "keywords": {
+      "Deathtouch": 1,
+      "Flash": 1
+    },
+    "mana": {
+      "fixing_sources": 1,
+      "pip_counts": {
+        "B": 0,
+        "C": 0,
+        "G": 3,
+        "R": 0,
+        "U": 0,
+        "W": 2
+      },
+      "ramp_sources": 3
+    },
+    "missing": [
+      "Bogus Card"
+    ],
+    "otag_buckets": {},
+    "shape": {
+      "avg_cmc": 2.4,
+      "cmc_histogram": {
+        "0": 0,
+        "1": 2,
+        "2": 0,
+        "3": 2,
+        "4": 1,
+        "5": 0,
+        "6": 0,
+        "7+": 0
+      },
+      "land_count": 1,
+      "nonland_count": 5,
+      "top_end_count": 0
+    },
+    "structural": {
+      "etb_creatures": 0,
+      "graveyard_recursion_present": false
+    },
+    "susceptibility": [
+      "otag layer unavailable: the oracle-tag buckets and susceptibility signals could not be computed (pipeline package or its snapshot is missing); reporting structured facts only."
+    ]
+  },
+  "pipeline": {
+    "card_advantage": {
+      "one_shot_draw": 0,
+      "repeatable_draw": 0
+    },
+    "cards": [
+      {
+        "cmc": 1,
+        "is_land": false,
+        "keywords": [],
+        "name": "Sol Ring",
+        "oracle_text": "{T}: Add {C}{C}.",
+        "produced_mana": [
+          "C"
+        ],
+        "type_line": "Artifact"
+      },
+      {
+        "cmc": 1,
+        "is_land": false,
+        "keywords": [],
+        "name": "Llanowar Elves",
+        "oracle_text": "{T}: Add {G}.",
+        "produced_mana": [
+          "G"
+        ],
+        "type_line": "Creature \u2014 Elf Druid"
+      },
+      {
+        "cmc": 3,
+        "is_land": false,
+        "keywords": [],
+        "name": "Chromatic Lantern",
+        "oracle_text": "",
+        "produced_mana": [
+          "W",
+          "U",
+          "B",
+          "R",
+          "G"
+        ],
+        "type_line": "Artifact"
+      },
+      {
+        "cmc": 3,
+        "is_land": false,
+        "keywords": [
+          "Flash",
+          "Deathtouch"
+        ],
+        "name": "Ambush Viper",
+        "oracle_text": "",
+        "produced_mana": null,
+        "type_line": "Creature \u2014 Snake"
+      },
+      {
+        "cmc": 4,
+        "is_land": false,
+        "keywords": [],
+        "name": "Wrath of God",
+        "oracle_text": "Destroy all creatures.",
+        "produced_mana": null,
+        "type_line": "Sorcery"
+      },
+      {
+        "cmc": 0.0,
+        "is_land": true,
+        "keywords": [],
+        "name": "Forest",
+        "oracle_text": "",
+        "produced_mana": [
+          "G"
+        ],
+        "type_line": "Basic Land \u2014 Forest"
+      }
+    ],
+    "coverage": {
+      "categorized_pct": 80.0,
+      "uncategorized_cards": [
+        "Ambush Viper"
+      ],
+      "uncategorized_pct": 20.0
+    },
+    "deck": "Golden Deck",
+    "focus": [
+      "ramp",
+      "tokens"
+    ],
+    "focus_relative": {
+      "coverage_of_focus": {
+        "ramp": 3,
+        "tokens": 0
+      },
+      "off_focus": [
+        "removal"
+      ],
+      "thin_focus": [
+        "tokens"
+      ]
+    },
+    "interaction": {
+      "board_wipes": 1,
+      "counterspells": 0,
+      "instant_speed": 1,
+      "protection": 0,
+      "spot_removal": 0
+    },
+    "keywords": {
+      "Deathtouch": 1,
+      "Flash": 1
+    },
+    "mana": {
+      "fixing_sources": 1,
+      "pip_counts": {
+        "B": 0,
+        "C": 0,
+        "G": 3,
+        "R": 0,
+        "U": 0,
+        "W": 2
+      },
+      "ramp_sources": 3
+    },
+    "missing": [
+      "Bogus Card"
+    ],
+    "otag_buckets": {
+      "ramp": 3,
+      "removal": 1
+    },
+    "shape": {
+      "avg_cmc": 2.4,
+      "cmc_histogram": {
+        "0": 0,
+        "1": 2,
+        "2": 0,
+        "3": 2,
+        "4": 1,
+        "5": 0,
+        "6": 0,
+        "7+": 0
+      },
+      "land_count": 1,
+      "nonland_count": 5,
+      "top_end_count": 0
+    },
+    "structural": {
+      "etb_creatures": 0,
+      "graveyard_recursion_present": false
+    },
+    "susceptibility": [
+      "Stack interaction: 0 counterspells \u2014 cannot protect the payoff or answer an opposing combo/spell before it resolves."
+    ]
+  }
+}

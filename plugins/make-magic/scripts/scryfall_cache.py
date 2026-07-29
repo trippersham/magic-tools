@@ -1,19 +1,40 @@
-#!/usr/bin/env -S uv run --python 3.12 --script
+#!/usr/bin/env -S uv run --script
 #
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
+#     "make-magic-pipeline",
 #     "httpx",
 #     "typer",
 # ]
+# [tool.uv.sources]
+# make-magic-pipeline = { path = "../pipeline", editable = true }
 # [tool.uv]
 # exclude-newer = "2026-06-08T00:00:00Z"
 # ///
 """
-Session-scoped Scryfall cache with SQLite backend.
+Scryfall lookup façade over the pipeline's lake-backed card dim.
 
-Eliminates redundant Scryfall API calls across all plugin operations.
-Cache is ephemeral — stored in $TMPDIR and dies with the session.
+#5 retired the session-scoped SQLite cache: the DuckDB/Parquet lake is now the
+SOLE durable store. `ScryfallCache` is a THIN façade that delegates card lookups
+to the package (`pipeline.collection.resolver`) via `fetch_card_raw`, which does
+a single live Scryfall fetch and LANDS the card durably into the lake — so no
+SQLite, no `$TMPDIR/*.db`, and the lake is the one shared durable card dim.
+
+Package access (house convention, same as `scripts/collection`): this is a
+PEP-723 script that pins the local package via `[tool.uv.sources]` as an editable
+path dep, so `uv run` resolves `pipeline` on invocation — the package never
+imports `scripts/` (the coupling stays one-directional).
+
+Output shape is UNCHANGED for the six consumers (`chasing-cards`,
+`building-decks`, `deck_factsheet.py`, `card_tagger.py`, `scryfall_batch.py`,
+`spoiler_sync.py`): `get_card`/`search`/`get_set` still return raw Scryfall
+dicts. NOTE the FULL raw dict (`prices`, `card_faces`, `image_uris`, …) is a
+superset of the projected `Card` the lake stores; the lake cannot reconstruct it,
+so `get_card` fetches live-per-card (in-process memo, then lands durably into the
+lake for `Card`-consumers). `search`/`get_set` likewise stay live (no lake/DuckDB
+equivalent yet — a later phase migrates their consumers onto the projected
+`Card`, at which point offline-first applies).
 
 Usage (CLI):
     ./scryfall_cache.py get-card "Sol Ring"
@@ -27,7 +48,6 @@ Usage (import):
     card = cache.get_card("Sol Ring")
 
 Maintenance:
-    uv add --script scryfall_cache.py 'package-name'
     uvx ruff format scryfall_cache.py
     uvx ruff check scryfall_cache.py
 """
@@ -35,53 +55,39 @@ Maintenance:
 from __future__ import annotations
 
 import json
-import os
-import sqlite3
 import time
-from pathlib import Path
 
 import httpx
 import typer
+from pipeline.collection import resolver as resolver_mod
 
 app = typer.Typer()
 
-DB_PATH = Path(os.environ.get("TMPDIR", "/tmp")) / "make-magic-scryfall-cache.db"
 SCRYFALL_BASE = "https://api.scryfall.com"
 HEADERS = {"User-Agent": "make-magic-plugin/2.0"}
 RATE_LIMIT_MS = 100
 
 
 class ScryfallCache:
-    def __init__(self, db_path: Path = DB_PATH) -> None:
-        self.db_path = db_path
-        self.conn = sqlite3.connect(str(db_path))
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self._init_schema()
+    """Thin façade: `get_card` delegates to the package (`fetch_card_raw`, which
+    lands the card durably in the lake); `search` / `get_set` stay live. All three
+    use an in-process memo — the SQLite cache is retired.
+
+    `get_card` returns the FULL raw Scryfall dict, preserving the shape every
+    consumer relies on (a superset of the projected `Card` the lake stores).
+    """
+
+    def __init__(self) -> None:
         self._client = httpx.Client(headers=HEADERS, timeout=30)
         self._last_request: float = 0
         self._hits = 0
         self._misses = 0
+        # In-process memo (replaces the SQLite tables) for the live-only surfaces.
+        self._card_mem: dict[str, dict | None] = {}
+        self._set_mem: dict[str, list[dict]] = {}
+        self._search_mem: dict[str, list[dict]] = {}
 
-    def _init_schema(self) -> None:
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS cards (
-                name TEXT PRIMARY KEY,
-                scryfall_id TEXT,
-                data JSON NOT NULL,
-                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS sets (
-                set_code TEXT PRIMARY KEY,
-                card_count INTEGER,
-                data JSON NOT NULL,
-                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS searches (
-                query TEXT PRIMARY KEY,
-                data JSON NOT NULL,
-                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
+    # -- live helpers (search/get_set have no lake equivalent yet) --------- #
 
     def _rate_limit(self) -> None:
         elapsed = time.time() - self._last_request
@@ -108,64 +114,48 @@ class ScryfallCache:
             url = data.get("next_page") if data.get("has_more") else None
         return all_items
 
-    def get_card(self, name: str) -> dict | None:
-        row = self.conn.execute(
-            "SELECT data FROM cards WHERE name = ?", (name,)
-        ).fetchone()
-        if row:
-            self._hits += 1
-            return json.loads(row[0])
+    # -- card lookup: delegated to the lake-backed resolver --------------- #
 
+    def get_card(self, name: str) -> dict | None:
+        """Return the raw Scryfall card dict for `name`, or None.
+
+        Delegates to `resolver.fetch_card_raw` (single live fetch — exact then
+        fuzzy — that lands the card durably in the lake for `Card`-consumers).
+        The full raw dict shape is preserved; an in-process memo avoids a repeat
+        round-trip within one session.
+        """
+        if name in self._card_mem:
+            self._hits += 1
+            return self._card_mem[name]
         self._misses += 1
         try:
-            data = self._fetch(f"{SCRYFALL_BASE}/cards/named", params={"exact": name})
+            data = resolver_mod.fetch_card_raw(name, client=self._client)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
+                self._card_mem[name] = None
                 return None
             raise
-        self.conn.execute(
-            "INSERT OR REPLACE INTO cards (name, scryfall_id, data) VALUES (?, ?, ?)",
-            (name, data.get("id"), json.dumps(data)),
-        )
-        self.conn.commit()
+        self._card_mem[name] = data
         return data
 
     def get_set(self, code: str) -> list[dict]:
-        row = self.conn.execute(
-            "SELECT data FROM sets WHERE set_code = ?", (code,)
-        ).fetchone()
-        if row:
+        if code in self._set_mem:
             self._hits += 1
-            return json.loads(row[0])
-
+            return self._set_mem[code]
         self._misses += 1
         cards = self._fetch_paginated(
             f"{SCRYFALL_BASE}/cards/search?q=set%3A{code}&order=spoiled"
         )
-        self.conn.execute(
-            "INSERT OR REPLACE INTO sets (set_code, card_count, data) VALUES (?, ?, ?)",
-            (code, len(cards), json.dumps(cards)),
-        )
-        self.conn.commit()
+        self._set_mem[code] = cards
         return cards
 
     def search(self, query: str) -> list[dict]:
-        row = self.conn.execute(
-            "SELECT data FROM searches WHERE query = ?", (query,)
-        ).fetchone()
-        if row:
+        if query in self._search_mem:
             self._hits += 1
-            return json.loads(row[0])
-
+            return self._search_mem[query]
         self._misses += 1
-        cards = self._fetch_paginated(
-            f"{SCRYFALL_BASE}/cards/search?q={query}"
-        )
-        self.conn.execute(
-            "INSERT OR REPLACE INTO searches (query, data) VALUES (?, ?)",
-            (query, json.dumps(cards)),
-        )
-        self.conn.commit()
+        cards = self._fetch_paginated(f"{SCRYFALL_BASE}/cards/search?q={query}")
+        self._search_mem[query] = cards
         return cards
 
     def get_price(self, name: str) -> float | None:
@@ -175,22 +165,30 @@ class ScryfallCache:
         usd = card.get("prices", {}).get("usd")
         return float(usd) if usd else None
 
+    def get_price_usd(self, name: str) -> str | None:
+        """Return the raw live USD price STRING (Scryfall `prices.usd`), or None.
+
+        The volatile price is served live (never on the `Card` contract). Returned
+        as the raw string (e.g. `"1.23"`) so consumers that persist it keep the
+        exact Scryfall shape rather than a lossy float round-trip.
+        """
+        card = self.get_card(name)
+        if not card:
+            return None
+        return card.get("prices", {}).get("usd")
+
     def cache_stats(self) -> dict:
-        cards = self.conn.execute("SELECT COUNT(*) FROM cards").fetchone()[0]
-        sets = self.conn.execute("SELECT COUNT(*) FROM sets").fetchone()[0]
-        searches = self.conn.execute("SELECT COUNT(*) FROM searches").fetchone()[0]
         return {
-            "db_path": str(self.db_path),
-            "cached_cards": cards,
-            "cached_sets": sets,
-            "cached_searches": searches,
+            "backend": "pipeline-lake",
+            "cached_cards": len(self._card_mem),
+            "cached_sets": len(self._set_mem),
+            "cached_searches": len(self._search_mem),
             "session_hits": self._hits,
             "session_misses": self._misses,
         }
 
     def close(self) -> None:
         self._client.close()
-        self.conn.close()
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────
@@ -207,7 +205,7 @@ def _get_cache() -> ScryfallCache:
 
 @app.command()
 def get_card(name: str) -> None:
-    """Fetch a card by exact name (cached)."""
+    """Fetch a card by exact name (lake-backed; live-fallback on a miss)."""
     card = _get_cache().get_card(name)
     if card:
         typer.echo(json.dumps(card, indent=2))
@@ -218,21 +216,21 @@ def get_card(name: str) -> None:
 
 @app.command()
 def get_set(code: str) -> None:
-    """Fetch all cards in a set (cached)."""
+    """Fetch all cards in a set (live)."""
     cards = _get_cache().get_set(code)
     typer.echo(json.dumps(cards, indent=2))
 
 
 @app.command()
 def search(query: str) -> None:
-    """Run a Scryfall search query (cached)."""
+    """Run a Scryfall search query (live)."""
     cards = _get_cache().search(query)
     typer.echo(json.dumps(cards, indent=2))
 
 
 @app.command()
 def cache_stats() -> None:
-    """Show cache statistics."""
+    """Show session lookup statistics."""
     stats = _get_cache().cache_stats()
     for k, v in stats.items():
         typer.echo(f"{k}: {v}")

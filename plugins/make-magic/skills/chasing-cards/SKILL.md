@@ -71,7 +71,11 @@ identical either way.
 - **uv** -- the CLI and helper scripts run via `uv run` (PEP 723 inline metadata for scripts)
 - **A populated backend** -- local mode reads `collection/` YAML under `MAKE_MAGIC_DATA_DIR`;
   Airtable mode needs the connector enabled via `/mcp`
-- **Scryfall cache** -- the spoiler cache persists across sessions in `spoiler_cache.db`
+- **The pipeline lake** -- spoiler state persists across sessions in the DuckDB/Parquet lake
+  under `MAKE_MAGIC_DATA_DIR` (raw scrape in `raw/spoilers`, reconciled previews in
+  `normalized/spoilers`). There is **no SQLite file** -- `spoiler_sync.py` is a thin façade over
+  the pipeline's `sources.spoilers` + `transforms.spoilers`, and "new since last sync" derives
+  from the lake (current snapshot vs. the prior normalized table), not a local database.
 
 ## Operation Router
 
@@ -101,17 +105,19 @@ uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/spoiler_sync.py list --new
 
 <output-capture-pattern>
 
-**stdout:** JSON with sync results -- new cards found, confirmation counts
-**stderr:** Progress messages, rate limit warnings
+**stdout:** A human-readable summary -- the phase progress plus a `─── Summary ───` block
+listing **New since last sync** (name + set), the **Confirmed by Scryfall** count, and the
+**Total cards in lake**. `status` and `list` print rich tables (Set / Total / Confirmed /
+Unconfirmed for `status`; Set / Name / Source / Confirmed for `list`). Read the summary directly
+-- there is no JSON envelope.
 
 ```bash
-result=$(uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/spoiler_sync.py sync msh 2>/dev/null)
-echo "$result" | jq '.new_cards'
+uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/spoiler_sync.py sync msh
 ```
 
 </output-capture-pattern>
 
-**After syncing:** Report new cards found since last sync. Ask if user wants to generate chase recommendations (workflow 2).
+**After syncing:** Report new cards found since last sync (the `New since last sync` lines). Ask if user wants to generate chase recommendations (workflow 2).
 
 <reference file="spoiler-sources.md" section="Sync Engine">
 For source hierarchy, phase details, state tracking, and known limitations, see references/spoiler-sources.md.
@@ -132,23 +138,33 @@ For a set (spoiled or released), recommend chase targets across all decks.
 
 2. **Run card tagger for the set:**
    ```bash
-   uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/card_tagger.py tag-set <set_code> --threshold 0.7
+   uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/card_tagger.py tag-set <set_code> --output /tmp/<set_code>-tagged.json
    ```
+   `tag-set` emits each card's **otag buckets** (`ramp`, `draw`, `tokens`, `removal`,
+   `counters`, `flicker`, `sac`, `typal`, `anthem`, `combat`, `protection`, …) as its `tags`
+   — membership from the card dim, **not** a confidence score. There is no `--threshold` on
+   `tag-set`; any score cutoff lives on the scoring step (`generate_recommendations`'
+   `min_score`), which is what turns tagged cards into ranked chase candidates.
 
-3. **Filter results** to cards above confidence threshold
+3. **Score and filter** the tagged cards against each deck's strategy (the scoring step applies
+   its `min_score` cutoff — drop cards below it).
 
 4. **Present recommendations** grouped by deck:
    ```
    ## Deck: [Name]
    Strategy: [strategy text]
    
-   - Card Name (confidence: X.XX) -- [rationale for strategy fit]
+   - Card Name (buckets: ramp/draw, score: X.X) -- [rationale for strategy fit]
    ```
 
 5. **On user approval:** Push approved cards to Chase Cards table (workflow 3)
 
 <strategy-validation>
-For each recommendation, verify the card genuinely advances the deck's Strategy -- not just color identity compatibility. If the strategy fit is unclear, flag it for user review rather than auto-approving.
+For each recommendation, verify the card genuinely advances the deck's Strategy -- not just color identity compatibility. Use the card's **otag buckets** (from the tagger output) as a
+data-grounded signal alongside your prose reasoning: e.g. "Academy Manufactor -> buckets
+`ramp`/`draw`/`tokens`, matches the Food-economy want." The buckets **inform** the fit call;
+they do not auto-decide it -- the gate stays reasoning-owned. If the strategy fit is unclear,
+flag it for user review rather than auto-approving.
 </strategy-validation>
 
 ---
@@ -190,7 +206,7 @@ to keep>` — confirm the intent with the user first.)
 1. **`list-chase`** to snapshot current state
 2. **Diff** against new recommendations (by card name)
 3. **`add-chase`** the new cards (one call each; the resolver hydrates metadata)
-4. **Optionally `remove-chase`** cards that dropped below threshold (confirm with user first)
+4. **Optionally `remove-chase`** cards that dropped below the score cutoff (confirm with user first)
 5. **Report** changes made
 
 > For a large batch of new cards, dispatch background agents that each run `add-chase` — the

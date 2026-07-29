@@ -75,7 +75,7 @@ def test_write_then_read_parquet_roundtrip(data_dir: Path) -> None:
         result = rows.aggregate('count(*) AS n, max(cmc) AS max_cmc').fetchone()
         assert result is not None
         n, max_cmc = result
-        assert n == 5
+        assert n == 6
         assert max_cmc == 4.0
 
         bolt = rows.filter("name = 'Lightning Bolt'").project('color_identity').fetchone()
@@ -134,3 +134,95 @@ def test_join_across_two_parquet_tables(data_dir: Path) -> None:
         ('Lightning Bolt', 'burn'),
         ('Wrath of God', 'board-wipe'),
     ]
+
+
+# --------------------------------------------------------------------------- #
+# V1 — write_parquet is ATOMIC (tmp file + os.replace).
+#
+# The prior `COPY ... TO '{path}'` overwrote the Parquet IN PLACE: a mid-write
+# crash could truncate the whole bulk. write_parquet now COPYs to a temp path in
+# the same dir, then `os.replace()`s it into place (atomic rename) — a failed
+# write leaves the prior Parquet intact and never leaves a partial at the target.
+# --------------------------------------------------------------------------- #
+
+
+class _ConnProxy:
+    """Delegates everything to a real DuckDB connection, but lets a test observe
+    (or blow up) the COPY. The DuckDB connection's own `sql` attribute is
+    read-only, so the spy has to WRAP it rather than monkeypatch it."""
+
+    def __init__(self, conn, *, on_copy=None) -> None:
+        self._conn = conn
+        self._on_copy = on_copy
+        self.copied: list[str] = []
+
+    def sql(self, query, *a, **k):
+        if isinstance(query, str) and query.lstrip().upper().startswith('COPY'):
+            self.copied.append(query)
+            if self._on_copy is not None:
+                self._on_copy(query)
+        return self._conn.sql(query, *a, **k)
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
+def test_write_parquet_uses_tmp_then_rename(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The COPY target is a TEMP path, promoted to the final path via os.replace."""
+    import pipeline.store.io as io
+
+    replaced: list[tuple[str, str]] = []
+    real_replace = io.os.replace
+
+    def spy_replace(src, dst):
+        replaced.append((str(src), str(dst)))
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(io.os, 'replace', spy_replace)
+
+    with store.connect() as conn:
+        proxy = _ConnProxy(conn)
+        rel = conn.read_json(str(FIXTURE))
+        target = store.StorePaths.resolve().parquet_path('raw', 'oracle_cards')
+        path = io.write_parquet(proxy, rel, 'raw', 'oracle_cards')
+
+    # The COPY did NOT write straight to the final path.
+    assert proxy.copied, 'a COPY statement should run'
+    assert f"TO '{target}'" not in proxy.copied[0], 'COPY must not target the final path directly'
+    # An atomic rename promoted the temp file to the final path.
+    assert replaced, 'write_parquet must os.replace(tmp, path)'
+    assert replaced[-1][1] == str(target)
+    assert path == target
+    assert target.exists()
+
+
+def test_failed_write_leaves_prior_parquet_intact(data_dir: Path) -> None:
+    """A crash mid-write leaves the PRIOR Parquet fully readable (no truncation)."""
+    import pipeline.store.io as io
+
+    # Seed a good prior Parquet (6 rows).
+    with store.connect() as conn:
+        rel = conn.read_json(str(FIXTURE))
+        store.write_parquet(conn, rel, 'raw', 'oracle_cards')
+
+    target = store.StorePaths.resolve().parquet_path('raw', 'oracle_cards')
+    before = target.read_bytes()
+
+    def boom(_query: str) -> None:
+        raise RuntimeError('disk full mid-COPY')
+
+    # A second write that BLOWS UP during the COPY (mid-write crash).
+    with store.connect() as conn:
+        rel2 = conn.read_json(str(FIXTURE))
+        proxy = _ConnProxy(conn, on_copy=boom)
+        with pytest.raises(RuntimeError, match='disk full'):
+            io.write_parquet(proxy, rel2, 'raw', 'oracle_cards')
+
+    # The prior Parquet is byte-identical and still readable (6 rows).
+    assert target.read_bytes() == before
+    with store.connect() as conn:
+        n = store.read_parquet(conn, 'raw', 'oracle_cards').aggregate('count(*) AS n').fetchone()
+        assert n is not None and n[0] == 6
+    # No leftover temp file at the target dir.
+    leftovers = list(target.parent.glob('*.tmp*'))
+    assert leftovers == [], f'a failed write must not leave a temp file: {leftovers}'

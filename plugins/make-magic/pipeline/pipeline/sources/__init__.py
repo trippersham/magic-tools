@@ -14,6 +14,7 @@ dispatcher ``python -m pipeline.sources.run <source>``.
         combos        -> Commander Spellbook variants (bundled snapshot baseline)
         scryfall_bulk -> Scryfall oracle_cards bulk (fetch-on-demand, NOT bundled)
         airtable      -> human-edited tables mirror (PULL-ONLY, GET requests only)
+        spoilers      -> MythicSpoiler preview scrape (fail-open to last snapshot)
 """
 
 from __future__ import annotations

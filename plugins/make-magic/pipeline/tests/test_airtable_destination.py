@@ -151,14 +151,100 @@ def test_guard_allows_pure_allowlist() -> None:
     wb.assert_no_human_fields(wb.ALLOWLIST_NAMES)
 
 
-def test_allowlist_is_exactly_the_two_card_fields() -> None:
-    """The allowlist is EXACTLY the two engine-owned Cards fields."""
-    assert {f'{wb.NS}Buckets', f'{wb.NS}Otags'} == wb.ALLOWLIST_NAMES
+#: The full card-dim / engine-derived Scryfall field set (#5 reclassification):
+#: engine-writable presentation/rules columns PLUS the two ⚙ namespace fields.
+_DERIVED_SCRYFALL_FIELDS = frozenset(
+    {
+        'Card Type',
+        'Mana Cost',
+        'CMC',
+        'Power / Toughness',
+        'Oracle Text',
+        'Card Art',
+        'Scryfall URL',
+        'Price (TCGPlayer)',
+        'Color Identity',
+    }
+)
+#: The genuinely human/collection-authoritative Inventory Cards fields (#5): the
+#: write-back must NEVER touch these — even though skills READ some of them.
+_HUMAN_CARD_FIELDS = frozenset(
+    {
+        'Card Name',
+        'Sets',
+        'Number Owned',
+        'Sources',
+        'Condition',
+        'Repeat Number in Decks',
+        'Number in Decks',
+        'Number in Library',
+        'Decks',
+    }
+)
+
+
+def test_allowlist_is_the_full_card_dim_derived_set() -> None:
+    """#5: the allowlist EXPANDS from the two ⚙ fields to the full card-dim set:
+    the engine-derived Scryfall columns PLUS ⚙ Buckets / ⚙ Otags."""
+    expected = _DERIVED_SCRYFALL_FIELDS | {f'{wb.NS}Buckets', f'{wb.NS}Otags'}
+    assert expected == wb.ALLOWLIST_NAMES
+
+
+def test_gear_fields_still_in_allowlist() -> None:
+    """The two engine-namespaced ⚙ fields remain writable (unchanged)."""
+    assert {f'{wb.NS}Buckets', f'{wb.NS}Otags'} <= wb.ALLOWLIST_NAMES
+
+
+@pytest.mark.parametrize('derived_field', sorted(_DERIVED_SCRYFALL_FIELDS))
+def test_each_derived_scryfall_field_is_writable(derived_field: str) -> None:
+    """#5 (a): each newly-allowed derived Scryfall field passes the guard now."""
+    wb.assert_no_human_fields([derived_field])
+    assert derived_field in wb.ALLOWLIST_NAMES
+    assert derived_field not in wb._human_denylist()
+
+
+@pytest.mark.parametrize('human_field', sorted(_HUMAN_CARD_FIELDS))
+def test_each_human_field_is_still_blocked(human_field: str) -> None:
+    """#5 (b): each genuinely human/collection field is STILL denied."""
+    with pytest.raises(wb.HumanFieldWriteError):
+        wb.assert_no_human_fields([human_field])
+    assert human_field in wb._human_denylist()
+    assert human_field not in wb.ALLOWLIST_NAMES
 
 
 def test_allowlist_and_denylist_are_disjoint() -> None:
     """Structural invariant: engine-owned names never collide with human names."""
     assert not (wb.ALLOWLIST_NAMES & wb._human_denylist())
+
+
+def test_allowlist_and_denylist_partition_the_card_fields() -> None:
+    """#5: the derived allowlist and the human denylist PARTITION the classified
+    Inventory Cards fields with no overlap and no unclassified derived field."""
+    assert _DERIVED_SCRYFALL_FIELDS <= wb.ALLOWLIST_NAMES
+    assert wb._human_denylist() == _HUMAN_CARD_FIELDS
+    assert not (wb.ALLOWLIST_NAMES & wb._human_denylist())
+
+
+def test_allowlist_disjoint_from_collection_owned_facts_writes() -> None:
+    """#5 (c): #5's card-dim allowlist must NOT overlap #6's owned-facts write
+    surface on the Inventory Cards table. If ANY field is written by both #5
+    (derived) and #6 (owned-facts), that is a design conflict — fail here.
+
+    #6's Inventory Cards write surface is the OwnedCard fact columns its adapter
+    creates/updates: Card Name (key), Number Owned, Foil Count, Condition, Sets,
+    Sources (see AirtableCollectionStore.add_card / set_quantity / _set_owned_fields)."""
+    from pipeline.collection.adapters.airtable_collection import AirtableCollectionStore as ACS
+
+    sixs_inventory_writes = {
+        ACS._INV_NAME,
+        ACS._INV_OWNED,
+        ACS._INV_FOIL,
+        ACS._INV_CONDITION,
+        ACS._INV_SETS,
+        ACS._INV_SOURCES,
+    }
+    overlap = wb.ALLOWLIST_NAMES & sixs_inventory_writes
+    assert not overlap, f'DESIGN CONFLICT: #5 derived allowlist overlaps #6 owned-facts writes: {sorted(overlap)}'
 
 
 def test_denylist_loads_non_empty_with_card_name() -> None:
@@ -178,26 +264,33 @@ def test_denylist_loads_non_empty_with_card_name() -> None:
 
 
 def test_denylist_is_the_cards_human_fields_from_golden_contract() -> None:
-    """The denylist really comes from the golden contract's CARDS fields."""
+    """The denylist really comes from the golden contract's CARDS human fields,
+    with the card-dim / engine-derived fields EXCLUDED (#5 reclassification)."""
     denylist = wb.load_human_denylist()
-    # Spot-check the marquee human Card fields the writer must never touch.
+    # The genuinely human/collection Card fields the writer must never touch.
     for f in (
         'Card Name',
         'Sets',
         'Number Owned',
         'Sources',
         'Condition',
+        'Decks',
+    ):
+        assert f in denylist
+    # #5: the Scryfall-derived columns are NO LONGER human-owned — they moved to
+    # the engine allowlist and must NOT appear in the denylist.
+    for f in (
         'Card Type',
         'Mana Cost',
         'CMC',
         'Power / Toughness',
         'Oracle Text',
+        'Card Art',
         'Scryfall URL',
         'Price (TCGPlayer)',
         'Color Identity',
-        'Decks',
     ):
-        assert f in denylist
+        assert f not in denylist
     # Deck-only human fields (Strategy/Commander/Owner/Format) are NOT Cards
     # fields, so they are not in this (Cards-scoped) denylist.
     assert 'Strategy' not in denylist
@@ -229,7 +322,11 @@ def test_target_table_is_cards_not_decks() -> None:
 
 def test_build_payload_maps_the_two_derived_fields() -> None:
     payload = wb.build_payload(_resolution())
-    assert set(payload) == set(wb.ALLOWLIST_NAMES)
+    # build_payload emits ONLY the two ⚙ otag fields (a subset of the allowlist);
+    # the wider Scryfall derived columns are written by the dual-write path (5b),
+    # not this otag payload builder.
+    assert set(payload) == {f'{wb.NS}Buckets', f'{wb.NS}Otags'}
+    assert set(payload) <= set(wb.ALLOWLIST_NAMES)
     # buckets -> a LIST (multipleSelects)
     assert payload[f'{wb.NS}Buckets'] == ['ramp', 'tutor']
     assert isinstance(payload[f'{wb.NS}Buckets'], list)
@@ -391,7 +488,11 @@ def test_apply_alone_without_no_dry_run_still_dry() -> None:
 def test_ensure_fields_dry_run_creates_nothing() -> None:
     spy = SpyClient(existing_fields={})  # nothing exists yet
     names = wb.ensure_fields(spy, dry_run=True)
-    assert set(names) == set(wb.ALLOWLIST_NAMES)  # would create both
+    # ensure_fields only CREATES the two engine ⚙ fields (DERIVED_FIELDS); the
+    # wider card-dim Scryfall columns already exist on the live table and are
+    # never created by this adapter.
+    assert set(names) == {f.name for f in wb.DERIVED_FIELDS}
+    assert set(names) == {f'{wb.NS}Buckets', f'{wb.NS}Otags'}
     assert spy.write_methods == []  # but issued no create
 
 
@@ -807,9 +908,12 @@ def test_apply_chunks_25_writes_into_three_patches_of_10_10_5(
     assert [len(c) for c in spy.patched_chunks] == [10, 10, 5]
     assert report.write_requests_issued == 3
     # The guard fired at least once per record across the 3 chunks (defense runs
-    # per chunk before each PATCH leaves the process).
-    allow = frozenset(wb.ALLOWLIST_NAMES)
-    per_record_guards = [g for g in guard_calls if g == allow]
+    # per chunk before each PATCH leaves the process). Each per-record payload is
+    # the two ⚙ otag fields (a subset of the wider allowlist), so the guard is
+    # invoked with EXACTLY that payload field set per record.
+    payload_fields = frozenset({f'{wb.NS}Buckets', f'{wb.NS}Otags'})
+    assert payload_fields <= frozenset(wb.ALLOWLIST_NAMES)
+    per_record_guards = [g for g in guard_calls if g == payload_fields]
     assert len(per_record_guards) >= 25
     # Every record patched exactly once, keyed by record id, no dupes.
     all_ids = [rec['id'] for chunk in spy.patched_chunks for rec in chunk]
