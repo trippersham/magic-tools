@@ -17,9 +17,9 @@ user-invocable: true
 <primary-constraint>
 **Never evaluate cards without reading the deck's Strategy field first.**
 
-Why: "Good card" is meaningless without strategy context. Lightning Bolt is excellent in a burn deck, mediocre in a blink deck. Storm-Kiln Artist is a staple in spellslinger, worthless in voltron. The Strategy field in Airtable defines what makes a card good for that specific deck. Skipping this step produces generic recommendations that sound helpful but actively harm deck coherence.
+Why: "Good card" is meaningless without strategy context. Lightning Bolt is excellent in a burn deck, mediocre in a blink deck. Storm-Kiln Artist is a staple in spellslinger, worthless in voltron. The deck's Strategy field defines what makes a card good for that specific deck. Skipping this step produces generic recommendations that sound helpful but actively harm deck coherence.
 
-Instead: Always start by reading the deck's Strategy field via `mcp__airtable__get_record` on the Decks table (`tblIfqVuVHNQza1K3`), requesting the Strategy field (`fldvJRaoYfRZiM8zw`).
+Instead: Always start by reading the deck's Strategy with the backend-agnostic `collection` CLI: `${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "<deck>" --field strategy`. This works identically whether the source of record is local YAML or Airtable.
 </primary-constraint>
 
 <red-flags>
@@ -31,11 +31,40 @@ If you catch yourself thinking:
 **STOP.** Read the Strategy field. Evaluate fit, not power level.
 </red-flags>
 
+## The data surface: the `collection` CLI (both backends)
+
+Every read and write of Decks, Inventory, Chase, and Trades goes through **one
+backend-agnostic CLI** — the same surface whether the source of record is local YAML or
+Airtable:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection <verb> [args...]
+```
+
+The active backend auto-resolves; force it with `MAKE_MAGIC_BACKEND=local` or
+`=airtable`. (The wrapper simply forwards to
+`uv run --project <pipeline> python -m pipeline.collection.run <verb>`.)
+
+Verbs this skill uses: `status`, `list-decks`, `get-deck <name> [--field strategy|assessment|focus_otags|...]`,
+`save-deck --from-json <path|->`, `set-strategy`, `set-assessment`, `set-focus-otags`,
+`list-inventory`, `list-chase`, `factsheet <deck>`. `get-deck` (no `--field`) returns the full
+Deck JSON — including its `cards[]` — so a decklist read is one call, not an N+1 link crawl.
+
+**Mode banner — run this first.** Open any workflow by announcing the source of record:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection status
+```
+It prints e.g. `{"backend": "local", "source_of_record": "local (collection/ YAML)"}` (or
+`airtable (records adapter)`). State it to the user, then proceed — the steps below are
+identical either way.
+
 ## Prerequisites
 
-- **Airtable MCP connector** — enabled via `/mcp`, authenticated with Airtable account
-- **Decks table populated** — each deck needs a Strategy field filled per `references/strategy-schema.md`
-- **uv** — scripts use PEP 723 inline metadata; invoke with `uv run --script`
+- **uv** — the CLI and helper scripts run via `uv run` (PEP 723 inline metadata for scripts)
+- **A populated backend** — each deck needs a Strategy filled per `references/strategy-schema.md`.
+  Local mode reads `collection/` YAML under `MAKE_MAGIC_DATA_DIR`; Airtable mode needs the
+  base cloned and the connector enabled via `/mcp` (see the plugin README)
 
 ## Operation Router
 
@@ -56,22 +85,15 @@ Ad-hoc, Claude-reasoned evaluation for single-card questions.
 <evaluation-workflow>
 
 **Step 1: Read the deck's Strategy**
-```
-mcp__airtable__get_record
-  baseId: appw7QPMoqktrgDc1
-  tableId: tblIfqVuVHNQza1K3
-  recordId: <deck_record_id>
-  fields: ["Name", "Strategy", "Color Identity", "Commander"]
-```
+```bash
+# Just the Strategy text:
+${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "Ozai" --field strategy
 
-If you only have the deck name, use `search_records` first:
+# Or the whole Deck (name, strategy, color identity, commander, cards[], focus_otags, assessment):
+${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "Ozai"
 ```
-mcp__airtable__search_records
-  baseId: appw7QPMoqktrgDc1
-  tableId: tblIfqVuVHNQza1K3
-  filterByFormula: {Name} = "Ozai"
-  fields: ["Name", "Strategy", "Color Identity", "Commander"]
-```
+You address the deck **by name** — no record id, no `search_records` step. `list-decks` gives
+you the exact names if you need to disambiguate.
 
 **Step 2: Fetch the card from Scryfall**
 ```bash
@@ -120,11 +142,12 @@ Bulk operation for new set releases or set-specific recommendations.
 <recommendation-workflow>
 
 **Step 1: Load all deck strategies**
-```
-mcp__airtable__list_records
-  baseId: appw7QPMoqktrgDc1
-  tableId: tblIfqVuVHNQza1K3
-  fields: ["Name", "Strategy", "Color Identity", "Commander"]
+```bash
+# Enumerate deck names, then read each deck's strategy + color identity:
+${CLAUDE_PLUGIN_ROOT}/scripts/collection list-decks
+for d in <each name>; do
+  ${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "$d"   # full JSON: strategy, color_identity, commander, cards[]
+done
 ```
 
 **Step 2: Tag the full set**
@@ -172,20 +195,15 @@ For each deck with matches:
 
 **Step 5: Optional — push to Chase Cards**
 
-If approved, create Chase Card records for top recommendations:
+If approved, add each top recommendation to the Chase list via the CLI (the resolver hydrates
+Scryfall metadata automatically):
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection add-chase "<card name>" --for-deck "<deck>"
 ```
-mcp__airtable__create_record
-  baseId: appw7QPMoqktrgDc1
-  tableId: tblXsNtGgT7UQLPXZ
-  fields:
-    Card Name: <name>
-    Target Decks: [<deck_record_id>]
-    # Include Scryfall metadata...
-```
-
-<reference file="airtable-schema.md" section="Chase Cards table fields">
-See airtable-schema.md for Chase Cards field IDs and structure.
-</reference>
+`--for-deck` links the target deck. (`--priority` / `--status` / `--target-price` are honored
+in local mode; in Airtable mode there are no columns for them and they are skipped — see the
+Optional / ad-hoc appendix.) The detailed chase-management workflow lives in the
+**chasing-cards** skill.
 
 </recommendation-workflow>
 
@@ -197,23 +215,13 @@ Given a card to add, identify the weakest card to cut.
 
 <swap-workflow>
 
-**Step 1: Read the deck's Strategy and linked Cards**
+**Step 1: Read the deck's Strategy and its cards**
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "<deck>"
 ```
-mcp__airtable__get_record
-  baseId: appw7QPMoqktrgDc1
-  tableId: tblIfqVuVHNQza1K3
-  recordId: <deck_record_id>
-  # Cards field returns linked record IDs
-```
-
-Then fetch the linked cards:
-```
-mcp__airtable__list_records
-  baseId: appw7QPMoqktrgDc1
-  tableId: tbl3UgZZPJGQhEFo8
-  filterByFormula: FIND(RECORD_ID(), "<comma-separated deck card IDs>")
-  fields: ["Card Name", "Card Type", "CMC", "Oracle Text"]
-```
+One call returns the deck's `strategy`, `color_identity`, and its full `cards[]` list (each
+with `name`, `type_line`, `mana_value`, `oracle_text`) — no separate linked-record fetch, no
+N+1 crawl over card ids.
 
 **Step 2: Tag both the incoming card and existing deck cards**
 
@@ -312,9 +320,10 @@ its archetype? This is a reasoning task, **not a card-scoring tally**. The quadr
 questions about the deck's plan — Development (don't fall behind), Parity (break a stall),
 Winning (what/how-fast/how-interruptible is the actual win), Losing (the out when behind). You
 answer them by reasoning over the deck's **Strategy** plus a **neutral fact sheet** from
-`deck_factsheet.py`. The output is a reasoning-authored **`Assessment`** — a narrative
-pre-mortem plus a shopping list, **never a percentage table** — which you write back to the
-deck's `Assessment` field in Airtable.
+`deck_factsheet.py` (offline, wrapped by the CLI `factsheet` verb). The output is a
+reasoning-authored **`Assessment`** — a narrative pre-mortem plus a shopping list, **never a
+percentage table** — which you write back to the deck's `Assessment` field via the CLI
+(`set-assessment`), working identically in local or Airtable mode.
 
 **`Strategy` vs `Focus Otags` vs `Assessment`** — three distinct fields on the Decks table,
 and you must keep them apart:
@@ -327,15 +336,16 @@ and you must keep them apart:
   `ramp`, …) and/or specific otag slugs. This is a **curated subset**: the cards underneath
   carry a much *wider* set of otags, so `Focus Otags` captures the deck's INTENT, not the
   mechanical union of everything it happens to tag. It is skill/reasoning-authored (or
-  human-authored) and written to `Focus Otags` via the Airtable MCP.
+  human-authored) and written to `Focus Otags` via the CLI (`set-focus-otags`).
 - **`Assessment` = what the deck ACTUALLY is, isn't, and needs.** A reasoning SYNTHESIS *you*
   produce, measuring the actual card otags AGAINST `Focus Otags`: coverage of what you care
   about, thin/unprotected focus items, and off-plan noise. It is the *reality* measured
   against the intent.
 
 Both `Focus Otags` and `Assessment` are **written by this skill** — you author them and write
-them via the Airtable MCP (`mcp__airtable__*`), the same write path any skill uses. **The
-deterministic pipeline never writes them; it only READS `Focus Otags`.** The engine's
+them through the `collection` CLI (`set-focus-otags`, `set-assessment`), the same
+backend-agnostic write path any skill uses. **The deterministic pipeline never writes them; it
+only READS `Focus Otags`.** The engine's
 `susceptibility` + `otag_buckets` (from `deck_factsheet`, from the cards' engine-written
 `⚙ Buckets`/`⚙ Otags`) are the *wide, actual* inputs your synthesis reasons over.
 Susceptibility is an INPUT to the Assessment, not a standalone Airtable field.
@@ -348,26 +358,38 @@ Read quadrant-theory.md for the pre-mortem method, the deterministic/reasoning s
 
 **Step 1: Read the deck's Strategy → archetype and win condition**
 
-Same `get_record` as Operation 1 (the `<primary-constraint>` applies — never diagnose
-without the Strategy), but add `Focus Otags` to the `fields` list so you read the intended
-identity alongside the aim (Step 3b). The Strategy *is* the plan: extract the win condition
-and the `Archetype:` line, which frames the per-game-state expectations (see
-`references/strategy-schema.md`).
+Read the whole deck in one call (the `<primary-constraint>` applies — never diagnose without
+the Strategy):
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "<deck>"
+```
+The JSON carries `strategy`, `focus_otags`, `assessment`, and `cards[]` together — you read the
+intended identity (`focus_otags`, Step 3b) alongside the aim. The Strategy *is* the plan:
+extract the win condition and the `Archetype:` line, which frames the per-game-state
+expectations (see `references/strategy-schema.md`). You may also read a single field directly,
+e.g. `get-deck "<deck>" --field focus_otags`.
 
-**Guard:** if `Focus Otags` (or `Assessment`) does not yet exist on a fresh Decks table, OMIT
-it from the `fields` list — Airtable returns `422 UNKNOWN_FIELD_NAME` if `fields` names a field
-that does not exist — and create/write it at the later step (`Focus Otags` at Step 3c, the
-`Assessment` at the Assessment write step).
+**Guard:** on a deck that has never had a focus/assessment set, `focus_otags` comes back `[]`
+and `assessment` `null` — that is the *unset* signal (not an error). You create/write them at
+the later steps (`Focus Otags` at Step 3c, the `Assessment` at the Assessment write step). In
+**local** mode the write is seamless (just a YAML key). In **Airtable** mode the Decks table must
+ALREADY have `Focus Otags` and `Assessment` columns — the CLI does NOT auto-create columns, and a
+write to a missing column fails with a clear "field not on base" error, so create them in Airtable
+first (tracked in issue #11).
 
 **Step 2: Get the EXACT current decklist**
 
-Pull the deck's linked Cards (same mechanism as Operation 3, Step 1) — do not work from
-memory. Write the card names to a decklist file for the fact sheet.
+The `get-deck` JSON from Step 1 already carries the deck's `cards[]` — use it, do not work from
+memory. (If you need a decklist file for a script, write those card names out.)
 
 **Step 3: Run the fact sheet**
 ```bash
-uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/deck_factsheet.py factsheet <decklist> --output /tmp/<deck>-facts.json
+${CLAUDE_PLUGIN_ROOT}/scripts/collection factsheet "<deck>"
 ```
+The CLI `factsheet` verb reads the deck from the active backend and runs the offline fact-sheet
+engine — one call, no decklist file needed. (The underlying `deck_factsheet.py` script is still
+available directly if you already have a decklist file:
+`uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/deck_factsheet.py factsheet <decklist>`.)
 This emits **neutral facts only** — curve, ramp/fixing, a keyword census, card advantage,
 instant-speed, plus the two otag-derived fields that carry the diagnosis: **`otag_buckets`**
 (a multi-label oracle-tag bucket → nonland-card count map — `removal`, `ramp`, `draw`,
@@ -383,10 +405,11 @@ the Strategy — do NOT treat empty buckets as "the deck does nothing."
 
 **Step 3b: Read or propose the deck's `Focus Otags` → its intended functional identity**
 
-Read the deck's `Focus Otags` field alongside the Strategy (add it to the `get_record`
-`fields` list in Step 1). `Focus Otags` is the curated set of buckets/otags the deck is
-**built around** — its intended identity in the tag vocabulary, distinct from the wide,
-actual set the cards mechanically carry.
+Read the deck's `Focus Otags` field alongside the Strategy — it is already in the Step 1
+`get-deck` JSON as `focus_otags` (or read it directly with `get-deck "<deck>" --field
+focus_otags`). `Focus Otags` is the curated set of buckets/otags the deck is **built around** —
+its intended identity in the tag vocabulary, distinct from the wide, actual set the cards
+mechanically carry.
 
 - **If `Focus Otags` is already set**, use it as-is — it is the intent you measure against.
 - **If it is empty**, propose one: read the fact sheet's `otag_buckets` (the wide actual set)
@@ -397,34 +420,19 @@ actual set the cards mechanically carry.
   to the user, then write it (Step 3c). If you cannot confidently curate one, proceed without
   it — the Assessment degrades gracefully (Step 7).
 
-**Step 3c: Write `Focus Otags` to the Decks field (via Airtable MCP)**
+**Step 3c: Write `Focus Otags` to the deck (via the CLI)**
 
-Persist the curated focus to the deck's `Focus Otags` field using the normal MCP write path.
-This field is **skill-authored** (or human-authored) — the deterministic pipeline READS it but
-NEVER writes it. If the field does not yet exist on the Decks table, create it first
-(`multipleSelects` for pick-list buckets, or `multilineText` for freeform bucket + otag-slug
-lists), then populate it:
+Persist the curated focus with one CLI call — it is **skill-authored** (or human-authored), and
+the deterministic pipeline READS it but NEVER writes it:
 
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection set-focus-otags "<deck>" tokens counters anthem
 ```
-# Create the field once if it is not already on the Decks table:
-mcp__airtable__create_field
-  baseId: appw7QPMoqktrgDc1
-  tableId: tblIfqVuVHNQza1K3
-  name: Focus Otags
-  type: multipleSelects   # or multilineText for freeform bucket + otag-slug lists
-
-# Write / refresh the curated focus:
-mcp__airtable__update_records
-  baseId: appw7QPMoqktrgDc1
-  tableId: tblIfqVuVHNQza1K3
-  records:
-    - id: <deck_record_id>
-      fields:
-        Focus Otags: <curated buckets/otag slugs — the deck's intended identity>
-```
-
-Never write `Focus Otags` from the mechanical union of `otag_buckets` — that would make it the
-actual set, not the intended one. Curate to intent.
+Pass one otag/bucket slug per argument. Storage is a YAML list locally (seamless), or a
+`multipleSelects`/`multilineText` column in Airtable — which must ALREADY EXIST (the CLI does not
+create columns; writing a missing column fails with a clear error — issue #11). Never write
+`Focus Otags` from the mechanical union of
+`otag_buckets` — that would make it the actual set, not the intended one. Curate to intent.
 
 **Step 4: Reason the per-quadrant plan (from facts + Strategy)**
 
@@ -452,14 +460,16 @@ pod, not a flat low bar. This is the pre-mortem's payload.
 
 **Step 6: Prescription + owned fills (read-only)**
 
-Name the card **type** that plugs the hole. Then query the Cards inventory for
-in-color-identity cards of that type that are owned/available (`Number in Library > 0`), and
-flag any already on the Chase list. Prefilter by color identity + a text keyword before
-fetching to keep the scan tractable.
-
-<reference file="airtable-schema.md" section="Cards table fields">
-See airtable-schema.md for the Cards table fields (Number Owned, Number in Library, Oracle Text) and Chase Cards structure.
-</reference>
+Name the card **type** that plugs the hole. Then read the inventory and Chase list via the CLI
+and filter in your reasoning:
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection list-inventory   # each OwnedCard: name, type_line, color_identity, owned, oracle_text, ...
+${CLAUDE_PLUGIN_ROOT}/scripts/collection list-chase        # to flag cards already on the chase list
+```
+Keep only in-color-identity cards of the prescribed type that are owned/available, and flag any
+already on the Chase list. (For a very large Airtable inventory you *may* run an ad-hoc
+`filterByFormula` read via `/mcp` to prefilter server-side — that is a read-only exploration,
+covered in the Optional / ad-hoc appendix — but the skill's canonical read is `list-inventory`.)
 
 **Step 7: Synthesize the Assessment** (narrative + shopping list, NOT a percentage table)
 
@@ -506,28 +516,14 @@ Owned fills: <inventory cards that plug it> (+ chase flags)
 
 Present it to the user, and — because it is the deck's living reality-check — persist it.
 
-**Step 8: Write the Assessment to the Decks `Assessment` field (via Airtable MCP)**
+**Step 8: Write the Assessment to the deck's `Assessment` field (via the CLI)**
 
-Persist the synthesis to the deck's `Assessment` field (Decks table, long text) using the
-normal MCP write path. If the `Assessment` field does not yet exist on the Decks table, create
-it first, then populate it:
+Persist the synthesis with one CLI call. Locally this is a YAML key (seamless); in Airtable mode
+the Decks `Assessment` column must already exist (the CLI does not create columns — a write to a
+missing column fails with a clear error; see issue #11):
 
-```
-# Create the field once (long text) if it is not already on the Decks table:
-mcp__airtable__create_field
-  baseId: appw7QPMoqktrgDc1
-  tableId: tblIfqVuVHNQza1K3
-  name: Assessment
-  type: multilineText
-
-# Write / refresh the synthesis:
-mcp__airtable__update_records
-  baseId: appw7QPMoqktrgDc1
-  tableId: tblIfqVuVHNQza1K3
-  records:
-    - id: <deck_record_id>
-      fields:
-        Assessment: <the pre-mortem synthesis from Step 7>
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection set-assessment "<deck>" "<the pre-mortem synthesis from Step 7>"
 ```
 
 Never overwrite `Strategy` — `Strategy` is the human-authored aim (an input); `Focus Otags` is
@@ -557,9 +553,9 @@ Why: Commander format rules require every card to be within the commander's colo
 </constraint>
 
 <constraint name="runtime-strategy">
-**Strategy lives in Airtable, not in this skill.**
+**Strategy lives in the backend, not in this skill.**
 
-Why: Strategies evolve. Decks get rebuilt. Hardcoding strategy keywords produces stale recommendations. Always read the Strategy field from the Decks table at runtime.
+Why: Strategies evolve. Decks get rebuilt. Hardcoding strategy keywords produces stale recommendations. Always read the Strategy at runtime via `get-deck "<deck>" --field strategy` — from whichever backend is the source of record (local YAML or Airtable).
 
 See `references/strategy-schema.md` for the strategy field convention and keyword vocabulary.
 </constraint>
@@ -570,15 +566,26 @@ See `references/strategy-schema.md` for the strategy field convention and keywor
 Why: Scryfall returns `null` for `image_uris`, `mana_cost`, and `oracle_text` at the top level for DFCs. The data lives in `card_faces[0]`. The tagger handles this automatically, but if fetching raw Scryfall data, check both locations.
 </constraint>
 
-<constraint name="get-vs-list">
-**Use `get_record` for single deck lookups, not `list_records` + filter.**
+<constraint name="address-by-name">
+**Address decks by name through the CLI — never juggle record IDs.**
 
-Why: `get_record` is faster and returns exactly one record. `list_records` with a filter returns a paginated list and costs more tokens. When you have the record ID, use `get_record`.
-
-<reference file="airtable-patterns.md" section="Query Optimization">
-See airtable-patterns.md for efficiency patterns.
-</reference>
+Why: `get-deck "<deck>"` returns exactly one deck (strategy, focus_otags, assessment, cards[]) in a single call, in either backend. There is no record-id lookup or `list_records` + filter to manage at the skill layer — the CLI resolves the deck by name.
 </constraint>
+
+---
+
+## Optional / ad-hoc (Airtable-only, read-mostly)
+
+When the active backend is Airtable **and** you (a human) are connected via `/mcp`, you may run
+`mcp__airtable__*` **reads** (`list_records`, `search_records`, `get_record`,
+`describe_table`) directly against the base for exploratory poking — verifying a field id,
+hand-writing a one-off `filterByFormula`, or eyeballing raw rows. That is out-of-band
+exploration, not a skill step.
+
+**Rule: skills WRITE only through the `collection` CLI.** No executable step in this skill may
+create/update/delete via `mcp__airtable__*`. MCP here is read-mostly and human-driven; the
+efficiency patterns (targeted `fields`, `filterByFormula`, `detailLevel`) and the table/field
+ids live in the appendices below.
 
 ---
 
@@ -589,5 +596,5 @@ See airtable-patterns.md for efficiency patterns.
 | Understand strategy field format and keyword vocabulary | [references/strategy-schema.md](references/strategy-schema.md) |
 | Diagnose deck balance (Quadrant Theory pre-mortem, fact-sheet fields) | [references/quadrant-theory.md](references/quadrant-theory.md) |
 | Invoke tagger scripts or interpret scoring tiers | [references/card-evaluation.md](references/card-evaluation.md) |
-| Look up Airtable table/field IDs | [references/airtable-schema.md](references/airtable-schema.md) |
-| Optimize Airtable queries or handle edge cases | [references/airtable-patterns.md](references/airtable-patterns.md) |
+| (Optional / ad-hoc) Airtable table/field IDs for MCP exploration | [references/airtable-schema.md](references/airtable-schema.md) |
+| (Optional / ad-hoc) Efficient Airtable MCP reads / edge cases | [references/airtable-patterns.md](references/airtable-patterns.md) |

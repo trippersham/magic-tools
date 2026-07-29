@@ -11,64 +11,54 @@ description: >
 
 # MTG Inventory Manager
 
-Manage a Magic: The Gathering card inventory in Airtable, enriched via Scryfall API.
+Manage a Magic: The Gathering card inventory, decks, and trades, enriched via Scryfall API.
 
 <primary-constraint>
-## Airtable Efficiency: Batch + Targeted Fields Over N+1 Queries
+## The data surface: the `collection` CLI (both backends)
 
-**Always** (1) pass the `fields` parameter so a query returns only the columns you need — never all 25+; (2) use `filterByFormula` to fetch related records in one paginated call instead of looping `get_record` over linked IDs; (3) batch writes with `update_records` (up to 10 per call).
+**Every** read and write of Inventory, Decks, and Trades goes through **one backend-agnostic
+CLI** — the same surface whether the source of record is local YAML or Airtable. You do not
+juggle record IDs, `fields` lists, `filterByFormula`, or batch limits at the skill layer; the
+CLI and the adapter behind it handle all of that.
 
-Why: N+1 loops and full-field fetches are the top efficiency failures here — a 100-card deck fetch is ~50KB of JSON unfiltered vs ~5KB with targeted `fields`, and 50 `get_record` calls collapse to a single `filterByFormula` query.
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection <verb> [args...]
+```
 
-<reference file="query-patterns.md" section="Common Field Sets">
-Pre-defined field sets by use case, formula patterns (cards by deck / type / CMC / missing-metadata), and the full anti-pattern catalog.
-</reference>
+The active backend auto-resolves; force it with `MAKE_MAGIC_BACKEND=local` or `=airtable`. (The
+wrapper forwards to `uv run --project <pipeline> python -m pipeline.collection.run <verb>`.)
 
-<reference file="airtable-patterns.md" section="Query Optimization">
-detailLevel, targeted lookups, batch writes, and common gotchas (DFC, Commander linking, formula fields, price updates).
-</reference>
+Verbs this skill uses: `status`, `list-inventory`, `add-card <name> [--qty --condition --foil
+--set --source]`, `set-quantity <name> <n>`, `remove-card <name>`, `list-decks`, `get-deck
+<name>`, `save-deck --from-json <path|->`, `list-trades`, `log-trade [...]`.
+
+**Mode banner — run this first.** Open any workflow by announcing the source of record:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection status
+```
+It prints e.g. `{"backend": "local", "source_of_record": "local (collection/ YAML)"}` (or
+`airtable (records adapter)`). State it to the user, then proceed — the steps below are
+identical either way.
 </primary-constraint>
 
 <red-flags>
 ## Red Flags: Stop and Reconsider
 
 If you catch yourself about to:
-- **Loop over card names calling `get_record` for each** -- Stop. Use `search_records` with `filterByFormula` containing an OR of FIND clauses.
-- **Call `update_records` once per record** -- Stop. Batch up to 10 records per call.
-- **Fetch full records just to check existence** -- Stop. Use `search_records` with `filterByFormula`; it returns matching records directly.
-- **Load all records then filter client-side** -- Stop. Push the filter to Airtable via `filterByFormula`.
-- **Fetch all fields because you're not sure which you need** -- Stop. Pick a field set from `references/query-patterns.md` and pass it via `fields`.
-
-Read `references/query-patterns.md` for the correct patterns.
+- **Write inventory/deck/trade changes with `mcp__airtable__create_record` / `update_records` / `delete_records`** -- Stop. The CLI verbs (`add-card`, `set-quantity`, `remove-card`, `save-deck`, `log-trade`) are the ONLY write path, and they work in both backends.
+- **Loop `get-deck` per card to read a decklist** -- Stop. `get-deck "<deck>"` returns the whole deck including its `cards[]` in one call.
+- **Reach for a record ID or a `filterByFormula`** -- Stop. Address decks and cards by name through the CLI. (Server-side `filterByFormula` prefilters are an Airtable-only *read* optimization for ad-hoc human exploration — see the Optional / ad-hoc appendix — never a skill write.)
 </red-flags>
-
----
-
-## Base Configuration
-
-**Base ID:** `appw7QPMoqktrgDc1`
-
-| Table | ID | Purpose |
-|-------|----|---------|
-| Inventory Cards | `tbl3UgZZPJGQhEFo8` | Normalized inventory — 1 row per card title |
-| Decks | `tblIfqVuVHNQza1K3` | Deck configurations |
-| Trades | `tblgqqIvTuz0l5SZM` | Card movement tracking |
-| Magic Cards | `tbliSupwHYSUcAY7l` | Legacy (do not modify) |
-
-**Schema tools:** When calling `list_tables` or `describe_table`, use `detailLevel: "identifiersOnly"` to minimize token cost.
-
-<reference file="airtable-schema.md" section="Tables">
-Table IDs, field IDs, and full schema reference.
-</reference>
 
 ---
 
 ## Prerequisites
 
-- **Airtable connector** -- enable via `/mcp` in Claude Code, authenticate with your Airtable account
-- **Airtable base** -- clone the shared base template (see plugin README)
-- **Scryfall API** -- free, no auth required
-- **uv** -- scripts use PEP 723 inline metadata; run with `uv run --script`
+- **uv** -- the CLI and helper scripts run via `uv run` (PEP 723 inline metadata for scripts)
+- **A populated backend** -- local mode reads `collection/` YAML under `MAKE_MAGIC_DATA_DIR`;
+  Airtable mode needs the base cloned and the connector enabled via `/mcp` (see plugin README)
+- **Scryfall API** -- free, no auth required (the CLI's resolver uses it to hydrate metadata)
 
 ---
 
@@ -100,51 +90,40 @@ Full deck loading workflow with steps and gotchas.
 **Summary:**
 1. Parse the cardlist inline -- one line per entry, `<qty> <card name>`
 2. Confirm the commander with the user
-3. Check existing cards via `search_records` with batched `filterByFormula` (NOT individual lookups) and `fields: ["Card Name", "Number Owned"]`
-4. Fetch Scryfall metadata for new cards via `${CLAUDE_PLUGIN_ROOT}/scripts/scryfall_batch.py`
-5. Create card records, increment Number Owned for existing cards
-6. Create/update Deck record with commander link, card links, and basic land counts
-7. Handle multi-copy cards via Repeat fields (see airtable-schema.md)
-8. Verify Deck Size formula matches expected total
+3. Read the current inventory to see what's already owned: `${CLAUDE_PLUGIN_ROOT}/scripts/collection list-inventory`
+4. Build a `Deck` JSON (commander, `cards[]` with per-card `quantity`, basic-land counts) — the CLI's resolver hydrates each card's Scryfall metadata from its name
+5. Persist the deck in one call: `${CLAUDE_PLUGIN_ROOT}/scripts/collection save-deck --from-json <path|->`
+6. For loose copies entering the collection, `add-card "<name>" --qty <n>` (or `set-quantity` to correct a count)
 
-**Gotchas:**
-- `create_record` is singular -- no batch create via MCP. Use background agents for >5 new cards.
-- Commander links via `Decks.Commander` field, NOT the Cards link field. The model defaults to linking via Cards because it seems simpler; Commander is a separate relationship.
-- Double-faced cards: `image_uris` is null at top level; use `card_faces[0].image_uris` (also `mana_cost`, `oracle_text`). The model often forgets this and gets null values.
-- `multiSelect` fields auto-create choices on update; no pre-creation needed.
+`save-deck` handles the commander/Cards split, card links, and (Airtable mode) the multi-copy
+Repeat-field bookkeeping from each `DeckCard.quantity` — you never write those fields by hand.
 
-<reference file="airtable-schema.md" section="Multi-Copy Cards">
-For non-singleton decks (60-card, Draft), see the Repeat Cards Count pattern.
+**Gotchas (now handled by the CLI/adapter, kept for awareness):**
+- Per-card multiplicity travels as `DeckCard.quantity` in the `save-deck` JSON; the adapter maps it onto the Airtable Repeat fields, or stores it directly in YAML.
+- Commander vs Cards: the `Deck` model keeps the commander distinct from the 99 — `save-deck` links each to the correct field.
+- Double-faced cards: the resolver reads `card_faces[0]` when top-level Scryfall fields are null, so metadata does not come back empty.
+
+<reference file="decks.md" section="Load a Deck from a Cardlist">
+Full deck-loading workflow with the `save-deck` JSON shape and gotchas.
 </reference>
 
 ---
 
 ### 2. Query Deck Contents
 
-**To list all cards in a deck:**
+**To list all cards in a deck and read its overview** — one call:
 
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "<DeckName>"
 ```
-mcp__airtable__list_records(
-  baseId: "appw7QPMoqktrgDc1",
-  tableId: "tbl3UgZZPJGQhEFo8",
-  fields: ["Card Name", "Mana Cost", "Card Type", "CMC", "Oracle Text", "Power / Toughness"],
-  filterByFormula: "FIND('DeckName', ARRAYJOIN({Decks}))"
-)
-```
+Returns the deck JSON — `name`, `strategy`, `commander`, `color_identity`, and the full
+`cards[]` (each with `name`, `mana_cost`, `type_line`, `mana_value`, `oracle_text`). Group /
+filter / total in your reasoning. No `filterByFormula`, no linked-record crawl.
 
-**To get deck overview:**
+To just enumerate deck names: `${CLAUDE_PLUGIN_ROOT}/scripts/collection list-decks`.
 
-```
-mcp__airtable__list_records(
-  baseId: "appw7QPMoqktrgDc1",
-  tableId: "tblIfqVuVHNQza1K3",
-  fields: ["Name", "Format", "Owner", "Deck Size", "Commander"],
-  filterByFormula: "{Name}='DeckName'"
-)
-```
-
-<reference file="query-patterns.md" section="Formula Patterns">
-For complex queries: cards by type within deck, CMC distribution, missing metadata.
+<reference file="decks.md" section="Query Deck Contents">
+For grouping the returned cards[] by type / CMC and other read patterns.
 </reference>
 
 ---
@@ -158,10 +137,21 @@ Full trade model with lifecycle and examples.
 </reference>
 
 **Summary:**
-1. Create card records for any new cards (Scryfall fetch as in workflow 1)
-2. Create Trade record with Date, Status, Source/Destination, and card links
-3. Update affected deck Cards link fields
-4. Update Number Owned if cards enter/leave the collection
+1. Add any brand-new cards to inventory first: `add-card "<name>" --qty <n>` (resolver hydrates metadata)
+2. Record the trade in one call — flag form:
+   ```bash
+   ${CLAUDE_PLUGIN_ROOT}/scripts/collection log-trade \
+     --from-source Library --to-destination Deck \
+     --card-in "Lavaleaper" --card-out "Horizon Stone" --status Completed
+   ```
+   For deck specificity, add `--from-deck` / `--to-deck` flags:
+   ```bash
+   ${CLAUDE_PLUGIN_ROOT}/scripts/collection log-trade \
+     --from-source Library --to-destination Deck --to-deck "Ozai" \
+     --card-in "Lavaleaper" --card-out "Horizon Stone" --status Completed
+   ```
+   (A `--from-json -` form accepting a full Trade JSON on stdin also works for scripted/bulk entry.)
+3. Reflect the move in the deck (`save-deck` with the updated `cards[]`) and inventory (`set-quantity`) as needed
 
 **Source/Destination model:** Source and Destination are categories (Library, Deck, Store, Person). The Deck fields provide specificity when the category is "Deck".
 - **From (Source)** / **To (Destination)** — category: Library, Deck, Store, Person
@@ -184,83 +174,90 @@ For bulk updates (prices, art, CMC, etc.) across all cards:
 Full backfill workflow with script commands.
 </reference>
 
-**Summary:**
-1. Page through all Cards records (`list_records` with `fields: ["Card Name"]` + offset)
-2. Write names + record IDs to `/tmp/backfill-input.json`
-3. Run `uv run --script ${CLAUDE_PLUGIN_ROOT}/scripts/scryfall_batch.py /tmp/backfill-input.json /tmp/backfill-output.json`
-4. Build update batches (max 10 per `update_records`)
-5. Push batches. Use background agents for large backfills.
+In the local backend, card metadata (CMC, art, oracle text, price) is hydrated on the fly by
+the CLI's resolver from the Scryfall cache — there is no persisted-metadata column to backfill,
+so the batch-backfill dance is an **Airtable-mode-only** concern. When you *are* on Airtable and
+want to refresh the base's stored metadata columns, that bulk refresh is a maintenance operation
+that reads via `/mcp` and re-hydrates from Scryfall — see the Optional / ad-hoc appendix and
+`references/cards.md`. The skill's canonical card writes remain `add-card` / `set-quantity` /
+`remove-card` (single-card, both backends).
 
-**Price updates:** If `prices.usd` is null, try alternate printings via `/cards/search?q=!"CARD NAME"&unique=prints` -- pick cheapest non-null USD printing.
+**Price note:** If `prices.usd` is null for a printing, the resolver / `scryfall_batch.py` tries
+alternate printings via `/cards/search?q=!"CARD NAME"&unique=prints` -- cheapest non-null USD.
 
 ---
 
 ### 5. Add Individual Cards
 
-1. Fetch: `GET https://api.scryfall.com/cards/named?exact=<url-encoded-name>`
-2. Create record with all metadata fields (see Field Mapping below)
-3. Set Number Owned, Sets, Sources, Condition
+One call — the resolver fetches Scryfall metadata from the name; you pass ownership details:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection add-card "Llanowar Elves" \
+  --qty 2 --condition NM --set DOM --source "Draft"
+```
+`--condition`, `--set`, `--source` are repeatable. To correct an existing count use
+`set-quantity "<name>" <n>`; to drop a card use `remove-card "<name>"`.
 
 <reference file="cards.md" section="Add Individual Cards">
-Single card creation workflow with detailed field mapping from Scryfall to Airtable.
+Single-card workflow and the add-card / set-quantity / remove-card option details.
 </reference>
 
 ---
 
 ### 6. Deck Analysis
 
-**CMC distribution:**
+Read the deck once, then compute the analysis over the returned `cards[]`:
 
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "<DeckName>"
 ```
-mcp__airtable__list_records(
-  baseId: "appw7QPMoqktrgDc1",
-  tableId: "tbl3UgZZPJGQhEFo8",
-  fields: ["Card Name", "CMC", "Card Type"],
-  filterByFormula: "AND(FIND('DeckName', ARRAYJOIN({Decks})), NOT({Is Land}))"
-)
-```
+- **CMC distribution** — bucket the nonland `cards[]` by `mana_value`.
+- **Creature vs non-creature** — split `cards[]` on `type_line` (contains "Creature"; lands via "Land").
 
-Then group by CMC in response.
+For the deterministic curve/ramp/interaction/otag fact sheet (used by the building-decks
+Quadrant workflow), run `${CLAUDE_PLUGIN_ROOT}/scripts/collection factsheet "<DeckName>"`.
 
-**Creature vs non-creature breakdown:**
-
-```
-mcp__airtable__list_records(
-  baseId: "appw7QPMoqktrgDc1",
-  tableId: "tbl3UgZZPJGQhEFo8",
-  fields: ["Card Name", "Is Creature", "Is Non-Creature Spell", "Is Land"],
-  filterByFormula: "FIND('DeckName', ARRAYJOIN({Decks}))"
-)
-```
-
-<reference file="query-patterns.md" section="Formula Patterns">
-More formula patterns: color identity analysis, price totals, missing fields.
+<reference file="decks.md" section="Deck Analysis">
+Grouping the returned cards[] by type / CMC / color identity.
 </reference>
 
 ---
 
-## Scryfall API
+## Scryfall metadata (hydrated by the resolver)
 
-- **Exact name:** `GET /cards/named?exact={name}`
-- **All printings:** `GET /cards/search?q=!"{name}"&unique=prints`
-- **Rate limit:** 100ms between requests. On HTTP 429, wait 65s then retry.
-- **Double-faced cards:** `image_uris` is null at top level; use `card_faces[0].image_uris`. `cmc` and `prices` are always top-level.
+The CLI's resolver populates each card's metadata from its name, so you rarely call Scryfall by
+hand. For reference, the fields it maps:
+
+| Scryfall | Model field (Card / OwnedCard) |
+|----------|-------------------------------|
+| `type_line` | `type_line` |
+| `mana_cost` | `mana_cost` |
+| `cmc` | `mana_value` |
+| `oracle_text` | `oracle_text` |
+| `color_identity` | `color_identity` |
+| `keywords` | `keywords` |
+| `produced_mana` | `produced_mana` |
+
+Direct Scryfall access (when hand-fetching): exact name `GET /cards/named?exact={name}`; all
+printings `GET /cards/search?q=!"{name}"&unique=prints`; rate limit 100ms (on HTTP 429 wait 65s);
+double-faced cards keep `image_uris`/`oracle_text`/`mana_cost` under `card_faces[0]` while `cmc`
+and `prices` stay top-level (the resolver handles this).
 
 ---
 
-## Field Mapping: Scryfall to Airtable
+## Optional / ad-hoc (Airtable-only, read-mostly)
 
-| Scryfall | Airtable |
-|----------|----------|
-| `type_line` | Card Type |
-| `mana_cost` | Mana Cost |
-| `cmc` | CMC |
-| `oracle_text` | Oracle Text |
-| `power` + `toughness` | Power / Toughness (as "P/T") |
-| `image_uris.art_crop` | Card Art |
-| `scryfall_uri` | Scryfall URL |
-| `prices.usd` | Price (TCGPlayer) |
-| `set_name` | Sets (multiSelect) |
+When the active backend is Airtable **and** you (a human) are connected via `/mcp`, you may run
+`mcp__airtable__*` **reads** (`list_records`, `search_records`, `get_record`, `describe_table`)
+directly against the base for exploration — a big server-side `filterByFormula` prefilter over
+inventory, verifying a field id, eyeballing raw rows, or a one-off bulk metadata refresh. That
+is out-of-band exploration/maintenance, not a skill step.
+
+**Rule: skills WRITE only through the `collection` CLI** (`add-card`, `set-quantity`,
+`remove-card`, `save-deck`, `log-trade`). No executable step in this skill may
+create/update/delete via `mcp__airtable__*`. The efficiency patterns (targeted `fields`,
+`filterByFormula`, `detailLevel`, batching) and the table/field ids for those ad-hoc reads live
+in the appendices below.
 
 ---
 
@@ -269,10 +266,10 @@ More formula patterns: color identity analysis, price totals, missing fields.
 
 | When you need to... | Read |
 |---------------------|------|
-| Field sets and formula patterns for efficient queries | [query-patterns.md](references/query-patterns.md) |
-| Optimize queries / batch operations (detailLevel, pagination, edge cases) | [airtable-patterns.md](references/airtable-patterns.md) |
-| Check table/field IDs, schema details, or multi-copy handling | [airtable-schema.md](references/airtable-schema.md) |
-| Execute deck loading workflow in detail | [decks.md](references/decks.md) |
-| Execute card operations (add, backfill) in detail | [cards.md](references/cards.md) |
-| Execute trade workflows in detail | [trades.md](references/trades.md) |
+| Execute deck loading / query / analysis via the CLI | [decks.md](references/decks.md) |
+| Execute card operations (add, quantity, remove) via the CLI | [cards.md](references/cards.md) |
+| Execute trade workflows via the CLI | [trades.md](references/trades.md) |
+| (Optional / ad-hoc) Field sets and `filterByFormula` patterns for MCP reads | [query-patterns.md](references/query-patterns.md) |
+| (Optional / ad-hoc) Efficient Airtable MCP reads (detailLevel, pagination, edge cases) | [airtable-patterns.md](references/airtable-patterns.md) |
+| (Optional / ad-hoc) Airtable table/field IDs, schema, multi-copy internals | [airtable-schema.md](references/airtable-schema.md) |
 </references>

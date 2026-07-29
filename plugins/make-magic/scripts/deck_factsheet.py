@@ -69,10 +69,6 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-import typer
-
-app = typer.Typer()
-
 log = logging.getLogger('make_magic.deck_factsheet')
 
 # CMC histogram buckets. 7+ collects everything at CMC >= 7.
@@ -496,6 +492,55 @@ def build_factsheet(
 
 
 # --------------------------------------------------------------------------- #
+# Deck entry point — build a fact sheet from a resolved ``contracts.Deck``.
+#
+# The SECOND entry point (alongside raw-text ``_parse_decklist``): a caller that
+# already has a ``Deck`` from the CollectionStore (local YAML in offline mode)
+# hands its hydrated ``DeckCard``s straight in, no Scryfall fetch. Each DeckCard
+# is a hydrated base-``Card`` (name + Scryfall enrichment), which we map into the
+# flat card-dict shape the fact functions + the pipeline transform consume.
+# ``mana_value`` maps to ``cmc`` and ``mana_cost`` (Scryfall `mana_cost`) is
+# carried through so pip_counts computes on this path (unresolved cards degrade
+# to an empty mana cost, i.e. zero pips).
+# --------------------------------------------------------------------------- #
+
+
+def _deck_card_to_fields(card) -> dict:  # a contracts.DeckCard (duck-typed)
+    """Map a hydrated ``DeckCard`` to the flat fact-function card dict.
+
+    Carries ``oracle_id`` (the durable otag join key) and ``cmc`` (from
+    ``mana_value``). Missing enrichment (unresolved card) stays null/empty so the
+    census degrades honestly rather than crashing.
+    """
+    return {
+        'name': card.name,
+        'oracle_id': card.oracle_id,
+        'oracle_text': card.oracle_text or '',
+        'type_line': card.type_line or '',
+        'cmc': card.mana_value,
+        'keywords': list(card.keywords or []),
+        'produced_mana': card.produced_mana,
+        # Scryfall `mana_cost` (e.g. `{2}{G}{G}`) drives pip_counts; hydrated on
+        # the Card contract. Unresolved cards have None -> '' (zero pips).
+        'mana_cost': getattr(card, 'mana_cost', None) or '',
+    }
+
+
+def factsheet_from_deck(deck, focus: list[str] | None = None) -> dict:  # a contracts.Deck
+    """Build a neutral fact sheet from a resolved ``contracts.Deck``.
+
+    The offline entry point: the deck's ``DeckCard``s are already hydrated (via
+    the CollectionStore's ``CardResolver``), so NO Scryfall fetch happens here.
+    Loads the otag closure (self-refreshing / snapshot / degrade) exactly like the
+    text path, then delegates to ``build_factsheet``. Output validates against
+    ``contracts.FactSheet``.
+    """
+    cards = [_deck_card_to_fields(c) for c in deck.cards]
+    card_otag = _load_card_otag()  # None -> graceful fallback (I5).
+    return build_factsheet(cards, deck=deck.name, missing=[], card_otag=card_otag, focus=focus or [])
+
+
+# --------------------------------------------------------------------------- #
 # Decklist parsing (inline-comment + set-annotation stripping; skips blanks /
 # comments / section headers).
 # --------------------------------------------------------------------------- #
@@ -614,51 +659,6 @@ def _parse_focus(focus: str | None) -> list[str]:
     return out
 
 
-@app.command()
-def factsheet(
-    path: str,
-    output: str = typer.Option(None, '--output', help='Write JSON here instead of stdout'),
-    focus: str = typer.Option(
-        None,
-        '--focus',
-        help=(
-            'Optional comma-separated focus set (bucket names and/or otag slugs) '
-            "the deck CARES about, e.g. 'counters,typal,tokens'. READ-ONLY: the "
-            "fact sheet measures the deck's cards against it; nothing is written "
-            'back. Omit for no focus-relative analysis.'
-        ),
-    ),
-) -> None:
-    """Build a neutral fact sheet for a decklist file (fetches via Scryfall cache)."""
-    cache = _get_cache()
-    raw = Path(path).read_text()
-    entries = _parse_decklist(raw)
-
-    cards: list[dict] = []
-    missing: list[str] = []
-    for _count, name in entries:
-        card = _resolve_card(cache, name)
-        if not card:
-            missing.append(name)
-            continue
-        cards.append(_card_fields(card))
-
-    deck_name = _deck_name_from_header(raw)
-    focus_set = _parse_focus(focus)
-    card_otag = _load_card_otag()  # None -> graceful fallback (I5).
-    report = build_factsheet(cards, deck=deck_name, missing=missing, card_otag=card_otag, focus=focus_set)
-    payload = json.dumps(report, indent=2)
-    if output:
-        Path(output).write_text(payload)
-        typer.echo(
-            f'Wrote {output} — {report["shape"]["nonland_count"]} nonland, '
-            f'{report["shape"]["land_count"]} lands, {len(missing)} missing, '
-            f'{len(report["otag_buckets"])} otag buckets'
-        )
-    else:
-        typer.echo(payload)
-
-
 def _deck_name_from_header(raw: str) -> str | None:
     """First non-empty comment line is treated as the deck name, if present."""
     for line in raw.splitlines():
@@ -670,11 +670,76 @@ def _deck_name_from_header(raw: str) -> str | None:
     return None
 
 
-@app.callback(invoke_without_command=True)
-def main(ctx: typer.Context) -> None:
-    if ctx.invoked_subcommand is None:
-        typer.echo(ctx.get_help())
+def _run_cli() -> None:
+    """The typer CLI entrypoint. ``typer`` is imported HERE (lazily), NOT at module
+    scope, so importing this module for ``factsheet_from_deck`` never drags typer
+    into an importer's environment — e.g. the ``collection`` CLI reuses
+    ``factsheet_from_deck`` and declares no typer dependency. typer stays in this
+    script's OWN inline deps for when it's run directly as a CLI.
+    """
+    import typer
+
+    # PEP 563 (`from __future__ import annotations`) makes the callback's
+    # ``ctx: typer.Context`` annotation a STRING that typer eval-resolves against
+    # this module's globals. Since ``typer`` is imported lazily (function-local),
+    # expose it in module globals HERE so that resolution works — this only runs
+    # under ``__main__`` (direct CLI use), so an importer of ``factsheet_from_deck``
+    # never gains a module-level typer.
+    globals()['typer'] = typer
+
+    app = typer.Typer()
+
+    @app.command()
+    def factsheet(
+        path: str,
+        output: str = typer.Option(None, '--output', help='Write JSON here instead of stdout'),
+        focus: str = typer.Option(
+            None,
+            '--focus',
+            help=(
+                'Optional comma-separated focus set (bucket names and/or otag slugs) '
+                "the deck CARES about, e.g. 'counters,typal,tokens'. READ-ONLY: the "
+                "fact sheet measures the deck's cards against it; nothing is written "
+                'back. Omit for no focus-relative analysis.'
+            ),
+        ),
+    ) -> None:
+        """Build a neutral fact sheet for a decklist file (fetches via Scryfall cache)."""
+        cache = _get_cache()
+        raw = Path(path).read_text()
+        entries = _parse_decklist(raw)
+
+        cards: list[dict] = []
+        missing: list[str] = []
+        for _count, name in entries:
+            card = _resolve_card(cache, name)
+            if not card:
+                missing.append(name)
+                continue
+            cards.append(_card_fields(card))
+
+        deck_name = _deck_name_from_header(raw)
+        focus_set = _parse_focus(focus)
+        card_otag = _load_card_otag()  # None -> graceful fallback (I5).
+        report = build_factsheet(cards, deck=deck_name, missing=missing, card_otag=card_otag, focus=focus_set)
+        payload = json.dumps(report, indent=2)
+        if output:
+            Path(output).write_text(payload)
+            typer.echo(
+                f'Wrote {output} — {report["shape"]["nonland_count"]} nonland, '
+                f'{report["shape"]["land_count"]} lands, {len(missing)} missing, '
+                f'{len(report["otag_buckets"])} otag buckets'
+            )
+        else:
+            typer.echo(payload)
+
+    @app.callback(invoke_without_command=True)
+    def main(ctx: typer.Context) -> None:
+        if ctx.invoked_subcommand is None:
+            typer.echo(ctx.get_help())
+
+    app()
 
 
 if __name__ == '__main__':
-    app()
+    _run_cli()

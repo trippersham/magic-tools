@@ -11,13 +11,20 @@ auto-forms) — generate it on demand when a consumer needs it.
 Design notes:
     - `extra="forbid"` on every model: a boundary contract should reject unknown
       keys loudly rather than silently accept typos / schema drift.
-    - Fields align with Scryfall's oracle-card shape (Card) and the Airtable
-      field vocabulary (InventoryRow / TradeRow / Deck) — see
-      skills/building-decks/references/airtable-schema.md.
+    - The `Card` hierarchy (`OwnedCard` / `ChaseCard` / `DeckCard`) is deliberately
+      NOT a mirror of Airtable's schema: a base `Card` carries printing-independent
+      identity + Scryfall enrichment (all enrichment NULLABLE so an unresolved
+      pre-release card — name only — is representable), and each subclass adds the
+      facts for one relationship to a card (ownership / intent / deck membership).
+      `Trade` stands alone (a movement event, not a card).
     - FactSheet mirrors scripts/deck_factsheet.py build_factsheet() output KEYS
       EXACTLY, plus OPTIONAL fields (otag_buckets, susceptibility) defaulted
       empty so a caller that omits the otag layer still produces a valid
       contract.
+    - Persistence vs. contract: the local YAML store persists only the
+      non-derivable facts (ownership/intent/membership + card ref) and HYDRATES the
+      base-`Card` enrichment on read via a `CardResolver`. Unresolved cards read
+      back name-only with null enrichment.
 """
 
 from __future__ import annotations
@@ -25,24 +32,39 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 # --------------------------------------------------------------------------- #
-# Card / Deck boundary models
+# Card hierarchy — base identity + the three relationships to "a card"
 # --------------------------------------------------------------------------- #
 
 
 class Card(BaseModel):
-    """A resolved card — a NARROW boundary object modeled on Scryfall's
-    oracle-card shape (NOT the full Scryfall blob).
+    """Printing-independent oracle identity + Scryfall enrichment (enrichment
+    NULLABLE).
 
     Grain: one printing-independent oracle card. `oracle_id` is the durable
-    external join key used to upsert across surfaces.
+    external join key used to upsert across surfaces. Every enrichment field is
+    nullable / defaulted so an UNRESOLVED card (pre-release, not yet in the
+    Scryfall catalog) is representable with `name` as the only known field.
     """
 
     model_config = ConfigDict(extra='forbid')
 
-    name: str = Field(description='Card name (Scryfall `name`).')
-    oracle_id: str = Field(description='Scryfall oracle_id (durable, printing-independent join key).')
-    mana_value: float = Field(description='Converted mana cost / mana value (Scryfall `cmc`). Lands = 0.')
-    type_line: str = Field(description='Full type line (Scryfall `type_line`).')
+    name: str = Field(description='Card name (Scryfall `name`). The only always-known field.')
+    oracle_id: str | None = Field(
+        default=None,
+        description='Scryfall oracle_id (durable, printing-independent join key); None if unresolved.',
+    )
+    mana_value: float | None = Field(
+        default=None,
+        description='Converted mana cost / mana value (Scryfall `cmc`). Lands = 0. None if unresolved.',
+    )
+    mana_cost: str | None = Field(
+        default=None,
+        description='Raw mana cost string (Scryfall `mana_cost`), e.g. `{2}{G}{G}`; None if unresolved.',
+    )
+    type_line: str | None = Field(
+        default=None,
+        description='Full type line (Scryfall `type_line`); None if unresolved.',
+    )
     colors: list[str] = Field(
         default_factory=list,
         description="Colors of the card's mana cost (Scryfall `colors`), e.g. ['U','R'].",
@@ -65,43 +87,87 @@ class Card(BaseModel):
     )
 
 
-class DeckLine(BaseModel):
-    """One decklist entry: a card name, a quantity, and an optional resolved
-    oracle_id (populated once the name is looked up against the card table)."""
+class OwnedCard(Card):
+    """A `Card` + your ownership facts — the "inventory item".
 
-    model_config = ConfigDict(extra='forbid')
+    Supersedes the flat `InventoryRow`: enrichment is inherited from `Card`
+    (hydrated on read), and only the owned-facts below are persisted locally.
+    """
 
-    card_name: str = Field(description='Card name as written in the decklist.')
-    quantity: int = Field(description='Number of copies of this card in the deck.')
-    oracle_id: str | None = Field(
+    owned: int = Field(default=0, description='Number of copies owned.')
+    foil: int = Field(default=0, description='Number of foil copies owned.')
+    condition: list[str] = Field(default_factory=list, description='Condition grades, e.g. ["NM", "LP"].')
+    sets: list[str] = Field(default_factory=list, description='Printings owned (set codes / names).')
+    sources: list[str] = Field(default_factory=list, description='Acquisition provenance.')
+    airtable_record_id: str | None = Field(default=None, description='Airtable record id (rec…), a durable join key.')
+
+
+class ChaseCard(Card):
+    """A `Card` + acquisition intent (wanted / pre-release)."""
+
+    priority: int | None = Field(default=None, description='Acquisition priority (lower = more urgent).')
+    for_decks: list[str] = Field(default_factory=list, description='Target deck names this card is wanted for.')
+    status: str | None = Field(default=None, description='Acquisition status: wanted / pre-release / ordered.')
+    target_price: float | None = Field(default=None, description='Target acquisition price.')
+    airtable_record_id: str | None = Field(default=None, description='Airtable record id (rec…), a durable join key.')
+
+
+class DeckCard(Card):
+    """A `Card` as it sits in a deck — how it participates in this deck.
+
+    Supersedes `DeckLine` (now inherits `Card`, carries `role`).
+    """
+
+    quantity: int = Field(default=1, description='Number of copies of this card in the deck.')
+    role: str | None = Field(
         default=None,
-        description='Resolved Scryfall oracle_id, if the name has been matched.',
+        description='Deck role, e.g. "commander"; None = maindeck. (`str` now; a Literal can come later.)',
     )
 
 
 class Deck(BaseModel):
-    """A deck boundary object: name, commander(s), optional strategy text, the
-    decklist lines, and an optional Airtable record id used as a join key."""
+    """The whole deck — has-many `DeckCard`.
+
+    `commanders` is a DERIVED property (the `DeckCard`s whose `role == "commander"`)
+    — a single source of truth, so there is no separate commanders list field.
+    """
 
     model_config = ConfigDict(extra='forbid')
 
     name: str = Field(description='Deck name (Airtable Decks primary field).')
-    commanders: list[str] = Field(
-        default_factory=list,
-        description='Commander card name(s); empty for non-Commander formats.',
-    )
     strategy: str | None = Field(
         default=None,
         description='Free-text strategy (Airtable Decks.Strategy; see strategy-schema.md).',
     )
-    lines: list[DeckLine] = Field(
+    assessment: str | None = Field(
+        default=None,
+        description=(
+            'Reasoning-authored reality synthesis (Airtable Decks.Assessment; the Quadrant '
+            'pre-mortem — what the deck ACTUALLY is, isn\'t, and needs). Distinct from `strategy` '
+            '(prose aim) and `focus_otags` (declared functional identity). See quadrant-theory.md.'
+        ),
+    )
+    focus_otags: list[str] = Field(
         default_factory=list,
-        description='Decklist entries (non-commander cards, with quantities).',
+        description=(
+            'The deck\'s declared NARROW focus set (Airtable Decks.Focus Otags): the buckets/otag '
+            'slugs the deck CARES about — a curated subset, skill/reasoning-authored by '
+            'building-decks. The deterministic pipeline READS it but never writes it.'
+        ),
+    )
+    cards: list[DeckCard] = Field(
+        default_factory=list,
+        description='Every card in the deck (commanders included, marked via role).',
     )
     airtable_record_id: str | None = Field(
         default=None,
         description='Airtable Decks record id (rec…), a durable join key.',
     )
+
+    @property
+    def commanders(self) -> list[DeckCard]:
+        """The deck's commander cards — derived from `DeckCard.role == "commander"`."""
+        return [c for c in self.cards if c.role == 'commander']
 
 
 # --------------------------------------------------------------------------- #
@@ -282,43 +348,16 @@ class FactSheet(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# Airtable row boundary models — see airtable-schema.md.
+# Trade — a movement event; stands alone (not a card). See airtable-schema.md.
 # --------------------------------------------------------------------------- #
 
 
-class InventoryRow(BaseModel):
-    """An Airtable "Cards" table row: normalized 1-row-per
-    -title inventory. Fields mirror the human-relevant columns; formula/rollup
-    fields (Number in Decks/Library, Is Land/Creature) are DERIVED and excluded.
-    """
-
-    model_config = ConfigDict(extra='forbid')
-
-    card_name: str = Field(description='Card Name (primary singleLineText).')
-    number_owned: int = Field(default=0, description='Number Owned.')
-    foil_count: int = Field(default=0, description='Foil Count.')
-    condition: list[str] = Field(default_factory=list, description='Condition (multipleSelects).')
-    sets: list[str] = Field(default_factory=list, description='Sets (multipleSelects).')
-    sources: list[str] = Field(default_factory=list, description='Sources (multipleSelects).')
-    card_type: str | None = Field(default=None, description='Card Type (Scryfall type_line).')
-    mana_cost: str | None = Field(default=None, description="Mana Cost, e.g. '{2}{W}{U}'.")
-    cmc: float | None = Field(default=None, description='CMC (Scryfall cmc). Lands = 0.')
-    power_toughness: str | None = Field(default=None, description="Power / Toughness, e.g. '2/4'.")
-    oracle_text: str | None = Field(default=None, description='Oracle Text (multilineText).')
-    color_identity: list[str] = Field(
-        default_factory=list,
-        description='Color Identity (multipleSelects): W/U/B/R/G/Colorless.',
-    )
-    price_tcgplayer: float | None = Field(default=None, description='Price (TCGPlayer) currency; Scryfall prices.usd.')
-    scryfall_url: str | None = Field(default=None, description='Scryfall URL.')
-    airtable_record_id: str | None = Field(default=None, description='Airtable record id (rec…), a durable join key.')
-
-
-class TradeRow(BaseModel):
-    """An Airtable "Trades" table row: card movement.
+class Trade(BaseModel):
+    """A card movement event.
 
     Source/Destination are categories (Library/Deck/Store/Person); the *_deck
-    fields add specificity when the category is "Deck".
+    fields add specificity when the category is "Deck". (Formerly `TradeRow`;
+    the Airtable-ish `Row` suffix is dropped, fields unchanged.)
     """
 
     model_config = ConfigDict(extra='forbid')

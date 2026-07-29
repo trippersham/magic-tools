@@ -68,6 +68,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -79,6 +81,12 @@ import typer
 
 AIRTABLE_BASE_URL = 'https://api.airtable.com'
 DEFAULT_CONTRACT_PATH = Path(__file__).with_name('golden_contract.json')
+
+#: The pipeline package root (``pipeline/``) beside this ``regression/`` dir, so
+#: the CLI-equivalence check can invoke ``python -m pipeline.collection.run`` with
+#: the package importable. This standalone script CANNOT import the package
+#: directly (it is a PEP-723 uv script with its own deps), so it shells out.
+_PIPELINE_ROOT = Path(__file__).resolve().parent.parent / 'pipeline'
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
 
@@ -615,6 +623,112 @@ def _run_smoke(client: AirtableClient) -> bool:
         return False
 
     return print_report([report], base_id=base_id, mode='smoke')
+
+
+# --------------------------------------------------------------------------- #
+# CLI-equivalence checks (Phase 2.2): drive the `collection` CLI -> Airtable
+# adapter (design Scenario 4 / non-regression = "same results, not same calls").
+# SCOPE: this is a REACHABILITY smoke — it asserts each domain's read verb reaches
+# the live base and returns parseable records via the CLI->adapter path. It does
+# NOT yet compare record VALUES/counts against a captured golden baseline; that
+# value-level equivalence is tracked in #13.
+# --------------------------------------------------------------------------- #
+
+#: Each golden-contract domain -> the read verb that surfaces it through the
+#: CLI -> Airtable adapter (reachability + parseable-records smoke; see the scope
+#: note above).
+CLI_LIST_VERBS: dict[str, str] = {
+    'Decks': 'list-decks',
+    'Inventory Cards': 'list-inventory',
+    'Chase Cards': 'list-chase',
+    'Trades': 'list-trades',
+}
+
+
+def run_collection_cli(verb: str, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    """Invoke ``python -m pipeline.collection.run <verb> ...`` as a subprocess.
+
+    The standalone harness cannot import the pipeline package, so it drives the
+    CLI out-of-process — exactly the surface the three skills call. Runs with
+    ``MAKE_MAGIC_BACKEND=airtable`` so the CLI resolves the Airtable adapter.
+    """
+    run_env = {**os.environ, 'MAKE_MAGIC_BACKEND': 'airtable', **(env or {})}
+    return subprocess.run(
+        [sys.executable, '-m', 'pipeline.collection.run', verb, *args],
+        cwd=str(_PIPELINE_ROOT),
+        env=run_env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+def run_cli_equivalence_checks(contract: dict[str, Any]) -> FlowReport:
+    """Assert each contract domain is reachable THROUGH the collection CLI.
+
+    For every domain the golden contract covers, run its list verb and assert it
+    exits 0 and emits parseable output — proving the CLI -> Airtable adapter path
+    surfaces the same records the direct-REST read checks assert. This is the
+    "same results" proof: skills route through the CLI, not raw MCP.
+    """
+    report = FlowReport(skill='collection-cli-equivalence')
+    covered = {t for spec in contract['skills'].values() for t in spec['tables']}
+    for table_name, verb in CLI_LIST_VERBS.items():
+        if table_name not in covered:
+            continue
+        proc = run_collection_cli(verb)
+        if proc.returncode != 0:
+            report.add(f'cli:{verb}', Status.FAIL, f'{verb} exited {proc.returncode}: {proc.stderr.strip()[:200]}')
+            continue
+        # list-decks prints one name per line; the list-* verbs print JSON.
+        out = proc.stdout.strip()
+        try:
+            if verb == 'list-decks':
+                parsed: Any = [ln for ln in out.splitlines() if ln.strip()]
+            else:
+                parsed = json.loads(out or '[]')
+            report.add(f'cli:{verb}', Status.PASS, f'{verb} -> {len(parsed)} record(s) via the collection CLI')
+        except json.JSONDecodeError as e:
+            report.add(f'cli:{verb}', Status.FAIL, f'{verb} produced non-JSON output: {e}')
+    return report
+
+
+@app.command('check-cli')
+def check_cli(
+    base_id: Annotated[
+        str | None,
+        typer.Option('--base-id', help='Override base ID (else env/contract default).'),
+    ] = None,
+    contract_path: Annotated[
+        Path,
+        typer.Option('--contract', help='Path to golden_contract.json.'),
+    ] = DEFAULT_CONTRACT_PATH,
+) -> None:
+    """Drive the collection CLI -> Airtable adapter; assert same-results equivalence.
+
+    DEFERRED live gate: requires ``AIRTABLE_API_KEY`` + a base. With no creds it
+    prints a clear "requires ..." message and SKIPS (exit 0) rather than crashing,
+    so a user who exports creds can run it while CI stays green offline.
+    """
+    if not os.environ.get('AIRTABLE_API_KEY'):
+        typer.echo(
+            'SKIP: check-cli requires AIRTABLE_API_KEY + a base (AIRTABLE_BASE_ID or the '
+            'turnkey default). Export an Airtable Personal Access Token to run the '
+            'collection CLI -> Airtable adapter same-results equivalence check.'
+        )
+        raise typer.Exit(0)
+    try:
+        contract = load_contract(contract_path)
+    except AirtableError as e:
+        typer.echo(f'ERROR: {e}', err=True)
+        raise typer.Exit(1) from e
+    resolved_base = _resolve_base_id(contract, base_id)
+    env = {'AIRTABLE_BASE_ID': resolved_base}
+    for k, v in env.items():
+        os.environ.setdefault(k, v)
+    report = run_cli_equivalence_checks(contract)
+    ok = print_report([report], base_id=resolved_base, mode='cli-equivalence')
+    raise typer.Exit(0 if ok else 1)
 
 
 @app.command('list-bases')

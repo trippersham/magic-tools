@@ -10,6 +10,16 @@ data/normalized/
 data/marts/
 !data/snapshots/
 
+# Local hand-editable collection store (per-user working data: decks/inventory/
+# chase/trades YAML). Never committed — the tracked sample lives under
+# tests/fixtures/collection/. Does NOT touch the committed data/snapshots/.
+data/collection/
+
+# Per-user resolver cache (Scryfall name -> Card), rewritten on every get_card.
+# Never committed (git churn + stale served-forever entries). Snapshots stay
+# tracked (they live under data/snapshots/, guarded above).
+data/scryfall_names.json
+
 # Python
 __pycache__/
 *.pyc

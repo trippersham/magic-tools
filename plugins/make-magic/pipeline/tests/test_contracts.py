@@ -3,6 +3,9 @@
 Covers, per model: a good example validates; a bad example is rejected
 (missing required / wrong type / extra field where forbidden). Plus:
     - FactSheet accepts a real build_factsheet()-shaped dict, verbatim.
+    - The Card inheritance hierarchy (OwnedCard / ChaseCard / DeckCard) — base
+      enrichment nullable, name-only unresolved card, hydration round-trips.
+    - Deck.commanders is a DERIVED property (role == 'commander'), not a field.
 
 No network. No imports of deck_factsheet.py (we replicate its output SHAPE in a
 fixture so the contract can be verified without importing the script package).
@@ -15,11 +18,12 @@ from pydantic import ValidationError
 
 from pipeline.contracts import (
     Card,
+    ChaseCard,
     Deck,
-    DeckLine,
+    DeckCard,
     FactSheet,
-    InventoryRow,
-    TradeRow,
+    OwnedCard,
+    Trade,
 )
 
 # --------------------------------------------------------------------------- #
@@ -99,7 +103,7 @@ def _factsheet_dict() -> dict:
 
 
 # --------------------------------------------------------------------------- #
-# Card
+# Card — base identity + enrichment (all enrichment nullable)
 # --------------------------------------------------------------------------- #
 
 
@@ -119,111 +123,231 @@ def test_card_good() -> None:
     assert card.oracle_text is not None
 
 
-def test_card_optional_oracle_text() -> None:
-    card = Card(
-        name='Forest',
-        oracle_id='b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6',
-        mana_value=0.0,
-        type_line='Basic Land — Forest',
-    )
-    assert card.oracle_text is None
+def test_card_mana_cost_field() -> None:
+    """`mana_cost` carries the raw Scryfall mana cost string; defaults to None."""
+    card = Card(name='Cultivate', mana_cost='{2}{G}')
+    assert card.mana_cost == '{2}{G}'
+    assert Card(name='Mysterious Spoiler').mana_cost is None
+
+
+def test_card_unresolved_name_only() -> None:
+    """An unresolved card (pre-release / not yet in the catalog) is name-only."""
+    card = Card(name='Mysterious Spoiler')
+    assert card.name == 'Mysterious Spoiler'
+    assert card.oracle_id is None
+    assert card.mana_value is None
+    assert card.mana_cost is None
+    assert card.type_line is None
     assert card.colors == []
+    assert card.oracle_text is None
 
 
-def test_card_missing_required_rejected() -> None:
+def test_card_missing_name_rejected() -> None:
     with pytest.raises(ValidationError):
-        Card(name='No Oracle Id')  # type: ignore[call-arg]
+        Card()  # type: ignore[call-arg]
 
 
 def test_card_wrong_type_rejected() -> None:
     with pytest.raises(ValidationError):
         Card(
             name='Bad CMC',
-            oracle_id='x',
             mana_value='not-a-number',  # type: ignore[arg-type]
-            type_line='Instant',
         )
 
 
 def test_card_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError):
-        Card(
-            name='Extra',
-            oracle_id='x',
-            mana_value=1.0,
-            type_line='Instant',
-            surprise='not allowed',  # type: ignore[call-arg]
-        )
+        Card(name='Extra', surprise='not allowed')  # type: ignore[call-arg]
 
 
 # --------------------------------------------------------------------------- #
-# DeckLine
+# OwnedCard — Card + ownership facts
 # --------------------------------------------------------------------------- #
 
 
-def test_deckline_good() -> None:
-    line = DeckLine(card_name='Sol Ring', quantity=1)
-    assert line.oracle_id is None
-    line2 = DeckLine(card_name='Lightning Bolt', quantity=4, oracle_id='abc')
-    assert line2.oracle_id == 'abc'
+def test_owned_card_good() -> None:
+    owned = OwnedCard(
+        name='Sol Ring',
+        oracle_id='abc',
+        mana_value=1.0,
+        type_line='Artifact',
+        owned=3,
+        foil=1,
+        condition=['NM'],
+        sets=['C21'],
+        sources=['Commander 2021'],
+        airtable_record_id='recABC',
+    )
+    assert owned.owned == 3
+    assert owned.foil == 1
+    assert owned.name == 'Sol Ring'
+    # Inherits base Card enrichment.
+    assert owned.mana_value == 1.0
 
 
-def test_deckline_missing_required_rejected() -> None:
+def test_owned_card_defaults() -> None:
+    owned = OwnedCard(name='Island')
+    assert owned.owned == 0
+    assert owned.foil == 0
+    assert owned.condition == []
+    assert owned.sets == []
+    assert owned.sources == []
+    assert owned.airtable_record_id is None
+    # Base enrichment nullable / empty when unresolved.
+    assert owned.oracle_id is None
+
+
+def test_owned_card_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError):
-        DeckLine(quantity=1)  # type: ignore[call-arg]
-
-
-def test_deckline_wrong_type_rejected() -> None:
-    with pytest.raises(ValidationError):
-        DeckLine(card_name='Sol Ring', quantity='one')  # type: ignore[arg-type]
-
-
-def test_deckline_extra_field_forbidden() -> None:
-    with pytest.raises(ValidationError):
-        DeckLine(card_name='Sol Ring', quantity=1, foil=True)  # type: ignore[call-arg]
+        OwnedCard(name='X', bananas=1)  # type: ignore[call-arg]
 
 
 # --------------------------------------------------------------------------- #
-# Deck
+# ChaseCard — Card + acquisition intent
+# --------------------------------------------------------------------------- #
+
+
+def test_chase_card_good() -> None:
+    chase = ChaseCard(
+        name='The One Ring',
+        priority=1,
+        for_decks=['gruul'],
+        status='wanted',
+        target_price=25.0,
+    )
+    assert chase.priority == 1
+    assert chase.for_decks == ['gruul']
+    assert chase.status == 'wanted'
+
+
+def test_chase_card_defaults() -> None:
+    chase = ChaseCard(name='Unreleased Card')
+    assert chase.priority is None
+    assert chase.for_decks == []
+    assert chase.status is None
+    assert chase.target_price is None
+
+
+def test_chase_card_extra_field_forbidden() -> None:
+    with pytest.raises(ValidationError):
+        ChaseCard(name='X', mystery='y')  # type: ignore[call-arg]
+
+
+# --------------------------------------------------------------------------- #
+# DeckCard — Card + how it participates in a deck
+# --------------------------------------------------------------------------- #
+
+
+def test_deck_card_good() -> None:
+    dc = DeckCard(name='Sol Ring', quantity=1)
+    assert dc.quantity == 1
+    assert dc.role is None
+
+
+def test_deck_card_commander_role() -> None:
+    dc = DeckCard(name='Grumgully, the Generous', role='commander')
+    assert dc.role == 'commander'
+    assert dc.quantity == 1  # default
+
+
+def test_deck_card_extra_field_forbidden() -> None:
+    with pytest.raises(ValidationError):
+        DeckCard(name='X', foil=True)  # type: ignore[call-arg]
+
+
+# --------------------------------------------------------------------------- #
+# Deck — has-many DeckCard; commanders is a DERIVED property
 # --------------------------------------------------------------------------- #
 
 
 def test_deck_good() -> None:
     deck = Deck(
-        name='Sokka Spellslinger',
-        commanders=['Sokka, Master of Water'],
-        strategy='Prowess and magecraft go wide.',
-        lines=[
-            DeckLine(card_name='Sol Ring', quantity=1),
-            DeckLine(card_name='Island', quantity=10),
+        name='Gruul Aggro',
+        strategy='Go-wide aggro.',
+        cards=[
+            DeckCard(name='Grumgully, the Generous', role='commander'),
+            DeckCard(name='Sol Ring', quantity=1),
+            DeckCard(name='Island', quantity=10),
         ],
         airtable_record_id='recABC123',
     )
-    assert len(deck.lines) == 2
-    assert deck.commanders == ['Sokka, Master of Water']
+    assert len(deck.cards) == 3
+
+
+def test_deck_commanders_is_derived_property() -> None:
+    deck = Deck(
+        name='Gruul Aggro',
+        cards=[
+            DeckCard(name='Grumgully, the Generous', role='commander'),
+            DeckCard(name='Sol Ring', quantity=1),
+        ],
+    )
+    commanders = deck.commanders
+    assert [c.name for c in commanders] == ['Grumgully, the Generous']
+    # It is a property, not a settable field.
+    with pytest.raises(ValidationError):
+        Deck(name='X', cards=[], commanders=['Y'])  # type: ignore[call-arg]
 
 
 def test_deck_defaults() -> None:
-    deck = Deck(name='Empty Deck')
+    deck = Deck(name='Empty Deck', cards=[])
+    assert deck.cards == []
     assert deck.commanders == []
-    assert deck.lines == []
     assert deck.strategy is None
+    assert deck.assessment is None
+    assert deck.focus_otags == []
     assert deck.airtable_record_id is None
+
+
+def test_deck_assessment_and_focus_otags() -> None:
+    deck = Deck(
+        name='Gruul Aggro',
+        strategy='Go-wide aggro.',
+        assessment='Solid aggro but thin on removal.',
+        focus_otags=['sacrifice', 'aristocrats'],
+        cards=[DeckCard(name='Grumgully, the Generous', role='commander')],
+    )
+    assert deck.assessment == 'Solid aggro but thin on removal.'
+    assert deck.focus_otags == ['sacrifice', 'aristocrats']
+
+
+def test_deck_assessment_focus_otags_roundtrip() -> None:
+    deck = Deck(
+        name='Gruul Aggro',
+        assessment='Reality synthesis.',
+        focus_otags=['sacrifice'],
+        cards=[DeckCard(name='Sol Ring')],
+    )
+    restored = Deck.model_validate(deck.model_dump())
+    assert restored.assessment == 'Reality synthesis.'
+    assert restored.focus_otags == ['sacrifice']
 
 
 def test_deck_missing_required_rejected() -> None:
     with pytest.raises(ValidationError):
-        Deck(commanders=['x'])  # type: ignore[call-arg]
+        Deck(cards=[])  # type: ignore[call-arg]
 
 
-def test_deck_lines_wrong_type_rejected() -> None:
+def test_deck_cards_wrong_type_rejected() -> None:
     with pytest.raises(ValidationError):
-        Deck(name='Bad', lines=[{'card_name': 'Sol Ring'}])  # missing quantity
+        Deck(name='Bad', cards=[{'quantity': 1}])  # missing name
 
 
 def test_deck_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError):
-        Deck(name='X', format='commander')  # type: ignore[call-arg]
+        Deck(name='X', cards=[], format='commander')  # type: ignore[call-arg]
+
+
+def test_deck_roundtrip_model_dump() -> None:
+    deck = Deck(
+        name='Gruul Aggro',
+        cards=[DeckCard(name='Grumgully, the Generous', role='commander')],
+    )
+    dumped = deck.model_dump()
+    # commanders is derived — not serialized as a field.
+    assert 'commanders' not in dumped
+    restored = Deck.model_validate(dumped)
+    assert restored.commanders[0].name == 'Grumgully, the Generous'
 
 
 # --------------------------------------------------------------------------- #
@@ -248,7 +372,6 @@ def test_factsheet_accepts_build_factsheet_shape() -> None:
 
 def test_factsheet_forward_looking_fields_default_empty() -> None:
     fs = FactSheet.model_validate(_factsheet_dict())
-    # Phase-4 forward fields default empty and don't break the current shape.
     assert fs.otag_buckets == {}
     assert fs.susceptibility == []
 
@@ -264,7 +387,6 @@ def test_factsheet_forward_looking_fields_populate() -> None:
 
 def test_factsheet_focus_fields_default_empty() -> None:
     fs = FactSheet.model_validate(_factsheet_dict())
-    # Focus-relative fields are OPTIONAL and default empty (deck declared no focus).
     assert fs.focus == []
     assert fs.focus_relative.coverage_of_focus == {}
     assert fs.focus_relative.thin_focus == []
@@ -309,56 +431,12 @@ def test_factsheet_wrong_type_rejected() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# InventoryRow (Airtable "Cards" table)
+# Trade — stands alone (a movement event, not a card)
 # --------------------------------------------------------------------------- #
 
 
-def test_inventory_row_good() -> None:
-    row = InventoryRow(
-        card_name='Sol Ring',
-        number_owned=3,
-        foil_count=1,
-        condition=['Near Mint'],
-        sets=['Commander 2021'],
-        card_type='Artifact',
-        mana_cost='{1}',
-        cmc=1.0,
-        color_identity=['Colorless'],
-        price_tcgplayer=2.49,
-    )
-    assert row.card_name == 'Sol Ring'
-    assert row.number_owned == 3
-
-
-def test_inventory_row_defaults() -> None:
-    row = InventoryRow(card_name='Island')
-    assert row.number_owned == 0
-    assert row.condition == []
-    assert row.price_tcgplayer is None
-
-
-def test_inventory_row_missing_required_rejected() -> None:
-    with pytest.raises(ValidationError):
-        InventoryRow(number_owned=1)  # type: ignore[call-arg]
-
-
-def test_inventory_row_wrong_type_rejected() -> None:
-    with pytest.raises(ValidationError):
-        InventoryRow(card_name='X', number_owned='three')  # type: ignore[arg-type]
-
-
-def test_inventory_row_extra_field_forbidden() -> None:
-    with pytest.raises(ValidationError):
-        InventoryRow(card_name='X', bananas=1)  # type: ignore[call-arg]
-
-
-# --------------------------------------------------------------------------- #
-# TradeRow (Airtable "Trades" table)
-# --------------------------------------------------------------------------- #
-
-
-def test_trade_row_good() -> None:
-    row = TradeRow(
+def test_trade_good() -> None:
+    trade = Trade(
         date='2026-07-20',
         from_source='Library',
         to_destination='Deck',
@@ -367,27 +445,27 @@ def test_trade_row_good() -> None:
         cards_out=[],
         status='Completed',
     )
-    assert row.from_source == 'Library'
-    assert row.to_destination == 'Deck'
+    assert trade.from_source == 'Library'
+    assert trade.to_destination == 'Deck'
 
 
-def test_trade_row_defaults() -> None:
-    row = TradeRow(from_source='Store', to_destination='Library')
-    assert row.cards_in == []
-    assert row.cards_out == []
-    assert row.status is None
+def test_trade_defaults() -> None:
+    trade = Trade(from_source='Store', to_destination='Library')
+    assert trade.cards_in == []
+    assert trade.cards_out == []
+    assert trade.status is None
 
 
-def test_trade_row_missing_required_rejected() -> None:
+def test_trade_missing_required_rejected() -> None:
     with pytest.raises(ValidationError):
-        TradeRow(from_source='Library')  # type: ignore[call-arg]
+        Trade(from_source='Library')  # type: ignore[call-arg]
 
 
-def test_trade_row_wrong_type_rejected() -> None:
+def test_trade_wrong_type_rejected() -> None:
     with pytest.raises(ValidationError):
-        TradeRow(from_source='Library', to_destination='Deck', cards_in='Sol Ring')  # type: ignore[arg-type]
+        Trade(from_source='Library', to_destination='Deck', cards_in='Sol Ring')  # type: ignore[arg-type]
 
 
-def test_trade_row_extra_field_forbidden() -> None:
+def test_trade_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError):
-        TradeRow(from_source='Library', to_destination='Deck', mystery='x')  # type: ignore[call-arg]
+        Trade(from_source='Library', to_destination='Deck', mystery='x')  # type: ignore[call-arg]

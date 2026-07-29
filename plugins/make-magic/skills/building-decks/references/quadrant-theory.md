@@ -18,16 +18,17 @@ Three distinct fields on the Decks table, and the diagnosis is the bridge betwee
   identity.** The deck's aim expressed in the tag vocabulary: bucket names (`counters`,
   `tokens`, `removal`, …) and/or specific otag slugs. It is a **curated subset** — the cards
   underneath carry a much *wider* set of otags, so `Focus Otags` captures intent, not the
-  mechanical union. Skill/reasoning-authored (or human-authored) and written via the Airtable
-  MCP; an **input** the diagnosis measures against.
+  mechanical union. Skill/reasoning-authored (or human-authored) and written via the
+  `collection` CLI (`set-focus-otags`); an **input** the diagnosis measures against.
 - **`Assessment` = what the deck ACTUALLY is, isn't, and needs.** The **output** of this
   pre-mortem: a reasoning SYNTHESIS that measures the actual card otags AGAINST `Focus Otags`
   — coverage of what the deck cares about, thin/unprotected focus items (susceptibility), and
   off-plan noise — plus the deck's functional profile and structural gaps.
 
 Both `Focus Otags` and `Assessment` are **authored by the building-decks skill** and written
-via the Airtable MCP (`mcp__airtable__*`), the same write path a skill already uses. **The
-deterministic pipeline never writes either; it only READS `Focus Otags`.** The engine's
+through the backend-agnostic `collection` CLI (`set-focus-otags`, `set-assessment`), the same
+write path a skill already uses (local YAML or Airtable). **The deterministic pipeline never
+writes either; it only READS `Focus Otags`.** The engine's
 `susceptibility` and `otag_buckets` (from `deck_factsheet`, computed off the cards'
 engine-written `⚙ Buckets`/`⚙ Otags` — the wide, actual set) are the **inputs** the synthesis
 reasons over — susceptibility is an input that *feeds* the Assessment, not a standalone
@@ -201,8 +202,8 @@ Keep the fact-sheet inputs distinct from the Airtable Decks fields:
 | `otag_buckets` | `deck_factsheet` JSON (fact-sheet **input**) | Deterministic engine — **not** an Airtable field |
 | `⚙ Buckets` / `⚙ Otags` | Cards table (per card) | Deterministic engine (pipeline) — the wide, **actual** set |
 | `Strategy` | Decks table (`fldvJRaoYfRZiM8zw`), long text | Human — the deck's **aim** in prose (an input you read) |
-| `Focus Otags` | Decks table, multipleSelects or long text | **Skill-authored** (or human) by building-decks, written via Airtable MCP; **pipeline reads it, never writes it** — the intended identity (an input the diagnosis measures against) |
-| `Assessment` | Decks table, long text | **Reasoning-authored** by building-decks, written via Airtable MCP — the **output** (reality-vs-intent: is / isn't / needs) |
+| `Focus Otags` | Decks (multipleSelects/long text in Airtable, YAML list local) | **Skill-authored** (or human) by building-decks, written via the CLI `set-focus-otags`, read via `get-deck --field focus_otags`; **pipeline reads it, never writes it** — the intended identity (an input the diagnosis measures against) |
+| `Assessment` | Decks (long text in Airtable, YAML local) | **Reasoning-authored** by building-decks, written via the CLI `set-assessment`, read via `get-deck --field assessment` — the **output** (reality-vs-intent: is / isn't / needs) |
 
 The pre-mortem's payload lands in the Decks `Assessment` field, distinct from both `Strategy`
 and `Focus Otags`. `susceptibility` and `otag_buckets` are fact-sheet inputs that feed the

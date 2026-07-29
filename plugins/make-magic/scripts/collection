@@ -1,0 +1,33 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["make-magic-pipeline"]
+# [tool.uv]
+# exclude-newer = "2026-06-08T00:00:00Z"
+# [tool.uv.sources]
+# make-magic-pipeline = { path = "../pipeline", editable = true }
+# ///
+"""Executable entry for the backend-agnostic `collection` CLI.
+
+House convention (raelabs plugins): a plugin-invoked CLI that depends on a local
+package is a PEP-723 script that pins that package via ``[tool.uv.sources]`` as an
+editable path dep and is invoked DIRECTLY — no ``python -m``, no console-script
+install step. ``uv run --script`` resolves the editable ``make-magic-pipeline``
+dependency (relative to this file's dir) on each invocation. The dispatcher logic
+lives in ``pipeline.collection.run`` (kept importable so the test-suite drives it).
+
+Backend auto-resolves (local YAML vs Airtable records); override explicitly with
+``MAKE_MAGIC_BACKEND=local|airtable``. Usage:
+    ${CLAUDE_PLUGIN_ROOT}/scripts/collection <verb> [args...]
+
+No ``typer`` needed: card hydration is package-native
+(``pipeline.collection.resolver``), and the ``factsheet`` verb imports
+``factsheet_from_deck`` from ``scripts/deck_factsheet.py``, whose typer CLI is
+imported LAZILY (only when that script is run directly) — so importing the
+function drags in no typer.
+"""
+
+from pipeline.collection.run import main
+
+if __name__ == '__main__':
+    main()

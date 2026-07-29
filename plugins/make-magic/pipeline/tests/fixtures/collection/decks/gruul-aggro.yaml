@@ -1,0 +1,21 @@
+# Sample hand-editable deck (design "Local data layout"). Self-contained: name,
+# strategy, airtable_record_id, and the deck's cards (card ref + role/qty only —
+# enrichment is hydrated on read from the card dim / Scryfall, never persisted).
+#
+# BLOCK STYLE is the safe, canonical shape: each card is a multi-line mapping,
+# and any card name containing a comma is DOUBLE-QUOTED. (Bare commas in YAML
+# flow style silently split the name, corrupting the card identity — the adapter
+# now rejects that loudly, but block style avoids the trap entirely.)
+name: Gruul Aggro
+strategy: >
+  Go-wide creature aggro leaning on +1/+1 counter value and cheap ramp to deploy
+  a fast, resilient board.
+airtable_record_id: null
+cards:
+  - card: "Grumgully, the Generous"
+    role: commander
+  - card: Sol Ring
+  - card: Llanowar Elves
+  - card: Cultivate
+  - card: Forest
+    qty: 34

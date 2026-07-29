@@ -32,6 +32,18 @@ def test_base_id_defaults_to_current_base(monkeypatch: pytest.MonkeyPatch) -> No
     assert config.get_settings().airtable_base_id == 'appw7QPMoqktrgDc1'
 
 
+def test_airtable_mode_resolves_default_base_id_with_only_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Task 3 guard: the turnkey default base id must NOT be dropped.
+
+    The user's ``.env`` carries ONLY ``AIRTABLE_API_KEY`` (no ``AIRTABLE_BASE_ID``)
+    and relies on the hardcoded default as their base. Dropping it would break
+    Airtable mode; assert the default still resolves when only the key is set.
+    """
+    monkeypatch.setenv('AIRTABLE_API_KEY', 'fake-token')
+    monkeypatch.delenv('AIRTABLE_BASE_ID', raising=False)
+    assert config.get_settings().airtable_base_id == 'appw7QPMoqktrgDc1'
+
+
 def test_base_id_reads_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv('AIRTABLE_BASE_ID', 'appOTHERINSTANCE1')
     assert config.get_settings().airtable_base_id == 'appOTHERINSTANCE1'
