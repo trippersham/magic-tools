@@ -9,6 +9,18 @@ from __future__ import annotations
 
 from pipeline.collection.copy import copy_collection
 from pipeline.collection.errors import CollectionError
+from pipeline.collection.guards import (
+    DeckImpact,
+    check_remove_allowed,
+    decks_linking,
+    remove_impact,
+    shrink_check,
+)
+from pipeline.collection.history import (
+    last_known_good_deck,
+    last_known_inventory_row,
+    record_snapshot,
+)
 from pipeline.collection.store import (
     ENV_BACKEND,
     AppState,
@@ -31,12 +43,20 @@ __all__ = (
     'CardResolver',
     'CollectionError',
     'CollectionStore',
+    'DeckImpact',
     'OnboardingStatus',
+    'check_remove_allowed',
     'copy_collection',
+    'decks_linking',
     'get_store',
+    'last_known_good_deck',
+    'last_known_inventory_row',
     'onboard',
     'onboarding_status',
     'read_app_state',
+    'record_snapshot',
+    'remove_impact',
     'resolve_backend',
+    'shrink_check',
     'write_app_state',
 )

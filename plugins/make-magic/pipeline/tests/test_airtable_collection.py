@@ -109,6 +109,7 @@ _FIELDS: dict[str, dict[str, str]] = {
         'Forests': 'fldForests',
         'Wastes': 'fldWastes',
         'Deck Size': 'fldDeckSize',
+        'Format': 'fldFormat',
     },
     'Trades': {
         'Date': 'fldDate',
@@ -615,6 +616,37 @@ def test_get_deck_no_size_check_when_field_absent(caplog: pytest.LogCaptureFixtu
 
 
 # --------------------------------------------------------------------------- #
+# Phase 1 — deck Format read -> Deck.format / Deck.target_size
+# --------------------------------------------------------------------------- #
+
+
+def _format_fixture(fmt: str | None) -> FakeAirtable:
+    """A minimal deck; ``fmt`` sets the Decks ``Format`` cell (omitted when None)."""
+    inv = _FIELDS['Inventory Cards']
+    d = _FIELDS['Decks']
+    cards = [{'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}}]
+    fields: dict[str, Any] = {d['Name']: 'Gruul Aggro', d['Cards']: ['recSol']}
+    if fmt is not None:
+        fields[d['Format']] = fmt
+    return FakeAirtable({'tblCards': cards, 'tblDecks': [{'id': 'recDeck', 'fields': fields}]})
+
+
+def test_row_to_deck_reads_format_and_target() -> None:
+    """A Decks record whose Format cell is 'Commander' yields deck.format ==
+    'Commander' and the derived target_size == 100."""
+    deck = _store(_format_fixture('Commander')).get_deck('Gruul Aggro')
+    assert deck.format == 'Commander'
+    assert deck.target_size == 100
+
+
+def test_row_to_deck_absent_format_is_untargeted() -> None:
+    """No Format cell -> format is None and target_size is None (untargeted)."""
+    deck = _store(_format_fixture(None)).get_deck('Gruul Aggro')
+    assert deck.format is None
+    assert deck.target_size is None
+
+
+# --------------------------------------------------------------------------- #
 # #15 — regression guard: basics reconstruction from count columns
 # --------------------------------------------------------------------------- #
 
@@ -828,6 +860,16 @@ def test_save_deck_writes_repeat_count_for_multiples() -> None:
     body = json.loads(next(r for r in fake.requests if r.method == 'POST' and 'tblDecks' in str(r.url)).content)
     # 3 copies -> 2 repeats beyond the single link row.
     assert body['fields'][_FIELDS['Decks']['Repeat Cards Count']] == 2
+
+
+def test_save_deck_never_writes_format() -> None:
+    """Format is HUMAN-OWNED: even a deck carrying a format must not emit the
+    Format field id in the POST body (the engine must never set it)."""
+    fake = _inv_id_fixture()
+    deck = Deck(name='Gruul Aggro', format='Commander', cards=[DeckCard(name='Sol Ring')])
+    _store(fake, writes_enabled=True).save_deck(deck)
+    body = json.loads(next(r for r in fake.requests if r.method == 'POST' and 'tblDecks' in str(r.url)).content)
+    assert _FIELDS['Decks']['Format'] not in body['fields']
 
 
 # --------------------------------------------------------------------------- #

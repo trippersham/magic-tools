@@ -31,6 +31,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pipeline.contracts.targets import target_for_format
+
 # --------------------------------------------------------------------------- #
 # Card hierarchy — base identity + the three relationships to "a card"
 # --------------------------------------------------------------------------- #
@@ -184,6 +186,13 @@ class Deck(BaseModel):
             'building-decks. The deterministic pipeline READS it but never writes it.'
         ),
     )
+    format: str | None = Field(
+        default=None,
+        description=(
+            "The deck's declared format (Airtable Decks.Format; human-owned — the engine "
+            'READS it but never writes it). Drives `target_size`; see contracts/targets.py.'
+        ),
+    )
     cards: list[DeckCard] = Field(
         default_factory=list,
         description='Every card in the deck (commanders included, marked via role).',
@@ -197,6 +206,16 @@ class Deck(BaseModel):
     def commanders(self) -> list[DeckCard]:
         """The deck's commander cards — derived from `DeckCard.role == "commander"`."""
         return [c for c in self.cards if c.role == 'commander']
+
+    @property
+    def target_size(self) -> int | None:
+        """The deck's target size derived from its `format` (None = untargeted).
+
+        A single source of truth for the audit/guard layer: Commander/EDH -> 100,
+        the sixty-card formats -> 60, empty/unknown -> None. See
+        :func:`pipeline.contracts.targets.target_for_format`.
+        """
+        return target_for_format(self.format)
 
 
 # --------------------------------------------------------------------------- #

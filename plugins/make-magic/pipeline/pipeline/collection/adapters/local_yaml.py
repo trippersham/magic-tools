@@ -28,6 +28,7 @@ import yaml
 
 from pipeline import store as _store
 from pipeline.collection.errors import CollectionError
+from pipeline.collection.guards import check_remove_allowed, shrink_check
 from pipeline.contracts import ChaseCard, Deck, DeckCard, OwnedCard, Trade
 
 if TYPE_CHECKING:
@@ -64,7 +65,7 @@ def _validate_card_entry(entry: Any, allowed: set[str], *, path: Path, index: in
         raise CollectionError(
             f'Malformed card entry #{index} in {path}: unexpected/empty key(s) {offending!r}. '
             f'This usually means a card name containing a comma was left unquoted in YAML flow '
-            f"style (e.g. `{{ card: Grumgully, the Generous }}`). Quote such names: "
+            f'style (e.g. `{{ card: Grumgully, the Generous }}`). Quote such names: '
             f'`- card: "Grumgully, the Generous"`. Known keys: {sorted(allowed)!r}.'
         )
     if 'card' not in entry:
@@ -213,7 +214,16 @@ class LocalYamlStore:
             existing['owned'] = qty
         self._write_yaml(path, rows)
 
-    def remove_card(self, ref: str) -> None:
+    def remove_card(self, ref: str, *, force: bool = False) -> None:
+        """Delete the Inventory row for ``ref`` from the local YAML store.
+
+        Local parity for the Airtable cascade guard (Phase 4): if ``ref`` is
+        LINKED to one or more decks and ``force`` is False, raise
+        ``CollectionError`` (enumerating the affected decks) BEFORE any write, so
+        the local and Airtable ports enforce the same defense-in-depth.
+        ``force=True`` (or an unlinked card) removes the row as before.
+        """
+        check_remove_allowed(self, ref, force=force)
         path = self._inventory_path()
         rows = [r for r in self._read_list(path) if self._row_card(r, path=path) != ref]
         self._write_yaml(path, rows)
@@ -322,8 +332,7 @@ class LocalYamlStore:
     def _load_deck_from_dict(self, data: dict[str, Any], *, path: Path) -> Deck:
         if not isinstance(data, dict) or 'name' not in data:
             raise CollectionError(
-                f'Malformed deck YAML at {path}: expected a mapping with a `name` key, '
-                f'got {type(data).__name__}.'
+                f'Malformed deck YAML at {path}: expected a mapping with a `name` key, got {type(data).__name__}.'
             )
         cards: list[DeckCard] = []
         for i, entry in enumerate(data.get('cards', []) or []):
@@ -337,6 +346,7 @@ class LocalYamlStore:
             strategy=data.get('strategy'),
             assessment=data.get('assessment'),
             focus_otags=data.get('focus_otags', []) or [],
+            format=data.get('format'),
             cards=cards,
             airtable_record_id=data.get('airtable_record_id'),
         )
@@ -358,7 +368,20 @@ class LocalYamlStore:
             out.append(self._load_deck_from_dict(data, path=path))
         return out
 
-    def save_deck(self, deck: Deck) -> None:
+    def save_deck(self, deck: Deck, *, allow_shrink: bool = False) -> None:
+        path = self._deck_path(deck.name)
+        if not allow_shrink and path.exists():
+            # Defensive shrink guard (Phase 4): refuse a save that drops an
+            # at-target deck under target unless explicitly allowed. Read the
+            # prior deck for its size/target only.
+            prior = self._load_deck_from_dict(yaml.safe_load(path.read_text()) or {}, path=path)
+            if shrink_check(prior, deck):
+                raise CollectionError(
+                    f"save-deck '{deck.name}': this save shrinks the deck from "
+                    f'{sum(c.quantity for c in prior.cards)} to {sum(c.quantity for c in deck.cards)} '
+                    f'cards, below its target of {prior.target_size}. Pass allow_shrink=True '
+                    '(the CLI: `save-deck --confirm`) to proceed.'
+                )
         data: dict[str, Any] = {
             'name': deck.name,
             'strategy': deck.strategy,
@@ -369,6 +392,8 @@ class LocalYamlStore:
             data['assessment'] = deck.assessment
         if deck.focus_otags:
             data['focus_otags'] = list(deck.focus_otags)
+        if deck.format is not None:
+            data['format'] = deck.format
         data['airtable_record_id'] = deck.airtable_record_id
         data['cards'] = [self._deck_card_to_row(c) for c in deck.cards]
         self._write_yaml(self._deck_path(deck.name), data)

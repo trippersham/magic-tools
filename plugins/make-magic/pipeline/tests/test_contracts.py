@@ -362,6 +362,29 @@ def test_deck_assessment_focus_otags_roundtrip() -> None:
     assert restored.focus_otags == ['sacrifice']
 
 
+def test_deck_format_defaults_none_and_untargeted() -> None:
+    deck = Deck(name='WIP Deck', cards=[])
+    assert deck.format is None
+    assert deck.target_size is None
+
+
+def test_deck_format_derives_target_size() -> None:
+    commander = Deck(name='EDH Deck', format='Commander', cards=[])
+    assert commander.format == 'Commander'
+    assert commander.target_size == 100
+    standard = Deck(name='Std Deck', format='Standard', cards=[])
+    assert standard.target_size == 60
+    weird = Deck(name='Odd Deck', format='Weird', cards=[])
+    assert weird.target_size is None
+
+
+def test_deck_format_roundtrip() -> None:
+    deck = Deck(name='EDH Deck', format='Commander', cards=[DeckCard(name='Sol Ring')])
+    restored = Deck.model_validate(deck.model_dump())
+    assert restored.format == 'Commander'
+    assert restored.target_size == 100
+
+
 def test_deck_missing_required_rejected() -> None:
     with pytest.raises(ValidationError):
         Deck(cards=[])  # type: ignore[call-arg]
@@ -374,7 +397,7 @@ def test_deck_cards_wrong_type_rejected() -> None:
 
 def test_deck_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError):
-        Deck(name='X', cards=[], format='commander')  # type: ignore[call-arg]
+        Deck(name='X', cards=[], bogus='commander')  # type: ignore[call-arg]
 
 
 def test_deck_roundtrip_model_dump() -> None:

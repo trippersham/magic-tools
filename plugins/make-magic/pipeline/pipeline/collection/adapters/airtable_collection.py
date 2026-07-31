@@ -58,6 +58,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import httpx
 
 from pipeline.collection.errors import CollectionError
+from pipeline.collection.guards import check_remove_allowed, shrink_check
 from pipeline.config import AirtableConfigError, AirtableResolver, get_settings
 from pipeline.contracts import ChaseCard, Deck, DeckCard, OwnedCard, Trade
 
@@ -265,6 +266,8 @@ class AirtableCollectionStore:
     _DECK_FOCUS: ClassVar[str] = 'Focus Otags'
     _DECK_COMMANDER: ClassVar[str] = 'Commander'
     _DECK_CARDS: ClassVar[str] = 'Cards'
+    #: Human-owned deck format (drives target size; the engine READS but never WRITES it).
+    _DECK_FORMAT: ClassVar[str] = 'Format'
     _DECK_REPEAT: ClassVar[str] = 'Repeat Cards Count'
     #: Airtable formula field = intended total (Σ card quantities + basics). Read
     #: as the integrity oracle in ``get_deck``; absent on some bases (optional read).
@@ -719,7 +722,17 @@ class AirtableCollectionStore:
         self._client.update_record(table_id, existing['id'], {owned_fid: qty})
         self._write_derived_inline(ref, existing['id'])
 
-    def remove_card(self, ref: str) -> None:
+    def remove_card(self, ref: str, *, force: bool = False) -> None:
+        """Hard-delete the Inventory row for ``ref``.
+
+        Port-level cascade guard (Phase 4, defense-in-depth with ``save_deck``'s
+        ``allow_shrink``): if ``ref`` is LINKED to one or more decks and ``force``
+        is False, raise ``CollectionError`` (enumerating the affected decks)
+        BEFORE any DELETE — a hard-delete of a shared Inventory row cascades the
+        card out of EVERY linked deck via Airtable's link cascade. ``force=True``
+        (or an unlinked card) deletes as before. Default is SAFE.
+        """
+        check_remove_allowed(self, ref, force=force)
         table_id = self._resolver.table_id(self._cards_table)
         existing = self._find_inventory_record(ref)
         if existing is not None:
@@ -968,6 +981,7 @@ class AirtableCollectionStore:
             strategy=self._get(t, rec, self._DECK_STRATEGY),
             assessment=self._get_optional(t, rec, self._DECK_ASSESSMENT),
             focus_otags=_as_list(self._get_optional(t, rec, self._DECK_FOCUS)),
+            format=self._get_optional(t, rec, self._DECK_FORMAT),
             cards=cards,
             airtable_record_id=rec.get('id'),
         )
@@ -1040,7 +1054,7 @@ class AirtableCollectionStore:
         # Hydrating every card here is O(rows*cards) paced Scryfall lookups.
         return [self._row_to_deck(r, name_map, hydrate=False) for r in rows]
 
-    def save_deck(self, deck: Deck) -> None:
+    def save_deck(self, deck: Deck, *, allow_shrink: bool = False) -> None:
         """Persist the WHOLE deck: metadata + full membership.
 
         Membership maps to the live Decks schema as:
@@ -1057,9 +1071,27 @@ class AirtableCollectionStore:
         ``Strategy`` is only written when set (never clobbered with None).
         ``Assessment`` / ``Focus Otags`` are written when set; on a base lacking
         those columns that raises the clear "field not on base" error (correct).
+
+        Defensive shrink guard (Phase 4): when this save would drop a deck that
+        currently MEETS its target below it, and ``allow_shrink`` is False, raise
+        BEFORE any write — so a programmatic caller (a skill bypassing the CLI's
+        ``--confirm``) cannot silently shrink a legal deck under target.
         """
         table_id = self._resolver.table_id(self._decks_table)
         t = self._decks_table
+        existing_rec = self._find_deck_record(deck.name)
+        if not allow_shrink and existing_rec is not None:
+            # Reconstruct the prior deck NAME-ONLY (sizes/target only — no
+            # per-card hydration) and refuse a save that shrinks an at-target
+            # deck under target unless explicitly allowed.
+            prior = self._row_to_deck(existing_rec, self._inventory_name_map(), hydrate=False)
+            if shrink_check(prior, deck):
+                raise CollectionError(
+                    f"save-deck '{deck.name}': this save shrinks the deck from "
+                    f'{sum(c.quantity for c in prior.cards)} to {sum(c.quantity for c in deck.cards)} '
+                    f'cards, below its target of {prior.target_size}. Pass allow_shrink=True '
+                    '(the CLI: `save-deck --confirm`) to proceed.'
+                )
         fields: dict[str, Any] = {self._fid(t, self._DECK_NAME): deck.name}
         if deck.strategy is not None:
             fields[self._fid(t, self._DECK_STRATEGY)] = deck.strategy
