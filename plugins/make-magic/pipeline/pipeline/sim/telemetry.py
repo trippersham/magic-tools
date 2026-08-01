@@ -115,7 +115,9 @@ def split_games(match_log: str) -> list[str]:
     return segments
 
 
-def extract_game_features(game_log: str, *, deck_a: str, deck_b: str) -> GameFeatures:
+def extract_game_features(
+    game_log: str, *, deck_a: str, deck_b: str, commander: bool | None = None
+) -> GameFeatures:
     """Parse ONE game's verbose log into :class:`GameFeatures` (pure, never raises).
 
     ``deck_a`` / ``deck_b`` are accepted for symmetry with the runner API and to
@@ -131,12 +133,18 @@ def extract_game_features(game_log: str, *, deck_a: str, deck_b: str) -> GameFea
         the last observed turn if a game end is present without a life-0 line;
       * ``wincon`` classified from the killing ``Damage:`` line (combat vs burn),
         an empty-library ``Game Outcome`` (mill), else ``'other'``.
+
+    ``commander`` selects the 40-life start; ``None`` (a standalone single-game
+    parse) detects it from this log's text. :func:`extract_match_features` passes
+    it explicitly because the ``… games of Commander`` header prints ONCE in the
+    match preamble — which :func:`split_games` folds into game 1 only, so
+    per-segment detection would silently seed games 2+ with 20 life.
     """
     del deck_a, deck_b  # slot-keyed; names documented for the caller's benefit.
 
-    start_life = (
-        _COMMANDER_START_LIFE if re.search(r'of Commander\b', game_log) else _DEFAULT_START_LIFE
-    )
+    if commander is None:
+        commander = re.search(r'of Commander\b', game_log) is not None
+    start_life = _COMMANDER_START_LIFE if commander else _DEFAULT_START_LIFE
 
     current_turn: int | None = None
     lands = {'a': 0, 'b': 0}
@@ -263,9 +271,12 @@ def extract_match_features(
     """Extract per-game :class:`GameFeatures` for every game in a multi-game log.
 
     Splits with :func:`split_games`, then extracts each segment independently.
-    Returns ``[]`` for empty / result-less input (never raises).
+    The Commander flag is detected ONCE over the whole match log (the header
+    prints only in the preamble, which lands in game 1's segment) and applied to
+    every game. Returns ``[]`` for empty / result-less input (never raises).
     """
+    commander = re.search(r'of Commander\b', match_log) is not None
     return [
-        extract_game_features(seg, deck_a=deck_a, deck_b=deck_b)
+        extract_game_features(seg, deck_a=deck_a, deck_b=deck_b, commander=commander)
         for seg in split_games(match_log)
     ]

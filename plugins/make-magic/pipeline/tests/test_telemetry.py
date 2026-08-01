@@ -219,3 +219,25 @@ def test_truncated_log_does_not_raise() -> None:
 
 def test_match_features_empty_returns_empty() -> None:
     assert extract_match_features('', deck_a='A', deck_b='B') == []
+
+
+def test_commander_start_life_applies_to_every_game_in_the_match() -> None:
+    """The `… games of Commander` header prints ONCE, in the match preamble.
+
+    ``split_games`` folds that preamble into game 1 only — so per-segment
+    detection would seed games 2+ with the constructed 20 instead of 40 and
+    misreport the winner's remaining life. Detection must span the whole match.
+    """
+    log = (
+        'Ai(1)-RedCmdr vs Ai(2)-WhiteCmdr - two games of Commander\n'
+        'Turn: Turn 1 (Ai(1)-RedCmdr)\n'
+        'Life: Life: Ai(2)-WhiteCmdr 40 > 5\n'
+        'Game Result: Game 1 ended in 100 ms. Ai(1)-RedCmdr has won!\n'
+        'Turn: Turn 1 (Ai(2)-WhiteCmdr)\n'
+        'Life: Life: Ai(1)-RedCmdr 40 > 3\n'
+        'Game Result: Game 2 ended in 100 ms. Ai(2)-WhiteCmdr has won!\n'
+    )
+    feats = extract_match_features(log, deck_a='RedCmdr', deck_b='WhiteCmdr')
+    assert len(feats) == 2
+    # Each winner was never dealt damage: margin == the COMMANDER start life.
+    assert [f.win_margin_life for f in feats] == [40, 40]
