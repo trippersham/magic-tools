@@ -101,6 +101,7 @@ snapshot, and whether Forge is available (with an actionable "how to enable" if 
 | "Play X against Y" / "X vs Y head-to-head" | `match` | [Head-to-head](#3-head-to-head) |
 | "Check Forge / how many games can I run" | `doctor` | [above](#the-cli-simulate) |
 | "What's in the gauntlet?" / "show the field" | `gauntlet show` | [Inspect the field](#4-inspect-the-gauntlet) |
+| "Why did X lose to Y?" / "pull up that game" / "what happened in game N" | `log` | [Replay a past game](#5-replay-a-past-game) |
 
 Every verb takes `--format constructed|commander` (default `constructed`). Commander is
 the make-magic house format — pass `--format commander` for Commander decks. **Commander
@@ -176,9 +177,31 @@ See the field a candidate is measured against (offline — no Forge, no store, n
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/simulate gauntlet show --format commander
 ```
-Lists the **curated** opponents for that format. Only `show` is supported. (`mine` /
-`both` fields are user-specific and not enumerated by this verb — read them via the
-collection skills.)
+Lists the packaged opponents for that format. `--source curated` (default) or a named
+bundle (`--source guilds`). (`mine` / `both` fields are user-specific and not enumerated by
+this verb — read them via the collection skills.)
+
+## 5. Replay a past game
+
+"Why did X lose to Y?" / "pull up that specific game" — a **forensic** deep-dive into an
+already-simulated matchup, with **no re-run**. Every `deck` / `ab` run persists the full
+verbose Forge log of each game to DuckDB, so a past game is replayable exactly as it
+happened. This matters because **Forge's seed is not reproducible** — re-running the same
+matchup yields a *different* game, so the only faithful record is the one captured at run
+time.
+
+```bash
+# List the stored matchup(s) for a deck pair + each game's index/outcome:
+${CLAUDE_PLUGIN_ROOT}/scripts/simulate log "<A>" "<B>"
+# Print one game's full turn-by-turn log:
+${CLAUDE_PLUGIN_ROOT}/scripts/simulate log "<A>" "<B>" --game 0
+```
+- `<A>` / `<B>` are the same deck references (name or `.dck`) used in the run — they're
+  matched by **content hash**, so an edited deck won't match its old logs (by design).
+- `--game N` prints game `N` (0-based); omit it to list the games first. Narrow ambiguous
+  matches (multiple seeds / game-counts) with `--seed` / `--games` / `--format`.
+- Offline (no Forge): reads straight from DuckDB. Use it to explain an upset turn-by-turn,
+  confirm a wincon, or check whether a loss was mana screw vs. getting outclassed.
 
 ---
 

@@ -178,9 +178,7 @@ def test_deck_dispatches_simulate(
 
     monkeypatch.setattr(sim_run, 'simulate', _fake_simulate)
 
-    sim_run.main(
-        ['deck', str(dck), '--gauntlet', 'both', '--games', '8', '--format', 'commander', '--force']
-    )
+    sim_run.main(['deck', str(dck), '--gauntlet', 'both', '--games', '8', '--format', 'commander', '--force'])
 
     assert seen['gauntlet_source'] == 'both'
     assert seen['games'] == 8
@@ -231,9 +229,7 @@ def test_ab_dispatches_compare(
 
     seen: dict[str, object] = {}
 
-    def _fake_compare(
-        variant_a: object, variant_b: object, gauntlet_source: str, **kwargs: object
-    ) -> Comparison:
+    def _fake_compare(variant_a: object, variant_b: object, gauntlet_source: str, **kwargs: object) -> Comparison:
         seen.update(a=variant_a, b=variant_b, gauntlet_source=gauntlet_source, **kwargs)
         ra = _sim_result('A')
         rb = _sim_result('B')
@@ -377,3 +373,115 @@ def test_resolve_deck_arg_prefers_store_for_bareword(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(sim_run, 'get_store', lambda **_: _FakeStore())
     sim_run._resolve_deck_arg('Some Deck Name')
     assert called['name'] == 'Some Deck Name'
+
+
+# --------------------------------------------------------------------------- #
+# `log` verb — forensic per-game log retrieval (real tmp store, no Forge).
+# --------------------------------------------------------------------------- #
+
+
+def _seed_matchup(data_root: Path, dck_a_text: str, dck_b_text: str, *, seed: int, n_games: int) -> str:
+    """Store a matchup + a real multi-game log into a tmp DuckDB; return its key."""
+    from pipeline.sim import store as sim_store
+    from pipeline.sim.runner import GameOutcome, MatchResult
+    from pipeline.sim.telemetry import GameFeatures
+
+    key = sim_store.matchup_key(
+        dck_a_text, dck_b_text, seed=seed, n_games=n_games, fmt='constructed', forge_version='2.0.13'
+    )
+    meta = sim_store.MatchupMeta(
+        deck_a_hash=sim_store.deck_hash(dck_a_text),
+        deck_b_hash=sim_store.deck_hash(dck_b_text),
+        seed=seed,
+        n_games=n_games,
+        format='constructed',
+        forge_version='2.0.13',
+    )
+    log = '\n'.join(
+        ['Simulation mode']
+        + [
+            line
+            for g in range(1, n_games + 1)
+            for line in (
+                f'Turn: Turn 1 (Ai(1)-A)  [game {g} marker]',
+                f'Game Result: Game {g} ended in {g * 1000} ms. Ai(1)-A has won!',
+            )
+        ]
+    )
+    result = MatchResult(
+        deck_a='A',
+        deck_b='B',
+        wins_a=n_games,
+        wins_b=0,
+        draws=0,
+        per_game=tuple(GameOutcome(winner='a', elapsed_ms=1000) for _ in range(n_games)),
+        raw_log=log,
+    )
+    feats = [
+        GameFeatures(
+            winner='a',
+            kill_turn=5,
+            win_margin_life=10,
+            wincon='combat',
+            mulligans_a=0,
+            mulligans_b=0,
+            game_length_ms=1000,
+            lands_by_turn_a=[],
+            lands_by_turn_b=[],
+        )
+        for _ in range(n_games)
+    ]
+    sim_store.store_matchup(key, meta, result, feats)
+    return key
+
+
+def test_log_lists_games_for_single_matchup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from pipeline import store
+
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(tmp_path / 'data'))
+    a, b = tmp_path / 'A.dck', tmp_path / 'B.dck'
+    a.write_text('Name=A\n[Main]\n4 Forest\n')
+    b.write_text('Name=B\n[Main]\n4 Plains\n')
+    _seed_matchup(tmp_path, a.read_text(), b.read_text(), seed=42, n_games=2)
+
+    sim_run.main(['log', str(a), str(b)])
+    out = capsys.readouterr().out
+    assert 'seed=42' in out
+    assert '[0]' in out and '[1]' in out  # per-game index listing
+    assert 'winner=a' in out
+
+
+def test_log_prints_single_game_full_log(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from pipeline import store
+
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(tmp_path / 'data'))
+    a, b = tmp_path / 'A.dck', tmp_path / 'B.dck'
+    a.write_text('Name=A\n[Main]\n4 Forest\n')
+    b.write_text('Name=B\n[Main]\n4 Plains\n')
+    _seed_matchup(tmp_path, a.read_text(), b.read_text(), seed=42, n_games=2)
+
+    sim_run.main(['log', str(a), str(b), '--game', '1'])
+    out = capsys.readouterr().out
+    assert '[game 2 marker]' in out
+    assert 'Game Result: Game 2 ended' in out
+    assert '[game 1 marker]' not in out
+
+
+def test_log_unknown_matchup_errors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from pipeline import store
+
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(tmp_path / 'data'))
+    a, b = tmp_path / 'A.dck', tmp_path / 'B.dck'
+    a.write_text('Name=A\n[Main]\n4 Forest\n')
+    b.write_text('Name=B\n[Main]\n4 Plains\n')  # nothing stored
+
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['log', str(a), str(b)])
+    assert exc.value.code == 1
+    assert 'no stored matchup' in capsys.readouterr().err

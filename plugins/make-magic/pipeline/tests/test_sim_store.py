@@ -110,9 +110,7 @@ def test_matchup_key_is_stable_and_order_sensitive() -> None:
 
 
 def test_miss_then_store_then_hit_roundtrips(data_dir: Path) -> None:
-    key = sim_store.matchup_key(
-        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.13'
-    )
+    key = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.13')
     assert sim_store.get_cached(key) is None  # miss on a fresh db
 
     result = _match_result(wins_a=2, wins_b=1)
@@ -141,9 +139,7 @@ def test_miss_then_store_then_hit_roundtrips(data_dir: Path) -> None:
 
 
 def test_none_scalars_and_empty_curves_roundtrip(data_dir: Path) -> None:
-    key = sim_store.matchup_key(
-        DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13'
-    )
+    key = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13')
     result = _match_result(wins_a=0, wins_b=0, draws=1)
     features = [
         GameFeatures(
@@ -191,12 +187,8 @@ def test_changed_deck_text_changes_key(data_dir: Path) -> None:
 
 
 def test_bumped_forge_version_changes_key(data_dir: Path) -> None:
-    base = sim_store.matchup_key(
-        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.13'
-    )
-    bumped = sim_store.matchup_key(
-        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.14'
-    )
+    base = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.13')
+    bumped = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.14')
     assert bumped != base
 
     sim_store.store_matchup(base, _meta(), _match_result(), [_features()])
@@ -210,9 +202,7 @@ def test_bumped_forge_version_changes_key(data_dir: Path) -> None:
 
 
 def test_feature_stats_aggregates(data_dir: Path) -> None:
-    key = sim_store.matchup_key(
-        DCK_A, DCK_B, seed=42, n_games=4, fmt='constructed', forge_version='2.0.13'
-    )
+    key = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=4, fmt='constructed', forge_version='2.0.13')
     result = _match_result(wins_a=3, wins_b=1)
     features = [
         _features(winner='a', kill_turn=4, wincon='combat'),
@@ -230,26 +220,34 @@ def test_feature_stats_aggregates(data_dir: Path) -> None:
 
 
 def test_feature_stats_filters_by_format(data_dir: Path) -> None:
-    con_key = sim_store.matchup_key(
-        DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13'
-    )
-    cmd_key = sim_store.matchup_key(
-        DCK_A, DCK_B, seed=1, n_games=1, fmt='commander', forge_version='2.0.13'
-    )
+    con_key = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13')
+    cmd_key = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=1, fmt='commander', forge_version='2.0.13')
     con_meta = sim_store.MatchupMeta(
-        deck_a_hash='x', deck_b_hash='y', seed=1, n_games=1,
-        format='constructed', forge_version='2.0.13',
+        deck_a_hash='x',
+        deck_b_hash='y',
+        seed=1,
+        n_games=1,
+        format='constructed',
+        forge_version='2.0.13',
     )
     cmd_meta = sim_store.MatchupMeta(
-        deck_a_hash='x', deck_b_hash='y', seed=1, n_games=1,
-        format='commander', forge_version='2.0.13',
+        deck_a_hash='x',
+        deck_b_hash='y',
+        seed=1,
+        n_games=1,
+        format='commander',
+        forge_version='2.0.13',
     )
     sim_store.store_matchup(
-        con_key, con_meta, _match_result(wins_a=1, wins_b=0),
+        con_key,
+        con_meta,
+        _match_result(wins_a=1, wins_b=0),
         [_features(kill_turn=5, wincon='combat')],
     )
     sim_store.store_matchup(
-        cmd_key, cmd_meta, _match_result(wins_a=1, wins_b=0),
+        cmd_key,
+        cmd_meta,
+        _match_result(wins_a=1, wins_b=0),
         [_features(kill_turn=15, wincon='other')],
     )
 
@@ -268,9 +266,7 @@ def test_feature_stats_filters_by_format(data_dir: Path) -> None:
 
 
 def test_restore_replaces_no_duplicate_feature_rows(data_dir: Path) -> None:
-    key = sim_store.matchup_key(
-        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.13'
-    )
+    key = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.13')
     sim_store.store_matchup(key, _meta(), _match_result(wins_a=2, wins_b=1), [_features()] * 3)
 
     # Re-store the SAME key with a different tally + a single feature row.
@@ -283,21 +279,175 @@ def test_restore_replaces_no_duplicate_feature_rows(data_dir: Path) -> None:
 
     # And the raw feature table has exactly one row for this key (no dupes).
     with store.connect() as conn:
-        count = conn.execute(
-            'SELECT count(*) FROM sim_game_features WHERE matchup_key = ?', [key]
-        ).fetchone()
+        count = conn.execute('SELECT count(*) FROM sim_game_features WHERE matchup_key = ?', [key]).fetchone()
         assert count is not None and count[0] == 1
 
 
 def test_tables_created_idempotently(data_dir: Path) -> None:
     """Two independent store operations against a fresh db do not clash on DDL."""
-    key1 = sim_store.matchup_key(
-        DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13'
-    )
-    key2 = sim_store.matchup_key(
-        DCK_A, DCK_B, seed=2, n_games=1, fmt='constructed', forge_version='2.0.13'
-    )
+    key1 = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13')
+    key2 = sim_store.matchup_key(DCK_A, DCK_B, seed=2, n_games=1, fmt='constructed', forge_version='2.0.13')
     sim_store.store_matchup(key1, _meta(), _match_result(), [_features()])
     sim_store.store_matchup(key2, _meta(), _match_result(), [_features()])
     assert sim_store.get_cached(key1) is not None
     assert sim_store.get_cached(key2) is not None
+
+
+# --------------------------------------------------------------------------- #
+# per-game raw-log retention (forensic replay) — sim_game_logs
+# --------------------------------------------------------------------------- #
+
+
+def _multigame_log(n: int) -> str:
+    """A realistic multi-game verbose log: n games, each ending in a Game Result.
+
+    Preamble (card-DB banner) folds into game 1; each game body carries a unique
+    marker line so a slice can be attributed to its game.
+    """
+    lines = ['Read cards: 33319 files', 'Simulation mode']
+    for g in range(1, n + 1):
+        winner = 'Ai(1)-Aggro' if g % 2 else 'Ai(2)-Control'
+        lines += [
+            f'Turn: Turn 1 (Ai(1)-Aggro)  [game {g} marker]',
+            f'Game Result: Game {g} ended in {1000 * g} ms. {winner} has won!',
+        ]
+    return '\n'.join(lines)
+
+
+def test_per_game_logs_persist_and_slice(data_dir: Path) -> None:
+    """store_matchup slices raw_log per game; get_game_logs returns them in order."""
+    key = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=2, fmt='constructed', forge_version='2.0.13')
+    result = MatchResult(
+        deck_a='Aggro',
+        deck_b='Control',
+        wins_a=1,
+        wins_b=1,
+        draws=0,
+        per_game=(GameOutcome(winner='a', elapsed_ms=1000), GameOutcome(winner='b', elapsed_ms=2000)),
+        raw_log=_multigame_log(2),
+    )
+    features = [_features(winner='a'), _features(winner='b')]
+    sim_store.store_matchup(key, _meta(), result, features)
+
+    logs = sim_store.get_game_logs(key)
+    assert len(logs) == 2
+    # Segment 0 carries the preamble + game-1 marker + its Game Result terminator.
+    assert 'Simulation mode' in logs[0]
+    assert '[game 1 marker]' in logs[0]
+    assert 'Game Result: Game 1 ended' in logs[0]
+    # Segment 1 is game 2 only (preamble already consumed).
+    assert '[game 2 marker]' in logs[1]
+    assert 'Game Result: Game 2 ended' in logs[1]
+    assert '[game 1 marker]' not in logs[1]
+
+
+def test_get_game_logs_single_index(data_dir: Path) -> None:
+    """A game_index filter returns just that game's log."""
+    key = sim_store.matchup_key(DCK_A, DCK_B, seed=7, n_games=3, fmt='constructed', forge_version='2.0.13')
+    result = MatchResult(
+        deck_a='Aggro',
+        deck_b='Control',
+        wins_a=2,
+        wins_b=1,
+        draws=0,
+        per_game=tuple(GameOutcome(winner='a', elapsed_ms=1000) for _ in range(3)),
+        raw_log=_multigame_log(3),
+    )
+    sim_store.store_matchup(key, _meta(), result, [_features()] * 3)
+
+    only = sim_store.get_game_logs(key, game_index=1)
+    assert len(only) == 1
+    assert '[game 2 marker]' in only[0]
+
+
+def test_game_logs_align_with_feature_index(data_dir: Path) -> None:
+    """Log game_index lines up 1:1 with feature game_index (shared split_games)."""
+    key = sim_store.matchup_key(DCK_A, DCK_B, seed=9, n_games=3, fmt='constructed', forge_version='2.0.13')
+    result = MatchResult(
+        deck_a='Aggro',
+        deck_b='Control',
+        wins_a=2,
+        wins_b=1,
+        draws=0,
+        per_game=tuple(GameOutcome(winner='a', elapsed_ms=1000) for _ in range(3)),
+        raw_log=_multigame_log(3),
+    )
+    sim_store.store_matchup(key, _meta(), result, [_features()] * 3)
+
+    cached = sim_store.get_cached(key)
+    logs = sim_store.get_game_logs(key)
+    assert cached is not None
+    assert len(logs) == len(cached.features) == 3
+    for i, log in enumerate(logs, start=1):
+        assert f'[game {i} marker]' in log
+
+
+def test_restore_replaces_game_logs(data_dir: Path) -> None:
+    """Re-storing a key REPLACES its log rows (no append), like the feature rows."""
+    key = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.13')
+    first = MatchResult(
+        deck_a='Aggro',
+        deck_b='Control',
+        wins_a=2,
+        wins_b=1,
+        draws=0,
+        per_game=tuple(GameOutcome(winner='a', elapsed_ms=1000) for _ in range(3)),
+        raw_log=_multigame_log(3),
+    )
+    sim_store.store_matchup(key, _meta(), first, [_features()] * 3)
+
+    second = MatchResult(
+        deck_a='Aggro',
+        deck_b='Control',
+        wins_a=1,
+        wins_b=0,
+        draws=0,
+        per_game=(GameOutcome(winner='a', elapsed_ms=1000),),
+        raw_log=_multigame_log(1),
+    )
+    sim_store.store_matchup(key, _meta(), second, [_features()])
+
+    logs = sim_store.get_game_logs(key)
+    assert len(logs) == 1  # replaced, not appended (3 -> 1)
+    with store.connect() as conn:
+        count = conn.execute('SELECT count(*) FROM sim_game_logs WHERE matchup_key = ?', [key]).fetchone()
+        assert count is not None and count[0] == 1
+
+
+def test_get_game_logs_miss_returns_empty(data_dir: Path) -> None:
+    """Unknown key (or fresh db) -> [] (never raises)."""
+    assert sim_store.get_game_logs('deadbeef') == []
+
+
+def test_find_matchups_by_deck_pair(data_dir: Path) -> None:
+    """find_matchups locates stored runs of a deck pair (offline, by hash)."""
+    a_hash, b_hash = sim_store.deck_hash(DCK_A), sim_store.deck_hash(DCK_B)
+    k1 = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=2, fmt='constructed', forge_version='2.0.13')
+    k2 = sim_store.matchup_key(DCK_A, DCK_B, seed=2, n_games=2, fmt='constructed', forge_version='2.0.13')
+    m1 = sim_store.MatchupMeta(
+        deck_a_hash=a_hash, deck_b_hash=b_hash, seed=1, n_games=2, format='constructed', forge_version='2.0.13'
+    )
+    m2 = sim_store.MatchupMeta(
+        deck_a_hash=a_hash, deck_b_hash=b_hash, seed=2, n_games=2, format='constructed', forge_version='2.0.13'
+    )
+    sim_store.store_matchup(k1, m1, _match_result(), [_features()])
+    sim_store.store_matchup(k2, m2, _match_result(), [_features()])
+
+    found = sim_store.find_matchups(deck_a_hash=a_hash, deck_b_hash=b_hash)
+    assert {m.matchup_key for m in found} == {k1, k2}
+    assert {m.seed for m in found} == {1, 2}
+
+    # A different deck pair returns nothing.
+    assert sim_store.find_matchups(deck_a_hash='nope', deck_b_hash=b_hash) == []
+
+
+def test_find_matchups_empty_store(data_dir: Path) -> None:
+    """A fresh db yields no matchups (no raise on missing tables)."""
+    assert sim_store.find_matchups() == []
+
+
+def test_elided_log_stores_no_game_logs(data_dir: Path) -> None:
+    """A result-less raw_log (no Game Result lines) persists zero log rows, no crash."""
+    key = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13')
+    sim_store.store_matchup(key, _meta(), _match_result(), [_features()])  # raw_log='(elided)'
+    assert sim_store.get_game_logs(key) == []

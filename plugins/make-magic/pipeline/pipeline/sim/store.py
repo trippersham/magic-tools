@@ -17,6 +17,14 @@ Everything lands in the SAME ``make_magic.duckdb`` as the rest of the lake, via
     so a batch aggregates in plain SQL (avg kill-turn, wincon counts, …). Land
     ramp curves are stored as native DuckDB ``INTEGER[]`` (list binding round-trips
     cleanly as Python ``list[int]`` — no JSON juggling needed).
+  * ``sim_game_logs`` — one row per game holding the FULL verbose Forge log for
+    that game, so any past game is forensically replayable WITHOUT re-running
+    Forge (whose ``-s`` seed is not reliably reproducible — a re-run is a
+    different game, so the log must be retained at run time, not re-derived). The
+    log is sliced from ``MatchResult.raw_log`` via
+    :func:`~pipeline.sim.telemetry.split_games`, so its ``game_index`` lines up
+    1:1 with ``sim_game_features`` (both derive from the same split). Read on
+    demand via :func:`get_game_logs` — NOT loaded on the hot cache path.
 
 The read-through hook is :func:`get_cached` (returns ``None`` on a miss); the
 ``--force`` bypass is the CALLER'S concern (they simply skip :func:`get_cached`).
@@ -33,7 +41,7 @@ from typing import TYPE_CHECKING
 
 from pipeline import store
 from pipeline.sim.runner import MatchResult
-from pipeline.sim.telemetry import GameFeatures
+from pipeline.sim.telemetry import GameFeatures, split_games
 
 if TYPE_CHECKING:
     import os
@@ -43,9 +51,12 @@ if TYPE_CHECKING:
 __all__ = (
     'CachedMatchup',
     'MatchupMeta',
+    'MatchupRow',
     'deck_hash',
     'feature_stats',
+    'find_matchups',
     'get_cached',
+    'get_game_logs',
     'matchup_key',
     'store_matchup',
 )
@@ -85,6 +96,16 @@ CREATE TABLE IF NOT EXISTS sim_game_features (
 )
 """
 
+#: DDL for the per-game raw-log store — one row per game, the full verbose Forge
+#: log for that game (``game_index`` aligns with ``sim_game_features``).
+_LOGS_DDL = """
+CREATE TABLE IF NOT EXISTS sim_game_logs (
+    matchup_key TEXT,
+    game_index  INT,
+    raw_log     TEXT
+)
+"""
+
 
 @dataclass(frozen=True)
 class MatchupMeta:
@@ -111,6 +132,28 @@ class CachedMatchup:
     wins_b: int
     draws: int
     features: list[GameFeatures]
+
+
+@dataclass(frozen=True)
+class MatchupRow:
+    """A stored matchup's metadata — the lookup surface for forensic log retrieval.
+
+    Everything needed to identify a past run (the ``matchup_key`` that
+    :func:`get_game_logs` / :func:`get_cached` take) plus the human-facing summary
+    (decks by hash, params, tally, when it ran).
+    """
+
+    matchup_key: str
+    deck_a_hash: str
+    deck_b_hash: str
+    seed: int
+    n_games: int
+    format: str
+    forge_version: str
+    wins_a: int
+    wins_b: int
+    draws: int
+    created_at: str
 
 
 def _normalize_dck(dck_text: str) -> str:
@@ -159,9 +202,10 @@ def matchup_key(
 
 
 def _ensure_tables(conn: duckdb.DuckDBPyConnection) -> None:
-    """Create both tables if absent (idempotent — safe to call every operation)."""
+    """Create the store tables if absent (idempotent — safe to call every op)."""
     conn.execute(_MATCHUPS_DDL)
     conn.execute(_FEATURES_DDL)
+    conn.execute(_LOGS_DDL)
 
 
 def store_matchup(
@@ -172,12 +216,16 @@ def store_matchup(
     *,
     data_dir: str | os.PathLike[str] | None = None,
 ) -> None:
-    """Upsert the matchup row + REPLACE its feature rows under ``key``.
+    """Upsert the matchup row + REPLACE its feature and per-game log rows under ``key``.
 
     Idempotent by key: the matchup row is deleted-then-inserted and every prior
-    ``sim_game_features`` row for ``key`` is cleared first, so re-storing the same
-    key never leaves duplicate feature rows or a stale tally. ``features`` is
-    persisted in order, one row per game (``game_index`` = position).
+    ``sim_game_features`` / ``sim_game_logs`` row for ``key`` is cleared first, so
+    re-storing the same key never leaves duplicate rows or a stale tally.
+    ``features`` is persisted in order, one row per game (``game_index`` =
+    position). The full verbose log is sliced from ``result.raw_log`` via
+    :func:`~pipeline.sim.telemetry.split_games` and persisted one row per game
+    under the SAME ``game_index`` grain (a result-less log simply yields no log
+    rows — never an error).
     """
     db_path = _db_path(data_dir)
     with store.connect(db_path) as conn:
@@ -232,6 +280,14 @@ def store_matchup(
                 ],
             )
 
+        # Replace the per-game log rows wholesale (sliced from the full verbose log).
+        conn.execute('DELETE FROM sim_game_logs WHERE matchup_key = ?', [key])
+        for game_index, game_log in enumerate(split_games(result.raw_log)):
+            conn.execute(
+                'INSERT INTO sim_game_logs (matchup_key, game_index, raw_log) VALUES (?, ?, ?)',
+                [key, game_index, game_log],
+            )
+
 
 def get_cached(
     key: str,
@@ -283,6 +339,93 @@ def get_cached(
     return CachedMatchup(wins_a=wins_a, wins_b=wins_b, draws=draws, features=features)
 
 
+def get_game_logs(
+    key: str,
+    *,
+    game_index: int | None = None,
+    data_dir: str | os.PathLike[str] | None = None,
+) -> list[str]:
+    """Return the retained per-game verbose logs for ``key``, ordered by game.
+
+    The forensic-replay reader (kept OFF the hot cache path so ``get_cached``
+    stays lean). Pass ``game_index`` to fetch just that one game's log (a list of
+    0 or 1). An unknown key, a fresh db, or a matchup stored with a result-less
+    log all yield ``[]`` — never a raise. Each string is the full verbose Forge
+    log for exactly one game, so it can be re-parsed or eyeballed line by line.
+    """
+    db_path = _db_path(data_dir)
+    with store.connect(db_path) as conn:
+        _ensure_tables(conn)
+        if game_index is not None:
+            rows = conn.execute(
+                'SELECT raw_log FROM sim_game_logs WHERE matchup_key = ? AND game_index = ?',
+                [key, game_index],
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                'SELECT raw_log FROM sim_game_logs WHERE matchup_key = ? ORDER BY game_index',
+                [key],
+            ).fetchall()
+    return [row[0] for row in rows]
+
+
+def find_matchups(
+    *,
+    deck_a_hash: str | None = None,
+    deck_b_hash: str | None = None,
+    fmt: str | None = None,
+    data_dir: str | os.PathLike[str] | None = None,
+) -> list[MatchupRow]:
+    """Find stored matchups, newest first — the offline lookup for log retrieval.
+
+    All filters are optional AND-ed: pass the two deck hashes (computed offline
+    via :func:`deck_hash`, no Forge needed) to locate every run of a deck pair
+    across seeds / game-counts / Forge versions, optionally narrowed by ``fmt``.
+    No filter -> every stored matchup. Empty store -> ``[]``.
+    """
+    clauses: list[str] = []
+    params: list[object] = []
+    for column, value in (
+        ('deck_a_hash', deck_a_hash),
+        ('deck_b_hash', deck_b_hash),
+        ('format', fmt),
+    ):
+        if value is not None:
+            clauses.append(f'{column} = ?')
+            params.append(value)
+    where = f'WHERE {" AND ".join(clauses)}' if clauses else ''
+
+    db_path = _db_path(data_dir)
+    with store.connect(db_path) as conn:
+        _ensure_tables(conn)
+        rows = conn.execute(
+            f"""
+            SELECT matchup_key, deck_a_hash, deck_b_hash, seed, n_games, format,
+                   forge_version, wins_a, wins_b, draws, created_at
+            FROM sim_matchups
+            {where}
+            ORDER BY created_at DESC
+            """,
+            params,
+        ).fetchall()
+    return [
+        MatchupRow(
+            matchup_key=r[0],
+            deck_a_hash=r[1],
+            deck_b_hash=r[2],
+            seed=r[3],
+            n_games=r[4],
+            format=r[5],
+            forge_version=r[6],
+            wins_a=r[7],
+            wins_b=r[8],
+            draws=r[9],
+            created_at=str(r[10]),
+        )
+        for r in rows
+    ]
+
+
 def feature_stats(
     *,
     format: str | None = None,
@@ -319,9 +462,7 @@ def feature_stats(
         ).fetchone()
         games = int(agg[0]) if agg is not None else 0
         avg_kill_turn = float(agg[1]) if agg is not None and agg[1] is not None else None
-        median_kill_turn = (
-            float(agg[2]) if agg is not None and agg[2] is not None else None
-        )
+        median_kill_turn = float(agg[2]) if agg is not None and agg[2] is not None else None
 
         wincon_rows = conn.execute(
             f"""

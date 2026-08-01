@@ -15,6 +15,8 @@ Verbs:
   * ``ab <A> <B>`` — ``compare`` two variants over the SAME gauntlet.
   * ``gauntlet show [--source <curated|bundle>]`` — list a packaged gauntlet's
     decks (offline, no Forge); defaults to ``curated``.
+  * ``log <A> <B> [--game N]`` — retrieve a stored per-game verbose Forge log for
+    a past matchup (offline, no Forge; forensic replay from DuckDB).
   * ``doctor`` — Forge/Java resolution + version + derived pool size + a
     free-RAM/disk snapshot; graceful whether or not Forge is present.
 
@@ -30,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from typing import TYPE_CHECKING
 
 from pipeline.collection import CollectionError, get_store
 from pipeline.destinations.deck_export import get_exporter
@@ -50,6 +53,11 @@ from pipeline.sim.forge_runtime import (
 from pipeline.sim.gauntlet import gauntlet_sources, resolve_gauntlet
 from pipeline.sim.governor import derive_pool_size, free_disk_gib, free_ram_gib
 from pipeline.sim.runner import ForgeError, MatchResult, run_matchup
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from pipeline.sim.store import CachedMatchup, MatchupRow
 
 __all__ = ('main',)
 
@@ -305,11 +313,92 @@ def _doctor(argv: list[str]) -> None:
     print(f'    java:      {install.java}')
 
 
+def _log(argv: list[str]) -> None:
+    """Retrieve a stored per-game verbose Forge log for forensic deep-diving.
+
+    OFFLINE (no Forge): identifies past runs of a deck pair by their content
+    hashes (computed from the ``.dck`` text) and reads the retained logs straight
+    from DuckDB. Without ``--game`` it lists the matching matchups (and, when a
+    single matchup matches, its per-game index + outcome); with ``--game N`` it
+    prints that one game's full log. Re-running is NOT an option — Forge's seed is
+    not reproducible — so this reads what was captured at run time.
+    """
+    from pipeline.sim.store import deck_hash, find_matchups, get_cached, get_game_logs
+
+    parser = argparse.ArgumentParser(prog='simulate log')
+    parser.add_argument('deck_a', help='Deck A: a .dck path or an Airtable deck name.')
+    parser.add_argument('deck_b', help='Deck B: a .dck path or an Airtable deck name.')
+    parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default=None, help='Narrow to a format.')
+    parser.add_argument('--seed', type=int, default=None, help='Narrow to a specific run seed.')
+    parser.add_argument('--games', type=int, default=None, dest='n_games', help='Narrow to a specific game count.')
+    parser.add_argument('--game', type=int, default=None, help='Print this game index (0-based) full log.')
+    args = parser.parse_args(argv)
+
+    _, dck_a = _resolve_deck_arg(args.deck_a)
+    _, dck_b = _resolve_deck_arg(args.deck_b)
+    rows = find_matchups(deck_a_hash=deck_hash(dck_a), deck_b_hash=deck_hash(dck_b), fmt=args.fmt)
+    # Optional narrowing (seed / game-count) beyond the store-level format filter.
+    rows = [
+        r
+        for r in rows
+        if (args.seed is None or r.seed == args.seed) and (args.n_games is None or r.n_games == args.n_games)
+    ]
+    if not rows:
+        raise CollectionError(f'no stored matchup for {args.deck_a} vs {args.deck_b} (has it been simulated yet?)')
+
+    if args.game is None:
+        _print_matchup_index(rows, args.deck_a, args.deck_b, get_cached)
+        return
+
+    if len(rows) > 1:
+        print(f'{len(rows)} matchups match — narrow with --seed / --games / --format:', file=sys.stderr)
+        _print_matchup_rows(rows)
+        raise SystemExit(1)
+
+    logs = get_game_logs(rows[0].matchup_key, game_index=args.game)
+    if not logs:
+        raise CollectionError(f'no log for game {args.game} (matchup has {rows[0].n_games} game(s), 0-based)')
+    print(logs[0])
+
+
+def _print_matchup_index(
+    rows: list[MatchupRow],
+    name_a: str,
+    name_b: str,
+    get_cached: Callable[[str], CachedMatchup | None],
+) -> None:
+    """List matching matchups; for a single match, enumerate its per-game outcomes."""
+    if len(rows) > 1:
+        print(f'{len(rows)} stored matchups for {name_a} vs {name_b} (pass --game N with --seed/--games to read one):')
+        _print_matchup_rows(rows)
+        return
+    row = rows[0]
+    print(f'{name_a} vs {name_b}  ({row.format}, seed={row.seed}, {row.n_games} games, forge {row.forge_version})')
+    print(f'  record: {row.wins_a}-{row.wins_b}-{row.draws}   ran: {row.created_at}')
+    cached = get_cached(row.matchup_key)
+    features = cached.features if cached is not None else []
+    print('  games (pass --game <index> for the full log):')
+    for i, feat in enumerate(features):
+        kt = '-' if feat.kill_turn is None else feat.kill_turn
+        wc = feat.wincon or '-'
+        print(f'    [{i}] winner={feat.winner:<4} kill_turn={kt:<3} wincon={wc}')
+
+
+def _print_matchup_rows(rows: list[MatchupRow]) -> None:
+    """One line per matchup (seed / games / format / version / record / when)."""
+    for r in rows:
+        print(
+            f'  seed={r.seed} games={r.n_games} format={r.format} forge={r.forge_version} '
+            f'record={r.wins_a}-{r.wins_b}-{r.draws} ran={r.created_at}'
+        )
+
+
 VERBS = {
     'match': _match,
     'deck': _deck,
     'ab': _ab,
     'gauntlet': _gauntlet,
+    'log': _log,
     'doctor': _doctor,
 }
 
