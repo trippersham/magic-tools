@@ -223,7 +223,10 @@ def _dck_card_names(dck_text: str) -> list[str]:
 
     Parses ``<qty> <name>`` lines under the card sections, skipping headers,
     metadata, and the sideboard — so the availability guard can check exactly the
-    names Forge will try to load.
+    names Forge will try to load. Accepts REAL Forge ``.dck`` files, not just our
+    exporter's output: section headers are matched case-insensitively (Forge
+    writes ``[main]``) and a pinned printing (``<name>|SET`` or ``<name>|SET|art``)
+    is stripped to the bare name (the index knows names, not printings).
     """
     names: list[str] = []
     in_cards = False
@@ -232,11 +235,12 @@ def _dck_card_names(dck_text: str) -> list[str]:
         if not stripped:
             continue
         if stripped.startswith('['):
-            in_cards = stripped in ('[Main]', '[Commander]')
+            in_cards = stripped.lower() in ('[main]', '[commander]')
             continue
         if not in_cards:
             continue
         qty, _, name = stripped.partition(' ')
+        name = name.split('|', 1)[0].strip()
         if qty.isdigit() and name:
             names.append(name)
     return names

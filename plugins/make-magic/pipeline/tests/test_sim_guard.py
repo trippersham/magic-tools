@@ -49,6 +49,24 @@ def test_dck_card_names_parses_main_and_commander() -> None:
     assert sim_run._dck_card_names(text) == ['Atraxa, Praetors Voice', 'Lightning Bolt', 'Island']
 
 
+def test_dck_card_names_parses_real_forge_dck_format() -> None:
+    """A .dck exported by Forge itself uses LOWERCASE section headers and
+    ``name|SET`` / ``name|SET|art`` pinned printings (see forge/res/cube/*.dck).
+    The guard must validate the NAME, not `name|SET` (a guaranteed index miss →
+    a false BLOCKING error on a perfectly loadable deck), and must not silently
+    skip a `[main]` section it fails to recognize.
+    """
+    text = (
+        '[metadata]\nName=Cube\n'
+        '[main]\n'
+        '4 Lightning Bolt|M10|1\n'
+        '1 Dauntless Bodyguard|DOM\n'
+        '2 Island\n'
+        '[sideboard]\n2 Pyroblast|ICE\n'
+    )
+    assert sim_run._dck_card_names(text) == ['Lightning Bolt', 'Dauntless Bodyguard', 'Island']
+
+
 def test_guard_raises_on_absent_card(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_index(monkeypatch, {'lightning bolt'})
     decks = [_path_deck('MyDeck', '[Main]\n4 Lightning Bolt\n1 Pinnacle Kill-Ship\n')]
