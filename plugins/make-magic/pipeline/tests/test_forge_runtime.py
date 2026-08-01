@@ -251,7 +251,7 @@ def test_download_retries_transient_then_succeeds(tmp_path: Path, monkeypatch: p
     monkeypatch.setattr('pipeline.sim.forge_runtime.time.sleep', lambda _s: None)
     seq: list[object] = [_http_error(503), _http_error(429), io.BytesIO(b'payload')]
 
-    def _fake_urlopen(_req: object) -> object:
+    def _fake_urlopen(_req: object, timeout: float | None = None) -> object:
         item = seq.pop(0)
         if isinstance(item, Exception):
             raise item
@@ -259,7 +259,7 @@ def test_download_retries_transient_then_succeeds(tmp_path: Path, monkeypatch: p
 
     monkeypatch.setattr('pipeline.sim.forge_runtime.urllib.request.urlopen', _fake_urlopen)
     dest = tmp_path / 'f.bin'
-    fr._download('http://x/a', dest, attempts=3)
+    fr._download('https://x/a', dest, attempts=3)
     assert dest.read_bytes() == b'payload'
     assert seq == []  # all three attempts consumed (2 transient + 1 success)
 
@@ -268,13 +268,13 @@ def test_download_fails_fast_on_404(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr('pipeline.sim.forge_runtime.time.sleep', lambda _s: None)
     calls = {'n': 0}
 
-    def _fake_urlopen(_req: object) -> object:
+    def _fake_urlopen(_req: object, timeout: float | None = None) -> object:
         calls['n'] += 1
         raise _http_error(404)
 
     monkeypatch.setattr('pipeline.sim.forge_runtime.urllib.request.urlopen', _fake_urlopen)
     with pytest.raises(urllib.error.HTTPError):
-        fr._download('http://x/a', tmp_path / 'f.bin', attempts=3)
+        fr._download('https://x/a', tmp_path / 'f.bin', attempts=3)
     assert calls['n'] == 1  # a permanent 404 is NOT retried
 
 
@@ -282,14 +282,38 @@ def test_download_fails_fast_on_oserror(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setattr('pipeline.sim.forge_runtime.time.sleep', lambda _s: None)
     calls = {'n': 0}
 
-    def _fake_urlopen(_req: object) -> object:
+    def _fake_urlopen(_req: object, timeout: float | None = None) -> object:
         calls['n'] += 1
         raise OSError('disk full')
 
     monkeypatch.setattr('pipeline.sim.forge_runtime.urllib.request.urlopen', _fake_urlopen)
     with pytest.raises(OSError, match='disk full'):
-        fr._download('http://x/a', tmp_path / 'f.bin', attempts=3)
+        fr._download('https://x/a', tmp_path / 'f.bin', attempts=3)
     assert calls['n'] == 1  # a non-HTTP OSError is permanent -> no retry
+
+
+def test_download_rejects_non_https(tmp_path: Path) -> None:
+    """A non-HTTPS URL (e.g. an http:// or file:// link injected via the
+    Adoptium metadata payload) must be refused before any network/file I/O —
+    urllib would happily open file:// otherwise."""
+    for url in ('http://x/a', 'file:///etc/passwd', 'ftp://x/a'):
+        with pytest.raises(ValueError, match='HTTPS'):
+            fr._download(url, tmp_path / 'f.bin')
+
+
+def test_download_sets_a_socket_timeout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without an explicit timeout a stalled connection hangs urlopen FOREVER
+    (the retry loop's TimeoutError branch is dead code). Every attempt must
+    carry a finite socket timeout."""
+    seen: dict[str, object] = {}
+
+    def _fake_urlopen(_req: object, timeout: float | None = None) -> object:
+        seen['timeout'] = timeout
+        return io.BytesIO(b'payload')
+
+    monkeypatch.setattr('pipeline.sim.forge_runtime.urllib.request.urlopen', _fake_urlopen)
+    fr._download('https://x/a', tmp_path / 'f.bin')
+    assert isinstance(seen['timeout'], (int, float)) and seen['timeout'] > 0
 
 
 # --------------------------------------------------------------------------- #

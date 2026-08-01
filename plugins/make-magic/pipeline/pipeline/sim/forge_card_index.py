@@ -29,8 +29,15 @@ if TYPE_CHECKING:
 __all__ = ('ForgeCardIndex',)
 
 
+#: Typographic apostrophes (U+2018/U+2019/U+02BC) folded to the ASCII ``'``
+#: Forge/Scryfall use — a deck hand-typed on macOS (smart quotes) must not
+#: misclassify "Urza's Saga".
+_APOSTROPHE_FOLD = str.maketrans({'\u2018': "'", '\u2019': "'", '\u02bc': "'"})
+
+
 def _norm(name: str) -> str:
-    """Canonicalize a card name for membership: NFC-normalize, then strip + lower.
+    """Canonicalize a card name for membership: NFC-normalize, fold typographic
+    apostrophes, then strip + lower.
 
     Forge's cardsfolder ``Name:`` lines and Scryfall names can differ in Unicode
     normalization FORM (composed vs decomposed) for accented cards — Lim-Dûl's
@@ -38,9 +45,11 @@ def _norm(name: str) -> str:
     name compare unequal as raw strings, so without a shared normal form a VALID
     card is misclassified ABSENT_FROM_TARGET and the sim hard-fails a good deck.
     Applying ``NFC`` on BOTH the index build and every lookup makes the match
-    normalization-insensitive.
+    normalization-insensitive; the apostrophe fold does the same for smart-quote
+    variants (``U+2019`` from macOS auto-substitution vs the ASCII ``'`` in both
+    Forge and Scryfall data).
     """
-    return unicodedata.normalize('NFC', name).strip().lower()
+    return unicodedata.normalize('NFC', name).translate(_APOSTROPHE_FOLD).strip().lower()
 
 
 #: Basic lands are always loadable in Forge and are frequently the bulk of a deck;

@@ -95,6 +95,12 @@ _DOWNLOAD_ATTEMPTS = 3
 #: (URL rot) or any non-HTTP ``OSError`` (e.g. disk-full) is permanent -> fail
 #: fast with no backoff.
 _TRANSIENT_HTTP = frozenset({403, 429, 500, 502, 503, 504})
+#: Socket timeout (s) for every download / metadata request. Without one,
+#: ``urlopen`` inherits the default of NO timeout and a stalled connection hangs
+#: the first-run provision forever (the retry loop never even gets to fire).
+#: This is a per-socket-op inactivity timeout, so a slow-but-moving ~350 MB
+#: stream is unaffected.
+_HTTP_TIMEOUT_S = 60.0
 
 
 class ForgeUnavailableError(RuntimeError):
@@ -306,7 +312,7 @@ def _temurin_asset() -> tuple[str, str | None]:
     )
     try:
         req = urllib.request.Request(query, headers={'User-Agent': _USER_AGENT})
-        with urllib.request.urlopen(req) as resp:  # Adoptium public metadata API.
+        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_S) as resp:  # Adoptium public metadata API.
             payload = json.load(resp)
         return _parse_temurin_asset(payload)
     except Exception:  # metadata unavailable/changed — degrade to the redirect URL.
@@ -378,18 +384,29 @@ def _download_verified(url: str, dest: Path, *, sha256: str | None) -> None:
 def _download(url: str, dest: Path, *, attempts: int = _DOWNLOAD_ATTEMPTS) -> None:
     """Stream ``url`` to ``dest`` with a real User-Agent + linear-backoff retry.
 
+    HTTPS-only: a non-``https://`` URL (e.g. an ``http://`` — or ``file://`` —
+    link injected via a compromised metadata payload) is refused up front;
+    ``urlopen`` would otherwise happily open any scheme it knows.
+
     Retries ONLY transient failures — an HTTP status in :data:`_TRANSIENT_HTTP`
     (rate-limit / 5xx) or a connection-level ``URLError`` / timeout — up to
     ``attempts`` times. A PERMANENT error (a 404 URL-rot, or a non-HTTP
     ``OSError`` such as disk-full) FAILS FAST with no retry, so it surfaces
-    immediately instead of burning the full backoff. The final error propagates
-    so :func:`ensure` can wrap it in an actionable
-    :class:`ForgeUnavailableError`. Network work (mocked in tests).
+    immediately instead of burning the full backoff. Every attempt carries the
+    :data:`_HTTP_TIMEOUT_S` socket timeout so a stalled connection cannot hang
+    the provision forever. The final error propagates so :func:`ensure` can wrap
+    it in an actionable :class:`ForgeUnavailableError`. Network work (mocked in
+    tests).
     """
+    if not url.lower().startswith('https://'):
+        raise ValueError(f'refusing non-HTTPS download URL: {url!r}')
     for attempt in range(1, attempts + 1):
         try:
             req = urllib.request.Request(url, headers={'User-Agent': _USER_AGENT})
-            with urllib.request.urlopen(req) as resp, dest.open('wb') as fh:  # pinned URL + UA.
+            with (
+                urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_S) as resp,  # pinned URL + UA.
+                dest.open('wb') as fh,
+            ):
                 shutil.copyfileobj(resp, fh)
             return
         except urllib.error.HTTPError as exc:
@@ -404,7 +421,14 @@ def _download(url: str, dest: Path, *, attempts: int = _DOWNLOAD_ATTEMPTS) -> No
 
 
 def _verify_sha256(path: Path, expected: str) -> None:
-    """Raise if ``path``'s SHA256 does not match ``expected`` (integrity gate)."""
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    if digest != expected:
-        raise ValueError(f'SHA256 mismatch for {path.name}: got {digest}, expected {expected}')
+    """Raise if ``path``'s SHA256 does not match ``expected`` (integrity gate).
+
+    Hashed in 1 MiB chunks — the Forge tarball is ~350 MB, so a whole-file
+    ``read_bytes`` would spike RSS by that much for no benefit.
+    """
+    digest = hashlib.sha256()
+    with path.open('rb') as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b''):
+            digest.update(chunk)
+    if digest.hexdigest() != expected:
+        raise ValueError(f'SHA256 mismatch for {path.name}: got {digest.hexdigest()}, expected {expected}')

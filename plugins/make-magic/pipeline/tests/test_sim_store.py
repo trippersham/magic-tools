@@ -451,3 +451,23 @@ def test_elided_log_stores_no_game_logs(data_dir: Path) -> None:
     key = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13')
     sim_store.store_matchup(key, _meta(), _match_result(), [_features()])  # raw_log='(elided)'
     assert sim_store.get_game_logs(key) == []
+
+
+def test_store_matchup_rejects_log_feature_desync(data_dir: Path) -> None:
+    """features and raw_log from DIFFERENT runs must raise, not silently desync.
+
+    A real raise (ValueError), not `assert` — `python -O` strips asserts and this
+    invariant guards persisted rows (`game_index` alignment across two tables).
+    """
+    result = MatchResult(
+        deck_a='Aggro',
+        deck_b='Control',
+        wins_a=1,
+        wins_b=0,
+        draws=0,
+        per_game=(GameOutcome(winner='a', elapsed_ms=1000),),
+        raw_log=_multigame_log(1),  # ONE Game Result segment...
+    )
+    two_features = [_features(), _features(winner='b')]  # ...but TWO feature rows
+    with pytest.raises(ValueError, match='desync'):
+        sim_store.store_matchup('k-desync', _meta(), result, two_features)

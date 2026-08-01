@@ -289,11 +289,13 @@ def store_matchup(
         # the SAME split_games) OR are absent — a result-less/elided log (e.g. tests
         # that pass a placeholder raw_log) yields 0 segments. Any OTHER count means
         # `features` and `raw_log` came from different matchups and the two tables
-        # would silently desync on `game_index`.
-        assert len(game_logs) in (0, len(features)), (
-            f'log/feature game_index desync: {len(game_logs)} log segments vs '
-            f'{len(features)} feature rows for {key} (features and raw_log must be from the same run)'
-        )
+        # would silently desync on `game_index`. A real raise (not `assert`, which
+        # `python -O` strips) — this guards persisted data.
+        if len(game_logs) not in (0, len(features)):
+            raise ValueError(
+                f'log/feature game_index desync: {len(game_logs)} log segments vs '
+                f'{len(features)} feature rows for {key} (features and raw_log must be from the same run)'
+            )
         for game_index, game_log in enumerate(game_logs):
             conn.execute(
                 'INSERT INTO sim_game_logs (matchup_key, game_index, raw_log) VALUES (?, ?, ?)',

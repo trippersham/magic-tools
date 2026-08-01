@@ -121,3 +121,15 @@ def test_card_exporter_unresolved_warning_without_availability() -> None:
 def test_get_card_exporter_unknown_format_raises() -> None:
     with pytest.raises(ValueError, match='unknown'):
         get_card_exporter('nope')
+
+
+def test_has_folds_typographic_apostrophes() -> None:
+    """A smart-quote name (macOS auto-substitution in hand-entered data) must
+    match the ASCII-apostrophe form Forge/Scryfall use — in BOTH directions."""
+    from pipeline.sim.forge_card_index import ForgeCardIndex
+
+    ascii_index = ForgeCardIndex(frozenset(["Urza's Saga"]))
+    assert ascii_index.has('Urza\u2019s Saga')  # U+2019 lookup vs ASCII index
+
+    curly_index = ForgeCardIndex(frozenset(['Urza\u2019s Saga']))
+    assert curly_index.has("Urza's Saga")  # ASCII lookup vs U+2019 index
