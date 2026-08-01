@@ -17,8 +17,13 @@ Verbs:
     decks (offline, no Forge); defaults to ``curated``.
   * ``log <A> <B> [--game N]`` — retrieve a stored per-game verbose Forge log for
     a past matchup (offline, no Forge; forensic replay from DuckDB).
-  * ``doctor`` — Forge/Java resolution + version + derived pool size + a
-    free-RAM/disk snapshot; graceful whether or not Forge is present.
+  * ``doctor [--provision]`` — Forge/Java resolution + version + derived pool
+    size + a free-RAM/disk snapshot; graceful whether or not Forge is present.
+    ``--provision`` downloads + caches Forge on a miss (one-time ~350MB).
+
+``match`` / ``deck`` / ``ab`` AUTO-PROVISION Forge on first use (fetch-at-runtime,
+one-time notice), so a fresh box needs no manual install; ``doctor`` stays
+read-only unless ``--provision`` is passed.
 
 Deck references (``<A>`` / ``<B>`` / ``<name>``) resolve as a ``.dck`` file path
 (arg ends in ``.dck`` or is an existing file) OR an Airtable deck name (via
@@ -46,8 +51,10 @@ from pipeline.sim.core import (
 from pipeline.sim.forge_runtime import (
     ENV_FORGE_HOME,
     ENV_JAVA,
+    FORGE_VERSION,
     ForgeInstall,
     ForgeUnavailableError,
+    ensure,
     resolve,
 )
 from pipeline.sim.gauntlet import gauntlet_sources, resolve_gauntlet
@@ -99,6 +106,32 @@ def _resolve_deck_arg(arg: str) -> tuple[str, str]:
 
     deck = get_store().get_deck(arg)
     return (deck.name, get_exporter('forge_dck').export(deck))
+
+
+# --------------------------------------------------------------------------- #
+# Forge provisioning.
+# --------------------------------------------------------------------------- #
+
+
+def _forge_fetch_notice() -> None:
+    """One-time 'downloading Forge' notice (stderr) so a first run isn't a silent hang."""
+    print(
+        f'Forge not found locally — downloading Forge {FORGE_VERSION} + a JRE '
+        '(~350MB, one-time; reused after). This may take a few minutes…',
+        file=sys.stderr,
+    )
+
+
+def _ensure_forge() -> ForgeInstall:
+    """Resolve Forge for a game verb, AUTO-PROVISIONING (fetch) on first use.
+
+    Game verbs (``match`` / ``deck`` / ``ab``) call this instead of the read-only
+    :func:`~pipeline.sim.forge_runtime.resolve` so a fresh box provisions Forge
+    itself on the first run (the design's fetch-at-runtime promise), surfacing a
+    one-time notice before the download. An impossible fetch (offline) still
+    raises ``ForgeUnavailableError`` → the ``main`` handler prints a clean error.
+    """
+    return ensure(on_fetch=_forge_fetch_notice)
 
 
 # --------------------------------------------------------------------------- #
@@ -170,7 +203,7 @@ def _match(argv: list[str]) -> None:
 
     deck_a = _resolve_deck_arg(args.deck_a)
     deck_b = _resolve_deck_arg(args.deck_b)
-    install = resolve()
+    install = _ensure_forge()
     result: MatchResult = run_matchup(install, deck_a, deck_b, n=args.n, seed=args.seed, fmt=args.fmt)
     print(f'{deck_a[0]} vs {deck_b[0]}  ({args.fmt}, n={args.n}, seed={args.seed})')
     print(f'{deck_a[0]}: {result.wins_a} wins   {deck_b[0]}: {result.wins_b} wins   draws: {result.draws}')
@@ -189,7 +222,7 @@ def _deck(argv: list[str]) -> None:
     candidate = _resolve_deck_arg(args.name)
     # `mine`/`both` need the collection store; `curated` never touches it.
     store = get_store() if args.gauntlet in ('mine', 'both') else None
-    install = resolve()
+    install = _ensure_forge()
     result = simulate(
         candidate,
         args.gauntlet,
@@ -217,7 +250,7 @@ def _ab(argv: list[str]) -> None:
     variant_a = _resolve_deck_arg(args.deck_a)
     variant_b = _resolve_deck_arg(args.deck_b)
     store = get_store() if args.gauntlet in ('mine', 'both') else None
-    install = resolve()
+    install = _ensure_forge()
     comparison: Comparison = compare(
         variant_a,
         variant_b,
@@ -283,7 +316,12 @@ def _doctor(argv: list[str]) -> None:
     non-zero — never a traceback.
     """
     parser = argparse.ArgumentParser(prog='simulate doctor')
-    parser.parse_args(argv)
+    parser.add_argument(
+        '--provision',
+        action='store_true',
+        help='Download + cache Forge + a JRE now if not already available (one-time ~350MB).',
+    )
+    args = parser.parse_args(argv)
 
     pool = derive_pool_size()
     ram = free_ram_gib()
@@ -294,19 +332,22 @@ def _doctor(argv: list[str]) -> None:
     print(f'  free disk: {disk:.1f} GiB')
 
     try:
-        install: ForgeInstall = resolve()
+        # `--provision` fetches on a miss (the one-time download); otherwise the
+        # check is read-only (`resolve`), so `doctor` never surprises with a pull.
+        install: ForgeInstall = _ensure_forge() if args.provision else resolve()
     except ForgeUnavailableError as exc:
         # Graceful: name WHY + HOW to enable, exit non-zero, no traceback.
         print('  forge: NOT AVAILABLE')
         print(f'    {exc}')
         print(
-            f'    To enable: set {ENV_FORGE_HOME} to a Forge home (with the desktop jar + res/) '
-            f'and {ENV_JAVA} to a java binary, or provision the cached install.',
+            f'    To enable: run `simulate doctor --provision` to auto-download Forge (~350MB, '
+            f'one-time), or set {ENV_FORGE_HOME} (+ {ENV_JAVA}) to reuse an existing install. '
+            f'(A `match`/`deck`/`ab` run also auto-provisions on first use.)',
             file=sys.stderr,
         )
         raise SystemExit(1) from exc
 
-    print('  forge: available')
+    print('  forge: available' + ('  (provisioned)' if args.provision else ''))
     print(f'    version:   {forge_version()}')
     print(f'    forge dir: {install.forge_dir}')
     print(f'    jar:       {install.jar}')

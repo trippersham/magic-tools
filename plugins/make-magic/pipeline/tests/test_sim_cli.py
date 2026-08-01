@@ -77,8 +77,14 @@ def install() -> ForgeInstall:
 
 @pytest.fixture()
 def mock_resolve(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> ForgeInstall:
-    """Patch ``run.resolve`` to return a dummy install (Forge "available")."""
+    """Patch ``run.resolve`` AND ``run.ensure`` to return a dummy install.
+
+    Game verbs auto-provision via ``_ensure_forge`` -> ``ensure`` (fetch-on-miss);
+    ``doctor`` (read-only) uses ``resolve``. Patch both so no real fetch/locate
+    runs in the CLI suite.
+    """
     monkeypatch.setattr(sim_run, 'resolve', lambda **_: install)
+    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
     return install
 
 
@@ -343,6 +349,69 @@ def test_doctor_unavailable_graceful(
     assert 'not available' in combined.lower() or 'no forge' in combined.lower()
     assert 'MAKE_MAGIC_FORGE_HOME' in combined  # actionable: names the override.
     assert 'Traceback' not in combined  # graceful — no raw traceback.
+
+
+def test_doctor_provision_fetches_via_ensure(
+    monkeypatch: pytest.MonkeyPatch,
+    install: ForgeInstall,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`doctor --provision` fetches via ensure() (not the read-only resolve)."""
+
+    def _resolve_raises(**_: object) -> ForgeInstall:
+        raise ForgeUnavailableError('No Forge install found.')
+
+    called: dict[str, bool] = {}
+
+    def _ensure(**_: object) -> ForgeInstall:
+        called['ensure'] = True
+        return install
+
+    monkeypatch.setattr(sim_run, 'resolve', _resolve_raises)  # read-only path would fail…
+    monkeypatch.setattr(sim_run, 'ensure', _ensure)  # …but --provision fetches.
+    monkeypatch.setattr(sim_run, 'forge_version', lambda: '2.0.13')
+    monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
+    monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
+    monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
+
+    sim_run.main(['doctor', '--provision'])  # no SystemExit -> exit 0.
+
+    assert called.get('ensure') is True
+    out = capsys.readouterr().out
+    assert 'available' in out.lower()
+    assert 'provisioned' in out.lower()
+
+
+def test_match_auto_provisions_via_ensure(
+    monkeypatch: pytest.MonkeyPatch,
+    install: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A game verb (`match`) auto-provisions via ensure() — it does NOT use resolve()."""
+    dck_a, dck_b = tmp_path / 'A.dck', tmp_path / 'B.dck'
+    dck_a.write_text('Name=A\n[Main]\n40 Mountain\n')
+    dck_b.write_text('Name=B\n[Main]\n40 Plains\n')
+
+    def _resolve_raises(**_: object) -> ForgeInstall:
+        raise AssertionError('game verb must auto-provision via ensure(), not resolve()')
+
+    monkeypatch.setattr(sim_run, 'resolve', _resolve_raises)
+    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
+
+    def _fake_run_matchup(inst: ForgeInstall, a: tuple[str, str], b: tuple[str, str], **_: object) -> MatchResult:
+        assert inst is install  # the ensure()-provided install is threaded through.
+        return MatchResult(
+            deck_a=a[0], deck_b=b[0], wins_a=1, wins_b=0, draws=0,
+            per_game=(GameOutcome(winner='a', elapsed_ms=1000),), raw_log='(elided)',
+        )
+
+    monkeypatch.setattr(sim_run, 'run_matchup', _fake_run_matchup)
+
+    sim_run.main(['match', str(dck_a), str(dck_b), '-n', '1'])
+
+    out = capsys.readouterr().out
+    assert 'A: 1 wins' in out
 
 
 # --------------------------------------------------------------------------- #

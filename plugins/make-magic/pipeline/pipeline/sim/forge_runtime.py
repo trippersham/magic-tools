@@ -28,11 +28,16 @@ import os
 import platform
 import shutil
 import tarfile
+import time
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pipeline.store.paths import StorePaths
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = (
     'ENV_FORGE_HOME',
@@ -66,9 +71,13 @@ FORGE_TARBALL_URL = (
 #: fetch-at-runtime download is verified before extraction.
 FORGE_TARBALL_SHA256 = 'df23b237095cfc5ff97a4711946b25ff852da9ff43b916c40783f6b5a41ce855'
 
-#: A Temurin 21 JRE for the current platform. The URL is only reached on the
-#: fetch fallback; overrides / cached installs never hit it.
-_TEMURIN_BASE = 'https://github.com/adoptium/temurin21-binaries/releases/latest/download'
+#: Adoptium API "latest 21 GA" binary endpoint — a STABLE redirect to the
+#: current Temurin JRE asset (whose real filename embeds the exact version, e.g.
+#: ``…_21.0.12_8.tar.gz``, so the version-less ``/releases/latest/download/`` path
+#: 404s — do NOT use that). Only reached on the fetch fallback; overrides /
+#: cached installs never hit it. The endpoint 307-redirects to a GitHub release
+#: asset (a ``.tar.gz``); ``urllib`` follows the redirect.
+_TEMURIN_API = 'https://api.adoptium.net/v3/binary/latest/21/ga'
 
 
 class ForgeUnavailableError(RuntimeError):
@@ -177,24 +186,35 @@ def _resolve_java(env_java: str | None, forge_dir: Path) -> Path:
     if system:
         return Path(system)
     raise ForgeUnavailableError(
-        f'No java found for Forge. Set {ENV_JAVA}, bundle a JRE under '
-        f'{forge_dir / "jre"}, or put java on PATH.'
+        f'No java found for Forge. Set {ENV_JAVA}, bundle a JRE under {forge_dir / "jre"}, or put java on PATH.'
     )
 
 
-def ensure(*, data_dir: Path | None = None) -> ForgeInstall:
+def ensure(
+    *,
+    data_dir: Path | None = None,
+    on_fetch: Callable[[], None] | None = None,
+) -> ForgeInstall:
     """Resolve Forge, fetching the pinned release into the cache if nothing resolves.
 
     Tries :func:`resolve` first; on :class:`ForgeUnavailableError` downloads the
     pinned Forge tarball (SHA256-verified) + a Temurin 21 JRE into
     ``<data_dir>/forge/`` and re-resolves. Any fetch/verify/extract failure is
     re-raised as :class:`ForgeUnavailableError` with an actionable message.
+
+    ``on_fetch`` (if given) is called ONCE, right before the download begins —
+    only on the fetch path, never when Forge already resolves. Callers use it to
+    surface a one-time "downloading Forge…" notice so a first run doesn't appear
+    to hang on the ~350 MB pull.
     """
     root = data_dir if data_dir is not None else StorePaths.resolve().data_dir
     try:
         return resolve(data_dir=root)
     except ForgeUnavailableError:
         pass
+
+    if on_fetch is not None:
+        on_fetch()
 
     forge_dir = root / 'forge'
     jre_dir = forge_dir / 'jre'
@@ -216,17 +236,18 @@ def ensure(*, data_dir: Path | None = None) -> ForgeInstall:
 
 
 def _temurin_url() -> str:
-    """Best-effort Temurin 21 JRE archive URL for the current platform.
+    """Adoptium API URL for the latest Temurin 21 JRE for the current platform.
 
-    Only consulted on the fetch fallback; tests mock :func:`_fetch_and_extract`
-    so this is never reached offline.
+    Resolves ``mac``/``linux`` x ``aarch64``/``x64`` into the Adoptium
+    ``binary/latest`` endpoint (:data:`_TEMURIN_API`), which redirects to the
+    current versioned asset — so we never hardcode a JRE point-version that would
+    rot. Only consulted on the fetch fallback; tests mock
+    :func:`_fetch_and_extract` so this is never reached offline.
     """
-    system = platform.system().lower()
     machine = platform.machine().lower()
     arch = 'aarch64' if machine in ('arm64', 'aarch64') else 'x64'
-    if system == 'darwin':
-        return f'{_TEMURIN_BASE}/OpenJDK21U-jre_{arch}_mac_hotspot.tar.gz'
-    return f'{_TEMURIN_BASE}/OpenJDK21U-jre_{arch}_linux_hotspot.tar.gz'
+    os_name = 'mac' if platform.system().lower() == 'darwin' else 'linux'
+    return f'{_TEMURIN_API}/{os_name}/{arch}/jre/hotspot/normal/eclipse'
 
 
 def _fetch_and_extract(
@@ -258,10 +279,35 @@ def _fetch_and_extract(
         tar.extractall(jre_dir, filter='data')
 
 
-def _download(url: str, dest: Path) -> None:
-    """Stream ``url`` to ``dest`` (network; mocked in tests)."""
-    with urllib.request.urlopen(url) as resp, dest.open('wb') as fh:  # pinned GitHub release URL.
-        shutil.copyfileobj(resp, fh)
+#: User-Agent for downloads. GitHub release-asset / Adoptium endpoints 403 or
+#: rate-limit requests that send no (or a bare ``Python-urllib``) UA under load,
+#: so identify with a real UA string.
+_USER_AGENT = 'make-magic-sim/1.0 (+https://github.com/Card-Forge/forge)'
+#: Download retry budget (linear backoff) for transient 403/rate-limit/5xx.
+_DOWNLOAD_ATTEMPTS = 3
+
+
+def _download(url: str, dest: Path, *, attempts: int = _DOWNLOAD_ATTEMPTS) -> None:
+    """Stream ``url`` to ``dest`` with a real User-Agent + linear-backoff retry.
+
+    Network work (mocked in tests). Sends :data:`_USER_AGENT` and retries a
+    transient failure (GitHub 403/rate-limit, a dropped connection) up to
+    ``attempts`` times before giving up — the last error propagates so
+    :func:`ensure` can wrap it in an actionable :class:`ForgeUnavailableError`.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': _USER_AGENT})
+            with urllib.request.urlopen(req) as resp, dest.open('wb') as fh:  # pinned release URL + UA.
+                shutil.copyfileobj(resp, fh)
+            return
+        except Exception as exc:  # transient network/HTTP error — back off + retry.
+            last_exc = exc
+            if attempt < attempts:
+                time.sleep(2 * attempt)
+    assert last_exc is not None  # loop ran >=1 time, so a failure was recorded.
+    raise last_exc
 
 
 def _verify_sha256(path: Path, expected: str) -> None:

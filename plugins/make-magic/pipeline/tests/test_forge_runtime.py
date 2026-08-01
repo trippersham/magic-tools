@@ -179,6 +179,42 @@ def test_ensure_fetches_when_missing(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert install.java.exists()
 
 
+def test_ensure_calls_on_fetch_before_fetching(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``on_fetch`` fires exactly once, BEFORE the download, only on the fetch path."""
+    monkeypatch.delenv(ENV_FORGE_HOME, raising=False)
+    monkeypatch.delenv(ENV_JAVA, raising=False)
+    monkeypatch.setattr('pipeline.sim.forge_runtime.shutil.which', lambda _cmd: None)
+    cache = tmp_path / 'data'
+    events: list[str] = []
+
+    def _fake_fetch(*, forge_dir: Path, jre_dir: Path, **_k: object) -> None:
+        events.append('fetch')
+        _make_forge_home(forge_dir)
+        _make_java(jre_dir / 'bin' / 'java')
+
+    monkeypatch.setattr('pipeline.sim.forge_runtime._fetch_and_extract', _fake_fetch)
+
+    ensure(data_dir=cache, on_fetch=lambda: events.append('notice'))
+
+    assert events == ['notice', 'fetch']  # notice fires first, then the download.
+
+
+def test_ensure_skips_on_fetch_when_already_resolved(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When a cached install already resolves, ``on_fetch`` is NEVER called."""
+    cache = tmp_path / 'data'
+    _make_forge_home(cache / 'forge')
+    _make_java(cache / 'forge' / 'jre' / 'bin' / 'java')
+    called: list[str] = []
+
+    monkeypatch.setattr(
+        'pipeline.sim.forge_runtime._fetch_and_extract',
+        lambda **_k: pytest.fail('must not fetch when cached'),
+    )
+    ensure(data_dir=cache, on_fetch=lambda: called.append('notice'))
+
+    assert called == []  # no download -> no notice.
+
+
 def test_ensure_fetch_failure_raises_forge_unavailable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(ENV_FORGE_HOME, raising=False)
     monkeypatch.delenv(ENV_JAVA, raising=False)
