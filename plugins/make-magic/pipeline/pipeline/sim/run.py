@@ -37,17 +37,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from pipeline.collection import CollectionError, get_store
-from pipeline.destinations.deck_export import (
-    CardIssue,
-    DeckExportError,
-    IssueKind,
-    Severity,
-    ValidationReport,
-    get_exporter,
-)
+from pipeline.contracts import Deck, DeckCard
+from pipeline.destinations.deck_export import DeckExportError, get_exporter
 from pipeline.sim.core import (
     Comparison,
     SimResult,
@@ -94,14 +89,38 @@ _GAUNTLET_CHOICES = tuple(dict.fromkeys(src for fmt in _FORMAT_CHOICES for src i
 # --------------------------------------------------------------------------- #
 
 
-def _resolve_deck_arg(arg: str) -> tuple[str, str]:
-    """Resolve a deck reference to a ``(name, dck_text)`` pair.
+@dataclass(frozen=True)
+class _ResolvedDeck:
+    """A resolved deck reference: its name, rendered ``.dck`` text, and — when the
+    source is the collection store — the fully-hydrated :class:`Deck`.
 
-    A ``.dck`` path (arg ends in ``.dck`` or is an existing file) is read
-    straight off disk — its stem is the deck name. Anything else is treated as an
-    Airtable deck NAME: resolved via ``get_store().get_deck`` and rendered with
-    the Forge ``.dck`` exporter. This is the single resolver both the deck-ref
-    verbs (``match`` / ``deck`` / ``ab``) route through.
+    ``deck`` is the source ``Deck`` (with per-card ``oracle_id``s) for an Airtable
+    name; it is ``None`` for a raw ``.dck`` path (no Scryfall resolution info).
+    Availability validation routes through this ``deck`` when present so it shares
+    the destination's ``validate`` path; ``UNRESOLVED`` (name-only) warnings are
+    meaningful only when it is present (a raw ``.dck`` legitimately has no
+    ``oracle_id``s, so we don't warn on those).
+    """
+
+    name: str
+    text: str
+    deck: Deck | None
+
+    @property
+    def ref(self) -> tuple[str, str]:
+        """The ``(name, dck_text)`` pair the sim core (``run_matchup``/``simulate``) consumes."""
+        return (self.name, self.text)
+
+
+def _resolve_deck_arg(arg: str) -> _ResolvedDeck:
+    """Resolve a deck reference to a :class:`_ResolvedDeck`.
+
+    A ``.dck`` path (arg ends in ``.dck`` or is an existing file) is read straight
+    off disk — its stem is the deck name, ``deck`` is ``None``. Anything else is an
+    Airtable deck NAME: resolved via ``get_store().get_deck`` and rendered with the
+    Forge ``.dck`` exporter, keeping the hydrated ``Deck`` for validation. The
+    single resolver both the deck-ref verbs (``match`` / ``deck`` / ``ab``) and the
+    ``log`` verb route through.
     """
     from pathlib import Path
 
@@ -109,10 +128,10 @@ def _resolve_deck_arg(arg: str) -> tuple[str, str]:
     if arg.endswith('.dck') or path.is_file():
         if not path.is_file():
             raise CollectionError(f'deck file not found: {arg}')
-        return (path.stem, path.read_text())
+        return _ResolvedDeck(name=path.stem, text=path.read_text(), deck=None)
 
     deck = get_store().get_deck(arg)
-    return (deck.name, get_exporter('forge_dck').export(deck))
+    return _ResolvedDeck(name=deck.name, text=get_exporter('forge_dck').export(deck), deck=deck)
 
 
 # --------------------------------------------------------------------------- #
@@ -223,20 +242,38 @@ def _dck_card_names(dck_text: str) -> list[str]:
     return names
 
 
+def _deck_from_dck(name: str, dck_text: str) -> Deck:
+    """Reconstruct a minimal :class:`Deck` from rendered ``.dck`` text (for a path arg).
+
+    Only the card NAMES are recoverable from a raw ``.dck`` (no ``oracle_id``s), so
+    every card is name-only — that is exactly why the guard suppresses the
+    resulting ``UNRESOLVED`` warnings for path decks and acts only on the
+    (real) ``ABSENT_FROM_TARGET`` findings.
+    """
+    cards = [DeckCard(name=cn) for cn in _dck_card_names(dck_text)]
+    return Deck(name=name, cards=cards)
+
+
 def _guard_forge_availability(
     install: ForgeInstall,
-    decks: list[tuple[str, str]],
+    decks: list[_ResolvedDeck],
     *,
     allow_missing: bool,
 ) -> None:
     """Fail BEFORE spawning a JVM if a deck references a card Forge cannot load.
 
-    Builds a :class:`~pipeline.sim.forge_card_index.ForgeCardIndex` from the
-    install and checks each ``(name, dck_text)`` deck's card names. A card absent
-    from Forge's DB is a BLOCKING :class:`DeckExportError` (naming the offenders)
-    — unless ``allow_missing``, which downgrades it to a stderr warning. If the
-    card index can't be built (e.g. a minimal install without ``cardsfolder.zip``),
-    the guard is skipped — Forge's own loader remains the backstop.
+    Routes through the DESTINATION's own validation — ``ForgeDckExporter.validate``
+    backed by a :class:`~pipeline.sim.forge_card_index.ForgeCardIndex` — so the
+    card-availability classification lives in ONE place (the forge_dck card
+    exporter), not re-implemented here. For an Airtable deck the hydrated
+    :class:`Deck` is validated directly; for a ``.dck`` path it is reconstructed
+    from the rendered names (:func:`_deck_from_dck`). A card ABSENT from Forge's DB
+    is a BLOCKING :class:`DeckExportError` (naming the offenders) — unless
+    ``allow_missing``, which downgrades it to a stderr warning. ``UNRESOLVED``
+    (name-only) cards are surfaced as warnings ONLY for store-resolved decks (a raw
+    ``.dck`` legitimately carries no ``oracle_id``s). If the index can't be built
+    (a minimal install without ``cardsfolder.zip``), the guard is skipped — Forge's
+    own loader remains the backstop.
     """
     from pipeline.sim.forge_card_index import ForgeCardIndex
 
@@ -245,26 +282,19 @@ def _guard_forge_availability(
     except (FileNotFoundError, OSError):
         return
 
-    for name, text in decks:
-        absent = [cn for cn in _dck_card_names(text) if not index.has(cn)]
-        if not absent:
-            continue
-        report = ValidationReport(
-            deck_name=name,
-            issues=tuple(
-                CardIssue(
-                    card_name=cn,
-                    kind=IssueKind.ABSENT_FROM_TARGET,
-                    severity=Severity.BLOCKING,
-                    detail='not in Forge card DB',
-                )
-                for cn in absent
-            ),
-        )
-        if allow_missing:
-            print(f'warning: {DeckExportError(report)} (proceeding: --allow-missing)', file=sys.stderr)
-        else:
-            raise DeckExportError(report)
+    exporter = get_exporter('forge_dck', availability=index)
+    for resolved in decks:
+        deck = resolved.deck if resolved.deck is not None else _deck_from_dck(resolved.name, resolved.text)
+        report = exporter.validate(deck)
+        if report.blocking:
+            if allow_missing:
+                print(f'warning: {DeckExportError(report)} (proceeding: --allow-missing)', file=sys.stderr)
+            else:
+                raise DeckExportError(report)
+        # UNRESOLVED (name-only) is meaningful only when the deck was store-resolved.
+        if resolved.deck is not None:
+            for issue in report.warnings:
+                print(f'warning: {resolved.name}: {issue.card_name} — {issue.detail}', file=sys.stderr)
 
 
 def _match(argv: list[str]) -> None:
@@ -285,9 +315,9 @@ def _match(argv: list[str]) -> None:
     deck_b = _resolve_deck_arg(args.deck_b)
     install = _ensure_forge()
     _guard_forge_availability(install, [deck_a, deck_b], allow_missing=args.allow_missing)
-    result: MatchResult = run_matchup(install, deck_a, deck_b, n=args.n, seed=args.seed, fmt=args.fmt)
-    print(f'{deck_a[0]} vs {deck_b[0]}  ({args.fmt}, n={args.n}, seed={args.seed})')
-    print(f'{deck_a[0]}: {result.wins_a} wins   {deck_b[0]}: {result.wins_b} wins   draws: {result.draws}')
+    result: MatchResult = run_matchup(install, deck_a.ref, deck_b.ref, n=args.n, seed=args.seed, fmt=args.fmt)
+    print(f'{deck_a.name} vs {deck_b.name}  ({args.fmt}, n={args.n}, seed={args.seed})')
+    print(f'{deck_a.name}: {result.wins_a} wins   {deck_b.name}: {result.wins_b} wins   draws: {result.draws}')
 
 
 def _deck(argv: list[str]) -> None:
@@ -311,7 +341,7 @@ def _deck(argv: list[str]) -> None:
     install = _ensure_forge()
     _guard_forge_availability(install, [candidate], allow_missing=args.allow_missing)
     result = simulate(
-        candidate,
+        candidate.ref,
         args.gauntlet,
         games=args.games,
         fmt=args.fmt,
@@ -345,8 +375,8 @@ def _ab(argv: list[str]) -> None:
     install = _ensure_forge()
     _guard_forge_availability(install, [variant_a, variant_b], allow_missing=args.allow_missing)
     comparison: Comparison = compare(
-        variant_a,
-        variant_b,
+        variant_a.ref,
+        variant_b.ref,
         args.gauntlet,
         games=args.games,
         fmt=args.fmt,
@@ -475,8 +505,8 @@ def _log(argv: list[str]) -> None:
     parser.add_argument('--game', type=int, default=None, help='Print this game index (0-based) full log.')
     args = parser.parse_args(argv)
 
-    _, dck_a = _resolve_deck_arg(args.deck_a)
-    _, dck_b = _resolve_deck_arg(args.deck_b)
+    dck_a = _resolve_deck_arg(args.deck_a).text
+    dck_b = _resolve_deck_arg(args.deck_b).text
     rows = find_matchups(deck_a_hash=deck_hash(dck_a), deck_b_hash=deck_hash(dck_b), fmt=args.fmt)
     # Optional narrowing (seed / game-count / forge-version) beyond the store-level
     # format filter — the levers a user pulls to disambiguate repeat runs of a pair.

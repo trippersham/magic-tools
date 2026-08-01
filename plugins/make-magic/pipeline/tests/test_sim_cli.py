@@ -420,16 +420,18 @@ def test_match_auto_provisions_via_ensure(
 
 
 def test_resolve_deck_arg_dck_file(tmp_path: Path) -> None:
-    """A ``.dck`` path resolves to a (name, text) pair straight off disk (no store)."""
+    """A ``.dck`` path resolves off disk (no store); ``deck`` is None (no oracle info)."""
     dck = tmp_path / 'FromDisk.dck'
     dck.write_text('[metadata]\nName=FromDisk\n')
-    name, text = sim_run._resolve_deck_arg(str(dck))
-    assert name == 'FromDisk'
-    assert 'Name=FromDisk' in text
+    resolved = sim_run._resolve_deck_arg(str(dck))
+    assert resolved.name == 'FromDisk'
+    assert 'Name=FromDisk' in resolved.text
+    assert resolved.ref == ('FromDisk', resolved.text)
+    assert resolved.deck is None  # a raw .dck carries no hydrated Deck
 
 
 def test_resolve_deck_arg_airtable_name(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A non-path arg resolves via the store: get_deck -> ForgeDckExporter."""
+    """A non-path arg resolves via the store: get_deck -> ForgeDckExporter, Deck kept."""
     from pipeline.contracts import Deck, DeckCard
 
     deck = Deck(name='Goblins', format='constructed', cards=[DeckCard(name='Mountain', quantity=20)])
@@ -441,9 +443,10 @@ def test_resolve_deck_arg_airtable_name(monkeypatch: pytest.MonkeyPatch) -> None
 
     monkeypatch.setattr(sim_run, 'get_store', lambda **_: _FakeStore())
 
-    name, text = sim_run._resolve_deck_arg('Goblins')
-    assert name == 'Goblins'
-    assert 'Mountain' in text  # rendered via the Forge exporter.
+    resolved = sim_run._resolve_deck_arg('Goblins')
+    assert resolved.name == 'Goblins'
+    assert 'Mountain' in resolved.text  # rendered via the Forge exporter.
+    assert resolved.deck is deck  # the hydrated Deck is kept for validation.
 
 
 def test_resolve_deck_arg_prefers_store_for_bareword(monkeypatch: pytest.MonkeyPatch) -> None:

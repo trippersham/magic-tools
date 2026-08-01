@@ -39,6 +39,24 @@ def test_has_normalizes_dfc_to_front_face() -> None:
     assert idx.has('Kirol, Attentive First-Year')
 
 
+def test_has_is_unicode_normalization_insensitive() -> None:
+    """An accented card matches across NFC/NFD forms — else a VALID deck hard-fails.
+
+    Regression: names were only ``.strip().lower()``'d, so an index built from one
+    Unicode normal form (e.g. Forge's cardsfolder ``Name:``) would miss a lookup in
+    the other (e.g. Scryfall's), misclassifying real cards (Lim-Dûl's Vault,
+    Jötun Grunt) as ABSENT_FROM_TARGET → a wrong pre-JVM hard-fail.
+    """
+    import unicodedata
+
+    for name in ("Lim-Dûl's Vault", 'Jötun Grunt', 'Dandân'):
+        nfc, nfd = unicodedata.normalize('NFC', name), unicodedata.normalize('NFD', name)
+        assert nfc != nfd or name.isascii()  # sanity: these actually differ by form
+        # Index built from the NFD form still matches an NFC lookup, and vice-versa.
+        assert ForgeCardIndex(frozenset({nfd})).has(nfc)
+        assert ForgeCardIndex(frozenset({nfc})).has(nfd)
+
+
 def test_has_basics_always_present() -> None:
     idx = ForgeCardIndex(frozenset())  # empty real set
     for basic in ('Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes', 'Snow-Covered Island'):

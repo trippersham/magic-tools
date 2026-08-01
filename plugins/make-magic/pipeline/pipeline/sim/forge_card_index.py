@@ -17,6 +17,7 @@ inject a tiny hand-built index and never need a real Forge.
 from __future__ import annotations
 
 import contextlib
+import unicodedata
 import zipfile
 from typing import TYPE_CHECKING
 
@@ -27,10 +28,25 @@ if TYPE_CHECKING:
 
 __all__ = ('ForgeCardIndex',)
 
+
+def _norm(name: str) -> str:
+    """Canonicalize a card name for membership: NFC-normalize, then strip + lower.
+
+    Forge's cardsfolder ``Name:`` lines and Scryfall names can differ in Unicode
+    normalization FORM (composed vs decomposed) for accented cards — Lim-Dûl's
+    Vault, Jötun Grunt, Dandân, Márton Stromgald, Séance. Two forms of the same
+    name compare unequal as raw strings, so without a shared normal form a VALID
+    card is misclassified ABSENT_FROM_TARGET and the sim hard-fails a good deck.
+    Applying ``NFC`` on BOTH the index build and every lookup makes the match
+    normalization-insensitive.
+    """
+    return unicodedata.normalize('NFC', name).strip().lower()
+
+
 #: Basic lands are always loadable in Forge and are frequently the bulk of a deck;
 #: guarantee them present so an index (real or a test fake) never flags a basic.
 _BASICS: frozenset[str] = frozenset(
-    f'{prefix}{land}'.lower()
+    _norm(f'{prefix}{land}')
     for land in ('plains', 'island', 'swamp', 'mountain', 'forest', 'wastes')
     for prefix in ('', 'snow-covered ')
 )
@@ -48,8 +64,9 @@ class ForgeCardIndex:
     """
 
     def __init__(self, names: frozenset[str]) -> None:
-        #: Lowercased for case-insensitive lookup; basics folded in defensively.
-        self._names: frozenset[str] = frozenset(n.strip().lower() for n in names) | _BASICS
+        #: NFC-normalized + lowercased for case/normalization-insensitive lookup;
+        #: basics folded in defensively.
+        self._names: frozenset[str] = frozenset(_norm(n) for n in names) | _BASICS
 
     def has(self, card_name: str) -> bool:
         """Whether Forge can load ``card_name`` (case-insensitive, DFC-normalized).
@@ -58,7 +75,7 @@ class ForgeCardIndex:
         the way Forge itself resolves an MDFC in a deck line — so DFCs/MDFCs
         (``Akoum Warrior // Akoum Teeth``) validate as present, not absent.
         """
-        n = card_name.strip().lower()
+        n = _norm(card_name)
         if n in self._names:
             return True
         if ' // ' in n:
@@ -82,6 +99,12 @@ class ForgeCardIndex:
         manifest is loaded directly; otherwise the ``cardsfolder.zip`` is parsed
         once and the result cached. Falls back to a fresh parse if the manifest
         is unreadable.
+
+        Note: the manifest is keyed only by ``forge_dir``, so an IN-PLACE
+        ``cardsfolder.zip`` update under the same dir will NOT trigger a rebuild.
+        That is acceptable because provisioned installs are version-specific dirs
+        (a Forge upgrade lands in a new dir → a fresh manifest); delete the
+        manifest to force a rebuild after an in-place swap.
         """
         forge_dir = install.forge_dir
         manifest = forge_dir / _MANIFEST_NAME
@@ -126,6 +149,6 @@ def _parse_cardsfolder(zip_path: Path) -> frozenset[str]:
                 for raw in fh:
                     line = raw.decode('utf-8', 'replace').strip()
                     if line.startswith('Name:'):
-                        names.add(line[len('Name:') :].strip().lower())
+                        names.add(_norm(line[len('Name:') :]))
                         break
     return frozenset(names)
