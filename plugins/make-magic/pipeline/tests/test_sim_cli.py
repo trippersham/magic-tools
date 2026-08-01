@@ -1,0 +1,379 @@
+"""TDD tests for the ``simulate`` CLI dispatcher (Phase 7).
+
+Every verb that would spawn Forge is exercised with the sim CORE mocked
+(``core.simulate`` / ``core.compare`` / ``runner.run_matchup`` /
+``forge_runtime.resolve``), so NO real Forge JVM ever runs in this suite. The
+assertions pin the argparse wiring: that ``match`` / ``deck`` / ``ab`` /
+``gauntlet show`` / ``doctor`` dispatch to the right core function with the
+parsed args (n, seed, --gauntlet, --format, --force) mapped correctly, that
+deck references resolve as an Airtable name (mock store) vs a ``.dck`` file, and
+that ``doctor`` reports gracefully whether or not Forge is present.
+
+``gauntlet show`` reads the REAL bundled curated data (no Forge, no network).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from pipeline.sim import run as sim_run
+from pipeline.sim.core import Comparison, OpponentResult, SimResult, TelemetryProfile
+from pipeline.sim.forge_runtime import ForgeInstall, ForgeUnavailableError
+from pipeline.sim.runner import GameOutcome, MatchResult
+
+# --------------------------------------------------------------------------- #
+# Fixtures / builders.
+# --------------------------------------------------------------------------- #
+
+
+def _sim_result(candidate: str = 'Cand', fmt: str = 'constructed') -> SimResult:
+    """A populated ``SimResult`` a mocked ``core.simulate`` can return."""
+    profile = TelemetryProfile(
+        games=4,
+        avg_kill_turn=7.5,
+        median_kill_turn=7.0,
+        avg_win_margin_life=6.0,
+        median_win_margin_life=5.0,
+        wincon_mix={'combat': 3, 'burn': 1},
+        mean_ramp_curve=[1.0, 2.0, 3.0],
+    )
+    per_opp = [
+        OpponentResult(
+            opponent='MonoRedAggro',
+            wins=3,
+            losses=1,
+            draws=0,
+            games=4,
+            win_rate=0.75,
+            win_rate_ci=(0.3, 0.95),
+            cached=False,
+        ),
+    ]
+    return SimResult(
+        candidate=candidate,
+        gauntlet_source='curated',
+        fmt=fmt,
+        games_per_opponent=4,
+        total_games=4,
+        wins=3,
+        losses=1,
+        draws=0,
+        win_rate=0.75,
+        win_rate_ci=(0.3, 0.95),
+        per_opponent=per_opp,
+        profile=profile,
+        cached_matchups=0,
+        fresh_matchups=1,
+    )
+
+
+@pytest.fixture()
+def install() -> ForgeInstall:
+    """A dummy resolved install (paths never touched — resolve is mocked)."""
+    return ForgeInstall(forge_dir=Path('/tmp/forge'), jar=Path('/tmp/forge/f.jar'), java=Path('/tmp/java'))
+
+
+@pytest.fixture()
+def mock_resolve(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> ForgeInstall:
+    """Patch ``run.resolve`` to return a dummy install (Forge "available")."""
+    monkeypatch.setattr(sim_run, 'resolve', lambda **_: install)
+    return install
+
+
+# --------------------------------------------------------------------------- #
+# main dispatch
+# --------------------------------------------------------------------------- #
+
+
+def test_unknown_verb_usage_nonzero(capsys: pytest.CaptureFixture[str]) -> None:
+    """An unknown verb prints usage to stderr and exits non-zero (no traceback)."""
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['bogus'])
+    assert exc.value.code != 0
+    err = capsys.readouterr().err
+    assert 'usage' in err.lower()
+    assert 'bogus' not in err or 'verbs' in err.lower()
+
+
+def test_no_verb_usage_nonzero(capsys: pytest.CaptureFixture[str]) -> None:
+    """No verb at all -> usage + non-zero exit."""
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main([])
+    assert exc.value.code != 0
+    assert 'usage' in capsys.readouterr().err.lower()
+
+
+# --------------------------------------------------------------------------- #
+# match
+# --------------------------------------------------------------------------- #
+
+
+def test_match_dispatches_run_matchup(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``match`` parses -n/-s/--format and calls run_matchup with a win tally."""
+    dck_a = tmp_path / 'A.dck'
+    dck_b = tmp_path / 'B.dck'
+    dck_a.write_text('[metadata]\nName=A\n')
+    dck_b.write_text('[metadata]\nName=B\n')
+
+    seen: dict[str, object] = {}
+
+    def _fake_run_matchup(
+        install: ForgeInstall,
+        deck_a: tuple[str, str],
+        deck_b: tuple[str, str],
+        *,
+        n: int,
+        seed: int,
+        fmt: str = 'constructed',
+    ) -> MatchResult:
+        seen.update(deck_a=deck_a, deck_b=deck_b, n=n, seed=seed, fmt=fmt)
+        return MatchResult(
+            deck_a=deck_a[0],
+            deck_b=deck_b[0],
+            wins_a=6,
+            wins_b=3,
+            draws=1,
+            per_game=(GameOutcome(winner='a', elapsed_ms=100),),
+            raw_log='',
+        )
+
+    monkeypatch.setattr(sim_run, 'run_matchup', _fake_run_matchup)
+
+    sim_run.main(['match', str(dck_a), str(dck_b), '-n', '10', '-s', '99', '--format', 'commander'])
+
+    assert seen['n'] == 10
+    assert seen['seed'] == 99
+    assert seen['fmt'] == 'commander'
+    out = capsys.readouterr().out
+    assert '6' in out and '3' in out  # win tally surfaced.
+
+
+# --------------------------------------------------------------------------- #
+# deck -> simulate
+# --------------------------------------------------------------------------- #
+
+
+def test_deck_dispatches_simulate(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``deck`` parses --gauntlet/--games/--format/--force and calls simulate."""
+    dck = tmp_path / 'MyDeck.dck'
+    dck.write_text('[metadata]\nName=MyDeck\n')
+
+    seen: dict[str, object] = {}
+
+    def _fake_simulate(deck: object, gauntlet_source: str, **kwargs: object) -> SimResult:
+        seen.update(deck=deck, gauntlet_source=gauntlet_source, **kwargs)
+        return _sim_result()
+
+    monkeypatch.setattr(sim_run, 'simulate', _fake_simulate)
+
+    sim_run.main(
+        ['deck', str(dck), '--gauntlet', 'both', '--games', '8', '--format', 'commander', '--force']
+    )
+
+    assert seen['gauntlet_source'] == 'both'
+    assert seen['games'] == 8
+    assert seen['fmt'] == 'commander'
+    assert seen['force'] is True
+    out = capsys.readouterr().out
+    assert 'win' in out.lower()  # win-rate reported.
+    assert 'MonoRedAggro' in out  # per-opponent breakdown.
+
+
+def test_deck_gauntlet_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Default gauntlet is curated, default force is False."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('x')
+    seen: dict[str, object] = {}
+
+    def _fake_simulate(deck: object, gauntlet_source: str, **kwargs: object) -> SimResult:
+        seen.update(gauntlet_source=gauntlet_source, **kwargs)
+        return _sim_result()
+
+    monkeypatch.setattr(sim_run, 'simulate', _fake_simulate)
+    sim_run.main(['deck', str(dck)])
+    assert seen['gauntlet_source'] == 'curated'
+    assert seen['force'] is False
+
+
+# --------------------------------------------------------------------------- #
+# ab -> compare
+# --------------------------------------------------------------------------- #
+
+
+def test_ab_dispatches_compare(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``ab`` calls compare with both variants + parsed args."""
+    a = tmp_path / 'A.dck'
+    b = tmp_path / 'B.dck'
+    a.write_text('a')
+    b.write_text('b')
+
+    seen: dict[str, object] = {}
+
+    def _fake_compare(
+        variant_a: object, variant_b: object, gauntlet_source: str, **kwargs: object
+    ) -> Comparison:
+        seen.update(a=variant_a, b=variant_b, gauntlet_source=gauntlet_source, **kwargs)
+        ra = _sim_result('A')
+        rb = _sim_result('B')
+        return Comparison(
+            a=ra,
+            b=rb,
+            win_rate_delta=0.1,
+            metric_deltas={'avg_kill_turn': -0.5},
+            stronger='A',
+        )
+
+    monkeypatch.setattr(sim_run, 'compare', _fake_compare)
+
+    sim_run.main(['ab', str(a), str(b), '--gauntlet', 'mine', '--games', '6', '--force'])
+
+    assert seen['gauntlet_source'] == 'mine'
+    assert seen['games'] == 6
+    assert seen['force'] is True
+    out = capsys.readouterr().out
+    assert 'A' in out and 'B' in out
+    assert 'avg_kill_turn' in out  # per-metric deltas surfaced.
+
+
+# --------------------------------------------------------------------------- #
+# gauntlet show (real bundled data)
+# --------------------------------------------------------------------------- #
+
+
+def test_gauntlet_show_constructed(capsys: pytest.CaptureFixture[str]) -> None:
+    """``gauntlet show`` lists the 5 curated constructed decks (real data)."""
+    sim_run.main(['gauntlet', 'show', '--format', 'constructed'])
+    out = capsys.readouterr().out
+    for name in ('MonoRedAggro', 'MonoBlueTempo', 'MonoGreenStompy', 'MonoWhiteWide', 'MonoBlackMidrange'):
+        assert name in out
+
+
+def test_gauntlet_show_commander(capsys: pytest.CaptureFixture[str]) -> None:
+    """``gauntlet show --format commander`` lists the 2 curated commander decks."""
+    sim_run.main(['gauntlet', 'show', '--format', 'commander'])
+    out = capsys.readouterr().out
+    assert 'GreenStompyEDH' in out
+    assert 'BlackMidrangeEDH' in out
+
+
+# --------------------------------------------------------------------------- #
+# doctor
+# --------------------------------------------------------------------------- #
+
+
+def test_doctor_available(
+    monkeypatch: pytest.MonkeyPatch,
+    install: ForgeInstall,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """doctor with a resolvable Forge prints version + pool size + paths, exit 0."""
+    monkeypatch.setattr(sim_run, 'resolve', lambda **_: install)
+    monkeypatch.setattr(sim_run, 'forge_version', lambda: '2.0.13')
+    monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
+    monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
+    monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
+
+    sim_run.main(['doctor'])  # no SystemExit -> exit 0.
+
+    out = capsys.readouterr().out
+    assert '2.0.13' in out
+    assert '4' in out  # pool size.
+    assert str(install.jar) in out
+    assert str(install.java) in out
+    assert '12.5' in out and '88.0' in out  # RAM/disk snapshot.
+
+
+def test_doctor_unavailable_graceful(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """doctor with an unavailable Forge prints an actionable message, exits non-zero, no traceback."""
+
+    def _raise(**_: object) -> ForgeInstall:
+        raise ForgeUnavailableError('No Forge install found. Set MAKE_MAGIC_FORGE_HOME ...')
+
+    monkeypatch.setattr(sim_run, 'resolve', _raise)
+    # Still report the runtime snapshot even when Forge is absent.
+    monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
+    monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
+    monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
+
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['doctor'])
+    assert exc.value.code != 0
+
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert 'not available' in combined.lower() or 'no forge' in combined.lower()
+    assert 'MAKE_MAGIC_FORGE_HOME' in combined  # actionable: names the override.
+    assert 'Traceback' not in combined  # graceful — no raw traceback.
+
+
+# --------------------------------------------------------------------------- #
+# deck-arg resolution: .dck path vs Airtable name
+# --------------------------------------------------------------------------- #
+
+
+def test_resolve_deck_arg_dck_file(tmp_path: Path) -> None:
+    """A ``.dck`` path resolves to a (name, text) pair straight off disk (no store)."""
+    dck = tmp_path / 'FromDisk.dck'
+    dck.write_text('[metadata]\nName=FromDisk\n')
+    name, text = sim_run._resolve_deck_arg(str(dck))
+    assert name == 'FromDisk'
+    assert 'Name=FromDisk' in text
+
+
+def test_resolve_deck_arg_airtable_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-path arg resolves via the store: get_deck -> ForgeDckExporter."""
+    from pipeline.contracts import Deck, DeckCard
+
+    deck = Deck(name='Goblins', format='constructed', cards=[DeckCard(name='Mountain', quantity=20)])
+
+    class _FakeStore:
+        def get_deck(self, name: str) -> Deck:
+            assert name == 'Goblins'
+            return deck
+
+    monkeypatch.setattr(sim_run, 'get_store', lambda **_: _FakeStore())
+
+    name, text = sim_run._resolve_deck_arg('Goblins')
+    assert name == 'Goblins'
+    assert 'Mountain' in text  # rendered via the Forge exporter.
+
+
+def test_resolve_deck_arg_prefers_store_for_bareword(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A bareword that is NOT a file and lacks .dck goes to the store, not disk."""
+    from pipeline.contracts import Deck
+
+    called: dict[str, object] = {}
+
+    class _FakeStore:
+        def get_deck(self, name: str) -> Deck:
+            called['name'] = name
+            return Deck(name=name, format='constructed')
+
+    monkeypatch.setattr(sim_run, 'get_store', lambda **_: _FakeStore())
+    sim_run._resolve_deck_arg('Some Deck Name')
+    assert called['name'] == 'Some Deck Name'

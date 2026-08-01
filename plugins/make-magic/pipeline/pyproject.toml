@@ -37,8 +37,11 @@ testpaths = ["tests"]
 # `live` tests hit the real Airtable base + Scryfall (creds required); deselected
 # by default so the normal suite stays offline + fast. Run with creds sourced:
 #   set -a && . ../.env && set +a && uv run --extra dev pytest -m live -q
-addopts = "-m 'not live'"
-markers = ["live: end-to-end test against the real Airtable base (needs AIRTABLE_API_KEY; read-only)"]
+addopts = "-m 'not live and not forge'"
+markers = [
+    "live: end-to-end test against the real Airtable base (needs AIRTABLE_API_KEY; read-only)",
+    "forge: gated test that spawns a REAL Forge JVM (needs MAKE_MAGIC_FORGE_HOME + MAKE_MAGIC_JAVA)",
+]
 
 # --- Style (rae-style python-styleguide: Pydantic-AI conventions) ---
 [tool.ruff]

@@ -1,0 +1,131 @@
+Error handling registered!
+21:51:34 [INFO ] GuiBase: ##########################################
+21:51:34 [INFO ] GuiBase: APP: Forge v.2.0.13-SNAPSHOT-06.22
+21:51:34 [INFO ] GuiBase: Java: 21.0.12 (Eclipse Adoptium)
+21:51:34 [INFO ] GuiBase: OS: Mac OS X 15.7.3 aarch64
+21:51:34 [INFO ] GuiBase: RAM: 3072 MB max, 12 CPUs
+21:51:34 [INFO ] GuiBase: ##########################################
+Language 'en-US' loaded successfully.
+(ThreadUtil first call): Running with priority 5
+Read cards: 33319 archived files in 0 ms (25 parts) using thread pool
+Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.
+The card A-Alrund's Epiphany was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Baba Lysaga, Night Witch was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Divide by Zero was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Esika's Chariot was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Faceless Haven was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Fires of Invention was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Goldspan Dragon was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Hullbreaker Horror was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Kumano Faces Kakkazan was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Luminarch Aspirant was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Monster Manual was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Omnath, Locus of Creation was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-The Meathook Massacre was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Unholy Heat was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Blinding Radiance was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Goblin Bruiser was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Ogre Painbringer was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Titanic Pelagosaur was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Treetop Recluse was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.
+Read cards: 821 files in 0 ms (8 parts) using thread pool
+Simulation mode
+Ai(1)-RedCmdr vs Ai(2)-WhiteCmdr - ten games of Commander
+Plains Did not have activator set in SpellAbilityRestriction.canPlay()
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Plains Did not have activator set in SpellAbilityRestriction.canPlay()
+Plains Did not have activator set in SpellAbilityRestriction.canPlay()
+Warning: default (ie. inherited from base class) implementation of confirmAction is used by Krenko, Mob Boss for forge.ai.ability.PermanentCreatureAi. Consider declaring an overloaded method
+Game Outcome: Turn 15
+Game Outcome: Ai(1)-RedCmdr has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteCmdr has lost because life total reached 0
+Match Result: Ai(1)-RedCmdr: 1 Ai(2)-WhiteCmdr: 0 
+
+Game Result: Game 1 ended in 10544 ms. Ai(1)-RedCmdr has won!
+
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Lightning Bolt Did not have activator set in SpellAbilityRestriction.canPlay()
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Game Outcome: Turn 7
+Game Outcome: Ai(1)-RedCmdr has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteCmdr has lost because life total reached 0
+Match Result: Ai(1)-RedCmdr: 2 Ai(2)-WhiteCmdr: 0 
+
+Game Result: Game 2 ended in 3141 ms. Ai(1)-RedCmdr has won!
+
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Game Outcome: Turn 9
+Game Outcome: Ai(1)-RedCmdr has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteCmdr has lost because life total reached 0
+Match Result: Ai(1)-RedCmdr: 3 Ai(2)-WhiteCmdr: 0 
+
+Game Result: Game 3 ended in 2276 ms. Ai(1)-RedCmdr has won!
+
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Plains Did not have activator set in SpellAbilityRestriction.canPlay()
+Plains Did not have activator set in SpellAbilityRestriction.canPlay()
+Plains Did not have activator set in SpellAbilityRestriction.canPlay()
+Game Outcome: Turn 9
+Game Outcome: Ai(1)-RedCmdr has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteCmdr has lost because life total reached 0
+Match Result: Ai(1)-RedCmdr: 4 Ai(2)-WhiteCmdr: 0 
+
+Game Result: Game 4 ended in 1732 ms. Ai(1)-RedCmdr has won!
+
+Shock Did not have activator set in SpellAbilityRestriction.canPlay()
+Goblin Chieftain Did not have activator set in SpellAbilityRestriction.canPlay()
+Lava Spike Did not have activator set in SpellAbilityRestriction.canPlay()
+Game Outcome: Turn 10
+Game Outcome: Ai(1)-RedCmdr has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteCmdr has lost because life total reached 0
+Match Result: Ai(1)-RedCmdr: 5 Ai(2)-WhiteCmdr: 0 
+
+Game Result: Game 5 ended in 5938 ms. Ai(1)-RedCmdr has won!
+
+Lava Spike Did not have activator set in SpellAbilityRestriction.canPlay()
+Game Outcome: Turn 11
+Game Outcome: Ai(1)-RedCmdr has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteCmdr has lost because life total reached 0
+Match Result: Ai(1)-RedCmdr: 6 Ai(2)-WhiteCmdr: 0 
+
+Game Result: Game 6 ended in 15924 ms. Ai(1)-RedCmdr has won!
+
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Game Outcome: Turn 11
+Game Outcome: Ai(1)-RedCmdr has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteCmdr has lost because life total reached 0
+Match Result: Ai(1)-RedCmdr: 7 Ai(2)-WhiteCmdr: 0 
+
+Game Result: Game 7 ended in 6711 ms. Ai(1)-RedCmdr has won!
+
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Mountain Did not have activator set in SpellAbilityRestriction.canPlay()
+Game Outcome: Turn 11
+Game Outcome: Ai(1)-RedCmdr has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteCmdr has won because all opponents have lost
+Match Result: Ai(1)-RedCmdr: 7 Ai(2)-WhiteCmdr: 1 
+
+Game Result: Game 8 ended in 5862 ms. Ai(2)-WhiteCmdr has won!
+
+Game Outcome: Turn 8
+Game Outcome: Ai(1)-RedCmdr has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteCmdr has lost because life total reached 0
+Match Result: Ai(1)-RedCmdr: 8 Ai(2)-WhiteCmdr: 1 
+
+Game Result: Game 9 ended in 6712 ms. Ai(1)-RedCmdr has won!
+
+Lava Spike Did not have activator set in SpellAbilityRestriction.canPlay()
+Game Outcome: Turn 6
+Game Outcome: Ai(1)-RedCmdr has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteCmdr has lost because life total reached 0
+Match Result: Ai(1)-RedCmdr: 9 Ai(2)-WhiteCmdr: 1 
+
+Game Result: Game 10 ended in 1255 ms. Ai(1)-RedCmdr has won!
+
