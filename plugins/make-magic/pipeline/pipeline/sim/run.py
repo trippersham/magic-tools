@@ -316,32 +316,42 @@ def _doctor(argv: list[str]) -> None:
 def _log(argv: list[str]) -> None:
     """Retrieve a stored per-game verbose Forge log for forensic deep-diving.
 
-    OFFLINE (no Forge): identifies past runs of a deck pair by their content
-    hashes (computed from the ``.dck`` text) and reads the retained logs straight
-    from DuckDB. Without ``--game`` it lists the matching matchups (and, when a
-    single matchup matches, its per-game index + outcome); with ``--game N`` it
-    prints that one game's full log. Re-running is NOT an option — Forge's seed is
-    not reproducible — so this reads what was captured at run time.
+    Reads the retained logs straight from DuckDB, keyed by the content hash of the
+    deck ``.dck`` text. Without ``--game`` it lists the matching matchups (and,
+    when a single matchup matches, its per-game index + outcome); with ``--game N``
+    it prints that one game's full log. Re-running is NOT an option — Forge's seed
+    is not reproducible — so this reads what was captured at run time.
+
+    Offline vs live, by deck arg: a ``.dck`` PATH is read off disk (fully offline,
+    and the exact text that was simulated). A bareword is treated as an Airtable
+    NAME and resolved via a LIVE store lookup to the deck's CURRENT text — so if
+    the deck was edited since the run, its hash no longer matches and the logs
+    won't be found. For reliable forensics prefer the ``.dck`` path that was
+    simulated.
     """
     from pipeline.sim.store import deck_hash, find_matchups, get_cached, get_game_logs
 
     parser = argparse.ArgumentParser(prog='simulate log')
-    parser.add_argument('deck_a', help='Deck A: a .dck path or an Airtable deck name.')
-    parser.add_argument('deck_b', help='Deck B: a .dck path or an Airtable deck name.')
+    parser.add_argument('deck_a', help='Deck A: a .dck path (offline) or an Airtable deck name (live lookup).')
+    parser.add_argument('deck_b', help='Deck B: a .dck path (offline) or an Airtable deck name (live lookup).')
     parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default=None, help='Narrow to a format.')
     parser.add_argument('--seed', type=int, default=None, help='Narrow to a specific run seed.')
     parser.add_argument('--games', type=int, default=None, dest='n_games', help='Narrow to a specific game count.')
+    parser.add_argument('--forge', default=None, help='Narrow to a specific Forge version.')
     parser.add_argument('--game', type=int, default=None, help='Print this game index (0-based) full log.')
     args = parser.parse_args(argv)
 
     _, dck_a = _resolve_deck_arg(args.deck_a)
     _, dck_b = _resolve_deck_arg(args.deck_b)
     rows = find_matchups(deck_a_hash=deck_hash(dck_a), deck_b_hash=deck_hash(dck_b), fmt=args.fmt)
-    # Optional narrowing (seed / game-count) beyond the store-level format filter.
+    # Optional narrowing (seed / game-count / forge-version) beyond the store-level
+    # format filter — the levers a user pulls to disambiguate repeat runs of a pair.
     rows = [
         r
         for r in rows
-        if (args.seed is None or r.seed == args.seed) and (args.n_games is None or r.n_games == args.n_games)
+        if (args.seed is None or r.seed == args.seed)
+        and (args.n_games is None or r.n_games == args.n_games)
+        and (args.forge is None or r.forge_version == args.forge)
     ]
     if not rows:
         raise CollectionError(f'no stored matchup for {args.deck_a} vs {args.deck_b} (has it been simulated yet?)')
@@ -351,7 +361,7 @@ def _log(argv: list[str]) -> None:
         return
 
     if len(rows) > 1:
-        print(f'{len(rows)} matchups match — narrow with --seed / --games / --format:', file=sys.stderr)
+        print(f'{len(rows)} matchups match — narrow with --seed / --games / --format / --forge:', file=sys.stderr)
         _print_matchup_rows(rows)
         raise SystemExit(1)
 
@@ -369,7 +379,10 @@ def _print_matchup_index(
 ) -> None:
     """List matching matchups; for a single match, enumerate its per-game outcomes."""
     if len(rows) > 1:
-        print(f'{len(rows)} stored matchups for {name_a} vs {name_b} (pass --game N with --seed/--games to read one):')
+        print(
+            f'{len(rows)} stored matchups for {name_a} vs {name_b} '
+            '(pass --game N with --seed/--games/--forge to read one):'
+        )
         _print_matchup_rows(rows)
         return
     row = rows[0]
@@ -385,11 +398,16 @@ def _print_matchup_index(
 
 
 def _print_matchup_rows(rows: list[MatchupRow]) -> None:
-    """One line per matchup (seed / games / format / version / record / when)."""
+    """One line per matchup (key prefix / seed / games / format / version / record / when).
+
+    The 8-char ``matchup_key`` prefix is the last-resort disambiguator: two runs
+    of the same pair differing ONLY by Forge version share seed/games/format, so
+    the key prefix (and ``--forge``) are what tell them apart.
+    """
     for r in rows:
         print(
-            f'  seed={r.seed} games={r.n_games} format={r.format} forge={r.forge_version} '
-            f'record={r.wins_a}-{r.wins_b}-{r.draws} ran={r.created_at}'
+            f'  key={r.matchup_key[:8]} seed={r.seed} games={r.n_games} format={r.format} '
+            f'forge={r.forge_version} record={r.wins_a}-{r.wins_b}-{r.draws} ran={r.created_at}'
         )
 
 

@@ -274,6 +274,24 @@ def test_gauntlet_show_commander(capsys: pytest.CaptureFixture[str]) -> None:
     assert 'BlackMidrangeEDH' in out
 
 
+def test_gauntlet_show_named_bundle_guilds(capsys: pytest.CaptureFixture[str]) -> None:
+    """``gauntlet show --source guilds`` lists the packaged 30-deck bundle."""
+    sim_run.main(['gauntlet', 'show', '--source', 'guilds'])
+    out = capsys.readouterr().out
+    assert 'guilds gauntlet (constructed): 30 deck(s)' in out
+    assert 'GruulStrong' in out
+    assert 'AzoriusWeak' in out
+
+
+@pytest.mark.parametrize('source', ['mine', 'both'])
+def test_gauntlet_show_rejects_live_sources(source: str, capsys: pytest.CaptureFixture[str]) -> None:
+    """``gauntlet show`` lists PACKAGED decks only; `mine`/`both` need a live store."""
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['gauntlet', 'show', '--source', source])
+    assert exc.value.code == 1
+    assert 'packaged decks only' in capsys.readouterr().err
+
+
 # --------------------------------------------------------------------------- #
 # doctor
 # --------------------------------------------------------------------------- #
@@ -380,14 +398,16 @@ def test_resolve_deck_arg_prefers_store_for_bareword(monkeypatch: pytest.MonkeyP
 # --------------------------------------------------------------------------- #
 
 
-def _seed_matchup(data_root: Path, dck_a_text: str, dck_b_text: str, *, seed: int, n_games: int) -> str:
+def _seed_matchup(
+    data_root: Path, dck_a_text: str, dck_b_text: str, *, seed: int, n_games: int, forge_version: str = '2.0.13'
+) -> str:
     """Store a matchup + a real multi-game log into a tmp DuckDB; return its key."""
     from pipeline.sim import store as sim_store
     from pipeline.sim.runner import GameOutcome, MatchResult
     from pipeline.sim.telemetry import GameFeatures
 
     key = sim_store.matchup_key(
-        dck_a_text, dck_b_text, seed=seed, n_games=n_games, fmt='constructed', forge_version='2.0.13'
+        dck_a_text, dck_b_text, seed=seed, n_games=n_games, fmt='constructed', forge_version=forge_version
     )
     meta = sim_store.MatchupMeta(
         deck_a_hash=sim_store.deck_hash(dck_a_text),
@@ -395,7 +415,7 @@ def _seed_matchup(data_root: Path, dck_a_text: str, dck_b_text: str, *, seed: in
         seed=seed,
         n_games=n_games,
         format='constructed',
-        forge_version='2.0.13',
+        forge_version=forge_version,
     )
     log = '\n'.join(
         ['Simulation mode']
@@ -485,3 +505,68 @@ def test_log_unknown_matchup_errors(
         sim_run.main(['log', str(a), str(b)])
     assert exc.value.code == 1
     assert 'no stored matchup' in capsys.readouterr().err
+
+
+def test_log_multi_match_with_game_is_ambiguous(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Two runs of the SAME pair (differing only by seed) + --game -> narrow, exit 1."""
+    from pipeline import store
+
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(tmp_path / 'data'))
+    a, b = tmp_path / 'A.dck', tmp_path / 'B.dck'
+    a.write_text('Name=A\n[Main]\n4 Forest\n')
+    b.write_text('Name=B\n[Main]\n4 Plains\n')
+    _seed_matchup(tmp_path, a.read_text(), b.read_text(), seed=1, n_games=2)
+    _seed_matchup(tmp_path, a.read_text(), b.read_text(), seed=2, n_games=2)
+
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['log', str(a), str(b), '--game', '0'])
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'matchups match' in err and 'narrow with' in err
+
+
+def test_log_game_index_out_of_range_errors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--game N`` beyond the stored game count is an actionable CollectionError."""
+    from pipeline import store
+
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(tmp_path / 'data'))
+    a, b = tmp_path / 'A.dck', tmp_path / 'B.dck'
+    a.write_text('Name=A\n[Main]\n4 Forest\n')
+    b.write_text('Name=B\n[Main]\n4 Plains\n')
+    _seed_matchup(tmp_path, a.read_text(), b.read_text(), seed=42, n_games=2)
+
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['log', str(a), str(b), '--game', '5'])  # only games 0,1 exist
+    assert exc.value.code == 1
+    assert 'no log for game 5' in capsys.readouterr().err
+
+
+def test_log_forge_filter_disambiguates(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Two runs differing ONLY by forge_version -> --forge narrows to one and reads it."""
+    from pipeline import store
+
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(tmp_path / 'data'))
+    a, b = tmp_path / 'A.dck', tmp_path / 'B.dck'
+    a.write_text('Name=A\n[Main]\n4 Forest\n')
+    b.write_text('Name=B\n[Main]\n4 Plains\n')
+    # Same seed/games/format; only the Forge version differs.
+    _seed_matchup(tmp_path, a.read_text(), b.read_text(), seed=42, n_games=2, forge_version='2.0.13')
+    _seed_matchup(tmp_path, a.read_text(), b.read_text(), seed=42, n_games=2, forge_version='2.0.14')
+
+    # Without --forge, --game is ambiguous (both share seed/games/format).
+    with pytest.raises(SystemExit):
+        sim_run.main(['log', str(a), str(b), '--game', '0'])
+    ambiguous = capsys.readouterr()
+    assert 'matchups match' in ambiguous.err  # guidance header on stderr
+    assert 'key=' in ambiguous.out  # key prefix surfaced (rows) to disambiguate
+
+    # With --forge, it narrows to one and prints that game's log.
+    sim_run.main(['log', str(a), str(b), '--forge', '2.0.14', '--game', '1'])
+    out = capsys.readouterr().out
+    assert '[game 2 marker]' in out

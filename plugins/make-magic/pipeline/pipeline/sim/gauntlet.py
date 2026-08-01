@@ -106,14 +106,24 @@ def _curated(fmt: str) -> list[GauntletDeck]:
 def _bundle_names(fmt: str) -> tuple[str, ...]:
     """Discover the named bundles that ship for ``fmt`` (sub-dirs of the format root).
 
-    Each sub-directory holding ``.dck`` files is a named bundle whose directory
-    name is the ``source`` that selects it. An absent/empty format root yields
-    ``()``.
+    A sub-directory is a named bundle only if it holds at least one ``.dck`` file —
+    so a stray ``__pycache__``/dot-dir can't register as a zero-opponent bundle.
+    A sub-dir whose name collides with a core source (``curated``/``mine``/``both``)
+    is skipped too: :func:`resolve_gauntlet` would resolve that source to the core
+    behaviour, never the bundle, so surfacing it as a selectable name would only
+    mislead (and double it in :func:`gauntlet_sources`). An absent/empty format
+    root yields ``()``.
     """
     root = _gauntlet_root(fmt)
     if not root.is_dir():
         return ()
-    return tuple(sorted(entry.name for entry in root.iterdir() if entry.is_dir()))
+    names: list[str] = []
+    for entry in root.iterdir():
+        if not entry.is_dir() or entry.name in _SOURCES:
+            continue
+        if any(child.name.endswith('.dck') for child in entry.iterdir()):
+            names.append(entry.name)
+    return tuple(sorted(names))
 
 
 def _bundle(fmt: str, name: str) -> list[GauntletDeck]:

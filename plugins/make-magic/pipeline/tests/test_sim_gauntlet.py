@@ -12,6 +12,7 @@ only under ``-m live`` elsewhere; here the store is a hand-built stub.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -203,3 +204,28 @@ def test_mine_without_store_raises() -> None:
     """``mine`` needs a store; omitting it is an actionable error, not a crash."""
     with pytest.raises(ValueError, match='store'):
         resolve_gauntlet('mine', 'constructed')
+
+
+def test_bundle_names_ignores_empty_and_core_named_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A bundle dir must hold >=1 .dck and not collide with a core source name.
+
+    Guards against a stray ``__pycache__``/dot-dir registering as a zero-opponent
+    bundle, and against a dir literally named ``mine``/``curated``/``both``
+    shadowing (or doubling) a core source.
+    """
+    from pipeline.sim import gauntlet as gauntlet_mod
+
+    root = tmp_path / 'constructed'
+    (root / 'guilds').mkdir(parents=True)
+    (root / 'guilds' / 'A.dck').write_text('[Main]\n')
+    (root / '__pycache__').mkdir()  # no .dck -> not a bundle
+    (root / '__pycache__' / 'x.pyc').write_text('')
+    (root / 'mine').mkdir()  # collides with a core source -> skipped
+    (root / 'mine' / 'B.dck').write_text('[Main]\n')
+
+    monkeypatch.setattr(gauntlet_mod, '_gauntlet_root', lambda _fmt: root)
+    assert gauntlet_mod._bundle_names('constructed') == ('guilds',)
+    # And the core source still resolves to core behaviour (needs a store), never
+    # the shadowing bundle dir.
+    with pytest.raises(ValueError, match='store'):
+        gauntlet_mod.resolve_gauntlet('mine', 'constructed')

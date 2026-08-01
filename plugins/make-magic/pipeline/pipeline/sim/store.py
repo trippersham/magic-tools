@@ -97,7 +97,9 @@ CREATE TABLE IF NOT EXISTS sim_game_features (
 """
 
 #: DDL for the per-game raw-log store — one row per game, the full verbose Forge
-#: log for that game (``game_index`` aligns with ``sim_game_features``).
+#: log for that game (``game_index`` aligns with ``sim_game_features``). Storage
+#: note: a verbose game log is ~40 KB, so a 300-game gauntlet candidate retains
+#: ~12 MB of TEXT — cheap for DuckDB, but not free; prune old runs if it grows.
 _LOGS_DDL = """
 CREATE TABLE IF NOT EXISTS sim_game_logs (
     matchup_key TEXT,
@@ -282,7 +284,17 @@ def store_matchup(
 
         # Replace the per-game log rows wholesale (sliced from the full verbose log).
         conn.execute('DELETE FROM sim_game_logs WHERE matchup_key = ?', [key])
-        for game_index, game_log in enumerate(split_games(result.raw_log)):
+        game_logs = split_games(result.raw_log)
+        # Invariant: log rows either line up 1:1 with feature rows (both derive from
+        # the SAME split_games) OR are absent — a result-less/elided log (e.g. tests
+        # that pass a placeholder raw_log) yields 0 segments. Any OTHER count means
+        # `features` and `raw_log` came from different matchups and the two tables
+        # would silently desync on `game_index`.
+        assert len(game_logs) in (0, len(features)), (
+            f'log/feature game_index desync: {len(game_logs)} log segments vs '
+            f'{len(features)} feature rows for {key} (features and raw_log must be from the same run)'
+        )
+        for game_index, game_log in enumerate(game_logs):
             conn.execute(
                 'INSERT INTO sim_game_logs (matchup_key, game_index, raw_log) VALUES (?, ?, ?)',
                 [key, game_index, game_log],

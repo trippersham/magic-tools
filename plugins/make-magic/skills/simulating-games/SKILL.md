@@ -198,9 +198,14 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/simulate log "<A>" "<B>" --game 0
 ```
 - `<A>` / `<B>` are the same deck references (name or `.dck`) used in the run — they're
   matched by **content hash**, so an edited deck won't match its old logs (by design).
+- **A `.dck` path is fully offline** (read off disk — the exact text that was simulated). **A
+  bareword is an Airtable name resolved by a LIVE store lookup** to the deck's *current* text;
+  if the deck was edited since the run, its hash no longer matches and the logs won't be
+  found. Prefer the `.dck` path that was simulated for reliable forensics.
 - `--game N` prints game `N` (0-based); omit it to list the games first. Narrow ambiguous
-  matches (multiple seeds / game-counts) with `--seed` / `--games` / `--format`.
-- Offline (no Forge): reads straight from DuckDB. Use it to explain an upset turn-by-turn,
+  matches (multiple seeds / game-counts / Forge versions) with `--seed` / `--games` /
+  `--format` / `--forge`; the listing shows an 8-char matchup-key prefix to tell runs apart.
+- No Forge needed: reads straight from DuckDB. Use it to explain an upset turn-by-turn,
   confirm a wincon, or check whether a loss was mana screw vs. getting outclassed.
 
 ---
