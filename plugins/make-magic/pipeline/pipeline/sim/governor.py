@@ -196,7 +196,10 @@ class PoolResult:
     """The outcome of a governed batch: results + failures + safety metadata.
 
     ``results`` holds every :class:`~pipeline.sim.runner.MatchResult` that parsed;
-    ``failures`` holds every :class:`MatchFailure`. ``pool_size`` is the derived
+    ``failures`` holds every :class:`MatchFailure`. ``pairs`` binds each result
+    to the EXACT :class:`MatchSpec` that produced it — deck names are NOT unique
+    across specs, so callers that need to attribute results (e.g. to a cache
+    key) must pair by spec, never by name. ``pool_size`` is the derived
     (or caller-pinned) concurrency ceiling; ``max_concurrent`` is the observed
     peak in-flight JVMs (<= ``pool_size``). ``aborted`` is set when persistent
     resource starvation stopped admission before all work ran. The
@@ -211,6 +214,7 @@ class PoolResult:
     min_free_ram_gib: float
     min_free_disk_gib: float
     snapshots: list[dict[str, float]] = field(default_factory=list)
+    pairs: list[tuple[MatchSpec, MatchResult]] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -255,6 +259,7 @@ class Governor:
 
         results: list[MatchResult] = []
         failures: list[MatchFailure] = []
+        pairs: list[tuple[MatchSpec, MatchResult]] = []
         snapshots: list[dict[str, float]] = []
         min_ram = float('inf')
         min_disk = float('inf')
@@ -294,6 +299,7 @@ class Governor:
                 )
                 with lock:
                     results.append(result)
+                    pairs.append((spec, result))
             except Exception as exc:  # a failed matchup is recorded, never fatal.
                 with lock:
                     failures.append(MatchFailure(spec=spec, error=str(exc)))
@@ -351,6 +357,7 @@ class Governor:
             min_free_ram_gib=0.0 if min_ram == float('inf') else min_ram,
             min_free_disk_gib=0.0 if min_disk == float('inf') else min_disk,
             snapshots=snapshots,
+            pairs=pairs,
         )
 
 

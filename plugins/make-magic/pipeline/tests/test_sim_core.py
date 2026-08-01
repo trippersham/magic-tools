@@ -117,6 +117,7 @@ def _pool_result_candidate_sweeps(specs: list[MatchSpec]) -> PoolResult:
         aborted=False,
         min_free_ram_gib=8.0,
         min_free_disk_gib=50.0,
+        pairs=list(zip(specs, results, strict=True)),
     )
 
 
@@ -180,6 +181,59 @@ def test_run_cached_matchups_force_bypasses_cache(
     run_cached_matchups(_install_probe(), specs, data_dir=str(data_dir))
     run_cached_matchups(_install_probe(), specs, force=True, data_dir=str(data_dir))
     assert len(calls) == 2  # force re-ran the governor
+
+
+def test_run_cached_matchups_duplicate_names_attributed_by_spec(
+    monkeypatch: pytest.MonkeyPatch, data_dir: Path
+) -> None:
+    """Duplicate (deck_a, deck_b) NAME pairs must not cross-attribute results.
+
+    A `both` gauntlet can hold a user deck named identically to a curated one:
+    two specs then share names but differ by seed (and by cache key). Each
+    result must land on ITS spec and be stored under ITS key — name-based
+    pairing hands the first-completed result to whichever spec comes first,
+    silently poisoning the content-addressed cache.
+    """
+    spec_win = MatchSpec(deck_a=('Cand', 'A'), deck_b=('Opp', 'B'), n=1, seed=1)
+    spec_lose = MatchSpec(deck_a=('Cand', 'A'), deck_b=('Opp', 'B'), n=1, seed=2)
+
+    def fake_run_matchups(install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
+        pairs: list[tuple[MatchSpec, MatchResult]] = []
+        for spec in specs:
+            wins_a = 1 if spec.seed == 1 else 0
+            match = MatchResult(
+                deck_a=spec.deck_a[0],
+                deck_b=spec.deck_b[0],
+                wins_a=wins_a,
+                wins_b=1 - wins_a,
+                draws=0,
+                per_game=(GameOutcome(winner='a' if wins_a else 'b', elapsed_ms=1),),
+                raw_log='',
+            )
+            pairs.append((spec, match))
+        pairs.reverse()  # completion order is NOT submission order
+        return PoolResult(
+            pool_size=1,
+            results=[m for _, m in pairs],
+            failures=[],
+            max_concurrent=1,
+            aborted=False,
+            min_free_ram_gib=8.0,
+            min_free_disk_gib=50.0,
+            pairs=pairs,
+        )
+
+    monkeypatch.setattr(core, 'run_matchups', fake_run_matchups)
+    monkeypatch.setattr(core, 'forge_version', lambda: 'test-forge')
+
+    outcomes = run_cached_matchups(_install_probe(), [spec_win, spec_lose], data_dir=str(data_dir))
+    assert (outcomes[0].wins, outcomes[0].losses) == (1, 0)
+    assert (outcomes[1].wins, outcomes[1].losses) == (0, 1)
+
+    # And the cache is keyed right: a re-run serves each seed its OWN tally.
+    second = run_cached_matchups(_install_probe(), [spec_win, spec_lose], data_dir=str(data_dir))
+    assert second[0].cached and (second[0].wins, second[0].losses) == (1, 0)
+    assert second[1].cached and (second[1].wins, second[1].losses) == (0, 1)
 
 
 # --------------------------------------------------------------------------- #
@@ -309,6 +363,7 @@ def test_compare_diffs_two_variants(monkeypatch: pytest.MonkeyPatch, data_dir: P
         return PoolResult(
             pool_size=1, results=results, failures=[], max_concurrent=1, aborted=False,
             min_free_ram_gib=8.0, min_free_disk_gib=50.0,
+            pairs=list(zip(specs, results, strict=True)),
         )
 
     monkeypatch.setattr(core, 'run_matchups', fake_run_matchups)

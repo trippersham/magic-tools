@@ -266,11 +266,13 @@ def run_cached_matchups(
         miss_specs = [spec for _, spec, _ in misses]
         pool = run_matchups(install, miss_specs, pool_size=pool_size)  # type: ignore[arg-type]
 
-        # The governor returns results out of order and without a spec back-ref,
-        # so pair each result to its spec by the opponent's (deck_a, deck_b) names
-        # (unique per opponent within one simulate). A spec with no matching result
-        # was a governor failure (deck-load/timeout) -> a zeroed outcome.
-        remaining = list(pool.results)
+        # The governor returns results out of order; ``pool.pairs`` binds each
+        # result to the EXACT spec that produced it (deck names are NOT unique —
+        # e.g. a `both` gauntlet can repeat a name — so pairing by name could
+        # attribute a result, and its cache row, to the wrong spec/key). A spec
+        # with no paired result was a governor failure (deck-load/timeout) -> a
+        # zeroed outcome.
+        remaining = list(pool.pairs)
         for miss_idx, spec, key in misses:
             match = _pop_matching_result(remaining, spec)
             if match is None:
@@ -305,16 +307,19 @@ def run_cached_matchups(
     return [outcomes[i] for i in range(len(specs))]
 
 
-def _pop_matching_result(results: list[MatchResult], spec: MatchSpec) -> MatchResult | None:
-    """Pop the first result whose deck names match ``spec`` (order-independent).
+def _pop_matching_result(
+    pairs: list[tuple[MatchSpec, MatchResult]], spec: MatchSpec
+) -> MatchResult | None:
+    """Pop the first paired result whose SPEC equals ``spec`` (order-independent).
 
-    The governor returns results out of order and without a spec back-reference,
-    so we pair by ``(deck_a, deck_b)`` name — unique per opponent within a single
-    ``simulate`` (each opponent appears once). Returns ``None`` when no result
-    matches (the matchup failed and was recorded as a governor failure)."""
-    for i, res in enumerate(results):
-        if res.deck_a == spec.deck_a[0] and res.deck_b == spec.deck_b[0]:
-            return results.pop(i)
+    Pairing is by full spec equality (names + dck text + n + seed + fmt), never
+    by deck name alone — duplicate names across specs would otherwise
+    cross-attribute results and store them under the wrong cache key. Returns
+    ``None`` when no pair matches (the matchup failed and was recorded as a
+    governor failure)."""
+    for i, (paired_spec, _) in enumerate(pairs):
+        if paired_spec == spec:
+            return pairs.pop(i)[1]
     return None
 
 

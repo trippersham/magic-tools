@@ -155,6 +155,46 @@ def test_governor_returns_all_results_and_derived_pool(monkeypatch: pytest.Monke
     assert sorted(r.deck_a for r in result.results) == ['RedTest'] * 5
 
 
+def test_governor_pairs_every_result_to_its_spec(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``PoolResult.pairs`` binds each result to the EXACT spec that produced it.
+
+    Deck NAMES are not unique across specs (e.g. a `both` gauntlet where a user
+    deck shares a curated deck's name), so name-based pairing can attribute a
+    result to the wrong spec — and the core would then store it under the wrong
+    cache key. The seed is echoed into ``elapsed_ms`` so the binding is provable.
+    """
+
+    def echo_seed(
+        install: object,
+        deck_a: tuple[str, str],
+        deck_b: tuple[str, str],
+        *,
+        n: int,
+        seed: int,
+        fmt: str = 'constructed',
+        timeout_s: int = 30,
+    ) -> MatchResult:
+        return MatchResult(
+            deck_a=deck_a[0],
+            deck_b=deck_b[0],
+            wins_a=n,
+            wins_b=0,
+            draws=0,
+            per_game=tuple(GameOutcome(winner='a', elapsed_ms=seed) for _ in range(n)),
+            raw_log='',
+        )
+
+    monkeypatch.setattr(gov, 'run_matchup', echo_seed)
+
+    # Identical names/text across all specs — ONLY the seed distinguishes them.
+    specs = [_spec(3000 + i) for i in range(4)]
+    result = run_matchups(install=None, specs=specs, pool_size=2, stagger_s=0.0)  # type: ignore[arg-type]
+
+    assert len(result.pairs) == 4
+    for spec, match in result.pairs:
+        assert match.per_game[0].elapsed_ms == spec.seed  # exact spec<->result binding
+
+
 # --------------------------------------------------------------------------- #
 # Failure handling — a failed/timed-out matchup is recorded, not raised.
 # --------------------------------------------------------------------------- #
