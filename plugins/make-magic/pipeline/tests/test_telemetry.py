@@ -62,6 +62,13 @@ def test_sim2_winner_is_b() -> None:
     assert f.winner == 'b'
 
 
+def test_winner_name_with_spaces_and_parens() -> None:
+    """Winner extraction handles a spaced/paren deck name (slot-keyed, not ``\\S+``)."""
+    log = 'Game Result: Game 1 ended in 1780 ms. Ai(1)-UR Izzet (Chaos Sealed) has won!\n'
+    f = extract_game_features(log, deck_a='UR Izzet (Chaos Sealed)', deck_b='Mono Red')
+    assert f.winner == 'a'
+
+
 def test_sim2_kill_turn_is_9() -> None:
     """The tracked ``Turn: Turn N`` counter, NOT Forge's ``Game Outcome: Turn 5``
     (which counts each player's turn separately)."""

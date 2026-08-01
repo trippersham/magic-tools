@@ -47,7 +47,10 @@ __all__ = (
 #: The ONLY line the tally counts: ``Game Result: Game N ended in <ms> ms. <tail>``.
 _RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in (\d+) ms\. (.+)$')
 #: Winner tail: ``Ai(<slot>)-<name> has won!`` — slot 1 = deck_a, 2 = deck_b.
-_WINNER_RE = re.compile(r'Ai\((\d)\)-\S+ has won!')
+#: The name is matched non-greedily (``.+?``, NOT ``\S+``) so deck names with
+#: spaces/parens (e.g. a real Airtable deck ``UR Izzet (Chaos Sealed)``) parse —
+#: only the SLOT drives attribution, so the name span is irrelevant otherwise.
+_WINNER_RE = re.compile(r'Ai\((\d)\)-.+? has won!')
 #: exit-0 deck-load failures. Presence -> ForgeError regardless of exit code.
 _LOAD_FAILURE_MARKERS = ('Could not load deck', 'No deck found in')
 

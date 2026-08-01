@@ -55,8 +55,9 @@ _LIFE_RE = re.compile(r'^Life: Life: Ai\((\d)\)-\S.*? (\d+) > (-?\d+)')
 _DAMAGE_RE = re.compile(r'^Damage: .*? deals \d+ (combat )?damage to Ai\((\d)\)-')
 #: ``Game Result: Game N ended in <ms> ms. <tail>`` — elapsed + winner tail.
 _RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in (\d+) ms\. (.+)$')
-#: Winner tail within a Game Result line: ``Ai(k)-Deck has won!``.
-_WINNER_RE = re.compile(r'Ai\((\d)\)-\S+ has won!')
+#: Winner tail within a Game Result line: ``Ai(k)-Deck has won!``. Name matched
+#: non-greedily (``.+?``) so spaced/paren deck names parse (only the slot matters).
+_WINNER_RE = re.compile(r'Ai\((\d)\)-.+? has won!')
 #: The empty-library (mill) loss on a Game Outcome line — slot of the milled loser.
 _MILL_OUTCOME_RE = re.compile(
     r'^Game Outcome: Ai\((\d)\)-\S.*? has lost trying to draw cards from empty library'

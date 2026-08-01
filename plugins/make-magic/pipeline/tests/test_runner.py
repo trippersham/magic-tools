@@ -84,6 +84,24 @@ def test_parse_records_raw_log_and_elapsed_ms() -> None:
     assert all(g.elapsed_ms > 0 for g in result.per_game)
 
 
+def test_parse_deck_name_with_spaces_and_parens() -> None:
+    """A real Airtable deck name (spaces + parens) parses — winner is slot-keyed.
+
+    Regression: the winner regex was ``\\S+`` and stopped at the first space, so a
+    name like ``UR Izzet (Chaos Sealed)`` produced an 'unparseable Game Result'
+    error. Only the ``Ai(k)`` slot drives attribution, so the name span must be
+    allowed to contain spaces/parens.
+    """
+    log = (
+        'Simulation mode\n'
+        'Game Result: Game 1 ended in 1780 ms. Ai(1)-UR Izzet (Chaos Sealed) has won!\n'
+        'Game Result: Game 2 ended in 900 ms. Ai(2)-Mono Red (Aggro!) has won!\n'
+    )
+    result = parse_match_log(log, deck_a='UR Izzet (Chaos Sealed)', deck_b='Mono Red (Aggro!)')
+    assert (result.wins_a, result.wins_b, result.draws) == (1, 1, 0)
+    assert [g.winner for g in result.per_game] == ['a', 'b']
+
+
 # --------------------------------------------------------------------------- #
 # deck-load failure — exit 0 but "Could not load deck" -> ForgeError
 # --------------------------------------------------------------------------- #
