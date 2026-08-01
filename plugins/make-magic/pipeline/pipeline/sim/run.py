@@ -40,7 +40,14 @@ import sys
 from typing import TYPE_CHECKING
 
 from pipeline.collection import CollectionError, get_store
-from pipeline.destinations.deck_export import get_exporter
+from pipeline.destinations.deck_export import (
+    CardIssue,
+    DeckExportError,
+    IssueKind,
+    Severity,
+    ValidationReport,
+    get_exporter,
+)
 from pipeline.sim.core import (
     Comparison,
     SimResult,
@@ -192,6 +199,74 @@ def _fmt_opt(value: float | None) -> str:
 # --------------------------------------------------------------------------- #
 
 
+def _dck_card_names(dck_text: str) -> list[str]:
+    """The card names referenced by a rendered ``.dck`` ([Main] + [Commander]).
+
+    Parses ``<qty> <name>`` lines under the card sections, skipping headers,
+    metadata, and the sideboard — so the availability guard can check exactly the
+    names Forge will try to load.
+    """
+    names: list[str] = []
+    in_cards = False
+    for line in dck_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith('['):
+            in_cards = stripped in ('[Main]', '[Commander]')
+            continue
+        if not in_cards:
+            continue
+        qty, _, name = stripped.partition(' ')
+        if qty.isdigit() and name:
+            names.append(name)
+    return names
+
+
+def _guard_forge_availability(
+    install: ForgeInstall,
+    decks: list[tuple[str, str]],
+    *,
+    allow_missing: bool,
+) -> None:
+    """Fail BEFORE spawning a JVM if a deck references a card Forge cannot load.
+
+    Builds a :class:`~pipeline.sim.forge_card_index.ForgeCardIndex` from the
+    install and checks each ``(name, dck_text)`` deck's card names. A card absent
+    from Forge's DB is a BLOCKING :class:`DeckExportError` (naming the offenders)
+    — unless ``allow_missing``, which downgrades it to a stderr warning. If the
+    card index can't be built (e.g. a minimal install without ``cardsfolder.zip``),
+    the guard is skipped — Forge's own loader remains the backstop.
+    """
+    from pipeline.sim.forge_card_index import ForgeCardIndex
+
+    try:
+        index = ForgeCardIndex.from_install(install)
+    except (FileNotFoundError, OSError):
+        return
+
+    for name, text in decks:
+        absent = [cn for cn in _dck_card_names(text) if not index.has(cn)]
+        if not absent:
+            continue
+        report = ValidationReport(
+            deck_name=name,
+            issues=tuple(
+                CardIssue(
+                    card_name=cn,
+                    kind=IssueKind.ABSENT_FROM_TARGET,
+                    severity=Severity.BLOCKING,
+                    detail='not in Forge card DB',
+                )
+                for cn in absent
+            ),
+        )
+        if allow_missing:
+            print(f'warning: {DeckExportError(report)} (proceeding: --allow-missing)', file=sys.stderr)
+        else:
+            raise DeckExportError(report)
+
+
 def _match(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='simulate match')
     parser.add_argument('deck_a', help='Deck A: a .dck path or an Airtable deck name.')
@@ -199,11 +274,17 @@ def _match(argv: list[str]) -> None:
     parser.add_argument('-n', type=int, default=_DEFAULT_GAMES, help=f'games (default {_DEFAULT_GAMES}).')
     parser.add_argument('-s', '--seed', type=int, default=_DEFAULT_SEED, help=f'RNG seed (default {_DEFAULT_SEED}).')
     parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default='constructed')
+    parser.add_argument(
+        '--allow-missing',
+        action='store_true',
+        help='Proceed even if a deck references a card absent from Forge (else a hard error).',
+    )
     args = parser.parse_args(argv)
 
     deck_a = _resolve_deck_arg(args.deck_a)
     deck_b = _resolve_deck_arg(args.deck_b)
     install = _ensure_forge()
+    _guard_forge_availability(install, [deck_a, deck_b], allow_missing=args.allow_missing)
     result: MatchResult = run_matchup(install, deck_a, deck_b, n=args.n, seed=args.seed, fmt=args.fmt)
     print(f'{deck_a[0]} vs {deck_b[0]}  ({args.fmt}, n={args.n}, seed={args.seed})')
     print(f'{deck_a[0]}: {result.wins_a} wins   {deck_b[0]}: {result.wins_b} wins   draws: {result.draws}')
@@ -217,12 +298,18 @@ def _deck(argv: list[str]) -> None:
     parser.add_argument('--games', type=int, default=_DEFAULT_GAMES, help=f'games/opponent (default {_DEFAULT_GAMES}).')
     parser.add_argument('--seed', type=int, default=_DEFAULT_SEED, help=f'RNG seed (default {_DEFAULT_SEED}).')
     parser.add_argument('--force', action='store_true', help='Bypass the matchup cache (re-run every matchup).')
+    parser.add_argument(
+        '--allow-missing',
+        action='store_true',
+        help='Proceed even if the candidate references a card absent from Forge (else a hard error).',
+    )
     args = parser.parse_args(argv)
 
     candidate = _resolve_deck_arg(args.name)
     # `mine`/`both` need the collection store; `curated` never touches it.
     store = get_store() if args.gauntlet in ('mine', 'both') else None
     install = _ensure_forge()
+    _guard_forge_availability(install, [candidate], allow_missing=args.allow_missing)
     result = simulate(
         candidate,
         args.gauntlet,
@@ -245,12 +332,18 @@ def _ab(argv: list[str]) -> None:
     parser.add_argument('--games', type=int, default=_DEFAULT_GAMES, help=f'games/opponent (default {_DEFAULT_GAMES}).')
     parser.add_argument('--seed', type=int, default=_DEFAULT_SEED, help=f'RNG seed (default {_DEFAULT_SEED}).')
     parser.add_argument('--force', action='store_true', help='Bypass the matchup cache (re-run every matchup).')
+    parser.add_argument(
+        '--allow-missing',
+        action='store_true',
+        help='Proceed even if a variant references a card absent from Forge (else a hard error).',
+    )
     args = parser.parse_args(argv)
 
     variant_a = _resolve_deck_arg(args.deck_a)
     variant_b = _resolve_deck_arg(args.deck_b)
     store = get_store() if args.gauntlet in ('mine', 'both') else None
     install = _ensure_forge()
+    _guard_forge_availability(install, [variant_a, variant_b], allow_missing=args.allow_missing)
     comparison: Comparison = compare(
         variant_a,
         variant_b,

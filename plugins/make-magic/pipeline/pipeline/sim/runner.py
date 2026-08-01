@@ -32,7 +32,7 @@ import subprocess
 from dataclasses import dataclass, field
 
 from pipeline.contracts import Deck
-from pipeline.destinations.deck_export import get_exporter
+from pipeline.destinations.deck_export import get_exporter, safe_deck_stem
 from pipeline.sim.forge_runtime import ForgeInstall
 
 __all__ = (
@@ -148,10 +148,7 @@ def parse_match_log(output: str, *, deck_a: str, deck_b: str) -> MatchResult:
         per_game.append(GameOutcome(winner=winner, elapsed_ms=elapsed_ms))
 
     if not per_game:
-        raise ForgeError(
-            'Forge produced no Game Result lines (no games played). '
-            f'Output tail:\n{output[-1000:]}'
-        )
+        raise ForgeError(f'Forge produced no Game Result lines (no games played). Output tail:\n{output[-1000:]}')
 
     return MatchResult(
         deck_a=deck_a,
@@ -221,11 +218,21 @@ def run_matchup(
     name_a, text_a = deck_a
     name_b, text_b = deck_b
 
+    # Stage under FILESYSTEM-SAFE stems (the human name may contain '/' etc. and
+    # is used only for display — it survives inside each .dck's `Name=`). Forge
+    # resolves `-d <stem>` against the profile dir, so the stem drives both the
+    # filename and the `-d` arg. Disambiguate the rare case where two distinct
+    # decks sanitize to the same stem (e.g. 'A/B' and 'A:B' -> 'A_B').
+    stem_a = safe_deck_stem(name_a)
+    stem_b = safe_deck_stem(name_b)
+    if stem_a == stem_b and text_a != text_b:
+        stem_a, stem_b = f'{stem_a}__a', f'{stem_b}__b'
+
     fmt_dir = 'commander' if fmt == 'commander' else 'constructed'
     decks_dir = install.decks_dir / fmt_dir
     decks_dir.mkdir(parents=True, exist_ok=True)
-    (decks_dir / f'{name_a}.dck').write_text(text_a)
-    (decks_dir / f'{name_b}.dck').write_text(text_b)
+    (decks_dir / f'{stem_a}.dck').write_text(text_a)
+    (decks_dir / f'{stem_b}.dck').write_text(text_b)
 
     cmd = [
         *_launch_prefix(),
@@ -235,8 +242,8 @@ def run_matchup(
         str(install.jar),
         'sim',
         '-d',
-        f'{name_a}.dck',
-        f'{name_b}.dck',
+        f'{stem_a}.dck',
+        f'{stem_b}.dck',
         '-n',
         str(n),
         '-c',
@@ -262,8 +269,7 @@ def run_matchup(
     except subprocess.TimeoutExpired as exc:
         # subprocess.run already killed the child on timeout.
         raise ForgeError(
-            f'Forge sim exceeded the external {external_timeout}s timeout and was killed '
-            f'({name_a} vs {name_b}, n={n}).'
+            f'Forge sim exceeded the external {external_timeout}s timeout and was killed ({name_a} vs {name_b}, n={n}).'
         ) from exc
 
     output = (proc.stdout or '') + (proc.stderr or '')
