@@ -1,6 +1,6 @@
 """OFFLINE test that ``run_matchup`` stages decks under filesystem-safe stems (0.3).
 
-Forge is never launched: ``subprocess.run`` is mocked to return a one-game log,
+Forge is never launched: ``subprocess.Popen`` is mocked to return a one-game log,
 and ``decks_dir`` is redirected to a tmp dir. The assertion is that a deck named
 with ``/`` and ``:`` writes real files (not a spurious sub-directory) and still
 parses its winner (slot-keyed, so the spaced/slashed name is fine).
@@ -18,15 +18,25 @@ from pipeline.sim.runner import run_matchup
 
 
 class _Proc:
+    """A fake ``Popen``: one staged game's log, exits 0, never spawns anything."""
+
     returncode = 0
-    stdout = 'Simulation mode\nGame Result: Game 1 ended in 5 ms. Ai(1)-U/R Izzet has won!\n'
-    stderr = ''
+    pid = 4242
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        pass
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        return (
+            'Simulation mode\nGame Result: Game 1 ended in 5 ms. Ai(1)-U/R Izzet has won!\n',
+            '',
+        )
 
 
 def test_run_matchup_stages_under_sanitized_stem(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     decks_root = tmp_path / 'decks'
     monkeypatch.setattr(ForgeInstall, 'decks_dir', property(lambda self: decks_root))
-    monkeypatch.setattr(runner_mod.subprocess, 'run', lambda *a, **k: _Proc())
+    monkeypatch.setattr(runner_mod.subprocess, 'Popen', _Proc)
 
     install = ForgeInstall(forge_dir=tmp_path, jar=tmp_path / 'forge.jar', java=tmp_path / 'java')
     result = run_matchup(
@@ -47,7 +57,7 @@ def test_run_matchup_stages_under_sanitized_stem(tmp_path: Path, monkeypatch: py
 def test_colliding_stems_are_disambiguated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     decks_root = tmp_path / 'decks'
     monkeypatch.setattr(ForgeInstall, 'decks_dir', property(lambda self: decks_root))
-    monkeypatch.setattr(runner_mod.subprocess, 'run', lambda *a, **k: _Proc())
+    monkeypatch.setattr(runner_mod.subprocess, 'Popen', _Proc)
 
     install = ForgeInstall(forge_dir=tmp_path, jar=tmp_path / 'forge.jar', java=tmp_path / 'java')
     # 'A/B' and 'A:B' both sanitize to 'A_B' — distinct texts must not clobber.

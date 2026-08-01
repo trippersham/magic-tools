@@ -26,8 +26,11 @@ verbose log is captured whole in ``MatchResult.raw_log`` for a later phase.
 
 from __future__ import annotations
 
+import contextlib
+import os
 import re
 import shutil
+import signal
 import subprocess
 from dataclasses import dataclass, field
 
@@ -191,6 +194,22 @@ def _launch_prefix() -> list[str]:
     return []
 
 
+def _kill_process_group(proc: subprocess.Popen[str]) -> None:
+    """SIGKILL the JVM's whole process group, then reap it.
+
+    The child was started with ``start_new_session=True``, so its pid IS its
+    process-group id and ``killpg`` takes out every descendant (the JVM itself
+    when a launch prefix like ``xvfb-run`` made it a grandchild). The final
+    ``communicate`` reaps the child and drains the now-closed pipes — without
+    it a surviving grandchild holding the pipe would block the caller forever.
+    """
+    if hasattr(os, 'killpg'):
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(proc.pid, signal.SIGKILL)
+    proc.kill()  # belt-and-braces for the direct child on any platform.
+    proc.communicate()
+
+
 def run_matchup(
     install: ForgeInstall,
     deck_a: tuple[str, str],
@@ -256,23 +275,27 @@ def run_matchup(
 
     # EXTERNAL kill-switch: Forge's -c is only the per-game draw clock, so bound
     # the whole JVM at one-time-load headroom + per-game budget across n games.
+    # start_new_session puts the child in its OWN process group so the timeout
+    # kill can reap the whole tree — under an `xvfb-run` prefix the JVM is a
+    # GRANDCHILD, and killing only the direct child would leak it.
     external_timeout = _JVM_LOAD_HEADROOM_S + max(1, n) * timeout_s
+    proc = subprocess.Popen(
+        cmd,
+        cwd=install.forge_dir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
     try:
-        proc = subprocess.run(
-            cmd,
-            cwd=install.forge_dir,
-            capture_output=True,
-            text=True,
-            timeout=external_timeout,
-            check=False,
-        )
+        stdout, stderr = proc.communicate(timeout=external_timeout)
     except subprocess.TimeoutExpired as exc:
-        # subprocess.run already killed the child on timeout.
+        _kill_process_group(proc)
         raise ForgeError(
             f'Forge sim exceeded the external {external_timeout}s timeout and was killed ({name_a} vs {name_b}, n={n}).'
         ) from exc
 
-    output = (proc.stdout or '') + (proc.stderr or '')
+    output = (stdout or '') + (stderr or '')
     result = parse_match_log(output, deck_a=name_a, deck_b=name_b)
     if result.games != n:
         raise ForgeError(
