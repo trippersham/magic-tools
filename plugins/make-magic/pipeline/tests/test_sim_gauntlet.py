@@ -18,7 +18,7 @@ import pytest
 
 from pipeline.collection import CollectionStore
 from pipeline.contracts import Deck, DeckCard
-from pipeline.sim.gauntlet import GauntletDeck, resolve_gauntlet
+from pipeline.sim.gauntlet import GauntletDeck, gauntlet_sources, resolve_gauntlet
 
 
 def test_curated_constructed_loads_bundled_decks() -> None:
@@ -55,6 +55,53 @@ def test_curated_commander_loads_bundled_decks() -> None:
 def test_curated_unknown_format_is_empty() -> None:
     """An unknown format resolves to no curated decks (no dir -> empty, no raise)."""
     assert resolve_gauntlet('curated', 'pauper') == []
+
+
+def test_named_bundle_loads_guild_decks() -> None:
+    """``guilds`` / ``constructed`` loads the packaged 10-guild x 3-tier matrix.
+
+    Thirty 40-card ``.dck``s ship under ``constructed/guilds/``; each is a real,
+    uniquely-named Forge deck (a ``[Main]`` section, non-empty text).
+    """
+    decks = resolve_gauntlet('guilds', 'constructed')
+
+    assert len(decks) == 30
+    names = {d.name for d in decks}
+    assert len(names) == len(decks)  # unique names
+    # A tier example from the matrix is present.
+    assert 'GruulStrong' in names
+    for deck in decks:
+        assert isinstance(deck, GauntletDeck)
+        assert deck.name
+        assert '[Main]' in deck.dck_text
+
+
+def test_named_bundle_is_absent_from_default_curated() -> None:
+    """The ``guilds`` sub-dir must NOT leak into the default ``curated`` pool.
+
+    Bundles are opt-in: the flat curated set and the bundle set are disjoint, so
+    a run asking for ``curated`` never silently picks up bundle decks.
+    """
+    curated = {d.name for d in resolve_gauntlet('curated', 'constructed')}
+    guilds = {d.name for d in resolve_gauntlet('guilds', 'constructed')}
+
+    assert curated
+    assert guilds
+    assert curated.isdisjoint(guilds)
+
+
+def test_gauntlet_sources_lists_core_plus_named_bundles() -> None:
+    """``gauntlet_sources`` reports the core sources + every shipped bundle."""
+    sources = gauntlet_sources('constructed')
+
+    assert {'curated', 'mine', 'both'} <= set(sources)
+    assert 'guilds' in sources
+
+
+def test_named_bundle_unknown_for_wrong_format_raises() -> None:
+    """A bundle only shipped for constructed is an unknown source for commander."""
+    with pytest.raises(ValueError, match='guilds'):
+        resolve_gauntlet('guilds', 'commander')
 
 
 class _StubStore:

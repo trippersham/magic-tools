@@ -13,7 +13,8 @@ Verbs:
   * ``deck <name>`` — ``simulate`` a candidate over a gauntlet (win-rate ± CI,
     per-opponent breakdown, telemetry profile).
   * ``ab <A> <B>`` — ``compare`` two variants over the SAME gauntlet.
-  * ``gauntlet show`` — list the curated gauntlet decks (offline, no Forge).
+  * ``gauntlet show [--source <curated|bundle>]`` — list a packaged gauntlet's
+    decks (offline, no Forge); defaults to ``curated``.
   * ``doctor`` — Forge/Java resolution + version + derived pool size + a
     free-RAM/disk snapshot; graceful whether or not Forge is present.
 
@@ -46,7 +47,7 @@ from pipeline.sim.forge_runtime import (
     ForgeUnavailableError,
     resolve,
 )
-from pipeline.sim.gauntlet import resolve_gauntlet
+from pipeline.sim.gauntlet import gauntlet_sources, resolve_gauntlet
 from pipeline.sim.governor import derive_pool_size, free_disk_gib, free_ram_gib
 from pipeline.sim.runner import ForgeError, MatchResult, run_matchup
 
@@ -56,10 +57,14 @@ __all__ = ('main',)
 _DEFAULT_GAMES = 4
 #: Default RNG seed (Forge's ``-s`` is not reliably reproducible; see core).
 _DEFAULT_SEED = 42
-#: Gauntlet sources exposed on the CLI (mirrors ``gauntlet._SOURCES``).
-_GAUNTLET_CHOICES = ('curated', 'mine', 'both')
 #: Format choices exposed on the CLI.
 _FORMAT_CHOICES = ('constructed', 'commander')
+#: Gauntlet sources exposed on the CLI: the core sources + every named bundle
+#: shipped for any format (union), so ``--gauntlet <bundle>`` is accepted
+#: regardless of ``--format`` arg order. ``resolve_gauntlet`` still validates the
+#: (source, format) pairing at run time (a bundle only shipped for constructed
+#: raises for commander).
+_GAUNTLET_CHOICES = tuple(dict.fromkeys(src for fmt in _FORMAT_CHOICES for src in gauntlet_sources(fmt)))
 
 
 # --------------------------------------------------------------------------- #
@@ -107,10 +112,7 @@ def _print_sim_result(result: SimResult) -> None:
         f'[95% CI {_pct(lo)}-{_pct(hi)}]  '
         f'({result.wins}-{result.losses}-{result.draws} over {result.total_games} games)'
     )
-    print(
-        f'matchups: {len(result.per_opponent)}  '
-        f'(cached {result.cached_matchups}, fresh {result.fresh_matchups})'
-    )
+    print(f'matchups: {len(result.per_opponent)}  (cached {result.cached_matchups}, fresh {result.fresh_matchups})')
     print('per-opponent:')
     for opp in result.per_opponent:
         olo, ohi = opp.win_rate_ci
@@ -161,15 +163,9 @@ def _match(argv: list[str]) -> None:
     deck_a = _resolve_deck_arg(args.deck_a)
     deck_b = _resolve_deck_arg(args.deck_b)
     install = resolve()
-    result: MatchResult = run_matchup(
-        install, deck_a, deck_b, n=args.n, seed=args.seed, fmt=args.fmt
-    )
+    result: MatchResult = run_matchup(install, deck_a, deck_b, n=args.n, seed=args.seed, fmt=args.fmt)
     print(f'{deck_a[0]} vs {deck_b[0]}  ({args.fmt}, n={args.n}, seed={args.seed})')
-    print(
-        f'{deck_a[0]}: {result.wins_a} wins   '
-        f'{deck_b[0]}: {result.wins_b} wins   '
-        f'draws: {result.draws}'
-    )
+    print(f'{deck_a[0]}: {result.wins_a} wins   {deck_b[0]}: {result.wins_b} wins   draws: {result.draws}')
 
 
 def _deck(argv: list[str]) -> None:
@@ -252,10 +248,19 @@ def _gauntlet(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='simulate gauntlet')
     parser.add_argument('action', choices=('show',), help='Only `show` is supported.')
     parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default='constructed')
+    parser.add_argument(
+        '--source',
+        default='curated',
+        help='Which packaged gauntlet to list: `curated` (default) or a named bundle '
+        f'(shipped: {", ".join(gauntlet_sources("constructed"))}).',
+    )
     args = parser.parse_args(argv)
-    # `show` lists the CURATED opponents only (no store, no Forge, no network).
-    decks = resolve_gauntlet('curated', args.fmt)
-    print(f'curated gauntlet ({args.fmt}): {len(decks)} deck(s)')
+    # `show` lists PACKAGED opponents only (no store, no Forge, no network), so
+    # `mine`/`both` (which need a live store) are rejected here.
+    if args.source in ('mine', 'both'):
+        raise CollectionError(f'`gauntlet show` lists packaged decks only; {args.source!r} needs a live store.')
+    decks = resolve_gauntlet(args.source, args.fmt)
+    print(f'{args.source} gauntlet ({args.fmt}): {len(decks)} deck(s)')
     for deck in decks:
         print(f'  {deck.name}')
 

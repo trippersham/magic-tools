@@ -1,13 +1,20 @@
 """Resolve an opponent set (a "gauntlet") for AI-vs-AI simulation.
 
 A gauntlet is just a list of :class:`GauntletDeck` — a ``(name, dck_text)`` pair
-per opponent — that :mod:`pipeline.sim.core` runs a candidate deck against. Two
-hybrid sources feed it:
+per opponent — that :mod:`pipeline.sim.core` runs a candidate deck against.
+Several sources feed it:
 
   * **curated** — a MODEST, ROBUST v1 set of ``.dck`` files that ship as plugin
     data under ``pipeline/data/gauntlet/<constructed|commander>/``. Every deck is
     built from time-tested Forge staples (basics + classic commons) so it loads
     cleanly in Forge 2.0.13. Loaded straight off disk (no network, no creds).
+  * **named bundles** — an opt-in tier set shipped as a SUB-directory of the
+    format dir (e.g. ``.../constructed/guilds/`` — the 10-guild x weak/mid/strong
+    40-card matrix). ``resolve_gauntlet('guilds', 'constructed')`` loads it; the
+    default ``curated`` bundle (the flat ``.dck`` files at the format root) is
+    unaffected, so bundles are strictly additive and runs opt in by name.
+    :func:`gauntlet_sources` enumerates the valid ``source`` values for a format
+    (the core sources + whatever bundle dirs ship).
   * **mine** — the user's OWN decks, pulled from the collection
     :class:`~pipeline.collection.CollectionStore` (``get_deck`` -> ``Deck``) and
     rendered to ``.dck`` via the Forge exporter. This path is LIVE (Airtable
@@ -28,15 +35,18 @@ from pipeline.destinations.deck_export import get_exporter
 
 if TYPE_CHECKING:
     import os
+    from importlib.resources.abc import Traversable
 
     from pipeline.collection import CollectionStore
 
 __all__ = (
     'GauntletDeck',
+    'gauntlet_sources',
     'resolve_gauntlet',
 )
 
-#: Valid gauntlet sources.
+#: Core gauntlet sources (named bundles extend this per format — see
+#: :func:`gauntlet_sources`).
 _SOURCES = ('curated', 'mine', 'both')
 #: The commander format label (everything else is treated as constructed).
 _COMMANDER = 'commander'
@@ -65,16 +75,19 @@ def _fmt_dir(fmt: str) -> str:
     return fmt
 
 
-def _curated(fmt: str) -> list[GauntletDeck]:
-    """Load every bundled ``.dck`` for ``fmt`` from the packaged gauntlet data.
+def _gauntlet_root(fmt: str) -> Traversable:
+    """The packaged gauntlet dir for ``fmt`` (may not exist for an unknown format)."""
+    return resources.files('pipeline') / 'data' / 'gauntlet' / _fmt_dir(fmt)
+
+
+def _load_dck_dir(root: Traversable) -> list[GauntletDeck]:
+    """Load every ``.dck`` DIRECTLY under ``root`` into ``GauntletDeck``s (sorted).
 
     Read via :mod:`importlib.resources` so it works from an installed wheel or an
-    editable checkout. An absent format dir (e.g. an unknown format) yields ``[]``
-    rather than raising — a caller asking for a format we don't ship just gets no
-    curated opponents.
+    editable checkout. A non-existent ``root`` yields ``[]`` (never raises).
+    Sub-directories are skipped — they are named bundles loaded on request, not
+    part of the flat set — so a bundle dir never leaks into the default pool.
     """
-    fmt_dir = _fmt_dir(fmt)
-    root = resources.files('pipeline') / 'data' / 'gauntlet' / fmt_dir
     if not root.is_dir():
         return []
 
@@ -83,6 +96,38 @@ def _curated(fmt: str) -> list[GauntletDeck]:
         if entry.name.endswith('.dck'):
             decks.append(GauntletDeck(name=entry.name[: -len('.dck')], dck_text=entry.read_text()))
     return decks
+
+
+def _curated(fmt: str) -> list[GauntletDeck]:
+    """Load the default curated bundle: the flat ``.dck`` files at the format root."""
+    return _load_dck_dir(_gauntlet_root(fmt))
+
+
+def _bundle_names(fmt: str) -> tuple[str, ...]:
+    """Discover the named bundles that ship for ``fmt`` (sub-dirs of the format root).
+
+    Each sub-directory holding ``.dck`` files is a named bundle whose directory
+    name is the ``source`` that selects it. An absent/empty format root yields
+    ``()``.
+    """
+    root = _gauntlet_root(fmt)
+    if not root.is_dir():
+        return ()
+    return tuple(sorted(entry.name for entry in root.iterdir() if entry.is_dir()))
+
+
+def _bundle(fmt: str, name: str) -> list[GauntletDeck]:
+    """Load a named bundle's ``.dck`` files from ``<format root>/<name>/``."""
+    return _load_dck_dir(_gauntlet_root(fmt) / name)
+
+
+def gauntlet_sources(fmt: str) -> tuple[str, ...]:
+    """All valid ``source`` values for ``fmt``: the core sources + named bundles.
+
+    Used by the CLI to present ``--gauntlet`` choices and by
+    :func:`resolve_gauntlet` to validate a requested source.
+    """
+    return (*_SOURCES, *_bundle_names(fmt))
 
 
 def _mine(fmt: str, store: CollectionStore) -> list[GauntletDeck]:
@@ -118,25 +163,31 @@ def resolve_gauntlet(
 ) -> list[GauntletDeck]:
     """Resolve the opponent set for ``source`` + ``fmt`` into gauntlet decks.
 
-    ``source`` is one of ``curated`` / ``mine`` / ``both``. ``curated`` loads the
-    bundled ``.dck`` data; ``mine`` renders the user's decks from ``store`` (which
-    is REQUIRED for ``mine`` / ``both``); ``both`` merges the two (curated first,
-    then mine). ``fmt`` selects the constructed vs commander pool. ``data_dir`` is
-    accepted for symmetry with the rest of the sim API (the curated data ships
-    with the package, so it is currently unused) — reserved for a future
-    on-disk override.
+    ``source`` is one of ``curated`` / ``mine`` / ``both``, or the name of a
+    packaged bundle for ``fmt`` (e.g. ``guilds``; see :func:`gauntlet_sources`).
+    ``curated`` loads the default flat bundle; a named bundle loads its sub-dir
+    (and is standalone — not merged with ``mine``); ``mine`` renders the user's
+    decks from ``store`` (which is REQUIRED for ``mine`` / ``both``); ``both``
+    merges curated + mine (curated first). ``fmt`` selects the constructed vs
+    commander pool. ``data_dir`` is accepted for symmetry with the rest of the
+    sim API (the curated data ships with the package, so it is currently unused)
+    — reserved for a future on-disk override.
 
-    Raises ``ValueError`` for an unknown ``source`` or when ``mine`` / ``both`` is
-    requested without a ``store``.
+    Raises ``ValueError`` for a source that is neither a core source nor a bundle
+    shipped for ``fmt``, or when ``mine`` / ``both`` is requested without a
+    ``store``.
     """
     del data_dir  # reserved: curated data is packaged, not read from a data dir.
 
-    if source not in _SOURCES:
-        raise ValueError(f'unknown gauntlet source {source!r}; choose from {_SOURCES}')
+    valid = gauntlet_sources(fmt)
+    if source not in valid:
+        raise ValueError(f'unknown gauntlet source {source!r} for format {fmt!r}; choose from {valid}')
 
     decks: list[GauntletDeck] = []
     if source in ('curated', 'both'):
         decks.extend(_curated(fmt))
+    elif source not in _SOURCES:  # a named bundle (already validated above)
+        decks.extend(_bundle(fmt, source))
     if source in ('mine', 'both'):
         if store is None:
             raise ValueError(f'gauntlet source {source!r} needs a CollectionStore (store=...)')

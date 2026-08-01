@@ -117,8 +117,13 @@ size the run accordingly.
 ${CLAUDE_PLUGIN_ROOT}/scripts/simulate deck "<Airtable deck name>" \
   --gauntlet both --format commander --games 30
 ```
-- `--gauntlet curated|mine|both` — `curated` is the bundled robust opponent set (offline,
-  no store); `mine` is your own decks; `both` merges them (curated first). Default `curated`.
+- `--gauntlet curated|mine|both|<bundle>` — `curated` is the small default bundled opponent
+  set (offline, no store); `mine` is your own decks; `both` merges them (curated first);
+  `<bundle>` is a packaged named tier set. Default `curated`. The shipped named bundle is
+  **`guilds`** — the 10 two-color guilds × weak/mid/strong, 30 authentic 40-card constructed
+  decks. It's a far more discriminating instrument than the 5-deck default (a candidate's
+  win-rate *across the tiers* localizes its power level), at the cost of more games per run.
+  `simulate gauntlet show --source guilds` lists it.
 - `--games N` — games **per opponent** (default 4 — fine for a smoke, far too few for a
   verdict; see [Sample-size honesty](#sample-size-honesty)).
 - `--seed N` — RNG seed (default 42). `--force` bypasses the matchup cache and re-runs
