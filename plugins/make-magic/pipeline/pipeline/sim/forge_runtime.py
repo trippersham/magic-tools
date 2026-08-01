@@ -24,11 +24,13 @@ grounded in ``~/mtg-sim-lab/forge_backend.py`` (Forge 2.0.13, Temurin 21).
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import platform
 import shutil
 import tarfile
 import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -78,6 +80,21 @@ FORGE_TARBALL_SHA256 = 'df23b237095cfc5ff97a4711946b25ff852da9ff43b916c40783f6b5
 #: cached installs never hit it. The endpoint 307-redirects to a GitHub release
 #: asset (a ``.tar.gz``); ``urllib`` follows the redirect.
 _TEMURIN_API = 'https://api.adoptium.net/v3/binary/latest/21/ga'
+#: Adoptium ASSETS metadata endpoint — unlike the ``binary`` redirect it returns
+#: the JRE asset's download ``link`` AND its published ``checksum`` (SHA256) in
+#: one call, so a fetched JRE can be integrity-verified (see :func:`_temurin_asset`).
+_TEMURIN_ASSETS_API = 'https://api.adoptium.net/v3/assets/latest/21/ga'
+
+#: User-Agent for downloads. GitHub release-asset / Adoptium endpoints 403 or
+#: rate-limit requests that send no (or a bare ``Python-urllib``) UA under load,
+#: so identify with a real UA string.
+_USER_AGENT = 'make-magic-sim/1.0 (+https://github.com/Card-Forge/forge)'
+#: Download retry budget (linear backoff) for TRANSIENT failures only.
+_DOWNLOAD_ATTEMPTS = 3
+#: HTTP statuses worth retrying (rate-limit + transient server errors). A 404
+#: (URL rot) or any non-HTTP ``OSError`` (e.g. disk-full) is permanent -> fail
+#: fast with no backoff.
+_TRANSIENT_HTTP = frozenset({403, 429, 500, 502, 503, 504})
 
 
 class ForgeUnavailableError(RuntimeError):
@@ -223,7 +240,6 @@ def ensure(
             forge_dir=forge_dir,
             jre_dir=jre_dir,
             forge_url=FORGE_TARBALL_URL,
-            jre_url=_temurin_url(),
             forge_sha256=FORGE_TARBALL_SHA256,
         )
     except Exception as exc:  # any fetch/extract failure is fatal-but-graceful.
@@ -236,13 +252,14 @@ def ensure(
 
 
 def _temurin_url() -> str:
-    """Adoptium API URL for the latest Temurin 21 JRE for the current platform.
+    """Adoptium ``binary/latest`` redirect URL for this platform's Temurin 21 JRE.
 
-    Resolves ``mac``/``linux`` x ``aarch64``/``x64`` into the Adoptium
-    ``binary/latest`` endpoint (:data:`_TEMURIN_API`), which redirects to the
-    current versioned asset — so we never hardcode a JRE point-version that would
-    rot. Only consulted on the fetch fallback; tests mock
-    :func:`_fetch_and_extract` so this is never reached offline.
+    Resolves ``mac``/``linux`` x ``aarch64``/``x64`` into the ``binary/latest``
+    endpoint (:data:`_TEMURIN_API`), which 307-redirects to the current versioned
+    asset — so we never hardcode a JRE point-version that would rot. This is the
+    checksum-less FALLBACK for :func:`_temurin_asset` (used only when the assets
+    metadata call fails); the download is then gzip-validated on extract but not
+    SHA-pinned.
     """
     machine = platform.machine().lower()
     arch = 'aarch64' if machine in ('arm64', 'aarch64') else 'x64'
@@ -250,64 +267,140 @@ def _temurin_url() -> str:
     return f'{_TEMURIN_API}/{os_name}/{arch}/jre/hotspot/normal/eclipse'
 
 
+def _parse_temurin_asset(payload: object) -> tuple[str, str | None]:
+    """Extract ``(download_url, sha256|None)`` from an Adoptium assets-API payload.
+
+    The ``/v3/assets/latest`` response is a non-empty list; the first entry's
+    ``binary.package`` carries ``link`` (the ``.tar.gz`` URL) and ``checksum``
+    (its SHA256). Raises on an empty/unexpected shape so :func:`_temurin_asset`
+    can fall back to the checksum-less binary redirect.
+    """
+    if not isinstance(payload, list) or not payload:
+        raise ValueError('empty or non-list Adoptium assets payload')
+    package = payload[0]['binary']['package']  # type: ignore[index]
+    link = package['link']
+    checksum = package.get('checksum')
+    if not isinstance(link, str):
+        raise TypeError('Adoptium asset link is not a string')
+    return link, checksum if isinstance(checksum, str) else None
+
+
+def _temurin_asset() -> tuple[str, str | None]:
+    """Resolve the Temurin 21 JRE ``(url, sha256|None)`` for this platform.
+
+    PREFERS the Adoptium assets-metadata endpoint, which returns both the asset
+    ``link`` and its published ``checksum`` in one call — so the JRE can be
+    integrity-verified like Forge. On ANY failure (endpoint down, schema drift,
+    parse error) DEGRADES to the checksum-less ``binary/latest`` redirect
+    (:func:`_temurin_url`); a ``None`` checksum signals that fallback, and the
+    download is then still gzip-validated on extract, just not SHA-pinned (a
+    static pin is impossible against a moving "latest"). Network work — reached
+    only on the fetch path (``_fetch_and_extract`` is mocked in tests).
+    """
+    machine = platform.machine().lower()
+    arch = 'aarch64' if machine in ('arm64', 'aarch64') else 'x64'
+    os_name = 'mac' if platform.system().lower() == 'darwin' else 'linux'
+    query = (
+        f'{_TEMURIN_ASSETS_API}?architecture={arch}&heap_size=normal'
+        f'&image_type=jre&jvm_impl=hotspot&os={os_name}&vendor=eclipse'
+    )
+    try:
+        req = urllib.request.Request(query, headers={'User-Agent': _USER_AGENT})
+        with urllib.request.urlopen(req) as resp:  # Adoptium public metadata API.
+            payload = json.load(resp)
+        return _parse_temurin_asset(payload)
+    except Exception:  # metadata unavailable/changed — degrade to the redirect URL.
+        return _temurin_url(), None
+
+
 def _fetch_and_extract(
     *,
     forge_dir: Path,
     jre_dir: Path,
     forge_url: str,
-    jre_url: str,
     forge_sha256: str,
 ) -> None:
-    """Download + verify + extract Forge and a JRE into the cache.
+    """Download + verify + extract Forge and a Temurin JRE into ``forge_dir`` ATOMICALLY.
 
-    Real network + disk work; tests MONKEYPATCH this whole function so no
-    download ever runs in the suite. The Forge tarball is SHA256-verified
-    against ``forge_sha256`` before extraction.
+    Builds the whole install (jar + ``res/`` + ``jre/``) in a sibling staging dir
+    and ``os.replace``s it into ``forge_dir`` only after BOTH archives extract —
+    so an interrupted fetch never leaves a truncated jar that :func:`resolve`
+    (which checks jar existence, not integrity) would report as 'available'. The
+    Forge tarball is SHA256-verified against ``forge_sha256``; the JRE against the
+    Adoptium-published checksum when available (else gzip-validated on extract;
+    see :func:`_temurin_asset`).
+
+    Real network + disk work; tests MONKEYPATCH this function (or the
+    ``_download_verified`` / ``_temurin_asset`` / ``tarfile`` helpers) so no
+    download runs in the suite.
     """
-    forge_dir.mkdir(parents=True, exist_ok=True)
-    jre_dir.mkdir(parents=True, exist_ok=True)
+    parent = forge_dir.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    staging = parent / f'.{forge_dir.name}.incomplete'
+    shutil.rmtree(staging, ignore_errors=True)
+    try:
+        staging_jre = staging / jre_dir.name
+        staging_jre.mkdir(parents=True)
 
-    forge_archive = forge_dir / f'forge-installer-{FORGE_VERSION}.tar.bz2'
-    _download(forge_url, forge_archive)
-    _verify_sha256(forge_archive, forge_sha256)
-    with tarfile.open(forge_archive, 'r:bz2') as tar:
-        tar.extractall(forge_dir, filter='data')
+        forge_archive = staging / f'forge-installer-{FORGE_VERSION}.tar.bz2'
+        _download_verified(forge_url, forge_archive, sha256=forge_sha256)
+        with tarfile.open(forge_archive, 'r:bz2') as tar:  # r:bz2 also rejects a truncated download.
+            tar.extractall(staging, filter='data')
+        forge_archive.unlink(missing_ok=True)
 
-    jre_archive = jre_dir / 'jre.tar.gz'
-    _download(jre_url, jre_archive)
-    with tarfile.open(jre_archive, 'r:gz') as tar:
-        tar.extractall(jre_dir, filter='data')
+        jre_url, jre_sha256 = _temurin_asset()
+        jre_archive = staging_jre / 'jre.tar.gz'
+        _download_verified(jre_url, jre_archive, sha256=jre_sha256)
+        with tarfile.open(jre_archive, 'r:gz') as tar:  # r:gz also rejects a truncated download.
+            tar.extractall(staging_jre, filter='data')
+        jre_archive.unlink(missing_ok=True)
+
+        # Atomic publish: forge_dir goes absent -> fully-populated in a single rename.
+        shutil.rmtree(forge_dir, ignore_errors=True)
+        os.replace(staging, forge_dir)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)  # never leave a partial install behind.
+        raise
 
 
-#: User-Agent for downloads. GitHub release-asset / Adoptium endpoints 403 or
-#: rate-limit requests that send no (or a bare ``Python-urllib``) UA under load,
-#: so identify with a real UA string.
-_USER_AGENT = 'make-magic-sim/1.0 (+https://github.com/Card-Forge/forge)'
-#: Download retry budget (linear backoff) for transient 403/rate-limit/5xx.
-_DOWNLOAD_ATTEMPTS = 3
+def _download_verified(url: str, dest: Path, *, sha256: str | None) -> None:
+    """:func:`_download` ``url`` to ``dest``, then SHA256-verify when ``sha256`` is set.
+
+    A ``None`` checksum (the Adoptium fallback) skips verification — the caller
+    still bz2/gzip-validates the archive on extract, which catches a truncated
+    download.
+    """
+    _download(url, dest)
+    if sha256 is not None:
+        _verify_sha256(dest, sha256)
 
 
 def _download(url: str, dest: Path, *, attempts: int = _DOWNLOAD_ATTEMPTS) -> None:
     """Stream ``url`` to ``dest`` with a real User-Agent + linear-backoff retry.
 
-    Network work (mocked in tests). Sends :data:`_USER_AGENT` and retries a
-    transient failure (GitHub 403/rate-limit, a dropped connection) up to
-    ``attempts`` times before giving up — the last error propagates so
-    :func:`ensure` can wrap it in an actionable :class:`ForgeUnavailableError`.
+    Retries ONLY transient failures — an HTTP status in :data:`_TRANSIENT_HTTP`
+    (rate-limit / 5xx) or a connection-level ``URLError`` / timeout — up to
+    ``attempts`` times. A PERMANENT error (a 404 URL-rot, or a non-HTTP
+    ``OSError`` such as disk-full) FAILS FAST with no retry, so it surfaces
+    immediately instead of burning the full backoff. The final error propagates
+    so :func:`ensure` can wrap it in an actionable
+    :class:`ForgeUnavailableError`. Network work (mocked in tests).
     """
-    last_exc: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
             req = urllib.request.Request(url, headers={'User-Agent': _USER_AGENT})
-            with urllib.request.urlopen(req) as resp, dest.open('wb') as fh:  # pinned release URL + UA.
+            with urllib.request.urlopen(req) as resp, dest.open('wb') as fh:  # pinned URL + UA.
                 shutil.copyfileobj(resp, fh)
             return
-        except Exception as exc:  # transient network/HTTP error — back off + retry.
-            last_exc = exc
-            if attempt < attempts:
-                time.sleep(2 * attempt)
-    assert last_exc is not None  # loop ran >=1 time, so a failure was recorded.
-    raise last_exc
+        except urllib.error.HTTPError as exc:
+            # Retry rate-limits / 5xx; a 404 (or any other status) is permanent.
+            if exc.code not in _TRANSIENT_HTTP or attempt == attempts:
+                raise
+        except (urllib.error.URLError, TimeoutError):
+            # Connection-level transient (DNS / reset / timeout); give up after the budget.
+            if attempt == attempts:
+                raise
+        time.sleep(2 * attempt)
 
 
 def _verify_sha256(path: Path, expected: str) -> None:
