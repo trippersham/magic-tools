@@ -5,9 +5,10 @@ Before this, nothing told us which of Forge's ~33k cards a name actually maps to
 so a card absent from Forge silently produced a short/mis-loaded deck, and (worse)
 a human "is this loadable?" guess led to a wrong DFC substitution. :class:`ForgeCardIndex`
 answers :meth:`has` from the install's ``cardsfolder.zip`` — built once and cached
-to a per-install manifest, normalizing the combined ``A // B`` DFC name to its
-front face exactly the way Forge's own deck loader resolves it (empirically:
-Forge loads an MDFC by BOTH the combined name and the front face).
+to a per-install manifest. :meth:`forge_deck_name` goes one step further and
+returns the exact string Forge's ``.dck`` loader accepts (empirically: Forge
+REJECTS the combined ``A // B`` MDFC name and loads only the FRONT face), so the
+exporter emits a loadable line instead of one Forge silently drops.
 
 It implements the structural ``CardAvailability`` port the forge_dck card exporter
 depends on (duck-typed — no import back into the destination layer), so unit tests
@@ -84,14 +85,33 @@ class ForgeCardIndex:
         the way Forge itself resolves an MDFC in a deck line — so DFCs/MDFCs
         (``Akoum Warrior // Akoum Teeth``) validate as present, not absent.
         """
-        n = _norm(card_name)
-        if n in self._names:
-            return True
-        if ' // ' in n:
-            front = n.split(' // ', 1)[0].strip()
-            if front in self._names:
-                return True
-        return False
+        return self.forge_deck_name(card_name) is not None
+
+    def forge_deck_name(self, card_name: str) -> str | None:
+        """The name Forge's ``.dck`` loader accepts for ``card_name``, or ``None``
+        if the card cannot be loaded (a typo, or a back-face-only name).
+
+        Forge matches a deck line against a card's FRONT-FACE ``Name:``.
+        Empirically (Forge 2.0.13) the combined ``A // B`` MDFC name is REJECTED —
+        the card is silently dropped from the deck — while the front face ``A``
+        loads and plays. So the loadable name is resolved as:
+
+        - a name already known as-is (a normal card, or a card Forge stores under
+          its combined name, e.g. a true split) → returned unchanged (it loads);
+        - otherwise a combined ``A // B`` whose FRONT face is known → the front
+          face (the MDFC repair);
+        - anything else → ``None`` (unloadable).
+
+        Trying the input as-is BEFORE the front face is what stops a genuinely
+        combined-named card from being wrongly truncated to its left half.
+        """
+        if _norm(card_name) in self._names:
+            return card_name
+        if ' // ' in card_name:
+            front = card_name.split(' // ', 1)[0].strip()
+            if _norm(front) in self._names:
+                return front
+        return None
 
     def __len__(self) -> int:
         return len(self._names)

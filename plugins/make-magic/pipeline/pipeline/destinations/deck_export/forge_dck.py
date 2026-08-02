@@ -20,8 +20,13 @@ Rendering rules:
     - Commanders (``deck.commanders`` / ``role == 'commander'``) go in
       ``[Commander]`` and are EXCLUDED from ``[Main]``; their presence flips
       ``Deck Type`` to ``Commander``.
-    - DFC / split names (``A // B``) are written verbatim — Forge matches the
-      full combined name.
+    - An MDFC/DFC combined name (``A // B``) is REWRITTEN to its front face ``A``:
+      Forge's deck loader REJECTS the combined name (the card is silently dropped)
+      and matches the front face. A true split card that Forge stores under its
+      combined name is emitted verbatim when an availability index confirms it;
+      without an index the ``A // B`` line is repaired to the front face
+      best-effort. See ``ForgeDckCardExporter._line_name`` /
+      ``ForgeCardIndex.forge_deck_name``.
 """
 
 from __future__ import annotations

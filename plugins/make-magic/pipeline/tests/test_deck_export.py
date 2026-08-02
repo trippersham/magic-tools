@@ -102,11 +102,21 @@ def test_basic_land_quantity_renders_single_line() -> None:
     assert plains_lines == ['17 Plains']
 
 
-def test_dfc_combined_name_preserved_verbatim() -> None:
-    dfc_name = 'Valki, God of Lies // Tibalt, Cosmic Impostor'
-    deck = Deck(name='DFC Test', cards=[DeckCard(name=dfc_name, quantity=1)])
+def test_dfc_combined_name_repaired_to_front_face() -> None:
+    """An MDFC combined ``A // B`` name is rewritten to its front face.
+
+    Forge's ``.dck`` loader REJECTS the combined name (empirically verified against
+    Forge 2.0.13 — the card is silently dropped from the deck); the front face
+    loads. Even without an availability index the exporter best-effort repairs the
+    pure-string ``A // B`` → front face, so the common MDFC bug can't reach Forge.
+    """
+    deck = Deck(
+        name='DFC Test',
+        cards=[DeckCard(name='Valki, God of Lies // Tibalt, Cosmic Impostor', quantity=1)],
+    )
     rendered = ForgeDckExporter().export(deck)
-    assert f'1 {dfc_name}' in _lines(rendered)
+    assert '1 Valki, God of Lies' in _lines(rendered)
+    assert 'Tibalt, Cosmic Impostor' not in rendered  # back half must not leak into the line
 
 
 def test_sideboard_section_present_and_empty() -> None:

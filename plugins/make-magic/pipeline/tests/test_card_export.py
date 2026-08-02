@@ -123,6 +123,66 @@ def test_get_card_exporter_unknown_format_raises() -> None:
         get_card_exporter('nope')
 
 
+# --------------------------------------------------------------------------- #
+# ForgeCardIndex.forge_deck_name — the loadable-name resolver
+# --------------------------------------------------------------------------- #
+
+
+def test_forge_deck_name_passthrough_for_known() -> None:
+    """A normal card Forge loads is returned unchanged (original casing kept)."""
+    idx = ForgeCardIndex(frozenset({'lightning bolt'}))
+    assert idx.forge_deck_name('Lightning Bolt') == 'Lightning Bolt'
+    assert idx.forge_deck_name('Plains') == 'Plains'  # basic
+
+
+def test_forge_deck_name_front_face_for_mdfc() -> None:
+    """A combined ``A // B`` MDFC (front face known, combined NOT a key) → front face."""
+    idx = ForgeCardIndex(frozenset({'Akoum Warrior'}))
+    assert idx.forge_deck_name('Akoum Warrior // Akoum Teeth') == 'Akoum Warrior'
+
+
+def test_forge_deck_name_verbatim_when_combined_is_key() -> None:
+    """A card Forge stores under its combined name (e.g. a true split) is NOT
+    truncated — the input-as-key branch wins over the front-face split."""
+    idx = ForgeCardIndex(frozenset({'Fire // Ice'}))
+    assert idx.forge_deck_name('Fire // Ice') == 'Fire // Ice'
+
+
+def test_forge_deck_name_none_for_backface_and_typo() -> None:
+    """A back-face-only name and a typo are unloadable → ``None`` (blocked)."""
+    idx = ForgeCardIndex(frozenset({'Akoum Warrior'}))
+    assert idx.forge_deck_name('Akoum Teeth') is None  # back face, no ' // '
+    assert idx.forge_deck_name('Zzznonexistent Bogus Card') is None
+
+
+# --------------------------------------------------------------------------- #
+# ForgeDckCardExporter.render — emits the loadable name
+# --------------------------------------------------------------------------- #
+
+
+def test_render_emits_front_face_for_mdfc_with_index() -> None:
+    exporter = ForgeDckCardExporter(availability=ForgeCardIndex(frozenset({'Akoum Warrior'})))
+    line = exporter.render(DeckCard(name='Akoum Warrior // Akoum Teeth', quantity=1))
+    assert line == '1 Akoum Warrior'
+
+
+def test_render_passthrough_normal_with_index_is_byte_stable() -> None:
+    exporter = ForgeDckCardExporter(availability=ForgeCardIndex(frozenset({'lightning bolt'})))
+    assert exporter.render(DeckCard(name='Lightning Bolt', quantity=3)) == '3 Lightning Bolt'
+
+
+def test_render_autorepairs_mdfc_without_index() -> None:
+    """Even with no availability oracle, a pure-string ``A // B`` is repaired to
+    the front face — the common MDFC bug never reaches Forge."""
+    line = ForgeDckCardExporter().render(DeckCard(name='Valki, God of Lies // Tibalt, Cosmic Impostor', quantity=1))
+    assert line == '1 Valki, God of Lies'
+
+
+def test_render_keeps_split_verbatim_with_index() -> None:
+    exporter = ForgeDckCardExporter(availability=ForgeCardIndex(frozenset({'Fire // Ice'})))
+    assert exporter.render(DeckCard(name='Fire // Ice', quantity=2)) == '2 Fire // Ice'
+
+
 def test_has_folds_typographic_apostrophes() -> None:
     """A smart-quote name (macOS auto-substitution in hand-entered data) must
     match the ASCII-apostrophe form Forge/Scryfall use — in BOTH directions."""
