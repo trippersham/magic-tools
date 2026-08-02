@@ -1,0 +1,252 @@
+Error handling registered!
+21:37:32 [INFO ] GuiBase: ##########################################
+21:37:32 [INFO ] GuiBase: APP: Forge v.2.0.13-SNAPSHOT-06.22
+21:37:32 [INFO ] GuiBase: Java: 21.0.12 (Eclipse Adoptium)
+21:37:32 [INFO ] GuiBase: OS: Mac OS X 15.7.3 aarch64
+21:37:32 [INFO ] GuiBase: RAM: 3072 MB max, 12 CPUs
+21:37:32 [INFO ] GuiBase: ##########################################
+Language 'en-US' loaded successfully.
+(ThreadUtil first call): Running with priority 5
+Read cards: 33319 archived files in 0 ms (25 parts) using thread pool
+Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.
+The card A-Alrund's Epiphany was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Baba Lysaga, Night Witch was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Divide by Zero was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Esika's Chariot was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Faceless Haven was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Fires of Invention was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Goldspan Dragon was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Hullbreaker Horror was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Kumano Faces Kakkazan was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Luminarch Aspirant was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Monster Manual was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Omnath, Locus of Creation was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-The Meathook Massacre was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Unholy Heat was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Blinding Radiance was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Goblin Bruiser was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Ogre Painbringer was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Titanic Pelagosaur was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Treetop Recluse was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.
+Read cards: 821 files in 0 ms (8 parts) using thread pool
+Simulation mode
+Ai(1)-RedTest vs Ai(2)-WhiteTest - one game of Constructed
+Mulligan: Ai(2)-WhiteTest has mulliganed down to 6 cards.
+Mulligan: Ai(1)-RedTest has mulliganed down to 6 cards.
+Mulligan: Ai(2)-WhiteTest has kept a hand of 6 cards
+Mulligan: Ai(1)-RedTest has kept a hand of 6 cards
+Turn: Turn 1 (Ai(2)-WhiteTest)
+Phase: Ai(2)-WhiteTest's Untap step
+Phase: Ai(2)-WhiteTest's Upkeep step
+Phase: Ai(2)-WhiteTest's Draw step
+Phase: Ai(2)-WhiteTest's Main phase, precombat
+Land: Ai(2)-WhiteTest played Plains (50)
+Phase: Ai(2)-WhiteTest's Beginning of Combat Step
+Phase: Ai(2)-WhiteTest's Declare Attackers Step
+Phase: Ai(2)-WhiteTest's Declare Blockers Step
+Phase: Ai(2)-WhiteTest's First Strike Damage Step
+Phase: Ai(2)-WhiteTest's Combat Damage Step
+Phase: Ai(2)-WhiteTest's End of Combat Step
+Phase: Ai(2)-WhiteTest's Main phase, postcombat
+Mana: Plains (50) - {T}: Add {W}.
+Add To Stack: Ai(2)-WhiteTest cast Elite Vanguard
+Resolve Stack: Elite Vanguard - Creature 2 / 1
+Phase: Ai(2)-WhiteTest's End step
+Phase: Ai(2)-WhiteTest's Cleanup step
+Turn: Turn 2 (Ai(1)-RedTest)
+Phase: Ai(1)-RedTest's Untap step
+Phase: Ai(1)-RedTest's Upkeep step
+Phase: Ai(1)-RedTest's Draw step
+Phase: Ai(1)-RedTest's Main phase, precombat
+Land: Ai(1)-RedTest played Mountain (31)
+Phase: Ai(1)-RedTest's Beginning of Combat Step
+Phase: Ai(1)-RedTest's Declare Attackers Step
+Phase: Ai(1)-RedTest's Declare Blockers Step
+Phase: Ai(1)-RedTest's First Strike Damage Step
+Phase: Ai(1)-RedTest's Combat Damage Step
+Phase: Ai(1)-RedTest's End of Combat Step
+Phase: Ai(1)-RedTest's Main phase, postcombat
+Phase: Ai(1)-RedTest's End step
+Phase: Ai(1)-RedTest's Cleanup step
+Turn: Turn 3 (Ai(2)-WhiteTest)
+Phase: Ai(2)-WhiteTest's Untap step
+Phase: Ai(2)-WhiteTest's Upkeep step
+Phase: Ai(2)-WhiteTest's Draw step
+Phase: Ai(2)-WhiteTest's Main phase, precombat
+Land: Ai(2)-WhiteTest played Plains (52)
+Phase: Ai(2)-WhiteTest's Beginning of Combat Step
+Phase: Ai(2)-WhiteTest's Declare Attackers Step
+Combat: Ai(2)-WhiteTest assigned Elite Vanguard (73) to attack Ai(1)-RedTest.
+Phase: Ai(2)-WhiteTest's Declare Blockers Step
+Combat: Ai(1)-RedTest didn't block Elite Vanguard (73).
+Phase: Ai(2)-WhiteTest's First Strike Damage Step
+Phase: Ai(2)-WhiteTest's Combat Damage Step
+Damage: Elite Vanguard (73) deals 2 combat damage to Ai(1)-RedTest.
+Life: Life: Ai(1)-RedTest 20 > 18
+Phase: Ai(2)-WhiteTest's End of Combat Step
+Phase: Ai(2)-WhiteTest's Main phase, postcombat
+Mana: Plains (50) - {T}: Add {W}.
+Add To Stack: Ai(2)-WhiteTest cast Elite Vanguard
+Resolve Stack: Elite Vanguard - Creature 2 / 1
+Mana: Plains (52) - {T}: Add {W}.
+Add To Stack: Ai(2)-WhiteTest cast Elite Vanguard
+Resolve Stack: Elite Vanguard - Creature 2 / 1
+Phase: Ai(2)-WhiteTest's End step
+Phase: Ai(2)-WhiteTest's Cleanup step
+Turn: Turn 4 (Ai(1)-RedTest)
+Phase: Ai(1)-RedTest's Untap step
+Phase: Ai(1)-RedTest's Upkeep step
+Phase: Ai(1)-RedTest's Draw step
+Phase: Ai(1)-RedTest's Main phase, precombat
+Land: Ai(1)-RedTest played Mountain (36)
+Phase: Ai(1)-RedTest's Beginning of Combat Step
+Phase: Ai(1)-RedTest's Declare Attackers Step
+Phase: Ai(1)-RedTest's Declare Blockers Step
+Phase: Ai(1)-RedTest's First Strike Damage Step
+Phase: Ai(1)-RedTest's Combat Damage Step
+Phase: Ai(1)-RedTest's End of Combat Step
+Phase: Ai(1)-RedTest's Main phase, postcombat
+Mana: Mountain (31) - {T}: Add {R}.
+Mana: Mountain (36) - {T}: Add {R}.
+Add To Stack: Ai(1)-RedTest cast Goblin Piker
+Resolve Stack: Goblin Piker - Creature 2 / 1
+Phase: Ai(1)-RedTest's End step
+Phase: Ai(1)-RedTest's Cleanup step
+Turn: Turn 5 (Ai(2)-WhiteTest)
+Phase: Ai(2)-WhiteTest's Untap step
+Phase: Ai(2)-WhiteTest's Upkeep step
+Phase: Ai(2)-WhiteTest's Draw step
+Phase: Ai(2)-WhiteTest's Main phase, precombat
+Land: Ai(2)-WhiteTest played Plains (55)
+Phase: Ai(2)-WhiteTest's Beginning of Combat Step
+Phase: Ai(2)-WhiteTest's Declare Attackers Step
+Combat: Ai(2)-WhiteTest assigned Elite Vanguard (73), Elite Vanguard (66) and Elite Vanguard (60) to attack Ai(1)-RedTest.
+Phase: Ai(2)-WhiteTest's Declare Blockers Step
+Combat: Ai(1)-RedTest didn't block Elite Vanguard (73).
+Ai(1)-RedTest didn't block Elite Vanguard (66).
+Ai(1)-RedTest didn't block Elite Vanguard (60).
+Phase: Ai(2)-WhiteTest's First Strike Damage Step
+Phase: Ai(2)-WhiteTest's Combat Damage Step
+Damage: Elite Vanguard (73) deals 2 combat damage to Ai(1)-RedTest.
+Damage: Elite Vanguard (66) deals 2 combat damage to Ai(1)-RedTest.
+Damage: Elite Vanguard (60) deals 2 combat damage to Ai(1)-RedTest.
+Life: Life: Ai(1)-RedTest 18 > 12
+Phase: Ai(2)-WhiteTest's End of Combat Step
+Phase: Ai(2)-WhiteTest's Main phase, postcombat
+Mana: Plains (50) - {T}: Add {W}.
+Add To Stack: Ai(2)-WhiteTest cast Elite Vanguard
+Resolve Stack: Elite Vanguard - Creature 2 / 1
+Mana: Plains (52) - {T}: Add {W}.
+Add To Stack: Ai(2)-WhiteTest cast Elite Vanguard
+Resolve Stack: Elite Vanguard - Creature 2 / 1
+Phase: Ai(2)-WhiteTest's End step
+Phase: Ai(2)-WhiteTest's Cleanup step
+Turn: Turn 6 (Ai(1)-RedTest)
+Phase: Ai(1)-RedTest's Untap step
+Phase: Ai(1)-RedTest's Upkeep step
+Phase: Ai(1)-RedTest's Draw step
+Phase: Ai(1)-RedTest's Main phase, precombat
+Land: Ai(1)-RedTest played Mountain (34)
+Phase: Ai(1)-RedTest's Beginning of Combat Step
+Phase: Ai(1)-RedTest's Declare Attackers Step
+Phase: Ai(1)-RedTest's Declare Blockers Step
+Phase: Ai(1)-RedTest's First Strike Damage Step
+Phase: Ai(1)-RedTest's Combat Damage Step
+Phase: Ai(1)-RedTest's End of Combat Step
+Phase: Ai(1)-RedTest's Main phase, postcombat
+Mana: Mountain (31) - {T}: Add {R}.
+Mana: Mountain (36) - {T}: Add {R}.
+Add To Stack: Ai(1)-RedTest cast Goblin Piker
+Resolve Stack: Goblin Piker - Creature 2 / 1
+Phase: Ai(1)-RedTest's End step
+Phase: Ai(1)-RedTest's Cleanup step
+Turn: Turn 7 (Ai(2)-WhiteTest)
+Phase: Ai(2)-WhiteTest's Untap step
+Phase: Ai(2)-WhiteTest's Upkeep step
+Phase: Ai(2)-WhiteTest's Draw step
+Phase: Ai(2)-WhiteTest's Main phase, precombat
+Phase: Ai(2)-WhiteTest's Beginning of Combat Step
+Phase: Ai(2)-WhiteTest's Declare Attackers Step
+Combat: Ai(2)-WhiteTest assigned Elite Vanguard (73), Elite Vanguard (66), Elite Vanguard (60), Elite Vanguard (67) and Elite Vanguard (69) to attack Ai(1)-RedTest.
+Phase: Ai(2)-WhiteTest's Declare Blockers Step
+Combat: Ai(1)-RedTest assigned Goblin Piker (7) to block Elite Vanguard (73).
+Ai(1)-RedTest didn't block Elite Vanguard (66).
+Ai(1)-RedTest didn't block Elite Vanguard (60).
+Ai(1)-RedTest didn't block Elite Vanguard (67).
+Ai(1)-RedTest didn't block Elite Vanguard (69).
+Phase: Ai(2)-WhiteTest's First Strike Damage Step
+Phase: Ai(2)-WhiteTest's Combat Damage Step
+Damage: Elite Vanguard (73) deals 2 damage to Goblin Piker (7).
+Damage: Elite Vanguard (66) deals 2 combat damage to Ai(1)-RedTest.
+Damage: Elite Vanguard (60) deals 2 combat damage to Ai(1)-RedTest.
+Damage: Elite Vanguard (67) deals 2 combat damage to Ai(1)-RedTest.
+Damage: Elite Vanguard (69) deals 2 combat damage to Ai(1)-RedTest.
+Damage: Goblin Piker (7) deals 2 damage to Elite Vanguard (73).
+Life: Life: Ai(1)-RedTest 12 > 4
+Zone Change: Elite Vanguard (73) was put into Graveyard from Battlefield.
+Zone Change: Goblin Piker (7) was put into Graveyard from Battlefield.
+Phase: Ai(2)-WhiteTest's End of Combat Step
+Phase: Ai(2)-WhiteTest's Main phase, postcombat
+Mana: Plains (50) - {T}: Add {W}.
+Add To Stack: Ai(2)-WhiteTest cast Elite Vanguard
+Resolve Stack: Elite Vanguard - Creature 2 / 1
+Phase: Ai(2)-WhiteTest's End step
+Phase: Ai(2)-WhiteTest's Cleanup step
+Turn: Turn 8 (Ai(1)-RedTest)
+Phase: Ai(1)-RedTest's Untap step
+Phase: Ai(1)-RedTest's Upkeep step
+Phase: Ai(1)-RedTest's Draw step
+Phase: Ai(1)-RedTest's Main phase, precombat
+Land: Ai(1)-RedTest played Mountain (27)
+Phase: Ai(1)-RedTest's Beginning of Combat Step
+Phase: Ai(1)-RedTest's Declare Attackers Step
+Phase: Ai(1)-RedTest's Declare Blockers Step
+Phase: Ai(1)-RedTest's First Strike Damage Step
+Phase: Ai(1)-RedTest's Combat Damage Step
+Phase: Ai(1)-RedTest's End of Combat Step
+Phase: Ai(1)-RedTest's Main phase, postcombat
+Mana: Mountain (31) - {T}: Add {R}.
+Mana: Mountain (36) - {T}: Add {R}.
+Add To Stack: Ai(1)-RedTest cast Goblin Piker
+Resolve Stack: Goblin Piker - Creature 2 / 1
+Mana: Mountain (34) - {T}: Add {R}.
+Mana: Mountain (27) - {T}: Add {R}.
+Add To Stack: Ai(1)-RedTest cast Goblin Piker
+Resolve Stack: Goblin Piker - Creature 2 / 1
+Phase: Ai(1)-RedTest's End step
+Phase: Ai(1)-RedTest's Cleanup step
+Turn: Turn 9 (Ai(2)-WhiteTest)
+Phase: Ai(2)-WhiteTest's Untap step
+Phase: Ai(2)-WhiteTest's Upkeep step
+Phase: Ai(2)-WhiteTest's Draw step
+Phase: Ai(2)-WhiteTest's Main phase, precombat
+Phase: Ai(2)-WhiteTest's Beginning of Combat Step
+Phase: Ai(2)-WhiteTest's Declare Attackers Step
+Combat: Ai(2)-WhiteTest assigned Elite Vanguard (66), Elite Vanguard (60), Elite Vanguard (67), Elite Vanguard (69) and Elite Vanguard (59) to attack Ai(1)-RedTest.
+Phase: Ai(2)-WhiteTest's Declare Blockers Step
+Combat: Ai(1)-RedTest assigned Goblin Piker (16) to block Elite Vanguard (66).
+Ai(1)-RedTest assigned Goblin Piker (20) to block Elite Vanguard (60).
+Ai(1)-RedTest assigned Goblin Piker (11) to block Elite Vanguard (67).
+Ai(1)-RedTest didn't block Elite Vanguard (69).
+Ai(1)-RedTest didn't block Elite Vanguard (59).
+Phase: Ai(2)-WhiteTest's First Strike Damage Step
+Phase: Ai(2)-WhiteTest's Combat Damage Step
+Damage: Elite Vanguard (66) deals 2 damage to Goblin Piker (16).
+Damage: Elite Vanguard (60) deals 2 damage to Goblin Piker (20).
+Damage: Elite Vanguard (67) deals 2 damage to Goblin Piker (11).
+Damage: Elite Vanguard (69) deals 2 combat damage to Ai(1)-RedTest.
+Damage: Elite Vanguard (59) deals 2 combat damage to Ai(1)-RedTest.
+Damage: Goblin Piker (16) deals 2 damage to Elite Vanguard (66).
+Damage: Goblin Piker (20) deals 2 damage to Elite Vanguard (60).
+Damage: Goblin Piker (11) deals 2 damage to Elite Vanguard (67).
+Life: Life: Ai(1)-RedTest 4 > 0
+Player Control: Ai(1)-RedTest has restored control over themself
+Player Control: Ai(2)-WhiteTest has restored control over themself
+Game Outcome: Turn 5
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 0 Ai(2)-WhiteTest: 1 
+
+Game Result: Game 1 ended in 1135 ms. Ai(2)-WhiteTest has won!
+

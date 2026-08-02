@@ -137,9 +137,7 @@ def test_resolve_backend_invalid_env_raises(data_dir: Path, monkeypatch: pytest.
         resolve_backend()
 
 
-def test_resolve_backend_ignores_corrupt_persisted_backend(
-    data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_resolve_backend_ignores_corrupt_persisted_backend(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A corrupt onboarded app_state.backend is IGNORED -> falls through to local (Fix 3)."""
     write_app_state(AppState(backend='garbage', onboarded=True))
     monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)

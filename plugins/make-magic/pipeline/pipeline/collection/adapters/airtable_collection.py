@@ -28,6 +28,8 @@ Hydration sources (design note): they differ by read.
 Deck reconstruction (design): a `Deck.cards` list is rebuilt from
     - the ``Commander`` link  -> `DeckCard(role='commander')`
     - the ``Cards`` link       -> maindeck `DeckCard`s (quantity 1 each)
+    - the ``Sideboard`` link  -> `DeckCard(role='sideboard')` (OPTIONAL field,
+      read tolerantly like Assessment/Focus Otags; empty when the base lacks it)
     - the basic-land count fields (Plains/Islands/…) -> a `DeckCard` per nonzero
       count, with that quantity
     - ``Repeat Cards Count`` is carried on the deck for fidelity (the per-card
@@ -58,8 +60,9 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import httpx
 
 from pipeline.collection.errors import CollectionError
+from pipeline.collection.guards import check_remove_allowed, shrink_check
 from pipeline.config import AirtableConfigError, AirtableResolver, get_settings
-from pipeline.contracts import ChaseCard, Deck, DeckCard, OwnedCard, Trade
+from pipeline.contracts import ROLE_COMMANDER, ROLE_SIDEBOARD, ChaseCard, Deck, DeckCard, OwnedCard, Trade
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -265,7 +268,16 @@ class AirtableCollectionStore:
     _DECK_FOCUS: ClassVar[str] = 'Focus Otags'
     _DECK_COMMANDER: ClassVar[str] = 'Commander'
     _DECK_CARDS: ClassVar[str] = 'Cards'
+    #: Sideboard link -> DeckCards with role='sideboard'. OPTIONAL on a base (read
+    #: via `_get_optional`, like Assessment/Focus Otags): a base without the field
+    #: just yields an empty sideboard. Created out-of-band (skill/MCP), not here.
+    _DECK_SIDEBOARD: ClassVar[str] = 'Sideboard'
+    #: Human-owned deck format (drives target size; the engine READS but never WRITES it).
+    _DECK_FORMAT: ClassVar[str] = 'Format'
     _DECK_REPEAT: ClassVar[str] = 'Repeat Cards Count'
+    #: Airtable formula field = intended total (Σ card quantities + basics). Read
+    #: as the integrity oracle in ``get_deck``; absent on some bases (optional read).
+    _DECK_SIZE: ClassVar[str] = 'Deck Size'
 
     # Chase Cards field NAMES.
     _CHASE_NAME: ClassVar[str] = 'Card Name'
@@ -716,7 +728,17 @@ class AirtableCollectionStore:
         self._client.update_record(table_id, existing['id'], {owned_fid: qty})
         self._write_derived_inline(ref, existing['id'])
 
-    def remove_card(self, ref: str) -> None:
+    def remove_card(self, ref: str, *, force: bool = False) -> None:
+        """Hard-delete the Inventory row for ``ref``.
+
+        Port-level cascade guard (Phase 4, defense-in-depth with ``save_deck``'s
+        ``allow_shrink``): if ``ref`` is LINKED to one or more decks and ``force``
+        is False, raise ``CollectionError`` (enumerating the affected decks)
+        BEFORE any DELETE — a hard-delete of a shared Inventory row cascades the
+        card out of EVERY linked deck via Airtable's link cascade. ``force=True``
+        (or an unlinked card) deletes as before. Default is SAFE.
+        """
+        check_remove_allowed(self, ref, force=force)
         table_id = self._resolver.table_id(self._cards_table)
         existing = self._find_inventory_record(ref)
         if existing is not None:
@@ -951,9 +973,13 @@ class AirtableCollectionStore:
 
         cards: list[DeckCard] = []
         for rid in _as_list(self._get(t, rec, self._DECK_COMMANDER)):
-            cards.append(DeckCard(**_fields(name_map.get(rid, rid)), role='commander'))
+            cards.append(DeckCard(**_fields(name_map.get(rid, rid)), role=ROLE_COMMANDER))
         for rid in _as_list(self._get(t, rec, self._DECK_CARDS)):
             cards.append(DeckCard(**_fields(name_map.get(rid, rid))))
+        # Sideboard link -> role='sideboard'. `_get_optional` tolerates a base
+        # without the field (empty sideboard), mirroring Assessment/Focus Otags.
+        for rid in _as_list(self._get_optional(t, rec, self._DECK_SIDEBOARD)):
+            cards.append(DeckCard(**_fields(name_map.get(rid, rid)), role=ROLE_SIDEBOARD))
         for field_name, land_name in BASIC_LAND_FIELDS:
             count = int(self._get(t, rec, field_name) or 0)
             if count:
@@ -965,6 +991,7 @@ class AirtableCollectionStore:
             strategy=self._get(t, rec, self._DECK_STRATEGY),
             assessment=self._get_optional(t, rec, self._DECK_ASSESSMENT),
             focus_otags=_as_list(self._get_optional(t, rec, self._DECK_FOCUS)),
+            format=self._get_optional(t, rec, self._DECK_FORMAT),
             cards=cards,
             airtable_record_id=rec.get('id'),
         )
@@ -979,7 +1006,55 @@ class AirtableCollectionStore:
         rec = self._find_deck_record(name)
         if rec is None:
             raise FileNotFoundError(f'No Airtable Decks record named {name!r}.')
-        return self._row_to_deck(rec, self._inventory_name_map(), hydrate=True)
+        deck = self._row_to_deck(rec, self._inventory_name_map(), hydrate=True)
+        # Integrity surfaces (hydrated read only) — flag, never mutate/raise.
+        self._warn_unresolved_cards(deck)  # #16
+        self._check_deck_size(deck, rec)  # #17
+        return deck
+
+    def _warn_unresolved_cards(self, deck: Deck) -> None:
+        """#16: surface deck cards the resolver could not hydrate (name-only).
+
+        A resolver miss yields a `DeckCard` with ``oracle_id is None`` and no
+        enrichment; on the hydrated ``get_deck`` path that silent degradation is
+        logged as a WARNING naming the count + the unresolved card names. The
+        name-only ``list_decks`` path never calls this (nothing was hydrated).
+
+        Basic lands are excluded: they are reconstructed directly from the count
+        columns (no resolver round-trip by design), so their ``oracle_id is None``
+        is intentional, not a resolution failure.
+        """
+        unresolved = [c.name for c in deck.cards if c.oracle_id is None and c.name not in BASIC_LAND_TO_FIELD]
+        if unresolved:
+            log.warning(
+                "get-deck '%s': %d of %d cards did not resolve and are name-only: %s",
+                deck.name,
+                len(unresolved),
+                len(deck.cards),
+                unresolved,
+            )
+
+    def _check_deck_size(self, deck: Deck, rec: dict[str, Any]) -> None:
+        """#17: compare reconstructed Σquantity against Airtable's ``Deck Size``.
+
+        ``Deck Size`` is a Decks formula field = the intended total (Σ card
+        quantities + basics). When present and it differs from the reconstructed
+        Σquantity, log a WARNING naming both numbers + the gap. Absent field ->
+        no check. Never mutates the deck, never raises.
+        """
+        raw_size = self._get_optional(self._decks_table, rec, self._DECK_SIZE)
+        if raw_size is None:
+            return
+        expected = int(raw_size)
+        reconstructed = sum(c.quantity for c in deck.cards)
+        if reconstructed != expected:
+            log.warning(
+                "get-deck '%s': reconstructed %d cards but Airtable Deck Size is %d (gap of %d)",
+                deck.name,
+                reconstructed,
+                expected,
+                expected - reconstructed,
+            )
 
     def list_decks(self) -> list[Deck]:
         table_id = self._resolver.table_id(self._decks_table)
@@ -989,7 +1064,7 @@ class AirtableCollectionStore:
         # Hydrating every card here is O(rows*cards) paced Scryfall lookups.
         return [self._row_to_deck(r, name_map, hydrate=False) for r in rows]
 
-    def save_deck(self, deck: Deck) -> None:
+    def save_deck(self, deck: Deck, *, allow_shrink: bool = False) -> None:
         """Persist the WHOLE deck: metadata + full membership.
 
         Membership maps to the live Decks schema as:
@@ -1006,9 +1081,27 @@ class AirtableCollectionStore:
         ``Strategy`` is only written when set (never clobbered with None).
         ``Assessment`` / ``Focus Otags`` are written when set; on a base lacking
         those columns that raises the clear "field not on base" error (correct).
+
+        Defensive shrink guard (Phase 4): when this save would drop a deck that
+        currently MEETS its target below it, and ``allow_shrink`` is False, raise
+        BEFORE any write — so a programmatic caller (a skill bypassing the CLI's
+        ``--confirm``) cannot silently shrink a legal deck under target.
         """
         table_id = self._resolver.table_id(self._decks_table)
         t = self._decks_table
+        existing_rec = self._find_deck_record(deck.name)
+        if not allow_shrink and existing_rec is not None:
+            # Reconstruct the prior deck NAME-ONLY (sizes/target only — no
+            # per-card hydration) and refuse a save that shrinks an at-target
+            # deck under target unless explicitly allowed.
+            prior = self._row_to_deck(existing_rec, self._inventory_name_map(), hydrate=False)
+            if shrink_check(prior, deck):
+                raise CollectionError(
+                    f"save-deck '{deck.name}': this save shrinks the deck from "
+                    f'{sum(c.quantity for c in prior.cards)} to {sum(c.quantity for c in deck.cards)} '
+                    f'cards, below its target of {prior.target_size}. Pass allow_shrink=True '
+                    '(the CLI: `save-deck --confirm`) to proceed.'
+                )
         fields: dict[str, Any] = {self._fid(t, self._DECK_NAME): deck.name}
         if deck.strategy is not None:
             fields[self._fid(t, self._DECK_STRATEGY)] = deck.strategy
@@ -1019,19 +1112,32 @@ class AirtableCollectionStore:
 
         commander_names: list[str] = []
         card_names: list[str] = []
+        sideboard_names: list[str] = []
         basic_counts: dict[str, int] = {}
         repeat_count = 0
         for c in deck.cards:
-            if c.name in BASIC_LAND_TO_FIELD:
+            # ROLE FIRST — a sideboard/commander card is routed by its role even
+            # when it is a basic land (a boarded basic). Only a MAINDECK basic
+            # (role None) folds into the count fields; folding a sideboard basic
+            # there would silently erase it and inflate the maindeck.
+            if c.role == ROLE_COMMANDER:
+                commander_names.append(c.name)
+            elif c.role == ROLE_SIDEBOARD:
+                sideboard_names.append(c.name)
+                # Airtable link fields are a SET of record ids — they cannot carry
+                # per-card quantity (true for the maindeck too). Record the excess
+                # in Repeat Cards Count exactly like the maindeck path, so the
+                # aggregate Deck Size stays correct and the loss is bookkept, never
+                # silent (local-YAML keeps full per-card quantity).
+                repeat_count += max(c.quantity - 1, 0)
+            elif c.name in BASIC_LAND_TO_FIELD:
                 land_field = BASIC_LAND_TO_FIELD[c.name]
                 basic_counts[land_field] = basic_counts.get(land_field, 0) + c.quantity
-            elif c.role == 'commander':
-                commander_names.append(c.name)
             else:
                 card_names.append(c.name)
                 repeat_count += max(c.quantity - 1, 0)
 
-        if commander_names or card_names:
+        if commander_names or card_names or sideboard_names:
             inv_map = self._inventory_id_map()
             if commander_names:
                 fields[self._fid(t, self._DECK_COMMANDER)] = self._resolve_links(
@@ -1039,6 +1145,14 @@ class AirtableCollectionStore:
                 )
             if card_names:
                 fields[self._fid(t, self._DECK_CARDS)] = self._resolve_links(card_names, inv_map, kind='deck card')
+            # Only touch the (optional) Sideboard field when there ARE sideboard
+            # cards, so a no-sideboard save never errors on a base lacking it —
+            # the write itself stays strict (like Focus Otags), so a real
+            # sideboard write to a base without the field raises AirtableConfigError.
+            if sideboard_names:
+                fields[self._fid(t, self._DECK_SIDEBOARD)] = self._resolve_links(
+                    sideboard_names, inv_map, kind='sideboard card'
+                )
         for field_name, count in basic_counts.items():
             fields[self._fid(t, field_name)] = count
         if repeat_count:

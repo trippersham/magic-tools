@@ -296,6 +296,25 @@ def test_save_deck_omits_empty_assessment_and_focus_otags(adapter: LocalYamlStor
     assert 'focus_otags' not in raw
 
 
+def test_save_deck_round_trips_format_and_target(adapter: LocalYamlStore) -> None:
+    """format persists (only when set) and reads back, deriving target_size."""
+    deck = Deck(name='EDH Deck', format='Commander', cards=[DeckCard(name='Sol Ring')])
+    adapter.save_deck(deck)
+    loaded = adapter.get_deck('EDH Deck')
+    assert loaded.format == 'Commander'
+    assert loaded.target_size == 100
+    raw = yaml.safe_load((_collection_dir() / 'decks' / 'edh-deck.yaml').read_text())
+    assert raw['format'] == 'Commander'
+
+
+def test_save_deck_omits_empty_format(adapter: LocalYamlStore) -> None:
+    """A deck with no format keeps the YAML clean (key omitted) and is untargeted."""
+    adapter.save_deck(Deck(name='Gruul Aggro', cards=[DeckCard(name='Sol Ring')]))
+    raw = yaml.safe_load((_collection_dir() / 'decks' / 'gruul-aggro.yaml').read_text())
+    assert 'format' not in raw
+    assert adapter.get_deck('Gruul Aggro').target_size is None
+
+
 def test_set_assessment(adapter: LocalYamlStore) -> None:
     adapter.save_deck(Deck(name='Gruul Aggro', cards=[DeckCard(name='Sol Ring')]))
     adapter.set_assessment('Gruul Aggro', 'New assessment.')
@@ -418,3 +437,24 @@ def test_list_trades_ignores_extra_key(adapter: LocalYamlStore) -> None:
     assert len(trades) == 1
     assert trades[0].from_source == 'Store'
     assert trades[0].cards_in == ['Sol Ring']
+
+
+def test_sideboard_role_round_trips(adapter: LocalYamlStore) -> None:
+    """role='sideboard' survives save->load in the local YAML store."""
+    deck = Deck(
+        name='SB Round Trip',
+        cards=[
+            DeckCard(name='Grumgully, the Generous', role='commander'),
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Llanowar Elves', role='sideboard'),
+            DeckCard(name='Sol Ring', quantity=2, role='sideboard'),
+        ],
+    )
+    adapter.save_deck(deck)
+    loaded = adapter.get_deck('SB Round Trip')
+    assert [c.name for c in loaded.commanders] == ['Grumgully, the Generous']
+    assert [c.name for c in loaded.maindeck] == ['Sol Ring']
+    sb = {(c.name, c.quantity) for c in loaded.sideboard}
+    assert sb == {('Llanowar Elves', 1), ('Sol Ring', 2)}
+    # every sideboard card kept role='sideboard'
+    assert all(c.role == 'sideboard' for c in loaded.sideboard)

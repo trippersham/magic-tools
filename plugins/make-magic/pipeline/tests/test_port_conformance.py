@@ -72,9 +72,7 @@ def local_factory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _StoreFact
 def airtable_factory(monkeypatch: pytest.MonkeyPatch) -> _StoreFactory:
     config.get_settings.cache_clear()
 
-    def make(
-        *, seed_cards: list[str] | None = None, seed_decks: list[str] | None = None
-    ) -> AirtableCollectionStore:
+    def make(*, seed_cards: list[str] | None = None, seed_decks: list[str] | None = None) -> AirtableCollectionStore:
         inv = _FIELDS['Inventory Cards']
         d = _FIELDS['Decks']
         cards = [{'id': f'recCard{i}', 'fields': {inv['Card Name']: n}} for i, n in enumerate(seed_cards or [])]

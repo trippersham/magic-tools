@@ -2,9 +2,9 @@
 
 Flow (data-architecture §ingest, "bundled + self-refreshing dataset"):
     1. GET ``https://api.scryfall.com/bulk-data/oracle-tags`` for the metadata
-       (``updated_at`` + ``download_uri``).
+       (``updated_at`` + ``jsonl_download_uri``).
     2. Cursor check: skip if ``updated_at`` is not newer than the last load.
-    3. GET the ``download_uri`` JSON (~18 MB), load it to ``raw/oracle_tags``.
+    3. GET the ``jsonl_download_uri`` gzipped JSONL (~18 MB), load it to ``raw/oracle_tags``.
     4. FAIL-OPEN: any network/HTTP error falls back to the bundled compressed
        snapshot (``data/snapshots/oracle_tags.json.gz``) — the offline baseline —
        so a caller ALWAYS gets tags. Logs, never crashes.
@@ -44,12 +44,14 @@ SNAPSHOT = Path(__file__).resolve().parents[2] / 'data' / 'snapshots' / 'oracle_
 
 
 def _fetch_meta(client: httpx.Client) -> tuple[str, str]:
-    """GET the cheap bulk-meta JSON. Returns ``(download_uri, updated_at)``.
+    """GET the cheap bulk-meta JSON. Returns ``(jsonl_download_uri, updated_at)``.
 
     This is the CURSOR probe: it fetches only the small metadata document (the
-    ``updated_at`` change token + the ``download_uri`` of the big payload) and
-    does NOT download the ~18 MB file. ``sync`` gates on ``updated_at`` BEFORE
+    ``updated_at`` change token + the ``jsonl_download_uri`` of the big payload)
+    and does NOT download the ~18 MB file. ``sync`` gates on ``updated_at`` BEFORE
     calling :func:`_fetch_payload`, so a not-newer run never pays for the payload.
+    (Scryfall replaced the old ``download_uri`` JSON-array field with a gzipped
+    ``jsonl_download_uri`` in 2026.)
 
     Raises on any HTTP/network failure — the caller catches and falls back.
     """
@@ -57,25 +59,24 @@ def _fetch_meta(client: httpx.Client) -> tuple[str, str]:
     meta.raise_for_status()
     meta_json = meta.json()
     updated_at = str(meta_json['updated_at'])
-    download_uri = str(meta_json['download_uri'])
+    download_uri = str(meta_json['jsonl_download_uri'])
     return download_uri, updated_at
 
 
 def _fetch_payload(client: httpx.Client, download_uri: str) -> list[dict[str, Any]]:
-    """GET the ~18 MB tags payload from ``download_uri``. Returns the tag list.
+    """GET the gzipped-JSONL tags payload (~18 MB) and return the tag list.
 
-    Called ONLY after the cursor gate in :func:`sync` passes (newer or forced),
-    so the big download is skipped on a not-newer run. Raises on any HTTP/network
-    failure — the caller catches and falls back to the bundled snapshot.
+    Scryfall now serves this as gzipped JSONL (one tag object per line); we
+    download, gunzip, and parse line-by-line. Called ONLY after the cursor gate in
+    :func:`sync` passes (newer or forced), so the big download is skipped on a
+    not-newer run. Raises on any HTTP/network failure — the caller catches and
+    falls back to the bundled snapshot.
     """
     time.sleep(RATE_LIMIT_MS / 1000)
     resp = client.get(download_uri, headers=HEADERS, timeout=120)
     resp.raise_for_status()
-    tags = resp.json()
-    # Scryfall bulk downloads are a bare JSON array; be defensive if wrapped.
-    if isinstance(tags, dict):
-        tags = tags.get('data', [])
-    return list(tags)
+    raw = gzip.decompress(resp.content)
+    return [json.loads(line) for line in raw.splitlines() if line.strip()]
 
 
 def _load_snapshot() -> list[dict[str, Any]]:

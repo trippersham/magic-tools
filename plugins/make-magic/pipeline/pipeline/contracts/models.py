@@ -29,7 +29,22 @@ Design notes:
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Final
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from pipeline.contracts.targets import target_for_format
+
+# --------------------------------------------------------------------------- #
+# Deck-card roles — the single source of truth for the role vocabulary. A card's
+# role partitions the deck: `None` = maindeck, plus these two named roles. Shared
+# so the partition predicates and every adapter reference the same constants
+# (never a scattered string literal that can drift).
+# --------------------------------------------------------------------------- #
+ROLE_COMMANDER: Final = 'commander'
+ROLE_SIDEBOARD: Final = 'sideboard'
+#: The known non-maindeck roles (a `None` role is the maindeck, not listed here).
+DECK_CARD_ROLES: Final = frozenset({ROLE_COMMANDER, ROLE_SIDEBOARD})
 
 # --------------------------------------------------------------------------- #
 # Card hierarchy — base identity + the three relationships to "a card"
@@ -150,8 +165,36 @@ class DeckCard(Card):
     quantity: int = Field(default=1, description='Number of copies of this card in the deck.')
     role: str | None = Field(
         default=None,
-        description='Deck role, e.g. "commander"; None = maindeck. (`str` now; a Literal can come later.)',
+        description=(
+            'Deck role: "commander" / "sideboard" / None = maindeck. Roles are '
+            'mutually exclusive and partition the deck. Validated + normalized: an '
+            'empty/whitespace value means maindeck (None); a known role is '
+            'canonicalized case-insensitively; an unknown value is a loud error '
+            '(never silently misfiled into the maindeck).'
+        ),
     )
+
+    @field_validator('role', mode='before')
+    @classmethod
+    def _normalize_role(cls, value: object) -> str | None:
+        """Canonicalize a known role, treat empty as maindeck, reject the unknown.
+
+        A hand-editable store (local YAML) or a differently-cased source must not
+        silently misfile a typo'd role as a maindeck card (and, on an Airtable
+        save, then erase the role). So: ``None``/empty/whitespace -> ``None``
+        (maindeck); a case/whitespace-insensitive match to a known role -> its
+        canonical form; anything else -> ``ValueError`` naming the valid roles.
+        """
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError(f'role must be a string or None, got {type(value).__name__}')
+        norm = value.strip().casefold()
+        if not norm:
+            return None
+        if norm in DECK_CARD_ROLES:
+            return norm
+        raise ValueError(f'unknown deck role {value!r}; valid roles are {sorted(DECK_CARD_ROLES)} or None (maindeck)')
 
 
 class Deck(BaseModel):
@@ -184,6 +227,13 @@ class Deck(BaseModel):
             'building-decks. The deterministic pipeline READS it but never writes it.'
         ),
     )
+    format: str | None = Field(
+        default=None,
+        description=(
+            "The deck's declared format (Airtable Decks.Format; human-owned — the engine "
+            'READS it but never writes it). Drives `target_size`; see contracts/targets.py.'
+        ),
+    )
     cards: list[DeckCard] = Field(
         default_factory=list,
         description='Every card in the deck (commanders included, marked via role).',
@@ -196,7 +246,34 @@ class Deck(BaseModel):
     @property
     def commanders(self) -> list[DeckCard]:
         """The deck's commander cards — derived from `DeckCard.role == "commander"`."""
-        return [c for c in self.cards if c.role == 'commander']
+        return [c for c in self.cards if c.role == ROLE_COMMANDER]
+
+    @property
+    def sideboard(self) -> list[DeckCard]:
+        """The deck's sideboard cards — derived from `DeckCard.role == "sideboard"`."""
+        return [c for c in self.cards if c.role == ROLE_SIDEBOARD]
+
+    @property
+    def maindeck(self) -> list[DeckCard]:
+        """The maindeck — every card that is NOT a commander or sideboard card.
+
+        The three roles (`None`/maindeck, `"commander"`, `"sideboard"`) partition
+        `cards` with no overlap, so `maindeck`, `commanders`, and `sideboard` are
+        disjoint and together cover the whole deck. (Role values are validated +
+        canonicalized on `DeckCard`, so an unknown role can never land here by a
+        silent typo — it is rejected at construction.)
+        """
+        return [c for c in self.cards if c.role not in DECK_CARD_ROLES]
+
+    @property
+    def target_size(self) -> int | None:
+        """The deck's target size derived from its `format` (None = untargeted).
+
+        A single source of truth for the audit/guard layer: Commander/EDH -> 100,
+        the sixty-card formats -> 60, empty/unknown -> None. See
+        :func:`pipeline.contracts.targets.target_for_format`.
+        """
+        return target_for_format(self.format)
 
 
 # --------------------------------------------------------------------------- #

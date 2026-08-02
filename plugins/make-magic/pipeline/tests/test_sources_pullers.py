@@ -240,14 +240,18 @@ def test_scryfall_bulk_streams_and_projects(data_dir: Path, monkeypatch: pytest.
     assert row['set_name'] == 'Foundations'
 
 
-def test_scryfall_bulk_stream_decoder_parses_array() -> None:
-    # Exercise the real streaming decoder over a chunked JSON array.
-    body = '[{"oracle_id":"a","name":"A"},{"oracle_id":"b","name":"B"},{"oracle_id":"c","name":"C"}]'
+def test_scryfall_bulk_stream_decoder_parses_gzipped_jsonl() -> None:
+    # Exercise the real streaming decoder over chunked GZIPPED JSONL (Scryfall's current format).
+    import gzip
+    import json
+
+    cards = [{'oracle_id': 'a', 'name': 'A'}, {'oracle_id': 'b', 'name': 'B'}, {'oracle_id': 'c', 'name': 'C'}]
+    body = gzip.compress(('\n'.join(json.dumps(c) for c in cards)).encode('utf-8'))
 
     class FakeResp:
         def raise_for_status(self) -> None: ...
-        def iter_text(self):
-            # feed the body in awkward 7-char chunks to test buffering
+        def iter_bytes(self):
+            # feed the gzip bytes in awkward 7-byte chunks to test buffered inflate + line-splitting
             for i in range(0, len(body), 7):
                 yield body[i : i + 7]
 

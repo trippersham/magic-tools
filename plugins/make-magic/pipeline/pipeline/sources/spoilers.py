@@ -51,6 +51,22 @@ RATE_LIMIT_S = 1.5
 # --------------------------------------------------------------------------- #
 
 
+def _attr_str(value: object) -> str:
+    """Narrow a BeautifulSoup attribute (``str | list[str] | None``) to a ``str``.
+
+    ``Tag.get`` is typed ``_AttributeValue | None`` — a multi-valued attribute is
+    a ``list[str]`` and a missing one is ``None``. HTML ``href``/``src`` are
+    single-valued, so this collapses a list to its first item and a miss to the
+    empty string, giving downstream string ops a definite ``str``.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list) and value:
+        first = value[0]
+        return first if isinstance(first, str) else ''
+    return ''
+
+
 def scrape_set(client: httpx.Client, base_url: str, set_code: str) -> list[dict[str, str]]:
     """Scrape a set's index page for every card entry.
 
@@ -64,12 +80,12 @@ def scrape_set(client: httpx.Client, base_url: str, set_code: str) -> list[dict[
     soup = BeautifulSoup(resp.text, 'lxml')
     cards: list[dict[str, str]] = []
     for link in soup.find_all('a', class_='card'):
-        href = link.get('href', '')
+        href = _attr_str(link.get('href'))
         img = link.find('img')
         if not href or not img:
             continue
         slug = href.replace('cards/', '').replace('.html', '')
-        img_src = img.get('src', '')
+        img_src = _attr_str(img.get('src'))
         image_url = f'{base_url}/{set_code}/{img_src}' if not img_src.startswith('http') else img_src
         detail_url = f'{base_url}/{set_code}/{href}' if not href.startswith('http') else href
         cards.append({'slug': slug, 'image_url': image_url, 'set_code': set_code, 'detail_url': detail_url})
@@ -87,7 +103,8 @@ def scrape_new(client: httpx.Client, base_url: str, target_sets: Iterable[str]) 
     cards: list[dict[str, str]] = []
     current_set: str | None = None
     for div in soup.find_all('div', class_=['grid-span', 'grid-card']):
-        classes = div.get('class', [])
+        raw_classes = div.get('class')
+        classes = raw_classes if isinstance(raw_classes, list) else [raw_classes] if raw_classes else []
         if 'grid-span' in classes:
             text = div.get_text(' ', strip=True).lower()
             current_set = next((sc for sc in targets if sc in text), None)
@@ -96,7 +113,7 @@ def scrape_new(client: httpx.Client, base_url: str, target_sets: Iterable[str]) 
             link = div.find('a', href=re.compile(r'/cards/'))
             if not link:
                 continue
-            href = link.get('href', '')
+            href = _attr_str(link.get('href'))
             img = link.find('img')
             if not img:
                 continue
@@ -104,7 +121,7 @@ def scrape_new(client: httpx.Client, base_url: str, target_sets: Iterable[str]) 
             if not match:
                 continue
             slug = match.group(2)
-            img_src = img.get('src', '')
+            img_src = _attr_str(img.get('src'))
             image_url = f'{base_url}/{img_src}' if not img_src.startswith('http') else img_src
             detail_url = f'{base_url}/{href}' if not href.startswith('http') else href
             cards.append({'slug': slug, 'image_url': image_url, 'set_code': current_set, 'detail_url': detail_url})

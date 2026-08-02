@@ -1,54 +1,55 @@
 # magic-tools
 
-A Claude Code plugin marketplace for Magic: The Gathering card inventory management.
+A Claude Code plugin marketplace for Magic: The Gathering.
 
-## What's Included
+## make-magic
 
-- **make-magic plugin**: Manage your MTG card inventory using Airtable as a database and Scryfall for card metadata. Includes workflows for loading decks, recording trades, backfilling card data, and tracking your collection.
+Deck building, card chasing, inventory management, and **game simulation** —
+powered by **Scryfall**, with an **optional** shared Airtable base. Skills:
+**building-decks**, **chasing-cards**, **managing-inventory**,
+**simulating-games**.
 
-## Installation
+**Works out of the box with no account or credential** — card data from Scryfall,
+your collection in a local store by default. Airtable is opt-in.
+
+**simulating-games** plays real, rules-enforced AI-vs-AI games via
+[MTG Forge](https://github.com/Card-Forge/forge) and reports a win-rate ± CI plus
+a numerical telemetry profile — an empirical read on *how a deck actually plays*.
+Forge and a Java runtime are **fetched at runtime on first use** (a one-time
+~350 MB download, checksum-verified and cached); nothing is bundled or
+redistributed. See the [simulate section](plugins/make-magic/README.md#simulating-games)
+and [NOTICE](NOTICE).
 
 ```bash
-claude plugins add https://github.com/trippwickersham/magic-tools
+claude plugin marketplace add trippersham/magic-tools
+claude plugin install make-magic@magic-tools
 ```
 
-## Prerequisites
+Then `/reload-plugins` (or restart). Verify with `${CLAUDE_PLUGIN_ROOT}/scripts/collection status`
+(expect `"backend": "local"`) — no credentials needed.
 
-1. **Enable Airtable connector**: Run `/mcp` in Claude Code, then enable and authenticate with Airtable
+→ **Full quickstart, local-mode usage, and optional Airtable setup:
+[plugins/make-magic/README.md](plugins/make-magic/README.md).**
 
-2. **Clone Airtable base template**: [Airtable Base Template](https://airtable.com/placeholder-template-link) - duplicate this to your workspace
+Supported OS: macOS / Linux (Forge-backed simulation is macOS/Linux only; on
+Windows use WSL2). `uv` self-provisions; Node 18+ is only needed for the
+optional Airtable MCP.
 
-3. **Install uv**: Required for running the Scryfall batch metadata script
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
+## License
 
-## Cardlist Format
+make-magic — Copyright (C) 2026 Tripp Wickersham.
 
-Place your deck lists in a `cardlists/` directory in your project. Each file should contain one card per line:
+This program is free software: you can redistribute it and/or modify it under the
+terms of the **GNU General Public License v3.0** (or, at your option, any later
+version), as published by the Free Software Foundation. It is distributed WITHOUT
+ANY WARRANTY. See [LICENSE](LICENSE) for the full text.
 
-```
-<quantity> <card name>
-```
+The game-simulation feature drives [MTG Forge](https://github.com/Card-Forge/forge)
+(GPL) and a Temurin JRE (GPL v2 + Classpath Exception) — both **fetched at runtime
+on the user's machine, arms-length, and never bundled or redistributed** by this
+project. See [NOTICE](NOTICE) for the third-party attribution and how the
+arms-length subprocess relationship keeps make-magic's own license unentangled.
 
-Example (`cardlists/modern-burn.txt`):
-```
-4 Lightning Bolt
-4 Goblin Guide
-4 Monastery Swiftspear
-2 Eidolon of the Great Revel
-```
-
-## Usage
-
-Once installed, invoke the skill:
-
-```
-/managing-inventory
-```
-
-The skill provides workflows for:
-- Loading decks from cardlists into Airtable
-- Recording trades and acquisitions
-- Backfilling Scryfall metadata (prices, sets, images)
-- Querying your inventory
+Unofficial Fan Content — not affiliated with or endorsed by Wizards of the Coast.
+See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute and [CHANGELOG.md](CHANGELOG.md)
+for release notes.

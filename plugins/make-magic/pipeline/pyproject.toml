@@ -1,8 +1,20 @@
 [project]
 name = "make-magic-pipeline"
-version = "0.1.0"
+version = "0.6.0"
 description = "Lightweight normalized data layer + pipeline for make-magic (DuckDB medallion lake + Pydantic edge contracts). Additive to the Airtable source-of-truth workflow; never degrades it."
+readme = "README.md"
+license = "GPL-3.0-or-later"
+authors = [{ name = "Tripp Wickersham" }]
 requires-python = ">=3.12"
+keywords = ["mtg", "magic-the-gathering", "scryfall", "forge", "deckbuilding", "simulation"]
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment :: Board Games",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+]
 dependencies = [
     "beautifulsoup4>=4.12",
     "duckdb>=1.1",
@@ -21,6 +33,11 @@ airtable = ["pyairtable>=3.0"]
 # in the pipeline venv. Not a runtime dependency of the pipeline package.
 dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1", "typer>=0.12"]
 
+[project.urls]
+Homepage = "https://github.com/trippersham/magic-tools"
+Repository = "https://github.com/trippersham/magic-tools"
+Issues = "https://github.com/trippersham/magic-tools/issues"
+
 [tool.uv]
 # Match the existing plugin scripts' reproducibility pin.
 exclude-newer = "2026-06-08T00:00:00Z"
@@ -37,8 +54,11 @@ testpaths = ["tests"]
 # `live` tests hit the real Airtable base + Scryfall (creds required); deselected
 # by default so the normal suite stays offline + fast. Run with creds sourced:
 #   set -a && . ../.env && set +a && uv run --extra dev pytest -m live -q
-addopts = "-m 'not live'"
-markers = ["live: end-to-end test against the real Airtable base (needs AIRTABLE_API_KEY; read-only)"]
+addopts = "-m 'not live and not forge'"
+markers = [
+    "live: end-to-end test against the real Airtable base (needs AIRTABLE_API_KEY; read-only)",
+    "forge: gated test that spawns a REAL Forge JVM (needs MAKE_MAGIC_FORGE_HOME + MAKE_MAGIC_JAVA)",
+]
 
 # --- Style (rae-style python-styleguide: Pydantic-AI conventions) ---
 [tool.ruff]

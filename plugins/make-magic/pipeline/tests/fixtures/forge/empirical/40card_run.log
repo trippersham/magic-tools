@@ -1,0 +1,244 @@
+Error handling registered!
+21:48:57 [INFO ] GuiBase: ##########################################
+21:48:57 [INFO ] GuiBase: APP: Forge v.2.0.13-SNAPSHOT-06.22
+21:48:57 [INFO ] GuiBase: Java: 21.0.12 (Eclipse Adoptium)
+21:48:57 [INFO ] GuiBase: OS: Mac OS X 15.7.3 aarch64
+21:48:57 [INFO ] GuiBase: RAM: 3072 MB max, 12 CPUs
+21:48:57 [INFO ] GuiBase: ##########################################
+Language 'en-US' loaded successfully.
+(ThreadUtil first call): Running with priority 5
+Read cards: 33319 archived files in 0 ms (25 parts) using thread pool
+Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.
+The card A-Alrund's Epiphany was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Baba Lysaga, Night Witch was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Divide by Zero was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Esika's Chariot was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Faceless Haven was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Fires of Invention was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Goldspan Dragon was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Hullbreaker Horror was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Kumano Faces Kakkazan was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Luminarch Aspirant was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Monster Manual was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Omnath, Locus of Creation was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-The Meathook Massacre was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Unholy Heat was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Blinding Radiance was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Goblin Bruiser was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Ogre Painbringer was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Titanic Pelagosaur was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Treetop Recluse was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.
+Read cards: 821 files in 0 ms (8 parts) using thread pool
+Simulation mode
+Ai(1)-RedTest vs Ai(2)-WhiteTest - thirty  games of Constructed
+Game Outcome: Turn 5
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 0 Ai(2)-WhiteTest: 1 
+
+Game Result: Game 1 ended in 968 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 13
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 0 Ai(2)-WhiteTest: 2 
+
+Game Result: Game 2 ended in 1474 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 16
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 0 Ai(2)-WhiteTest: 3 
+
+Game Result: Game 3 ended in 1494 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 5
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 0 Ai(2)-WhiteTest: 4 
+
+Game Result: Game 4 ended in 445 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 6
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 0 Ai(2)-WhiteTest: 5 
+
+Game Result: Game 5 ended in 633 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 14
+Game Outcome: Ai(1)-RedTest has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteTest has lost because life total reached 0
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 5 
+
+Game Result: Game 6 ended in 1325 ms. Ai(1)-RedTest has won!
+
+Game Outcome: Turn 5
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 6 
+
+Game Result: Game 7 ended in 270 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 10
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 7 
+
+Game Result: Game 8 ended in 954 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 23
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 8 
+
+Game Result: Game 9 ended in 2613 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 5
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 9 
+
+Game Result: Game 10 ended in 383 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 10
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 10 
+
+Game Result: Game 11 ended in 883 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 31
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 11 
+
+Game Result: Game 12 ended in 4423 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 8
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 12 
+
+Game Result: Game 13 ended in 621 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 7
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 13 
+
+Game Result: Game 14 ended in 680 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 7
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 14 
+
+Game Result: Game 15 ended in 692 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 9
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 15 
+
+Game Result: Game 16 ended in 665 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 8
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 16 
+
+Game Result: Game 17 ended in 771 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 5
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 1 Ai(2)-WhiteTest: 17 
+
+Game Result: Game 18 ended in 374 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 26
+Game Outcome: Ai(1)-RedTest has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteTest has lost because life total reached 0
+Match Result: Ai(1)-RedTest: 2 Ai(2)-WhiteTest: 17 
+
+Game Result: Game 19 ended in 6432 ms. Ai(1)-RedTest has won!
+
+Game Outcome: Turn 5
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 2 Ai(2)-WhiteTest: 18 
+
+Game Result: Game 20 ended in 286 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 30
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 2 Ai(2)-WhiteTest: 19 
+
+Game Result: Game 21 ended in 10667 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 6
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 2 Ai(2)-WhiteTest: 20 
+
+Game Result: Game 22 ended in 755 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 6
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 2 Ai(2)-WhiteTest: 21 
+
+Game Result: Game 23 ended in 597 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 11
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 2 Ai(2)-WhiteTest: 22 
+
+Game Result: Game 24 ended in 1001 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 5
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 2 Ai(2)-WhiteTest: 23 
+
+Game Result: Game 25 ended in 418 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 34
+Game Outcome: Ai(1)-RedTest has won because all opponents have lost
+Game Outcome: Ai(2)-WhiteTest has lost trying to draw cards from empty library
+Match Result: Ai(1)-RedTest: 3 Ai(2)-WhiteTest: 23 
+
+Game Result: Game 26 ended in 5186 ms. Ai(1)-RedTest has won!
+
+Game Outcome: Turn 5
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 3 Ai(2)-WhiteTest: 24 
+
+Game Result: Game 27 ended in 457 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 12
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 3 Ai(2)-WhiteTest: 25 
+
+Game Result: Game 28 ended in 964 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 5
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 3 Ai(2)-WhiteTest: 26 
+
+Game Result: Game 29 ended in 517 ms. Ai(2)-WhiteTest has won!
+
+Game Outcome: Turn 6
+Game Outcome: Ai(1)-RedTest has lost because life total reached 0
+Game Outcome: Ai(2)-WhiteTest has won because all opponents have lost
+Match Result: Ai(1)-RedTest: 3 Ai(2)-WhiteTest: 27 
+
+Game Result: Game 30 ended in 334 ms. Ai(2)-WhiteTest has won!
+

@@ -23,6 +23,7 @@ Covered:
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
@@ -66,6 +67,7 @@ class _StubCardResolver:
         data = self._CARDS.get(name)
         return Card(**data) if data else None
 
+
 # --------------------------------------------------------------------------- #
 # Fixtures: synthetic per-base schema (meta) + record payloads.
 # --------------------------------------------------------------------------- #
@@ -101,6 +103,7 @@ _FIELDS: dict[str, dict[str, str]] = {
         'Strategy': 'fldStrategy',
         'Commander': 'fldCommander',
         'Cards': 'fldCards',
+        'Sideboard': 'fldSideboard',
         'Repeat Cards Count': 'fldRepeat',
         'Plains': 'fldPlains',
         'Islands': 'fldIslands',
@@ -108,6 +111,8 @@ _FIELDS: dict[str, dict[str, str]] = {
         'Mountains': 'fldMountains',
         'Forests': 'fldForests',
         'Wastes': 'fldWastes',
+        'Deck Size': 'fldDeckSize',
+        'Format': 'fldFormat',
     },
     'Trades': {
         'Date': 'fldDate',
@@ -437,9 +442,7 @@ def test_list_decks_does_not_hydrate_via_resolver() -> None:
     resolver that raises on any call; a name-only `list_decks` still succeeds."""
     transport = httpx.MockTransport(_deck_fixture().handler)
     client = httpx.Client(transport=transport)
-    store = AirtableCollectionStore.from_settings(
-        'fake-token', client=client, card_resolver=_ExplodingResolver()
-    )
+    store = AirtableCollectionStore.from_settings('fake-token', client=client, card_resolver=_ExplodingResolver())
     [deck] = store.list_decks()
     assert deck.name == 'Gruul Aggro'
     # commander + maindeck resolved to NAMES + ROLES (no enrichment needed).
@@ -482,9 +485,7 @@ def test_hydration_preserves_airtable_link_name() -> None:
     )
     transport = httpx.MockTransport(fake.handler)
     client = httpx.Client(transport=transport)
-    store = AirtableCollectionStore.from_settings(
-        'fake-token', client=client, card_resolver=_FuzzyDriftResolver()
-    )
+    store = AirtableCollectionStore.from_settings('fake-token', client=client, card_resolver=_FuzzyDriftResolver())
     deck = store.get_deck('Typo Deck')
     [card] = deck.cards
     # base link name is authoritative (no fuzzy drift to 'Sol Ring')...
@@ -492,6 +493,200 @@ def test_hydration_preserves_airtable_link_name() -> None:
     # ...but enrichment still comes from the resolved card.
     assert card.type_line == 'Artifact'
     assert card.oracle_id == 'oid-sol'
+
+
+# --------------------------------------------------------------------------- #
+# #16 — surface unresolved (name-only) deck cards in get_deck
+# --------------------------------------------------------------------------- #
+
+
+def _partial_resolve_fixture() -> FakeAirtable:
+    """A deck whose maindeck mixes a resolvable card (Sol Ring) with an
+    unresolvable one (the stub resolver has no entry for it)."""
+    inv = _FIELDS['Inventory Cards']
+    d = _FIELDS['Decks']
+    cards = [
+        {'id': 'recGrum', 'fields': {inv['Card Name']: 'Grumgully, the Generous'}},
+        {'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}},
+        {'id': 'recGhost', 'fields': {inv['Card Name']: 'Unresolvable Card'}},
+    ]
+    deck = {
+        'id': 'recDeck',
+        'fields': {
+            d['Name']: 'Gruul Aggro',
+            d['Commander']: ['recGrum'],
+            d['Cards']: ['recSol', 'recGhost'],
+        },
+    }
+    return FakeAirtable({'tblCards': cards, 'tblDecks': [deck]})
+
+
+def test_get_deck_warns_on_unresolved_name_only_cards(caplog: pytest.LogCaptureFixture) -> None:
+    """#16: a get-deck over a deck with >=1 card the resolver can't hydrate must
+    log a WARNING naming the count + the unresolved card names, so the silent
+    name-only degradation (oracle_id=None, no enrichment) is VISIBLE."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        deck = _store(_partial_resolve_fixture()).get_deck('Gruul Aggro')
+    # resolution behaviour is unchanged: the miss still comes back name-only.
+    by_name = {c.name: c for c in deck.cards}
+    assert by_name['Sol Ring'].oracle_id == 'oid-sol'
+    assert by_name['Unresolvable Card'].oracle_id is None
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == 'WARNING']
+    assert len(warnings) == 1, warnings
+    msg = warnings[0]
+    assert 'Gruul Aggro' in msg
+    assert 'Unresolvable Card' in msg
+    # names the count of unresolved-of-total (1 of 3: commander + 2 maindeck).
+    assert '1 of 3' in msg
+    # a fully-resolved card is NOT listed.
+    assert 'Sol Ring' not in msg
+
+
+def test_get_deck_no_warning_when_all_resolve(caplog: pytest.LogCaptureFixture) -> None:
+    """#16: a fully-resolved deck logs NOTHING (no false alarm)."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        _store(_deck_fixture()).get_deck('Gruul Aggro')
+    assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
+
+
+def test_list_decks_does_not_warn_on_name_only(caplog: pytest.LogCaptureFixture) -> None:
+    """#16: the deliberately name-only ``list_decks`` path must NOT trip the
+    unresolved-card warning (it never hydrates, so 'unresolved' is meaningless)."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        _store(_partial_resolve_fixture()).list_decks()
+    assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
+
+
+# --------------------------------------------------------------------------- #
+# #17 — deck-size integrity check vs Airtable Deck Size in get_deck
+# --------------------------------------------------------------------------- #
+
+
+def _deck_size_fixture(deck_size: int | None) -> FakeAirtable:
+    """A deck reconstructing to Σquantity == 15 (Sol Ring 1 + Forests 8 + Mountains
+    5 + commander 1); ``deck_size`` sets the Airtable ``Deck Size`` oracle field
+    (or omits it when None)."""
+    inv = _FIELDS['Inventory Cards']
+    d = _FIELDS['Decks']
+    cards = [
+        {'id': 'recGrum', 'fields': {inv['Card Name']: 'Grumgully, the Generous'}},
+        {'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}},
+    ]
+    fields = {
+        d['Name']: 'Gruul Aggro',
+        d['Commander']: ['recGrum'],
+        d['Cards']: ['recSol'],
+        d['Forests']: 8,
+        d['Mountains']: 5,
+    }
+    if deck_size is not None:
+        fields[d['Deck Size']] = deck_size
+    return FakeAirtable({'tblCards': cards, 'tblDecks': [{'id': 'recDeck', 'fields': fields}]})
+
+
+def test_get_deck_warns_on_deck_size_gap(caplog: pytest.LogCaptureFixture) -> None:
+    """#17: reconstructed Σquantity (15) != Airtable Deck Size (18) logs a WARNING
+    naming both numbers + the gap; the deck is not mutated."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        deck = _store(_deck_size_fixture(18)).get_deck('Gruul Aggro')
+    assert sum(c.quantity for c in deck.cards) == 15  # not mutated
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == 'WARNING']
+    assert len(warnings) == 1, warnings
+    msg = warnings[0]
+    assert 'Gruul Aggro' in msg
+    assert '15' in msg  # reconstructed
+    assert '18' in msg  # Airtable Deck Size
+    assert '3' in msg  # gap
+
+
+def test_get_deck_no_warning_when_deck_size_matches(caplog: pytest.LogCaptureFixture) -> None:
+    """#17: reconstructed Σquantity == Deck Size -> no warning."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        _store(_deck_size_fixture(15)).get_deck('Gruul Aggro')
+    assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
+
+
+def test_get_deck_no_size_check_when_field_absent(caplog: pytest.LogCaptureFixture) -> None:
+    """#17: no ``Deck Size`` value -> no check, no error, no warning."""
+    with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
+        deck = _store(_deck_size_fixture(None)).get_deck('Gruul Aggro')
+    assert sum(c.quantity for c in deck.cards) == 15
+    assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
+
+
+# --------------------------------------------------------------------------- #
+# Phase 1 — deck Format read -> Deck.format / Deck.target_size
+# --------------------------------------------------------------------------- #
+
+
+def _format_fixture(fmt: str | None) -> FakeAirtable:
+    """A minimal deck; ``fmt`` sets the Decks ``Format`` cell (omitted when None)."""
+    inv = _FIELDS['Inventory Cards']
+    d = _FIELDS['Decks']
+    cards = [{'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}}]
+    fields: dict[str, Any] = {d['Name']: 'Gruul Aggro', d['Cards']: ['recSol']}
+    if fmt is not None:
+        fields[d['Format']] = fmt
+    return FakeAirtable({'tblCards': cards, 'tblDecks': [{'id': 'recDeck', 'fields': fields}]})
+
+
+def test_row_to_deck_reads_format_and_target() -> None:
+    """A Decks record whose Format cell is 'Commander' yields deck.format ==
+    'Commander' and the derived target_size == 100."""
+    deck = _store(_format_fixture('Commander')).get_deck('Gruul Aggro')
+    assert deck.format == 'Commander'
+    assert deck.target_size == 100
+
+
+def test_row_to_deck_absent_format_is_untargeted() -> None:
+    """No Format cell -> format is None and target_size is None (untargeted)."""
+    deck = _store(_format_fixture(None)).get_deck('Gruul Aggro')
+    assert deck.format is None
+    assert deck.target_size is None
+
+
+# --------------------------------------------------------------------------- #
+# #15 — regression guard: basics reconstruction from count columns
+# --------------------------------------------------------------------------- #
+
+
+def test_basics_reconstructed_from_count_columns() -> None:
+    """#15 regression guard: basic-land count columns (Forests/Islands/…) must
+    reconstruct into ``DeckCard``s with the right quantity + type, and their
+    copies must be included in Σquantity. This FAILS if the ``BASIC_LAND_FIELDS``
+    loop in ``_row_to_deck`` is removed."""
+    inv = _FIELDS['Inventory Cards']
+    d = _FIELDS['Decks']
+    fake = FakeAirtable(
+        {
+            'tblCards': [
+                {'id': 'recGrum', 'fields': {inv['Card Name']: 'Grumgully, the Generous'}},
+                {'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}},
+            ],
+            'tblDecks': [
+                {
+                    'id': 'recDeck',
+                    'fields': {
+                        d['Name']: 'Gruul Aggro',
+                        d['Commander']: ['recGrum'],
+                        d['Cards']: ['recSol'],
+                        d['Forests']: 6,
+                        d['Islands']: 4,
+                    },
+                }
+            ],
+        }
+    )
+    deck = _store(fake).get_deck('Gruul Aggro')
+    by_name = {c.name: c for c in deck.cards}
+    # basics present as DeckCards with the right quantity + basic-land type.
+    assert by_name['Forest'].quantity == 6
+    assert by_name['Forest'].type_line == 'Basic Land — Forest'
+    assert by_name['Forest'].role is None
+    assert by_name['Island'].quantity == 4
+    assert by_name['Island'].type_line == 'Basic Land — Island'
+    # Σquantity includes the basics (commander 1 + Sol Ring 1 + 6 + 4 = 12).
+    assert sum(c.quantity for c in deck.cards) == 12
 
 
 def test_set_assessment_and_focus_otags_write_field_ids(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -666,6 +861,16 @@ def test_save_deck_writes_repeat_count_for_multiples() -> None:
     assert body['fields'][_FIELDS['Decks']['Repeat Cards Count']] == 2
 
 
+def test_save_deck_never_writes_format() -> None:
+    """Format is HUMAN-OWNED: even a deck carrying a format must not emit the
+    Format field id in the POST body (the engine must never set it)."""
+    fake = _inv_id_fixture()
+    deck = Deck(name='Gruul Aggro', format='Commander', cards=[DeckCard(name='Sol Ring')])
+    _store(fake, writes_enabled=True).save_deck(deck)
+    body = json.loads(next(r for r in fake.requests if r.method == 'POST' and 'tblDecks' in str(r.url)).content)
+    assert _FIELDS['Decks']['Format'] not in body['fields']
+
+
 # --------------------------------------------------------------------------- #
 # Fix C — add_chase writes Target Decks; skips non-persistable fields
 # --------------------------------------------------------------------------- #
@@ -702,9 +907,7 @@ def test_add_chase_existing_record_extends_target_decks() -> None:
 
 def test_add_chase_skips_non_persistable_fields_without_error() -> None:
     fake = FakeAirtable({'tblChase': []})
-    note = _store(fake, writes_enabled=True).add_chase(
-        'The One Ring', priority=1, status='wanted', target_price=25.0
-    )
+    note = _store(fake, writes_enabled=True).add_chase('The One Ring', priority=1, status='wanted', target_price=25.0)
     body = json.loads(next(r for r in fake.requests if r.method == 'POST').content)
     # only Card Name was written — no priority/status/price columns touched.
     assert list(body['fields'].keys()) == [_FIELDS['Chase Cards']['Card Name']]
@@ -802,3 +1005,203 @@ def test_list_decks_tolerates_missing_skill_authored_fields() -> None:
     assert decks[0].strategy == 'aggro'
     assert decks[0].assessment is None
     assert decks[0].focus_otags == []
+
+
+# --------------------------------------------------------------------------- #
+# Sideboard (role='sideboard') — Airtable `Sideboard` link field
+# --------------------------------------------------------------------------- #
+
+
+def _deck_with_sideboard_fixture() -> FakeAirtable:
+    """A deck whose Sideboard link -> two cards, alongside a maindeck card."""
+    inv = _FIELDS['Inventory Cards']
+    cards = [
+        {'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}},
+        {'id': 'recLlan', 'fields': {inv['Card Name']: 'Llanowar Elves'}},
+        {'id': 'recGrum', 'fields': {inv['Card Name']: 'Grumgully, the Generous'}},
+    ]
+    d = _FIELDS['Decks']
+    deck = {
+        'id': 'recDeck',
+        'fields': {
+            d['Name']: 'SB Deck',
+            d['Cards']: ['recSol'],
+            d['Sideboard']: ['recLlan', 'recGrum'],
+            d['Forests']: 8,
+        },
+    }
+    return FakeAirtable({'tblCards': cards, 'tblDecks': [deck]})
+
+
+def test_get_deck_hydrates_sideboard_link_as_role_sideboard() -> None:
+    deck = _store(_deck_with_sideboard_fixture()).get_deck('SB Deck')
+    assert [c.name for c in deck.maindeck if c.name != 'Forest'] == ['Sol Ring']
+    assert {c.name for c in deck.sideboard} == {'Llanowar Elves', 'Grumgully, the Generous'}
+    assert all(c.role == 'sideboard' for c in deck.sideboard)
+    # sideboard cards are hydrated too (not name-only).
+    assert deck.sideboard[0].oracle_id is not None
+
+
+def test_get_deck_tolerates_missing_sideboard_field(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A base without the Sideboard column -> empty sideboard, no crash."""
+    decks_fields = {k: v for k, v in _FIELDS['Decks'].items() if k != 'Sideboard'}
+    monkeypatch.setitem(_FIELDS, 'Decks', decks_fields)
+    deck = _store(_deck_fixture()).get_deck('Gruul Aggro')
+    assert deck.sideboard == []
+
+
+def test_save_deck_writes_sideboard_link() -> None:
+    fake = _inv_id_fixture()
+    deck = Deck(
+        name='SB Save',
+        cards=[
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Llanowar Elves', role='sideboard'),
+            DeckCard(name='Grumgully, the Generous', role='sideboard'),
+        ],
+    )
+    _store(fake, writes_enabled=True).save_deck(deck)
+    body = json.loads(next(r for r in fake.requests if r.method == 'POST' and 'tblDecks' in str(r.url)).content)
+    d = _FIELDS['Decks']
+    f = body['fields']
+    assert f[d['Cards']] == ['recSol']  # maindeck only
+    assert set(f[d['Sideboard']]) == {'recLlan', 'recGrum'}  # sideboard link
+
+
+def test_cross_backend_parity_maindeck_commander_sideboard(tmp_path: Path) -> None:
+    """Same Deck -> identical maindeck/commander/sideboard partition via BOTH adapters.
+
+    Airtable (mocked FakeAirtable) and local-YAML (real tmp store) must agree on
+    the role partition after a save->read round-trip.
+    """
+    from pipeline.collection.adapters.local_yaml import LocalYamlStore
+
+    deck = Deck(
+        name='Parity',
+        cards=[
+            DeckCard(name='Grumgully, the Generous', role='commander'),
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Llanowar Elves', role='sideboard'),
+        ],
+    )
+
+    # Airtable round-trip (save then read from the same fake).
+    fake = _inv_id_fixture()
+    at = _store(fake, writes_enabled=True)
+    at.save_deck(deck)
+    at_deck = at.get_deck('Parity')
+
+    # local-YAML round-trip (real tmp store with the same stub resolver shape).
+    local = LocalYamlStore(resolver=_StubCardResolver(), collection_root=tmp_path / 'col')  # type: ignore[arg-type]
+    local.save_deck(deck)
+    local_deck = local.get_deck('Parity')
+
+    def partition(d: Deck) -> tuple[set[str], set[str], set[str]]:
+        return (
+            {c.name for c in d.maindeck},
+            {c.name for c in d.commanders},
+            {c.name for c in d.sideboard},
+        )
+
+    assert (
+        partition(at_deck)
+        == partition(local_deck)
+        == (
+            {'Sol Ring'},
+            {'Grumgully, the Generous'},
+            {'Llanowar Elves'},
+        )
+    )
+
+
+# --------------------------------------------------------------------------- #
+# B1: a SIDEBOARD basic must be LINKED in the Sideboard field, NOT folded into
+# the maindeck count fields (which silently vanishes it and inflates the
+# maindeck — the July deck-drift failure class).
+# --------------------------------------------------------------------------- #
+
+
+def _inv_id_fixture_with_forest() -> FakeAirtable:
+    inv = _FIELDS['Inventory Cards']
+    cards = [
+        {'id': 'recGrum', 'fields': {inv['Card Name']: 'Grumgully, the Generous'}},
+        {'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}},
+        {'id': 'recLlan', 'fields': {inv['Card Name']: 'Llanowar Elves'}},
+        {'id': 'recForest', 'fields': {inv['Card Name']: 'Forest'}},
+    ]
+    return FakeAirtable({'tblCards': cards, 'tblDecks': []})
+
+
+def _saved_deck_fields(fake: FakeAirtable) -> dict[str, Any]:
+    body = json.loads(next(r for r in fake.requests if r.method == 'POST' and 'tblDecks' in str(r.url)).content)
+    return body['fields']
+
+
+def test_save_deck_sideboard_basic_is_linked_not_folded_into_counts() -> None:
+    """A sideboard Forest links in Sideboard; only maindeck Forests fold into the count."""
+    fake = _inv_id_fixture_with_forest()
+    deck = Deck(
+        name='SB Basic',
+        cards=[
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Forest', quantity=20),  # maindeck basics -> count field
+            DeckCard(name='Forest', quantity=1, role='sideboard'),  # sideboard basic -> Sideboard link
+        ],
+    )
+    _store(fake, writes_enabled=True).save_deck(deck)
+    f = _saved_deck_fields(fake)
+    d = _FIELDS['Decks']
+    assert f[d['Forests']] == 20  # NOT 21 — sideboard Forest is not folded in
+    assert 'recForest' in f[d['Sideboard']]  # the sideboard basic is linked
+
+
+def test_save_deck_sideboard_quantity_folds_into_repeat_count() -> None:
+    """A sideboard quantity>1 records the excess in Repeat Cards Count (like maindeck),
+    never a silent drop that diverges from the local-YAML backend."""
+    fake = _inv_id_fixture()
+    deck = Deck(
+        name='SB Qty',
+        cards=[
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Llanowar Elves', quantity=3, role='sideboard'),
+        ],
+    )
+    _store(fake, writes_enabled=True).save_deck(deck)
+    f = _saved_deck_fields(fake)
+    d = _FIELDS['Decks']
+    assert f[d['Sideboard']] == ['recLlan']
+    assert f[d['Repeat Cards Count']] == 2  # 3 copies -> 2 excess recorded
+
+
+def test_cross_backend_parity_with_sideboard_basic_and_quantity(tmp_path: Path) -> None:
+    """Strengthened parity: a sideboard BASIC + a qty>1 sideboard card partition
+    identically across both backends (the shapes B1/S1 previously corrupted)."""
+    from pipeline.collection.adapters.local_yaml import LocalYamlStore
+
+    deck = Deck(
+        name='ParityHard',
+        cards=[
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Forest', quantity=17),
+            DeckCard(name='Llanowar Elves', quantity=3, role='sideboard'),
+            DeckCard(name='Forest', quantity=1, role='sideboard'),
+        ],
+    )
+    fake = _inv_id_fixture_with_forest()
+    at = _store(fake, writes_enabled=True)
+    at.save_deck(deck)
+    at_deck = at.get_deck('ParityHard')
+
+    local = LocalYamlStore(resolver=_StubCardResolver(), collection_root=tmp_path / 'col')  # type: ignore[arg-type]
+    local.save_deck(deck)
+    local_deck = local.get_deck('ParityHard')
+
+    def names(cards: list[DeckCard]) -> set[str]:
+        return {c.name for c in cards}
+
+    # Role partition parity holds across both backends (names + roles).
+    assert names(at_deck.sideboard) == names(local_deck.sideboard) == {'Llanowar Elves', 'Forest'}
+    assert names(at_deck.maindeck) == names(local_deck.maindeck) == {'Sol Ring', 'Forest'}
+    # The maindeck Forest count is preserved (not inflated by the sideboard Forest).
+    at_main_forest = next(c for c in at_deck.maindeck if c.name == 'Forest')
+    assert at_main_forest.quantity == 17

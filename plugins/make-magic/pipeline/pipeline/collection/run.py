@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 from collections.abc import Sequence
@@ -34,11 +35,16 @@ from pipeline.collection import (
     CollectionError,
     copy_collection,
     get_store,
+    last_known_good_deck,
+    last_known_inventory_row,
     onboard,
     onboarding_status,
+    record_snapshot,
+    remove_impact,
+    shrink_check,
 )
 from pipeline.config import AirtableConfigError
-from pipeline.contracts import Deck, Trade
+from pipeline.contracts import Deck, DeckCard, Trade
 
 if TYPE_CHECKING:
     from pipeline.collection import CollectionStore
@@ -47,6 +53,8 @@ if TYPE_CHECKING:
 #: ``factsheet`` verb reaches it (bridging to ``scripts/deck_factsheet.py``); card
 #: hydration no longer uses a script-edge resolver (it's package-native now).
 _SCRIPTS_DIR = Path(__file__).resolve().parents[3] / 'scripts'
+
+log = logging.getLogger('make_magic.collection.run')
 
 
 def _store(*, writes_enabled: bool = False) -> CollectionStore:
@@ -140,6 +148,12 @@ def _get_deck(argv: list[str]) -> None:
 def _save_deck(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection save-deck')
     parser.add_argument('--from-json', required=True, help='Path to a JSON Deck (- for stdin).')
+    parser.add_argument(
+        '--confirm',
+        action='store_true',
+        help='Required when the save SHRINKS an at-target deck below its target (guards against '
+        'silently dropping a legal deck under size).',
+    )
     args = parser.parse_args(argv)
     raw = sys.stdin.read() if args.from_json == '-' else Path(args.from_json).read_text()
     try:
@@ -148,7 +162,21 @@ def _save_deck(argv: list[str]) -> None:
         # Bad USER-supplied JSON is clean input error, not a defect — surface it
         # as a one-line `error:` rather than a raw ValidationError traceback.
         raise CollectionError(f'invalid deck JSON: {exc}') from exc
-    _store(writes_enabled=True).save_deck(deck)
+    store = _store(writes_enabled=True)
+    # Shrink guard: read the PRIOR deck (if any) and require --confirm when this
+    # save would drop an at-target deck below target. Building/creating a deck
+    # (no prior, or prior never met target) never trips this.
+    try:
+        prior = store.get_deck(deck.name)
+    except FileNotFoundError:
+        prior = None
+    if prior is not None and shrink_check(prior, deck) and not args.confirm:
+        parser.error(
+            f"save-deck '{deck.name}' would shrink the deck from {sum(c.quantity for c in prior.cards)} "
+            f'to {sum(c.quantity for c in deck.cards)} cards, below its target of {prior.target_size}. '
+            'Pass --confirm to proceed. (This guards against silently dropping a legal deck under size.)'
+        )
+    store.save_deck(deck, allow_shrink=args.confirm)
     print(f'save-deck: {deck.name}')
 
 
@@ -180,6 +208,411 @@ def _set_focus_otags(argv: list[str]) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Audit (read-only drift detector — Phase 3)
+# --------------------------------------------------------------------------- #
+
+
+class _DeckDrift:
+    """The mirror-diff of a below-target deck against its last known-good baseline.
+
+    Shared by ``audit-decks`` (report) and ``recover-decks`` (propose/apply) so
+    the mirror query + subset/overfill decision + unlinked/deleted-row tagging
+    live in ONE place. Every field is derived read-only; nothing here mutates the
+    source of record.
+
+    Attributes:
+        baseline: The newest at-target ``deck_history`` row, or None (fresh mirror).
+        baseline_cards: The baseline's ``{name, oracle_id, quantity, role}`` list.
+        missing: ``(name, tag)`` pairs for cards in the baseline but not current,
+            tag ``'unlinked'`` (a live inventory row exists), ``'deleted-row'``
+            (the row is gone but a history capture exists — faithful recreate), or
+            ``'deleted-row:no-history'`` (the row is gone AND no history capture
+            exists — apply will fabricate a PLACEHOLDER row, owned=1). Empty unless
+            ``recoverable`` is True. The deleted-row vs no-history split is decided
+            HERE (single source) so the dry-run plan and apply agree.
+        diverged: True when the current deck holds a card NOT in the baseline (an
+            active swap) — recovery must BLOCK, never overfill / re-add a cut card.
+        recoverable: True when a baseline exists, the deck is a STRICT subset of it
+            (not diverged), AND re-adding the missing set lands EXACTLY on target.
+        predicted_size: current size + Σ missing quantities (the size after recovery).
+    """
+
+    def __init__(
+        self,
+        *,
+        baseline: dict[str, object] | None,
+        current_size: int,
+        target: int | None,
+        missing: list[tuple[str, str]],
+        diverged: bool,
+        recoverable: bool,
+        predicted_size: int,
+    ) -> None:
+        self.baseline = baseline
+        self.baseline_cards: list[dict] = list(baseline['cards']) if baseline else []  # type: ignore[index]
+        self.current_size = current_size
+        self.target = target
+        self.missing = missing
+        self.diverged = diverged
+        self.recoverable = recoverable
+        self.predicted_size = predicted_size
+
+
+def _deck_drift(deck: Deck, store: CollectionStore) -> _DeckDrift:
+    """Compute the shared mirror-diff for a below-target ``deck`` (read-only).
+
+    Queries the append-only DuckDB history for the deck's newest at-target row,
+    then classifies: no baseline -> not recoverable; a card gained vs the baseline
+    -> ``diverged`` (blocked); otherwise the missing set is tagged unlinked vs
+    deleted-row and ``recoverable`` iff re-adding it lands EXACTLY on target.
+    """
+    from pipeline import store as _lake
+
+    # A writable connection: `last_known_good_deck` ensures the history tables
+    # (a CREATE IF NOT EXISTS), which a read-only handle rejects. The query itself
+    # never mutates the source of record — this is the local mirror, not Airtable.
+    with _lake.connect() as conn:
+        baseline = last_known_good_deck(conn, deck.name, store.backend_name)
+
+    current_size = sum(c.quantity for c in deck.cards)
+    target = deck.target_size
+    if baseline is None:
+        return _DeckDrift(
+            baseline=None,
+            current_size=current_size,
+            target=target,
+            missing=[],
+            diverged=False,
+            recoverable=False,
+            predicted_size=current_size,
+        )
+
+    baseline_cards = baseline['cards']
+    baseline_names = {c['name'] for c in baseline_cards}
+    current_names = {c.name for c in deck.cards}
+    missing_names = baseline_names - current_names
+    # Divergence: the deck holds a card NOT in the baseline. This is an active
+    # swap, not a pure shrink — recovery would overfill or re-add a cut card, so
+    # it must BLOCK. `current ⊆ baseline` is the hard subset guard.
+    diverged = not current_names <= baseline_names
+
+    # Cross-reference live inventory: a row still present => unlinked; gone =>
+    # deleted. For a deleted row, decide HERE (during planning, read-only) whether
+    # a faithful recreate is possible: `deleted-row` when a history capture exists,
+    # else `deleted-row:no-history` (apply will fabricate a PLACEHOLDER row). This
+    # is the SINGLE source of truth the printed plan and apply both consume — the
+    # history lookup is not repeated at apply time with a divergent result.
+    inventory = store.list_inventory()
+    live_names = {card.name for card in inventory}
+    live_oracle_ids = {card.oracle_id for card in inventory if card.oracle_id}
+    baseline_by_name = {c['name']: c for c in baseline_cards}
+    tagged: list[tuple[str, str]] = []
+    missing_qty = 0
+    for name in sorted(missing_names):
+        oracle_id = baseline_by_name[name].get('oracle_id')
+        present = name in live_names or (oracle_id is not None and oracle_id in live_oracle_ids)
+        if present:
+            tag = 'unlinked'
+        else:
+            with _lake.connect() as conn:
+                history = last_known_inventory_row(
+                    conn,
+                    store.backend_name,
+                    name=name,
+                    oracle_id=oracle_id,  # type: ignore[arg-type]
+                )
+            tag = 'deleted-row' if history is not None else 'deleted-row:no-history'
+        tagged.append((name, tag))
+        missing_qty += int(baseline_by_name[name].get('quantity') or 1)
+
+    predicted_size = current_size + missing_qty
+    # Recoverable ONLY when: not diverged, something IS missing, and re-adding the
+    # missing set lands EXACTLY on target (never overfill; never a partial land).
+    recoverable = not diverged and bool(tagged) and target is not None and predicted_size == target
+    return _DeckDrift(
+        baseline=baseline,
+        current_size=current_size,
+        target=target,
+        missing=tagged,
+        diverged=diverged,
+        recoverable=recoverable,
+        predicted_size=predicted_size,
+    )
+
+
+def _missing_card_diff(deck: Deck, store: CollectionStore) -> list[tuple[str, str]] | None:
+    """Diff a below-target deck against its last known-good baseline in the mirror.
+
+    Thin wrapper over :func:`_deck_drift` preserving the ``audit-decks`` contract:
+    returns the ``(name, tag)`` missing set when the deck is a strict subset of a
+    baseline, else ``None`` (no baseline, or the deck diverged / gained cards — a
+    different change, not a shrink to list).
+    """
+    drift = _deck_drift(deck, store)
+    if drift.baseline is None or drift.diverged or not drift.missing:
+        return None
+    return drift.missing
+
+
+def _audit_decks(argv: list[str]) -> None:
+    """Read-only drift report: per-deck size vs target, plus a known-good diff.
+
+    Source-agnostic and non-mutating w.r.t. the source of record. First takes a
+    best-effort full capture into the local DuckDB mirror (a local write, not an
+    Airtable write), then reports each deck's ``name · format · size · target ·
+    status``. Under-target is a WARNING (never an error, never a nonzero exit);
+    untargeted decks are reported as such, never flagged. For a below-target deck
+    with a known-good baseline, lists the missing cards tagged unlinked vs
+    deleted-row; with no baseline yet, says so plainly. Always exits 0 (report).
+    """
+    parser = argparse.ArgumentParser(prog='collection audit-decks')
+    parser.add_argument('--json', action='store_true', help='Emit machine-readable JSON instead of a table.')
+    args = parser.parse_args(argv)
+
+    store = _store()
+
+    # Best-effort capture-then-report: the Phase-2 full-capture opportunity. A
+    # mirror write must never break the audit, so swallow any failure.
+    try:
+        record_snapshot(store)
+    except Exception:  # pragma: no cover - record_snapshot is already best-effort.
+        log.warning('audit-decks: history capture failed; continuing with the audit', exc_info=True)
+
+    decks = sorted(store.list_decks(), key=lambda d: d.name)
+    reports: list[dict[str, object]] = []
+    under_target = 0
+    for deck in decks:
+        size = sum(c.quantity for c in deck.cards)
+        target = deck.target_size
+        entry: dict[str, object] = {
+            'name': deck.name,
+            'format': deck.format,
+            'size': size,
+            'target': target,
+        }
+        if target is None:
+            entry['status'] = 'untargeted'
+        elif size >= target:
+            entry['status'] = 'OK'
+        else:
+            entry['status'] = 'UNDER-TARGET'
+            under_target += 1
+            diff = _missing_card_diff(deck, store)
+            entry['baseline'] = diff is not None
+            entry['missing'] = [{'name': name, 'tag': tag} for name, tag in diff] if diff is not None else []
+        reports.append(entry)
+
+    if args.json:
+        print(json.dumps({'decks': reports, 'under_target': under_target}, indent=2))
+        return
+
+    _print_audit_table(reports, under_target)
+
+
+def _print_audit_table(reports: list[dict[str, object]], under_target: int) -> None:
+    """Print the aligned per-deck table + a one-line summary to stdout."""
+    name_w = max((len(str(r['name'])) for r in reports), default=4)
+    fmt_w = max((len(str(r['format'] or '-')) for r in reports), default=6)
+    header = f'{"DECK":<{name_w}}  {"FORMAT":<{fmt_w}}  {"SIZE":>4}  {"TARGET":>6}  STATUS'
+    print(header)
+    print('-' * len(header))
+    for r in reports:
+        target = r['target']
+        target_str = '-' if target is None else str(target)
+        name = str(r['name'])
+        fmt = str(r['format'] or '-')
+        size = str(r['size'])
+        line = f'{name:<{name_w}}  {fmt:<{fmt_w}}  {size:>4}  {target_str:>6}  {r["status"]}'
+        print(line)
+        if r['status'] == 'UNDER-TARGET':
+            missing = r.get('missing') or []
+            if not r.get('baseline'):
+                print('    no historical baseline; target check only')
+            elif missing:
+                for entry in missing:  # type: ignore[union-attr]
+                    print(f'    missing: {entry["name"]}  [{entry["tag"]}]')
+    print(f'\n{len(reports)} decks, {under_target} under target')
+
+
+# --------------------------------------------------------------------------- #
+# Recover (mirror-based recovery — Phase 5; PROPOSES, never blind-applies)
+# --------------------------------------------------------------------------- #
+
+
+def _rebuild_deck_to_baseline(deck: Deck, drift: _DeckDrift) -> Deck:
+    """Return a copy of ``deck`` grown back to its baseline composition.
+
+    The baseline mirror row is authoritative for the recovered deck: we rebuild
+    the FULL card list (name + role + quantity) from ``drift.baseline_cards`` so a
+    single ``save_deck`` re-links every dropped card at once. This only GROWS to
+    target (recovery is a subset restore), so ``allow_shrink`` stays False and the
+    shrink guard is never tripped.
+    """
+    cards = [
+        DeckCard(name=c['name'], role=c.get('role'), quantity=int(c.get('quantity') or 1)) for c in drift.baseline_cards
+    ]
+    return deck.model_copy(update={'cards': cards})
+
+
+def _recreate_deleted_rows(store: CollectionStore, drift: _DeckDrift) -> list[str]:
+    """Recreate any ``deleted-row`` inventory rows from history BEFORE the re-link.
+
+    ``save_deck`` resolves deck-card NAMES to Inventory record ids and raises on an
+    unresolved name, so a card whose inventory row was deleted MUST be re-created
+    first. The recreation payload (condition/foil/sets/sources/counts) comes from
+    the newest ``inventory_history`` capture of that card. Returns the recreated
+    card names (for the report). Ordering is load-bearing: recreate, THEN save.
+
+    The ``deleted-row`` vs ``deleted-row:no-history`` split was already decided in
+    :func:`_deck_drift` (the single source), and the dry-run plan surfaced the
+    placeholder case to the user before ``--confirm`` — so here we simply honor the
+    tag: a faithful recreate from history, or a PLACEHOLDER row (owned=1) when no
+    history exists.
+    """
+    from pipeline import store as _lake
+
+    baseline_by_name = {c['name']: c for c in drift.baseline_cards}
+    recreated: list[str] = []
+    for name, tag in drift.missing:
+        if tag not in ('deleted-row', 'deleted-row:no-history'):
+            continue
+        oracle_id = baseline_by_name.get(name, {}).get('oracle_id')
+        if tag == 'deleted-row:no-history':
+            fields = None
+        else:
+            with _lake.connect() as conn:
+                fields = last_known_inventory_row(conn, store.backend_name, name=name, oracle_id=oracle_id)
+        # No inventory history for this card: recreate a MINIMAL/PLACEHOLDER row
+        # (name + 1 owned) so the re-link can resolve it, rather than fail the whole
+        # deck. Enrichment backfills on the next capture. (Surfaced in the plan.)
+        qty = int((fields or {}).get('number_owned') or 1)
+        foil = int((fields or {}).get('foil_count') or 0)
+        condition = (fields or {}).get('condition') or None
+        sets = (fields or {}).get('sets') or None
+        sources = (fields or {}).get('sources') or None
+        store.add_card(name, max(qty, 1), condition=condition, foil=foil, sets=sets, sources=sources)
+        recreated.append(name)
+    return recreated
+
+
+def _recover_decks(argv: list[str]) -> None:
+    """Mirror-based recovery for a below-target deck — PROPOSES, never blind-applies.
+
+    Dry-run by DEFAULT: without ``--confirm`` it prints the per-deck plan and exits
+    0, writing NOTHING. ``--confirm`` is required to actually write to the source of
+    record (mirrors the ``copy --confirm`` precedent).
+
+    The plan (read-only) diffs each below-target deck against its last known-good
+    mirror baseline. A deck is recovered ONLY when it is a STRICT SUBSET of the
+    baseline AND re-adding the missing set lands EXACTLY on target — the
+    subset/overfill guard. A deck that diverged (gained a card not in the baseline)
+    is BLOCKED ("manual review"): recovery must never overfill or re-add a cut
+    card. A deck with no baseline is reported and skipped (never fabricated).
+
+    Apply (``--confirm`` only): recreate any ``deleted-row`` inventory rows from
+    history FIRST (else the re-link can't resolve them), then rebuild the deck to
+    its baseline composition via ``save_deck(allow_shrink=False)`` (recovery only
+    grows, so the shrink guard never trips), then re-read and verify size==target.
+    """
+    parser = argparse.ArgumentParser(prog='collection recover-decks')
+    parser.add_argument('names', nargs='*', help='Deck name(s) to recover (default: all under-target decks).')
+    parser.add_argument(
+        '--confirm',
+        action='store_true',
+        help='Required to actually WRITE the recovery to the source of record. Without it, '
+        'recover-decks is a dry run: it prints the proposed plan and writes nothing.',
+    )
+    args = parser.parse_args(argv)
+
+    store = _store(writes_enabled=True)
+    all_decks = {d.name: d for d in store.list_decks()}
+    if args.names:
+        missing_names = [n for n in args.names if n not in all_decks]
+        if missing_names:
+            raise CollectionError(f'unknown deck(s): {missing_names}; known: {sorted(all_decks)}')
+        selected = [all_decks[n] for n in args.names]
+    else:
+        # Default: every under-target (targeted-and-below) deck.
+        selected = [
+            d
+            for d in all_decks.values()
+            if d.target_size is not None and sum(c.quantity for c in d.cards) < d.target_size
+        ]
+
+    selected.sort(key=lambda d: d.name)
+
+    recovered = 0
+    blocked = 0
+    skipped = 0
+    for deck in sorted(selected, key=lambda d: d.name):
+        # `get_deck` hydrates cards (oracle_id) so the mirror diff can match on the
+        # stabler key; `list_decks` is name-only.
+        hydrated = store.get_deck(deck.name)
+        drift = _deck_drift(hydrated, store)
+        size = sum(c.quantity for c in hydrated.cards)
+        header = f'{deck.name}  (size {size}, target {drift.target})'
+
+        if drift.baseline is None:
+            print(f'{header}: no baseline in the mirror — cannot recover; skipping.')
+            skipped += 1
+            continue
+        if drift.diverged:
+            print(
+                f'{header}: BLOCKED — diverged from baseline (holds cards not in the last-good '
+                'snapshot; likely an active swap). Manual review required; recovering nothing.'
+            )
+            blocked += 1
+            continue
+        if not drift.recoverable:
+            # Subset, but re-adding wouldn't land exactly on target (e.g. an
+            # overfill or a partial baseline). Block rather than guess.
+            print(
+                f'{header}: BLOCKED — cannot land exactly on target '
+                f'(predicted {drift.predicted_size} vs target {drift.target}); recovering nothing.'
+            )
+            blocked += 1
+            continue
+
+        print(f'{header}: recover {len(drift.missing)} card(s) -> predicted size {drift.predicted_size}')
+        placeholder_count = 0
+        for name, tag in drift.missing:
+            if tag == 'deleted-row:no-history':
+                placeholder_count += 1
+                print(f'    + {name}  [deleted-row: NO history — placeholder recreate (owned=1), VERIFY after]')
+            else:
+                print(f'    + {name}  [{tag}]')
+        if placeholder_count:
+            print(
+                f'    ⚠ {placeholder_count} card(s) will be recreated as placeholders — '
+                'verify their owned counts after recovery.'
+            )
+
+        if not args.confirm:
+            recovered += 1  # would-recover count in dry-run.
+            continue
+
+        # APPLY. Ordering is load-bearing: recreate deleted rows BEFORE save_deck,
+        # else the re-link can't resolve them and raises.
+        recreated = _recreate_deleted_rows(store, drift)
+        if recreated:
+            print(f'    recreated {len(recreated)} inventory row(s): {recreated}')
+        rebuilt = _rebuild_deck_to_baseline(hydrated, drift)
+        store.save_deck(rebuilt, allow_shrink=False)
+        # Verify against a fresh read.
+        after = store.get_deck(deck.name)
+        after_size = sum(c.quantity for c in after.cards)
+        status = 'OK' if after_size == drift.target else 'CHECK'
+        print(f'    {status}: deck is now {after_size} (target {drift.target})')
+        recovered += 1
+
+    verb = 'would recover' if not args.confirm else 'recovered'
+    summary = f'\n{len(selected)} deck(s): {recovered} {verb}, {blocked} blocked, {skipped} skipped (no baseline)'
+    if not args.confirm:
+        summary += '  (dry-run — no writes; pass --confirm to apply)'
+    print(summary)
+
+
+# --------------------------------------------------------------------------- #
 # Inventory
 # --------------------------------------------------------------------------- #
 
@@ -193,11 +626,11 @@ def _list_inventory(argv: list[str]) -> None:
 def _add_card(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection add-card')
     parser.add_argument('ref')
-    parser.add_argument('--qty', type=int, default=1)
-    parser.add_argument('--condition', action='append', default=None)
-    parser.add_argument('--foil', type=int, default=0)
-    parser.add_argument('--set', dest='sets', action='append', default=None)
-    parser.add_argument('--source', dest='sources', action='append', default=None)
+    parser.add_argument('--qty', type=int, default=1, help='copies to add (default 1)')
+    parser.add_argument('--condition', action='append', default=None, help='condition, e.g. Near Mint (repeatable)')
+    parser.add_argument('--foil', type=int, default=0, help='FOIL copies as an int COUNT, e.g. --foil 1 (default 0)')
+    parser.add_argument('--set', dest='sets', action='append', default=None, help='set name (repeatable)')
+    parser.add_argument('--source', dest='sources', action='append', default=None, help='source (repeatable)')
     args = parser.parse_args(argv)
     _store(writes_enabled=True).add_card(
         args.ref, args.qty, condition=args.condition, foil=args.foil, sets=args.sets, sources=args.sources
@@ -217,9 +650,39 @@ def _set_quantity(argv: list[str]) -> None:
 def _remove_card(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection remove-card')
     parser.add_argument('ref')
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Required to remove a card that is LINKED to one or more decks — deleting the shared '
+        'Inventory row cascades the card out of EVERY deck at once. Without it, remove-card enumerates '
+        'the affected decks and aborts (no delete).',
+    )
     args = parser.parse_args(argv)
-    _store(writes_enabled=True).remove_card(args.ref)
-    print(f'remove-card: {args.ref}')
+    store = _store(writes_enabled=True)
+    # Cascade guard (the critical one): a HARD delete of a shared Inventory row
+    # silently strips the card from every deck that links it (Airtable link
+    # cascade). If ANY deck links `ref`, require --force and enumerate the blast
+    # radius FIRST — the delete must never reach the store without --force.
+    impacts = remove_impact(store, args.ref)
+    if impacts and not args.force:
+        lines = [
+            f"remove-card '{args.ref}' is LINKED to {len(impacts)} deck(s) — deleting the shared "
+            'Inventory row would cascade it out of ALL of them at once:'
+        ]
+        for imp in impacts:
+            flag = '  ** DROPS UNDER TARGET **' if imp.goes_under_target else ''
+            target = imp.target if imp.target is not None else '—'
+            lines.append(f'  - {imp.deck_name}: {imp.current_size} -> {imp.size_after} (target {target}){flag}')
+        lines.append('Pass --force to remove it anyway (this will unlink it from every deck above).')
+        parser.error('\n'.join(lines))
+    # The CLI already enumerated + aborted above when --force is absent, so this
+    # never double-prompts; pass `force` through so the CLI and the port-level
+    # guard agree (the store re-checks as defense-in-depth for direct callers).
+    store.remove_card(args.ref, force=args.force)
+    if impacts:
+        print(f'remove-card: {args.ref} (forced; unlinked from {len(impacts)} deck(s))')
+    else:
+        print(f'remove-card: {args.ref}')
 
 
 # --------------------------------------------------------------------------- #
@@ -234,12 +697,22 @@ def _list_chase(argv: list[str]) -> None:
 
 
 def _add_chase(argv: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog='collection add-chase')
-    parser.add_argument('ref')
-    parser.add_argument('--priority', type=int, default=None)
-    parser.add_argument('--for-deck', dest='for_deck', default=None)
-    parser.add_argument('--status', default=None)
-    parser.add_argument('--target-price', dest='target_price', type=float, default=None)
+    parser = argparse.ArgumentParser(
+        prog='collection add-chase',
+        description='Track a card you want to acquire (a "chase" card). '
+        'Note: --priority/--status/--target-price are NOT persisted by the Airtable backend (no such columns).',
+    )
+    parser.add_argument('ref', help='Card name (or Scryfall id) to chase; hydrated live from Scryfall.')
+    parser.add_argument('--priority', type=int, default=None, help='Optional priority rank (local backend only).')
+    parser.add_argument('--for-deck', dest='for_deck', default=None, help='Deck name this chase is intended for.')
+    parser.add_argument('--status', default=None, help='Optional status label (local backend only).')
+    parser.add_argument(
+        '--target-price',
+        dest='target_price',
+        type=float,
+        default=None,
+        help='Optional target acquisition price (local backend only).',
+    )
     args = parser.parse_args(argv)
     note = _store(writes_enabled=True).add_chase(
         args.ref,
@@ -273,16 +746,23 @@ def _list_trades(argv: list[str]) -> None:
 
 
 def _log_trade(argv: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog='collection log-trade')
-    parser.add_argument('--from-json', help='Path to a JSON Trade (- for stdin).')
-    parser.add_argument('--from-source', dest='from_source')
-    parser.add_argument('--to-destination', dest='to_destination')
+    parser = argparse.ArgumentParser(
+        prog='collection log-trade',
+        description='Record a trade. Provide a full JSON Trade via --from-json, or build one from the flags below.',
+    )
+    parser.add_argument('--from-json', help='Path to a JSON Trade (- for stdin). If set, the other flags are ignored.')
+    parser.add_argument('--from-source', dest='from_source', help="Trade source, e.g. a person or 'Deck'.")
+    parser.add_argument('--to-destination', dest='to_destination', help="Trade destination, e.g. a person or 'Deck'.")
     parser.add_argument('--from-deck', dest='from_deck', default=None, help="From (Deck) when Source == 'Deck'.")
     parser.add_argument('--to-deck', dest='to_deck', default=None, help="To (Deck) when Destination == 'Deck'.")
-    parser.add_argument('--status', default=None)
-    parser.add_argument('--notes', default=None)
-    parser.add_argument('--card-in', dest='cards_in', action='append', default=None)
-    parser.add_argument('--card-out', dest='cards_out', action='append', default=None)
+    parser.add_argument('--status', default=None, help='Optional trade status label.')
+    parser.add_argument('--notes', default=None, help='Free-text notes for the trade.')
+    parser.add_argument(
+        '--card-in', dest='cards_in', action='append', default=None, help='A card received (repeatable).'
+    )
+    parser.add_argument(
+        '--card-out', dest='cards_out', action='append', default=None, help='A card given away (repeatable).'
+    )
     args = parser.parse_args(argv)
     if args.from_json:
         raw = sys.stdin.read() if args.from_json == '-' else Path(args.from_json).read_text()
@@ -309,9 +789,7 @@ def _log_trade(argv: list[str]) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _build_store(
-    backend: str, *, writes_enabled: bool = False, data_dir: str | None = None
-) -> CollectionStore:
+def _build_store(backend: str, *, writes_enabled: bool = False, data_dir: str | None = None) -> CollectionStore:
     """Construct a store for an EXPLICIT backend (bypassing `resolve_backend`).
 
     Used by ``copy`` to build the source + destination independently. A local
@@ -393,6 +871,8 @@ VERBS = {
     'set-strategy': _set_strategy,
     'set-assessment': _set_assessment,
     'set-focus-otags': _set_focus_otags,
+    'audit-decks': _audit_decks,
+    'recover-decks': _recover_decks,
     # inventory
     'list-inventory': _list_inventory,
     'add-card': _add_card,
@@ -413,12 +893,16 @@ __all__ = ('main',)
 
 
 def main() -> None:
+    usage = (
+        "usage: collection <verb> [args...]   (run `collection <verb> -h` for a verb's flags)\n"
+        f'  verbs: {", ".join(sorted(VERBS))}'
+    )
+    # Explicit -h/--help -> usage on stdout, exit 0. No/unknown verb -> stderr, exit 2.
+    if len(sys.argv) >= 2 and sys.argv[1] in ('-h', '--help'):
+        print(usage)
+        return
     if len(sys.argv) < 2 or sys.argv[1] not in VERBS:
-        avail = ', '.join(sorted(VERBS))
-        print(
-            f'usage: python -m pipeline.collection.run <verb> [args...]\n  verbs: {avail}',
-            file=sys.stderr,
-        )
+        print(usage, file=sys.stderr)
         raise SystemExit(2)
     verb = sys.argv[1]
     # `ReadOnlyStoreError` lives in the lazily-imported Airtable adapter; import it

@@ -80,7 +80,19 @@ class CollectionStore(Protocol):
     # --- Decks --------------------------------------------------------------- #
     def get_deck(self, name: str) -> Deck: ...
     def list_decks(self) -> list[Deck]: ...
-    def save_deck(self, deck: Deck) -> None: ...
+    def save_deck(self, deck: Deck, *, allow_shrink: bool = False) -> None:
+        """Persist the whole deck.
+
+        ``allow_shrink`` is the defensive integrity gate (Phase 4): when the save
+        drops a deck that currently MEETS its ``target_size`` below it, the store
+        raises :class:`~pipeline.collection.errors.CollectionError` UNLESS
+        ``allow_shrink`` is True. The CLI passes ``allow_shrink=True`` only after
+        the user confirms (`save-deck --confirm`), so a skill that calls
+        ``save_deck`` programmatically cannot silently shrink a legal deck under
+        target. The default is SAFE (guarded). Building a deck up never trips it.
+        """
+        ...
+
     def set_strategy(self, name: str, text: str) -> None: ...
     def set_assessment(self, name: str, text: str) -> None: ...
     def set_focus_otags(self, name: str, otags: list[str]) -> None: ...
@@ -98,7 +110,21 @@ class CollectionStore(Protocol):
         sources: list[str] | None = None,
     ) -> None: ...
     def set_quantity(self, ref: str, qty: int) -> None: ...
-    def remove_card(self, ref: str) -> None: ...
+    def remove_card(self, ref: str, *, force: bool = False) -> None:
+        """Hard-delete the Inventory row for ``ref``.
+
+        ``force`` is the port-level cascade gate (Phase 4, defense-in-depth with
+        ``save_deck``'s ``allow_shrink``): deleting an Inventory row still LINKED
+        to one or more decks raises
+        :class:`~pipeline.collection.errors.CollectionError` (enumerating the
+        affected decks, and which drop UNDER target) UNLESS ``force`` is True,
+        because Airtable's link cascade would silently strip the card from EVERY
+        linked deck at once — the exact mechanism that corrupted the real base.
+        An UNLINKED card deletes normally. The default is SAFE (guarded), so a
+        direct ``get_store().remove_card(ref)`` cannot silently cascade-strip
+        decks; the CLI passes ``force=True`` only after enumerating + prompting.
+        """
+        ...
 
     # --- Chase --------------------------------------------------------------- #
     def list_chase(self) -> list[ChaseCard]: ...
@@ -114,6 +140,7 @@ class CollectionStore(Protocol):
         """Add/update a chase card. May return a human-readable note (e.g. an
         adapter that cannot persist some fields), or ``None``."""
         ...
+
     def remove_chase(self, ref: str) -> None: ...
 
     # --- Trades -------------------------------------------------------------- #
@@ -207,9 +234,7 @@ def resolve_backend() -> str:
         # through to a silent 'local' that `status` would then mislabel.
         normalized = env.strip().lower()
         if normalized not in _VALID_BACKENDS:
-            raise CollectionError(
-                f'Invalid {ENV_BACKEND}={env!r}; choose one of {list(_VALID_BACKENDS)}.'
-            )
+            raise CollectionError(f'Invalid {ENV_BACKEND}={env!r}; choose one of {list(_VALID_BACKENDS)}.')
         return normalized
     state = read_app_state()
     if state.onboarded and state.backend:
@@ -237,7 +262,7 @@ class OnboardingStatus(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     onboarded: bool = Field(description='True once a backend choice is persisted to app_state.')
-    effective_backend: str = Field(description="The backend resolve_backend() would pick right now.")
+    effective_backend: str = Field(description='The backend resolve_backend() would pick right now.')
     needs_onboarding: bool = Field(description='True when the CLI should prompt the user to run `onboard`.')
 
 

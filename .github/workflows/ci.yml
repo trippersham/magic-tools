@@ -1,0 +1,42 @@
+name: CI
+
+# Offline gate for the make-magic pipeline: the 690+ test suite, ruff (lint +
+# format), and pyright. The `live` (real Airtable/Scryfall) and `forge` (real
+# Forge JVM) markers are deselected by the package's pytest addopts, so nothing
+# here needs network access or a provisioned Forge/JRE.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+defaults:
+  run:
+    working-directory: plugins/make-magic/pipeline
+
+jobs:
+  check:
+    name: lint + types + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dev dependencies
+        run: uv sync --extra dev
+
+      - name: Ruff lint
+        run: uv run --extra dev ruff check
+
+      - name: Ruff format check
+        run: uv run --extra dev ruff format --check
+
+      - name: Pyright
+        run: uv run --extra dev pyright
+
+      - name: Pytest (offline)
+        run: uv run --extra dev pytest -q

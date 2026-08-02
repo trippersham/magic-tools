@@ -92,7 +92,7 @@ def _load_prior_normalized() -> dict[str, dict[str, object]]:
         rows = rel.select(', '.join(_SPOILER_COLS)).fetchall()
     prior: dict[str, dict[str, object]] = {}
     for row in rows:
-        rec = dict(zip(_SPOILER_COLS, row, strict=True))
+        rec: dict[str, object] = dict(zip(_SPOILER_COLS, row, strict=True))
         prior[str(rec['slug'])] = rec
     return prior
 

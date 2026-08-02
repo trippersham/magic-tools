@@ -362,6 +362,29 @@ def test_deck_assessment_focus_otags_roundtrip() -> None:
     assert restored.focus_otags == ['sacrifice']
 
 
+def test_deck_format_defaults_none_and_untargeted() -> None:
+    deck = Deck(name='WIP Deck', cards=[])
+    assert deck.format is None
+    assert deck.target_size is None
+
+
+def test_deck_format_derives_target_size() -> None:
+    commander = Deck(name='EDH Deck', format='Commander', cards=[])
+    assert commander.format == 'Commander'
+    assert commander.target_size == 100
+    standard = Deck(name='Std Deck', format='Standard', cards=[])
+    assert standard.target_size == 60
+    weird = Deck(name='Odd Deck', format='Weird', cards=[])
+    assert weird.target_size is None
+
+
+def test_deck_format_roundtrip() -> None:
+    deck = Deck(name='EDH Deck', format='Commander', cards=[DeckCard(name='Sol Ring')])
+    restored = Deck.model_validate(deck.model_dump())
+    assert restored.format == 'Commander'
+    assert restored.target_size == 100
+
+
 def test_deck_missing_required_rejected() -> None:
     with pytest.raises(ValidationError):
         Deck(cards=[])  # type: ignore[call-arg]
@@ -374,7 +397,7 @@ def test_deck_cards_wrong_type_rejected() -> None:
 
 def test_deck_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError):
-        Deck(name='X', cards=[], format='commander')  # type: ignore[call-arg]
+        Deck(name='X', cards=[], bogus='commander')  # type: ignore[call-arg]
 
 
 def test_deck_roundtrip_model_dump() -> None:
@@ -547,3 +570,62 @@ def test_spoiler_missing_required_rejected() -> None:
 def test_spoiler_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError):
         Spoiler(slug='x', set_code='EOE', name='X', source='scryfall', mystery='y')  # type: ignore[call-arg]
+
+
+def test_deck_roles_partition_maindeck_commander_sideboard() -> None:
+    """`maindeck`, `commanders`, and `sideboard` are disjoint and cover `cards`."""
+    from pipeline.contracts import Deck, DeckCard
+
+    deck = Deck(
+        name='Roles',
+        cards=[
+            DeckCard(name='Atraxa, Praetors Voice', role='commander'),
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Forest', quantity=10),
+            DeckCard(name='Pithing Needle', role='sideboard'),
+            DeckCard(name='Naturalize', role='sideboard'),
+        ],
+    )
+    assert [c.name for c in deck.commanders] == ['Atraxa, Praetors Voice']
+    assert {c.name for c in deck.sideboard} == {'Pithing Needle', 'Naturalize'}
+    assert {c.name for c in deck.maindeck} == {'Sol Ring', 'Forest'}
+    # partition: disjoint + total, no double-count.
+    partition = deck.maindeck + deck.commanders + deck.sideboard
+    assert len(partition) == len(deck.cards)
+    assert {id(c) for c in partition} == {id(c) for c in deck.cards}
+
+
+def test_deck_no_sideboard_is_empty() -> None:
+    from pipeline.contracts import Deck, DeckCard
+
+    deck = Deck(name='NoSB', cards=[DeckCard(name='Sol Ring'), DeckCard(name='Island', quantity=17)])
+    assert deck.sideboard == []
+    assert {c.name for c in deck.maindeck} == {'Sol Ring', 'Island'}
+
+
+# --------------------------------------------------------------------------- #
+# DeckCard.role validation (S4): normalize known roles, reject unknown ones.
+# --------------------------------------------------------------------------- #
+
+
+def test_deckcard_role_rejects_unknown_value() -> None:
+    """A typo'd/unknown non-empty role is a loud error, not a silent maindeck card."""
+    with pytest.raises(ValidationError, match='role'):
+        DeckCard(name='Sol Ring', role='sidebord')  # typo
+    with pytest.raises(ValidationError, match='role'):
+        DeckCard(name='Sol Ring', role='main')  # 'main' is spelled as role=None, not a value
+
+
+def test_deckcard_role_normalizes_case_and_whitespace() -> None:
+    """Known roles are canonicalized (case/whitespace-insensitive) so a hand-typed
+    `role: Sideboard` correctly becomes a sideboard card rather than silently maindeck."""
+    assert DeckCard(name='X', role='Sideboard').role == 'sideboard'
+    assert DeckCard(name='X', role=' commander ').role == 'commander'
+    assert DeckCard(name='X', role='COMMANDER').role == 'commander'
+
+
+def test_deckcard_role_empty_is_maindeck() -> None:
+    """An empty / whitespace-only role means no role (maindeck), not an error."""
+    assert DeckCard(name='X', role='').role is None
+    assert DeckCard(name='X', role='   ').role is None
+    assert DeckCard(name='X', role=None).role is None

@@ -5,8 +5,7 @@ raw/ -> normalized/ -> marts/) with Pydantic v2 contracts ONLY at the edges.
 
 Governing constraint: this engine is STRICTLY ADDITIVE to the existing
 Airtable-as-source-of-truth workflow. It never mutates human-edited Airtable
-data; it only reads (pulls) and derives. See
-~/.claude/plans/trippersham/magic-tools/2026-07-26-data-architecture/.
+data; it only reads (pulls) and derives.
 
 Subpackages:
     contracts/  Pydantic v2 boundary models + generated JSON Schema (edges only).

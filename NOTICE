@@ -1,0 +1,44 @@
+make-magic
+Copyright (C) 2026 Tripp Wickersham
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See the LICENSE file for the full text.
+
+
+THIRD-PARTY SOFTWARE FETCHED AT RUNTIME (NOT DISTRIBUTED WITH THIS PROJECT)
+==========================================================================
+
+make-magic's game-simulation feature drives two third-party programs. Neither is
+bundled, vendored, linked, or redistributed by this project. make-magic is a
+separate program that invokes MTG Forge as a subprocess (an arms-length
+relationship); it downloads both artifacts, on the user's own machine, on first
+use, directly from their official upstreams, checksum-verified, and caches them:
+
+  * MTG Forge — the open-source rules engine that runs the AI-vs-AI games.
+      License:  GNU General Public License (GPL). See the Card-Forge project.
+      Upstream: https://github.com/Card-Forge/forge
+      How used: make-magic fetches a pinned Forge release tarball at runtime
+                (SHA256-verified) and launches it as a headless `sim` subprocess.
+                make-magic does NOT include or redistribute any Forge code,
+                binaries, or card data. The GPL of Forge governs the fetched
+                Forge artifacts, not make-magic itself, because the two are
+                separate programs communicating at arm's length (a subprocess
+                invocation), not a combined or derivative work.
+
+  * Eclipse Temurin / OpenJDK (JRE) — the Java runtime Forge requires.
+      License:  GPL v2 with the Classpath Exception.
+      Upstream: https://adoptium.net (Adoptium API)
+      How used: make-magic fetches a Temurin JRE at runtime if no suitable Java
+                is already present, and reuses a system Java when available.
+                make-magic does NOT redistribute the JRE.
+
+If you already have a compatible Forge install and/or Java, point make-magic at
+them with the MAKE_MAGIC_FORGE_HOME and MAKE_MAGIC_JAVA environment variables and
+no download occurs. See plugins/make-magic/README.md.
+
+The trademarks "Magic: The Gathering" and card names/text are the property of
+Wizards of the Coast. This project is unofficial Fan Content and is not produced,
+endorsed, or affiliated with Wizards of the Coast. Card data is retrieved from
+Scryfall (https://scryfall.com).
