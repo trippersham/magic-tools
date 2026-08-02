@@ -72,9 +72,7 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return root
 
 
-def _run_recover(
-    monkeypatch: pytest.MonkeyPatch, store: AirtableCollectionStore, *argv: str
-) -> None:
+def _run_recover(monkeypatch: pytest.MonkeyPatch, store: AirtableCollectionStore, *argv: str) -> None:
     """Patch ``cli._store`` to the given store and dispatch ``recover-decks``.
 
     The SAME store instance is returned for every ``_store`` call so the plan
@@ -179,12 +177,11 @@ def test_confirm_recreates_deleted_row_before_relink(
     # A POST created a NEW inventory row for Card 2 BEFORE the deck PATCH re-links.
     inv_table = 'tblCards'
     inv_posts = [
-        i for i, r in enumerate(fake.requests)
+        i
+        for i, r in enumerate(fake.requests)
         if r.method == 'POST' and inv_table in str(r.url) and b'Card 2' in r.content
     ]
-    deck_patches = [
-        i for i, r in enumerate(fake.requests) if r.method == 'PATCH' and 'tblDecks' in str(r.url)
-    ]
+    deck_patches = [i for i, r in enumerate(fake.requests) if r.method == 'PATCH' and 'tblDecks' in str(r.url)]
     assert inv_posts, 'expected a POST recreating Card 2 inventory row'
     assert deck_patches, 'expected a PATCH re-linking the deck'
     assert min(inv_posts) < min(deck_patches), 'inventory row must be recreated BEFORE the deck re-link'
@@ -341,12 +338,11 @@ def test_confirm_no_history_recreates_placeholder_and_lands_on_target(
 
     # A POST recreated Card 2 as a placeholder (owned=1) BEFORE the deck re-link.
     inv_posts = [
-        i for i, r in enumerate(fake.requests)
+        i
+        for i, r in enumerate(fake.requests)
         if r.method == 'POST' and 'tblCards' in str(r.url) and b'Card 2' in r.content
     ]
-    deck_patches = [
-        i for i, r in enumerate(fake.requests) if r.method == 'PATCH' and 'tblDecks' in str(r.url)
-    ]
+    deck_patches = [i for i, r in enumerate(fake.requests) if r.method == 'PATCH' and 'tblDecks' in str(r.url)]
     assert inv_posts, 'expected a POST recreating the placeholder Card 2 row'
     assert deck_patches, 'expected a PATCH re-linking the deck'
     assert min(inv_posts) < min(deck_patches), 'placeholder row must be recreated BEFORE the re-link'
@@ -380,9 +376,7 @@ def test_no_baseline_reported_and_skipped_no_writes(
 # --------------------------------------------------------------------------- #
 
 
-def test_dry_run_is_the_default_no_writes_without_confirm(
-    data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_dry_run_is_the_default_no_writes_without_confirm(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _full_deck_fixture()
     assert record_snapshot(_recover_store(fake)) is True
     deck_fields = fake.tables['tblDecks'][0]['fields']

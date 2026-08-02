@@ -117,7 +117,11 @@ class _ConcurrencyTracker:
             with self._lock:
                 self.in_flight -= 1
         return MatchResult(
-            deck_a=deck_a[0], deck_b=deck_b[0], wins_a=n, wins_b=0, draws=0,
+            deck_a=deck_a[0],
+            deck_b=deck_b[0],
+            wins_a=n,
+            wins_b=0,
+            draws=0,
             per_game=tuple(GameOutcome(winner='a', elapsed_ms=1) for _ in range(n)),
             raw_log='',
         )
@@ -205,7 +209,11 @@ def test_governor_records_failures_without_crashing(monkeypatch: pytest.MonkeyPa
         if seed % 2 == 0:
             raise ForgeError(f'boom seed={seed}')
         return MatchResult(
-            deck_a=deck_a[0], deck_b=deck_b[0], wins_a=n, wins_b=0, draws=0,
+            deck_a=deck_a[0],
+            deck_b=deck_b[0],
+            wins_a=n,
+            wins_b=0,
+            draws=0,
             per_game=tuple(GameOutcome(winner='a', elapsed_ms=1) for _ in range(n)),
             raw_log='',
         )
@@ -342,10 +350,7 @@ def test_run_small_real_batch_bounded_concurrency() -> None:
     text_a = (profile_decks / 'RedTest.dck').read_text()
     text_b = (profile_decks / 'WhiteTest.dck').read_text()
 
-    specs = [
-        MatchSpec(deck_a=('RedTest', text_a), deck_b=('WhiteTest', text_b), n=1, seed=42 + i)
-        for i in range(4)
-    ]
+    specs = [MatchSpec(deck_a=('RedTest', text_a), deck_b=('WhiteTest', text_b), n=1, seed=42 + i) for i in range(4)]
 
     result = run_matchups(
         install,

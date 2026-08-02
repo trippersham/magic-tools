@@ -139,9 +139,7 @@ def test_untargeted_deck_reported_untargeted(
     assert 'UNDER-TARGET' not in wip_line
 
 
-def test_exit_code_zero_with_under_target(
-    data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_exit_code_zero_with_under_target(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _status_fixture()
     # audit-decks is a report, not a gate: SystemExit must NOT be raised.
     _run_audit(monkeypatch, fake)  # would raise SystemExit(1) on failure.
@@ -152,9 +150,7 @@ def test_exit_code_zero_with_under_target(
 # --------------------------------------------------------------------------- #
 
 
-def test_audit_issues_no_writes_to_airtable(
-    data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_audit_issues_no_writes_to_airtable(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _status_fixture()
     _run_audit(monkeypatch, fake)
     mutations = [r for r in fake.requests if r.method in ('POST', 'PATCH', 'DELETE')]

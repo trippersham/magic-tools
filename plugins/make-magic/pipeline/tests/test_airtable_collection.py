@@ -66,6 +66,7 @@ class _StubCardResolver:
         data = self._CARDS.get(name)
         return Card(**data) if data else None
 
+
 # --------------------------------------------------------------------------- #
 # Fixtures: synthetic per-base schema (meta) + record payloads.
 # --------------------------------------------------------------------------- #
@@ -439,9 +440,7 @@ def test_list_decks_does_not_hydrate_via_resolver() -> None:
     resolver that raises on any call; a name-only `list_decks` still succeeds."""
     transport = httpx.MockTransport(_deck_fixture().handler)
     client = httpx.Client(transport=transport)
-    store = AirtableCollectionStore.from_settings(
-        'fake-token', client=client, card_resolver=_ExplodingResolver()
-    )
+    store = AirtableCollectionStore.from_settings('fake-token', client=client, card_resolver=_ExplodingResolver())
     [deck] = store.list_decks()
     assert deck.name == 'Gruul Aggro'
     # commander + maindeck resolved to NAMES + ROLES (no enrichment needed).
@@ -484,9 +483,7 @@ def test_hydration_preserves_airtable_link_name() -> None:
     )
     transport = httpx.MockTransport(fake.handler)
     client = httpx.Client(transport=transport)
-    store = AirtableCollectionStore.from_settings(
-        'fake-token', client=client, card_resolver=_FuzzyDriftResolver()
-    )
+    store = AirtableCollectionStore.from_settings('fake-token', client=client, card_resolver=_FuzzyDriftResolver())
     deck = store.get_deck('Typo Deck')
     [card] = deck.cards
     # base link name is authoritative (no fuzzy drift to 'Sol Ring')...
@@ -908,9 +905,7 @@ def test_add_chase_existing_record_extends_target_decks() -> None:
 
 def test_add_chase_skips_non_persistable_fields_without_error() -> None:
     fake = FakeAirtable({'tblChase': []})
-    note = _store(fake, writes_enabled=True).add_chase(
-        'The One Ring', priority=1, status='wanted', target_price=25.0
-    )
+    note = _store(fake, writes_enabled=True).add_chase('The One Ring', priority=1, status='wanted', target_price=25.0)
     body = json.loads(next(r for r in fake.requests if r.method == 'POST').content)
     # only Card Name was written — no priority/status/price columns touched.
     assert list(body['fields'].keys()) == [_FIELDS['Chase Cards']['Card Name']]

@@ -437,7 +437,9 @@ def _download_verified(url: str, dest: Path, *, sha256: str | None) -> None:
     substitute for the SHA gate.
     """
     if sha256 is None:
-        raise ValueError(f'refusing to install {url!r} without a published SHA256 checksum (fail-closed integrity gate)')
+        raise ValueError(
+            f'refusing to install {url!r} without a published SHA256 checksum (fail-closed integrity gate)'
+        )
     _download(url, dest)
     _verify_sha256(dest, sha256)
 

@@ -135,8 +135,11 @@ def main() -> None:
     _banner('STEP 4 — DRIFT: force the delete, then the cascade drops Sol Ring from Alpha EDH')
     _run(['remove-card', 'Sol Ring', '--force'])
     drifted = tmp / 'alpha_drifted.json'
-    drifted.write_text(json.dumps({'name': 'Alpha EDH', 'format': 'Commander',
-                                   'cards': [{'name': f'Alpha EDH Card {i}'} for i in range(99)]}))
+    drifted.write_text(
+        json.dumps(
+            {'name': 'Alpha EDH', 'format': 'Commander', 'cards': [{'name': f'Alpha EDH Card {i}'} for i in range(99)]}
+        )
+    )
     _run(['save-deck', '--from-json', str(drifted), '--confirm'])
     print(f'[check] Alpha EDH is now {_deck_size("Alpha EDH")} (drifted below target)')
 
@@ -151,8 +154,10 @@ def main() -> None:
 
     _banner('STEP 6b — RECOVERY (--confirm): restore Alpha EDH to exactly 100')
     _run(['recover-decks', 'Alpha EDH', '--confirm'])
-    print(f'[check] Alpha EDH recovered to {_deck_size("Alpha EDH")}; '
-          f'Sol Ring back in inventory: {"Sol Ring" in _inventory_names()}')
+    print(
+        f'[check] Alpha EDH recovered to {_deck_size("Alpha EDH")}; '
+        f'Sol Ring back in inventory: {"Sol Ring" in _inventory_names()}'
+    )
 
     # --- 7. BASELINE INTEGRITY ---------------------------------------------- #
     _banner('STEP 7 — INTEGRITY: the known-good baseline was never overwritten')

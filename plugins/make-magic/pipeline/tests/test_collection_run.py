@@ -139,9 +139,7 @@ def test_save_deck_then_get_and_field_verbs(
     assert 'Gruul Aggro' in capsys.readouterr().out
 
 
-def test_chase_add_list_remove(
-    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
-) -> None:
+def test_chase_add_list_remove(data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
     _run(monkeypatch, 'add-chase', 'The One Ring', '--for-deck', 'gruul')
     capsys.readouterr()
     _run(monkeypatch, 'list-chase')
@@ -153,9 +151,7 @@ def test_chase_add_list_remove(
     assert json.loads(capsys.readouterr().out) == []
 
 
-def test_log_trade_then_list(
-    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
-) -> None:
+def test_log_trade_then_list(data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
     _run(monkeypatch, 'log-trade', '--from-source', 'Library', '--to-destination', 'Deck', '--status', 'Draft')
     capsys.readouterr()
     _run(monkeypatch, 'list-trades')
@@ -164,9 +160,7 @@ def test_log_trade_then_list(
     assert rows[0]['status'] == 'Draft'
 
 
-def test_log_trade_deck_flags(
-    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
-) -> None:
+def test_log_trade_deck_flags(data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
     """Phase 3.3: --from-deck / --to-deck wire to the Trade contract (no --from-json)."""
     _run(
         monkeypatch,
@@ -282,9 +276,7 @@ def test_unknown_field_prints_clean_error(
     assert 'Traceback' not in err
 
 
-def test_genuine_keyerror_is_not_swallowed(
-    data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_genuine_keyerror_is_not_swallowed(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A real defect (raw KeyError from a verb handler) must NOT be flattened to a
     clean `error:` line — it should propagate so the bug is visible (Fix 2)."""
 
@@ -296,9 +288,7 @@ def test_genuine_keyerror_is_not_swallowed(
         _run(monkeypatch, 'list-decks')
 
 
-def test_genuine_runtimeerror_is_not_swallowed(
-    data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_genuine_runtimeerror_is_not_swallowed(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A raw RuntimeError from a bug is not masked by the CLI wrapper (Fix 2)."""
 
     def _boom(_argv: list[str]) -> None:

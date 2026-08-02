@@ -92,6 +92,7 @@ class CollectionStore(Protocol):
         target. The default is SAFE (guarded). Building a deck up never trips it.
         """
         ...
+
     def set_strategy(self, name: str, text: str) -> None: ...
     def set_assessment(self, name: str, text: str) -> None: ...
     def set_focus_otags(self, name: str, otags: list[str]) -> None: ...
@@ -139,6 +140,7 @@ class CollectionStore(Protocol):
         """Add/update a chase card. May return a human-readable note (e.g. an
         adapter that cannot persist some fields), or ``None``."""
         ...
+
     def remove_chase(self, ref: str) -> None: ...
 
     # --- Trades -------------------------------------------------------------- #
@@ -232,9 +234,7 @@ def resolve_backend() -> str:
         # through to a silent 'local' that `status` would then mislabel.
         normalized = env.strip().lower()
         if normalized not in _VALID_BACKENDS:
-            raise CollectionError(
-                f'Invalid {ENV_BACKEND}={env!r}; choose one of {list(_VALID_BACKENDS)}.'
-            )
+            raise CollectionError(f'Invalid {ENV_BACKEND}={env!r}; choose one of {list(_VALID_BACKENDS)}.')
         return normalized
     state = read_app_state()
     if state.onboarded and state.backend:
@@ -262,7 +262,7 @@ class OnboardingStatus(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     onboarded: bool = Field(description='True once a backend choice is persisted to app_state.')
-    effective_backend: str = Field(description="The backend resolve_backend() would pick right now.")
+    effective_backend: str = Field(description='The backend resolve_backend() would pick right now.')
     needs_onboarding: bool = Field(description='True when the CLI should prompt the user to run `onboard`.')
 
 

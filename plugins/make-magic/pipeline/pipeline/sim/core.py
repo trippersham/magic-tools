@@ -239,10 +239,7 @@ def run_cached_matchups(
     version = forge_version()
 
     keys = [
-        matchup_key(
-            s.deck_a[1], s.deck_b[1], seed=s.seed, n_games=s.n, fmt=s.fmt, forge_version=version
-        )
-        for s in specs
+        matchup_key(s.deck_a[1], s.deck_b[1], seed=s.seed, n_games=s.n, fmt=s.fmt, forge_version=version) for s in specs
     ]
 
     outcomes: dict[int, MatchOutcome] = {}
@@ -282,9 +279,7 @@ def run_cached_matchups(
                     opponent=spec.deck_b[0], wins=0, losses=0, draws=0, cached=False, features=[]
                 )
                 continue
-            features = extract_match_features(
-                match.raw_log, deck_a=spec.deck_a[0], deck_b=spec.deck_b[0]
-            )
+            features = extract_match_features(match.raw_log, deck_a=spec.deck_a[0], deck_b=spec.deck_b[0])
             meta = MatchupMeta(
                 deck_a_hash=deck_hash(spec.deck_a[1]),
                 deck_b_hash=deck_hash(spec.deck_b[1]),
@@ -307,9 +302,7 @@ def run_cached_matchups(
     return [outcomes[i] for i in range(len(specs))]
 
 
-def _pop_matching_result(
-    pairs: list[tuple[MatchSpec, MatchResult]], spec: MatchSpec
-) -> MatchResult | None:
+def _pop_matching_result(pairs: list[tuple[MatchSpec, MatchResult]], spec: MatchSpec) -> MatchResult | None:
     """Pop the first paired result whose SPEC equals ``spec`` (order-independent).
 
     Pairing is by full spec equality (names + dck text + n + seed + fmt), never
@@ -412,9 +405,7 @@ def simulate(
         for offset, opp in enumerate(opponents)
     ]
 
-    outcomes = run_cached_matchups(
-        install, specs, force=force, data_dir=data_dir, pool_size=pool_size
-    )
+    outcomes = run_cached_matchups(install, specs, force=force, data_dir=data_dir, pool_size=pool_size)
 
     per_opponent: list[OpponentResult] = []
     all_features: list[GameFeatures] = []
@@ -502,12 +493,28 @@ def compare(
     numbers pairing is claimed.
     """
     a = simulate(
-        variant_a, gauntlet_source, games=games, fmt=fmt, seed=seed,
-        install=install, force=force, store=store, data_dir=data_dir, pool_size=pool_size,
+        variant_a,
+        gauntlet_source,
+        games=games,
+        fmt=fmt,
+        seed=seed,
+        install=install,
+        force=force,
+        store=store,
+        data_dir=data_dir,
+        pool_size=pool_size,
     )
     b = simulate(
-        variant_b, gauntlet_source, games=games, fmt=fmt, seed=seed,
-        install=install, force=force, store=store, data_dir=data_dir, pool_size=pool_size,
+        variant_b,
+        gauntlet_source,
+        games=games,
+        fmt=fmt,
+        seed=seed,
+        install=install,
+        force=force,
+        store=store,
+        data_dir=data_dir,
+        pool_size=pool_size,
     )
 
     metric_deltas: dict[str, float | None] = {}

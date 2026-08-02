@@ -190,8 +190,7 @@ def _confirm_forge_download(*, assume_yes: bool) -> None:
     if assume_yes or not sys.stdin.isatty():
         return
     print(
-        f'Forge is not installed. Download Forge {FORGE_VERSION} + a JRE now '
-        '(~350MB, one-time, cached for reuse)?',
+        f'Forge is not installed. Download Forge {FORGE_VERSION} + a JRE now (~350MB, one-time, cached for reuse)?',
         file=sys.stderr,
     )
     answer = input('  proceed? [y/N] ').strip().lower()

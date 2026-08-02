@@ -94,10 +94,7 @@ def _deck_size(deck: Deck) -> int:
 def _deck_cards_json(deck: Deck) -> str:
     """Serialize a deck's cards to the ``{name, oracle_id, quantity, role}`` array."""
     return json.dumps(
-        [
-            {'name': c.name, 'oracle_id': c.oracle_id, 'quantity': c.quantity, 'role': c.role}
-            for c in deck.cards
-        ]
+        [{'name': c.name, 'oracle_id': c.oracle_id, 'quantity': c.quantity, 'role': c.role} for c in deck.cards]
     )
 
 
@@ -128,9 +125,7 @@ def _deck_card_names(deck: Deck) -> set[str]:
 
 def _latest_deck_snapshot_ts(conn: DuckDBPyConnection, backend: str) -> datetime | None:
     """The most recent ``deck_history`` snapshot_ts for this backend, or None."""
-    row = conn.execute(
-        f'SELECT MAX(snapshot_ts) FROM {_DECK_HISTORY_TABLE} WHERE backend = ?', [backend]
-    ).fetchone()
+    row = conn.execute(f'SELECT MAX(snapshot_ts) FROM {_DECK_HISTORY_TABLE} WHERE backend = ?', [backend]).fetchone()
     return row[0] if row else None
 
 

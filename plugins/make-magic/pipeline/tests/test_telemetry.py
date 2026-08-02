@@ -167,9 +167,7 @@ def test_split_games_empty_returns_empty() -> None:
 
 
 def test_match_features_commander_run_ten_games() -> None:
-    feats = extract_match_features(
-        _read('empirical/commander_run.log'), deck_a='RedCmdr', deck_b='WhiteCmdr'
-    )
+    feats = extract_match_features(_read('empirical/commander_run.log'), deck_a='RedCmdr', deck_b='WhiteCmdr')
     assert len(feats) == 10
     # Game 8 is the sole b win (Match Result flips at game 8 in the fixture).
     winners = [f.winner for f in feats]
@@ -184,9 +182,7 @@ def test_match_features_commander_run_ten_games() -> None:
 
 
 def test_garbage_log_degrades_to_empty_features() -> None:
-    f = extract_game_features(
-        'total nonsense\nno forge lines here\n', deck_a='RedTest', deck_b='WhiteTest'
-    )
+    f = extract_game_features('total nonsense\nno forge lines here\n', deck_a='RedTest', deck_b='WhiteTest')
     assert f.winner == 'draw'  # no winner derivable -> neutral 'draw'
     assert f.kill_turn is None
     assert f.win_margin_life is None

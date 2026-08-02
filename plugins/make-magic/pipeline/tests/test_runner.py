@@ -163,5 +163,7 @@ def test_run_one_real_match() -> None:
     assert result.games == 1
     assert result.wins_a + result.wins_b + result.draws == 1
     assert result.per_game[0].winner in ('a', 'b', 'draw')
-    print(f'\n[forge] one real match: {result.wins_a}-{result.wins_b}, '
-          f'winner={result.per_game[0].winner}, {result.per_game[0].elapsed_ms} ms')
+    print(
+        f'\n[forge] one real match: {result.wins_a}-{result.wins_b}, '
+        f'winner={result.per_game[0].winner}, {result.per_game[0].elapsed_ms} ms'
+    )

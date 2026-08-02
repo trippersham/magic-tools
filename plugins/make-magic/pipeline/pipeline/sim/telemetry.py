@@ -59,9 +59,7 @@ _RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in (\d+) ms\. (.+)$')
 #: non-greedily (``.+?``) so spaced/paren deck names parse (only the slot matters).
 _WINNER_RE = re.compile(r'Ai\((\d)\)-.+? has won!')
 #: The empty-library (mill) loss on a Game Outcome line — slot of the milled loser.
-_MILL_OUTCOME_RE = re.compile(
-    r'^Game Outcome: Ai\((\d)\)-\S.*? has lost trying to draw cards from empty library'
-)
+_MILL_OUTCOME_RE = re.compile(r'^Game Outcome: Ai\((\d)\)-\S.*? has lost trying to draw cards from empty library')
 
 
 def _slot_to_side(slot: str) -> str:
@@ -115,9 +113,7 @@ def split_games(match_log: str) -> list[str]:
     return segments
 
 
-def extract_game_features(
-    game_log: str, *, deck_a: str, deck_b: str, commander: bool | None = None
-) -> GameFeatures:
+def extract_game_features(game_log: str, *, deck_a: str, deck_b: str, commander: bool | None = None) -> GameFeatures:
     """Parse ONE game's verbose log into :class:`GameFeatures` (pure, never raises).
 
     ``deck_a`` / ``deck_b`` are accepted for symmetry with the runner API and to
@@ -265,9 +261,7 @@ def extract_game_features(
     )
 
 
-def extract_match_features(
-    match_log: str, *, deck_a: str, deck_b: str
-) -> list[GameFeatures]:
+def extract_match_features(match_log: str, *, deck_a: str, deck_b: str) -> list[GameFeatures]:
     """Extract per-game :class:`GameFeatures` for every game in a multi-game log.
 
     Splits with :func:`split_games`, then extracts each segment independently.
@@ -277,6 +271,5 @@ def extract_match_features(
     """
     commander = re.search(r'of Commander\b', match_log) is not None
     return [
-        extract_game_features(seg, deck_a=deck_a, deck_b=deck_b, commander=commander)
-        for seg in split_games(match_log)
+        extract_game_features(seg, deck_a=deck_a, deck_b=deck_b, commander=commander) for seg in split_games(match_log)
     ]

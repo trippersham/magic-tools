@@ -172,8 +172,11 @@ def test_e2e_prevent_detect_recover(
     assert 'Sol Ring' not in _inventory_names()
     capsys.readouterr()
     drifted = tmp_path / 'alpha_drifted.json'
-    drifted.write_text(json.dumps({'name': 'Alpha EDH', 'format': 'Commander',
-                                   'cards': [{'name': f'Alpha EDH Card {i}'} for i in range(99)]}))
+    drifted.write_text(
+        json.dumps(
+            {'name': 'Alpha EDH', 'format': 'Commander', 'cards': [{'name': f'Alpha EDH Card {i}'} for i in range(99)]}
+        )
+    )
     _run(monkeypatch, 'save-deck', '--from-json', str(drifted), '--confirm')
     assert _deck_size('Alpha EDH') == 99
     capsys.readouterr()

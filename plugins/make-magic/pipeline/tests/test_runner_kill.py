@@ -30,9 +30,7 @@ def _alive(pid: int) -> bool:
     return True
 
 
-def test_external_timeout_kills_grandchild_processes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_external_timeout_kills_grandchild_processes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     decks_root = tmp_path / 'decks'
     monkeypatch.setattr(ForgeInstall, 'decks_dir', property(lambda self: decks_root))
     # Shrink the one-time-load headroom so the external timeout fires in ~1s.
@@ -40,12 +38,7 @@ def test_external_timeout_kills_grandchild_processes(
 
     pid_file = tmp_path / 'grandchild.pid'
     fake_java = tmp_path / 'fake_java'
-    fake_java.write_text(
-        '#!/bin/sh\n'
-        'sleep 300 &\n'
-        f'echo $! > "{pid_file}"\n'
-        'sleep 300\n'
-    )
+    fake_java.write_text(f'#!/bin/sh\nsleep 300 &\necho $! > "{pid_file}"\nsleep 300\n')
     fake_java.chmod(0o755)
 
     install = ForgeInstall(forge_dir=tmp_path, jar=tmp_path / 'forge.jar', java=fake_java)

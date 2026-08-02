@@ -185,9 +185,7 @@ def test_copy_airtable_to_local(local_store: LocalYamlStore) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_round_trip_local_airtable_local_preserves_records(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_round_trip_local_airtable_local_preserves_records(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(store.ENV_DATA_DIR, str(tmp_path / 'a'))
     src = LocalYamlStore(resolver=_AnyResolver())
     _populate_local(src)

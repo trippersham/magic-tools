@@ -163,9 +163,7 @@ def test_run_cached_matchups_miss_then_hit(monkeypatch: pytest.MonkeyPatch, data
     assert len(calls) == 1  # NO second governor batch — served from cache
 
 
-def test_run_cached_matchups_force_bypasses_cache(
-    monkeypatch: pytest.MonkeyPatch, data_dir: Path
-) -> None:
+def test_run_cached_matchups_force_bypasses_cache(monkeypatch: pytest.MonkeyPatch, data_dir: Path) -> None:
     """``force=True`` re-runs even a cached matchup."""
     calls: list[list[MatchSpec]] = []
 
@@ -250,9 +248,7 @@ def _patch_gauntlet(monkeypatch: pytest.MonkeyPatch, opponents: list[tuple[str, 
     monkeypatch.setattr(core, 'resolve_gauntlet', fake_resolve)
 
 
-def test_simulate_aggregates_winrate_ci_and_profile(
-    monkeypatch: pytest.MonkeyPatch, data_dir: Path
-) -> None:
+def test_simulate_aggregates_winrate_ci_and_profile(monkeypatch: pytest.MonkeyPatch, data_dir: Path) -> None:
     """simulate over 3 opponents (candidate sweeps) -> 100% win-rate + profile."""
     _patch_gauntlet(monkeypatch, [('Opp1', 'X'), ('Opp2', 'Y'), ('Opp3', 'Z')])
     monkeypatch.setattr(core, 'run_matchups', lambda i, specs, **k: _pool_result_candidate_sweeps(specs))
@@ -350,19 +346,26 @@ def test_compare_diffs_two_variants(monkeypatch: pytest.MonkeyPatch, data_dir: P
         results: list[MatchResult] = []
         for spec in specs:
             a_wins = spec.n if spec.deck_a[0] == 'A' else 0
-            per_game = tuple(
-                GameOutcome(winner='a' if i < a_wins else 'b', elapsed_ms=1000) for i in range(spec.n)
-            )
+            per_game = tuple(GameOutcome(winner='a' if i < a_wins else 'b', elapsed_ms=1000) for i in range(spec.n))
             results.append(
                 MatchResult(
-                    deck_a=spec.deck_a[0], deck_b=spec.deck_b[0],
-                    wins_a=a_wins, wins_b=spec.n - a_wins, draws=0,
-                    per_game=per_game, raw_log='',
+                    deck_a=spec.deck_a[0],
+                    deck_b=spec.deck_b[0],
+                    wins_a=a_wins,
+                    wins_b=spec.n - a_wins,
+                    draws=0,
+                    per_game=per_game,
+                    raw_log='',
                 )
             )
         return PoolResult(
-            pool_size=1, results=results, failures=[], max_concurrent=1, aborted=False,
-            min_free_ram_gib=8.0, min_free_disk_gib=50.0,
+            pool_size=1,
+            results=results,
+            failures=[],
+            max_concurrent=1,
+            aborted=False,
+            min_free_ram_gib=8.0,
+            min_free_disk_gib=50.0,
             pairs=list(zip(specs, results, strict=True)),
         )
 

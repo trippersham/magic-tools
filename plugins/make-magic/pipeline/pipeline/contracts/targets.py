@@ -14,9 +14,7 @@ from __future__ import annotations
 __all__ = ('target_for_format',)
 
 #: Sixty-card constructed formats keyed by their normalized (casefolded) name.
-_SIXTY_CARD_FORMATS: frozenset[str] = frozenset(
-    {'standard', 'modern', 'pioneer', 'brawl', 'historic', 'pauper'}
-)
+_SIXTY_CARD_FORMATS: frozenset[str] = frozenset({'standard', 'modern', 'pioneer', 'brawl', 'historic', 'pauper'})
 
 
 def target_for_format(fmt: str | None) -> int | None:

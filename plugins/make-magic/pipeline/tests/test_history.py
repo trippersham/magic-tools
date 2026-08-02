@@ -224,9 +224,7 @@ def test_inventory_history_retains_removed_row(data_dir: Path) -> None:
 
     with store.connect() as conn:
         history._ensure_history_tables(conn)
-        rows = conn.execute(
-            'SELECT card_name, fields FROM inventory_history WHERE card_id = ?', ['rec123']
-        ).fetchall()
+        rows = conn.execute('SELECT card_name, fields FROM inventory_history WHERE card_id = ?', ['rec123']).fetchall()
     # The deleted row is still recoverable from the first snapshot (append-only).
     assert any(name == 'Sol Ring' for name, _ in rows)
 
