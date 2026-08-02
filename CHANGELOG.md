@@ -4,7 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/).
 
+> **Versioning:** the version tracked here is the **plugin** version
+> (`.claude-plugin/plugin.json`) — the user-facing artifact installed from the
+> marketplace. The bundled `make-magic-pipeline` Python package
+> (`plugins/make-magic/pipeline/pyproject.toml`) carries its own independent
+> `0.x` version and is an internal implementation detail, not published to PyPI.
+
 ## [Unreleased]
+
+## [0.5.0] — 2026-08-02
 
 ### Added
 
