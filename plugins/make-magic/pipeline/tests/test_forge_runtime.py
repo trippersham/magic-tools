@@ -9,7 +9,9 @@ real Forge install, jar, or JRE is touched here.
 from __future__ import annotations
 
 import io
+import json
 import urllib.error
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -251,13 +253,13 @@ def test_download_retries_transient_then_succeeds(tmp_path: Path, monkeypatch: p
     monkeypatch.setattr('pipeline.sim.forge_runtime.time.sleep', lambda _s: None)
     seq: list[object] = [_http_error(503), _http_error(429), io.BytesIO(b'payload')]
 
-    def _fake_urlopen(_req: object, timeout: float | None = None) -> object:
+    def _fake_urlopen(_req: object, *, timeout: float | None = None) -> object:
         item = seq.pop(0)
         if isinstance(item, Exception):
             raise item
         return item
 
-    monkeypatch.setattr('pipeline.sim.forge_runtime.urllib.request.urlopen', _fake_urlopen)
+    monkeypatch.setattr('pipeline.sim.forge_runtime._urlopen', _fake_urlopen)
     dest = tmp_path / 'f.bin'
     fr._download('https://x/a', dest, attempts=3)
     assert dest.read_bytes() == b'payload'
@@ -268,11 +270,11 @@ def test_download_fails_fast_on_404(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr('pipeline.sim.forge_runtime.time.sleep', lambda _s: None)
     calls = {'n': 0}
 
-    def _fake_urlopen(_req: object, timeout: float | None = None) -> object:
+    def _fake_urlopen(_req: object, *, timeout: float | None = None) -> object:
         calls['n'] += 1
         raise _http_error(404)
 
-    monkeypatch.setattr('pipeline.sim.forge_runtime.urllib.request.urlopen', _fake_urlopen)
+    monkeypatch.setattr('pipeline.sim.forge_runtime._urlopen', _fake_urlopen)
     with pytest.raises(urllib.error.HTTPError):
         fr._download('https://x/a', tmp_path / 'f.bin', attempts=3)
     assert calls['n'] == 1  # a permanent 404 is NOT retried
@@ -282,11 +284,11 @@ def test_download_fails_fast_on_oserror(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setattr('pipeline.sim.forge_runtime.time.sleep', lambda _s: None)
     calls = {'n': 0}
 
-    def _fake_urlopen(_req: object, timeout: float | None = None) -> object:
+    def _fake_urlopen(_req: object, *, timeout: float | None = None) -> object:
         calls['n'] += 1
         raise OSError('disk full')
 
-    monkeypatch.setattr('pipeline.sim.forge_runtime.urllib.request.urlopen', _fake_urlopen)
+    monkeypatch.setattr('pipeline.sim.forge_runtime._urlopen', _fake_urlopen)
     with pytest.raises(OSError, match='disk full'):
         fr._download('https://x/a', tmp_path / 'f.bin', attempts=3)
     assert calls['n'] == 1  # a non-HTTP OSError is permanent -> no retry
@@ -307,11 +309,11 @@ def test_download_sets_a_socket_timeout(tmp_path: Path, monkeypatch: pytest.Monk
     carry a finite socket timeout."""
     seen: dict[str, object] = {}
 
-    def _fake_urlopen(_req: object, timeout: float | None = None) -> object:
+    def _fake_urlopen(_req: object, *, timeout: float | None = None) -> object:
         seen['timeout'] = timeout
         return io.BytesIO(b'payload')
 
-    monkeypatch.setattr('pipeline.sim.forge_runtime.urllib.request.urlopen', _fake_urlopen)
+    monkeypatch.setattr('pipeline.sim.forge_runtime._urlopen', _fake_urlopen)
     fr._download('https://x/a', tmp_path / 'f.bin')
     assert isinstance(seen['timeout'], (int, float)) and seen['timeout'] > 0
 
@@ -330,13 +332,20 @@ def test_download_verified_raises_on_mismatch(tmp_path: Path, monkeypatch: pytes
         fr._download_verified('http://x', tmp_path / 'a', sha256='0' * 64)
 
 
-def test_download_verified_skips_when_no_checksum(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        'pipeline.sim.forge_runtime._download',
-        lambda _url, dest: dest.write_bytes(b'content'),
-    )
-    fr._download_verified('http://x', tmp_path / 'a', sha256=None)  # no verify, no raise
-    assert (tmp_path / 'a').read_bytes() == b'content'
+def test_download_verified_fails_closed_when_no_checksum(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """B2: a missing checksum must FAIL CLOSED (the downloaded java is executed).
+
+    An unverifiable download must not even be fetched — abort before any network
+    or file I/O rather than run an integrity-unchecked binary.
+    """
+
+    def _must_not_download(*_a: object, **_k: object) -> None:
+        raise AssertionError('_download must not be called when the checksum is missing')
+
+    monkeypatch.setattr('pipeline.sim.forge_runtime._download', _must_not_download)
+    with pytest.raises(ValueError, match='without a published SHA256'):
+        fr._download_verified('https://x', tmp_path / 'a', sha256=None)
+    assert not (tmp_path / 'a').exists()
 
 
 def test_parse_temurin_asset_extracts_link_and_checksum() -> None:
@@ -349,14 +358,27 @@ def test_parse_temurin_asset_missing_checksum_is_none() -> None:
     assert fr._parse_temurin_asset(payload) == ('https://x/jre.tar.gz', None)
 
 
-def test_temurin_asset_falls_back_when_api_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _boom(_req: object) -> object:
+def test_temurin_asset_fails_closed_when_api_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """B2: metadata unreachable -> RAISE (no checksum-less fallback download)."""
+
+    def _boom(_req: object, *, timeout: float | None = None) -> object:
         raise urllib.error.URLError('down')
 
-    monkeypatch.setattr('pipeline.sim.forge_runtime.urllib.request.urlopen', _boom)
-    url, sha = fr._temurin_asset()
-    assert sha is None  # no checksum available -> fall back
-    assert url.startswith('https://api.adoptium.net/v3/binary/latest/21/ga')
+    monkeypatch.setattr('pipeline.sim.forge_runtime._urlopen', _boom)
+    with pytest.raises(urllib.error.URLError, match='down'):
+        fr._temurin_asset()
+
+
+def test_temurin_asset_fails_closed_when_checksum_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """B2: Adoptium returns an asset with NO checksum -> refuse it (fail closed)."""
+    payload = [{'binary': {'package': {'link': 'https://x/jre.tar.gz'}}}]
+
+    def _fake_urlopen(_req: object, *, timeout: float | None = None) -> object:
+        return io.BytesIO(json.dumps(payload).encode())
+
+    monkeypatch.setattr('pipeline.sim.forge_runtime._urlopen', _fake_urlopen)
+    with pytest.raises(ValueError, match='no published SHA256'):
+        fr._temurin_asset()
 
 
 # --------------------------------------------------------------------------- #
@@ -427,3 +449,74 @@ def test_partial_fetch_does_not_publish_install(tmp_path: Path, monkeypatch: pyt
     assert not (tmp_path / '.forge.incomplete').exists()  # staging cleaned up
     with pytest.raises(ForgeUnavailableError):  # and it does not resolve as 'available'
         resolve(data_dir=tmp_path)
+
+
+# --------------------------------------------------------------------------- #
+# B1 — per-platform Forge profile / decks staging dir
+# --------------------------------------------------------------------------- #
+
+
+def _install(tmp_path: Path) -> ForgeInstall:
+    return ForgeInstall(forge_dir=tmp_path / 'forge', jar=tmp_path / 'forge' / 'jar', java=tmp_path / 'java')
+
+
+def test_decks_dir_macos_uses_application_support(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """B1: on macOS the staging dir is under ``~/Library/Application Support/Forge``."""
+    monkeypatch.setattr('pipeline.sim.forge_runtime.platform.system', lambda: 'Darwin')
+    decks = _install(tmp_path).decks_dir
+    assert decks == Path.home() / 'Library' / 'Application Support' / 'Forge' / 'decks'
+
+
+def test_decks_dir_linux_uses_dot_forge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """B1: on Linux the staging dir is ``~/.forge/decks`` (where Forge actually looks)."""
+    monkeypatch.setattr('pipeline.sim.forge_runtime.platform.system', lambda: 'Linux')
+    decks = _install(tmp_path).decks_dir
+    assert decks == Path.home() / '.forge' / 'decks'
+
+
+def test_temurin_os_maps_per_platform(monkeypatch: pytest.MonkeyPatch) -> None:
+    """B1: the Adoptium ``os`` slug is ``mac`` on Darwin, ``linux`` otherwise."""
+    monkeypatch.setattr('pipeline.sim.forge_runtime.platform.system', lambda: 'Darwin')
+    assert fr._temurin_os() == 'mac'
+    monkeypatch.setattr('pipeline.sim.forge_runtime.platform.system', lambda: 'Linux')
+    assert fr._temurin_os() == 'linux'
+
+
+# --------------------------------------------------------------------------- #
+# S3 — Windows fails cleanly (never downloads the wrong-OS JRE)
+# --------------------------------------------------------------------------- #
+
+
+def test_ensure_rejects_windows_before_download(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """S3: on Windows ``ensure`` raises a clean, actionable error and NEVER fetches."""
+    monkeypatch.delenv(ENV_FORGE_HOME, raising=False)
+    monkeypatch.delenv(ENV_JAVA, raising=False)
+    monkeypatch.setattr('pipeline.sim.forge_runtime.shutil.which', lambda _cmd: None)
+    monkeypatch.setattr('pipeline.sim.forge_runtime.platform.system', lambda: 'Windows')
+    monkeypatch.setattr(
+        'pipeline.sim.forge_runtime._fetch_and_extract',
+        lambda **_k: pytest.fail('must not download on Windows'),
+    )
+    with pytest.raises(ForgeUnavailableError, match='Windows is not supported'):
+        ensure(data_dir=tmp_path / 'data')
+
+
+# --------------------------------------------------------------------------- #
+# B2 — HTTPS-only redirect handler (reject https -> http downgrades)
+# --------------------------------------------------------------------------- #
+
+
+def test_redirect_handler_rejects_non_https_target() -> None:
+    """B2: a redirect ``Location`` that is not HTTPS is refused (downgrade guard)."""
+    handler = fr._HTTPSOnlyRedirectHandler()
+    req = urllib.request.Request('https://start/a')
+    with pytest.raises(urllib.error.URLError, match='non-HTTPS redirect'):
+        handler.redirect_request(req, io.BytesIO(b''), 302, 'Found', {}, 'http://evil/b')
+
+
+def test_redirect_handler_allows_https_target() -> None:
+    """B2: an HTTPS redirect target is followed (does not raise, builds a request)."""
+    handler = fr._HTTPSOnlyRedirectHandler()
+    req = urllib.request.Request('https://start/a')
+    out = handler.redirect_request(req, io.BytesIO(b''), 302, 'Found', {}, 'https://ok/b')
+    assert out is None or out.full_url == 'https://ok/b'

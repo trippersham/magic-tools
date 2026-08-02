@@ -18,7 +18,7 @@ download the pinned Forge 2.0.13 tarball (SHA256-verified against
 :data:`FORGE_TARBALL_SHA256`) + a Temurin 21 JRE and extract into the cache.
 
 Install location, headless flags, and the pinned SHA are all empirically
-grounded in ``~/mtg-sim-lab/forge_backend.py`` (Forge 2.0.13, Temurin 21).
+validated against Forge 2.0.13 + Temurin 21.
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ ENV_FORGE_HOME = 'MAKE_MAGIC_FORGE_HOME'
 #: Env var: path to a ``java`` binary to launch Forge with.
 ENV_JAVA = 'MAKE_MAGIC_JAVA'
 
-#: Pinned Forge release (matches the proven ~/mtg-sim-lab install).
+#: Pinned Forge release (the empirically-validated install target).
 FORGE_VERSION = '2.0.13'
 #: The desktop jar's glob inside a Forge home (version-tolerant match).
 FORGE_JAR_GLOB = 'forge-gui-desktop-*-jar-with-dependencies.jar'
@@ -68,21 +68,18 @@ FORGE_TARBALL_URL = (
     f'https://github.com/Card-Forge/forge/releases/download/'
     f'forge-{FORGE_VERSION}/forge-installer-{FORGE_VERSION}.tar.bz2'
 )
-#: SHA256 of the Forge installer tarball, computed once from
-#: ``~/mtg-sim-lab/forge.tar.bz2`` (``shasum -a 256``) and pinned here so a
-#: fetch-at-runtime download is verified before extraction.
+#: SHA256 of the Forge installer tarball (``shasum -a 256`` of the pinned
+#: release's ``.tar.bz2``), pinned here so a fetch-at-runtime download is
+#: verified before extraction.
 FORGE_TARBALL_SHA256 = 'df23b237095cfc5ff97a4711946b25ff852da9ff43b916c40783f6b5a41ce855'
 
-#: Adoptium API "latest 21 GA" binary endpoint — a STABLE redirect to the
-#: current Temurin JRE asset (whose real filename embeds the exact version, e.g.
-#: ``…_21.0.12_8.tar.gz``, so the version-less ``/releases/latest/download/`` path
-#: 404s — do NOT use that). Only reached on the fetch fallback; overrides /
-#: cached installs never hit it. The endpoint 307-redirects to a GitHub release
-#: asset (a ``.tar.gz``); ``urllib`` follows the redirect.
-_TEMURIN_API = 'https://api.adoptium.net/v3/binary/latest/21/ga'
-#: Adoptium ASSETS metadata endpoint — unlike the ``binary`` redirect it returns
-#: the JRE asset's download ``link`` AND its published ``checksum`` (SHA256) in
-#: one call, so a fetched JRE can be integrity-verified (see :func:`_temurin_asset`).
+#: Adoptium ASSETS metadata endpoint — returns the JRE asset's download ``link``
+#: AND its published ``checksum`` (SHA256) in one call, so a fetched JRE is
+#: integrity-verified (SHA-pinned) before its ``java`` binary is executed (see
+#: :func:`_temurin_asset`). The ``link`` 307-redirects to a GitHub release asset;
+#: the HTTPS-only opener (:func:`_urlopen`) follows it without allowing a
+#: downgrade. There is intentionally NO checksum-less binary-redirect fallback —
+#: an unverifiable JRE fails closed.
 _TEMURIN_ASSETS_API = 'https://api.adoptium.net/v3/assets/latest/21/ga'
 
 #: User-Agent for downloads. GitHub release-asset / Adoptium endpoints 403 or
@@ -101,6 +98,42 @@ _TRANSIENT_HTTP = frozenset({403, 429, 500, 502, 503, 504})
 #: This is a per-socket-op inactivity timeout, so a slow-but-moving ~350 MB
 #: stream is unaffected.
 _HTTP_TIMEOUT_S = 60.0
+
+
+class _HTTPSOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """A redirect handler that REFUSES to follow a redirect to a non-HTTPS target.
+
+    Both fetch targets are redirect-based (GitHub releases 302, Adoptium
+    ``binary/latest`` 307), and ``urllib``'s default handler silently follows an
+    ``https -> http`` DOWNGRADE. Since the downloaded ``java`` is then executed, a
+    network attacker who controls the redirect hop could serve a swapped binary
+    over plain HTTP — so a redirect ``Location`` that is not ``https://`` is
+    rejected here, closing the downgrade.
+    """
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: object,
+        code: int,
+        msg: str,
+        headers: object,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        if not newurl.lower().startswith('https://'):
+            raise urllib.error.URLError(f'refusing non-HTTPS redirect target: {newurl!r}')
+        return super().redirect_request(req, fp, code, msg, headers, newurl)  # type: ignore[arg-type]
+
+
+def _urlopen(req: urllib.request.Request, *, timeout: float):
+    """Open ``req`` through an opener that rejects ``https -> http`` redirects.
+
+    The single network entry point for both metadata and download fetches: builds
+    a fresh opener with :class:`_HTTPSOnlyRedirectHandler` so a downgrade on the
+    (always redirect-based) fetch hops cannot slip an unverified binary through.
+    """
+    opener = urllib.request.build_opener(_HTTPSOnlyRedirectHandler())
+    return opener.open(req, timeout=timeout)
 
 
 class ForgeUnavailableError(RuntimeError):
@@ -129,10 +162,26 @@ class ForgeInstall:
         """The Forge profile decks root the runner stages ``.dck`` files under.
 
         Forge resolves ``-d`` filenames against ``<profile>/decks/<fmt-dir>/``;
-        under the app-support profile this is the canonical location. The runner
-        appends the per-format subdir (``constructed/`` or ``commander/``).
+        the profile dir is PER-PLATFORM (macOS ``~/Library/Application Support/
+        Forge``, Linux ``~/.forge``), so decks staged here are exactly where Forge
+        looks. The runner appends the per-format subdir (``constructed/`` or
+        ``commander/``).
         """
-        return Path.home() / 'Library' / 'Application Support' / 'Forge' / 'decks'
+        return _forge_profile_dir() / 'decks'
+
+
+def _forge_profile_dir() -> Path:
+    """Forge's per-platform user-profile dir (the parent of ``decks/``).
+
+    Forge stores its profile under the OS-native app-data location: macOS uses
+    ``~/Library/Application Support/Forge``, Linux uses ``~/.forge``. Staging a
+    ``.dck`` anywhere else means Forge silently never finds it (it exits 0 on a
+    deck-load miss), so this MUST track Forge's own resolution. Windows is
+    rejected up-front (see :func:`_guard_supported_os`).
+    """
+    if platform.system() == 'Darwin':
+        return Path.home() / 'Library' / 'Application Support' / 'Forge'
+    return Path.home() / '.forge'
 
 
 def _find_jar(forge_dir: Path) -> Path | None:
@@ -236,6 +285,9 @@ def ensure(
     except ForgeUnavailableError:
         pass
 
+    # Fail Windows CLEANLY before burning a ~350 MB wrong-OS download (S3).
+    _guard_supported_os()
+
     if on_fetch is not None:
         on_fetch()
 
@@ -257,20 +309,26 @@ def ensure(
     return resolve(data_dir=root)
 
 
-def _temurin_url() -> str:
-    """Adoptium ``binary/latest`` redirect URL for this platform's Temurin 21 JRE.
+def _guard_supported_os() -> None:
+    """Reject Windows up-front with an actionable message (macOS / Linux only).
 
-    Resolves ``mac``/``linux`` x ``aarch64``/``x64`` into the ``binary/latest``
-    endpoint (:data:`_TEMURIN_API`), which 307-redirects to the current versioned
-    asset — so we never hardcode a JRE point-version that would rot. This is the
-    checksum-less FALLBACK for :func:`_temurin_asset` (used only when the assets
-    metadata call fails); the download is then gzip-validated on extract but not
-    SHA-pinned.
+    Forge staging (:func:`_forge_profile_dir`), the ``_launch_prefix`` xvfb
+    wrapping, and the Temurin OS mapping (:func:`_temurin_os`) are all built for
+    macOS + Linux. On Windows they would silently mis-resolve (wrong JRE, wrong
+    profile dir) and burn a ~350 MB download before an opaque JVM failure — so
+    fail CLEANLY before any of that, pointing at WSL2.
     """
-    machine = platform.machine().lower()
-    arch = 'aarch64' if machine in ('arm64', 'aarch64') else 'x64'
-    os_name = 'mac' if platform.system().lower() == 'darwin' else 'linux'
-    return f'{_TEMURIN_API}/{os_name}/{arch}/jre/hotspot/normal/eclipse'
+    if platform.system() == 'Windows':
+        raise ForgeUnavailableError('Windows is not supported; use WSL2 (a Linux env) to run Forge simulations.')
+
+
+def _temurin_os() -> str:
+    """Adoptium ``os`` slug for this platform (``mac`` on macOS, else ``linux``).
+
+    Windows is rejected earlier (:func:`_guard_supported_os`), so the only two
+    reachable values are ``mac`` and ``linux`` — a non-Darwin system is Linux.
+    """
+    return 'mac' if platform.system() == 'Darwin' else 'linux'
 
 
 def _parse_temurin_asset(payload: object) -> tuple[str, str | None]:
@@ -278,8 +336,8 @@ def _parse_temurin_asset(payload: object) -> tuple[str, str | None]:
 
     The ``/v3/assets/latest`` response is a non-empty list; the first entry's
     ``binary.package`` carries ``link`` (the ``.tar.gz`` URL) and ``checksum``
-    (its SHA256). Raises on an empty/unexpected shape so :func:`_temurin_asset`
-    can fall back to the checksum-less binary redirect.
+    (its SHA256). Raises on an empty/unexpected shape; a missing ``checksum``
+    yields a ``None`` that :func:`_temurin_asset` then treats as fail-closed.
     """
     if not isinstance(payload, list) or not payload:
         raise ValueError('empty or non-list Adoptium assets payload')
@@ -291,32 +349,31 @@ def _parse_temurin_asset(payload: object) -> tuple[str, str | None]:
     return link, checksum if isinstance(checksum, str) else None
 
 
-def _temurin_asset() -> tuple[str, str | None]:
-    """Resolve the Temurin 21 JRE ``(url, sha256|None)`` for this platform.
+def _temurin_asset() -> tuple[str, str]:
+    """Resolve the Temurin 21 JRE ``(url, sha256)`` for this platform — FAIL CLOSED.
 
-    PREFERS the Adoptium assets-metadata endpoint, which returns both the asset
-    ``link`` and its published ``checksum`` in one call — so the JRE can be
-    integrity-verified like Forge. On ANY failure (endpoint down, schema drift,
-    parse error) DEGRADES to the checksum-less ``binary/latest`` redirect
-    (:func:`_temurin_url`); a ``None`` checksum signals that fallback, and the
-    download is then still gzip-validated on extract, just not SHA-pinned (a
-    static pin is impossible against a moving "latest"). Network work — reached
-    only on the fetch path (``_fetch_and_extract`` is mocked in tests).
+    Uses the Adoptium assets-metadata endpoint, which returns both the asset
+    ``link`` and its published ``checksum`` in one call — so the JRE is
+    integrity-verified like Forge before its ``java`` binary is ever executed.
+    A missing checksum (or any endpoint/schema/parse failure) RAISES rather than
+    degrading to an unverified download: running an integrity-unchecked binary
+    fetched on a hostile network is the exact RCE gap this closes. Network work —
+    reached only on the fetch path (``_fetch_and_extract`` is mocked in tests).
     """
     machine = platform.machine().lower()
     arch = 'aarch64' if machine in ('arm64', 'aarch64') else 'x64'
-    os_name = 'mac' if platform.system().lower() == 'darwin' else 'linux'
+    os_name = _temurin_os()
     query = (
         f'{_TEMURIN_ASSETS_API}?architecture={arch}&heap_size=normal'
         f'&image_type=jre&jvm_impl=hotspot&os={os_name}&vendor=eclipse'
     )
-    try:
-        req = urllib.request.Request(query, headers={'User-Agent': _USER_AGENT})
-        with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_S) as resp:  # Adoptium public metadata API.
-            payload = json.load(resp)
-        return _parse_temurin_asset(payload)
-    except Exception:  # metadata unavailable/changed — degrade to the redirect URL.
-        return _temurin_url(), None
+    req = urllib.request.Request(query, headers={'User-Agent': _USER_AGENT})
+    with _urlopen(req, timeout=_HTTP_TIMEOUT_S) as resp:  # Adoptium public metadata API.
+        payload = json.load(resp)
+    url, checksum = _parse_temurin_asset(payload)
+    if checksum is None:
+        raise ValueError('Adoptium asset carries no published SHA256 checksum; refusing an unverifiable JRE')
+    return url, checksum
 
 
 def _fetch_and_extract(
@@ -370,15 +427,19 @@ def _fetch_and_extract(
 
 
 def _download_verified(url: str, dest: Path, *, sha256: str | None) -> None:
-    """:func:`_download` ``url`` to ``dest``, then SHA256-verify when ``sha256`` is set.
+    """:func:`_download` ``url`` to ``dest``, then SHA256-verify — FAIL CLOSED.
 
-    A ``None`` checksum (the Adoptium fallback) skips verification — the caller
-    still bz2/gzip-validates the archive on extract, which catches a truncated
-    download.
+    A ``None`` checksum is a HARD ERROR, not a skip: the downloaded ``java`` is
+    executed, so an unverifiable JRE (Adoptium metadata unreachable or its
+    published checksum missing) must abort the provision rather than run an
+    integrity-unchecked binary fetched over the network. bz2/gzip validation on
+    extract only catches truncation, never substitution — so it is NOT a
+    substitute for the SHA gate.
     """
+    if sha256 is None:
+        raise ValueError(f'refusing to install {url!r} without a published SHA256 checksum (fail-closed integrity gate)')
     _download(url, dest)
-    if sha256 is not None:
-        _verify_sha256(dest, sha256)
+    _verify_sha256(dest, sha256)
 
 
 def _download(url: str, dest: Path, *, attempts: int = _DOWNLOAD_ATTEMPTS) -> None:
@@ -404,7 +465,7 @@ def _download(url: str, dest: Path, *, attempts: int = _DOWNLOAD_ATTEMPTS) -> No
         try:
             req = urllib.request.Request(url, headers={'User-Agent': _USER_AGENT})
             with (
-                urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT_S) as resp,  # pinned URL + UA.
+                _urlopen(req, timeout=_HTTP_TIMEOUT_S) as resp,  # pinned URL + UA, HTTPS-only redirects.
                 dest.open('wb') as fh,
             ):
                 shutil.copyfileobj(resp, fh)
