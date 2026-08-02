@@ -267,7 +267,7 @@ class DuckDBCardResolver:
                 row = rel.filter(f"lower(name) = lower('{_sql_escape(name)}')").select(cols).limit(1).fetchone()
                 if row is None:
                     return None
-                record = dict(zip(_CARD_COLUMNS, row, strict=True))
+                record: dict[str, Any] = dict(zip(_CARD_COLUMNS, row, strict=True))
                 otags = self._otags_for(conn, record.get('oracle_id'))
         except Exception as exc:
             log.warning('card-dim: lake lookup for %r failed (%s); trying live.', name, exc)

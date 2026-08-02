@@ -264,7 +264,10 @@ class LocalYamlStore:
         for_deck: str | None = None,
         status: str | None = None,
         target_price: float | None = None,
-    ) -> None:
+    ) -> str | None:
+        # Local YAML persists every field, so no note is ever returned; the
+        # `str | None` return matches the port (an Airtable backend DOES drop
+        # unpersistable fields and returns a note), keeping the contract uniform.
         rows = self._read_list(self._chase_path())
         existing = next((r for r in rows if r['card'] == ref), None)
         if existing is None:

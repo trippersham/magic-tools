@@ -694,7 +694,7 @@ _COLOR_IDENTITY_NAMES = {'W': 'White', 'U': 'Blue', 'B': 'Black', 'R': 'Red', 'G
 
 def _color_identity(card: Any) -> list[str]:
     """Map the Card's single-letter color identity to the Airtable option names."""
-    return [_COLOR_IDENTITY_NAMES.get(c, c) for c in (card.color_identity or [])]
+    return [str(_COLOR_IDENTITY_NAMES.get(c, c)) for c in (card.color_identity or [])]
 
 
 def build_derived_card_payload(card: Any, price_usd: str | None) -> dict[str, Any]:
