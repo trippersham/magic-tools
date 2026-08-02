@@ -175,6 +175,27 @@ Then evaluate a deck against a bundled gauntlet of opponents:
 > on the metric that matches your question. The `simulating-games` skill states
 > these guardrails in full.
 
+## Deck sideboards
+
+A deck can carry **sideboard** cards alongside its maindeck. Every `DeckCard` has a
+`role`: unset (the default) for the maindeck, `commander` for a commander, and
+`sideboard` for a boarded card. The three sets partition the deck — a card is in
+exactly one — and basic lands stay as count fields on the deck.
+
+- **Airtable** — the maindeck links live in the deck's `Cards` field and sideboard
+  cards in a `Sideboard` linked-records field (auto-tolerated if the column is
+  absent). Basic-land quantity and per-card counts are preserved on save; the
+  deck-shrink safety guard measures the **maindeck** only, so boarding cards never
+  masks a maindeck that quietly lost cards.
+- **Local YAML** — each card row carries its `role`, so sideboards round-trip
+  through the local backend identically to Airtable (a legacy deck with no roles
+  loads as an all-maindeck deck).
+- **Export** — `simulate` and the `forge_dck` exporter render sideboard cards into
+  the `.dck` `[Sideboard]` section; the sim itself plays the **maindeck** only.
+
+Role is validated on load (an unknown value is rejected, not silently misfiled), and
+a deck with no sideboard renders byte-identically to one built before the feature.
+
 ## How it works
 
 - **Card data** — Scryfall, offline-first via a local DuckDB "medallion" lake

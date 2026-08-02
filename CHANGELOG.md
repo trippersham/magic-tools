@@ -38,6 +38,9 @@ follow [Semantic Versioning](https://semver.org/).
   DB are caught before a run (`--allow-missing` to override).
 - **Content-addressed matchup cache** in DuckDB — an unchanged deck-vs-deck matchup
   is never re-simulated; `--force` bypasses.
+- **Deck sideboard/role support** — decks carry maindeck, commander, and sideboard
+  cards; sideboard cards render into the `.dck` `[Sideboard]` section and round-trip
+  through both the local-YAML and Airtable backends.
 - **License, NOTICE, CONTRIBUTING, CHANGELOG** — the project is now licensed
   GPL-3.0-or-later, with third-party (Forge / Temurin) attribution.
 
@@ -47,3 +50,5 @@ follow [Semantic Versioning](https://semver.org/).
   preventing cache misattribution across duplicate deck names.
 - The external JVM timeout reaps the whole process group, so a hung Forge run under
   `xvfb-run` cannot leak a grandchild JVM.
+- Sideboard basics and quantities no longer corrupt the maindeck on save; the
+  deck-shrink safety guard counts the maindeck only.
