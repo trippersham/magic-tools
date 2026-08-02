@@ -4,15 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/).
 
-> **Versioning:** the version tracked here is the **plugin** version
-> (`.claude-plugin/plugin.json`) — the user-facing artifact installed from the
-> marketplace. The bundled `make-magic-pipeline` Python package
-> (`plugins/make-magic/pipeline/pyproject.toml`) carries its own independent
-> `0.x` version and is an internal implementation detail, not published to PyPI.
+> **Versioning:** the plugin (`.claude-plugin/plugin.json`) and the bundled
+> `make-magic-pipeline` Python package (`plugins/make-magic/pipeline/pyproject.toml`)
+> share a single **lockstep** version. While the project is pre-1.0, a bump of the
+> **minor** field (`0.x`) is treated as the major/breaking increment per the semver
+> `0.y.z` convention — an upgrade across it may include breaking changes.
 
 ## [Unreleased]
 
-## [0.5.0] — 2026-08-02
+## [0.6.0] — 2026-08-02
+
+First tagged public release — a **major (pre-1.0) drop**. It adds fetch-at-runtime
+Forge/JRE provisioning, relicenses the project **GPL-3.0-or-later**, and establishes
+the `simulate` CLI + deck schema surface. Anyone pinned to a `0.5.x`-era build should
+re-review on upgrade.
 
 ### Added
 
@@ -44,6 +49,24 @@ follow [Semantic Versioning](https://semver.org/).
 - **License, NOTICE, CONTRIBUTING, CHANGELOG** — the project is now licensed
   GPL-3.0-or-later, with third-party (Forge / Temurin) attribution.
 
+### Changed
+
+- Forge deck staging is now **per-platform** (macOS `~/Library/Application Support/Forge`,
+  Linux `~/.forge`), so the `simulate` feature works on Linux, not just macOS.
+- The first-run ~350 MB Forge/JRE download is **consent-gated** — it prompts on an
+  interactive terminal (or pass `--yes`), and auto-proceeds when non-interactive so
+  agents/CI aren't blocked.
+- **Windows is explicitly unsupported** — a clean early error (use WSL2) instead of a
+  cryptic mid-run JVM failure.
+
+### Security
+
+- **First-run JRE integrity is fail-closed.** A missing or unfetchable Temurin
+  checksum now aborts provisioning instead of silently skipping verification, and all
+  downloads reject non-HTTPS redirect targets — closing a gap where an unverified JRE
+  could be fetched and executed on a hostile network. (The Forge tarball was already
+  SHA256-pinned and verified before extraction.)
+
 ### Fixed
 
 - Governor results are paired to their exact matchup spec (not by deck name),
@@ -52,3 +75,12 @@ follow [Semantic Versioning](https://semver.org/).
   `xvfb-run` cannot leak a grandchild JVM.
 - Sideboard basics and quantities no longer corrupt the maindeck on save; the
   deck-shrink safety guard counts the maindeck only.
+- Sideboard cards on the `.dck` path are now covered by the Forge card-availability
+  guard (previously only `[main]`/`[commander]` were validated).
+- Cleared all strict-`pyright` errors and aligned the `add_chase` port/adapter return
+  contract across the collection backends.
+
+### Infrastructure
+
+- **Offline CI** (`pytest` + `ruff check` + `ruff format --check` + `pyright`) runs on
+  every push and pull request.

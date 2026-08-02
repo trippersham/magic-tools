@@ -1,6 +1,6 @@
 [project]
 name = "make-magic-pipeline"
-version = "0.1.0"
+version = "0.6.0"
 description = "Lightweight normalized data layer + pipeline for make-magic (DuckDB medallion lake + Pydantic edge contracts). Additive to the Airtable source-of-truth workflow; never degrades it."
 readme = "README.md"
 license = "GPL-3.0-or-later"

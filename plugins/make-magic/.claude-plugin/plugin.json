@@ -1,6 +1,6 @@
 {
   "name": "make-magic",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "MTG deck building, card chasing, inventory management, and Forge-backed game simulation — local-first, Scryfall-powered, with optional Airtable.",
   "author": {
     "name": "Tripp Wickersham"
