@@ -28,9 +28,6 @@ follow [Semantic Versioning](https://semver.org/).
   Forge `.dck` with filesystem-safe names; MDFC combined names (`A // B`) are
   rewritten to the front face Forge's loader accepts, and cards absent from Forge's
   DB are caught before a run (`--allow-missing` to override).
-- **Deck sideboard/role support** — decks carry maindeck, commander, and sideboard
-  cards; sideboard cards render into the `.dck` `[Sideboard]` section and round-trip
-  through both the local-YAML and Airtable backends.
 - **Content-addressed matchup cache** in DuckDB — an unchanged deck-vs-deck matchup
   is never re-simulated; `--force` bypasses.
 - **License, NOTICE, CONTRIBUTING, CHANGELOG** — the project is now licensed
@@ -42,5 +39,3 @@ follow [Semantic Versioning](https://semver.org/).
   preventing cache misattribution across duplicate deck names.
 - The external JVM timeout reaps the whole process group, so a hung Forge run under
   `xvfb-run` cannot leak a grandchild JVM.
-- Sideboard basics and quantities no longer corrupt the maindeck on save; the
-  deck-shrink safety guard counts the maindeck only.
