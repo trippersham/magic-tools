@@ -2,7 +2,19 @@
 name = "make-magic-pipeline"
 version = "0.1.0"
 description = "Lightweight normalized data layer + pipeline for make-magic (DuckDB medallion lake + Pydantic edge contracts). Additive to the Airtable source-of-truth workflow; never degrades it."
+readme = "README.md"
+license = "GPL-3.0-or-later"
+authors = [{ name = "Tripp Wickersham", email = "tripp@hominy.homes" }]
 requires-python = ">=3.12"
+keywords = ["mtg", "magic-the-gathering", "scryfall", "forge", "deckbuilding", "simulation"]
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment :: Board Games",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+]
 dependencies = [
     "beautifulsoup4>=4.12",
     "duckdb>=1.1",
@@ -20,6 +32,11 @@ airtable = ["pyairtable>=3.0"]
 # `scripts/deck_factsheet.py` edge (its offline `factsheet_from_deck` entry point)
 # in the pipeline venv. Not a runtime dependency of the pipeline package.
 dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1", "typer>=0.12"]
+
+[project.urls]
+Homepage = "https://github.com/trippersham/magic-tools"
+Repository = "https://github.com/trippersham/magic-tools"
+Issues = "https://github.com/trippersham/magic-tools/issues"
 
 [tool.uv]
 # Match the existing plugin scripts' reproducibility pin.

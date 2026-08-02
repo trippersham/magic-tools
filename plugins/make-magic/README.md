@@ -1,9 +1,10 @@
 # make-magic
 
-MTG deck building, card chasing, and inventory management for Claude Code —
-powered by **Scryfall**, with an **optional** shared Airtable base.
+MTG deck building, card chasing, inventory management, and **game simulation** for
+Claude Code — powered by **Scryfall**, with an **optional** shared Airtable base.
 
-Skills: **building-decks**, **chasing-cards**, **managing-inventory**.
+Skills: **building-decks**, **chasing-cards**, **managing-inventory**,
+**simulating-games**.
 
 > **Works out of the box — no account, no credential.** Card data comes from
 > Scryfall; your collection lives in a local store by default. Point it at a
@@ -117,6 +118,55 @@ export AIRTABLE_API_KEY="$(op read --account <your-1p-account> 'op://<Vault>/<It
 
 ---
 
+## Simulating games
+
+`simulating-games` plays **real, rules-enforced AI-vs-AI games** via
+[MTG Forge](https://github.com/Card-Forge/forge) and reports **win-rate ± CI**
+plus a numerical **telemetry profile** (kill-turn, win-margin, wincon mix, ramp
+curve). It answers one question empirically: *how does this deck actually play?*
+
+**No manual setup — Forge and Java self-provision.** The first time you run a
+game verb, make-magic downloads a pinned MTG Forge release and (if you don't
+already have a suitable Java) an Eclipse Temurin JRE — a **one-time ~350 MB
+download**, checksum-verified and cached under your data dir, reused thereafter.
+Nothing is bundled or redistributed; the download happens on your machine from
+the official upstreams (see the repo [NOTICE](../../NOTICE)). Already have Forge
+and/or Java? Point at them with `MAKE_MAGIC_FORGE_HOME` / `MAKE_MAGIC_JAVA` and no
+download occurs. **`uv` and Java both self-provision — you do not need to install
+a JDK.**
+
+Check the environment first (offline, no download, no game):
+
+```bash
+S="${CLAUDE_PLUGIN_ROOT}/scripts/simulate"
+
+"$S" doctor                    # reports Forge/Java availability + the safe JVM pool size
+"$S" doctor --provision        # fetch Forge + JRE now (the one-time ~350 MB download)
+```
+
+Then evaluate a deck against a bundled gauntlet of opponents:
+
+```bash
+"$S" deck "Krenko Goblins" --gauntlet guilds --games 30
+# a .dck file works too:  "$S" deck path/to/deck.dck --gauntlet curated --games 30
+"$S" ab "Krenko Goblins" variant.dck --gauntlet curated --games 30   # A/B two variants
+"$S" gauntlet show --source guilds                                    # list a bundled field
+```
+
+- **Gauntlets** — `curated` (a small default field), `guilds` (the shipped 30-deck
+  bundle: 10 two-color guilds × weak/mid/strong power tiers), or `mine`/`both`
+  (your own decks, needs a collection backend). Bundles are format-specific
+  (`guilds` is constructed).
+- **Sample size** — `--games` is *per opponent*. A few games is a smoke; budget
+  **~300 games per finalist** for a tight verdict (see the skill's guardrails).
+
+> **Read Forge results as directional, not ground truth.** Forge's opponents are a
+> rule-based AI: competent at fair beatdown/midrange, weak at control/combo/stax.
+> A deck that *can't* beat the gauntlet is genuinely flawed; a deck that *beats* it
+> is confirmed functional, not confirmed good. Always report the **± CI**, and rank
+> on the metric that matches your question. The `simulating-games` skill states
+> these guardrails in full.
+
 ## How it works
 
 - **Card data** — Scryfall, offline-first via a local DuckDB "medallion" lake
@@ -125,6 +175,15 @@ export AIRTABLE_API_KEY="$(op read --account <your-1p-account> 'op://<Vault>/<It
   configured. The skills read/write through one backend-agnostic `collection` CLI.
 - **Analysis** — a neutral fact sheet (curve, pips, ramp, interaction, otag
   buckets) plus otag-informed strategy fit; the skills own the judgment calls.
+- **Simulation** — deck → Forge `.dck` → a governed pool of headless Forge JVMs →
+  parsed win-rate + telemetry, cached in DuckDB so an unchanged matchup never
+  re-runs.
 
-Env vars: `MAKE_MAGIC_BACKEND` (`local` | `airtable`), `MAKE_MAGIC_DATA_DIR`
-(local store location), `AIRTABLE_API_KEY` (Airtable mode only).
+Env vars:
+
+- `MAKE_MAGIC_BACKEND` (`local` | `airtable`) — collection backend.
+- `MAKE_MAGIC_DATA_DIR` — local store / cache location (lake, DuckDB, collection
+  YAML, and the fetched Forge install all live here).
+- `AIRTABLE_API_KEY` — Airtable mode only.
+- `MAKE_MAGIC_FORGE_HOME` — path to an existing Forge install (skips the fetch).
+- `MAKE_MAGIC_JAVA` — path to an existing `java` binary (skips the JRE fetch).

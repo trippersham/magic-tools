@@ -1,14 +1,14 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "magic-tools",
-  "description": "MTG card inventory management toolkit with Airtable + Scryfall integration",
+  "description": "MTG toolkit for Claude Code: deck building, card chasing, inventory, and Forge-backed game simulation — local-first with Scryfall, optional Airtable.",
   "owner": {
     "name": "Tripp Wickersham"
   },
   "plugins": [
     {
       "name": "make-magic",
-      "description": "MTG card inventory management with Airtable + Scryfall",
+      "description": "MTG deck building, card chasing, inventory management, and AI-vs-AI game simulation (MTG Forge) — local-first, Scryfall-powered, optional Airtable.",
       "source": "./plugins/make-magic",
       "category": "productivity"
     }
