@@ -10,9 +10,10 @@ Skills: **building-decks**, **chasing-cards**, **managing-inventory**,
 > Scryfall; your collection lives in a local store by default. Point it at a
 > shared Airtable base only if you want to (see [Airtable (optional)](#airtable-optional)).
 
-Supported OS: **macOS / Linux**. You do **not** need to install `uv` — the plugin
-self-provisions a pinned copy on session start. Node 18+ is only needed for the
-optional Airtable MCP.
+Supported OS: **macOS / Linux** (the Forge-backed `simulate` verbs are
+macOS/Linux only; on **Windows use WSL2**). You do **not** need to install `uv`
+— the plugin self-provisions a pinned copy on session start. Node 18+ is only
+needed for the optional Airtable MCP.
 
 ---
 
@@ -134,6 +135,13 @@ the official upstreams (see the repo [NOTICE](../../NOTICE)). Already have Forge
 and/or Java? Point at them with `MAKE_MAGIC_FORGE_HOME` / `MAKE_MAGIC_JAVA` and no
 download occurs. **`uv` and Java both self-provision — you do not need to install
 a JDK.**
+
+On a **first** game verb in an interactive terminal, the ~350 MB download is
+gated on a `[y/N]` confirmation (so it never surprises you on a metered
+connection); pass `--yes`/`-y` to skip the prompt, or run `simulate doctor
+--provision` to fetch explicitly ahead of time. Non-interactive runs (agent / CI)
+auto-proceed. The JRE is downloaded only over HTTPS (redirect downgrades are
+refused) and SHA256-verified before its `java` is ever executed.
 
 Check the environment first (offline, no download, no game):
 

@@ -31,7 +31,8 @@ Then `/reload-plugins` (or restart). Verify with `${CLAUDE_PLUGIN_ROOT}/scripts/
 → **Full quickstart, local-mode usage, and optional Airtable setup:
 [plugins/make-magic/README.md](plugins/make-magic/README.md).**
 
-Supported OS: macOS / Linux. `uv` self-provisions; Node 18+ is only needed for the
+Supported OS: macOS / Linux (Forge-backed simulation is macOS/Linux only; on
+Windows use WSL2). `uv` self-provisions; Node 18+ is only needed for the
 optional Airtable MCP.
 
 ## License
