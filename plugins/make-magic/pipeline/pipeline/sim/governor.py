@@ -59,7 +59,11 @@ __all__ = (
     'run_matchups',
 )
 
-#: META-SAFETY ceiling on concurrent JVMs for any batch (never exceeded).
+#: META-SAFETY ceiling on concurrent JVMs for any batch (never exceeded, even on a
+#: big machine). 6 is empirical: beyond ~6 simultaneous Forge card-DB loads the
+#: shared I/O + memory pressure thrash and per-JVM start time balloons (3.8s solo →
+#: ~13.7s at 6-up), erasing the parallelism gain. The runtime pool is
+#: ``min(this, cores-2, free_ram/per_jvm)`` — usually smaller than this cap.
 DEFAULT_HARD_CAP = 6
 #: Per-JVM memory budget (GiB): ``-Xmx2g`` plus RSS overhead, rounded to ~2 GiB.
 DEFAULT_PER_JVM_GIB = 2.0
@@ -86,9 +90,7 @@ def free_ram_gib() -> float:
     """
     try:
         if sys.platform == 'darwin':
-            out = subprocess.run(
-                ['vm_stat'], capture_output=True, text=True, timeout=5, check=False
-            ).stdout
+            out = subprocess.run(['vm_stat'], capture_output=True, text=True, timeout=5, check=False).stdout
             pages: dict[str, int] = {}
             for line in out.splitlines():
                 if ':' in line:
@@ -96,11 +98,7 @@ def free_ram_gib() -> float:
                     val = val.strip().rstrip('.')
                     if val.isdigit():
                         pages[key.strip()] = int(val)
-            page_count = (
-                pages.get('Pages free', 0)
-                + pages.get('Pages inactive', 0)
-                + pages.get('Pages speculative', 0)
-            )
+            page_count = pages.get('Pages free', 0) + pages.get('Pages inactive', 0) + pages.get('Pages speculative', 0)
             return page_count * _PAGE / _GIB
         if sys.platform.startswith('linux'):
             for line in Path('/proc/meminfo').read_text().splitlines():
@@ -253,9 +251,7 @@ class Governor:
         semaphore + the executor size together cap concurrent JVMs at
         ``pool_size``.
         """
-        pool = self.pool_size or derive_pool_size(
-            hard_cap=self.hard_cap, per_jvm_gib=self.per_jvm_gib
-        )
+        pool = self.pool_size or derive_pool_size(hard_cap=self.hard_cap, per_jvm_gib=self.per_jvm_gib)
 
         results: list[MatchResult] = []
         failures: list[MatchFailure] = []

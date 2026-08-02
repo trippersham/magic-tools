@@ -88,7 +88,7 @@ class ForgeDckCardExporter:
 
         The name is resolved to the form Forge's deck loader accepts. With an
         availability oracle it goes through ``forge_deck_name`` (front face for an
-        MDFC whose combined ``A // B`` name Forge REJECTS; verbatim for a name
+        MDFC whose combined ``A // B`` name Forge REJECTS; unchanged for a name
         Forge already loads). Without an oracle — or when the oracle reports the
         name unloadable — a best-effort pure-string ``A // B`` → front-face repair
         still fixes the common MDFC case; a genuinely unloadable name is emitted

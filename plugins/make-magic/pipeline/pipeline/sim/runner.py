@@ -61,8 +61,13 @@ _LOAD_FAILURE_MARKERS = ('Could not load deck', 'No deck found in')
 #: on top of the caller's per-game timeout budget.
 _JVM_LOAD_HEADROOM_S = 120
 
-#: Base headless JVM args (shared across platforms). Xmx + DisableExplicitGC per
-#: the empirical tuning; the platform headless flag is added in :func:`_jvm_args`.
+#: Base headless JVM args (shared across platforms); the platform headless flag is
+#: added in :func:`_jvm_args`. Empirically tuned against Forge 2.0.13:
+#:   * ``-Xmx2g`` — a single Forge `sim` game fits comfortably in ~2 GiB; this caps
+#:     each JVM so the governor can size the pool by ``free_ram / per_jvm_budget``.
+#:   * ``-XX:+DisableExplicitGC`` — Forge calls ``System.gc()`` between games, which
+#:     under a parallel pool causes stop-the-world stalls that wreck throughput
+#:     (~2.8x better scaling + ~20% less RAM with it disabled). Load-bearing.
 _BASE_JVM_ARGS = ('-Xmx2g', '-XX:+DisableExplicitGC')
 
 

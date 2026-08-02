@@ -23,10 +23,10 @@ Rendering rules:
     - An MDFC/DFC combined name (``A // B``) is REWRITTEN to its front face ``A``:
       Forge's deck loader REJECTS the combined name (the card is silently dropped)
       and matches the front face. A true split card that Forge stores under its
-      combined name is emitted verbatim when an availability index confirms it;
-      without an index the ``A // B`` line is repaired to the front face
-      best-effort. See ``ForgeDckCardExporter._line_name`` /
-      ``ForgeCardIndex.forge_deck_name``.
+      own combined name is emitted unchanged (the loader's own name) when an
+      availability index confirms Forge knows that exact name; without an index
+      the ``A // B`` line is repaired to the front face best-effort. See
+      ``ForgeDckCardExporter._line_name`` / ``ForgeCardIndex.forge_deck_name``.
 """
 
 from __future__ import annotations

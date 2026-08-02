@@ -278,8 +278,13 @@ def _deck_drift(deck: Deck, store: CollectionStore) -> _DeckDrift:
     target = deck.target_size
     if baseline is None:
         return _DeckDrift(
-            baseline=None, current_size=current_size, target=target,
-            missing=[], diverged=False, recoverable=False, predicted_size=current_size,
+            baseline=None,
+            current_size=current_size,
+            target=target,
+            missing=[],
+            diverged=False,
+            recoverable=False,
+            predicted_size=current_size,
         )
 
     baseline_cards = baseline['cards']
@@ -311,7 +316,10 @@ def _deck_drift(deck: Deck, store: CollectionStore) -> _DeckDrift:
         else:
             with _lake.connect() as conn:
                 history = last_known_inventory_row(
-                    conn, store.backend_name, name=name, oracle_id=oracle_id  # type: ignore[arg-type]
+                    conn,
+                    store.backend_name,
+                    name=name,
+                    oracle_id=oracle_id,  # type: ignore[arg-type]
                 )
             tag = 'deleted-row' if history is not None else 'deleted-row:no-history'
         tagged.append((name, tag))
@@ -320,15 +328,15 @@ def _deck_drift(deck: Deck, store: CollectionStore) -> _DeckDrift:
     predicted_size = current_size + missing_qty
     # Recoverable ONLY when: not diverged, something IS missing, and re-adding the
     # missing set lands EXACTLY on target (never overfill; never a partial land).
-    recoverable = (
-        not diverged
-        and bool(tagged)
-        and target is not None
-        and predicted_size == target
-    )
+    recoverable = not diverged and bool(tagged) and target is not None and predicted_size == target
     return _DeckDrift(
-        baseline=baseline, current_size=current_size, target=target,
-        missing=tagged, diverged=diverged, recoverable=recoverable, predicted_size=predicted_size,
+        baseline=baseline,
+        current_size=current_size,
+        target=target,
+        missing=tagged,
+        diverged=diverged,
+        recoverable=recoverable,
+        predicted_size=predicted_size,
     )
 
 
@@ -441,8 +449,7 @@ def _rebuild_deck_to_baseline(deck: Deck, drift: _DeckDrift) -> Deck:
     shrink guard is never tripped.
     """
     cards = [
-        DeckCard(name=c['name'], role=c.get('role'), quantity=int(c.get('quantity') or 1))
-        for c in drift.baseline_cards
+        DeckCard(name=c['name'], role=c.get('role'), quantity=int(c.get('quantity') or 1)) for c in drift.baseline_cards
     ]
     return deck.model_copy(update={'cards': cards})
 
@@ -526,8 +533,11 @@ def _recover_decks(argv: list[str]) -> None:
         selected = [all_decks[n] for n in args.names]
     else:
         # Default: every under-target (targeted-and-below) deck.
-        selected = [d for d in all_decks.values() if d.target_size is not None
-                    and sum(c.quantity for c in d.cards) < d.target_size]
+        selected = [
+            d
+            for d in all_decks.values()
+            if d.target_size is not None and sum(c.quantity for c in d.cards) < d.target_size
+        ]
 
     selected.sort(key=lambda d: d.name)
 
@@ -547,15 +557,19 @@ def _recover_decks(argv: list[str]) -> None:
             skipped += 1
             continue
         if drift.diverged:
-            print(f'{header}: BLOCKED — diverged from baseline (holds cards not in the last-good '
-                  'snapshot; likely an active swap). Manual review required; recovering nothing.')
+            print(
+                f'{header}: BLOCKED — diverged from baseline (holds cards not in the last-good '
+                'snapshot; likely an active swap). Manual review required; recovering nothing.'
+            )
             blocked += 1
             continue
         if not drift.recoverable:
             # Subset, but re-adding wouldn't land exactly on target (e.g. an
             # overfill or a partial baseline). Block rather than guess.
-            print(f'{header}: BLOCKED — cannot land exactly on target '
-                  f'(predicted {drift.predicted_size} vs target {drift.target}); recovering nothing.')
+            print(
+                f'{header}: BLOCKED — cannot land exactly on target '
+                f'(predicted {drift.predicted_size} vs target {drift.target}); recovering nothing.'
+            )
             blocked += 1
             continue
 
@@ -568,8 +582,10 @@ def _recover_decks(argv: list[str]) -> None:
             else:
                 print(f'    + {name}  [{tag}]')
         if placeholder_count:
-            print(f'    ⚠ {placeholder_count} card(s) will be recreated as placeholders — '
-                  'verify their owned counts after recovery.')
+            print(
+                f'    ⚠ {placeholder_count} card(s) will be recreated as placeholders — '
+                'verify their owned counts after recovery.'
+            )
 
         if not args.confirm:
             recovered += 1  # would-recover count in dry-run.
@@ -681,12 +697,22 @@ def _list_chase(argv: list[str]) -> None:
 
 
 def _add_chase(argv: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog='collection add-chase')
-    parser.add_argument('ref')
-    parser.add_argument('--priority', type=int, default=None)
-    parser.add_argument('--for-deck', dest='for_deck', default=None)
-    parser.add_argument('--status', default=None)
-    parser.add_argument('--target-price', dest='target_price', type=float, default=None)
+    parser = argparse.ArgumentParser(
+        prog='collection add-chase',
+        description='Track a card you want to acquire (a "chase" card). '
+        'Note: --priority/--status/--target-price are NOT persisted by the Airtable backend (no such columns).',
+    )
+    parser.add_argument('ref', help='Card name (or Scryfall id) to chase; hydrated live from Scryfall.')
+    parser.add_argument('--priority', type=int, default=None, help='Optional priority rank (local backend only).')
+    parser.add_argument('--for-deck', dest='for_deck', default=None, help='Deck name this chase is intended for.')
+    parser.add_argument('--status', default=None, help='Optional status label (local backend only).')
+    parser.add_argument(
+        '--target-price',
+        dest='target_price',
+        type=float,
+        default=None,
+        help='Optional target acquisition price (local backend only).',
+    )
     args = parser.parse_args(argv)
     note = _store(writes_enabled=True).add_chase(
         args.ref,
@@ -720,16 +746,23 @@ def _list_trades(argv: list[str]) -> None:
 
 
 def _log_trade(argv: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog='collection log-trade')
-    parser.add_argument('--from-json', help='Path to a JSON Trade (- for stdin).')
-    parser.add_argument('--from-source', dest='from_source')
-    parser.add_argument('--to-destination', dest='to_destination')
+    parser = argparse.ArgumentParser(
+        prog='collection log-trade',
+        description='Record a trade. Provide a full JSON Trade via --from-json, or build one from the flags below.',
+    )
+    parser.add_argument('--from-json', help='Path to a JSON Trade (- for stdin). If set, the other flags are ignored.')
+    parser.add_argument('--from-source', dest='from_source', help="Trade source, e.g. a person or 'Deck'.")
+    parser.add_argument('--to-destination', dest='to_destination', help="Trade destination, e.g. a person or 'Deck'.")
     parser.add_argument('--from-deck', dest='from_deck', default=None, help="From (Deck) when Source == 'Deck'.")
     parser.add_argument('--to-deck', dest='to_deck', default=None, help="To (Deck) when Destination == 'Deck'.")
-    parser.add_argument('--status', default=None)
-    parser.add_argument('--notes', default=None)
-    parser.add_argument('--card-in', dest='cards_in', action='append', default=None)
-    parser.add_argument('--card-out', dest='cards_out', action='append', default=None)
+    parser.add_argument('--status', default=None, help='Optional trade status label.')
+    parser.add_argument('--notes', default=None, help='Free-text notes for the trade.')
+    parser.add_argument(
+        '--card-in', dest='cards_in', action='append', default=None, help='A card received (repeatable).'
+    )
+    parser.add_argument(
+        '--card-out', dest='cards_out', action='append', default=None, help='A card given away (repeatable).'
+    )
     args = parser.parse_args(argv)
     if args.from_json:
         raw = sys.stdin.read() if args.from_json == '-' else Path(args.from_json).read_text()
@@ -860,12 +893,16 @@ __all__ = ('main',)
 
 
 def main() -> None:
+    usage = (
+        "usage: collection <verb> [args...]   (run `collection <verb> -h` for a verb's flags)\n"
+        f'  verbs: {", ".join(sorted(VERBS))}'
+    )
+    # Explicit -h/--help -> usage on stdout, exit 0. No/unknown verb -> stderr, exit 2.
+    if len(sys.argv) >= 2 and sys.argv[1] in ('-h', '--help'):
+        print(usage)
+        return
     if len(sys.argv) < 2 or sys.argv[1] not in VERBS:
-        avail = ', '.join(sorted(VERBS))
-        print(
-            f'usage: python -m pipeline.collection.run <verb> [args...]\n  verbs: {avail}',
-            file=sys.stderr,
-        )
+        print(usage, file=sys.stderr)
         raise SystemExit(2)
     verb = sys.argv[1]
     # `ReadOnlyStoreError` lives in the lazily-imported Airtable adapter; import it

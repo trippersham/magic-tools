@@ -78,10 +78,34 @@ _DEFAULT_SEED = 42
 _FORMAT_CHOICES = ('constructed', 'commander')
 #: Gauntlet sources exposed on the CLI: the core sources + every named bundle
 #: shipped for any format (union), so ``--gauntlet <bundle>`` is accepted
-#: regardless of ``--format`` arg order. ``resolve_gauntlet`` still validates the
-#: (source, format) pairing at run time (a bundle only shipped for constructed
-#: raises for commander).
+#: regardless of ``--format`` arg order. The (source, format) pairing is validated
+#: EARLY by :func:`_validate_gauntlet` (before any Forge download) — a bundle only
+#: shipped for constructed is rejected under ``--format commander`` up front.
 _GAUNTLET_CHOICES = tuple(dict.fromkeys(src for fmt in _FORMAT_CHOICES for src in gauntlet_sources(fmt)))
+#: ``--gauntlet`` help — names the core sources and the shipped bundles so
+#: ``guilds`` (the flagship 30-deck field) is discoverable from ``-h``.
+_GAUNTLET_HELP = (
+    "opponent field: 'curated' (small default), 'mine'/'both' (your own decks, "
+    "needs a collection backend), or a shipped bundle — 'guilds' (30 decks: 10 "
+    "two-color guilds x weak/mid/strong, constructed only). Default 'curated'."
+)
+#: ``--format`` help, shared across verbs.
+_FORMAT_HELP = "deck format (default 'constructed'). 'commander' runs 1v1 EDH."
+
+
+def _validate_gauntlet(source: str, fmt: str) -> None:
+    """Reject a (gauntlet, format) mismatch UP FRONT, before Forge is provisioned.
+
+    ``_GAUNTLET_CHOICES`` is the union across formats, so argparse alone would let
+    e.g. ``--gauntlet guilds --format commander`` through and only fail deep inside
+    :func:`~pipeline.sim.core.simulate` — after a possible ~350 MB Forge download.
+    Validate here so the error is immediate and actionable (mirrors
+    :func:`~pipeline.sim.gauntlet.resolve_gauntlet`'s own check)."""
+    valid = gauntlet_sources(fmt)
+    if source not in valid:
+        raise CollectionError(
+            f'gauntlet {source!r} is not available for --format {fmt}; choose from {", ".join(valid)}'
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -302,12 +326,15 @@ def _guard_forge_availability(
 
 
 def _match(argv: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog='simulate match')
+    parser = argparse.ArgumentParser(
+        prog='simulate match',
+        description='Play a single head-to-head between two decks; print the raw win tally (no gauntlet, no CI).',
+    )
     parser.add_argument('deck_a', help='Deck A: a .dck path or an Airtable deck name.')
     parser.add_argument('deck_b', help='Deck B: a .dck path or an Airtable deck name.')
     parser.add_argument('-n', type=int, default=_DEFAULT_GAMES, help=f'games (default {_DEFAULT_GAMES}).')
     parser.add_argument('-s', '--seed', type=int, default=_DEFAULT_SEED, help=f'RNG seed (default {_DEFAULT_SEED}).')
-    parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default='constructed')
+    parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default='constructed', help=_FORMAT_HELP)
     parser.add_argument(
         '--allow-missing',
         action='store_true',
@@ -325,12 +352,18 @@ def _match(argv: list[str]) -> None:
 
 
 def _deck(argv: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog='simulate deck')
+    parser = argparse.ArgumentParser(
+        prog='simulate deck',
+        description='Evaluate one deck against a gauntlet of opponents; print win-rate ± CI, '
+        'per-opponent results, and a telemetry profile.',
+    )
     parser.add_argument('name', help='Candidate deck: a .dck path or an Airtable deck name.')
-    parser.add_argument('--gauntlet', choices=_GAUNTLET_CHOICES, default='curated')
-    parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default='constructed')
+    parser.add_argument('--gauntlet', choices=_GAUNTLET_CHOICES, default='curated', help=_GAUNTLET_HELP)
+    parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default='constructed', help=_FORMAT_HELP)
     parser.add_argument('--games', type=int, default=_DEFAULT_GAMES, help=f'games/opponent (default {_DEFAULT_GAMES}).')
-    parser.add_argument('--seed', type=int, default=_DEFAULT_SEED, help=f'RNG seed (default {_DEFAULT_SEED}).')
+    parser.add_argument(
+        '--seed', type=int, default=_DEFAULT_SEED, help=f'RNG seed (default {_DEFAULT_SEED}); part of the cache key.'
+    )
     parser.add_argument('--force', action='store_true', help='Bypass the matchup cache (re-run every matchup).')
     parser.add_argument(
         '--allow-missing',
@@ -339,6 +372,7 @@ def _deck(argv: list[str]) -> None:
     )
     args = parser.parse_args(argv)
 
+    _validate_gauntlet(args.gauntlet, args.fmt)
     candidate = _resolve_deck_arg(args.name)
     # `mine`/`both` need the collection store; `curated` never touches it.
     store = get_store() if args.gauntlet in ('mine', 'both') else None
@@ -358,13 +392,19 @@ def _deck(argv: list[str]) -> None:
 
 
 def _ab(argv: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog='simulate ab')
+    parser = argparse.ArgumentParser(
+        prog='simulate ab',
+        description='A/B two deck variants over the SAME gauntlet; print each win-rate ± CI, the delta, '
+        'and per-metric telemetry deltas.',
+    )
     parser.add_argument('deck_a', help='Variant A: a .dck path or an Airtable deck name.')
     parser.add_argument('deck_b', help='Variant B: a .dck path or an Airtable deck name.')
-    parser.add_argument('--gauntlet', choices=_GAUNTLET_CHOICES, default='curated')
-    parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default='constructed')
+    parser.add_argument('--gauntlet', choices=_GAUNTLET_CHOICES, default='curated', help=_GAUNTLET_HELP)
+    parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default='constructed', help=_FORMAT_HELP)
     parser.add_argument('--games', type=int, default=_DEFAULT_GAMES, help=f'games/opponent (default {_DEFAULT_GAMES}).')
-    parser.add_argument('--seed', type=int, default=_DEFAULT_SEED, help=f'RNG seed (default {_DEFAULT_SEED}).')
+    parser.add_argument(
+        '--seed', type=int, default=_DEFAULT_SEED, help=f'RNG seed (default {_DEFAULT_SEED}); part of the cache key.'
+    )
     parser.add_argument('--force', action='store_true', help='Bypass the matchup cache (re-run every matchup).')
     parser.add_argument(
         '--allow-missing',
@@ -373,6 +413,7 @@ def _ab(argv: list[str]) -> None:
     )
     args = parser.parse_args(argv)
 
+    _validate_gauntlet(args.gauntlet, args.fmt)
     variant_a = _resolve_deck_arg(args.deck_a)
     variant_b = _resolve_deck_arg(args.deck_b)
     store = get_store() if args.gauntlet in ('mine', 'both') else None
@@ -413,14 +454,19 @@ def _fmt_signed(value: float | None) -> str:
 
 
 def _gauntlet(argv: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog='simulate gauntlet')
+    parser = argparse.ArgumentParser(
+        prog='simulate gauntlet',
+        description='Inspect a PACKAGED gauntlet field (offline — no Forge, no store, no network). '
+        'Only `show` is supported.',
+    )
     parser.add_argument('action', choices=('show',), help='Only `show` is supported.')
-    parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default='constructed')
+    parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default='constructed', help=_FORMAT_HELP)
     parser.add_argument(
         '--source',
         default='curated',
-        help='Which packaged gauntlet to list: `curated` (default) or a named bundle '
-        f'(shipped: {", ".join(gauntlet_sources("constructed"))}).',
+        help="which PACKAGED gauntlet to list — 'curated' (default) or a named bundle shipped for "
+        "the chosen --format (e.g. 'guilds' for constructed). 'mine'/'both' are NOT valid here "
+        '(they need a live store). Default curated.',
     )
     args = parser.parse_args(argv)
     # `show` lists PACKAGED opponents only (no store, no Forge, no network), so
@@ -442,7 +488,11 @@ def _doctor(argv: list[str]) -> None:
     it prints an ACTIONABLE "not available / how to enable" message and exits
     non-zero — never a traceback.
     """
-    parser = argparse.ArgumentParser(prog='simulate doctor')
+    parser = argparse.ArgumentParser(
+        prog='simulate doctor',
+        description='Report Forge/Java availability, the runtime-derived safe JVM pool size, and a '
+        'free-RAM/disk snapshot. Read-only unless --provision is passed.',
+    )
     parser.add_argument(
         '--provision',
         action='store_true',
@@ -499,7 +549,11 @@ def _log(argv: list[str]) -> None:
     """
     from pipeline.sim.store import deck_hash, find_matchups, get_cached, get_game_logs
 
-    parser = argparse.ArgumentParser(prog='simulate log')
+    parser = argparse.ArgumentParser(
+        prog='simulate log',
+        description='Retrieve a stored per-game verbose Forge log for a past matchup (offline, from DuckDB) — '
+        'for forensic deep-diving. Without --game, lists matching matchups; with --game N, prints that game.',
+    )
     parser.add_argument('deck_a', help='Deck A: a .dck path (offline) or an Airtable deck name (live lookup).')
     parser.add_argument('deck_b', help='Deck B: a .dck path (offline) or an Airtable deck name (live lookup).')
     parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default=None, help='Narrow to a format.')
@@ -588,23 +642,40 @@ VERBS = {
     'doctor': _doctor,
 }
 
+#: One-line summary per verb for the top-level usage/`--help`.
+_VERB_SUMMARIES = {
+    'deck': 'evaluate a deck vs a gauntlet → win-rate ± CI + telemetry',
+    'ab': 'A/B two variants over the same gauntlet',
+    'match': 'a single head-to-head win tally (no gauntlet)',
+    'gauntlet': 'inspect a packaged gauntlet field (offline)',
+    'log': 'retrieve a stored per-game Forge log (offline forensics)',
+    'doctor': 'check Forge/Java availability + safe pool size',
+}
+
+
+def _usage() -> str:
+    """The top-level usage block listing every verb + a one-line summary."""
+    lines = ["usage: simulate <verb> [args...]   (run `simulate <verb> -h` for a verb's flags)", '', 'verbs:']
+    lines += [f'  {verb:<9} {_VERB_SUMMARIES.get(verb, "")}' for verb in VERBS]
+    return '\n'.join(lines)
+
 
 def main(argv: list[str] | None = None) -> None:
     """Dispatch ``argv[0]`` to the matching verb handler.
 
-    Unknown/absent verb -> usage on stderr + ``SystemExit(2)``. Expected,
+    Explicit ``-h``/``--help`` -> the top-level usage (verb list) on stdout, exit 0.
+    No verb or an unknown verb -> usage on stderr + ``SystemExit(2)``. Expected,
     user-facing failures (Forge unavailable/failed, unknown deck, bad gauntlet
     source, missing creds) surface as a clean one-line ``error:`` + exit 1 — a
     genuine defect still tracebacks (mirrors ``collection/run.py``). ``SystemExit``
     (argparse, the doctor guard) passes through untouched.
     """
     args = list(sys.argv[1:] if argv is None else argv)
+    if args and args[0] in ('-h', '--help'):
+        print(_usage())
+        return
     if not args or args[0] not in VERBS:
-        avail = ', '.join(sorted(VERBS))
-        print(
-            f'usage: simulate <verb> [args...]\n  verbs: {avail}',
-            file=sys.stderr,
-        )
+        print(_usage(), file=sys.stderr)
         raise SystemExit(2)
     verb = args[0]
     try:

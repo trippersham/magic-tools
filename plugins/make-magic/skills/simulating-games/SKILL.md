@@ -52,8 +52,11 @@ If you catch yourself about to:
   before the deck's construction. Read the telemetry, not just the tally.
 - **Draw a conclusion from ~20 games** — STOP. That's ±~20 points; it's directional.
   Say "directional," or run more games.
-- **Invent a flag** (`--iterations`, `--vs`, `--verbose`, `--json`) — STOP. Only the
-  flags in the [router](#operation-router) exist. Grep `pipeline/sim/run.py` if unsure.
+- **Invent a flag** (`--iterations`, `--vs`, `--verbose`, `--json`) — STOP. The real
+  flags are `--gauntlet`, `--format`, `--games`, `--seed`, `--force`, `--allow-missing`
+  (game verbs), `--provision` (`doctor`), `--source` (`gauntlet show`), and `log`'s
+  narrowing flags. Run `simulate <verb> -h` (or `simulate -h`) — or grep
+  `pipeline/sim/run.py` — if unsure; don't guess a flag that isn't there.
 </red-flags>
 
 ## The CLI: `simulate`
@@ -76,11 +79,20 @@ Forge/Java auto-resolve (override with `MAKE_MAGIC_FORGE_HOME` + `MAKE_MAGIC_JAV
 `match` / `deck` / `ab` spawn real Forge, so confirm Forge is reachable before a long run:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/simulate doctor
+${CLAUDE_PLUGIN_ROOT}/scripts/simulate doctor              # read-only check
+${CLAUDE_PLUGIN_ROOT}/scripts/simulate doctor --provision  # fetch Forge + JRE now (one-time ~350MB)
 ```
-It prints the runtime-derived **safe pool size** (concurrent JVMs), a free-RAM/disk
-snapshot, and whether Forge is available (with an actionable "how to enable" if not). If
-`doctor` reports Forge NOT AVAILABLE, stop and surface its message — do not attempt a run.
+Plain `doctor` prints the runtime-derived **safe pool size** (concurrent JVMs), a
+free-RAM/disk snapshot, and whether Forge is available (with an actionable "how to
+enable" if not) — and never downloads. `doctor --provision` performs the one-time
+Forge + JRE fetch up front (otherwise the first `match`/`deck`/`ab` auto-provisions it).
+If `doctor` reports Forge NOT AVAILABLE and you don't want to provision, stop and surface
+its message — do not attempt a run.
+
+**`--allow-missing`.** Game verbs hard-fail before spawning a JVM if a deck references a
+card absent from Forge's DB (a genuinely unloadable name — not just a name-only card).
+Pass `--allow-missing` to proceed anyway (that card is simply dropped by Forge). Prefer
+fixing the deck; use the flag only when you deliberately want to sim the loadable subset.
 
 ## Prerequisites
 

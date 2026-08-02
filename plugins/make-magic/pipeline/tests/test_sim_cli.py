@@ -298,6 +298,25 @@ def test_gauntlet_show_rejects_live_sources(source: str, capsys: pytest.CaptureF
     assert 'packaged decks only' in capsys.readouterr().err
 
 
+def test_gauntlet_format_mismatch_rejected_before_forge(capsys: pytest.CaptureFixture[str]) -> None:
+    """A constructed-only bundle under `--format commander` fails EARLY with a clean
+    error — before Forge is provisioned (the ``--gauntlet guilds`` footgun fix)."""
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', 'x.dck', '--gauntlet', 'guilds', '--format', 'commander'])
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'guilds' in err and 'commander' in err
+
+
+def test_top_level_help_lists_verbs(capsys: pytest.CaptureFixture[str]) -> None:
+    """`simulate -h` prints the verb catalog to stdout and exits 0 (no SystemExit)."""
+    sim_run.main(['-h'])
+    out = capsys.readouterr().out
+    assert 'verbs:' in out
+    for verb in ('deck', 'ab', 'match', 'gauntlet', 'log', 'doctor'):
+        assert verb in out
+
+
 # --------------------------------------------------------------------------- #
 # doctor
 # --------------------------------------------------------------------------- #
@@ -402,8 +421,13 @@ def test_match_auto_provisions_via_ensure(
     def _fake_run_matchup(inst: ForgeInstall, a: tuple[str, str], b: tuple[str, str], **_: object) -> MatchResult:
         assert inst is install  # the ensure()-provided install is threaded through.
         return MatchResult(
-            deck_a=a[0], deck_b=b[0], wins_a=1, wins_b=0, draws=0,
-            per_game=(GameOutcome(winner='a', elapsed_ms=1000),), raw_log='(elided)',
+            deck_a=a[0],
+            deck_b=b[0],
+            wins_a=1,
+            wins_b=0,
+            draws=0,
+            per_game=(GameOutcome(winner='a', elapsed_ms=1000),),
+            raw_log='(elided)',
         )
 
     monkeypatch.setattr(sim_run, 'run_matchup', _fake_run_matchup)
