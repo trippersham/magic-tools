@@ -23,6 +23,7 @@ Covered:
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
@@ -102,6 +103,7 @@ _FIELDS: dict[str, dict[str, str]] = {
         'Strategy': 'fldStrategy',
         'Commander': 'fldCommander',
         'Cards': 'fldCards',
+        'Sideboard': 'fldSideboard',
         'Repeat Cards Count': 'fldRepeat',
         'Plains': 'fldPlains',
         'Islands': 'fldIslands',
@@ -1003,3 +1005,106 @@ def test_list_decks_tolerates_missing_skill_authored_fields() -> None:
     assert decks[0].strategy == 'aggro'
     assert decks[0].assessment is None
     assert decks[0].focus_otags == []
+
+
+# --------------------------------------------------------------------------- #
+# Sideboard (role='sideboard') — Airtable `Sideboard` link field
+# --------------------------------------------------------------------------- #
+
+
+def _deck_with_sideboard_fixture() -> FakeAirtable:
+    """A deck whose Sideboard link -> two cards, alongside a maindeck card."""
+    inv = _FIELDS['Inventory Cards']
+    cards = [
+        {'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}},
+        {'id': 'recLlan', 'fields': {inv['Card Name']: 'Llanowar Elves'}},
+        {'id': 'recGrum', 'fields': {inv['Card Name']: 'Grumgully, the Generous'}},
+    ]
+    d = _FIELDS['Decks']
+    deck = {
+        'id': 'recDeck',
+        'fields': {
+            d['Name']: 'SB Deck',
+            d['Cards']: ['recSol'],
+            d['Sideboard']: ['recLlan', 'recGrum'],
+            d['Forests']: 8,
+        },
+    }
+    return FakeAirtable({'tblCards': cards, 'tblDecks': [deck]})
+
+
+def test_get_deck_hydrates_sideboard_link_as_role_sideboard() -> None:
+    deck = _store(_deck_with_sideboard_fixture()).get_deck('SB Deck')
+    assert [c.name for c in deck.maindeck if c.name != 'Forest'] == ['Sol Ring']
+    assert {c.name for c in deck.sideboard} == {'Llanowar Elves', 'Grumgully, the Generous'}
+    assert all(c.role == 'sideboard' for c in deck.sideboard)
+    # sideboard cards are hydrated too (not name-only).
+    assert deck.sideboard[0].oracle_id is not None
+
+
+def test_get_deck_tolerates_missing_sideboard_field(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A base without the Sideboard column -> empty sideboard, no crash."""
+    decks_fields = {k: v for k, v in _FIELDS['Decks'].items() if k != 'Sideboard'}
+    monkeypatch.setitem(_FIELDS, 'Decks', decks_fields)
+    deck = _store(_deck_fixture()).get_deck('Gruul Aggro')
+    assert deck.sideboard == []
+
+
+def test_save_deck_writes_sideboard_link() -> None:
+    fake = _inv_id_fixture()
+    deck = Deck(
+        name='SB Save',
+        cards=[
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Llanowar Elves', role='sideboard'),
+            DeckCard(name='Grumgully, the Generous', role='sideboard'),
+        ],
+    )
+    _store(fake, writes_enabled=True).save_deck(deck)
+    body = json.loads(next(r for r in fake.requests if r.method == 'POST' and 'tblDecks' in str(r.url)).content)
+    d = _FIELDS['Decks']
+    f = body['fields']
+    assert f[d['Cards']] == ['recSol']  # maindeck only
+    assert set(f[d['Sideboard']]) == {'recLlan', 'recGrum'}  # sideboard link
+
+
+def test_cross_backend_parity_maindeck_commander_sideboard(tmp_path: Path) -> None:
+    """Same Deck -> identical maindeck/commander/sideboard partition via BOTH adapters.
+
+    Airtable (mocked FakeAirtable) and local-YAML (real tmp store) must agree on
+    the role partition after a save->read round-trip.
+    """
+    from pipeline.collection.adapters.local_yaml import LocalYamlStore
+
+    deck = Deck(
+        name='Parity',
+        cards=[
+            DeckCard(name='Grumgully, the Generous', role='commander'),
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Llanowar Elves', role='sideboard'),
+        ],
+    )
+
+    # Airtable round-trip (save then read from the same fake).
+    fake = _inv_id_fixture()
+    at = _store(fake, writes_enabled=True)
+    at.save_deck(deck)
+    at_deck = at.get_deck('Parity')
+
+    # local-YAML round-trip (real tmp store with the same stub resolver shape).
+    local = LocalYamlStore(resolver=_StubCardResolver(), collection_root=tmp_path / 'col')  # type: ignore[arg-type]
+    local.save_deck(deck)
+    local_deck = local.get_deck('Parity')
+
+    def partition(d: Deck) -> tuple[set[str], set[str], set[str]]:
+        return (
+            {c.name for c in d.maindeck},
+            {c.name for c in d.commanders},
+            {c.name for c in d.sideboard},
+        )
+
+    assert partition(at_deck) == partition(local_deck) == (
+        {'Sol Ring'},
+        {'Grumgully, the Generous'},
+        {'Llanowar Elves'},
+    )

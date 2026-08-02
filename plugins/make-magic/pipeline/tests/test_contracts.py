@@ -570,3 +570,34 @@ def test_spoiler_missing_required_rejected() -> None:
 def test_spoiler_extra_field_forbidden() -> None:
     with pytest.raises(ValidationError):
         Spoiler(slug='x', set_code='EOE', name='X', source='scryfall', mystery='y')  # type: ignore[call-arg]
+
+
+def test_deck_roles_partition_maindeck_commander_sideboard() -> None:
+    """`maindeck`, `commanders`, and `sideboard` are disjoint and cover `cards`."""
+    from pipeline.contracts import Deck, DeckCard
+
+    deck = Deck(
+        name='Roles',
+        cards=[
+            DeckCard(name='Atraxa, Praetors Voice', role='commander'),
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Forest', quantity=10),
+            DeckCard(name='Pithing Needle', role='sideboard'),
+            DeckCard(name='Naturalize', role='sideboard'),
+        ],
+    )
+    assert [c.name for c in deck.commanders] == ['Atraxa, Praetors Voice']
+    assert {c.name for c in deck.sideboard} == {'Pithing Needle', 'Naturalize'}
+    assert {c.name for c in deck.maindeck} == {'Sol Ring', 'Forest'}
+    # partition: disjoint + total, no double-count.
+    partition = deck.maindeck + deck.commanders + deck.sideboard
+    assert len(partition) == len(deck.cards)
+    assert {id(c) for c in partition} == {id(c) for c in deck.cards}
+
+
+def test_deck_no_sideboard_is_empty() -> None:
+    from pipeline.contracts import Deck, DeckCard
+
+    deck = Deck(name='NoSB', cards=[DeckCard(name='Sol Ring'), DeckCard(name='Island', quantity=17)])
+    assert deck.sideboard == []
+    assert {c.name for c in deck.maindeck} == {'Sol Ring', 'Island'}

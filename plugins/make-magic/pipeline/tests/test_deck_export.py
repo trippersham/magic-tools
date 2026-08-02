@@ -123,3 +123,58 @@ def test_sideboard_section_present_and_empty() -> None:
     deck = Deck(name='SB', cards=[DeckCard(name='Island', quantity=20)])
     lines = _lines(ForgeDckExporter().export(deck))
     assert '[Sideboard]' in lines
+
+
+def test_sideboard_cards_render_in_sideboard_section_not_main() -> None:
+    """role=='sideboard' cards go in [Sideboard]; excluded from [Main]."""
+    deck = Deck(
+        name='SB Deck',
+        cards=[
+            DeckCard(name='Llanowar Elves', quantity=4),
+            DeckCard(name='Forest', quantity=20),
+            DeckCard(name='Pithing Needle', role='sideboard'),
+            DeckCard(name='Naturalize', quantity=2, role='sideboard'),
+        ],
+    )
+    lines = _lines(ForgeDckExporter().export(deck))
+    main_idx = lines.index('[Main]')
+    sb_idx = lines.index('[Sideboard]')
+    main_body = lines[main_idx + 1 : sb_idx]
+    sb_body = lines[sb_idx + 1 :]
+    # maindeck in [Main], sideboard NOT in [Main]
+    assert '4 Llanowar Elves' in main_body
+    assert '20 Forest' in main_body
+    assert not any('Pithing Needle' in ln for ln in main_body)
+    assert not any('Naturalize' in ln for ln in main_body)
+    # sideboard in [Sideboard], same `<qty> <name>` form
+    assert '1 Pithing Needle' in sb_body
+    assert '2 Naturalize' in sb_body
+
+
+def test_no_sideboard_render_is_byte_identical_to_pre_sideboard() -> None:
+    """HARD REQ: a deck with no sideboard renders byte-for-byte as before.
+
+    The gauntlet cache + logs are keyed on identical .dck text, so the added
+    sideboard emission must not perturb a no-sideboard deck. The expected text is
+    the exact pre-feature output (metadata, [Main] with maindeck lines, empty
+    [Sideboard]).
+    """
+    deck = Deck(
+        name='Mono-Green Stompy',
+        cards=[
+            DeckCard(name='Forest', quantity=24),
+            DeckCard(name='Llanowar Elves', quantity=4),
+            DeckCard(name='Ghalta, Primal Hunger', quantity=2),
+        ],
+    )
+    expected = (
+        '[metadata]\n'
+        'Name=Mono-Green Stompy\n'
+        'Deck Type=Constructed\n'
+        '[Main]\n'
+        '24 Forest\n'
+        '4 Llanowar Elves\n'
+        '2 Ghalta, Primal Hunger\n'
+        '[Sideboard]'
+    )
+    assert ForgeDckExporter().export(deck) == expected

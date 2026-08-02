@@ -14,12 +14,16 @@ against Forge 2.0.13):
     [Sideboard]
 
 Rendering rules:
-    - Every non-commander ``DeckCard`` becomes one ``<quantity> <name>`` line in
-      ``[Main]`` (basics arrive as a single DeckCard with ``quantity>1`` — one
-      line, not repeated). Set codes are omitted (the DeckCard carries none).
+    - Each maindeck ``DeckCard`` (``role`` is neither ``commander`` nor
+      ``sideboard``) becomes one ``<quantity> <name>`` line in ``[Main]`` (basics
+      arrive as a single DeckCard with ``quantity>1`` — one line, not repeated).
+      Set codes are omitted (the DeckCard carries none).
     - Commanders (``deck.commanders`` / ``role == 'commander'``) go in
       ``[Commander]`` and are EXCLUDED from ``[Main]``; their presence flips
       ``Deck Type`` to ``Commander``.
+    - Sideboard cards (``deck.sideboard`` / ``role == 'sideboard'``) go in
+      ``[Sideboard]`` and are EXCLUDED from ``[Main]``; a deck with no sideboard
+      leaves ``[Sideboard]`` empty (byte-identical to a pre-sideboard render).
     - An MDFC/DFC combined name (``A // B``) is REWRITTEN to its front face ``A``:
       Forge's deck loader REJECTS the combined name (the card is silently dropped)
       and matches the front face. A true split card that Forge stores under its
@@ -78,9 +82,12 @@ class ForgeDckExporter:
     def export(self, deck: Deck) -> str:
         """Render ``deck`` to Forge ``.dck`` INI text (no trailing newline).
 
-        Commanders are derived via :attr:`Deck.commanders` (``role ==
-        'commander'``) and excluded from ``[Main]``; their presence sets
-        ``Deck Type=Commander``.
+        The three roles partition the deck (see :class:`~pipeline.contracts.Deck`):
+        commanders (``role == 'commander'``) render in ``[Commander]``, sideboard
+        cards (``role == 'sideboard'``) in ``[Sideboard]``, and the maindeck
+        (everything else) in ``[Main]``. A commander's presence sets
+        ``Deck Type=Commander``. A deck with NO sideboard renders an empty
+        ``[Sideboard]`` line exactly as before (byte-stable).
         """
         commanders = deck.commanders
         deck_type = 'Commander' if commanders else 'Constructed'
@@ -95,9 +102,12 @@ class ForgeDckExporter:
             lines.extend(self._card_line(c) for c in commanders)
 
         lines.append('[Main]')
-        lines.extend(self._card_line(card) for card in deck.cards if card.role != 'commander')
+        lines.extend(self._card_line(card) for card in deck.maindeck)
 
         lines.append('[Sideboard]')
+        # Sideboard cards use the SAME `<qty> <name>` line form as [Main]; a deck
+        # with no sideboard leaves this section empty (byte-identical to before).
+        lines.extend(self._card_line(card) for card in deck.sideboard)
         return '\n'.join(lines)
 
     def _card_line(self, card: DeckCard) -> str:

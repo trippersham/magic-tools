@@ -28,6 +28,8 @@ Hydration sources (design note): they differ by read.
 Deck reconstruction (design): a `Deck.cards` list is rebuilt from
     - the ``Commander`` link  -> `DeckCard(role='commander')`
     - the ``Cards`` link       -> maindeck `DeckCard`s (quantity 1 each)
+    - the ``Sideboard`` link  -> `DeckCard(role='sideboard')` (OPTIONAL field,
+      read tolerantly like Assessment/Focus Otags; empty when the base lacks it)
     - the basic-land count fields (Plains/Islands/…) -> a `DeckCard` per nonzero
       count, with that quantity
     - ``Repeat Cards Count`` is carried on the deck for fidelity (the per-card
@@ -266,6 +268,10 @@ class AirtableCollectionStore:
     _DECK_FOCUS: ClassVar[str] = 'Focus Otags'
     _DECK_COMMANDER: ClassVar[str] = 'Commander'
     _DECK_CARDS: ClassVar[str] = 'Cards'
+    #: Sideboard link -> DeckCards with role='sideboard'. OPTIONAL on a base (read
+    #: via `_get_optional`, like Assessment/Focus Otags): a base without the field
+    #: just yields an empty sideboard. Created out-of-band (skill/MCP), not here.
+    _DECK_SIDEBOARD: ClassVar[str] = 'Sideboard'
     #: Human-owned deck format (drives target size; the engine READS but never WRITES it).
     _DECK_FORMAT: ClassVar[str] = 'Format'
     _DECK_REPEAT: ClassVar[str] = 'Repeat Cards Count'
@@ -970,6 +976,10 @@ class AirtableCollectionStore:
             cards.append(DeckCard(**_fields(name_map.get(rid, rid)), role='commander'))
         for rid in _as_list(self._get(t, rec, self._DECK_CARDS)):
             cards.append(DeckCard(**_fields(name_map.get(rid, rid))))
+        # Sideboard link -> role='sideboard'. `_get_optional` tolerates a base
+        # without the field (empty sideboard), mirroring Assessment/Focus Otags.
+        for rid in _as_list(self._get_optional(t, rec, self._DECK_SIDEBOARD)):
+            cards.append(DeckCard(**_fields(name_map.get(rid, rid)), role='sideboard'))
         for field_name, land_name in BASIC_LAND_FIELDS:
             count = int(self._get(t, rec, field_name) or 0)
             if count:
@@ -1102,6 +1112,7 @@ class AirtableCollectionStore:
 
         commander_names: list[str] = []
         card_names: list[str] = []
+        sideboard_names: list[str] = []
         basic_counts: dict[str, int] = {}
         repeat_count = 0
         for c in deck.cards:
@@ -1110,11 +1121,13 @@ class AirtableCollectionStore:
                 basic_counts[land_field] = basic_counts.get(land_field, 0) + c.quantity
             elif c.role == 'commander':
                 commander_names.append(c.name)
+            elif c.role == 'sideboard':
+                sideboard_names.append(c.name)
             else:
                 card_names.append(c.name)
                 repeat_count += max(c.quantity - 1, 0)
 
-        if commander_names or card_names:
+        if commander_names or card_names or sideboard_names:
             inv_map = self._inventory_id_map()
             if commander_names:
                 fields[self._fid(t, self._DECK_COMMANDER)] = self._resolve_links(
@@ -1122,6 +1135,14 @@ class AirtableCollectionStore:
                 )
             if card_names:
                 fields[self._fid(t, self._DECK_CARDS)] = self._resolve_links(card_names, inv_map, kind='deck card')
+            # Only touch the (optional) Sideboard field when there ARE sideboard
+            # cards, so a no-sideboard save never errors on a base lacking it —
+            # the write itself stays strict (like Focus Otags), so a real
+            # sideboard write to a base without the field raises AirtableConfigError.
+            if sideboard_names:
+                fields[self._fid(t, self._DECK_SIDEBOARD)] = self._resolve_links(
+                    sideboard_names, inv_map, kind='sideboard card'
+                )
         for field_name, count in basic_counts.items():
             fields[self._fid(t, field_name)] = count
         if repeat_count:

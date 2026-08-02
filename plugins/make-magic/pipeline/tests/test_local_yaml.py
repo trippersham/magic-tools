@@ -437,3 +437,24 @@ def test_list_trades_ignores_extra_key(adapter: LocalYamlStore) -> None:
     assert len(trades) == 1
     assert trades[0].from_source == 'Store'
     assert trades[0].cards_in == ['Sol Ring']
+
+
+def test_sideboard_role_round_trips(adapter: LocalYamlStore) -> None:
+    """role='sideboard' survives save->load in the local YAML store."""
+    deck = Deck(
+        name='SB Round Trip',
+        cards=[
+            DeckCard(name='Grumgully, the Generous', role='commander'),
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Llanowar Elves', role='sideboard'),
+            DeckCard(name='Sol Ring', quantity=2, role='sideboard'),
+        ],
+    )
+    adapter.save_deck(deck)
+    loaded = adapter.get_deck('SB Round Trip')
+    assert [c.name for c in loaded.commanders] == ['Grumgully, the Generous']
+    assert [c.name for c in loaded.maindeck] == ['Sol Ring']
+    sb = {(c.name, c.quantity) for c in loaded.sideboard}
+    assert sb == {('Llanowar Elves', 1), ('Sol Ring', 2)}
+    # every sideboard card kept role='sideboard'
+    assert all(c.role == 'sideboard' for c in loaded.sideboard)

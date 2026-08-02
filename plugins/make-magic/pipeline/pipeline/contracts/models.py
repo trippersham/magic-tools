@@ -152,7 +152,10 @@ class DeckCard(Card):
     quantity: int = Field(default=1, description='Number of copies of this card in the deck.')
     role: str | None = Field(
         default=None,
-        description='Deck role, e.g. "commander"; None = maindeck. (`str` now; a Literal can come later.)',
+        description=(
+            'Deck role: "commander" / "sideboard" / None = maindeck. Roles are '
+            'mutually exclusive and partition the deck. (`str` now; a Literal can come later.)'
+        ),
     )
 
 
@@ -206,6 +209,21 @@ class Deck(BaseModel):
     def commanders(self) -> list[DeckCard]:
         """The deck's commander cards — derived from `DeckCard.role == "commander"`."""
         return [c for c in self.cards if c.role == 'commander']
+
+    @property
+    def sideboard(self) -> list[DeckCard]:
+        """The deck's sideboard cards — derived from `DeckCard.role == "sideboard"`."""
+        return [c for c in self.cards if c.role == 'sideboard']
+
+    @property
+    def maindeck(self) -> list[DeckCard]:
+        """The maindeck — every card that is NOT a commander or sideboard card.
+
+        The three roles (`None`/maindeck, `"commander"`, `"sideboard"`) partition
+        `cards` with no overlap, so `maindeck`, `commanders`, and `sideboard` are
+        disjoint and together cover the whole deck.
+        """
+        return [c for c in self.cards if c.role not in ('commander', 'sideboard')]
 
     @property
     def target_size(self) -> int | None:
