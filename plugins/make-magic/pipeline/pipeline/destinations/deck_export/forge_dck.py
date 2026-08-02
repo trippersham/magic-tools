@@ -1,7 +1,7 @@
 """Forge ``.dck`` adapter — render a :class:`~pipeline.contracts.Deck` to INI text.
 
-Emits the INI shape MTG Forge's headless ``sim`` parses (empirically verified in
-``~/mtg-sim-lab/forge_backend.py`` against Forge 2.0.13):
+Emits the INI shape MTG Forge's headless ``sim`` parses (empirically verified
+against Forge 2.0.13):
 
     [metadata]
     Name=<deck name>

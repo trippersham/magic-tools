@@ -6,8 +6,7 @@ resolves), enforces an EXTERNAL subprocess timeout + kill (Forge's own ``-c`` is
 only the in-game draw clock), and hands the captured log to :func:`parse_match_log`.
 
 Parsing is a pure function so it is unit-testable against real captured logs.
-Every gotcha below is empirically grounded in ``~/mtg-sim-lab/forge_backend.py``
-(Forge 2.0.13, Temurin 21):
+Every gotcha below is empirically validated against Forge 2.0.13 + Temurin 21:
 
   * Count ONLY ``Game Result:`` lines. Each finished game ALSO prints a
     ``Game Outcome: … has won`` twin — tallying both DOUBLE-counts every win.

@@ -1,9 +1,8 @@
 """Resource-safety concurrency governor for parallel Forge sim JVMs.
 
 Runs MANY matchups across a bounded, resource-safe worker pool so a batch can
-never exhaust the machine. Ported from the live-tested prototype
-``~/mtg-sim-lab/empirical2/governor.py`` with all ``psutil`` usage converted to
-STDLIB-only resource detection.
+never exhaust the machine. Ported from a live-tested prototype and hardened to
+STDLIB-only resource detection (no ``psutil`` dependency).
 
 Guarantees (enforced, not hoped):
 
