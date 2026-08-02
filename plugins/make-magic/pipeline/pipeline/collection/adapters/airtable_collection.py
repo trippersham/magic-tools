@@ -62,7 +62,7 @@ import httpx
 from pipeline.collection.errors import CollectionError
 from pipeline.collection.guards import check_remove_allowed, shrink_check
 from pipeline.config import AirtableConfigError, AirtableResolver, get_settings
-from pipeline.contracts import ChaseCard, Deck, DeckCard, OwnedCard, Trade
+from pipeline.contracts import ROLE_COMMANDER, ROLE_SIDEBOARD, ChaseCard, Deck, DeckCard, OwnedCard, Trade
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -973,13 +973,13 @@ class AirtableCollectionStore:
 
         cards: list[DeckCard] = []
         for rid in _as_list(self._get(t, rec, self._DECK_COMMANDER)):
-            cards.append(DeckCard(**_fields(name_map.get(rid, rid)), role='commander'))
+            cards.append(DeckCard(**_fields(name_map.get(rid, rid)), role=ROLE_COMMANDER))
         for rid in _as_list(self._get(t, rec, self._DECK_CARDS)):
             cards.append(DeckCard(**_fields(name_map.get(rid, rid))))
         # Sideboard link -> role='sideboard'. `_get_optional` tolerates a base
         # without the field (empty sideboard), mirroring Assessment/Focus Otags.
         for rid in _as_list(self._get_optional(t, rec, self._DECK_SIDEBOARD)):
-            cards.append(DeckCard(**_fields(name_map.get(rid, rid)), role='sideboard'))
+            cards.append(DeckCard(**_fields(name_map.get(rid, rid)), role=ROLE_SIDEBOARD))
         for field_name, land_name in BASIC_LAND_FIELDS:
             count = int(self._get(t, rec, field_name) or 0)
             if count:
@@ -1116,13 +1116,23 @@ class AirtableCollectionStore:
         basic_counts: dict[str, int] = {}
         repeat_count = 0
         for c in deck.cards:
-            if c.name in BASIC_LAND_TO_FIELD:
+            # ROLE FIRST — a sideboard/commander card is routed by its role even
+            # when it is a basic land (a boarded basic). Only a MAINDECK basic
+            # (role None) folds into the count fields; folding a sideboard basic
+            # there would silently erase it and inflate the maindeck.
+            if c.role == ROLE_COMMANDER:
+                commander_names.append(c.name)
+            elif c.role == ROLE_SIDEBOARD:
+                sideboard_names.append(c.name)
+                # Airtable link fields are a SET of record ids — they cannot carry
+                # per-card quantity (true for the maindeck too). Record the excess
+                # in Repeat Cards Count exactly like the maindeck path, so the
+                # aggregate Deck Size stays correct and the loss is bookkept, never
+                # silent (local-YAML keeps full per-card quantity).
+                repeat_count += max(c.quantity - 1, 0)
+            elif c.name in BASIC_LAND_TO_FIELD:
                 land_field = BASIC_LAND_TO_FIELD[c.name]
                 basic_counts[land_field] = basic_counts.get(land_field, 0) + c.quantity
-            elif c.role == 'commander':
-                commander_names.append(c.name)
-            elif c.role == 'sideboard':
-                sideboard_names.append(c.name)
             else:
                 card_names.append(c.name)
                 repeat_count += max(c.quantity - 1, 0)

@@ -601,3 +601,31 @@ def test_deck_no_sideboard_is_empty() -> None:
     deck = Deck(name='NoSB', cards=[DeckCard(name='Sol Ring'), DeckCard(name='Island', quantity=17)])
     assert deck.sideboard == []
     assert {c.name for c in deck.maindeck} == {'Sol Ring', 'Island'}
+
+
+# --------------------------------------------------------------------------- #
+# DeckCard.role validation (S4): normalize known roles, reject unknown ones.
+# --------------------------------------------------------------------------- #
+
+
+def test_deckcard_role_rejects_unknown_value() -> None:
+    """A typo'd/unknown non-empty role is a loud error, not a silent maindeck card."""
+    with pytest.raises(ValidationError, match='role'):
+        DeckCard(name='Sol Ring', role='sidebord')  # typo
+    with pytest.raises(ValidationError, match='role'):
+        DeckCard(name='Sol Ring', role='main')  # 'main' is spelled as role=None, not a value
+
+
+def test_deckcard_role_normalizes_case_and_whitespace() -> None:
+    """Known roles are canonicalized (case/whitespace-insensitive) so a hand-typed
+    `role: Sideboard` correctly becomes a sideboard card rather than silently maindeck."""
+    assert DeckCard(name='X', role='Sideboard').role == 'sideboard'
+    assert DeckCard(name='X', role=' commander ').role == 'commander'
+    assert DeckCard(name='X', role='COMMANDER').role == 'commander'
+
+
+def test_deckcard_role_empty_is_maindeck() -> None:
+    """An empty / whitespace-only role means no role (maindeck), not an error."""
+    assert DeckCard(name='X', role='').role is None
+    assert DeckCard(name='X', role='   ').role is None
+    assert DeckCard(name='X', role=None).role is None

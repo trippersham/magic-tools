@@ -9,6 +9,9 @@ the model is the single source of truth.
 from __future__ import annotations
 
 from pipeline.contracts.models import (
+    DECK_CARD_ROLES,
+    ROLE_COMMANDER,
+    ROLE_SIDEBOARD,
     Card,
     ChaseCard,
     Deck,
@@ -28,6 +31,9 @@ from pipeline.contracts.models import (
 )
 
 __all__ = (
+    'DECK_CARD_ROLES',
+    'ROLE_COMMANDER',
+    'ROLE_SIDEBOARD',
     'Card',
     'ChaseCard',
     'Deck',

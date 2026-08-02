@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pipeline.contracts import ROLE_SIDEBOARD
+
 if TYPE_CHECKING:
     from pipeline.collection.store import CollectionStore
     from pipeline.contracts import Deck
@@ -45,8 +47,17 @@ class DeckImpact(BaseModel):
 
 
 def _deck_size(deck: Deck) -> int:
-    """Σ card quantities — the deck's current total size."""
-    return sum(c.quantity for c in deck.cards)
+    """Σ quantities of the cards that COUNT TOWARD the target — the maindeck +
+    commanders + basics, EXCLUDING the sideboard.
+
+    The size guards compare this against ``target_size`` (60/100), and sideboard
+    cards are NOT part of that count — a 60-card deck has 60 maindeck cards plus a
+    separate sideboard. Counting the sideboard would let a save that guts the
+    maindeck (moving cards to the sideboard) sail past :func:`shrink_check` while
+    the real deck shrinks below legal — the exact automated-destruction failure the
+    guard exists to stop. So the guard measures the maindeck, not the raw total.
+    """
+    return sum(c.quantity for c in deck.cards if c.role != ROLE_SIDEBOARD)
 
 
 def _ref_quantity(deck: Deck, ref: str) -> int:

@@ -246,3 +246,31 @@ def test_local_remove_card_unlinked_removes_with_default_force(local_store: Loca
     local_store.add_card('Black Lotus', qty=1)
     local_store.remove_card('Black Lotus')
     assert 'Black Lotus' not in {c.name for c in local_store.list_inventory()}
+
+
+# --------------------------------------------------------------------------- #
+# S2: the shrink guard must count the MAINDECK, not sideboard cards. A save that
+# moves maindeck cards into the sideboard keeps the raw total but shrinks the
+# real deck — the guard must still trip (this is the July-incident protection).
+# --------------------------------------------------------------------------- #
+
+
+def test_shrink_check_ignores_sideboard_cards() -> None:
+    """Moving maindeck cards to the sideboard (raw total unchanged) still trips the guard."""
+    prior = _deck('Legal60', [DeckCard(name=f'Card{i}') for i in range(60)], fmt='Modern')
+    # 45 maindeck + 15 sideboard = 60 raw total, but only 45 count toward the 60 target.
+    new_cards = [DeckCard(name=f'Card{i}') for i in range(45)] + [
+        DeckCard(name=f'SB{i}', role='sideboard') for i in range(15)
+    ]
+    new = _deck('Legal60', new_cards, fmt='Modern')
+    assert shrink_check(prior, new) is True
+
+
+def test_shrink_check_sideboard_addition_does_not_trip() -> None:
+    """Adding a sideboard to an at-target deck (maindeck unchanged) is NOT a shrink."""
+    prior = _deck('Legal60', [DeckCard(name=f'Card{i}') for i in range(60)], fmt='Modern')
+    new_cards = [DeckCard(name=f'Card{i}') for i in range(60)] + [
+        DeckCard(name=f'SB{i}', role='sideboard') for i in range(15)
+    ]
+    new = _deck('Legal60', new_cards, fmt='Modern')
+    assert shrink_check(prior, new) is False

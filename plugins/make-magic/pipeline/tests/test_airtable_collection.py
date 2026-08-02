@@ -1103,8 +1103,105 @@ def test_cross_backend_parity_maindeck_commander_sideboard(tmp_path: Path) -> No
             {c.name for c in d.sideboard},
         )
 
-    assert partition(at_deck) == partition(local_deck) == (
-        {'Sol Ring'},
-        {'Grumgully, the Generous'},
-        {'Llanowar Elves'},
+    assert (
+        partition(at_deck)
+        == partition(local_deck)
+        == (
+            {'Sol Ring'},
+            {'Grumgully, the Generous'},
+            {'Llanowar Elves'},
+        )
     )
+
+
+# --------------------------------------------------------------------------- #
+# B1: a SIDEBOARD basic must be LINKED in the Sideboard field, NOT folded into
+# the maindeck count fields (which silently vanishes it and inflates the
+# maindeck — the July deck-drift failure class).
+# --------------------------------------------------------------------------- #
+
+
+def _inv_id_fixture_with_forest() -> FakeAirtable:
+    inv = _FIELDS['Inventory Cards']
+    cards = [
+        {'id': 'recGrum', 'fields': {inv['Card Name']: 'Grumgully, the Generous'}},
+        {'id': 'recSol', 'fields': {inv['Card Name']: 'Sol Ring'}},
+        {'id': 'recLlan', 'fields': {inv['Card Name']: 'Llanowar Elves'}},
+        {'id': 'recForest', 'fields': {inv['Card Name']: 'Forest'}},
+    ]
+    return FakeAirtable({'tblCards': cards, 'tblDecks': []})
+
+
+def _saved_deck_fields(fake: FakeAirtable) -> dict[str, Any]:
+    body = json.loads(next(r for r in fake.requests if r.method == 'POST' and 'tblDecks' in str(r.url)).content)
+    return body['fields']
+
+
+def test_save_deck_sideboard_basic_is_linked_not_folded_into_counts() -> None:
+    """A sideboard Forest links in Sideboard; only maindeck Forests fold into the count."""
+    fake = _inv_id_fixture_with_forest()
+    deck = Deck(
+        name='SB Basic',
+        cards=[
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Forest', quantity=20),  # maindeck basics -> count field
+            DeckCard(name='Forest', quantity=1, role='sideboard'),  # sideboard basic -> Sideboard link
+        ],
+    )
+    _store(fake, writes_enabled=True).save_deck(deck)
+    f = _saved_deck_fields(fake)
+    d = _FIELDS['Decks']
+    assert f[d['Forests']] == 20  # NOT 21 — sideboard Forest is not folded in
+    assert 'recForest' in f[d['Sideboard']]  # the sideboard basic is linked
+
+
+def test_save_deck_sideboard_quantity_folds_into_repeat_count() -> None:
+    """A sideboard quantity>1 records the excess in Repeat Cards Count (like maindeck),
+    never a silent drop that diverges from the local-YAML backend."""
+    fake = _inv_id_fixture()
+    deck = Deck(
+        name='SB Qty',
+        cards=[
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Llanowar Elves', quantity=3, role='sideboard'),
+        ],
+    )
+    _store(fake, writes_enabled=True).save_deck(deck)
+    f = _saved_deck_fields(fake)
+    d = _FIELDS['Decks']
+    assert f[d['Sideboard']] == ['recLlan']
+    assert f[d['Repeat Cards Count']] == 2  # 3 copies -> 2 excess recorded
+
+
+def test_cross_backend_parity_with_sideboard_basic_and_quantity(tmp_path: Path) -> None:
+    """Strengthened parity: a sideboard BASIC + a qty>1 sideboard card partition
+    identically across both backends (the shapes B1/S1 previously corrupted)."""
+    from pipeline.collection.adapters.local_yaml import LocalYamlStore
+
+    deck = Deck(
+        name='ParityHard',
+        cards=[
+            DeckCard(name='Sol Ring'),
+            DeckCard(name='Forest', quantity=17),
+            DeckCard(name='Llanowar Elves', quantity=3, role='sideboard'),
+            DeckCard(name='Forest', quantity=1, role='sideboard'),
+        ],
+    )
+    fake = _inv_id_fixture_with_forest()
+    at = _store(fake, writes_enabled=True)
+    at.save_deck(deck)
+    at_deck = at.get_deck('ParityHard')
+
+    local = LocalYamlStore(resolver=_StubCardResolver(), collection_root=tmp_path / 'col')  # type: ignore[arg-type]
+    local.save_deck(deck)
+    local_deck = local.get_deck('ParityHard')
+
+    def names(cards: list[DeckCard]) -> set[str]:
+        return {c.name for c in cards}
+
+    # Role partition parity holds across both backends (names + roles).
+    assert names(at_deck.sideboard) == names(local_deck.sideboard) == {'Llanowar Elves', 'Forest'}
+    assert names(at_deck.maindeck) == names(local_deck.maindeck) == {'Sol Ring', 'Forest'}
+    # The maindeck Forest count is preserved (not inflated by the sideboard Forest).
+    at_main_forest = next(c for c in at_deck.maindeck if c.name == 'Forest')
+    assert at_main_forest.quantity == 17
