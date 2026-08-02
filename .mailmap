@@ -1,0 +1,7 @@
+# Canonicalize commit author/committer identity.
+#
+# Some commits were made under a misconfigured local email; map them to the
+# canonical GitHub no-reply address so `git log`/`git shortlog`/`git blame` and
+# GitHub's contributor graph attribute them correctly — without rewriting history.
+# Format: Canonical Name <canonical-email> <commit-email-to-map>
+Tripp Wickersham <trippersham@users.noreply.github.com> <tripp@hominy.homes>
