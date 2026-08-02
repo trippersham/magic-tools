@@ -49,12 +49,20 @@ def test_dck_card_names_parses_main_and_commander() -> None:
     assert sim_run._dck_card_names(text) == ['Atraxa, Praetors Voice', 'Lightning Bolt', 'Island']
 
 
+def test_dck_card_names_includes_sideboard() -> None:
+    """S4: the sideboard is validated too — a Forge-unloadable sideboard card must
+    not slip past the guard on the ``.dck`` path (the Airtable path already checks it)."""
+    text = '[Main]\n4 Lightning Bolt\n[Sideboard]\n2 Pyroblast\n'
+    assert sim_run._dck_card_names(text) == ['Lightning Bolt', 'Pyroblast']
+
+
 def test_dck_card_names_parses_real_forge_dck_format() -> None:
     """A .dck exported by Forge itself uses LOWERCASE section headers and
     ``name|SET`` / ``name|SET|art`` pinned printings (see forge/res/cube/*.dck).
     The guard must validate the NAME, not `name|SET` (a guaranteed index miss →
     a false BLOCKING error on a perfectly loadable deck), and must not silently
-    skip a `[main]` section it fails to recognize.
+    skip a `[main]` section it fails to recognize. The sideboard is validated too
+    (S4), so its cards are included with the name-only normalization.
     """
     text = (
         '[metadata]\nName=Cube\n'
@@ -64,7 +72,7 @@ def test_dck_card_names_parses_real_forge_dck_format() -> None:
         '2 Island\n'
         '[sideboard]\n2 Pyroblast|ICE\n'
     )
-    assert sim_run._dck_card_names(text) == ['Lightning Bolt', 'Dauntless Bodyguard', 'Island']
+    assert sim_run._dck_card_names(text) == ['Lightning Bolt', 'Dauntless Bodyguard', 'Island', 'Pyroblast']
 
 
 def test_guard_raises_on_absent_card(monkeypatch: pytest.MonkeyPatch) -> None:

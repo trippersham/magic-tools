@@ -91,6 +91,8 @@ _GAUNTLET_HELP = (
 )
 #: ``--format`` help, shared across verbs.
 _FORMAT_HELP = "deck format (default 'constructed'). 'commander' runs 1v1 EDH."
+#: ``--yes`` help, shared across the game verbs (first-run download consent).
+_YES_HELP = 'Auto-confirm the one-time ~350MB Forge download on first use (skip the TTY prompt).'
 
 
 def _validate_gauntlet(source: str, fmt: str) -> None:
@@ -172,15 +174,51 @@ def _forge_fetch_notice() -> None:
     )
 
 
-def _ensure_forge() -> ForgeInstall:
+def _confirm_forge_download(*, assume_yes: bool) -> None:
+    """Gate the ~350 MB first-run download on consent when stdin is a TTY.
+
+    A stranger typing ``simulate deck …`` to explore should not silently pull
+    ~350 MB on a possibly-metered connection. So on the fetch path:
+
+      * ``--yes`` (``assume_yes``) or a NON-interactive stdin (agent / CI / pipe)
+        proceeds without a prompt — the auto-provision promise is kept for
+        automation.
+      * an INTERACTIVE stdin (a TTY) is asked to confirm; a non-``y`` answer
+        aborts with a clean :class:`ForgeUnavailableError` naming the escape
+        hatches (``--yes`` / ``doctor --provision``).
+    """
+    if assume_yes or not sys.stdin.isatty():
+        return
+    print(
+        f'Forge is not installed. Download Forge {FORGE_VERSION} + a JRE now '
+        '(~350MB, one-time, cached for reuse)?',
+        file=sys.stderr,
+    )
+    answer = input('  proceed? [y/N] ').strip().lower()
+    if answer not in ('y', 'yes'):
+        raise ForgeUnavailableError(
+            'Forge download declined. Re-run with --yes to auto-provision, or '
+            '`simulate doctor --provision` to install Forge explicitly.'
+        )
+
+
+def _ensure_forge(*, assume_yes: bool = False) -> ForgeInstall:
     """Resolve Forge for a game verb, AUTO-PROVISIONING (fetch) on first use.
 
     Game verbs (``match`` / ``deck`` / ``ab``) call this instead of the read-only
     :func:`~pipeline.sim.forge_runtime.resolve` so a fresh box provisions Forge
     itself on the first run (the design's fetch-at-runtime promise), surfacing a
-    one-time notice before the download. An impossible fetch (offline) still
-    raises ``ForgeUnavailableError`` → the ``main`` handler prints a clean error.
+    one-time notice before the download. When the fetch path is reached AND stdin
+    is a TTY, the ~350 MB pull is gated on confirmation (:func:`_confirm_forge_download`)
+    unless ``--yes`` was passed; agent/CI (non-interactive stdin) proceed silently.
+    An impossible fetch (offline) still raises ``ForgeUnavailableError`` → the
+    ``main`` handler prints a clean error.
     """
+    try:
+        return resolve()
+    except ForgeUnavailableError:
+        pass
+    _confirm_forge_download(assume_yes=assume_yes)
     return ensure(on_fetch=_forge_fetch_notice)
 
 
@@ -243,14 +281,17 @@ def _fmt_opt(value: float | None) -> str:
 
 
 def _dck_card_names(dck_text: str) -> list[str]:
-    """The card names referenced by a rendered ``.dck`` ([Main] + [Commander]).
+    """The card names referenced by a rendered ``.dck`` ([Main] + [Commander] + [Sideboard]).
 
-    Parses ``<qty> <name>`` lines under the card sections, skipping headers,
-    metadata, and the sideboard — so the availability guard can check exactly the
-    names Forge will try to load. Accepts REAL Forge ``.dck`` files, not just our
-    exporter's output: section headers are matched case-insensitively (Forge
-    writes ``[main]``) and a pinned printing (``<name>|SET`` or ``<name>|SET|art``)
-    is stripped to the bare name (the index knows names, not printings).
+    Parses ``<qty> <name>`` lines under the card sections, skipping headers and
+    metadata — so the availability guard can check exactly the names Forge will
+    try to load. The sideboard IS included: a Forge-unloadable sideboard card
+    would otherwise reach Forge unvalidated (the silent-drop class the guard
+    exists to kill) via the ``.dck`` path, which the Airtable-hydrated path
+    already validates. Accepts REAL Forge ``.dck`` files, not just our exporter's
+    output: section headers are matched case-insensitively (Forge writes
+    ``[main]``) and a pinned printing (``<name>|SET`` or ``<name>|SET|art``) is
+    stripped to the bare name (the index knows names, not printings).
     """
     names: list[str] = []
     in_cards = False
@@ -259,7 +300,7 @@ def _dck_card_names(dck_text: str) -> list[str]:
         if not stripped:
             continue
         if stripped.startswith('['):
-            in_cards = stripped.lower() in ('[main]', '[commander]')
+            in_cards = stripped.lower() in ('[main]', '[commander]', '[sideboard]')
             continue
         if not in_cards:
             continue
@@ -340,11 +381,12 @@ def _match(argv: list[str]) -> None:
         action='store_true',
         help='Proceed even if a deck references a card absent from Forge (else a hard error).',
     )
+    parser.add_argument('-y', '--yes', action='store_true', help=_YES_HELP)
     args = parser.parse_args(argv)
 
     deck_a = _resolve_deck_arg(args.deck_a)
     deck_b = _resolve_deck_arg(args.deck_b)
-    install = _ensure_forge()
+    install = _ensure_forge(assume_yes=args.yes)
     _guard_forge_availability(install, [deck_a, deck_b], allow_missing=args.allow_missing)
     result: MatchResult = run_matchup(install, deck_a.ref, deck_b.ref, n=args.n, seed=args.seed, fmt=args.fmt)
     print(f'{deck_a.name} vs {deck_b.name}  ({args.fmt}, n={args.n}, seed={args.seed})')
@@ -370,13 +412,14 @@ def _deck(argv: list[str]) -> None:
         action='store_true',
         help='Proceed even if the candidate references a card absent from Forge (else a hard error).',
     )
+    parser.add_argument('-y', '--yes', action='store_true', help=_YES_HELP)
     args = parser.parse_args(argv)
 
     _validate_gauntlet(args.gauntlet, args.fmt)
     candidate = _resolve_deck_arg(args.name)
     # `mine`/`both` need the collection store; `curated` never touches it.
     store = get_store() if args.gauntlet in ('mine', 'both') else None
-    install = _ensure_forge()
+    install = _ensure_forge(assume_yes=args.yes)
     _guard_forge_availability(install, [candidate], allow_missing=args.allow_missing)
     result = simulate(
         candidate.ref,
@@ -411,13 +454,14 @@ def _ab(argv: list[str]) -> None:
         action='store_true',
         help='Proceed even if a variant references a card absent from Forge (else a hard error).',
     )
+    parser.add_argument('-y', '--yes', action='store_true', help=_YES_HELP)
     args = parser.parse_args(argv)
 
     _validate_gauntlet(args.gauntlet, args.fmt)
     variant_a = _resolve_deck_arg(args.deck_a)
     variant_b = _resolve_deck_arg(args.deck_b)
     store = get_store() if args.gauntlet in ('mine', 'both') else None
-    install = _ensure_forge()
+    install = _ensure_forge(assume_yes=args.yes)
     _guard_forge_availability(install, [variant_a, variant_b], allow_missing=args.allow_missing)
     comparison: Comparison = compare(
         variant_a.ref,
