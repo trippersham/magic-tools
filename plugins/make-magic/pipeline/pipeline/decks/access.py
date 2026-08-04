@@ -402,9 +402,15 @@ class DeckAccess:
         _sync.push(self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink)
 
     def sync(self, name: str, *, allow_shrink: bool = False, id_prefix: str | None = None) -> None:
-        """Pull-then-push ``name`` (or ``--id``) — reconcile local against the source."""
-        self.pull(name, id_prefix=id_prefix)
-        self.push(name, allow_shrink=allow_shrink, id_prefix=id_prefix)
+        """Reconcile ``name`` (or ``--id``) against its source — pull / push / drift (M2).
+
+        RECONCILE-not-destroy (design §4): compares local / baseline / current source
+        and pulls (only source moved), pushes (only local moved), no-ops (neither),
+        or raises ``SyncDriftError`` (both moved — nothing changed, both preserved).
+        Never pull-clobbers an unpushed local edit.
+        """
+        deck_uuid = self.resolve(id_prefix=id_prefix) if id_prefix is not None else self.resolve(name)
+        _sync.sync_reconcile(self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink)
 
 
 def deck_access(driver: CollectionStore, *, decks: DecksStore | None = None) -> DeckAccess:

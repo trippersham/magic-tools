@@ -194,7 +194,9 @@ def test_local_save_deck_shrink_raises_without_allow_shrink(local_store: LocalYa
 
     full = _deck('EDH', [DeckCard(name=f'C{i}') for i in range(100)], fmt='Commander')
     local_store.save_deck(full)
-    shrunk = _deck('EDH', [DeckCard(name=f'C{i}') for i in range(98)], fmt='Commander')
+    # The SAME deck (same uuid) re-saved shrunk — a read-modify-write, not a new,
+    # coincidentally same-named deck (which would land on its own file, P3).
+    shrunk = full.model_copy(update={'cards': [DeckCard(name=f'C{i}') for i in range(98)]})
     with pytest.raises(CollectionError, match='below its target of 100'):
         local_store.save_deck(shrunk)  # default is SAFE
     # allow_shrink=True proceeds.

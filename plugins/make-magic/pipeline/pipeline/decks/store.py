@@ -455,6 +455,7 @@ class DecksStore:
         sync_status: str = 'ephemeral',
         source_ref: str | None = None,
         synced_baseline: str | None = None,
+        derived_from: str | None = None,
         rationale: str | None = None,
     ) -> None:
         """Upsert the row for ``deck_uuid`` (``deck_json`` = ``deck.model_dump_json``).
@@ -462,6 +463,11 @@ class DecksStore:
         The sync/freshness columns are set from the given bookkeeping (defaults =
         an ephemeral, sourceless draft). ``freshness`` / ``last_sim`` are left NULL
         here — they are Phase-2 concerns.
+
+        ``derived_from`` (the parent uuid for a ``--from`` exploration draft, design
+        §3) is written on INSERT; on a re-``put`` (conflict) it is preserved unless a
+        NON-NULL value is supplied (so a lineage stamp survives a re-pull, and an
+        explicit re-stamp still lands).
 
         ``put`` establishes / replaces a deck's state, so it APPENDS a ledger
         version (the undo floor), but ONLY when the incoming content actually
@@ -477,22 +483,25 @@ class DecksStore:
             head = history.deck_version_rows(conn, deck_uuid)
             conn.execute(
                 f'INSERT INTO {_DECKS_TABLE} '
-                '(deck_uuid, name, deck_json, sync_status, source_ref, synced_baseline, freshness, last_sim) '
-                'VALUES (?, ?, ?, ?, ?, ?, NULL, NULL) '
+                '(deck_uuid, name, deck_json, sync_status, source_ref, synced_baseline, '
+                'derived_from, freshness, last_sim) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL) '
                 'ON CONFLICT (deck_uuid) DO UPDATE SET '
                 'name = excluded.name, deck_json = excluded.deck_json, '
                 'sync_status = excluded.sync_status, source_ref = excluded.source_ref, '
-                'synced_baseline = excluded.synced_baseline',
-                # NOTE: `archived` / `external_ids` / `derived_from` are deliberately
-                # NOT in the UPDATE set — a re-put (e.g. a re-pull of an unchanged
-                # source) must PRESERVE the local archived flag + binding identity
-                # rather than reset them to the insert defaults.
-                [deck_uuid, deck.name, deck.model_dump_json(), sync_status, source_ref, synced_baseline],
+                'synced_baseline = excluded.synced_baseline, '
+                # COALESCE preserves an existing lineage unless a non-NULL is given.
+                f'derived_from = COALESCE(excluded.derived_from, {_DECKS_TABLE}.derived_from)',
+                # NOTE: `archived` / `external_ids` are deliberately NOT in the UPDATE
+                # set — a re-put (e.g. a re-pull of an unchanged source) must PRESERVE
+                # the local archived flag + binding identity rather than reset them.
+                [deck_uuid, deck.name, deck.model_dump_json(), sync_status, source_ref,
+                 synced_baseline, derived_from],
             )
             if not head or head[-1]['version'] != new_version:
                 history.append_deck_version(conn, deck_uuid=deck_uuid, deck=deck, rationale=rationale or 'put')
 
-    def create_ephemeral(self, deck: Deck) -> str:
+    def create_ephemeral(self, deck: Deck, *, derived_from: str | None = None) -> str:
         """Create an EPHEMERAL (local-only, no source) draft; return its minted uuid.
 
         Identity is name-independent (design §3): a fresh ``deck_uuid`` is minted
@@ -500,10 +509,40 @@ class DecksStore:
         an existing row — even one that reuses a previously-archived name. The row
         is born VISIBLE (``archived = FALSE``, the insert default) so a draft that
         reuses an archived name is not silently hidden (fixes m4).
+
+        ``derived_from`` is the parent ``deck_uuid`` for a ``new-draft --from`` copy
+        (the LINEAGE that lets ``promote`` commit the exploration back onto the
+        parent's external ref rather than clobbering an unrelated deck by name).
+        A clean-slate draft passes ``None``.
         """
         deck_uuid = deck.uuid
-        self.put(deck, deck_uuid=deck_uuid, sync_status='ephemeral', source_ref=None, synced_baseline=None)
+        self.put(
+            deck, deck_uuid=deck_uuid, sync_status='ephemeral', source_ref=None,
+            synced_baseline=None, derived_from=derived_from,
+        )
         return deck_uuid
+
+    def consume(self, deck_uuid: str) -> None:
+        """Retire an exploration draft: mark it ``consumed`` + ``archived`` (inert).
+
+        The tail of an exploration ``promote`` (design §4): once the draft's content
+        is committed onto the parent's source, the draft ROW is retired — a consumed
+        row is excluded from name/prefix resolution, refuses edits + push, and can
+        never materialize a source deck (kills the B2 zombie). Bookkeeping only (no
+        ``deck_json`` change, no ledger append) — the content lives on the parent now.
+        """
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            exists = conn.execute(
+                f'SELECT 1 FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
+            ).fetchone()
+            if exists is None:
+                raise DecksError(f'no deck with id {deck_uuid!r}')
+            conn.execute(
+                f"UPDATE {_DECKS_TABLE} SET sync_status = 'consumed', archived = TRUE "
+                'WHERE deck_uuid = ?',
+                [deck_uuid],
+            )
 
     def set_freshness(self, deck_uuid: str, freshness: dict[str, object]) -> None:
         """Set the LOCAL-ONLY ``freshness`` JSON for a row (pull stamp / artifact hashes).
@@ -523,7 +562,18 @@ class DecksStore:
     # ----------------------------------------------------------------------- #
 
     def archive(self, deck_uuid: str) -> None:
-        """Mark ``deck_uuid`` archived (evict from the default list). Raise if absent."""
+        """Mark ``deck_uuid`` archived (evict from the default list). Raise if absent.
+
+        Archiving is for DRAFTS (ephemeral / consumed), not source-backed decks: a
+        ``synced`` row is REFUSED (m3) — you cannot hide a source deck by archiving
+        its local shadow; delete it at the source to remove it.
+        """
+        row = self.get_row(deck_uuid)
+        if row is not None and row.sync_status == 'synced':
+            raise DecksError(
+                f'{row.name!r} is a synced deck, not a draft — archive is for drafts; '
+                'delete it at the source to remove it'
+            )
         self._set_archived(deck_uuid, archived=True)
 
     def unarchive(self, deck_uuid: str) -> None:
@@ -552,7 +602,19 @@ class DecksStore:
     # ----------------------------------------------------------------------- #
 
     def _require(self, deck_uuid: str) -> Deck:
-        """Read the deck for ``deck_uuid`` or raise (edits operate on an existing deck)."""
+        """Read the deck for ``deck_uuid`` or raise (edits operate on an existing deck).
+
+        A ``consumed`` draft is INERT (design §4, kills B2): its content already
+        lives on the parent's source, so an edit is REFUSED with a clear message
+        rather than mutating a retired lineage. Reads (``get`` / ``get_row``) still
+        work for forensics; only the write path refuses here.
+        """
+        row = self.get_row(deck_uuid)
+        if row is not None and row.sync_status == 'consumed':
+            raise DecksError(
+                f'{row.name!r} is a consumed draft (retired after promote) and cannot be '
+                'edited or pushed; start a fresh --from draft off the parent to explore again'
+            )
         deck = self.get(deck_uuid)
         if deck is None:
             raise DecksError(f'no deck with id {deck_uuid!r}')

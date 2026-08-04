@@ -225,7 +225,8 @@ def test_promote_ephemeral_to_synced_creates_through_ceremony(data_dir: Path, tm
     draft_uuid = decks.create_ephemeral(_commander_deck('Fresh Draft'))
     assert decks.get_row(draft_uuid).sync_status == 'ephemeral'  # type: ignore[union-attr]
 
-    promote(decks, driver, deck_uuid=draft_uuid, source_ref='Fresh Draft')
+    # A clean-slate draft (no lineage) promotes by CREATING a new source deck --to.
+    promote(decks, driver, deck_uuid=draft_uuid, to_name='Fresh Draft')
 
     # It now exists on the source (create-through-ceremony) and is marked synced.
     source = driver.get_deck('Fresh Draft')

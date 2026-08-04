@@ -452,32 +452,47 @@ def _new_draft(argv: list[str]) -> None:
 
     from pipeline.decks import DecksStore
 
+    decks = DecksStore()
+    derived_from: str | None = None
     if args.source is not None:
         # An exploration COPY of an existing deck — read it via the access path
         # (pull-current per the policy), then re-name it as a local-only draft. A
-        # FRESH uuid is minted (and `derived_from` lineage recorded via the copy's
-        # own identity) so the draft can never hijack the source's row (design §3);
-        # the airtable binding is dropped (a draft has no source of record yet).
-        source_deck = _deck_access().read_deck(args.source)
+        # FRESH uuid is minted so the draft can never hijack the source's row
+        # (design §3); the airtable binding is dropped (a draft has no source of
+        # record yet). The parent's ``deck_uuid`` is recorded as ``derived_from``
+        # (LINEAGE) so a later ``promote`` commits back onto the PARENT's external
+        # ref (never clobbering an unrelated deck by name — kills B1).
+        access = _deck_access()
+        source_deck = access.read_deck(args.source)
+        derived_from = access.resolve(args.source)
         draft = source_deck.model_copy(
             update={'name': args.name, 'airtable_record_id': None, 'uuid': uuid4().hex}
         )
     else:
         # A clean-slate draft: a minimal Deck (name/format + optional commander); its
-        # uuid is minted by the Deck model's default_factory.
+        # uuid is minted by the Deck model's default_factory. No lineage.
         cards = [DeckCard(name=args.commander, role='commander')] if args.commander else []
         draft = Deck(name=args.name, format=args.format_, cards=cards)
-    deck_uuid = DecksStore().create_ephemeral(draft)
+    deck_uuid = decks.create_ephemeral(draft, derived_from=derived_from)
     print(f'new-draft: {args.name} [ephemeral] ({deck_uuid})')
 
 
 def _promote_deck(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog='collection promote-deck',
-        description='Promote an ephemeral draft to a SYNCED deck on the source of record (create-through-ceremony).',
+        description=(
+            'Promote an ephemeral draft to a SYNCED deck. An exploration draft '
+            '(new-draft --from) commits onto its lineage PARENT and is consumed; a '
+            'clean-slate draft CREATES a new source deck named --to.'
+        ),
     )
     parser.add_argument('deck', help='The ephemeral draft name to promote.')
-    parser.add_argument('--to', dest='source_name', required=True, help='Source deck name to create/attach.')
+    parser.add_argument(
+        '--to',
+        dest='source_name',
+        default=None,
+        help='New source deck name (clean-slate drafts only; ignored for --from exploration drafts).',
+    )
     args = parser.parse_args(argv)
 
     from pipeline.decks import DecksStore, sync
@@ -486,16 +501,22 @@ def _promote_deck(argv: list[str]) -> None:
     deck_uuid = decks.uuid_for_name(args.deck)
     if deck_uuid is None or not decks.exists(deck_uuid):
         raise CollectionError(f'no ephemeral draft named {args.deck!r} to promote')
-    access = _deck_access(writes_enabled=True)
+    row = decks.get_row(deck_uuid)
+    is_exploration = row is not None and bool(row.derived_from)
+    if not is_exploration and not args.source_name:
+        raise CollectionError(f'promote-deck {args.deck!r}: a clean-slate draft requires --to <name>')
+
     driver = _store(writes_enabled=True)
-    sync.promote(decks, driver, deck_uuid=deck_uuid, source_ref=args.source_name)
-    # The content landed on the source under `source_name`, but that source's OWN
-    # canonical local row (a distinct uuid from the draft's row when promoting a
-    # differently-named exploration copy) is now stale — a later
-    # read within the W4 TTL would serve the pre-promote copy. Force-pull it current
-    # so the next `get-deck "<source_name>"` reflects the promotion.
-    access.pull(args.source_name)
-    print(f'promote-deck: {args.deck} -> {args.source_name} [synced]')
+    sync.promote(decks, driver, deck_uuid=deck_uuid, to_name=args.source_name)
+    # The promoted content landed on the source of record; force-pull the affected
+    # canonical row current so a later `get-deck` within the W4 TTL reflects the
+    # promotion (exploration -> the parent; clean-slate -> the new deck under --to).
+    access = _deck_access(writes_enabled=True)
+    target_name = args.source_name if not is_exploration else None
+    if target_name:
+        access.pull(target_name)
+    landed = args.source_name or args.deck
+    print(f'promote-deck: {args.deck} -> {landed} [synced]')
 
 
 def _undo_deck(argv: list[str]) -> None:

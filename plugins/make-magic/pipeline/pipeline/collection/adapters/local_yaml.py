@@ -323,6 +323,40 @@ class LocalYamlStore:
     def _deck_path(self, name: str) -> Path:
         return self._decks_dir() / f'{_slugify(name)}.yaml'
 
+    def _deck_save_path(self, deck: Deck) -> Path:
+        """Pick the file to save ``deck`` into without CLOBBERING an unrelated deck.
+
+        Two decks may now share a NAME (dup names are legal under uuid identity), so
+        they must NOT share a FILE (closes B1 for the local backend). The base slug
+        path is used ONLY when it is free OR already belongs to THIS deck's uuid;
+        otherwise the deck is written to a disambiguated ``<slug>-<short-uuid>.yaml``
+        so it never overwrites a file whose in-file uuid differs. ``find_deck_path_by_uuid``
+        already locates the row regardless of filename, so the disambiguated name is
+        transparent to every read.
+        """
+        # A file already bound to THIS uuid (possibly a disambiguated one) wins — a
+        # re-save must land on the same file, not spawn a new one.
+        bound = self.find_deck_path_by_uuid(deck.uuid)
+        if bound is not None:
+            return bound
+        base = self._deck_path(deck.name)
+        base_uuid = self._file_uuid(base) if base.exists() else None
+        # The base slug is FREE (no file), UNCLAIMED (a legacy file with no in-file
+        # uuid — upgrade it in place), or already OURS -> use it. Only a base file
+        # bound to a DIFFERENT uuid forces a disambiguated path (the collision case).
+        if not base.exists() or base_uuid is None or base_uuid == deck.uuid:
+            return base
+        return self._decks_dir() / f'{_slugify(deck.name)}-{deck.uuid[:8]}.yaml'
+
+    @staticmethod
+    def _file_uuid(path: Path) -> str | None:
+        """Return the in-file ``uuid`` of a deck YAML (or None if absent/unparsable)."""
+        try:
+            data = yaml.safe_load(path.read_text()) or {}
+        except yaml.YAMLError:
+            return None
+        return data.get('uuid') if isinstance(data, dict) else None
+
     @staticmethod
     def _deck_card_to_row(card: DeckCard) -> dict[str, Any]:
         """Persist only the membership facts (card ref + role/qty), not enrichment.
@@ -409,11 +443,14 @@ class LocalYamlStore:
         return out
 
     def save_deck(self, deck: Deck, *, allow_shrink: bool = False) -> None:
-        path = self._deck_path(deck.name)
-        if not allow_shrink and path.exists():
+        # Bind to THIS deck's file (by uuid, then a free/own slug) so a dup-named
+        # deck can never overwrite an unrelated file (slug-collision guard, B1).
+        path = self._deck_save_path(deck)
+        if not allow_shrink and path.exists() and self._file_uuid(path) == deck.uuid:
             # Defensive shrink guard (Phase 4): refuse a save that drops an
-            # at-target deck under target unless explicitly allowed. Read the
-            # prior deck for its size/target only.
+            # at-target deck under target unless explicitly allowed. Compare against
+            # the SAME deck's prior file (a different deck sharing the slug never
+            # gates this save — it lands on a disambiguated path instead).
             prior = self._load_deck_from_dict(yaml.safe_load(path.read_text()) or {}, path=path)
             if shrink_check(prior, deck):
                 raise CollectionError(
@@ -439,7 +476,21 @@ class LocalYamlStore:
             data['format'] = deck.format
         data['airtable_record_id'] = deck.airtable_record_id
         data['cards'] = [self._deck_card_to_row(c) for c in deck.cards]
-        self._write_deck_yaml(self._deck_path(deck.name), data)
+        self._write_deck_yaml(path, data)
+
+    def get_deck_by_uuid(self, uuid: str) -> Deck:
+        """Read the deck whose in-file ``uuid`` equals ``uuid`` (rename/slug-proof).
+
+        The uuid-bound read (design §3/§4): locate the deck FILE by its authoritative
+        in-file uuid regardless of filename, then hydrate it. Used by ``promote`` /
+        the sync layer to re-read a just-written source deck by the ONE identity that
+        can't collide with a same-named sibling. Raises ``FileNotFoundError`` on miss.
+        """
+        path = self.find_deck_path_by_uuid(uuid)
+        if path is None:
+            raise FileNotFoundError(f'No deck YAML with uuid {uuid!r}.')
+        data = yaml.safe_load(path.read_text()) or {}
+        return self._load_deck_from_dict(data, path=path)
 
     def _write_deck_yaml(self, path: Path, data: dict[str, Any]) -> None:
         """Write a deck YAML with the protective ``uuid`` comment header on top.

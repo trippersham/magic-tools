@@ -167,12 +167,17 @@ def test_improve_existing_explore_copy_leaves_original_until_promote(
     assert 'Filler 0' not in promoted_names
     assert sum(c['quantity'] for c in promoted['cards']) == 100  # size preserved
 
-    # ARCHIVE the consumed exploration draft — it declutters out of the default list
-    # (the user's stated need). The original 'Gruul' remains, now carrying the change.
-    _run(monkeypatch, 'archive-deck', 'Gruul (explore)')
-    capsys.readouterr()
+    # P3: promote AUTO-CONSUMES the exploration draft — it is already consumed +
+    # archived (a retired lineage), so no explicit archive step is needed and it is
+    # decluttered out of the default list. The original 'Gruul' remains, now carrying
+    # the change (the single synced row for that source — B1/B2 killed).
+    from pipeline.decks import DecksStore
+
+    rows = {r.name: r for r in DecksStore().list_rows(include_archived=True)}
+    assert rows['Gruul (explore)'].sync_status == 'consumed'
+    assert rows['Gruul (explore)'].archived is True
 
     _run(monkeypatch, 'list-decks')
     default_listing = capsys.readouterr().out
-    assert 'Gruul (explore)' not in default_listing  # decluttered
+    assert 'Gruul (explore)' not in default_listing  # decluttered (consumed + archived)
     assert 'Gruul [synced]' in default_listing  # the real deck stays, with the change
