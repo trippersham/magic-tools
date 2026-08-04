@@ -169,27 +169,29 @@ def _list_decks(argv: list[str]) -> None:
 def _archive_deck(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog='collection archive-deck',
-        description='Archive a local deck by deck_id (hide it from the default list; not deleted).',
+        description='Archive a local deck by NAME (hide it from the default list; not deleted).',
     )
-    parser.add_argument('deck_id')
+    parser.add_argument('deck', help='Deck name (resolved to its local deck_id).')
     args = parser.parse_args(argv)
     from pipeline.decks import DecksStore
 
-    DecksStore().archive(args.deck_id)
-    print(f'archive-deck: {args.deck_id}')
+    deck_id = _deck_access().deck_id_for(args.deck)
+    DecksStore().archive(deck_id)
+    print(f'archive-deck: {args.deck}')
 
 
 def _unarchive_deck(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog='collection unarchive-deck',
-        description='Unarchive a local deck by deck_id (restore it to the default list).',
+        description='Unarchive a local deck by NAME (restore it to the default list).',
     )
-    parser.add_argument('deck_id')
+    parser.add_argument('deck', help='Deck name (resolved to its local deck_id).')
     args = parser.parse_args(argv)
     from pipeline.decks import DecksStore
 
-    DecksStore().unarchive(args.deck_id)
-    print(f'unarchive-deck: {args.deck_id}')
+    deck_id = _deck_access().deck_id_for(args.deck)
+    DecksStore().unarchive(deck_id)
+    print(f'unarchive-deck: {args.deck}')
 
 
 def _get_deck(argv: list[str]) -> None:
@@ -432,8 +434,15 @@ def _promote_deck(argv: list[str]) -> None:
     decks = DecksStore()
     if not decks.exists(deck_id):
         raise CollectionError(f'no ephemeral draft named {args.deck!r} to promote')
+    access = _deck_access(writes_enabled=True)
     driver = _store(writes_enabled=True)
     sync.promote(decks, driver, deck_id=deck_id, source_ref=args.source_name)
+    # The content landed on the source under `source_name`, but that source's OWN
+    # canonical local row (`<backend>:<source_name>`, distinct from the draft's row
+    # when promoting a differently-named exploration copy) is now stale — a later
+    # read within the W4 TTL would serve the pre-promote copy. Force-pull it current
+    # so the next `get-deck "<source_name>"` reflects the promotion.
+    access.pull(args.source_name)
     print(f'promote-deck: {args.deck} -> {args.source_name} [synced]')
 
 

@@ -154,23 +154,37 @@ class DeckAccess:
         self._ensure_local(name)
         self._decks.set_strategy(self.deck_id_for(name), text, rationale='set-strategy')
         if commit:
-            self.push(name)
+            self._commit(name)
 
     def set_assessment(self, name: str, text: str, *, commit: bool = True) -> None:
         self._ensure_local(name)
         self._decks.set_assessment(self.deck_id_for(name), text, rationale='set-assessment')
         if commit:
-            self.push(name)
+            self._commit(name)
 
     def set_focus_otags(self, name: str, otags: list[str], *, commit: bool = True) -> None:
         self._ensure_local(name)
         self._decks.set_focus_otags(self.deck_id_for(name), list(otags), rationale='set-focus-otags')
         if commit:
-            self.push(name)
+            self._commit(name)
 
     def _ensure_local(self, name: str) -> None:
         """Make sure a local copy exists (pull it current) before a typed edit."""
         self.read_deck(name)
+
+    def _commit(self, name: str, *, allow_shrink: bool = False) -> None:
+        """Push a just-applied local edit to the source ONLY when the deck is synced.
+
+        The target's ephemerality decides (design §4): a SYNCED deck commits through
+        to its source of record at the edit boundary (else a later W4 re-pull would
+        silently revert the edit); an EPHEMERAL draft has no source, so the edit
+        stays purely local — that is the whole point of an exploration draft. This
+        mirrors the ``_commit_deck_edit`` guard the ``deck-swap``/``deck-add`` verbs
+        already apply, so ``set-*`` behaves the same way.
+        """
+        row = self._decks.get_row(self.deck_id_for(name))
+        if row is not None and row.sync_status == 'synced' and row.source_ref is not None:
+            self.push(name, allow_shrink=allow_shrink)
 
     # ----------------------------------------------------------------------- #
     # Manual sync verbs

@@ -190,9 +190,11 @@ def test_list_decks_hides_archived_ephemeral_by_default(
     from pipeline.decks import DecksStore
 
     s = DecksStore()
-    s.create_ephemeral(Deck(name='Kept Draft', cards=[DeckCard(name='Sol Ring', role='commander')]), 'kept')
-    s.create_ephemeral(Deck(name='Junk Draft', cards=[DeckCard(name='Sol Ring', role='commander')]), 'junk')
-    _run(monkeypatch, 'archive-deck', 'junk')
+    # deck_id follows the real convention (`local:<name>`) so name-addressed
+    # archive-deck resolves to the same row `new-draft` would have created.
+    s.create_ephemeral(Deck(name='Kept Draft', cards=[DeckCard(name='Sol Ring', role='commander')]), 'local:Kept Draft')
+    s.create_ephemeral(Deck(name='Junk Draft', cards=[DeckCard(name='Sol Ring', role='commander')]), 'local:Junk Draft')
+    _run(monkeypatch, 'archive-deck', 'Junk Draft')
     capsys.readouterr()
 
     _run(monkeypatch, 'list-decks', '--json')
@@ -215,14 +217,14 @@ def test_archive_unarchive_roundtrip(
     from pipeline.contracts import Deck, DeckCard
     from pipeline.decks import DecksStore
 
-    DecksStore().create_ephemeral(Deck(name='Junk', cards=[DeckCard(name='Sol Ring', role='commander')]), 'junk')
-    _run(monkeypatch, 'archive-deck', 'junk')
-    assert 'junk' in capsys.readouterr().out
+    DecksStore().create_ephemeral(Deck(name='Junk', cards=[DeckCard(name='Sol Ring', role='commander')]), 'local:Junk')
+    _run(monkeypatch, 'archive-deck', 'Junk')
+    assert 'Junk' in capsys.readouterr().out
     _run(monkeypatch, 'list-decks', '--json')
     assert 'Junk' not in {r['name'] for r in json.loads(capsys.readouterr().out)}
 
-    _run(monkeypatch, 'unarchive-deck', 'junk')
-    assert 'junk' in capsys.readouterr().out
+    _run(monkeypatch, 'unarchive-deck', 'Junk')
+    assert 'Junk' in capsys.readouterr().out
     _run(monkeypatch, 'list-decks', '--json')
     assert 'Junk' in {r['name'] for r in json.loads(capsys.readouterr().out)}
 

@@ -146,6 +146,12 @@ def promote(decks: DecksStore, driver: CollectionStore, *, deck_id: str, source_
     deck = decks.get(deck_id)
     if deck is None:
         raise DecksError(f'no deck with id {deck_id!r}')
+    # The source of record is keyed by deck NAME, so committing an exploration draft
+    # back onto a differently-named target (e.g. 'Gruul (explore)' --to 'Gruul') must
+    # save the content UNDER the target name — otherwise the save creates a new source
+    # deck instead of landing on the original. version() excludes the name, so the
+    # baseline hashes are unaffected by the rename.
+    to_source = deck if deck.name == source_ref else deck.model_copy(update={'name': source_ref})
     # Attach the source_ref + mark synced; baseline = our own version so the push
     # below sees "source == local" (or a not-yet-existing source) and proceeds.
     decks.put(
@@ -156,7 +162,7 @@ def promote(decks: DecksStore, driver: CollectionStore, *, deck_id: str, source_
         synced_baseline=version(deck),
         rationale=f'promote -> {source_ref}',
     )
-    driver.save_deck(deck, allow_shrink=False)
+    driver.save_deck(to_source, allow_shrink=False)
     # Re-stamp against the freshly-written source so the baseline reflects the
     # ceremony's canonical read (create-through-ceremony may canonicalize).
     written = driver.get_deck(source_ref)
