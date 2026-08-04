@@ -139,6 +139,94 @@ def test_save_deck_then_get_and_field_verbs(
     assert 'Gruul Aggro' in capsys.readouterr().out
 
 
+# --------------------------------------------------------------------------- #
+# list-decks: draft-aware union (source [synced] + local ephemeral [ephemeral])
+# + archive lifecycle verbs
+# --------------------------------------------------------------------------- #
+
+
+def _save_a_source_deck(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, name: str) -> None:
+    """Save a deck through the CLI so it lands in the LocalYamlStore source."""
+    deck_json = tmp_path / f'{name}.json'
+    deck_json.write_text(json.dumps({'name': name, 'cards': [{'name': 'Sol Ring', 'role': 'commander'}]}))
+    _run(monkeypatch, 'save-deck', '--from-json', str(deck_json))
+
+
+def test_archive_verbs_registered() -> None:
+    assert 'archive-deck' in cli.VERBS
+    assert 'unarchive-deck' in cli.VERBS
+
+
+def test_list_decks_unions_source_synced_and_local_ephemeral(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, tmp_path: Path
+) -> None:
+    from pipeline.contracts import Deck, DeckCard
+    from pipeline.decks import DecksStore
+
+    # A source-backed deck (saved through the source) + a purely-local ephemeral draft.
+    _save_a_source_deck(monkeypatch, tmp_path, 'Sourced')
+    DecksStore().create_ephemeral(
+        Deck(name='Draft', cards=[DeckCard(name='Sol Ring', role='commander')]), 'draft-1'
+    )
+    capsys.readouterr()
+
+    _run(monkeypatch, 'list-decks', '--json')
+    rows = json.loads(capsys.readouterr().out)
+    by_name = {r['name']: r['status'] for r in rows}
+    assert by_name['Sourced'] == 'synced'
+    assert by_name['Draft'] == 'ephemeral'
+
+    # Line output carries the marker suffix but keeps the name readable at line start.
+    _run(monkeypatch, 'list-decks')
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
+    assert any(ln.startswith('Sourced') and '[synced]' in ln for ln in lines)
+    assert any(ln.startswith('Draft') and '[ephemeral]' in ln for ln in lines)
+
+
+def test_list_decks_hides_archived_ephemeral_by_default(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    from pipeline.contracts import Deck, DeckCard
+    from pipeline.decks import DecksStore
+
+    s = DecksStore()
+    s.create_ephemeral(Deck(name='Kept Draft', cards=[DeckCard(name='Sol Ring', role='commander')]), 'kept')
+    s.create_ephemeral(Deck(name='Junk Draft', cards=[DeckCard(name='Sol Ring', role='commander')]), 'junk')
+    _run(monkeypatch, 'archive-deck', 'junk')
+    capsys.readouterr()
+
+    _run(monkeypatch, 'list-decks', '--json')
+    names = {r['name'] for r in json.loads(capsys.readouterr().out)}
+    assert 'Kept Draft' in names
+    assert 'Junk Draft' not in names
+
+    # --archived surfaces it with the archived marker.
+    _run(monkeypatch, 'list-decks', '--json', '--archived')
+    rows = {r['name']: r['status'] for r in json.loads(capsys.readouterr().out)}
+    assert rows['Junk Draft'] == 'ephemeral'
+    _run(monkeypatch, 'list-decks', '--archived')
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
+    assert any(ln.startswith('Junk Draft') and '[ephemeral,archived]' in ln for ln in lines)
+
+
+def test_archive_unarchive_roundtrip(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    from pipeline.contracts import Deck, DeckCard
+    from pipeline.decks import DecksStore
+
+    DecksStore().create_ephemeral(Deck(name='Junk', cards=[DeckCard(name='Sol Ring', role='commander')]), 'junk')
+    _run(monkeypatch, 'archive-deck', 'junk')
+    assert 'junk' in capsys.readouterr().out
+    _run(monkeypatch, 'list-decks', '--json')
+    assert 'Junk' not in {r['name'] for r in json.loads(capsys.readouterr().out)}
+
+    _run(monkeypatch, 'unarchive-deck', 'junk')
+    assert 'junk' in capsys.readouterr().out
+    _run(monkeypatch, 'list-decks', '--json')
+    assert 'Junk' in {r['name'] for r in json.loads(capsys.readouterr().out)}
+
+
 def test_chase_add_list_remove(data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
     _run(monkeypatch, 'add-chase', 'The One Ring', '--for-deck', 'gruul')
     capsys.readouterr()

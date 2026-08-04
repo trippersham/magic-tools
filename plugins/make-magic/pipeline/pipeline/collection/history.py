@@ -32,16 +32,20 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from pipeline import store as _store
+from pipeline.contracts import Deck
 
 if TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
 
     from pipeline.collection.store import CollectionStore
-    from pipeline.contracts import Deck, OwnedCard
+    from pipeline.contracts import OwnedCard
 
 __all__ = (
+    'append_deck_version',
+    'deck_version_rows',
     'last_known_good_deck',
     'last_known_inventory_row',
+    'previous_deck_version',
     'record_snapshot',
 )
 
@@ -52,6 +56,15 @@ _DECK_HISTORY_TABLE = 'deck_history'
 
 #: The append-only inventory history table (one row per owned card per capture).
 _INVENTORY_HISTORY_TABLE = 'inventory_history'
+
+#: The append-only, per-EDIT deck-version ledger (W2 companion table).
+#: Keyed on the decks-store ``deck_id`` (NOT deck_name+backend like
+#: ``deck_history``) and holds the FULL typed ``Deck`` (``deck_json``) plus a
+#: rationale note per mutation. Un-gated: every edit appends. This is the decks
+#: store's change log — the source of undo / rationale / version-provenance —
+#: kept SEPARATE from the recovery-schema ``deck_history`` so neither muddies the
+#: other's keying or gating.
+_DECK_VERSIONS_TABLE = 'deck_versions'
 
 
 def _ensure_history_tables(conn: DuckDBPyConnection) -> None:
@@ -65,6 +78,12 @@ def _ensure_history_tables(conn: DuckDBPyConnection) -> None:
         f'CREATE TABLE IF NOT EXISTS {_INVENTORY_HISTORY_TABLE} ('
         'snapshot_ts TIMESTAMP, backend TEXT, card_id TEXT, card_name TEXT, '
         'oracle_id TEXT, fields JSON)'
+    )
+    conn.execute(
+        f'CREATE TABLE IF NOT EXISTS {_DECK_VERSIONS_TABLE} ('
+        # A monotonic per-row sequence: BIGINT default from a sequence so append
+        # order is total + stable even within one timestamp (ts alone can tie).
+        'seq BIGINT, ts TIMESTAMP, deck_id TEXT, version TEXT, rationale TEXT, deck_json JSON)'
     )
 
 
@@ -304,6 +323,94 @@ def record_snapshot(
     except Exception:  # best-effort mirror: never raise into a read path.
         log.warning('history: record_snapshot failed; skipping capture', exc_info=True)
         return False
+
+
+# --------------------------------------------------------------------------- #
+# Edit-triggered deck-version ledger (W2 — un-gated, append-only, per deck_id)
+# --------------------------------------------------------------------------- #
+
+
+def _next_deck_version_seq(conn: DuckDBPyConnection) -> int:
+    """The next monotonic append sequence (``MAX(seq) + 1``, 0 on an empty table).
+
+    A total order over appends that is stable even when two rows share a ``ts``
+    (undo must walk the ledger deterministically). Single-writer by construction
+    (one edit at a time through the store), so a read-then-insert is safe.
+    """
+    row = conn.execute(f'SELECT MAX(seq) FROM {_DECK_VERSIONS_TABLE}').fetchone()
+    return 0 if row is None or row[0] is None else int(row[0]) + 1
+
+
+def append_deck_version(
+    conn: DuckDBPyConnection,
+    *,
+    deck_id: str,
+    deck: Deck,
+    rationale: str,
+    now: datetime | None = None,
+) -> None:
+    """Append one version row for ``deck_id`` — UN-GATED (every edit lands a row).
+
+    The decks store's per-edit change log (design §6): records ``version(deck)``,
+    the FULL typed ``Deck`` (``deck_json``, so undo can restore it), the
+    ``rationale`` note, and a monotonic ``(seq, ts)`` order. APPEND-ONLY — never
+    UPDATEs or DELETEs, so the head history (and undo target) is preserved.
+
+    Unlike :func:`record_snapshot`, this is NOT gated (no TTL/churn): a deck
+    version is meaningful per edit, and the ledger IS the undo/rationale record.
+
+    Args:
+        conn: An open DuckDB connection (tables ensured on demand).
+        deck_id: The decks-store key this version belongs to.
+        deck: The typed ``Deck`` AFTER the edit (its ``version`` + json are stored).
+        rationale: The edit note (why this change was made).
+        now: The append timestamp; defaults to ``datetime.now(tz=UTC)``.
+    """
+    from pipeline.decks.version import version as _version
+
+    _ensure_history_tables(conn)
+    when = _as_naive_utc(now if now is not None else datetime.now(tz=UTC))
+    conn.execute(
+        f'INSERT INTO {_DECK_VERSIONS_TABLE} (seq, ts, deck_id, version, rationale, deck_json) '
+        'VALUES (?, ?, ?, ?, ?, ?)',
+        [_next_deck_version_seq(conn), when, deck_id, _version(deck), rationale, deck.model_dump_json()],
+    )
+
+
+def deck_version_rows(conn: DuckDBPyConnection, deck_id: str) -> list[dict[str, Any]]:
+    """Return every appended version row for ``deck_id`` in append order (oldest first).
+
+    Pure query over the append-only ledger. Each dict has ``seq, ts, version,
+    rationale, deck_json`` (``deck_json`` left as its stored JSON string).
+    """
+    _ensure_history_tables(conn)
+    rows = conn.execute(
+        f'SELECT seq, ts, version, rationale, deck_json FROM {_DECK_VERSIONS_TABLE} '
+        'WHERE deck_id = ? ORDER BY seq ASC',
+        [deck_id],
+    ).fetchall()
+    return [
+        {'seq': seq, 'ts': ts, 'version': ver, 'rationale': rationale, 'deck_json': deck_json}
+        for seq, ts, ver, rationale, deck_json in rows
+    ]
+
+
+def previous_deck_version(conn: DuckDBPyConnection, deck_id: str) -> Deck | None:
+    """Return the ``Deck`` BEFORE the current head for ``deck_id`` (the undo target).
+
+    Undo restores the second-newest recorded version: the newest row IS the
+    current state, so the one before it is what "undo" reverts to. Returns
+    ``None`` when there is no prior version (a single or absent history).
+    """
+    _ensure_history_tables(conn)
+    row = conn.execute(
+        f'SELECT deck_json FROM {_DECK_VERSIONS_TABLE} WHERE deck_id = ? '
+        'ORDER BY seq DESC LIMIT 1 OFFSET 1',
+        [deck_id],
+    ).fetchone()
+    if row is None or row[0] is None:
+        return None
+    return Deck.model_validate_json(row[0])
 
 
 # --------------------------------------------------------------------------- #

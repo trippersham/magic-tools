@@ -8,7 +8,7 @@ NOT built here.
 
 from __future__ import annotations
 
-from pipeline.decks.store import DecksError, DecksStore
+from pipeline.decks.store import DeckRow, DecksError, DecksStore
 from pipeline.decks.version import version
 
-__all__ = ('DecksError', 'DecksStore', 'version')
+__all__ = ('DeckRow', 'DecksError', 'DecksStore', 'version')

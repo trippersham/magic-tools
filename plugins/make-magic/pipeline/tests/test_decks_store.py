@@ -216,3 +216,73 @@ def test_swap_cannot_create_a_singleton_duplicate(data_dir: Path) -> None:
     entries = [c for c in got.cards if c.name == 'Sol Ring']
     assert len(entries) == 1
     assert entries[0].quantity == 2
+
+
+# --------------------------------------------------------------------------- #
+# archive lifecycle — hide experimental drafts from the default list
+# --------------------------------------------------------------------------- #
+
+
+def test_archive_hides_from_default_list_and_include_archived_shows_it(data_dir: Path) -> None:
+    s = DecksStore()
+    s.put(_commander_deck('Keep'), deck_id='keep')
+    s.put(_commander_deck('Junk'), deck_id='junk')
+    s.archive('junk')
+    # Default list excludes the archived deck.
+    assert sorted(d.name for d in s.list()) == ['Keep']
+    # include_archived surfaces it again (recovery view).
+    assert sorted(d.name for d in s.list(include_archived=True)) == ['Junk', 'Keep']
+
+
+def test_unarchive_restores_to_default_list(data_dir: Path) -> None:
+    s = DecksStore()
+    s.put(_commander_deck('Junk'), deck_id='junk')
+    s.archive('junk')
+    assert s.list() == []
+    s.unarchive('junk')
+    assert [d.name for d in s.list()] == ['Junk']
+
+
+def test_archived_survives_an_edit_put(data_dir: Path) -> None:
+    """An edit/re-put must NOT silently reset the archived flag."""
+    s = DecksStore()
+    s.put(_commander_deck('Junk'), deck_id='junk')
+    s.archive('junk')
+    # An edit (typed) keeps it archived.
+    s.set_strategy('junk', 'reworked')
+    assert s.list() == []
+    assert [d.name for d in s.list(include_archived=True)] == ['Junk']
+    # A re-put (e.g. a re-pull of an unchanged source) also preserves archived.
+    s.put(_commander_deck('Junk'), deck_id='junk')
+    assert s.list() == []
+    assert [d.name for d in s.list(include_archived=True)] == ['Junk']
+
+
+def test_list_rows_filters_by_sync_status_and_archived(data_dir: Path) -> None:
+    s = DecksStore()
+    s.put(_commander_deck('Synced'), deck_id='synced', sync_status='synced', source_ref='{"backend":"x"}')
+    s.create_ephemeral(_commander_deck('Draft'), 'draft')
+    s.create_ephemeral(_commander_deck('Archived Draft'), 'adraft')
+    s.archive('adraft')
+
+    ephemeral = s.list_rows(sync_status='ephemeral')
+    assert [r.deck_id for r in ephemeral] == ['draft']
+    assert all(r.sync_status == 'ephemeral' for r in ephemeral)
+
+    ephemeral_all = s.list_rows(sync_status='ephemeral', include_archived=True)
+    assert sorted(r.deck_id for r in ephemeral_all) == ['adraft', 'draft']
+
+    synced = s.list_rows(sync_status='synced')
+    assert [r.deck_id for r in synced] == ['synced']
+
+    # No filter -> every non-archived row regardless of sync_status.
+    everything = s.list_rows()
+    assert sorted(r.deck_id for r in everything) == ['draft', 'synced']
+
+
+def test_archive_absent_id_raises(data_dir: Path) -> None:
+    s = DecksStore()
+    with pytest.raises(DecksError):
+        s.archive('nope')
+    with pytest.raises(DecksError):
+        s.unarchive('nope')

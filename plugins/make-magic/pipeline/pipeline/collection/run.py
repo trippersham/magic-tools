@@ -48,6 +48,7 @@ from pipeline.contracts import Deck, DeckCard, Trade
 
 if TYPE_CHECKING:
     from pipeline.collection import CollectionStore
+    from pipeline.decks.access import DeckAccess
 
 #: The repo's ``scripts/`` dir (sibling of the pipeline package root). Only the
 #: ``factsheet`` verb reaches it (bridging to ``scripts/deck_factsheet.py``); card
@@ -63,8 +64,26 @@ def _store(*, writes_enabled: bool = False) -> CollectionStore:
     ``writes_enabled`` opts the Airtable adapter into mutations (ignored by the
     local adapter, which always writes to YAML). The local adapter's resolver is
     supplied by ``get_store`` (the package default) — nothing is injected here.
+
+    This is the DIRECT source-of-record store — inventory / chase / trades bind to
+    it unchanged (W1: only the DECK verbs route through the local decks store via
+    :func:`_deck_access`).
     """
     return get_store(writes_enabled=writes_enabled)
+
+
+def _deck_access(*, writes_enabled: bool = False) -> DeckAccess:
+    """The DECK access path — deck reads/writes route through the local decks store.
+
+    W1/W4: only DECK verbs (``get-deck`` / ``save-deck`` / ``set-*`` / ``pull`` /
+    ``push`` / ``sync``) go through here; a synced deck is pulled-current per the
+    W4 TTL policy and served locally, edits stage locally, and a push through the
+    source ceremony happens at the commit boundary. Inventory / chase / trades do
+    NOT use this — they call :func:`_store` directly.
+    """
+    from pipeline.decks.access import deck_access
+
+    return deck_access(get_store(writes_enabled=writes_enabled))
 
 
 def _dump(models: BaseModel | Sequence[BaseModel]) -> str:
@@ -115,10 +134,62 @@ def _onboard(argv: list[str]) -> None:
 
 
 def _list_decks(argv: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog='collection list-decks')
-    parser.parse_args(argv)
-    for deck in _store().list_decks():
-        print(deck.name)
+    parser = argparse.ArgumentParser(
+        prog='collection list-decks',
+        description='List decks: source-backed decks [synced] + local ephemeral drafts [ephemeral].',
+    )
+    parser.add_argument('--json', action='store_true', help='Emit a JSON array of {name, status} rows.')
+    parser.add_argument(
+        '--archived', action='store_true', help='Also include archived ephemeral drafts (marked archived).'
+    )
+    args = parser.parse_args(argv)
+
+    from pipeline.decks import DecksStore
+
+    # The UNION (design §8): source-backed decks are `synced`; purely-local drafts
+    # (no source) are `ephemeral`. Ephemeral drafts have no source, so the two sets
+    # never overlap — a synced deck's local row is enumerated only via the source.
+    rows: list[dict[str, object]] = []
+    for deck in sorted(_store().list_decks(), key=lambda d: d.name):
+        rows.append({'name': deck.name, 'status': 'synced', 'archived': False})
+    drafts = DecksStore().list_rows(sync_status='ephemeral', include_archived=args.archived)
+    for row in sorted(drafts, key=lambda r: r.name):
+        rows.append({'name': row.name, 'status': 'ephemeral', 'archived': row.archived})
+
+    if args.json:
+        print(json.dumps(rows))
+        return
+    for row in rows:
+        markers = [str(row['status'])]
+        if row['archived']:
+            markers.append('archived')
+        print(f'{row["name"]} [{",".join(markers)}]')
+
+
+def _archive_deck(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection archive-deck',
+        description='Archive a local deck by deck_id (hide it from the default list; not deleted).',
+    )
+    parser.add_argument('deck_id')
+    args = parser.parse_args(argv)
+    from pipeline.decks import DecksStore
+
+    DecksStore().archive(args.deck_id)
+    print(f'archive-deck: {args.deck_id}')
+
+
+def _unarchive_deck(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection unarchive-deck',
+        description='Unarchive a local deck by deck_id (restore it to the default list).',
+    )
+    parser.add_argument('deck_id')
+    args = parser.parse_args(argv)
+    from pipeline.decks import DecksStore
+
+    DecksStore().unarchive(args.deck_id)
+    print(f'unarchive-deck: {args.deck_id}')
 
 
 def _get_deck(argv: list[str]) -> None:
@@ -126,7 +197,9 @@ def _get_deck(argv: list[str]) -> None:
     parser.add_argument('name')
     parser.add_argument('--field', help='Print only this Deck field (e.g. strategy, assessment, focus_otags).')
     args = parser.parse_args(argv)
-    deck = _store().get_deck(args.name)
+    # W1/W4: route the deck READ through the local decks store (pull-current per
+    # the TTL policy, serve local thereafter).
+    deck = _deck_access().read_deck(args.name)
     if args.field:
         allowed = sorted(set(Deck.model_fields) | {'commanders'})
         if args.field not in allowed:
@@ -162,10 +235,12 @@ def _save_deck(argv: list[str]) -> None:
         # Bad USER-supplied JSON is clean input error, not a defect — surface it
         # as a one-line `error:` rather than a raw ValidationError traceback.
         raise CollectionError(f'invalid deck JSON: {exc}') from exc
+    access = _deck_access(writes_enabled=True)
     store = _store(writes_enabled=True)
     # Shrink guard: read the PRIOR deck (if any) and require --confirm when this
     # save would drop an at-target deck below target. Building/creating a deck
-    # (no prior, or prior never met target) never trips this.
+    # (no prior, or prior never met target) never trips this. Read the prior from
+    # the SOURCE directly (the pre-save baseline), independent of the local copy.
     try:
         prior = store.get_deck(deck.name)
     except FileNotFoundError:
@@ -176,7 +251,8 @@ def _save_deck(argv: list[str]) -> None:
             f'to {sum(c.quantity for c in deck.cards)} cards, below its target of {prior.target_size}. '
             'Pass --confirm to proceed. (This guards against silently dropping a legal deck under size.)'
         )
-    store.save_deck(deck, allow_shrink=args.confirm)
+    # W1/W4: stage locally, then commit (push) through the source ceremony.
+    access.save_deck(deck, allow_shrink=args.confirm, commit=True)
     print(f'save-deck: {deck.name}')
 
 
@@ -185,7 +261,7 @@ def _set_strategy(argv: list[str]) -> None:
     parser.add_argument('name')
     parser.add_argument('text')
     args = parser.parse_args(argv)
-    _store(writes_enabled=True).set_strategy(args.name, args.text)
+    _deck_access(writes_enabled=True).set_strategy(args.name, args.text)
     print(f'set-strategy: {args.name}')
 
 
@@ -194,7 +270,7 @@ def _set_assessment(argv: list[str]) -> None:
     parser.add_argument('name')
     parser.add_argument('text')
     args = parser.parse_args(argv)
-    _store(writes_enabled=True).set_assessment(args.name, args.text)
+    _deck_access(writes_enabled=True).set_assessment(args.name, args.text)
     print(f'set-assessment: {args.name}')
 
 
@@ -203,8 +279,50 @@ def _set_focus_otags(argv: list[str]) -> None:
     parser.add_argument('name')
     parser.add_argument('otag', nargs='+', help='One or more focus otag/bucket slugs.')
     args = parser.parse_args(argv)
-    _store(writes_enabled=True).set_focus_otags(args.name, list(args.otag))
+    _deck_access(writes_enabled=True).set_focus_otags(args.name, list(args.otag))
     print(f'set-focus-otags: {args.name} -> {args.otag}')
+
+
+# --------------------------------------------------------------------------- #
+# Sync (manual pull / push / sync — the override; normally opaque) — W4
+# --------------------------------------------------------------------------- #
+
+
+def _pull(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection pull', description='Pull a deck from the source of record into the local decks store.'
+    )
+    parser.add_argument('name')
+    args = parser.parse_args(argv)
+    _deck_access(writes_enabled=True).pull(args.name)
+    print(f'pull: {args.name}')
+
+
+def _push(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection push',
+        description='Push the local deck to the source of record through the ceremony (drift-guarded).',
+    )
+    parser.add_argument('name')
+    parser.add_argument(
+        '--confirm',
+        action='store_true',
+        help='Allow a push that SHRINKS an at-target deck below target (the source shrink ceremony).',
+    )
+    args = parser.parse_args(argv)
+    _deck_access(writes_enabled=True).push(args.name, allow_shrink=args.confirm)
+    print(f'push: {args.name}')
+
+
+def _sync(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection sync', description='Pull-then-push a deck (reconcile local against the source).'
+    )
+    parser.add_argument('name')
+    parser.add_argument('--confirm', action='store_true', help='Allow a shrinking push (see `push --confirm`).')
+    args = parser.parse_args(argv)
+    _deck_access(writes_enabled=True).sync(args.name, allow_shrink=args.confirm)
+    print(f'sync: {args.name}')
 
 
 # --------------------------------------------------------------------------- #
@@ -871,6 +989,11 @@ VERBS = {
     'set-strategy': _set_strategy,
     'set-assessment': _set_assessment,
     'set-focus-otags': _set_focus_otags,
+    'pull': _pull,
+    'push': _push,
+    'sync': _sync,
+    'archive-deck': _archive_deck,
+    'unarchive-deck': _unarchive_deck,
     'audit-decks': _audit_decks,
     'recover-decks': _recover_decks,
     # inventory
@@ -908,10 +1031,19 @@ def main() -> None:
     # `ReadOnlyStoreError` lives in the lazily-imported Airtable adapter; import it
     # here so the local-only path never triggers the adapter import.
     from pipeline.collection.adapters.airtable_collection import ReadOnlyStoreError
+    from pipeline.decks.store import DecksError
+    from pipeline.decks.sync import SyncDriftError
 
     try:
         VERBS[verb](sys.argv[2:])
-    except (FileNotFoundError, CollectionError, ReadOnlyStoreError, AirtableConfigError) as exc:
+    except (
+        FileNotFoundError,
+        CollectionError,
+        ReadOnlyStoreError,
+        AirtableConfigError,
+        DecksError,
+        SyncDriftError,
+    ) as exc:
         # EXPECTED, user-facing failures only (unknown deck, bad --field, malformed
         # YAML, bad user JSON, missing creds, Airtable schema/read-only errors):
         # surface a clean one-line message instead of a raw traceback. A genuine
