@@ -50,11 +50,13 @@ from __future__ import annotations
 import json
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 import typer
+
+from pipeline.transforms.crosswalk import BUCKET_ROOTS
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -106,6 +108,84 @@ BUCKET_STRATEGY_SYNONYMS: dict[str, list[str]] = {
     "extra_combat": ["combat", "aggro", "extra combats"],
     "wincon": ["combo", "wincon", "value"],
 }
+
+
+# ── Bucket→Scryfall discovery map (channel A of refine-methodology §2) ──
+# Sibling to BUCKET_STRATEGY_SYNONYMS: where that maps a bucket to the deck-
+# strategy KEYWORDS the scoring engine keys on, THIS maps each bucket to the
+# Scryfall functional-search FRAGMENTS the discovery step runs to pull a real,
+# cross-Magic, in-identity, format-legal candidate pool (channel A / primary).
+#
+# DERIVED, NOT HAND-AUTHORED. Our otag vocabulary IS Scryfall's oracle-tagger
+# vocabulary — the crosswalk (`pipeline.transforms.crosswalk.BUCKET_ROOTS`) was
+# built from it — so `otag:<root>` is a live `/cards/search` query BY CONSTRUCTION.
+# Deriving means the map can never drift from the crosswalk and can never carry a
+# guessed/dead slug (an earlier hand-authored version shipped several: e.g.
+# `otag:creates-tokens`, `otag:double-strike`, `otag:aristocrats` all return
+# nothing). Every root was live-validated against the Scryfall API (2026-08-04);
+# the env-gated `live` test (MAKE_MAGIC_LIVE=1) re-checks each returns cards.
+#
+# SURGICAL discovery = query ONE specific root from a bucket's set (e.g.
+# `otag:gives-double-strike` rather than the whole `combat` bucket) — every root is
+# a live tag, so this is safe and finer-grained. See refine-methodology.md
+# "Going surgical". Multiple roots per bucket are OR-joined by build_discovery_query.
+BUCKET_TO_SCRYFALL_OTAG: dict[str, list[str]] = {
+    bucket: [f"otag:{root}" for root in sorted(roots)] for bucket, roots in BUCKET_ROOTS.items()
+}
+
+
+# ── Discovery query builder (channel A — PURE, offline, unit-testable) ──
+
+
+def build_discovery_query(
+    color_identity: str,
+    buckets: list[str],
+    *,
+    cmc_max: int | None = None,
+    extra: str | None = None,
+) -> str:
+    """Build a Scryfall functional-search query for discovery channel A.
+
+    PURE / offline (no network) so it is unit-testable: it only assembles a query
+    string. The caller runs it via `scryfall_cache.py search "<query>"`.
+
+    Shape: `id<=<colors> f:commander (<frag> or <frag> ...) [cmc<=<n>] [extra]`
+      - `f:commander` is always present (format legality is a hard pre-filter).
+      - `id<=<colors>` is the color-identity pre-filter — native to the query, so
+        the returned pool is already in-identity (empty colors -> `id<=c`, colorless).
+      - the mapped otag/`o:` fragments for the given buckets are OR-joined inside a
+        single parenthesised clause (widest honest net for the role).
+      - `cmc<=<n>` bounds the curve slot when supplied.
+      - `extra` is appended verbatim (escape hatch for hand-tuned refinements).
+
+    Raises:
+      ValueError: if `buckets` is empty (no functional clause = meaningless query).
+      KeyError:   if a bucket has no BUCKET_TO_SCRYFALL_OTAG entry — a discovery gap
+                  must fail loudly, never silently drop a role.
+    """
+    if not buckets:
+        raise ValueError("build_discovery_query needs at least one bucket")
+
+    fragments: list[str] = []
+    for bucket in buckets:
+        if bucket not in BUCKET_TO_SCRYFALL_OTAG:
+            raise KeyError(
+                f"unknown bucket {bucket!r}: no BUCKET_TO_SCRYFALL_OTAG entry "
+                f"(known: {sorted(BUCKET_TO_SCRYFALL_OTAG)})"
+            )
+        for frag in BUCKET_TO_SCRYFALL_OTAG[bucket]:
+            if frag not in fragments:  # dedupe, preserve order
+                fragments.append(frag)
+
+    colors = "".join(ch for ch in color_identity.lower() if ch in "wubrg") or "c"
+    clause = " or ".join(fragments)
+
+    parts = [f"id<={colors}", "f:commander", f"({clause})"]
+    if cmc_max is not None:
+        parts.append(f"cmc<={cmc_max}")
+    if extra:
+        parts.append(extra)
+    return " ".join(parts)
 
 
 # ── Otag-bucket tag source ──────────────────────────────────────────────
@@ -404,7 +484,7 @@ def generate_recommendations(
 ) -> dict:
     """Generate recommendations with no hard cap — uses score threshold."""
     results = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "pipeline_version": "v5-otag",
         "card_pool_size": len(cards),
         "min_score_threshold": min_score,
@@ -510,7 +590,7 @@ def tag_set(
     processed = [process_card(name, resolver=resolver) for name in names]
 
     result = {
-        "tagged_at": datetime.now(timezone.utc).isoformat(),
+        "tagged_at": datetime.now(UTC).isoformat(),
         "set_code": code,
         "total_cards": len(processed),
         "cards": processed,
@@ -547,7 +627,7 @@ def tag_file(
     processed = [process_card(name, resolver=resolver) for name in names if name]
 
     result = {
-        "tagged_at": datetime.now(timezone.utc).isoformat(),
+        "tagged_at": datetime.now(UTC).isoformat(),
         "total_cards": len(processed),
         "cards": processed,
     }

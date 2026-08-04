@@ -21,8 +21,13 @@ Run:
 
 from __future__ import annotations
 
+import json
+import os
 import sys
+import time
 from pathlib import Path
+
+import pytest
 
 _PIPELINE = Path(__file__).resolve().parents[1] / "pipeline"
 if str(_PIPELINE) not in sys.path:
@@ -32,8 +37,8 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 import card_tagger  # noqa: E402
-from pipeline.contracts import Card  # noqa: E402
 
+from pipeline.contracts import Card  # noqa: E402
 
 # --------------------------------------------------------------------------- #
 # The regex census is GONE — the module must not even import `re`.
@@ -231,3 +236,152 @@ def test_generate_recommendations_ranks_and_thresholds():
     assert scores == sorted(scores, reverse=True)
     # Cultivate (ramp+tutor) is the strongest ramp fit.
     assert recs[0]["card_name"] == "Cultivate"
+
+
+# --------------------------------------------------------------------------- #
+# BUCKET_TO_SCRYFALL_OTAG — the discovery-channel map from crosswalk buckets to
+# Scryfall functional-search fragments (otag:/function: slugs, or a curated o:
+# oracle-text fallback where a bucket has no clean otag). Sibling to
+# BUCKET_STRATEGY_SYNONYMS; the primary discovery channel (A) keys on it.
+# --------------------------------------------------------------------------- #
+
+
+def test_every_bucket_has_a_scryfall_fragment():
+    """No silent gaps: EVERY crosswalk bucket in BUCKET_STRATEGY_SYNONYMS must have
+    a non-empty BUCKET_TO_SCRYFALL_OTAG entry (a missing bucket is a discovery hole)."""
+    buckets = set(card_tagger.BUCKET_STRATEGY_SYNONYMS)
+    mapped = set(card_tagger.BUCKET_TO_SCRYFALL_OTAG)
+    missing = buckets - mapped
+    assert not missing, f"buckets with no Scryfall fragment (discovery gap): {missing}"
+    for bucket, fragments in card_tagger.BUCKET_TO_SCRYFALL_OTAG.items():
+        assert fragments, f"bucket {bucket!r} maps to an empty fragment list"
+        assert all(isinstance(f, str) and f for f in fragments)
+
+
+def test_scryfall_map_only_references_known_buckets():
+    """The map must not invent buckets outside the crosswalk vocabulary."""
+    buckets = set(card_tagger.BUCKET_STRATEGY_SYNONYMS)
+    mapped = set(card_tagger.BUCKET_TO_SCRYFALL_OTAG)
+    extra = mapped - buckets
+    assert not extra, f"BUCKET_TO_SCRYFALL_OTAG references unknown buckets: {extra}"
+
+
+def test_scryfall_fragments_are_query_shaped():
+    """Every fragment is a Scryfall query token — an otag:/function: slug or a
+    curated o: oracle-text fallback (documented as such)."""
+    valid_prefixes = ("otag:", "function:", "o:")
+    for bucket, fragments in card_tagger.BUCKET_TO_SCRYFALL_OTAG.items():
+        for frag in fragments:
+            assert frag.startswith(valid_prefixes), (
+                f"bucket {bucket!r} fragment {frag!r} is not a known Scryfall token"
+            )
+
+
+def test_scryfall_map_is_derived_from_crosswalk_roots():
+    """The map is DERIVED from crosswalk BUCKET_ROOTS, not hand-authored — so it
+    can never drift from the crosswalk nor carry a guessed slug. Each bucket's
+    fragments are exactly `otag:<root>` for its roots. This is the invariant that
+    replaced the earlier hand-authored map (which shipped dead slugs)."""
+    from pipeline.transforms.crosswalk import BUCKET_ROOTS
+
+    expected = {
+        bucket: [f"otag:{root}" for root in sorted(roots)] for bucket, roots in BUCKET_ROOTS.items()
+    }
+    assert expected == card_tagger.BUCKET_TO_SCRYFALL_OTAG
+
+
+@pytest.mark.skipif(
+    os.getenv("MAKE_MAGIC_LIVE") != "1",
+    reason="live Scryfall check — set MAKE_MAGIC_LIVE=1 to run (network).",
+)
+def test_scryfall_buckets_are_live():
+    """LIVE guard (opt-in): EVERY bucket's OR-joined discovery query must return
+    cards on Scryfall. This is the invariant discovery relies on — a bucket that
+    yields no pool is a silent discovery hole. Tested at the BUCKET level (the
+    OR of its roots) so a single dead leaf inside an otherwise-live bucket is
+    tolerated; a fully-dead bucket fails with its name. Re-validates the crosswalk
+    vocabulary against the live tagger taxonomy (5-colour identity so colour never
+    zeroes a legitimately mono-colour bucket)."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    def total_cards(query: str) -> int:
+        url = f"https://api.scryfall.com/cards/search?q={urllib.parse.quote(query)}"
+        # Scryfall requires a descriptive User-Agent + Accept header (rejects the
+        # urllib default with 400/403), so send them explicitly.
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "make-magic-tests/1.0", "Accept": "application/json"}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return int(json.load(resp).get("total_cards", 0))
+        except urllib.error.HTTPError:
+            return 0  # 404 = genuine zero-result → treat as empty (dead pool)
+
+    dead: list[str] = []
+    for bucket in card_tagger.BUCKET_TO_SCRYFALL_OTAG:
+        query = card_tagger.build_discovery_query("wubrg", [bucket])
+        if total_cards(query) == 0:
+            dead.append(bucket)
+        time.sleep(0.12)  # Scryfall rate-limit courtesy
+    assert not dead, f"buckets whose discovery query returns NO cards (dead pool): {dead}"
+
+
+# --------------------------------------------------------------------------- #
+# build_discovery_query — the PURE, offline query builder for discovery channel A.
+# --------------------------------------------------------------------------- #
+
+
+def test_build_discovery_query_single_bucket():
+    """A single role builds the canonical `id<= f:commander (<otag>)` shape."""
+    q = card_tagger.build_discovery_query("wg", ["removal"])
+    assert q == "id<=wg f:commander (otag:removal)"
+
+
+def test_build_discovery_query_with_cmc():
+    """cmc_max appends a `cmc<=` bound."""
+    q = card_tagger.build_discovery_query("wg", ["removal"], cmc_max=3)
+    assert q == "id<=wg f:commander (otag:removal) cmc<=3"
+
+
+def test_build_discovery_query_multi_bucket_or_joins():
+    """Multiple buckets OR-join all their mapped fragments inside one clause."""
+    q = card_tagger.build_discovery_query("r", ["ramp", "removal"])
+    # ramp maps to two fragments; all fragments across both buckets OR-join.
+    assert q.startswith("id<=r f:commander (")
+    assert " or " in q
+    assert "otag:removal" in q
+    assert "otag:ramp" in q or "otag:mana-ramp" in q
+
+
+def test_build_discovery_query_dedupes_fragments():
+    """Repeated buckets do not duplicate fragments in the OR clause."""
+    q = card_tagger.build_discovery_query("g", ["ramp", "ramp"])
+    # 'otag:ramp' must appear exactly once.
+    assert q.count("otag:ramp") == 1
+
+
+def test_build_discovery_query_extra_appended():
+    """An `extra` fragment is appended verbatim (escape hatch for hand tuning)."""
+    q = card_tagger.build_discovery_query("u", ["draw"], extra="-is:reserved")
+    assert q.endswith("-is:reserved")
+
+
+def test_build_discovery_query_colorless_identity():
+    """An empty color identity yields `id<=c` (colorless — the strictest identity)."""
+    q = card_tagger.build_discovery_query("", ["ramp"])
+    assert q.startswith("id<=c f:commander (")
+
+
+def test_build_discovery_query_unknown_bucket_raises():
+    """An unknown bucket is a programming error, not a silent skip — it raises so a
+    discovery gap can never pass unnoticed."""
+    with pytest.raises(KeyError):
+        card_tagger.build_discovery_query("wg", ["not_a_bucket"])
+
+
+def test_build_discovery_query_no_buckets_raises():
+    """No buckets = no functional clause = a meaningless query; reject it."""
+    with pytest.raises(ValueError):
+        card_tagger.build_discovery_query("wg", [])
