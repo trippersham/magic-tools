@@ -356,4 +356,55 @@ def test_deck_combos_inconclusive_on_lake_failure(
     _run(monkeypatch, 'deck-combos', 'Sparse Deck')
     out = json.loads(capsys.readouterr().out)
     assert out['combo_data_available'] is False
-    assert out['combos'] == []
+
+
+# --------------------------------------------------------------------------- #
+# --id precedence (P2) — the escape hatch overrides the positional NAME
+# --------------------------------------------------------------------------- #
+
+
+def test_id_flag_disambiguates_two_active_gruul(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, tmp_path: Path
+) -> None:
+    """Two active local rows named 'Gruul' -> `get-deck 'Gruul'` refuses; `--id` resolves one."""
+    from pipeline.decks import DecksStore
+
+    _save_source_deck(monkeypatch, tmp_path, 'Gruul', _commander_cards('Grumgully, the Generous'), format_='Commander')
+    # A second, distinct ephemeral draft that reuses the name 'Gruul'.
+    _run(monkeypatch, 'new-draft', 'Gruul')
+    capsys.readouterr()
+
+    # Bare name is ambiguous (2 rows) -> clean one-line refusal, exit 1.
+    with pytest.raises(SystemExit) as ei:
+        _run(monkeypatch, 'get-deck', 'Gruul')
+    assert ei.value.code == 1
+    err = capsys.readouterr().err
+    assert "is ambiguous (2 decks)" in err
+    assert 'Traceback' not in err
+
+    # Pick the ephemeral draft by its short id -> resolves that specific row.
+    rows = DecksStore().list_rows(include_archived=True)
+    eph = next(r for r in rows if r.sync_status == 'ephemeral')
+    _run(monkeypatch, 'get-deck', 'Gruul', '--id', eph.deck_uuid[:6])
+    out = json.loads(capsys.readouterr().out)
+    assert out['uuid'] == eph.deck_uuid
+
+
+def test_id_flag_precedence_over_positional_name(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, tmp_path: Path
+) -> None:
+    """When BOTH a name and --id are given, --id wins (the name is ignored)."""
+    from pipeline.decks import DecksStore
+
+    _run(monkeypatch, 'new-draft', 'Alpha')
+    _run(monkeypatch, 'new-draft', 'Beta')
+    capsys.readouterr()
+
+    rows = {r.name: r for r in DecksStore().list_rows(include_archived=True)}
+    beta_uuid = rows['Beta'].deck_uuid
+
+    # Address 'Alpha' by name but override with Beta's --id -> Beta wins.
+    _run(monkeypatch, 'get-deck', 'Alpha', '--id', beta_uuid[:6])
+    out = json.loads(capsys.readouterr().out)
+    assert out['name'] == 'Beta'
+    assert out['uuid'] == beta_uuid

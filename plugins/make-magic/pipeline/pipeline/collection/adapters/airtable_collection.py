@@ -1002,6 +1002,29 @@ class AirtableCollectionStore:
         rows = self._client.list_records(table_id, filter_by_formula=formula)
         return rows[0] if rows else None
 
+    def _get_deck_record_by_id(self, record_id: str) -> dict[str, Any] | None:
+        """GET one Decks record by its stable recordId (rename-safe binding read).
+
+        The recordId is globally unique and rename-proof (design §2/§4), so a
+        re-read keyed on it survives a source-side deck RENAME that a name lookup
+        would miss. A read-only GET (the CRUD client supports GET) — no write, no
+        delete. Returns None on a 404 so the caller can fall back to a name read.
+        """
+        table_id = self._resolver.table_id(self._decks_table)
+        formula = f"RECORD_ID() = '{_escape(record_id)}'"
+        rows = self._client.list_records(table_id, filter_by_formula=formula)
+        return rows[0] if rows else None
+
+    def get_deck_by_record_id(self, record_id: str) -> Deck:
+        """Read a deck by its stable Airtable recordId (rename-safe; hydrated)."""
+        rec = self._get_deck_record_by_id(record_id)
+        if rec is None:
+            raise FileNotFoundError(f'No Airtable Decks record with id {record_id!r}.')
+        deck = self._row_to_deck(rec, self._inventory_name_map(), hydrate=True)
+        self._warn_unresolved_cards(deck)
+        self._check_deck_size(deck, rec)
+        return deck
+
     def get_deck(self, name: str) -> Deck:
         rec = self._find_deck_record(name)
         if rec is None:

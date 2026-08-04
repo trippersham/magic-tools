@@ -171,13 +171,14 @@ def _archive_deck(argv: list[str]) -> None:
         prog='collection archive-deck',
         description='Archive a local deck by NAME (hide it from the default list; not deleted).',
     )
-    parser.add_argument('deck', help='Deck name (resolved to its local deck_uuid).')
+    parser.add_argument('deck', nargs='?', help='Deck name (resolved to its local deck_uuid).')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
     from pipeline.decks import DecksStore
 
-    deck_uuid = _deck_access().resolve(args.deck)
+    deck_uuid = _resolve_target(_deck_access(), args.deck, args.id_prefix)
     DecksStore().archive(deck_uuid)
-    print(f'archive-deck: {args.deck}')
+    print(f'archive-deck: {args.deck if args.id_prefix is None else args.id_prefix}')
 
 
 def _unarchive_deck(argv: list[str]) -> None:
@@ -185,23 +186,27 @@ def _unarchive_deck(argv: list[str]) -> None:
         prog='collection unarchive-deck',
         description='Unarchive a local deck by NAME (restore it to the default list).',
     )
-    parser.add_argument('deck', help='Deck name (resolved to its local deck_uuid).')
+    parser.add_argument('deck', nargs='?', help='Deck name (resolved to its local deck_uuid).')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
     from pipeline.decks import DecksStore
 
-    deck_uuid = _deck_access().resolve(args.deck)
+    deck_uuid = _resolve_target(_deck_access(), args.deck, args.id_prefix)
     DecksStore().unarchive(deck_uuid)
-    print(f'unarchive-deck: {args.deck}')
+    print(f'unarchive-deck: {args.deck if args.id_prefix is None else args.id_prefix}')
 
 
 def _get_deck(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection get-deck')
-    parser.add_argument('name')
+    parser.add_argument('name', nargs='?')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     parser.add_argument('--field', help='Print only this Deck field (e.g. strategy, assessment, focus_otags).')
     args = parser.parse_args(argv)
+    if args.id_prefix is None and not args.name:
+        raise CollectionError('get-deck: a deck name or --id prefix is required')
     # W1/W4: route the deck READ through the local decks store (pull-current per
-    # the TTL policy, serve local thereafter).
-    deck = _deck_access().read_deck(args.name)
+    # the TTL policy, serve local thereafter). --id takes precedence over the name.
+    deck = _deck_access().read_deck(args.name or '', id_prefix=args.id_prefix)
     if args.field:
         allowed = sorted(set(Deck.model_fields) | {'commanders'})
         if args.field not in allowed:
@@ -260,34 +265,51 @@ def _save_deck(argv: list[str]) -> None:
 
 def _set_strategy(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection set-strategy')
-    parser.add_argument('name')
+    parser.add_argument('name', nargs='?')
     parser.add_argument('text')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
-    _deck_access(writes_enabled=True).set_strategy(args.name, args.text)
-    print(f'set-strategy: {args.name}')
+    _deck_access(writes_enabled=True).set_strategy(args.name or '', args.text, id_prefix=args.id_prefix)
+    print(f'set-strategy: {args.name if args.id_prefix is None else args.id_prefix}')
 
 
 def _set_assessment(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection set-assessment')
-    parser.add_argument('name')
+    parser.add_argument('name', nargs='?')
     parser.add_argument('text')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
-    _deck_access(writes_enabled=True).set_assessment(args.name, args.text)
-    print(f'set-assessment: {args.name}')
+    _deck_access(writes_enabled=True).set_assessment(args.name or '', args.text, id_prefix=args.id_prefix)
+    print(f'set-assessment: {args.name if args.id_prefix is None else args.id_prefix}')
 
 
 def _set_focus_otags(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection set-focus-otags')
-    parser.add_argument('name')
+    parser.add_argument('name', nargs='?')
     parser.add_argument('otag', nargs='+', help='One or more focus otag/bucket slugs.')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
-    _deck_access(writes_enabled=True).set_focus_otags(args.name, list(args.otag))
-    print(f'set-focus-otags: {args.name} -> {args.otag}')
+    _deck_access(writes_enabled=True).set_focus_otags(args.name or '', list(args.otag), id_prefix=args.id_prefix)
+    print(f'set-focus-otags: {args.name if args.id_prefix is None else args.id_prefix} -> {args.otag}')
 
 
 # --------------------------------------------------------------------------- #
 # Deck edits (typed edits over the local DecksStore — the guided-build surface)
 # --------------------------------------------------------------------------- #
+
+
+def _resolve_target(access: DeckAccess, name: str | None, id_prefix: str | None) -> str:
+    """Resolve a verb's (NAME | ``--id`` prefix) to a ``deck_uuid``.
+
+    ``--id`` takes PRECEDENCE over the positional name (design §2/§3): when given,
+    it prefix-matches ``deck_uuid`` and the name is ignored; otherwise the name is
+    resolved (dup names refuse with the candidate list). Exactly one is required.
+    """
+    if id_prefix is not None:
+        return access.resolve(id_prefix=id_prefix)
+    if not name:
+        raise CollectionError('a deck name or --id prefix is required')
+    return access.resolve(name)
 
 
 def _resolve_deck_uuid(access: DeckAccess, name: str) -> str:
@@ -304,10 +326,32 @@ def _resolve_deck_uuid(access: DeckAccess, name: str) -> str:
     uuid = access.resolve(name)
     if access.has_local_row(uuid):
         return uuid
-    # Synced: pull the source deck into the local store so an edit has a row, then
-    # re-resolve to the uuid the pull persisted under.
+    # Synced: pull the source deck into the local store so an edit has a row (bound
+    # by external ref), then re-resolve to the uuid the pull persisted under.
     access.read_deck(name)
     return access.resolve(name)
+
+
+def _resolve_edit_target(access: DeckAccess, name: str | None, id_prefix: str | None) -> tuple[str, str]:
+    """Resolve a deck-EDIT verb's (NAME | ``--id``) to ``(deck_uuid, effective_name)``.
+
+    ``--id`` takes precedence (design §2/§3). For an ``--id`` target we pull-current
+    an absent/stale synced row so the typed edit has a row to mutate, mirroring the
+    name path's ``_resolve_deck_uuid``. The effective name is the row's own label,
+    used to address the source push at the commit boundary.
+    """
+    if id_prefix is not None:
+        deck_uuid = access.resolve(id_prefix=id_prefix)
+        from pipeline.decks import DecksStore
+
+        row = DecksStore().get_row(deck_uuid)
+        eff_name = row.name if row is not None else (name or '')
+        if row is not None and row.sync_status == 'synced' and not access.has_local_row(deck_uuid):
+            access.read_deck(eff_name, id_prefix=id_prefix)
+        return deck_uuid, eff_name
+    if not name:
+        raise CollectionError('a deck name or --id prefix is required')
+    return _resolve_deck_uuid(access, name), name
 
 
 def _commit_deck_edit(access: DeckAccess, name: str, deck_uuid: str) -> None:
@@ -330,44 +374,46 @@ def _deck_swap(argv: list[str]) -> None:
         prog='collection deck-swap',
         description='Swap one card for another in a deck (size-preserving; commander-safe).',
     )
-    parser.add_argument('deck')
+    parser.add_argument('deck', nargs='?')
     parser.add_argument('--add', required=True, help='Card name to add.')
     parser.add_argument('--cut', required=True, help='Card name to cut (one copy).')
     parser.add_argument('--role', default=None, help='Role for the added card (e.g. commander, sideboard).')
     parser.add_argument('--why', default=None, help='Rationale recorded in the deck ledger.')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
 
     from pipeline.decks import DecksStore
 
     access = _deck_access(writes_enabled=True)
-    deck_uuid = _resolve_deck_uuid(access, args.deck)
+    deck_uuid, eff_name = _resolve_edit_target(access, args.deck, args.id_prefix)
     DecksStore().swap(
         deck_uuid, add=DeckCard(name=args.add, role=args.role), cut=args.cut, rationale=args.why
     )
-    _commit_deck_edit(access, args.deck, deck_uuid)
-    print(f'deck-swap: {args.deck}  -{args.cut}  +{args.add}')
+    _commit_deck_edit(access, eff_name, deck_uuid)
+    print(f'deck-swap: {eff_name}  -{args.cut}  +{args.add}')
 
 
 def _deck_add(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog='collection deck-add', description='Add a card to a deck (increments an existing entry by name).'
     )
-    parser.add_argument('deck')
+    parser.add_argument('deck', nargs='?')
     parser.add_argument('card')
     parser.add_argument('--qty', type=int, default=1, help='Copies to add (default 1).')
     parser.add_argument('--role', default=None, help='Role for the added card (e.g. commander, sideboard).')
     parser.add_argument('--why', default=None, help='Rationale recorded in the deck ledger.')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
 
     from pipeline.decks import DecksStore
 
     access = _deck_access(writes_enabled=True)
-    deck_uuid = _resolve_deck_uuid(access, args.deck)
+    deck_uuid, eff_name = _resolve_edit_target(access, args.deck, args.id_prefix)
     DecksStore().add_card(
         deck_uuid, DeckCard(name=args.card, quantity=args.qty, role=args.role), rationale=args.why
     )
-    _commit_deck_edit(access, args.deck, deck_uuid)
-    print(f'deck-add: {args.deck}  +{args.qty}x {args.card}')
+    _commit_deck_edit(access, eff_name, deck_uuid)
+    print(f'deck-add: {eff_name}  +{args.qty}x {args.card}')
 
 
 def _deck_remove(argv: list[str]) -> None:
@@ -375,19 +421,20 @@ def _deck_remove(argv: list[str]) -> None:
         prog='collection deck-remove',
         description='Remove copies of a card from a deck (quantity-aware; refuses to shrink under target).',
     )
-    parser.add_argument('deck')
+    parser.add_argument('deck', nargs='?')
     parser.add_argument('card')
     parser.add_argument('--qty', type=int, default=1, help='Copies to remove (default 1).')
     parser.add_argument('--why', default=None, help='Rationale recorded in the deck ledger.')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
 
     from pipeline.decks import DecksStore
 
     access = _deck_access(writes_enabled=True)
-    deck_uuid = _resolve_deck_uuid(access, args.deck)
+    deck_uuid, eff_name = _resolve_edit_target(access, args.deck, args.id_prefix)
     DecksStore().remove_card(deck_uuid, args.card, qty=args.qty, rationale=args.why)
-    _commit_deck_edit(access, args.deck, deck_uuid)
-    print(f'deck-remove: {args.deck}  -{args.qty}x {args.card}')
+    _commit_deck_edit(access, eff_name, deck_uuid)
+    print(f'deck-remove: {eff_name}  -{args.qty}x {args.card}')
 
 
 def _new_draft(argv: list[str]) -> None:
@@ -455,21 +502,22 @@ def _undo_deck(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog='collection undo-deck', description='Restore a deck to its prior ledger version (step back one edit).'
     )
-    parser.add_argument('deck')
+    parser.add_argument('deck', nargs='?')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
 
     from pipeline.decks import DecksStore
 
     access = _deck_access(writes_enabled=True)
-    deck_uuid = _resolve_deck_uuid(access, args.deck)
+    deck_uuid, eff_name = _resolve_edit_target(access, args.deck, args.id_prefix)
     restored = DecksStore().undo(deck_uuid)
     if restored is None:
-        print(f'undo-deck: {args.deck} — nothing to undo')
+        print(f'undo-deck: {eff_name} — nothing to undo')
     else:
         # The restore is a local edit; commit it so a synced deck's source reflects
         # the step-back (else the next read re-pulls the un-done state).
-        _commit_deck_edit(access, args.deck, deck_uuid)
-        print(f'undo-deck: {args.deck} — restored to {sum(c.quantity for c in restored.cards)} cards')
+        _commit_deck_edit(access, eff_name, deck_uuid)
+        print(f'undo-deck: {eff_name} — restored to {sum(c.quantity for c in restored.cards)} cards')
 
 
 # --------------------------------------------------------------------------- #
@@ -532,10 +580,11 @@ def _pull(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog='collection pull', description='Pull a deck from the source of record into the local decks store.'
     )
-    parser.add_argument('name')
+    parser.add_argument('name', nargs='?')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
-    _deck_access(writes_enabled=True).pull(args.name)
-    print(f'pull: {args.name}')
+    _deck_access(writes_enabled=True).pull(args.name or '', id_prefix=args.id_prefix)
+    print(f'pull: {args.name if args.id_prefix is None else args.id_prefix}')
 
 
 def _push(argv: list[str]) -> None:
@@ -543,26 +592,28 @@ def _push(argv: list[str]) -> None:
         prog='collection push',
         description='Push the local deck to the source of record through the ceremony (drift-guarded).',
     )
-    parser.add_argument('name')
+    parser.add_argument('name', nargs='?')
     parser.add_argument(
         '--confirm',
         action='store_true',
         help='Allow a push that SHRINKS an at-target deck below target (the source shrink ceremony).',
     )
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
-    _deck_access(writes_enabled=True).push(args.name, allow_shrink=args.confirm)
-    print(f'push: {args.name}')
+    _deck_access(writes_enabled=True).push(args.name or '', allow_shrink=args.confirm, id_prefix=args.id_prefix)
+    print(f'push: {args.name if args.id_prefix is None else args.id_prefix}')
 
 
 def _sync(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog='collection sync', description='Pull-then-push a deck (reconcile local against the source).'
     )
-    parser.add_argument('name')
+    parser.add_argument('name', nargs='?')
     parser.add_argument('--confirm', action='store_true', help='Allow a shrinking push (see `push --confirm`).')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
-    _deck_access(writes_enabled=True).sync(args.name, allow_shrink=args.confirm)
-    print(f'sync: {args.name}')
+    _deck_access(writes_enabled=True).sync(args.name or '', allow_shrink=args.confirm, id_prefix=args.id_prefix)
+    print(f'sync: {args.name if args.id_prefix is None else args.id_prefix}')
 
 
 # --------------------------------------------------------------------------- #
@@ -1203,10 +1254,15 @@ def _copy(argv: list[str]) -> None:
 
 def _factsheet(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection factsheet')
-    parser.add_argument('name')
+    parser.add_argument('name', nargs='?')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     parser.add_argument('--focus', default=None, help='Comma-separated focus set.')
     args = parser.parse_args(argv)
-    deck = _store().get_deck(args.name)
+    if args.id_prefix is None and not args.name:
+        raise CollectionError('factsheet: a deck name or --id prefix is required')
+    # Route through the local decks store (design §4, B4) so factsheet works on
+    # ephemeral drafts too; --id takes precedence over the name.
+    deck = _deck_access().read_deck(args.name or '', id_prefix=args.id_prefix)
 
     root = str(_SCRIPTS_DIR)
     if root not in sys.path:

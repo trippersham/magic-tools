@@ -284,11 +284,12 @@ class DecksStore:
         """Return the ``deck_uuid`` of the single NON-consumed row named ``name`` (or None).
 
         The name->uuid resolution the access shim leans on (design §3). Names are
-        labels, so this is a lookup, not identity. Under today's single-name
-        assumption there is at most one live row per name; a ``consumed`` draft is
-        excluded (it is a retired exploration draft, not an addressable deck). When
-        more than one live row shares a name, the OLDEST (lowest rowid) wins as a
-        deterministic minimal tie-break — the dup-name candidate-list UX is P2.
+        labels, so this is a lookup, not identity. A ``consumed`` draft is excluded
+        (a retired exploration draft, not an addressable deck). When more than one
+        live row shares a name this returns the OLDEST (lowest rowid) as a
+        deterministic tie-break — but the P2 name resolver (``DeckAccess.resolve``)
+        REFUSES a dup name with a candidate list rather than lean on this; it is
+        kept only for the promote lookup where an exact single-name draft is meant.
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
@@ -299,6 +300,91 @@ class DecksStore:
                 [name],
             ).fetchone()
         return row[0] if row is not None else None
+
+    def rows_for_name(self, name: str) -> list[DeckRow]:
+        """Return ALL live (NON-consumed) rows named ``name``, rowid order.
+
+        The dup-name candidate set the P2 resolver disambiguates over (design §2).
+        A ``consumed`` draft is excluded (not addressable). Archived rows ARE
+        included — they remain addressable by ``--id`` and appear in the candidate
+        list (tagged ``archived``).
+        """
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            rows = conn.execute(
+                f'SELECT {self._ROW_COLUMNS} FROM {_DECKS_TABLE} '
+                "WHERE name = ? AND sync_status IS DISTINCT FROM 'consumed' "
+                'ORDER BY rowid',
+                [name],
+            ).fetchall()
+        return [_row_to_deckrow(r) for r in rows]
+
+    def uuids_by_prefix(self, prefix: str) -> list[str]:
+        """Return every NON-consumed ``deck_uuid`` that starts with ``prefix``.
+
+        Backs the ``--id <prefix>`` escape hatch (design §2/§3): 0 -> the caller
+        errors, 1 -> resolve, >1 -> ambiguous-prefix error. A ``consumed`` draft is
+        excluded (not addressable).
+        """
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            rows = conn.execute(
+                f'SELECT deck_uuid FROM {_DECKS_TABLE} '
+                "WHERE deck_uuid LIKE ? AND sync_status IS DISTINCT FROM 'consumed' "
+                'ORDER BY rowid',
+                [prefix.replace('%', r'\%').replace('_', r'\_') + '%'],
+            ).fetchall()
+        return [r[0] for r in rows]
+
+    def uuid_for_external_ref(self, backend: str, native_ref: str) -> str | None:
+        """Return the ``deck_uuid`` bound to ``external_ids[backend] == native_ref`` (or None).
+
+        The sync BINDING lookup (design §4): "same external ref = same deck". A
+        source deck's stable native ref (a local in-file uuid / an Airtable
+        recordId) locates its ONE local row regardless of the name it was addressed
+        under — the mechanism that kills M4 (case-alias / rename dual rows). A
+        ``consumed`` draft is excluded (it is a retired lineage, not the live row).
+        """
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            rows = conn.execute(
+                f'SELECT deck_uuid, external_ids FROM {_DECKS_TABLE} '
+                "WHERE sync_status IS DISTINCT FROM 'consumed'",
+            ).fetchall()
+        for deck_uuid, raw in rows:
+            try:
+                ext = json.loads(raw) if raw else {}
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if isinstance(ext, dict) and ext.get(backend) == native_ref:
+                return deck_uuid
+        return None
+
+    def set_external_id(self, deck_uuid: str, backend: str, native_ref: str) -> None:
+        """Bind ``external_ids[backend] = native_ref`` on a row (merge, don't clobber).
+
+        Bookkeeping only — it does NOT touch ``deck_json`` and therefore does NOT
+        append a ledger version. Merges into any existing map so a row can carry
+        both a ``local`` and an ``airtable`` ref (cross-machine identity, design §2).
+        """
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            row = conn.execute(
+                f'SELECT external_ids FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
+            ).fetchone()
+            if row is None:
+                raise DecksError(f'no deck with id {deck_uuid!r}')
+            try:
+                ext = json.loads(row[0]) if row[0] else {}
+            except (json.JSONDecodeError, TypeError):
+                ext = {}
+            if not isinstance(ext, dict):
+                ext = {}
+            ext[backend] = native_ref
+            conn.execute(
+                f'UPDATE {_DECKS_TABLE} SET external_ids = ? WHERE deck_uuid = ?',
+                [json.dumps(ext), deck_uuid],
+            )
 
     def external_ids(self, deck_uuid: str) -> str | None:
         """Return the raw ``external_ids`` JSON for ``deck_uuid`` (or None if absent).

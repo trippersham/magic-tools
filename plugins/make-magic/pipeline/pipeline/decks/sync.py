@@ -70,12 +70,17 @@ def pull(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, source_r
     deliberately (first access / explicit ``pull`` verb).
     """
     source = driver.get_deck(source_ref)
+    # Stamp the stored deck's own ``uuid`` to the local PK so ``Deck.uuid`` is the
+    # stable local identity (a source with a per-read/meaningless uuid — e.g. an
+    # Airtable read minting a fresh one — must not leak into the local row's
+    # identity). ``version`` excludes uuid, so the baseline hash is unaffected.
+    stamped = source if source.uuid == deck_uuid else source.model_copy(update={'uuid': deck_uuid})
     decks.put(
-        source,
+        stamped,
         deck_uuid=deck_uuid,
         sync_status='synced',
         source_ref=source_ref,
-        synced_baseline=version(source),
+        synced_baseline=version(stamped),
         rationale=f'pull from {source_ref}',
     )
 

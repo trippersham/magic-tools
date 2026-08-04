@@ -36,6 +36,14 @@ if TYPE_CHECKING:
 
 _SLUG_STRIP = re.compile(r'[^a-z0-9]+')
 
+#: The USER-DECIDED protective comment written ABOVE the in-file ``uuid`` (design
+#: §3). ``safe_dump`` cannot emit comments, so the header is injected manually and
+#: the ``uuid`` is dumped as the FIRST key so the comment sits directly above it.
+_UUID_COMMENT = (
+    "# This is the deck's permanent ID (used to keep copies in sync).\n"
+    '# Please leave it as-is — renaming the FILE is fine, editing this is not.\n'
+)
+
 
 def _slugify(name: str) -> str:
     """Deck name -> filename slug, e.g. 'Gruul Aggro' -> 'gruul-aggro'."""
@@ -344,15 +352,23 @@ class LocalYamlStore:
             fields = self._hydrate(name)
             fields.update(quantity=entry.get('qty', 1), role=entry.get('role'))
             cards.append(DeckCard.model_validate(fields))
-        return Deck(
-            name=data['name'],
-            strategy=data.get('strategy'),
-            assessment=data.get('assessment'),
-            focus_otags=data.get('focus_otags', []) or [],
-            format=data.get('format'),
-            cards=cards,
-            airtable_record_id=data.get('airtable_record_id'),
-        )
+        # The in-file ``uuid`` is the AUTHORITATIVE identity (design §3): read it
+        # back into ``Deck.uuid`` so the store binds by it. A legacy file MISSING a
+        # uuid is not an error — the Deck model mints a fresh one (default_factory),
+        # which is written into the file on the next save (see ``save_deck``).
+        deck_kwargs: dict[str, Any] = {
+            'name': data['name'],
+            'strategy': data.get('strategy'),
+            'assessment': data.get('assessment'),
+            'focus_otags': data.get('focus_otags', []) or [],
+            'format': data.get('format'),
+            'cards': cards,
+            'airtable_record_id': data.get('airtable_record_id'),
+        }
+        stored_uuid = data.get('uuid')
+        if isinstance(stored_uuid, str) and stored_uuid:
+            deck_kwargs['uuid'] = stored_uuid
+        return Deck(**deck_kwargs)
 
     def get_deck(self, name: str) -> Deck:
         path = self._deck_path(name)
@@ -360,6 +376,27 @@ class LocalYamlStore:
             raise FileNotFoundError(f'No deck YAML at {path} for {name!r}.')
         data = yaml.safe_load(path.read_text()) or {}
         return self._load_deck_from_dict(data, path=path)
+
+    def find_deck_path_by_uuid(self, uuid: str) -> Path | None:
+        """Return the deck-file whose in-file ``uuid`` equals ``uuid`` (or None).
+
+        RENAME-TOLERANT binding (design §3): the filename is a human-friendly slug
+        and is NOT authoritative, so a user renaming a deck FILE must not break the
+        binding. Glob the (small-N) decks dir and read each file's ``uuid`` key —
+        the authoritative identity — returning the matching path. A file lacking a
+        uuid (legacy) simply never matches.
+        """
+        decks_dir = self._decks_dir()
+        if not decks_dir.exists():
+            return None
+        for path in sorted(decks_dir.glob('*.yaml')):
+            try:
+                data = yaml.safe_load(path.read_text()) or {}
+            except yaml.YAMLError:
+                continue
+            if isinstance(data, dict) and data.get('uuid') == uuid:
+                return path
+        return None
 
     def list_decks(self) -> list[Deck]:
         decks_dir = self._decks_dir()
@@ -385,7 +422,10 @@ class LocalYamlStore:
                     f'cards, below its target of {prior.target_size}. Pass allow_shrink=True '
                     '(the CLI: `save-deck --confirm`) to proceed.'
                 )
+        # ``uuid`` is the FIRST key (design §3) so the protective comment header
+        # injected by ``_write_deck_yaml`` sits directly above it.
         data: dict[str, Any] = {
+            'uuid': deck.uuid,
             'name': deck.name,
             'strategy': deck.strategy,
         }
@@ -399,7 +439,18 @@ class LocalYamlStore:
             data['format'] = deck.format
         data['airtable_record_id'] = deck.airtable_record_id
         data['cards'] = [self._deck_card_to_row(c) for c in deck.cards]
-        self._write_yaml(self._deck_path(deck.name), data)
+        self._write_deck_yaml(self._deck_path(deck.name), data)
+
+    def _write_deck_yaml(self, path: Path, data: dict[str, Any]) -> None:
+        """Write a deck YAML with the protective ``uuid`` comment header on top.
+
+        ``safe_dump`` cannot emit comments, so the header is prepended manually.
+        The ``uuid`` MUST be the first key of ``data`` (``sort_keys=False`` keeps
+        insertion order) so the header lands directly above it.
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        body = yaml.safe_dump(data, sort_keys=False, allow_unicode=True, default_flow_style=False)
+        path.write_text(_UUID_COMMENT + body)
 
     def _set_deck_field(self, name: str, key: str, value: object) -> None:
         """Set one top-level field on an existing deck YAML in place (cards preserved)."""
@@ -408,7 +459,13 @@ class LocalYamlStore:
             raise FileNotFoundError(f'No deck YAML at {path} for {name!r}.')
         data = yaml.safe_load(path.read_text()) or {}
         data[key] = value
-        self._write_yaml(path, data)
+        # Preserve (or add) the in-file uuid + its protective header. A legacy file
+        # without a uuid gets one now (via a fresh mint) so the identity is stable.
+        if not data.get('uuid'):
+            from uuid import uuid4
+
+            data = {'uuid': uuid4().hex, **data}
+        self._write_deck_yaml(path, data)
 
     def set_strategy(self, name: str, text: str) -> None:
         self._set_deck_field(name, 'strategy', text)
