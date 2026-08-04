@@ -284,6 +284,181 @@ def _set_focus_otags(argv: list[str]) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Deck edits (typed edits over the local DecksStore — the guided-build surface)
+# --------------------------------------------------------------------------- #
+
+
+def _resolve_deck_id(access: DeckAccess, name: str) -> str:
+    """Resolve a deck NAME to the local ``deck_id`` the edit verbs operate on.
+
+    The local store is keyed by ``deck_id = <backend>:<name>`` (``deck_id_for``) —
+    the SAME namespace ``new-draft`` writes an ephemeral row under, so a draft and
+    its eventual source-backed twin share the id and the ephemeral row flips to
+    synced IN PLACE on promotion (design §4). When no local row exists yet, the
+    name is a SYNCED source deck: ``read_deck`` pulls it current into the local
+    store (per the W4 policy) so the typed edit has a row to mutate. A name that
+    is neither a known draft nor a readable source deck surfaces the source's
+    clean error.
+    """
+    from pipeline.decks import DecksStore
+
+    deck_id = access.deck_id_for(name)
+    if DecksStore().exists(deck_id):
+        return deck_id
+    # Synced: pull the source deck into the local store so an edit has a row.
+    access.read_deck(name)
+    return deck_id
+
+
+def _commit_deck_edit(access: DeckAccess, name: str, deck_id: str) -> None:
+    """PUSH a just-applied local deck edit to the source, unless it is ephemeral.
+
+    A SYNCED deck edit must be committed through the source ceremony at the edit
+    boundary — otherwise a later ``read_deck`` (whose W4 pull policy re-pulls a
+    stale source) would silently revert the local edit. An EPHEMERAL draft has no
+    source to push to, so it stays purely local (that is the point of a draft).
+    """
+    from pipeline.decks import DecksStore
+
+    row = DecksStore().get_row(deck_id)
+    if row is not None and row.sync_status == 'synced' and row.source_ref is not None:
+        access.push(name)
+
+
+def _deck_swap(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection deck-swap',
+        description='Swap one card for another in a deck (size-preserving; commander-safe).',
+    )
+    parser.add_argument('deck')
+    parser.add_argument('--add', required=True, help='Card name to add.')
+    parser.add_argument('--cut', required=True, help='Card name to cut (one copy).')
+    parser.add_argument('--role', default=None, help='Role for the added card (e.g. commander, sideboard).')
+    parser.add_argument('--why', default=None, help='Rationale recorded in the deck ledger.')
+    args = parser.parse_args(argv)
+
+    from pipeline.decks import DecksStore
+
+    access = _deck_access(writes_enabled=True)
+    deck_id = _resolve_deck_id(access, args.deck)
+    DecksStore().swap(
+        deck_id, add=DeckCard(name=args.add, role=args.role), cut=args.cut, rationale=args.why
+    )
+    _commit_deck_edit(access, args.deck, deck_id)
+    print(f'deck-swap: {args.deck}  -{args.cut}  +{args.add}')
+
+
+def _deck_add(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection deck-add', description='Add a card to a deck (increments an existing entry by name).'
+    )
+    parser.add_argument('deck')
+    parser.add_argument('card')
+    parser.add_argument('--qty', type=int, default=1, help='Copies to add (default 1).')
+    parser.add_argument('--role', default=None, help='Role for the added card (e.g. commander, sideboard).')
+    parser.add_argument('--why', default=None, help='Rationale recorded in the deck ledger.')
+    args = parser.parse_args(argv)
+
+    from pipeline.decks import DecksStore
+
+    access = _deck_access(writes_enabled=True)
+    deck_id = _resolve_deck_id(access, args.deck)
+    DecksStore().add_card(
+        deck_id, DeckCard(name=args.card, quantity=args.qty, role=args.role), rationale=args.why
+    )
+    _commit_deck_edit(access, args.deck, deck_id)
+    print(f'deck-add: {args.deck}  +{args.qty}x {args.card}')
+
+
+def _deck_remove(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection deck-remove',
+        description='Remove copies of a card from a deck (quantity-aware; refuses to shrink under target).',
+    )
+    parser.add_argument('deck')
+    parser.add_argument('card')
+    parser.add_argument('--qty', type=int, default=1, help='Copies to remove (default 1).')
+    parser.add_argument('--why', default=None, help='Rationale recorded in the deck ledger.')
+    args = parser.parse_args(argv)
+
+    from pipeline.decks import DecksStore
+
+    access = _deck_access(writes_enabled=True)
+    deck_id = _resolve_deck_id(access, args.deck)
+    DecksStore().remove_card(deck_id, args.card, qty=args.qty, rationale=args.why)
+    _commit_deck_edit(access, args.deck, deck_id)
+    print(f'deck-remove: {args.deck}  -{args.qty}x {args.card}')
+
+
+def _new_draft(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection new-draft',
+        description='Create an EPHEMERAL (local-only) deck draft — clean-slate, or a copy of an existing deck.',
+    )
+    parser.add_argument('name')
+    parser.add_argument('--from', dest='source', default=None, help='Copy an existing deck as the starting point.')
+    parser.add_argument('--commander', default=None, help='Commander card name (clean-slate only).')
+    parser.add_argument('--format', dest='format_', default=None, help="Deck format (e.g. 'Commander').")
+    args = parser.parse_args(argv)
+
+    from pipeline.decks import DecksStore
+
+    deck_id = _deck_access().deck_id_for(args.name)
+    if args.source is not None:
+        # An exploration COPY of an existing deck — read it via the access path
+        # (pull-current per the policy), then re-name it as a local-only draft.
+        source_deck = _deck_access().read_deck(args.source)
+        draft = source_deck.model_copy(update={'name': args.name, 'airtable_record_id': None})
+    else:
+        # A clean-slate draft: a minimal Deck (name/format + optional commander).
+        cards = [DeckCard(name=args.commander, role='commander')] if args.commander else []
+        draft = Deck(name=args.name, format=args.format_, cards=cards)
+    DecksStore().create_ephemeral(draft, deck_id)
+    print(f'new-draft: {args.name} [ephemeral] ({deck_id})')
+
+
+def _promote_deck(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection promote-deck',
+        description='Promote an ephemeral draft to a SYNCED deck on the source of record (create-through-ceremony).',
+    )
+    parser.add_argument('deck', help='The ephemeral draft name to promote.')
+    parser.add_argument('--to', dest='source_name', required=True, help='Source deck name to create/attach.')
+    args = parser.parse_args(argv)
+
+    from pipeline.decks import DecksStore, sync
+
+    deck_id = _deck_access().deck_id_for(args.deck)
+    decks = DecksStore()
+    if not decks.exists(deck_id):
+        raise CollectionError(f'no ephemeral draft named {args.deck!r} to promote')
+    driver = _store(writes_enabled=True)
+    sync.promote(decks, driver, deck_id=deck_id, source_ref=args.source_name)
+    print(f'promote-deck: {args.deck} -> {args.source_name} [synced]')
+
+
+def _undo_deck(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection undo-deck', description='Restore a deck to its prior ledger version (step back one edit).'
+    )
+    parser.add_argument('deck')
+    args = parser.parse_args(argv)
+
+    from pipeline.decks import DecksStore
+
+    access = _deck_access(writes_enabled=True)
+    deck_id = _resolve_deck_id(access, args.deck)
+    restored = DecksStore().undo(deck_id)
+    if restored is None:
+        print(f'undo-deck: {args.deck} — nothing to undo')
+    else:
+        # The restore is a local edit; commit it so a synced deck's source reflects
+        # the step-back (else the next read re-pulls the un-done state).
+        _commit_deck_edit(access, args.deck, deck_id)
+        print(f'undo-deck: {args.deck} — restored to {sum(c.quantity for c in restored.cards)} cards')
+
+
+# --------------------------------------------------------------------------- #
 # Sync (manual pull / push / sync — the override; normally opaque) — W4
 # --------------------------------------------------------------------------- #
 
@@ -989,6 +1164,13 @@ VERBS = {
     'set-strategy': _set_strategy,
     'set-assessment': _set_assessment,
     'set-focus-otags': _set_focus_otags,
+    # deck edits (typed edits + ephemeral lifecycle — the guided-build surface)
+    'deck-swap': _deck_swap,
+    'deck-add': _deck_add,
+    'deck-remove': _deck_remove,
+    'new-draft': _new_draft,
+    'promote-deck': _promote_deck,
+    'undo-deck': _undo_deck,
     'pull': _pull,
     'push': _push,
     'sync': _sync,
