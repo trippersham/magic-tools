@@ -278,3 +278,82 @@ def test_undo_deck_nothing_to_undo(
     _run(monkeypatch, 'undo-deck', 'Empty Brew')
     out = capsys.readouterr().out.lower()
     assert 'nothing to undo' in out
+
+
+# --------------------------------------------------------------------------- #
+# deck-combos — the VALIDATE archetype-fidelity signal + honest degradation
+# --------------------------------------------------------------------------- #
+
+
+def _combo(variant_id: str, *cards: str, result: str = 'Infinite mana') -> object:
+    """A minimal ``Combo`` (concrete named cards only) for the fidelity tests."""
+    from pipeline.transforms.combo_detect import Combo
+
+    return Combo(
+        variant_id=variant_id,
+        card_names=tuple(cards),
+        card_oracle_ids=tuple('' for _ in cards),
+        result=result,
+    )
+
+
+def test_deck_combos_registered() -> None:
+    assert 'deck-combos' in cli.VERBS
+
+
+def test_deck_combos_reports_present_combo(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, tmp_path: Path
+) -> None:
+    # A deck holding BOTH cards of a full combo.
+    cards = _commander_cards()
+    cards[1] = {'name': 'Basalt Monolith'}
+    cards[2] = {'name': 'Rings of Brighthearth'}
+    _save_source_deck(monkeypatch, tmp_path, 'Combo Deck', cards, format_='Commander')
+    capsys.readouterr()
+
+    combo = _combo('v1', 'Basalt Monolith', 'Rings of Brighthearth')
+    monkeypatch.setattr('pipeline.transforms.combo_detect.load_combos', lambda: [combo])
+
+    _run(monkeypatch, 'deck-combos', 'Combo Deck')
+    out = json.loads(capsys.readouterr().out)
+    assert out['combo_data_available'] is True
+    assert [c['variant_id'] for c in out['combos']] == ['v1']
+    assert set(out['combos'][0]['cards']) == {'Basalt Monolith', 'Rings of Brighthearth'}
+
+
+def test_deck_combos_absent_combo_available_true(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, tmp_path: Path
+) -> None:
+    # The lake has a combo, but the deck holds only ONE of its two pieces -> no
+    # match, and the check IS conclusive (available=true means "checked, none").
+    cards = _commander_cards()
+    cards[1] = {'name': 'Basalt Monolith'}
+    _save_source_deck(monkeypatch, tmp_path, 'Partial Deck', cards, format_='Commander')
+    capsys.readouterr()
+
+    combo = _combo('v1', 'Basalt Monolith', 'Rings of Brighthearth')
+    monkeypatch.setattr('pipeline.transforms.combo_detect.load_combos', lambda: [combo])
+
+    _run(monkeypatch, 'deck-combos', 'Partial Deck')
+    out = json.loads(capsys.readouterr().out)
+    assert out['combo_data_available'] is True
+    assert out['combos'] == []
+
+
+def test_deck_combos_inconclusive_on_lake_failure(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, tmp_path: Path
+) -> None:
+    # A sparse/absent lake: load_combos RAISES -> honest degradation. available is
+    # false and the match set is empty, but this is INCONCLUSIVE, not a clean bill.
+    _save_source_deck(monkeypatch, tmp_path, 'Sparse Deck', _commander_cards(), format_='Commander')
+    capsys.readouterr()
+
+    def _boom() -> list:
+        raise RuntimeError('combo lake not built')
+
+    monkeypatch.setattr('pipeline.transforms.combo_detect.load_combos', _boom)
+
+    _run(monkeypatch, 'deck-combos', 'Sparse Deck')
+    out = json.loads(capsys.readouterr().out)
+    assert out['combo_data_available'] is False
+    assert out['combos'] == []

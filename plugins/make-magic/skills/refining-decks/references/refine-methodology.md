@@ -217,13 +217,15 @@ This is **size-preserving** by construction: one add for one cut. The commit dec
 guard is SHRINK-ONLY — it refuses shrinking an at-target deck below target, but it does
 NOT block a write that GROWS the deck (an add without a cut sails through), and building
 up from a skeleton is fine. So size-preservation is enforced by the PAIRING, not the
-guard: `apply_swaps` folds exactly one add per cut into the working deck, so a swap never
-grows or shrinks the deck. Do not rely on the guard to catch an unpaired add.
+guard: applying each accepted swap as a single `deck-swap` (one add for its paired cut)
+keeps the deck the same size, so a swap never grows or shrinks the deck. Do not rely on
+the guard to catch an unpaired add.
 
 ## Step 5 — Output contract
 
-Each candidate is a swap object with these fields (this shape feeds the orchestrator's
-sim-depth proposals and is persisted as `draft.candidates[]`):
+Each candidate is a swap object with these fields (a **conversational proposal** — you
+present it, and apply the accepted ones with `deck-swap`; candidates are regenerable and
+never stored):
 
 ```
 {
@@ -249,9 +251,9 @@ Step 2 can surface a large candidate pool. **Delegate the bulk scoring pass to a
 context-isolated subagent** (drift-control item 7): hand it the survived pool + the
 Strategy + the role list, and have it return a distilled `{keep, cut, rationale}` per
 candidate — NOT the full tag dumps and price JSON. The driver keeps only the distilled
-verdicts, writes them into `draft.candidates`, and never bloats its own window with the
-raw evaluation traffic. The driver *is* the machine; the subagent is a pure evaluator
-that returns a summary.
+verdicts as its in-context ranked list (not a stored cache), and never bloats its own
+window with the raw evaluation traffic. The subagent is a pure evaluator that returns a
+summary; the driver ranks, presents, and applies the accepted swaps with `deck-swap`.
 
 ## Deliberately NOT
 

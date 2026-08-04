@@ -50,9 +50,9 @@ If you catch yourself about to:
   facts + Strategy.
 - **Overwrite the Strategy** — STOP. Strategy is a human-authored INPUT you read; you
   write the `Assessment` (and may propose `Focus Otags`), never the Strategy.
-- **Commit the Assessment mid-session under the orchestrator** — STOP. Under
-  building-decks the Assessment is a draft, held until COMMIT. Standalone, you may offer
-  to persist.
+- **Diagnose a stale decklist** — STOP. Always read the CURRENT deck (`get-deck`) at the
+  top of the run; the store holds the live cards. If REFINE just changed the deck, your
+  prior Assessment is stale — re-diagnose the current deck, don't reuse the old text.
 </red-flags>
 
 ## Strategy vs. Focus Otags vs. Assessment — keep them apart
@@ -91,8 +91,11 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/collection list-chase                   # cards al
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection set-focus-otags "<deck>" tokens counters anthem
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection set-assessment "<deck>" "<the pre-mortem synthesis>"
 ```
-`set-focus-otags` / `set-assessment` forward to the `CollectionStore` port verbs
-`set_focus_otags` / `set_assessment` — **the only write path.** Never raw Airtable CRUD.
+`set-focus-otags` / `set-assessment` are the **only write path** — the local decks store
+applies them to the typed `Deck`. They **commit through** the target: on a SYNCED deck
+they write to its source of record; on an EPHEMERAL building-decks draft the same call
+stays purely local. You do not choose a mode — the target's ephemerality decides. Never
+raw Airtable CRUD.
 
 ## Prerequisites
 
@@ -100,19 +103,24 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/collection set-assessment "<deck>" "<the pre-morte
 - **A populated backend** with the deck present and a Strategy filled (per
   `strategy-schema.md`). No Strategy → distilling-strategy first.
 
-## Two run modes
+## Two run modes — same write path, different target
 
-- **Standalone** — the user asks to diagnose a deck. You load the committed Strategy +
-  Focus Otags from the deck (via the CLI), produce the Assessment, present it, and —
-  with approval — may **persist** it (`set-assessment`, and `set-focus-otags` if you
-  proposed a focus).
-- **Under building-decks (the ASSESS state)** — the Assessment is written to
-  `draft.assessment`, HELD, not on the deck until COMMIT. If the working deck changed
-  (REFINE looped back), you re-diagnose the working deck, not the committed one. Do not
-  call `set-assessment` yourself in this mode — hand the Assessment back.
-- **Under the orchestrator, if your output (`assessment`) is flagged in `draft.stale`**,
-  you are being asked to RECOMPUTE it — re-diagnose from the current working deck, do not
-  reuse the held value. The orchestrator clears the flag once you hand back the recompute.
+The write path is identical in both modes: you `set-assessment` (and `set-focus-otags`
+if you proposed a focus). What differs is only the target deck.
+
+- **Standalone** — the user asks to diagnose a real (synced) deck. You read its Strategy
+  + Focus Otags via the CLI, produce the Assessment, present it, and — with approval —
+  `set-assessment` (+ `set-focus-otags`). Commit-through writes it to the source of record.
+- **Under building-decks (the ASSESS step)** — the orchestrator points you at the
+  session's target deck, typically an EPHEMERAL exploration draft. You read the CURRENT
+  deck with `get-deck` and `set-assessment` onto THAT draft, exactly as standalone;
+  because it's ephemeral the write stays local until the orchestrator promotes it. There
+  is no "hand it back and hold it."
+
+**Staleness is derived, not flagged.** Always diagnose the CURRENT `get-deck` cards. If
+REFINE just changed the deck, the deck moved and your prior Assessment is stale by
+definition — simply re-diagnose the current deck and re-write it. There is no stale flag
+to clear and no held value to reuse; the store always serves the live deck.
 
 ---
 
@@ -128,8 +136,9 @@ condition and the `Archetype:` line, which frames the per-game-state expectation
 strategy-schema.md's archetype table).
 
 **Step 2 — Use the exact current decklist.** The `cards[]` from Step 1 is the deck —
-work from it, not from memory. (Under the orchestrator with a changed working deck,
-diagnose the `working_deck`.)
+work from it, not from memory. `get-deck` always serves the live cards from the store, so
+under the orchestrator (where REFINE may have just changed the deck) the Step-1 read is
+already the current deck — no separate working-deck to fetch.
 
 **Step 3 — Run the fact sheet.**
 ```bash
@@ -237,13 +246,13 @@ Owned fills: <inventory cards that plug it> (+ chase flags)
 
 Present it to the user.
 
-**Step 8 — Persist (standalone) or hand back (under the orchestrator).**
-Standalone, with approval:
+**Step 8 — Persist the Assessment.** With approval, write it via the CLI:
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection set-assessment "<deck>" "<the Step-7 synthesis>"
 ```
-Never overwrite `Strategy`. Under building-decks, write the Assessment to
-`draft.assessment` and hand it back — the machine holds it until COMMIT.
+Never overwrite `Strategy`. This is the same call standalone and under the orchestrator;
+on a real deck it commits through to the source of record, and on an ephemeral
+building-decks draft it stays local until the orchestrator promotes it.
 
 **Graceful degradation:** if `Focus Otags` is unset and you couldn't propose one,
 synthesize from `susceptibility` + `otag_buckets` + Strategy alone (omit the
@@ -261,15 +270,15 @@ and write an Assessment from the structured facts (curve, ramp, instant-speed, k
 - **The concrete needs** (prescription + owned fills) that refining-decks turns into
   ranked candidates.
 
-**Persistence:** standalone, offer `set-assessment` (+ `set-focus-otags`) after approval.
-Under building-decks, hand the Assessment back as `draft.assessment` — never write
-mid-session.
+**Persistence:** you write via `set-assessment` (+ `set-focus-otags`) — the only write
+path. On a real (synced) deck the write commits through to the source of record; on an
+ephemeral building-decks draft it stays local until the orchestrator promotes it.
 
 ## When to use
 
 - Diagnosing an existing deck's balance / resilience / gaps.
-- The ASSESS step of a building-decks session (including re-diagnosing a changed working
-  deck after a REFINE loop-back).
+- The ASSESS step of a building-decks session (including re-diagnosing after a REFINE
+  loop-back — you simply re-read the current deck and re-write the Assessment).
 
 ## When NOT to use
 

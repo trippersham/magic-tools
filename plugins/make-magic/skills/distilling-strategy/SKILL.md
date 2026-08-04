@@ -14,7 +14,7 @@ user-invocable: true
 
 # Distilling Strategy
 
-The Socratic front-door to deckbuilding. This skill turns a fuzzy intent ("I want a
+The Socratic front-door to deck building. This skill turns a fuzzy intent ("I want a
 Krenko goblins deck," "I think my Ozai deck is a burn deck?") into a written
 **Strategy** — the human-authored aim, in the `strategy-schema.md` convention, that
 every downstream skill reads and none of them overwrite.
@@ -36,10 +36,9 @@ If you catch yourself about to:
 - **Re-elicit a whole Strategy for a deck that already has one** — STOP. Existing decks
   get the "do these still apply?" DIFF, not a blank-slate interview. Read the current
   Strategy first and confirm/adjust it.
-- **Commit the Strategy to the deck mid-session under the orchestrator** — STOP. Under
-  building-decks you hand back the **FULL proposed Strategy** (or `None` = unchanged),
-  held in `draft.strategy` — NEVER a partial fragment; the deck's committed Strategy
-  changes only at COMMIT. Standalone, you may OFFER to persist.
+- **`set-strategy` a partial fragment** — STOP. `set-strategy` REPLACES the whole
+  Strategy field, so a fragment silently erases the rest (including the `What doesn't
+  fit:` line). Always pass the **complete** block. When nothing changed, write nothing.
 - **Invent a color identity or commander the user didn't state** — STOP. Format,
   commander, and colors are elicited, never assumed.
 </red-flags>
@@ -82,22 +81,36 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/collection status                        # announc
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "<deck>" --field strategy
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection set-strategy "<deck>" "<strategy text>"
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection set-focus-otags "<deck>" tokens counters anthem
+${CLAUDE_PLUGIN_ROOT}/scripts/collection new-draft "<name>" [--commander "<card>" --format Commander]
 ```
-`set-strategy` / `set-focus-otags` forward to the `CollectionStore` port verbs
-`set_strategy` / `set_focus_otags` — **the only write path.** Never raw Airtable CRUD.
+`set-strategy` / `set-focus-otags` are the **only write path** — the local decks store
+applies them to the typed `Deck`. They **commit through** the target: on a SYNCED deck
+they write to its source of record; on an EPHEMERAL draft (a building-decks exploration
+copy) the same call stays purely local. You do not choose — the target's ephemerality
+decides. Never raw Airtable CRUD.
 
-## Two run modes
+## Two run modes — same write path, different target
 
-- **Standalone** — the user invokes this skill directly to write or refresh a Strategy.
-  You do the elicitation, present the Strategy, and — with the user's approval — you may
-  **persist** it (`set-strategy`, `set-focus-otags`).
-- **Under building-decks (the FRAME state)** — you emit the **full proposed Strategy**
-  that the orchestrator HOLDS in `draft.strategy`; it is **not** written to the deck.
-  The committed Strategy changes only at the machine's COMMIT. Do not call `set-strategy`
-  yourself in this mode — hand the full strategy back to the orchestrator. **Never hand
-  back a partial fragment** — `draft.strategy` REPLACES the whole committed strategy at
-  COMMIT, so a fragment would silently erase the rest (including the `What doesn't fit:`
-  line). When nothing changed, hand back `None` (unchanged) — do NOT write a placeholder.
+The write path is identical in both modes: you `set-strategy` / `set-focus-otags`. What
+differs is only WHAT you're writing to.
+
+- **Standalone** — the user invokes this skill directly on a real (synced) deck. You do
+  the elicitation, present the Strategy, and — with approval — `set-strategy` /
+  `set-focus-otags`. Commit-through writes it to the source of record.
+- **Under building-decks (the FRAME step)** — the orchestrator has you operate on the
+  session's target deck, typically an EPHEMERAL exploration draft (created with
+  `new-draft`, so the real deck is untouched). You `set-strategy` / `set-focus-otags` on
+  THAT draft exactly as standalone; because it's ephemeral, the write stays local until
+  the orchestrator promotes/pushes it. There is no "hand the strategy back and hold it"
+  — the store holds it. **Always write the COMPLETE Strategy block, never a fragment**
+  (`set-strategy` replaces the whole field). If nothing changed, write nothing.
+
+**Clean-slate under the orchestrator:** if there is no deck yet, create the ephemeral
+draft first, then write its Strategy:
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection new-draft "<name>" --commander "<card>" --format Commander
+${CLAUDE_PLUGIN_ROOT}/scripts/collection set-strategy "<name>" "<the full strategy block>"
+```
 
 ## Which mode of elicitation: clean-slate vs. diff
 
@@ -156,12 +169,17 @@ deck is genuinely built around — the **intended identity**, a curated subset (
 tokens/counters go-wide deck's focus is `tokens counters anthem`, not the incidental
 `ramp`/`removal` every deck runs). This is intent, never the mechanical union.
 
-**6. Write the Strategy + emit a skeleton (clean-slate under the orchestrator).**
-Assemble the `strategy-schema.md` block from the answers. For a truly-new deck the
-orchestrator wants a **rough shell** to enter ASSESS: from commander/colors/archetype,
-propose a skeleton decklist (the obvious staples + payoffs for the named mechanics, in
-color identity) — a starting point, not a finished deck. The skeleton is `working_deck`
-in the draft; the full Strategy is `draft.strategy`.
+**6. Write the Strategy + seed a skeleton (clean-slate under the orchestrator).**
+Assemble the `strategy-schema.md` block from the answers and `set-strategy` it onto the
+deck (an ephemeral draft under the orchestrator; the real deck standalone). For a
+truly-new deck the orchestrator wants a **rough shell** to enter ASSESS: from
+commander/colors/archetype, propose a skeleton decklist (the obvious staples + payoffs
+for the named mechanics, in color identity) — a starting point, not a finished deck —
+and seed it onto the draft with `deck-add` (building up from a skeleton grows the deck
+and never trips the shrink guard):
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection deck-add "<name>" "<staple>" --why "skeleton seed"
+```
 
 ---
 
@@ -186,14 +204,14 @@ sub-archetype, a mechanic added or dropped, a new exclusion — apply those chan
 the **whole** Strategy block and re-present the complete updated block (not just the
 changed lines). Re-confirm the DOES-NOT-WANTs specifically; they drift the most quietly.
 
-**4. Hand back the FULL strategy — or `None`.** Under the orchestrator: if the user
-ADJUSTED, hand back the **full** strategy WITH the adjustments woven in as
-`draft.strategy` (held) — the complete block, never a fragment. If **nothing changed**,
-hand back `None` (unchanged) — do **NOT** write a "confirmed as-is" placeholder.
-**Never hand back a partial fragment as `draft.strategy`:** it REPLACES the entire
-committed strategy at COMMIT, silently erasing every clause you left out (including the
-`What doesn't fit:` DOES-NOT-WANT line). Standalone, offer to persist the
-confirmed/adjusted Strategy (`set-strategy`) and any Focus Otags change (`set-focus-otags`).
+**4. Write the FULL strategy — or nothing.** If the user ADJUSTED, `set-strategy` the
+**full** strategy WITH the adjustments woven in — the complete block, never a fragment
+(`set-strategy` REPLACES the entire field, silently erasing every clause you leave out,
+including the `What doesn't fit:` DOES-NOT-WANT line). Apply any Focus Otags change with
+`set-focus-otags`. If **nothing changed**, write nothing — do **NOT** re-write a
+"confirmed as-is" placeholder. This is identical standalone and under the orchestrator;
+the only difference is the target (a real deck vs an ephemeral draft), and the write
+commits through accordingly.
 
 ---
 
@@ -206,12 +224,14 @@ You hand off:
 - **Focus Otags** — the curated bucket/otag slug list.
 - **Budget constraint** — present only if the user stated one; otherwise absent (the
   downstream price axis stays off).
-- **(clean-slate only) a skeleton working deck** — the rough shell for ASSESS.
+- **(clean-slate only) a skeleton deck** — the rough shell for ASSESS, seeded onto the
+  draft with `deck-add`.
 
-**Persistence:** standalone, offer `set-strategy` / `set-focus-otags` after approval.
-Under building-decks, hand back the FULL proposed Strategy (or `None` = unchanged) and
-let the machine hold it in `draft.strategy` until COMMIT — never a partial fragment,
-never write mid-session.
+**Persistence:** you write via `set-strategy` / `set-focus-otags` (the only write path),
+always the FULL Strategy block, never a fragment. On a real (synced) deck the write
+commits through to the source of record; on an ephemeral building-decks draft the same
+write stays local until the orchestrator promotes it. When nothing changed, write
+nothing.
 
 ## When to use
 

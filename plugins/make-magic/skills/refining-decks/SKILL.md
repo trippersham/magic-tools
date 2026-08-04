@@ -42,12 +42,13 @@ If you catch yourself about to:
 - **Recommend outside the deck's color identity** — STOP. Hard Commander rule; filter
   against the deck's identity.
 - **Present a bare "add X" with no cut** — STOP. Every recommendation is a
-  size-preserving SWAP (add ↔ weakest same-role/CMC incumbent). The commit deck-size
-  guard is SHRINK-ONLY — it refuses shrinking an at-target deck below target, but an
-  add-without-cut GROWS the deck and is NOT blocked. So swaps must be size-preserving by
-  construction: `apply_swaps` enforces one add per cut, and building up from a skeleton
-  is fine (grow-only never trips the guard). The guard is not the backstop for a botched
-  swap — the one-add-per-cut pairing is.
+  size-preserving SWAP (add ↔ weakest same-role/CMC incumbent), applied with `deck-swap`
+  (which removes and adds atomically on the typed `Deck`). The push/save shrink guard is
+  SHRINK-ONLY — it refuses shrinking an at-target deck below target, but an add-without-cut
+  GROWS the deck and is NOT blocked. So swaps must be size-preserving by construction: one
+  add per cut, which `deck-swap` enforces (building up from a skeleton is grow-only and
+  never trips the guard). The guard is not the backstop for a botched swap — the
+  one-add-per-cut of `deck-swap` is.
 - **Rank candidates on price when no budget was set** — STOP. The budget axis is
   conditional — off unless distilling-strategy captured a budget. Don't fetch prices or
   rank on cost otherwise.
@@ -67,8 +68,10 @@ A ranked **candidate list** where each entry is a swap object:
 ```
 
 `price_delta` is present **only** when the Strategy carried a budget constraint. The list
-is ranked best-swap-first and is a set of **recommendations** — this skill does not
-acquire cards, resolve availability, or persist to the deck; that's downstream (COMMIT).
+is ranked best-swap-first and is a set of **conversational proposals** — fully
+regenerable, never stored. You present them; the user selects; you APPLY each selected
+swap with `deck-swap` (below). Candidates you don't apply simply never reach the deck.
+This skill does not acquire cards or resolve availability — that's downstream.
 
 The full rubric — gap derivation → candidate generation → scoring/ranking → swap pairing
 → output contract — lives in the reference. Read it before you refine:
@@ -88,14 +91,22 @@ orchestrates `card-evaluation.md` as a subroutine.
 
 Two surfaces:
 
-- **The `collection` CLI** — reads the deck, Strategy, Assessment, inventory, chase (the
-  backend-agnostic wrapper, local YAML or Airtable):
+- **The `collection` CLI** — reads the deck, Strategy, Assessment, inventory, chase, and
+  APPLIES an accepted swap (the backend-agnostic wrapper, local YAML or Airtable):
   ```bash
   ${CLAUDE_PLUGIN_ROOT}/scripts/collection status
   ${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "<deck>"   # strategy + assessment + focus_otags + cards[]
   ${CLAUDE_PLUGIN_ROOT}/scripts/collection list-inventory
   ${CLAUDE_PLUGIN_ROOT}/scripts/collection list-chase
+  # Apply a user-selected swap — size-preserving, commander-safe, recorded in the ledger:
+  ${CLAUDE_PLUGIN_ROOT}/scripts/collection deck-swap "<deck>" --add "<in>" --cut "<out>" [--role R] --why "<synergy reason>"
   ```
+  `deck-swap` removes `--cut` and adds `--add` atomically on the typed `Deck`, records the
+  `--why` rationale in the deck's history ledger (the durable record of *why* the swap
+  happened — regenerable candidates are NOT stored; their rationale lives here), and
+  commits through the target: on a SYNCED deck it writes to the source of record, on an
+  ephemeral building-decks draft it stays local. An accepted swap that would shrink an
+  at-target deck can be undone with `undo-deck`.
 - **The tagger + Scryfall scripts** — for discovery, tag-verification, and (conditional)
   pricing:
   ```bash
@@ -125,25 +136,24 @@ fragments `build_discovery_query` assembles for channel-A discovery.
 - **A deck with a Strategy AND an Assessment.** Refining consumes both. No Assessment →
   run **assessing-decks** first. No Strategy → **distilling-strategy** first.
 
-## Two run modes
+## Two run modes — candidates are conversational; accepting one is a `deck-swap`
 
-- **Standalone** — the user asks for upgrades. You load the committed Strategy +
-  Assessment from the deck (via the CLI), run the rubric, and present the ranked swaps.
-  Standalone, you produce recommendations only; persisting a swap is the user's call
-  (and is a building-decks / managing-inventory action, not this skill's).
-- **Under building-decks (the REFINE state)** — you write the ranked candidates to
-  `draft.candidates[]` (the output-contract shape above). Those feed the VALIDATE step's
-  sim-depth proposals. If your candidate generation shows the deck's working list changed
-  since ASSESS, the machine routes back to ASSESS to re-diagnose; if **no** candidate can
-  honor a stated want, it routes back to FRAME (the want may be unfulfillable). You never
-  write to the deck yourself. Your candidates are **proposals**: the ORCHESTRATOR applies
-  the user-selected ones to `draft.working_deck` at the REFINE→VALIDATE boundary (via
-  `deckbuild apply-swaps`), so VALIDATE and COMMIT act on the real proposed deck. COMMIT
-  does NOT consume `draft.candidates` — it persists `draft.working_deck`; a candidate that
-  was never applied never reaches the deck.
-- **Under the orchestrator, if your output (`candidates`) is flagged in `draft.stale`**,
-  you are being asked to RECOMPUTE them — re-rank against the current working deck, do not
-  reuse the held candidates. The orchestrator clears the flag once you hand back the recompute.
+Candidates are **regenerable proposals**, never stored. In both modes you generate the
+ranked list, present it, and — for each swap the user accepts — APPLY it with `deck-swap`.
+The user's selection is the only thing that reaches the deck; unaccepted candidates just
+evaporate. What differs between the modes is only the target deck.
+
+- **Standalone** — the user asks for upgrades on a real (synced) deck. You read its
+  committed Strategy + Assessment, run the rubric, present the ranked swaps, and
+  `deck-swap` the ones the user picks (commit-through to the source of record). A user who
+  only wants the list can decline to apply any.
+- **Under building-decks (the REFINE step)** — the orchestrator points you at the
+  session's target deck (typically an ephemeral exploration draft). Same flow: generate,
+  present, `deck-swap` the accepted ones onto THAT deck (the write stays local while it's
+  ephemeral). Applying a swap changes the deck, which makes the Assessment and any prior
+  sim stale by definition — the orchestrator re-derives the phase from the changed deck
+  (re-ASSESS / re-VALIDATE) on its next turn; you don't manage that. Always regenerate
+  candidates against the CURRENT `get-deck` cards — never reuse a stale list.
 
 ## Workflow (thin wrapper over the rubric)
 
@@ -166,15 +176,20 @@ fragments `build_discovery_query` assembles for channel-A discovery.
    (refine-methodology "Delegating bulk evaluation").
 5. **Swap pairing** — pair each kept add against the weakest same-role/same-CMC-slot
    incumbent; compute the net deltas; size-preserving (refine-methodology §4).
-6. **Emit the ranked candidate list** in the output-contract shape. Standalone, present
-   it; under the orchestrator, write it to `draft.candidates`.
+6. **Emit the ranked candidate list** in the output-contract shape and present it to the
+   user. For each swap the user accepts, APPLY it with `deck-swap "<deck>" --add … --cut …
+   --why …` — same call in both modes; it commits through to the source of record on a
+   synced deck, or stays local on an ephemeral draft. Unaccepted candidates are discarded
+   (they were never stored).
 
 ## Output contract
 
-A ranked list; each entry:
+A ranked list of conversational proposals; each entry:
 `{add, cut, role_filled, synergy_reason, flexibility_reason, synergy_delta,
 flexibility_delta, confidence, price_delta?}` — `price_delta` only when the budget axis
-is on. Recommendations only; no acquisition, no availability resolution, no deck write.
+is on. The list is regenerable and never stored; you APPLY the user-selected entries with
+`deck-swap` (recording the synergy reason as `--why`). No acquisition, no availability
+resolution.
 
 ## When to use
 

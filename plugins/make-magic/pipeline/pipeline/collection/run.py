@@ -459,6 +459,57 @@ def _undo_deck(argv: list[str]) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Archetype-fidelity signal (VALIDATE) — the deterministic combo check
+# --------------------------------------------------------------------------- #
+
+
+def _deck_combos(argv: list[str]) -> None:
+    """Report the named-card combos present in a deck — the VALIDATE fidelity fold.
+
+    Reads the deck's card names and runs ``combos_in_deck`` against the normalized
+    combo table. Prints the matched combos plus a ``combo_data_available`` flag.
+
+    HONEST DEGRADATION (design §5): if the combo lake is sparse — ``load_combos``
+    raises, or returns empty — this prints ``combo_data_available: false`` and an
+    EMPTY match set. That is INCONCLUSIVE, NOT a clean bill: an empty match with
+    ``available: false`` must never be read as "no combos / safe to trust the sim
+    verdict". Only ``available: true`` with an empty match set means "checked, none
+    found". VALIDATE prose treats an unavailable check as unknown, not clean.
+    """
+    parser = argparse.ArgumentParser(
+        prog='collection deck-combos',
+        description='Report named-card combos present in a deck (archetype-fidelity signal).',
+    )
+    parser.add_argument('deck')
+    args = parser.parse_args(argv)
+
+    from pipeline.transforms.combo_detect import combos_in_deck, load_combos
+
+    deck = _deck_access().read_deck(args.deck)
+    names = {c.name for c in deck.cards}
+
+    # A sparse/absent combo lake is INCONCLUSIVE, not clean — swallow the load
+    # failure into `combo_data_available: false` rather than crash or imply safety.
+    try:
+        combos = load_combos()
+        available = bool(combos)
+    except Exception:  # any lake/read failure = inconclusive, not a defect.
+        log.warning('deck-combos: combo lake unavailable; reporting inconclusive', exc_info=True)
+        combos = []
+        available = False
+
+    matched = combos_in_deck(names, combos) if available else []
+    out = {
+        'deck': deck.name,
+        'combo_data_available': available,
+        'combos': [
+            {'variant_id': c.variant_id, 'cards': list(c.card_names), 'result': c.result} for c in matched
+        ],
+    }
+    print(json.dumps(out, indent=2))
+
+
+# --------------------------------------------------------------------------- #
 # Sync (manual pull / push / sync — the override; normally opaque) — W4
 # --------------------------------------------------------------------------- #
 
@@ -1171,6 +1222,7 @@ VERBS = {
     'new-draft': _new_draft,
     'promote-deck': _promote_deck,
     'undo-deck': _undo_deck,
+    'deck-combos': _deck_combos,
     'pull': _pull,
     'push': _push,
     'sync': _sync,
