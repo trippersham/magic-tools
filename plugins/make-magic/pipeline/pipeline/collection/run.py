@@ -171,12 +171,12 @@ def _archive_deck(argv: list[str]) -> None:
         prog='collection archive-deck',
         description='Archive a local deck by NAME (hide it from the default list; not deleted).',
     )
-    parser.add_argument('deck', help='Deck name (resolved to its local deck_id).')
+    parser.add_argument('deck', help='Deck name (resolved to its local deck_uuid).')
     args = parser.parse_args(argv)
     from pipeline.decks import DecksStore
 
-    deck_id = _deck_access().deck_id_for(args.deck)
-    DecksStore().archive(deck_id)
+    deck_uuid = _deck_access().resolve(args.deck)
+    DecksStore().archive(deck_uuid)
     print(f'archive-deck: {args.deck}')
 
 
@@ -185,12 +185,12 @@ def _unarchive_deck(argv: list[str]) -> None:
         prog='collection unarchive-deck',
         description='Unarchive a local deck by NAME (restore it to the default list).',
     )
-    parser.add_argument('deck', help='Deck name (resolved to its local deck_id).')
+    parser.add_argument('deck', help='Deck name (resolved to its local deck_uuid).')
     args = parser.parse_args(argv)
     from pipeline.decks import DecksStore
 
-    deck_id = _deck_access().deck_id_for(args.deck)
-    DecksStore().unarchive(deck_id)
+    deck_uuid = _deck_access().resolve(args.deck)
+    DecksStore().unarchive(deck_uuid)
     print(f'unarchive-deck: {args.deck}')
 
 
@@ -290,29 +290,27 @@ def _set_focus_otags(argv: list[str]) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _resolve_deck_id(access: DeckAccess, name: str) -> str:
-    """Resolve a deck NAME to the local ``deck_id`` the edit verbs operate on.
+def _resolve_deck_uuid(access: DeckAccess, name: str) -> str:
+    """Resolve a deck NAME to the local ``deck_uuid`` the edit verbs operate on.
 
-    The local store is keyed by ``deck_id = <backend>:<name>`` (``deck_id_for``) —
-    the SAME namespace ``new-draft`` writes an ephemeral row under, so a draft and
-    its eventual source-backed twin share the id and the ephemeral row flips to
-    synced IN PLACE on promotion (design §4). When no local row exists yet, the
-    name is a SYNCED source deck: ``read_deck`` pulls it current into the local
-    store (per the W4 policy) so the typed edit has a row to mutate. A name that
-    is neither a known draft nor a readable source deck surfaces the source's
-    clean error.
+    The MINIMAL name->uuid shim (design §3): names are labels, ``deck_uuid`` is the
+    identity. A known local row (a draft, or an already-pulled synced deck) resolves
+    to its stable uuid; when no local row exists yet the name is a SYNCED source
+    deck — ``read_deck`` pulls it current into the local store (per the W4 policy)
+    so the typed edit has a row to mutate, and the row is then keyed by the uuid the
+    pull minted. A name that is neither a known draft nor a readable source deck
+    surfaces the source's clean error.
     """
-    from pipeline.decks import DecksStore
-
-    deck_id = access.deck_id_for(name)
-    if DecksStore().exists(deck_id):
-        return deck_id
-    # Synced: pull the source deck into the local store so an edit has a row.
+    uuid = access.resolve(name)
+    if access.has_local_row(uuid):
+        return uuid
+    # Synced: pull the source deck into the local store so an edit has a row, then
+    # re-resolve to the uuid the pull persisted under.
     access.read_deck(name)
-    return deck_id
+    return access.resolve(name)
 
 
-def _commit_deck_edit(access: DeckAccess, name: str, deck_id: str) -> None:
+def _commit_deck_edit(access: DeckAccess, name: str, deck_uuid: str) -> None:
     """PUSH a just-applied local deck edit to the source, unless it is ephemeral.
 
     A SYNCED deck edit must be committed through the source ceremony at the edit
@@ -322,7 +320,7 @@ def _commit_deck_edit(access: DeckAccess, name: str, deck_id: str) -> None:
     """
     from pipeline.decks import DecksStore
 
-    row = DecksStore().get_row(deck_id)
+    row = DecksStore().get_row(deck_uuid)
     if row is not None and row.sync_status == 'synced' and row.source_ref is not None:
         access.push(name)
 
@@ -342,11 +340,11 @@ def _deck_swap(argv: list[str]) -> None:
     from pipeline.decks import DecksStore
 
     access = _deck_access(writes_enabled=True)
-    deck_id = _resolve_deck_id(access, args.deck)
+    deck_uuid = _resolve_deck_uuid(access, args.deck)
     DecksStore().swap(
-        deck_id, add=DeckCard(name=args.add, role=args.role), cut=args.cut, rationale=args.why
+        deck_uuid, add=DeckCard(name=args.add, role=args.role), cut=args.cut, rationale=args.why
     )
-    _commit_deck_edit(access, args.deck, deck_id)
+    _commit_deck_edit(access, args.deck, deck_uuid)
     print(f'deck-swap: {args.deck}  -{args.cut}  +{args.add}')
 
 
@@ -364,11 +362,11 @@ def _deck_add(argv: list[str]) -> None:
     from pipeline.decks import DecksStore
 
     access = _deck_access(writes_enabled=True)
-    deck_id = _resolve_deck_id(access, args.deck)
+    deck_uuid = _resolve_deck_uuid(access, args.deck)
     DecksStore().add_card(
-        deck_id, DeckCard(name=args.card, quantity=args.qty, role=args.role), rationale=args.why
+        deck_uuid, DeckCard(name=args.card, quantity=args.qty, role=args.role), rationale=args.why
     )
-    _commit_deck_edit(access, args.deck, deck_id)
+    _commit_deck_edit(access, args.deck, deck_uuid)
     print(f'deck-add: {args.deck}  +{args.qty}x {args.card}')
 
 
@@ -386,9 +384,9 @@ def _deck_remove(argv: list[str]) -> None:
     from pipeline.decks import DecksStore
 
     access = _deck_access(writes_enabled=True)
-    deck_id = _resolve_deck_id(access, args.deck)
-    DecksStore().remove_card(deck_id, args.card, qty=args.qty, rationale=args.why)
-    _commit_deck_edit(access, args.deck, deck_id)
+    deck_uuid = _resolve_deck_uuid(access, args.deck)
+    DecksStore().remove_card(deck_uuid, args.card, qty=args.qty, rationale=args.why)
+    _commit_deck_edit(access, args.deck, deck_uuid)
     print(f'deck-remove: {args.deck}  -{args.qty}x {args.card}')
 
 
@@ -403,20 +401,27 @@ def _new_draft(argv: list[str]) -> None:
     parser.add_argument('--format', dest='format_', default=None, help="Deck format (e.g. 'Commander').")
     args = parser.parse_args(argv)
 
+    from uuid import uuid4
+
     from pipeline.decks import DecksStore
 
-    deck_id = _deck_access().deck_id_for(args.name)
     if args.source is not None:
         # An exploration COPY of an existing deck — read it via the access path
-        # (pull-current per the policy), then re-name it as a local-only draft.
+        # (pull-current per the policy), then re-name it as a local-only draft. A
+        # FRESH uuid is minted (and `derived_from` lineage recorded via the copy's
+        # own identity) so the draft can never hijack the source's row (design §3);
+        # the airtable binding is dropped (a draft has no source of record yet).
         source_deck = _deck_access().read_deck(args.source)
-        draft = source_deck.model_copy(update={'name': args.name, 'airtable_record_id': None})
+        draft = source_deck.model_copy(
+            update={'name': args.name, 'airtable_record_id': None, 'uuid': uuid4().hex}
+        )
     else:
-        # A clean-slate draft: a minimal Deck (name/format + optional commander).
+        # A clean-slate draft: a minimal Deck (name/format + optional commander); its
+        # uuid is minted by the Deck model's default_factory.
         cards = [DeckCard(name=args.commander, role='commander')] if args.commander else []
         draft = Deck(name=args.name, format=args.format_, cards=cards)
-    DecksStore().create_ephemeral(draft, deck_id)
-    print(f'new-draft: {args.name} [ephemeral] ({deck_id})')
+    deck_uuid = DecksStore().create_ephemeral(draft)
+    print(f'new-draft: {args.name} [ephemeral] ({deck_uuid})')
 
 
 def _promote_deck(argv: list[str]) -> None:
@@ -430,16 +435,16 @@ def _promote_deck(argv: list[str]) -> None:
 
     from pipeline.decks import DecksStore, sync
 
-    deck_id = _deck_access().deck_id_for(args.deck)
     decks = DecksStore()
-    if not decks.exists(deck_id):
+    deck_uuid = decks.uuid_for_name(args.deck)
+    if deck_uuid is None or not decks.exists(deck_uuid):
         raise CollectionError(f'no ephemeral draft named {args.deck!r} to promote')
     access = _deck_access(writes_enabled=True)
     driver = _store(writes_enabled=True)
-    sync.promote(decks, driver, deck_id=deck_id, source_ref=args.source_name)
+    sync.promote(decks, driver, deck_uuid=deck_uuid, source_ref=args.source_name)
     # The content landed on the source under `source_name`, but that source's OWN
-    # canonical local row (`<backend>:<source_name>`, distinct from the draft's row
-    # when promoting a differently-named exploration copy) is now stale — a later
+    # canonical local row (a distinct uuid from the draft's row when promoting a
+    # differently-named exploration copy) is now stale — a later
     # read within the W4 TTL would serve the pre-promote copy. Force-pull it current
     # so the next `get-deck "<source_name>"` reflects the promotion.
     access.pull(args.source_name)
@@ -456,14 +461,14 @@ def _undo_deck(argv: list[str]) -> None:
     from pipeline.decks import DecksStore
 
     access = _deck_access(writes_enabled=True)
-    deck_id = _resolve_deck_id(access, args.deck)
-    restored = DecksStore().undo(deck_id)
+    deck_uuid = _resolve_deck_uuid(access, args.deck)
+    restored = DecksStore().undo(deck_uuid)
     if restored is None:
         print(f'undo-deck: {args.deck} — nothing to undo')
     else:
         # The restore is a local edit; commit it so a synced deck's source reflects
         # the step-back (else the next read re-pulls the un-done state).
-        _commit_deck_edit(access, args.deck, deck_id)
+        _commit_deck_edit(access, args.deck, deck_uuid)
         print(f'undo-deck: {args.deck} — restored to {sum(c.quantity for c in restored.cards)} cards')
 
 

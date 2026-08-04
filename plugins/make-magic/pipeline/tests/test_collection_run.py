@@ -166,7 +166,7 @@ def test_list_decks_unions_source_synced_and_local_ephemeral(
     # A source-backed deck (saved through the source) + a purely-local ephemeral draft.
     _save_a_source_deck(monkeypatch, tmp_path, 'Sourced')
     DecksStore().create_ephemeral(
-        Deck(name='Draft', cards=[DeckCard(name='Sol Ring', role='commander')]), 'draft-1'
+        Deck(name='Draft', cards=[DeckCard(name='Sol Ring', role='commander')])
     )
     capsys.readouterr()
 
@@ -190,10 +190,10 @@ def test_list_decks_hides_archived_ephemeral_by_default(
     from pipeline.decks import DecksStore
 
     s = DecksStore()
-    # deck_id follows the real convention (`local:<name>`) so name-addressed
-    # archive-deck resolves to the same row `new-draft` would have created.
-    s.create_ephemeral(Deck(name='Kept Draft', cards=[DeckCard(name='Sol Ring', role='commander')]), 'local:Kept Draft')
-    s.create_ephemeral(Deck(name='Junk Draft', cards=[DeckCard(name='Sol Ring', role='commander')]), 'local:Junk Draft')
+    # create_ephemeral mints each draft's deck_uuid; name-addressed archive-deck
+    # resolves NAME -> uuid via the store shim, so seeding by name is enough.
+    s.create_ephemeral(Deck(name='Kept Draft', cards=[DeckCard(name='Sol Ring', role='commander')]))
+    s.create_ephemeral(Deck(name='Junk Draft', cards=[DeckCard(name='Sol Ring', role='commander')]))
     _run(monkeypatch, 'archive-deck', 'Junk Draft')
     capsys.readouterr()
 
@@ -217,7 +217,7 @@ def test_archive_unarchive_roundtrip(
     from pipeline.contracts import Deck, DeckCard
     from pipeline.decks import DecksStore
 
-    DecksStore().create_ephemeral(Deck(name='Junk', cards=[DeckCard(name='Sol Ring', role='commander')]), 'local:Junk')
+    DecksStore().create_ephemeral(Deck(name='Junk', cards=[DeckCard(name='Sol Ring', role='commander')]))
     _run(monkeypatch, 'archive-deck', 'Junk')
     assert 'Junk' in capsys.readouterr().out
     _run(monkeypatch, 'list-decks', '--json')

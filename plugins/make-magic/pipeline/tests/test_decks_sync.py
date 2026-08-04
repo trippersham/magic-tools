@@ -116,7 +116,7 @@ def test_pull_roundtrips_and_sets_baseline(data_dir: Path, tmp_path: Path) -> No
     driver.save_deck(_commander_deck(), allow_shrink=False)
     decks = DecksStore()
 
-    pull(decks, driver, deck_id='d1', source_ref='Krenko Goblins')
+    pull(decks, driver, deck_uuid='d1', source_ref='Krenko Goblins')
 
     local = decks.get('d1')
     assert local is not None
@@ -138,11 +138,11 @@ def test_push_writes_through_ceremony_and_updates_baseline(data_dir: Path, tmp_p
     driver = _source_store(tmp_path)
     driver.save_deck(_commander_deck(), allow_shrink=False)
     decks = DecksStore()
-    pull(decks, driver, deck_id='d1', source_ref='Krenko Goblins')
+    pull(decks, driver, deck_uuid='d1', source_ref='Krenko Goblins')
 
     # A size-preserving local edit, then push.
     decks.swap('d1', add=DeckCard(name='Impact Tremors', quantity=1), cut='Goblin 0')
-    push(decks, driver, deck_id='d1')
+    push(decks, driver, deck_uuid='d1')
 
     source = driver.get_deck('Krenko Goblins')
     assert any(c.name == 'Impact Tremors' for c in source.cards)
@@ -158,7 +158,7 @@ def test_push_refuses_on_baseline_drift_and_preserves_source_change(data_dir: Pa
     driver = _source_store(tmp_path)
     driver.save_deck(_commander_deck(), allow_shrink=False)
     decks = DecksStore()
-    pull(decks, driver, deck_id='d1', source_ref='Krenko Goblins')
+    pull(decks, driver, deck_uuid='d1', source_ref='Krenko Goblins')
 
     # A local edit we WANT to push (size-preserving).
     decks.swap('d1', add=DeckCard(name='Impact Tremors', quantity=1), cut='Goblin 0')
@@ -172,7 +172,7 @@ def test_push_refuses_on_baseline_drift_and_preserves_source_change(data_dir: Pa
     source_after_foreign = version(driver.get_deck('Krenko Goblins'))
 
     with pytest.raises(SyncDriftError):
-        push(decks, driver, deck_id='d1')
+        push(decks, driver, deck_uuid='d1')
 
     # The source's foreign change is PRESERVED (not clobbered by our refused push).
     assert version(driver.get_deck('Krenko Goblins')) == source_after_foreign
@@ -184,11 +184,11 @@ def test_idempotent_re_push_of_own_write_succeeds(data_dir: Path, tmp_path: Path
     driver = _source_store(tmp_path)
     driver.save_deck(_commander_deck(), allow_shrink=False)
     decks = DecksStore()
-    pull(decks, driver, deck_id='d1', source_ref='Krenko Goblins')
+    pull(decks, driver, deck_uuid='d1', source_ref='Krenko Goblins')
     decks.swap('d1', add=DeckCard(name='Impact Tremors', quantity=1), cut='Goblin 0')
-    push(decks, driver, deck_id='d1')
+    push(decks, driver, deck_uuid='d1')
     # Re-push without any intervening edit: source == local, so it is idempotent.
-    push(decks, driver, deck_id='d1')  # must NOT raise
+    push(decks, driver, deck_uuid='d1')  # must NOT raise
     assert any(c.name == 'Impact Tremors' for c in driver.get_deck('Krenko Goblins').cards)
 
 
@@ -199,18 +199,18 @@ def test_push_fires_the_shrink_ceremony(data_dir: Path, tmp_path: Path) -> None:
     driver = _source_store(tmp_path)
     driver.save_deck(_commander_deck(), allow_shrink=False)  # at target (100)
     decks = DecksStore()
-    pull(decks, driver, deck_id='d1', source_ref='Krenko Goblins')
+    pull(decks, driver, deck_uuid='d1', source_ref='Krenko Goblins')
 
     # Shrink the LOCAL deck below target directly (bypassing the store's own guard,
     # which would otherwise refuse the local removal) so the PUSH is what shrinks.
     local = decks.get('d1')
     assert local is not None
     shrunk = local.model_copy(update={'cards': [c for c in local.cards if c.name != 'Goblin 5']})
-    decks.put(shrunk, deck_id='d1', sync_status='synced', source_ref='Krenko Goblins',
+    decks.put(shrunk, deck_uuid='d1', sync_status='synced', source_ref='Krenko Goblins',
               synced_baseline=decks.get_row('d1').synced_baseline)  # type: ignore[union-attr]
 
     with pytest.raises(CollectionError):
-        push(decks, driver, deck_id='d1')
+        push(decks, driver, deck_uuid='d1')
 
 
 # --------------------------------------------------------------------------- #
@@ -221,15 +221,16 @@ def test_push_fires_the_shrink_ceremony(data_dir: Path, tmp_path: Path) -> None:
 def test_promote_ephemeral_to_synced_creates_through_ceremony(data_dir: Path, tmp_path: Path) -> None:
     driver = _source_store(tmp_path)
     decks = DecksStore()
-    decks.create_ephemeral(_commander_deck('Fresh Draft'), 'draft-1')
-    assert decks.get_row('draft-1').sync_status == 'ephemeral'  # type: ignore[union-attr]
+    # create_ephemeral mints + returns the draft's deck_uuid (name-independent id).
+    draft_uuid = decks.create_ephemeral(_commander_deck('Fresh Draft'))
+    assert decks.get_row(draft_uuid).sync_status == 'ephemeral'  # type: ignore[union-attr]
 
-    promote(decks, driver, deck_id='draft-1', source_ref='Fresh Draft')
+    promote(decks, driver, deck_uuid=draft_uuid, source_ref='Fresh Draft')
 
     # It now exists on the source (create-through-ceremony) and is marked synced.
     source = driver.get_deck('Fresh Draft')
     assert source is not None
-    row = decks.get_row('draft-1')
+    row = decks.get_row(draft_uuid)
     assert row is not None
     assert row.sync_status == 'synced'
     assert row.source_ref == 'Fresh Draft'

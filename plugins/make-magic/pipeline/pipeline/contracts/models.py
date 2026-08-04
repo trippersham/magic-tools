@@ -30,6 +30,7 @@ Design notes:
 from __future__ import annotations
 
 from typing import Final
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -206,6 +207,14 @@ class Deck(BaseModel):
 
     model_config = ConfigDict(extra='forbid')
 
+    uuid: str = Field(
+        default_factory=lambda: uuid4().hex,
+        description=(
+            'Stable, globally-unique deck identity — minted once at creation and NEVER changed. '
+            'The decks-store PK and the name-independent key sync binds to. Deliberately EXCLUDED '
+            'from version(deck) (identity, not content); names are labels, this is the identity.'
+        ),
+    )
     name: str = Field(description='Deck name (Airtable Decks primary field).')
     strategy: str | None = Field(
         default=None,

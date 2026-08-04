@@ -47,7 +47,7 @@ def _deck(name: str = 'Krenko Goblins', *, strategy: str | None = 'go wide') -> 
 def test_append_deck_version_records_version_and_rationale(data_dir: Path) -> None:
     deck = _deck()
     with store.connect() as conn:
-        history.append_deck_version(conn, deck_id='d1', deck=deck, rationale='initial')
+        history.append_deck_version(conn, deck_uuid='d1', deck=deck, rationale='initial')
         rows = history.deck_version_rows(conn, 'd1')
     assert len(rows) == 1
     assert rows[0]['version'] == version(deck)
@@ -58,9 +58,9 @@ def test_append_is_ungated_every_call_appends(data_dir: Path) -> None:
     """Unlike record_snapshot, EVERY append lands a row — no TTL/churn gate."""
     deck = _deck()
     with store.connect() as conn:
-        history.append_deck_version(conn, deck_id='d1', deck=deck, rationale='a')
-        history.append_deck_version(conn, deck_id='d1', deck=deck, rationale='b')
-        history.append_deck_version(conn, deck_id='d1', deck=deck, rationale='c')
+        history.append_deck_version(conn, deck_uuid='d1', deck=deck, rationale='a')
+        history.append_deck_version(conn, deck_uuid='d1', deck=deck, rationale='b')
+        history.append_deck_version(conn, deck_uuid='d1', deck=deck, rationale='c')
         rows = history.deck_version_rows(conn, 'd1')
     assert [r['rationale'] for r in rows] == ['a', 'b', 'c']
 
@@ -70,8 +70,8 @@ def test_append_is_append_only_no_row_mutated(data_dir: Path) -> None:
     deck1 = _deck(strategy='v1')
     deck2 = _deck(strategy='v2')
     with store.connect() as conn:
-        history.append_deck_version(conn, deck_id='d1', deck=deck1, rationale='first')
-        history.append_deck_version(conn, deck_id='d1', deck=deck2, rationale='second')
+        history.append_deck_version(conn, deck_uuid='d1', deck=deck1, rationale='first')
+        history.append_deck_version(conn, deck_uuid='d1', deck=deck2, rationale='second')
         rows = history.deck_version_rows(conn, 'd1')
     assert len(rows) == 2
     # The first row still holds v1's version + rationale (nothing overwrote it).
@@ -89,8 +89,8 @@ def test_previous_deck_version_returns_the_version_before_head(data_dir: Path) -
     deck1 = _deck(strategy='v1')
     deck2 = _deck(strategy='v2')
     with store.connect() as conn:
-        history.append_deck_version(conn, deck_id='d1', deck=deck1, rationale='first')
-        history.append_deck_version(conn, deck_id='d1', deck=deck2, rationale='second')
+        history.append_deck_version(conn, deck_uuid='d1', deck=deck1, rationale='first')
+        history.append_deck_version(conn, deck_uuid='d1', deck=deck2, rationale='second')
         prev = history.previous_deck_version(conn, 'd1')
     assert prev is not None
     assert prev.strategy == 'v1'
@@ -100,7 +100,7 @@ def test_previous_deck_version_returns_the_version_before_head(data_dir: Path) -
 def test_previous_deck_version_none_with_single_version(data_dir: Path) -> None:
     """With only one recorded version there is nothing to undo TO."""
     with store.connect() as conn:
-        history.append_deck_version(conn, deck_id='d1', deck=_deck(), rationale='only')
+        history.append_deck_version(conn, deck_uuid='d1', deck=_deck(), rationale='only')
         assert history.previous_deck_version(conn, 'd1') is None
 
 
@@ -116,7 +116,7 @@ def test_previous_deck_version_none_when_absent(data_dir: Path) -> None:
 
 def test_edit_appends_a_version(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_deck(), deck_id='d1')
+    s.put(_deck(), deck_uuid='d1')
     s.set_strategy('d1', 'aristocrats', rationale='pivot to sacrifice')
     with store.connect() as conn:
         rows = history.deck_version_rows(conn, 'd1')
@@ -127,7 +127,7 @@ def test_edit_appends_a_version(data_dir: Path) -> None:
 def test_edit_without_rationale_still_appends_with_default_note(data_dir: Path) -> None:
     """Phase-1 behavior is preserved when rationale is omitted — it still appends."""
     s = DecksStore()
-    s.put(_deck(), deck_id='d1')  # establishes the baseline version (undo floor)
+    s.put(_deck(), deck_uuid='d1')  # establishes the baseline version (undo floor)
     s.add_card('d1', DeckCard(name='Sol Ring', quantity=1))
     with store.connect() as conn:
         rows = history.deck_version_rows(conn, 'd1')
@@ -141,7 +141,7 @@ def test_edit_without_rationale_still_appends_with_default_note(data_dir: Path) 
 def test_undo_via_store_restores_prior_deck(data_dir: Path) -> None:
     """Apply a swap, then undo -> the deck is restored to the prior ledger version."""
     s = DecksStore()
-    s.put(_deck(), deck_id='d1')
+    s.put(_deck(), deck_uuid='d1')
     before = version(s.get('d1'))
     s.swap('d1', add=DeckCard(name='Impact Tremors', quantity=1), cut='Goblin 0', rationale='upgrade')
     assert version(s.get('d1')) != before
@@ -155,7 +155,7 @@ def test_undo_preserves_sync_bookkeeping(data_dir: Path) -> None:
     """Undo restores deck_json but keeps the row's sync_status/source_ref/baseline."""
     s = DecksStore()
     deck = _deck()
-    s.put(deck, deck_id='d1', sync_status='synced', source_ref='{"backend":"local","name":"Krenko Goblins"}',
+    s.put(deck, deck_uuid='d1', sync_status='synced', source_ref='{"backend":"local","name":"Krenko Goblins"}',
           synced_baseline=version(deck))
     s.set_strategy('d1', 'changed')
     s.undo('d1')

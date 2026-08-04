@@ -45,22 +45,22 @@ class SyncDriftError(Exception):
     """
 
 
-def _require_row(decks: DecksStore, deck_id: str) -> tuple[object, str]:
-    """Return ``(deck, source_ref)`` for a synced ``deck_id`` or raise a clear error."""
+def _require_row(decks: DecksStore, deck_uuid: str) -> tuple[object, str]:
+    """Return ``(deck, source_ref)`` for a synced ``deck_uuid`` or raise a clear error."""
     from pipeline.decks.store import DecksError
 
-    row = decks.get_row(deck_id)
+    row = decks.get_row(deck_uuid)
     if row is None:
-        raise DecksError(f'no deck with id {deck_id!r}')
+        raise DecksError(f'no deck with id {deck_uuid!r}')
     if row.source_ref is None:
-        raise DecksError(f'deck {deck_id!r} has no source_ref (ephemeral); promote it before syncing')
-    deck = decks.get(deck_id)
+        raise DecksError(f'deck {deck_uuid!r} has no source_ref (ephemeral); promote it before syncing')
+    deck = decks.get(deck_uuid)
     if deck is None:
-        raise DecksError(f'no deck_json for id {deck_id!r}')
+        raise DecksError(f'no deck_json for id {deck_uuid!r}')
     return deck, row.source_ref
 
 
-def pull(decks: DecksStore, driver: CollectionStore, *, deck_id: str, source_ref: str) -> None:
+def pull(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, source_ref: str) -> None:
     """Pull the source deck into the local store and stamp the baseline.
 
     ``driver.get_deck(source_ref)`` -> ``decks.put(..., sync_status='synced',
@@ -72,7 +72,7 @@ def pull(decks: DecksStore, driver: CollectionStore, *, deck_id: str, source_ref
     source = driver.get_deck(source_ref)
     decks.put(
         source,
-        deck_id=deck_id,
+        deck_uuid=deck_uuid,
         sync_status='synced',
         source_ref=source_ref,
         synced_baseline=version(source),
@@ -80,7 +80,7 @@ def pull(decks: DecksStore, driver: CollectionStore, *, deck_id: str, source_ref
     )
 
 
-def push(decks: DecksStore, driver: CollectionStore, *, deck_id: str, allow_shrink: bool = False) -> None:
+def push(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, allow_shrink: bool = False) -> None:
     """Push the local deck to the source THROUGH the ceremony — drift-guarded.
 
     1. DRIFT: read the current source; if ``version(current source) !=
@@ -92,8 +92,8 @@ def push(decks: DecksStore, driver: CollectionStore, *, deck_id: str, allow_shri
        ceremony fires; any :class:`CollectionError` surfaces unswallowed.
     3. Update ``synced_baseline = version(local)``.
     """
-    local, source_ref = _require_row(decks, deck_id)
-    row = decks.get_row(deck_id)
+    local, source_ref = _require_row(decks, deck_uuid)
+    row = decks.get_row(deck_uuid)
     assert row is not None  # _require_row already validated it exists.
 
     local_version = version(local)  # type: ignore[arg-type]
@@ -111,7 +111,7 @@ def push(decks: DecksStore, driver: CollectionStore, *, deck_id: str, allow_shri
         and current_source_version != local_version
     ):
         raise SyncDriftError(
-            f'refusing to push {deck_id!r}: the source {source_ref!r} moved since last sync '
+            f'refusing to push {deck_uuid!r}: the source {source_ref!r} moved since last sync '
             f'(baseline {row.synced_baseline}, now {current_source_version}). '
             'Re-pull and re-apply your change, then push again.'
         )
@@ -124,7 +124,7 @@ def push(decks: DecksStore, driver: CollectionStore, *, deck_id: str, allow_shri
     written_version = version(driver.get_deck(source_ref))
     decks.put(
         local,  # type: ignore[arg-type]
-        deck_id=deck_id,
+        deck_uuid=deck_uuid,
         sync_status='synced',
         source_ref=source_ref,
         synced_baseline=written_version,
@@ -132,7 +132,7 @@ def push(decks: DecksStore, driver: CollectionStore, *, deck_id: str, allow_shri
     )
 
 
-def promote(decks: DecksStore, driver: CollectionStore, *, deck_id: str, source_ref: str) -> None:
+def promote(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, source_ref: str) -> None:
     """Promote an EPHEMERAL local deck to SYNCED: attach a source_ref + push.
 
     The ephemeral -> synced lifecycle (design §4): a clean-slate draft has no
@@ -143,9 +143,9 @@ def promote(decks: DecksStore, driver: CollectionStore, *, deck_id: str, source_
     """
     from pipeline.decks.store import DecksError
 
-    deck = decks.get(deck_id)
+    deck = decks.get(deck_uuid)
     if deck is None:
-        raise DecksError(f'no deck with id {deck_id!r}')
+        raise DecksError(f'no deck with id {deck_uuid!r}')
     # The source of record is keyed by deck NAME, so committing an exploration draft
     # back onto a differently-named target (e.g. 'Gruul (explore)' --to 'Gruul') must
     # save the content UNDER the target name — otherwise the save creates a new source
@@ -156,7 +156,7 @@ def promote(decks: DecksStore, driver: CollectionStore, *, deck_id: str, source_
     # below sees "source == local" (or a not-yet-existing source) and proceeds.
     decks.put(
         deck,
-        deck_id=deck_id,
+        deck_uuid=deck_uuid,
         sync_status='synced',
         source_ref=source_ref,
         synced_baseline=version(deck),
@@ -168,7 +168,7 @@ def promote(decks: DecksStore, driver: CollectionStore, *, deck_id: str, source_
     written = driver.get_deck(source_ref)
     decks.put(
         deck,
-        deck_id=deck_id,
+        deck_uuid=deck_uuid,
         sync_status='synced',
         source_ref=source_ref,
         synced_baseline=version(written),

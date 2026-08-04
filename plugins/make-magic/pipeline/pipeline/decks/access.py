@@ -31,19 +31,10 @@ if TYPE_CHECKING:
     from pipeline.collection.store import CollectionStore
     from pipeline.contracts import Deck
 
-__all__ = ('DeckAccess', 'deck_access', 'default_deck_id')
+__all__ = ('DeckAccess', 'deck_access')
 
 #: How long a synced local copy is served before a read re-pulls it (W4 TTL).
 _PULL_TTL = timedelta(minutes=15)
-
-
-def default_deck_id(backend: str, name: str) -> str:
-    """The local ``deck_id`` for a synced deck: ``'<backend>:<name>'``.
-
-    Namespaced by backend so the same deck name under two backends never collides
-    in the local store.
-    """
-    return f'{backend}:{name}'
 
 
 class DeckAccess:
@@ -62,17 +53,37 @@ class DeckAccess:
     def backend(self) -> str:
         return self._driver.backend_name
 
-    def deck_id_for(self, name: str) -> str:
-        return default_deck_id(self.backend, name)
+    def resolve(self, name: str, *, create: bool = False) -> str:
+        """Resolve a deck NAME to its stable ``deck_uuid`` — the single choke point.
+
+        The MINIMAL P1 shim (design §3): names are labels, ``deck_uuid`` is the
+        identity. Under today's single-name assumption a name maps to at most one
+        NON-consumed local row — return its uuid. When no local row exists yet the
+        name is either a synced source deck about to be pulled (``read_deck`` / an
+        edit) or a fresh create (``save-deck`` / first pull): mint a NEW uuid to key
+        the row under. ``create`` is accepted for call-site intent symmetry; the
+        behavior is the same either way in this minimal shim (mint on miss). Dup-name
+        disambiguation + an ``--id`` escape hatch are P2 — NOT built here.
+        """
+        existing = self._decks.uuid_for_name(name)
+        if existing is not None:
+            return existing
+        from uuid import uuid4
+
+        return uuid4().hex
+
+    def has_local_row(self, deck_uuid: str) -> bool:
+        """True iff a local decks-store row exists for ``deck_uuid`` (edit-path guard)."""
+        return self._decks.exists(deck_uuid)
 
     # ----------------------------------------------------------------------- #
     # Read (pull policy)
     # ----------------------------------------------------------------------- #
 
-    def _needs_pull(self, deck_id: str) -> bool:
+    def _needs_pull(self, deck_uuid: str) -> bool:
         """True when a synced deck should be (re-)pulled: absent OR TTL elapsed."""
-        row = self._decks.get_row(deck_id)
-        if row is None or self._decks.get(deck_id) is None:
+        row = self._decks.get_row(deck_uuid)
+        if row is None or self._decks.get(deck_uuid) is None:
             return True  # first access — no local copy yet.
         pulled_at = self._pulled_at(row.freshness)
         if pulled_at is None:
@@ -97,9 +108,9 @@ class DeckAccess:
             return None
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
-    def _stamp_pulled(self, deck_id: str) -> None:
+    def _stamp_pulled(self, deck_uuid: str) -> None:
         """Record the pull time in the local-only ``freshness`` column."""
-        self._decks.set_freshness(deck_id, {'pulled_at': datetime.now(tz=UTC).isoformat()})
+        self._decks.set_freshness(deck_uuid, {'pulled_at': datetime.now(tz=UTC).isoformat()})
 
     def read_deck(self, name: str) -> Deck:
         """Return the deck for ``name``, applying the pull policy (W4).
@@ -109,17 +120,17 @@ class DeckAccess:
         locally, it is treated as synced and pulled from the source (``get-deck``
         of a source deck that was never opened locally).
         """
-        deck_id = self.deck_id_for(name)
-        row = self._decks.get_row(deck_id)
+        deck_uuid = self.resolve(name)
+        row = self._decks.get_row(deck_uuid)
         # Ephemeral decks (no source) are served straight from local.
         if row is not None and row.sync_status == 'ephemeral':
-            local = self._decks.get(deck_id)
+            local = self._decks.get(deck_uuid)
             if local is not None:
                 return local
-        if self._needs_pull(deck_id):
-            _sync.pull(self._decks, self._driver, deck_id=deck_id, source_ref=name)
-            self._stamp_pulled(deck_id)
-        local = self._decks.get(deck_id)
+        if self._needs_pull(deck_uuid):
+            _sync.pull(self._decks, self._driver, deck_uuid=deck_uuid, source_ref=name)
+            self._stamp_pulled(deck_uuid)
+        local = self._decks.get(deck_uuid)
         if local is None:  # pragma: no cover - pull just wrote it.
             return self._driver.get_deck(name)
         return local
@@ -137,7 +148,7 @@ class DeckAccess:
         it). Set ``commit=False`` to stage the local edit without touching the
         source.
         """
-        deck_id = self.deck_id_for(deck.name)
+        deck_uuid = self.resolve(deck.name, create=True)
         # Baseline := the current source version if it exists, else None (a create).
         # This makes the subsequent push our authoritative write (no false drift),
         # while the source's shrink ceremony still fires on commit.
@@ -145,26 +156,26 @@ class DeckAccess:
             baseline = version(self._driver.get_deck(deck.name))
         except FileNotFoundError:
             baseline = None
-        self._decks.put(deck, deck_id=deck_id, sync_status='synced', source_ref=deck.name,
+        self._decks.put(deck, deck_uuid=deck_uuid, sync_status='synced', source_ref=deck.name,
                         synced_baseline=baseline, rationale='save-deck')
         if commit:
             self.push(deck.name, allow_shrink=allow_shrink)
 
     def set_strategy(self, name: str, text: str, *, commit: bool = True) -> None:
         self._ensure_local(name)
-        self._decks.set_strategy(self.deck_id_for(name), text, rationale='set-strategy')
+        self._decks.set_strategy(self.resolve(name), text, rationale='set-strategy')
         if commit:
             self._commit(name)
 
     def set_assessment(self, name: str, text: str, *, commit: bool = True) -> None:
         self._ensure_local(name)
-        self._decks.set_assessment(self.deck_id_for(name), text, rationale='set-assessment')
+        self._decks.set_assessment(self.resolve(name), text, rationale='set-assessment')
         if commit:
             self._commit(name)
 
     def set_focus_otags(self, name: str, otags: list[str], *, commit: bool = True) -> None:
         self._ensure_local(name)
-        self._decks.set_focus_otags(self.deck_id_for(name), list(otags), rationale='set-focus-otags')
+        self._decks.set_focus_otags(self.resolve(name), list(otags), rationale='set-focus-otags')
         if commit:
             self._commit(name)
 
@@ -182,7 +193,7 @@ class DeckAccess:
         mirrors the ``_commit_deck_edit`` guard the ``deck-swap``/``deck-add`` verbs
         already apply, so ``set-*`` behaves the same way.
         """
-        row = self._decks.get_row(self.deck_id_for(name))
+        row = self._decks.get_row(self.resolve(name))
         if row is not None and row.sync_status == 'synced' and row.source_ref is not None:
             self.push(name, allow_shrink=allow_shrink)
 
@@ -192,13 +203,13 @@ class DeckAccess:
 
     def pull(self, name: str) -> None:
         """Force a pull of ``name`` from the source into the local store."""
-        deck_id = self.deck_id_for(name)
-        _sync.pull(self._decks, self._driver, deck_id=deck_id, source_ref=name)
-        self._stamp_pulled(deck_id)
+        deck_uuid = self.resolve(name, create=True)
+        _sync.pull(self._decks, self._driver, deck_uuid=deck_uuid, source_ref=name)
+        self._stamp_pulled(deck_uuid)
 
     def push(self, name: str, *, allow_shrink: bool = False) -> None:
         """Push the local deck ``name`` to the source through the ceremony (guarded)."""
-        _sync.push(self._decks, self._driver, deck_id=self.deck_id_for(name), allow_shrink=allow_shrink)
+        _sync.push(self._decks, self._driver, deck_uuid=self.resolve(name), allow_shrink=allow_shrink)
 
     def sync(self, name: str, *, allow_shrink: bool = False) -> None:
         """Pull-then-push ``name`` (reconcile local against the source)."""

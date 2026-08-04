@@ -25,6 +25,7 @@ inventory / chase / trades are untouched.
 
 from __future__ import annotations
 
+import json
 import os
 from typing import TYPE_CHECKING, Any
 
@@ -50,9 +51,14 @@ class DeckRow(BaseModel):
     A typed view of the non-``deck_json`` columns (design §3) so callers (sync,
     undo) read the sync state without re-parsing raw tuples. ``deck_json`` itself
     is returned as a validated ``Deck`` via :meth:`DecksStore.get`.
+
+    ``deck_uuid`` is the row's stable, name-independent identity (the PK) — names
+    are labels. ``external_ids`` is a JSON map ``{backend: native_ref}`` (the sync
+    binding key); ``derived_from`` is the parent ``deck_uuid`` for ``--from``
+    exploration drafts.
     """
 
-    deck_id: str
+    deck_uuid: str
     name: str
     sync_status: str
     source_ref: str | None = None
@@ -60,6 +66,8 @@ class DeckRow(BaseModel):
     freshness: str | None = None
     last_sim: str | None = None
     archived: bool = False
+    external_ids: str | None = None
+    derived_from: str | None = None
 
 #: The DuckDB table holding the local working-copy decks.
 _DECKS_TABLE = 'decks'
@@ -69,49 +77,135 @@ class DecksError(Exception):
     """A guard violation in the decks store (commander rule, missing cut, shrink)."""
 
 
+#: The new-shape ``decks`` DDL (the identity-migrated shape). ``deck_uuid`` is the
+#: stable, name-independent PK; ``external_ids`` is the JSON sync-binding map and
+#: ``derived_from`` the parent uuid for exploration drafts.
+_DECKS_DDL = (
+    f'CREATE TABLE IF NOT EXISTS {_DECKS_TABLE} ('
+    'deck_uuid TEXT PRIMARY KEY, '  # stable, name-independent identity (minted once)
+    'name TEXT, '  # a LABEL (dup names allowed; resolve by name -> uuid)
+    'deck_json TEXT, '
+    "sync_status TEXT, "  # 'ephemeral' | 'synced' | 'consumed'
+    'source_ref TEXT, '  # JSON {backend, name/record-id} | NULL (ephemeral)
+    'synced_baseline TEXT, '  # version() of source at last sync | NULL
+    'freshness TEXT, '  # JSON {assessment: <hash>, sim: <hash>} | NULL
+    'last_sim TEXT, '  # JSON {result, deck_version} | NULL
+    'archived BOOLEAN DEFAULT FALSE, '  # local lifecycle: hide from default list
+    "external_ids TEXT DEFAULT '{}', "  # JSON {backend: native_ref} — the sync binding key
+    'derived_from TEXT)'  # parent deck_uuid for --from drafts | NULL
+)
+
+
 def _ensure_decks_table(conn: DuckDBPyConnection) -> None:
-    """Create the ``decks`` table if it does not yet exist (idempotent).
+    """Create the ``decks`` table, migrating an OLD-shape table in place (idempotent).
 
     ``deck_json`` is the SYNCED payload (the typed ``Deck``); the remaining columns
-    are LOCAL-ONLY sync/freshness bookkeeping (design §3) and are stored here now
-    so Phase 2 can populate them without a migration.
+    are LOCAL-ONLY sync/freshness bookkeeping (design §3).
 
-    ``archived`` is a LOCAL lifecycle flag (default FALSE): archiving evicts an
-    experimental draft from the default deck list without deleting it. Existing
-    local tables (created before this column existed) are migrated in-place via an
-    ``ALTER TABLE … ADD COLUMN IF NOT EXISTS`` — cheap, idempotent, no data move.
+    The identity migration (P1): the store used to key rows on a name-derived
+    ``deck_id = '<backend>:<name>'``. This re-keys to a stable, name-independent
+    ``deck_uuid`` PK and adds ``external_ids`` / ``derived_from``. Because DuckDB
+    cannot repoint a PRIMARY KEY via ALTER, the migration REBUILDS the table
+    (create new-shape, copy rows in with minted uuids, drop/rename). It is:
+
+      * one-time — detected via ``PRAGMA table_info`` (old = has ``deck_id`` and
+        no ``deck_uuid``); once migrated a second call is a pure no-op;
+      * LOCAL-ONLY — ``external_ids['airtable']`` is read from the EXISTING LOCAL
+        row's ``Deck.airtable_record_id`` (never from Airtable). No network.
+
+    ``archived`` (older tables predate it) is still ADD-COLUMN-migrated in place
+    for a new-shape table that merely lacks it — cheap, idempotent, no data move.
     """
-    conn.execute(
-        f'CREATE TABLE IF NOT EXISTS {_DECKS_TABLE} ('
-        'deck_id TEXT PRIMARY KEY, '
-        'name TEXT, '
-        'deck_json TEXT, '
-        'sync_status TEXT, '  # 'ephemeral' | 'synced'
-        'source_ref TEXT, '  # JSON {backend, name/record-id} | NULL (ephemeral)
-        'synced_baseline TEXT, '  # version() of source at last sync | NULL
-        'freshness TEXT, '  # JSON {assessment: <hash>, sim: <hash>} | NULL
-        'last_sim TEXT, '  # JSON {result, deck_version} | NULL
-        'archived BOOLEAN DEFAULT FALSE)'  # local lifecycle: hide from default list
-    )
-    # Migrate a pre-existing table (created before `archived` existed) in place.
-    #
-    # NOTE: DuckDB's `ADD COLUMN IF NOT EXISTS ... DEFAULT FALSE` re-applies the
-    # DEFAULT to existing rows even when the column already exists — running it on
-    # every read would silently RESET `archived` back to FALSE. So guard it: only
-    # ALTER when the column is genuinely absent (a real, one-time migration).
+    conn.execute(_DECKS_DDL)
     cols = {r[1] for r in conn.execute(f'PRAGMA table_info({_DECKS_TABLE})').fetchall()}
+
+    # The old-shape signature: keyed on `deck_id`, no `deck_uuid`. A REBUILD.
+    if 'deck_id' in cols and 'deck_uuid' not in cols:
+        _migrate_deck_id_to_uuid(conn)
+        return  # the rebuild lands the full new shape — no further ALTERs needed.
+
+    # A new-shape table that predates a later column: ADD it in place (guarded so
+    # DuckDB's re-applied DEFAULT can't reset an existing column's rows).
     if 'archived' not in cols:
         conn.execute(f'ALTER TABLE {_DECKS_TABLE} ADD COLUMN archived BOOLEAN DEFAULT FALSE')
+    if 'external_ids' not in cols:
+        conn.execute(f"ALTER TABLE {_DECKS_TABLE} ADD COLUMN external_ids TEXT DEFAULT '{{}}'")
+    if 'derived_from' not in cols:
+        conn.execute(f'ALTER TABLE {_DECKS_TABLE} ADD COLUMN derived_from TEXT')
+
+
+def _migrate_deck_id_to_uuid(conn: DuckDBPyConnection) -> None:
+    """REBUILD the old-shape ``decks`` table onto the ``deck_uuid`` PK (one-time).
+
+    For each existing row: mint a fresh ``deck_uuid``; set ``external_ids`` from
+    the LOCAL row (``{"airtable": <record_id>}`` when the deck holds one, else
+    ``{"local_yaml": <deck_uuid>}``); re-key that row's ``deck_versions`` ledger
+    entries from the old ``deck_id`` to the new ``deck_uuid`` so undo still reaches
+    the pre-migration history. Purely local — no Airtable call, no delete_record.
+    """
+    import json as _json
+    from uuid import uuid4
+
+    # Ensure the ledger's key column is itself renamed (deck_id -> deck_uuid) BEFORE
+    # we re-key its row values below — the history module owns that column rename.
+    history._ensure_history_tables(conn)
+
+    old_rows = conn.execute(
+        f'SELECT deck_id, name, deck_json, sync_status, source_ref, synced_baseline, '
+        f'freshness, last_sim, archived FROM {_DECKS_TABLE}'
+    ).fetchall()
+
+    # Stage the new-shape table alongside the old, populate, then swap names. The
+    # ledger column was already renamed deck_id -> deck_uuid by the history module;
+    # here we rewrite the ledger's ROW VALUES from the old id to the minted uuid.
+    staging = f'{_DECKS_TABLE}__uuid_migration'
+    conn.execute(f'DROP TABLE IF EXISTS {staging}')
+    conn.execute(_DECKS_DDL.replace(f'IF NOT EXISTS {_DECKS_TABLE}', f'IF NOT EXISTS {staging}'))
+
+    for old_id, name, deck_json, sync_status, source_ref, synced_baseline, freshness, last_sim, archived in old_rows:
+        new_uuid = uuid4().hex
+        record_id = _airtable_record_id(deck_json)
+        external_ids = {'airtable': record_id} if record_id else {'local_yaml': new_uuid}
+        conn.execute(
+            f'INSERT INTO {staging} '
+            '(deck_uuid, name, deck_json, sync_status, source_ref, synced_baseline, '
+            'freshness, last_sim, archived, external_ids, derived_from) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
+            [
+                new_uuid, name, deck_json, sync_status, source_ref, synced_baseline,
+                freshness, last_sim, bool(archived), _json.dumps(external_ids),
+            ],
+        )
+        # Re-key the ledger rows for this deck (old id value -> the minted uuid).
+        conn.execute(
+            'UPDATE deck_versions SET deck_uuid = ? WHERE deck_uuid = ?', [new_uuid, old_id]
+        )
+
+    conn.execute(f'DROP TABLE {_DECKS_TABLE}')
+    conn.execute(f'ALTER TABLE {staging} RENAME TO {_DECKS_TABLE}')
+
+
+def _airtable_record_id(deck_json: str | None) -> str | None:
+    """Read ``airtable_record_id`` from a stored deck's JSON (LOCAL read; no network)."""
+    if not deck_json:
+        return None
+    try:
+        data = json.loads(deck_json)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    rec = data.get('airtable_record_id') if isinstance(data, dict) else None
+    return rec if isinstance(rec, str) and rec else None
 
 
 def _row_to_deckrow(row: Sequence[Any]) -> DeckRow:
     """Build a :class:`DeckRow` from a SELECT tuple.
 
-    Column order (shared by ``get_row`` / ``list_rows``): deck_id, name,
-    sync_status, source_ref, synced_baseline, freshness, last_sim, archived.
+    Column order (shared by ``get_row`` / ``list_rows``): deck_uuid, name,
+    sync_status, source_ref, synced_baseline, freshness, last_sim, archived,
+    external_ids, derived_from.
     """
     return DeckRow(
-        deck_id=row[0],
+        deck_uuid=row[0],
         name=row[1],
         sync_status=row[2] or 'ephemeral',
         source_ref=row[3],
@@ -119,6 +213,8 @@ def _row_to_deckrow(row: Sequence[Any]) -> DeckRow:
         freshness=row[5],
         last_sim=row[6],
         archived=bool(row[7]),
+        external_ids=row[8],
+        derived_from=row[9],
     )
 
 
@@ -143,19 +239,25 @@ class DecksStore:
     # Reads
     # ----------------------------------------------------------------------- #
 
-    def get(self, deck_id: str) -> Deck | None:
-        """Return the VALIDATED ``Deck`` for ``deck_id``, or ``None`` if absent."""
+    #: The column list every ``DeckRow`` SELECT reads, in ``_row_to_deckrow`` order.
+    _ROW_COLUMNS = (
+        'deck_uuid, name, sync_status, source_ref, synced_baseline, '
+        'freshness, last_sim, archived, external_ids, derived_from'
+    )
+
+    def get(self, deck_uuid: str) -> Deck | None:
+        """Return the VALIDATED ``Deck`` for ``deck_uuid``, or ``None`` if absent."""
         with self._connect() as conn:
             _ensure_decks_table(conn)
             row = conn.execute(
-                f'SELECT deck_json FROM {_DECKS_TABLE} WHERE deck_id = ?', [deck_id]
+                f'SELECT deck_json FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
             ).fetchone()
         if row is None or row[0] is None:
             return None
         return Deck.model_validate_json(row[0])
 
     def list(self, *, include_archived: bool = False) -> list[Deck]:
-        """Return stored decks as VALIDATED ``Deck``s (deck_id order).
+        """Return stored decks as VALIDATED ``Deck``s (deck_uuid order).
 
         Archived decks are EXCLUDED by default (an archived draft is evicted from
         the default list without being deleted); pass ``include_archived=True`` to
@@ -165,32 +267,65 @@ class DecksStore:
         with self._connect() as conn:
             _ensure_decks_table(conn)
             rows = conn.execute(
-                f'SELECT deck_json FROM {_DECKS_TABLE} {where}ORDER BY deck_id'
+                f'SELECT deck_json FROM {_DECKS_TABLE} {where}ORDER BY deck_uuid'
             ).fetchall()
         return [Deck.model_validate_json(r[0]) for r in rows if r[0] is not None]
 
-    def exists(self, deck_id: str) -> bool:
-        """True iff a row for ``deck_id`` exists."""
+    def exists(self, deck_uuid: str) -> bool:
+        """True iff a row for ``deck_uuid`` exists."""
         with self._connect() as conn:
             _ensure_decks_table(conn)
             row = conn.execute(
-                f'SELECT 1 FROM {_DECKS_TABLE} WHERE deck_id = ?', [deck_id]
+                f'SELECT 1 FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
             ).fetchone()
         return row is not None
 
-    def get_row(self, deck_id: str) -> DeckRow | None:
-        """Return the LOCAL-ONLY sync bookkeeping for ``deck_id`` (or None if absent).
+    def uuid_for_name(self, name: str) -> str | None:
+        """Return the ``deck_uuid`` of the single NON-consumed row named ``name`` (or None).
 
-        The typed view of the non-``deck_json`` columns — ``sync_status`` /
-        ``source_ref`` / ``synced_baseline`` / ``freshness`` / ``last_sim`` — used
-        by the sync ops (drift guard) and undo (bookkeeping preservation).
+        The name->uuid resolution the access shim leans on (design §3). Names are
+        labels, so this is a lookup, not identity. Under today's single-name
+        assumption there is at most one live row per name; a ``consumed`` draft is
+        excluded (it is a retired exploration draft, not an addressable deck). When
+        more than one live row shares a name, the OLDEST (lowest rowid) wins as a
+        deterministic minimal tie-break — the dup-name candidate-list UX is P2.
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
             row = conn.execute(
-                f'SELECT deck_id, name, sync_status, source_ref, synced_baseline, freshness, last_sim, archived '
-                f'FROM {_DECKS_TABLE} WHERE deck_id = ?',
-                [deck_id],
+                f'SELECT deck_uuid FROM {_DECKS_TABLE} '
+                "WHERE name = ? AND sync_status IS DISTINCT FROM 'consumed' "
+                'ORDER BY rowid LIMIT 1',
+                [name],
+            ).fetchone()
+        return row[0] if row is not None else None
+
+    def external_ids(self, deck_uuid: str) -> str | None:
+        """Return the raw ``external_ids`` JSON for ``deck_uuid`` (or None if absent).
+
+        The sync BINDING key ``{backend: native_ref}`` (design §3) — populated by
+        the identity migration and, going forward, by pull/promote (P2/P3).
+        """
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            row = conn.execute(
+                f'SELECT external_ids FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
+            ).fetchone()
+        return row[0] if row is not None else None
+
+    def get_row(self, deck_uuid: str) -> DeckRow | None:
+        """Return the LOCAL-ONLY sync bookkeeping for ``deck_uuid`` (or None if absent).
+
+        The typed view of the non-``deck_json`` columns — ``sync_status`` /
+        ``source_ref`` / ``synced_baseline`` / ``freshness`` / ``last_sim`` /
+        ``external_ids`` / ``derived_from`` — used by the sync ops (drift guard)
+        and undo (bookkeeping preservation).
+        """
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            row = conn.execute(
+                f'SELECT {self._ROW_COLUMNS} FROM {_DECKS_TABLE} WHERE deck_uuid = ?',
+                [deck_uuid],
             ).fetchone()
         if row is None:
             return None
@@ -199,11 +334,12 @@ class DecksStore:
     def list_rows(
         self, *, sync_status: str | None = None, include_archived: bool = False
     ) -> list[DeckRow]:
-        """Return the LOCAL-ONLY sync bookkeeping rows (deck_id order).
+        """Return the LOCAL-ONLY sync bookkeeping rows (deck_uuid order).
 
-        Optionally filtered by ``sync_status`` (``'ephemeral'`` / ``'synced'``);
-        archived rows are EXCLUDED unless ``include_archived=True``. Used by the
-        ``list-decks`` CLI to surface local ephemeral drafts alongside the source.
+        Optionally filtered by ``sync_status`` (``'ephemeral'`` / ``'synced'`` /
+        ``'consumed'``); archived rows are EXCLUDED unless ``include_archived=True``.
+        Used by the ``list-decks`` CLI to surface local ephemeral drafts alongside
+        the source.
         """
         clauses: list[str] = []
         params: list[object] = []
@@ -216,8 +352,7 @@ class DecksStore:
         with self._connect() as conn:
             _ensure_decks_table(conn)
             rows = conn.execute(
-                f'SELECT deck_id, name, sync_status, source_ref, synced_baseline, freshness, last_sim, archived '
-                f'FROM {_DECKS_TABLE} {where}ORDER BY deck_id',
+                f'SELECT {self._ROW_COLUMNS} FROM {_DECKS_TABLE} {where}ORDER BY deck_uuid',
                 params,
             ).fetchall()
         return [_row_to_deckrow(r) for r in rows]
@@ -230,13 +365,13 @@ class DecksStore:
         self,
         deck: Deck,
         *,
-        deck_id: str,
+        deck_uuid: str,
         sync_status: str = 'ephemeral',
         source_ref: str | None = None,
         synced_baseline: str | None = None,
         rationale: str | None = None,
     ) -> None:
-        """Upsert the row for ``deck_id`` (``deck_json`` = ``deck.model_dump_json``).
+        """Upsert the row for ``deck_uuid`` (``deck_json`` = ``deck.model_dump_json``).
 
         The sync/freshness columns are set from the given bookkeeping (defaults =
         an ephemeral, sourceless draft). ``freshness`` / ``last_sim`` are left NULL
@@ -244,7 +379,7 @@ class DecksStore:
 
         ``put`` establishes / replaces a deck's state, so it APPENDS a ledger
         version (the undo floor), but ONLY when the incoming content actually
-        differs from the current head version for ``deck_id`` — an idempotent
+        differs from the current head version for ``deck_uuid`` — an idempotent
         re-``put`` (e.g. a re-pull of an unchanged source) does not spam the
         ledger. ``rationale`` labels the append (default: ``'put'``).
         """
@@ -253,56 +388,64 @@ class DecksStore:
         new_version = _version(deck)
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            head = history.deck_version_rows(conn, deck_id)
+            head = history.deck_version_rows(conn, deck_uuid)
             conn.execute(
                 f'INSERT INTO {_DECKS_TABLE} '
-                '(deck_id, name, deck_json, sync_status, source_ref, synced_baseline, freshness, last_sim) '
+                '(deck_uuid, name, deck_json, sync_status, source_ref, synced_baseline, freshness, last_sim) '
                 'VALUES (?, ?, ?, ?, ?, ?, NULL, NULL) '
-                'ON CONFLICT (deck_id) DO UPDATE SET '
+                'ON CONFLICT (deck_uuid) DO UPDATE SET '
                 'name = excluded.name, deck_json = excluded.deck_json, '
                 'sync_status = excluded.sync_status, source_ref = excluded.source_ref, '
                 'synced_baseline = excluded.synced_baseline',
-                # NOTE: `archived` is deliberately NOT in the UPDATE set — a re-put
-                # (e.g. a re-pull of an unchanged source) must PRESERVE the local
-                # archived flag rather than reset it to the insert default.
-                [deck_id, deck.name, deck.model_dump_json(), sync_status, source_ref, synced_baseline],
+                # NOTE: `archived` / `external_ids` / `derived_from` are deliberately
+                # NOT in the UPDATE set — a re-put (e.g. a re-pull of an unchanged
+                # source) must PRESERVE the local archived flag + binding identity
+                # rather than reset them to the insert defaults.
+                [deck_uuid, deck.name, deck.model_dump_json(), sync_status, source_ref, synced_baseline],
             )
             if not head or head[-1]['version'] != new_version:
-                history.append_deck_version(conn, deck_id=deck_id, deck=deck, rationale=rationale or 'put')
+                history.append_deck_version(conn, deck_uuid=deck_uuid, deck=deck, rationale=rationale or 'put')
 
-    def create_ephemeral(self, deck: Deck, deck_id: str) -> None:
-        """Create an EPHEMERAL (local-only, no source) deck row for ``deck_id``."""
-        self.put(deck, deck_id=deck_id, sync_status='ephemeral', source_ref=None, synced_baseline=None)
+    def create_ephemeral(self, deck: Deck) -> str:
+        """Create an EPHEMERAL (local-only, no source) draft; return its minted uuid.
 
-    def set_freshness(self, deck_id: str, freshness: dict[str, object]) -> None:
+        Identity is name-independent (design §3): a fresh ``deck_uuid`` is minted
+        here (taken from the deck's own ``uuid``), so a new draft can NEVER hijack
+        an existing row — even one that reuses a previously-archived name. The row
+        is born VISIBLE (``archived = FALSE``, the insert default) so a draft that
+        reuses an archived name is not silently hidden (fixes m4).
+        """
+        deck_uuid = deck.uuid
+        self.put(deck, deck_uuid=deck_uuid, sync_status='ephemeral', source_ref=None, synced_baseline=None)
+        return deck_uuid
+
+    def set_freshness(self, deck_uuid: str, freshness: dict[str, object]) -> None:
         """Set the LOCAL-ONLY ``freshness`` JSON for a row (pull stamp / artifact hashes).
 
         Bookkeeping only — it does NOT change ``deck_json`` and therefore does NOT
         append a ledger version (freshness is not a deck-content edit).
         """
-        import json as _json
-
         with self._connect() as conn:
             _ensure_decks_table(conn)
             conn.execute(
-                f'UPDATE {_DECKS_TABLE} SET freshness = ? WHERE deck_id = ?',
-                [_json.dumps(freshness), deck_id],
+                f'UPDATE {_DECKS_TABLE} SET freshness = ? WHERE deck_uuid = ?',
+                [json.dumps(freshness), deck_uuid],
             )
 
     # ----------------------------------------------------------------------- #
     # Archive lifecycle — hide a draft from the default list without deleting it
     # ----------------------------------------------------------------------- #
 
-    def archive(self, deck_id: str) -> None:
-        """Mark ``deck_id`` archived (evict from the default list). Raise if absent."""
-        self._set_archived(deck_id, archived=True)
+    def archive(self, deck_uuid: str) -> None:
+        """Mark ``deck_uuid`` archived (evict from the default list). Raise if absent."""
+        self._set_archived(deck_uuid, archived=True)
 
-    def unarchive(self, deck_id: str) -> None:
-        """Clear the archived flag on ``deck_id`` (restore it). Raise if absent."""
-        self._set_archived(deck_id, archived=False)
+    def unarchive(self, deck_uuid: str) -> None:
+        """Clear the archived flag on ``deck_uuid`` (restore it). Raise if absent."""
+        self._set_archived(deck_uuid, archived=False)
 
-    def _set_archived(self, deck_id: str, *, archived: bool) -> None:
-        """Set the ``archived`` flag; raise ``DecksError`` when ``deck_id`` is absent.
+    def _set_archived(self, deck_uuid: str, *, archived: bool) -> None:
+        """Set the ``archived`` flag; raise ``DecksError`` when ``deck_uuid`` is absent.
 
         Bookkeeping only — it does NOT touch ``deck_json`` and therefore does NOT
         append a ledger version (archiving is not a deck-content edit).
@@ -310,23 +453,23 @@ class DecksStore:
         with self._connect() as conn:
             _ensure_decks_table(conn)
             exists = conn.execute(
-                f'SELECT 1 FROM {_DECKS_TABLE} WHERE deck_id = ?', [deck_id]
+                f'SELECT 1 FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
             ).fetchone()
             if exists is None:
-                raise DecksError(f'no deck with id {deck_id!r}')
+                raise DecksError(f'no deck with id {deck_uuid!r}')
             conn.execute(
-                f'UPDATE {_DECKS_TABLE} SET archived = ? WHERE deck_id = ?', [archived, deck_id]
+                f'UPDATE {_DECKS_TABLE} SET archived = ? WHERE deck_uuid = ?', [archived, deck_uuid]
             )
 
     # ----------------------------------------------------------------------- #
     # Typed edits — the whole point (no dict-surgery)
     # ----------------------------------------------------------------------- #
 
-    def _require(self, deck_id: str) -> Deck:
-        """Read the deck for ``deck_id`` or raise (edits operate on an existing deck)."""
-        deck = self.get(deck_id)
+    def _require(self, deck_uuid: str) -> Deck:
+        """Read the deck for ``deck_uuid`` or raise (edits operate on an existing deck)."""
+        deck = self.get(deck_uuid)
         if deck is None:
-            raise DecksError(f'no deck with id {deck_id!r}')
+            raise DecksError(f'no deck with id {deck_uuid!r}')
         return deck
 
     #: The edit-note used when a typed edit is applied without an explicit rationale
@@ -334,7 +477,7 @@ class DecksStore:
     #: this default note rather than a caller-supplied one).
     _DEFAULT_RATIONALE = 'edit'
 
-    def _write_edit(self, deck_id: str, deck: Deck, *, rationale: str | None) -> None:
+    def _write_edit(self, deck_uuid: str, deck: Deck, *, rationale: str | None) -> None:
         """Persist an edited deck + APPEND a version to the ledger (edit-triggered).
 
         An edit changes only ``deck_json`` / ``name``; ``sync_status`` /
@@ -351,11 +494,11 @@ class DecksStore:
         with self._connect() as conn:
             _ensure_decks_table(conn)
             conn.execute(
-                f'UPDATE {_DECKS_TABLE} SET name = ?, deck_json = ? WHERE deck_id = ?',
-                [deck.name, deck.model_dump_json(), deck_id],
+                f'UPDATE {_DECKS_TABLE} SET name = ?, deck_json = ? WHERE deck_uuid = ?',
+                [deck.name, deck.model_dump_json(), deck_uuid],
             )
             history.append_deck_version(
-                conn, deck_id=deck_id, deck=deck, rationale=rationale or self._DEFAULT_RATIONALE
+                conn, deck_uuid=deck_uuid, deck=deck, rationale=rationale or self._DEFAULT_RATIONALE
             )
 
     def _apply_add(self, deck: Deck, card: DeckCard) -> Deck:
@@ -376,10 +519,10 @@ class DecksStore:
             new_cards.append(card)
         return deck.model_copy(update={'cards': new_cards})
 
-    def add_card(self, deck_id: str, card: DeckCard, *, rationale: str | None = None) -> None:
+    def add_card(self, deck_uuid: str, card: DeckCard, *, rationale: str | None = None) -> None:
         """Add ``card`` to the deck — INCREMENT the existing entry, else append."""
-        deck = self._require(deck_id)
-        self._write_edit(deck_id, self._apply_add(deck, card), rationale=rationale)
+        deck = self._require(deck_uuid)
+        self._write_edit(deck_uuid, self._apply_add(deck, card), rationale=rationale)
 
     def _apply_remove(self, deck: Deck, name: str, qty: int) -> Deck:
         """Return a NEW ``Deck`` with ``qty`` copies of ``name`` removed (pure).
@@ -399,7 +542,7 @@ class DecksStore:
             new_cards.append(entry.model_copy(update={'quantity': remaining}))
         return deck.model_copy(update={'cards': new_cards})
 
-    def remove_card(self, deck_id: str, name: str, *, qty: int = 1, rationale: str | None = None) -> None:
+    def remove_card(self, deck_uuid: str, name: str, *, qty: int = 1, rationale: str | None = None) -> None:
         """Decrement ``name`` by ``qty``; drop the entry ONLY when it reaches 0.
 
         QUANTITY-AWARE (the R3 fix): a multi-copy basic loses ``qty`` copies, not
@@ -408,31 +551,31 @@ class DecksStore:
         the ``shrink_check`` semantics, reused so a bare removal can't silently
         gut a legal deck.
         """
-        deck = self._require(deck_id)
+        deck = self._require(deck_uuid)
         new_deck = self._apply_remove(deck, name, qty)
         if shrink_check(deck, new_deck):
             raise DecksError(
-                f'removing {qty}x {name!r} would drop deck {deck_id!r} under its target '
+                f'removing {qty}x {name!r} would drop deck {deck_uuid!r} under its target '
                 f'({deck.target_size}); refusing (would shrink an at-target deck)'
             )
-        self._write_edit(deck_id, new_deck, rationale=rationale)
+        self._write_edit(deck_uuid, new_deck, rationale=rationale)
 
-    def set_strategy(self, deck_id: str, text: str | None, *, rationale: str | None = None) -> None:
+    def set_strategy(self, deck_uuid: str, text: str | None, *, rationale: str | None = None) -> None:
         """Set the deck's free-text strategy."""
-        deck = self._require(deck_id)
-        self._write_edit(deck_id, deck.model_copy(update={'strategy': text}), rationale=rationale)
+        deck = self._require(deck_uuid)
+        self._write_edit(deck_uuid, deck.model_copy(update={'strategy': text}), rationale=rationale)
 
-    def set_assessment(self, deck_id: str, text: str | None, *, rationale: str | None = None) -> None:
+    def set_assessment(self, deck_uuid: str, text: str | None, *, rationale: str | None = None) -> None:
         """Set the deck's assessment (reality synthesis)."""
-        deck = self._require(deck_id)
-        self._write_edit(deck_id, deck.model_copy(update={'assessment': text}), rationale=rationale)
+        deck = self._require(deck_uuid)
+        self._write_edit(deck_uuid, deck.model_copy(update={'assessment': text}), rationale=rationale)
 
-    def set_focus_otags(self, deck_id: str, otags: list[str], *, rationale: str | None = None) -> None:
+    def set_focus_otags(self, deck_uuid: str, otags: list[str], *, rationale: str | None = None) -> None:
         """Set the deck's declared focus otags."""
-        deck = self._require(deck_id)
-        self._write_edit(deck_id, deck.model_copy(update={'focus_otags': list(otags)}), rationale=rationale)
+        deck = self._require(deck_uuid)
+        self._write_edit(deck_uuid, deck.model_copy(update={'focus_otags': list(otags)}), rationale=rationale)
 
-    def swap(self, deck_id: str, *, add: DeckCard, cut: str, rationale: str | None = None) -> None:
+    def swap(self, deck_uuid: str, *, add: DeckCard, cut: str, rationale: str | None = None) -> None:
         """Cut one copy of ``cut`` and add ``add`` — SIZE-PRESERVING by construction.
 
         ``swap = remove_card(cut, qty=1) + add_card(add)``, so it removes exactly
@@ -447,22 +590,22 @@ class DecksStore:
         The commander invariants are checked BEFORE any write, so a violation
         leaves the stored deck untouched (the whole op is refused, not half-applied).
         """
-        deck = self._require(deck_id)
+        deck = self._require(deck_uuid)
         cut_entry = next((c for c in deck.cards if c.name == cut), None)
         if cut_entry is None:
-            raise DecksError(f'cut card {cut!r} is not in deck {deck_id!r}')
+            raise DecksError(f'cut card {cut!r} is not in deck {deck_uuid!r}')
 
         commanders = deck.commanders
         cutting_sole_commander = cut_entry.role == ROLE_COMMANDER and len(commanders) <= 1
         if cutting_sole_commander:
-            raise DecksError(f'refusing to cut the sole commander {cut!r} from deck {deck_id!r}')
+            raise DecksError(f'refusing to cut the sole commander {cut!r} from deck {deck_uuid!r}')
 
         adding_commander = add.role == ROLE_COMMANDER
         # After the cut, how many commanders remain? (the cut may itself be a commander)
         commanders_after_cut = len(commanders) - (1 if cut_entry.role == ROLE_COMMANDER else 0)
         if adding_commander and add.name not in {c.name for c in commanders} and commanders_after_cut >= 1:
             raise DecksError(
-                f'refusing to add a second commander {add.name!r} to deck {deck_id!r} '
+                f'refusing to add a second commander {add.name!r} to deck {deck_uuid!r} '
                 f'(already has: {[c.name for c in commanders]})'
             )
 
@@ -472,13 +615,13 @@ class DecksStore:
         # so it correctly bypasses the per-removal shrink guard (which would
         # otherwise trip on the transient sub-target state between the two halves).
         swapped = self._apply_add(self._apply_remove(deck, cut, 1), add)
-        self._write_edit(deck_id, swapped, rationale=rationale)
+        self._write_edit(deck_uuid, swapped, rationale=rationale)
 
     # ----------------------------------------------------------------------- #
     # Undo — restore the prior ledger version (design §6 feature-baby)
     # ----------------------------------------------------------------------- #
 
-    def undo(self, deck_id: str) -> Deck | None:
+    def undo(self, deck_uuid: str) -> Deck | None:
         """Restore the deck to its PRIOR ledger version; return it (or None).
 
         Reads the version BEFORE the current head from the append-only ledger and
@@ -493,8 +636,8 @@ class DecksStore:
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            prior = history.previous_deck_version(conn, deck_id)
+            prior = history.previous_deck_version(conn, deck_uuid)
         if prior is None:
             return None
-        self._write_edit(deck_id, prior, rationale='undo')
+        self._write_edit(deck_uuid, prior, rationale='undo')
         return prior

@@ -49,7 +49,7 @@ def _commander_deck(name: str = 'Krenko Goblins') -> Deck:
 def test_put_get_roundtrip_is_validated_deck(data_dir: Path) -> None:
     s = DecksStore()
     deck = _commander_deck()
-    s.put(deck, deck_id='d1')
+    s.put(deck, deck_uuid='d1')
     got = s.get('d1')
     assert isinstance(got, Deck)
     assert got.name == deck.name
@@ -66,29 +66,32 @@ def test_get_missing_returns_none(data_dir: Path) -> None:
 def test_exists(data_dir: Path) -> None:
     s = DecksStore()
     assert not s.exists('d1')
-    s.put(_commander_deck(), deck_id='d1')
+    s.put(_commander_deck(), deck_uuid='d1')
     assert s.exists('d1')
 
 
 def test_list_returns_all_decks(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck('A'), deck_id='a')
-    s.put(_commander_deck('B'), deck_id='b')
+    s.put(_commander_deck('A'), deck_uuid='a')
+    s.put(_commander_deck('B'), deck_uuid='b')
     names = sorted(d.name for d in s.list())
     assert names == ['A', 'B']
 
 
 def test_create_ephemeral(data_dir: Path) -> None:
     s = DecksStore()
-    s.create_ephemeral(_commander_deck('Draft'), 'draft-1')
-    assert s.exists('draft-1')
-    assert s.get('draft-1').name == 'Draft'
+    # create_ephemeral mints its own deck_uuid (name-independent identity) and
+    # returns it — the row is addressed by that uuid, never by name-derived key.
+    uuid = s.create_ephemeral(_commander_deck('Draft'))
+    assert uuid
+    assert s.exists(uuid)
+    assert s.get(uuid).name == 'Draft'
 
 
 def test_put_upserts(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck('First'), deck_id='d1')
-    s.put(_commander_deck('Second'), deck_id='d1')
+    s.put(_commander_deck('First'), deck_uuid='d1')
+    s.put(_commander_deck('Second'), deck_uuid='d1')
     assert s.get('d1').name == 'Second'
     assert len(s.list()) == 1
 
@@ -104,14 +107,14 @@ def _qty_of(deck: Deck, name: str) -> int:
 
 def test_add_card_increments_existing(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck(), deck_id='d1')
+    s.put(_commander_deck(), deck_uuid='d1')
     s.add_card('d1', DeckCard(name='Mountain', quantity=1))
     assert _qty_of(s.get('d1'), 'Mountain') == 10
 
 
 def test_add_card_adds_new_entry(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck(), deck_id='d1')
+    s.put(_commander_deck(), deck_uuid='d1')
     s.add_card('d1', DeckCard(name='Lightning Bolt', quantity=1))
     assert _qty_of(s.get('d1'), 'Lightning Bolt') == 1
 
@@ -119,7 +122,7 @@ def test_add_card_adds_new_entry(data_dir: Path) -> None:
 def test_remove_card_drops_one_copy_not_the_whole_entry(data_dir: Path) -> None:
     """A multi-copy basic loses ONE copy, not all of them (the R3 fix)."""
     s = DecksStore()
-    s.put(_commander_deck(), deck_id='d1')
+    s.put(_commander_deck(), deck_uuid='d1')
     # Keep the deck at-target so this removal exercises quantity-awareness, not the
     # shrink guard: add one Mountain (100 -> 101), then remove one (101 -> 100).
     s.add_card('d1', DeckCard(name='Mountain', quantity=1))  # Mountain 9 -> 10, size 101
@@ -131,7 +134,7 @@ def test_remove_card_drops_one_copy_not_the_whole_entry(data_dir: Path) -> None:
 
 def test_remove_card_drops_entry_only_at_zero(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck(), deck_id='d1')
+    s.put(_commander_deck(), deck_uuid='d1')
     # Goblin 0 is a single; removing 1 drops it entirely. Add one back elsewhere to
     # keep the deck at-target so the shrink guard does not fire on this removal.
     s.add_card('d1', DeckCard(name='Mountain', quantity=1))  # 100 -> 101
@@ -143,7 +146,7 @@ def test_remove_card_drops_entry_only_at_zero(data_dir: Path) -> None:
 def test_remove_card_that_shrinks_at_target_deck_under_target_is_guarded(data_dir: Path) -> None:
     """A bare remove that would drop an at-target deck under target must be refused."""
     s = DecksStore()
-    s.put(_commander_deck(), deck_id='d1')  # exactly at target (100)
+    s.put(_commander_deck(), deck_uuid='d1')  # exactly at target (100)
     with pytest.raises(DecksError):
         s.remove_card('d1', 'Goblin 0', qty=1)  # 100 -> 99 under target
 
@@ -155,7 +158,7 @@ def test_remove_card_that_shrinks_at_target_deck_under_target_is_guarded(data_di
 
 def test_set_strategy_assessment_focus(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck(), deck_id='d1')
+    s.put(_commander_deck(), deck_uuid='d1')
     s.set_strategy('d1', 'aristocrats')
     s.set_assessment('d1', 'needs a sac outlet')
     s.set_focus_otags('d1', ['sacrifice', 'tokens'])
@@ -172,7 +175,7 @@ def test_set_strategy_assessment_focus(data_dir: Path) -> None:
 
 def test_swap_is_size_preserving(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck(), deck_id='d1')
+    s.put(_commander_deck(), deck_uuid='d1')
     before = sum(c.quantity for c in s.get('d1').cards)
     s.swap('d1', add=DeckCard(name='Impact Tremors', quantity=1), cut='Goblin 0')
     got = s.get('d1')
@@ -184,21 +187,21 @@ def test_swap_is_size_preserving(data_dir: Path) -> None:
 
 def test_swap_refuses_when_cut_absent(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck(), deck_id='d1')
+    s.put(_commander_deck(), deck_uuid='d1')
     with pytest.raises(DecksError):
         s.swap('d1', add=DeckCard(name='Impact Tremors', quantity=1), cut='Not In Deck')
 
 
 def test_swap_cannot_cut_the_sole_commander(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck(), deck_id='d1')
+    s.put(_commander_deck(), deck_uuid='d1')
     with pytest.raises(DecksError):
         s.swap('d1', add=DeckCard(name='Goblin Chieftain', quantity=1), cut='Krenko, Mob Boss')
 
 
 def test_swap_cannot_create_a_second_commander(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck(), deck_id='d1')
+    s.put(_commander_deck(), deck_uuid='d1')
     with pytest.raises(DecksError):
         s.swap('d1', add=DeckCard(name='Goblin Chieftain', quantity=1, role='commander'), cut='Goblin 0')
 
@@ -207,7 +210,7 @@ def test_swap_cannot_create_a_singleton_duplicate(data_dir: Path) -> None:
     """Adding a card already present (as a distinct entry) must not silently create
     two entries for the same name — the store keeps one entry per name."""
     s = DecksStore()
-    s.put(_commander_deck(), deck_id='d1')
+    s.put(_commander_deck(), deck_uuid='d1')
     # 'Sol Ring' is not in the base deck; add it, then a swap that re-adds it must
     # increment the existing entry (not spawn a duplicate row for the same name).
     s.add_card('d1', DeckCard(name='Sol Ring', quantity=1))
@@ -225,8 +228,8 @@ def test_swap_cannot_create_a_singleton_duplicate(data_dir: Path) -> None:
 
 def test_archive_hides_from_default_list_and_include_archived_shows_it(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck('Keep'), deck_id='keep')
-    s.put(_commander_deck('Junk'), deck_id='junk')
+    s.put(_commander_deck('Keep'), deck_uuid='keep')
+    s.put(_commander_deck('Junk'), deck_uuid='junk')
     s.archive('junk')
     # Default list excludes the archived deck.
     assert sorted(d.name for d in s.list()) == ['Keep']
@@ -236,7 +239,7 @@ def test_archive_hides_from_default_list_and_include_archived_shows_it(data_dir:
 
 def test_unarchive_restores_to_default_list(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck('Junk'), deck_id='junk')
+    s.put(_commander_deck('Junk'), deck_uuid='junk')
     s.archive('junk')
     assert s.list() == []
     s.unarchive('junk')
@@ -246,38 +249,40 @@ def test_unarchive_restores_to_default_list(data_dir: Path) -> None:
 def test_archived_survives_an_edit_put(data_dir: Path) -> None:
     """An edit/re-put must NOT silently reset the archived flag."""
     s = DecksStore()
-    s.put(_commander_deck('Junk'), deck_id='junk')
+    s.put(_commander_deck('Junk'), deck_uuid='junk')
     s.archive('junk')
     # An edit (typed) keeps it archived.
     s.set_strategy('junk', 'reworked')
     assert s.list() == []
     assert [d.name for d in s.list(include_archived=True)] == ['Junk']
     # A re-put (e.g. a re-pull of an unchanged source) also preserves archived.
-    s.put(_commander_deck('Junk'), deck_id='junk')
+    s.put(_commander_deck('Junk'), deck_uuid='junk')
     assert s.list() == []
     assert [d.name for d in s.list(include_archived=True)] == ['Junk']
 
 
 def test_list_rows_filters_by_sync_status_and_archived(data_dir: Path) -> None:
     s = DecksStore()
-    s.put(_commander_deck('Synced'), deck_id='synced', sync_status='synced', source_ref='{"backend":"x"}')
-    s.create_ephemeral(_commander_deck('Draft'), 'draft')
-    s.create_ephemeral(_commander_deck('Archived Draft'), 'adraft')
-    s.archive('adraft')
+    # Rows are keyed by deck_uuid (name is a label); assert on the NAME + status,
+    # not the raw key. create_ephemeral mints + returns each row's uuid.
+    s.put(_commander_deck('Synced'), deck_uuid='synced', sync_status='synced', source_ref='{"backend":"x"}')
+    s.create_ephemeral(_commander_deck('Draft'))
+    adraft = s.create_ephemeral(_commander_deck('Archived Draft'))
+    s.archive(adraft)
 
     ephemeral = s.list_rows(sync_status='ephemeral')
-    assert [r.deck_id for r in ephemeral] == ['draft']
+    assert [r.name for r in ephemeral] == ['Draft']
     assert all(r.sync_status == 'ephemeral' for r in ephemeral)
 
     ephemeral_all = s.list_rows(sync_status='ephemeral', include_archived=True)
-    assert sorted(r.deck_id for r in ephemeral_all) == ['adraft', 'draft']
+    assert sorted(r.name for r in ephemeral_all) == ['Archived Draft', 'Draft']
 
     synced = s.list_rows(sync_status='synced')
-    assert [r.deck_id for r in synced] == ['synced']
+    assert [r.name for r in synced] == ['Synced']
 
     # No filter -> every non-archived row regardless of sync_status.
     everything = s.list_rows()
-    assert sorted(r.deck_id for r in everything) == ['draft', 'synced']
+    assert sorted(r.name for r in everything) == ['Draft', 'Synced']
 
 
 def test_archive_absent_id_raises(data_dir: Path) -> None:

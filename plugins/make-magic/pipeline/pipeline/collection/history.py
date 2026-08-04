@@ -58,9 +58,10 @@ _DECK_HISTORY_TABLE = 'deck_history'
 _INVENTORY_HISTORY_TABLE = 'inventory_history'
 
 #: The append-only, per-EDIT deck-version ledger (W2 companion table).
-#: Keyed on the decks-store ``deck_id`` (NOT deck_name+backend like
+#: Keyed on the decks-store ``deck_uuid`` (NOT deck_name+backend like
 #: ``deck_history``) and holds the FULL typed ``Deck`` (``deck_json``) plus a
 #: rationale note per mutation. Un-gated: every edit appends. This is the decks
+#: (re-keyed from the old '<backend>:<name>' deck_id to deck_uuid in the P1 migration)
 #: store's change log — the source of undo / rationale / version-provenance —
 #: kept SEPARATE from the recovery-schema ``deck_history`` so neither muddies the
 #: other's keying or gating.
@@ -83,8 +84,15 @@ def _ensure_history_tables(conn: DuckDBPyConnection) -> None:
         f'CREATE TABLE IF NOT EXISTS {_DECK_VERSIONS_TABLE} ('
         # A monotonic per-row sequence: BIGINT default from a sequence so append
         # order is total + stable even within one timestamp (ts alone can tie).
-        'seq BIGINT, ts TIMESTAMP, deck_id TEXT, version TEXT, rationale TEXT, deck_json JSON)'
+        'seq BIGINT, ts TIMESTAMP, deck_uuid TEXT, version TEXT, rationale TEXT, deck_json JSON)'
     )
+    # Migrate a pre-existing ledger (created before the deck_id -> deck_uuid re-key)
+    # in place: rename the key column so the ledger and the decks store agree. The
+    # ROW re-keying (old '<backend>:<name>' value -> the new uuid) is done by the
+    # decks-store migration, which owns the id map; here we only rename the column.
+    ledger_cols = {r[1] for r in conn.execute(f'PRAGMA table_info({_DECK_VERSIONS_TABLE})').fetchall()}
+    if 'deck_id' in ledger_cols and 'deck_uuid' not in ledger_cols:
+        conn.execute(f'ALTER TABLE {_DECK_VERSIONS_TABLE} RENAME COLUMN deck_id TO deck_uuid')
 
 
 # --------------------------------------------------------------------------- #
@@ -344,12 +352,12 @@ def _next_deck_version_seq(conn: DuckDBPyConnection) -> int:
 def append_deck_version(
     conn: DuckDBPyConnection,
     *,
-    deck_id: str,
+    deck_uuid: str,
     deck: Deck,
     rationale: str,
     now: datetime | None = None,
 ) -> None:
-    """Append one version row for ``deck_id`` — UN-GATED (every edit lands a row).
+    """Append one version row for ``deck_uuid`` — UN-GATED (every edit lands a row).
 
     The decks store's per-edit change log (design §6): records ``version(deck)``,
     the FULL typed ``Deck`` (``deck_json``, so undo can restore it), the
@@ -361,7 +369,7 @@ def append_deck_version(
 
     Args:
         conn: An open DuckDB connection (tables ensured on demand).
-        deck_id: The decks-store key this version belongs to.
+        deck_uuid: The decks-store key this version belongs to.
         deck: The typed ``Deck`` AFTER the edit (its ``version`` + json are stored).
         rationale: The edit note (why this change was made).
         now: The append timestamp; defaults to ``datetime.now(tz=UTC)``.
@@ -371,14 +379,14 @@ def append_deck_version(
     _ensure_history_tables(conn)
     when = _as_naive_utc(now if now is not None else datetime.now(tz=UTC))
     conn.execute(
-        f'INSERT INTO {_DECK_VERSIONS_TABLE} (seq, ts, deck_id, version, rationale, deck_json) '
+        f'INSERT INTO {_DECK_VERSIONS_TABLE} (seq, ts, deck_uuid, version, rationale, deck_json) '
         'VALUES (?, ?, ?, ?, ?, ?)',
-        [_next_deck_version_seq(conn), when, deck_id, _version(deck), rationale, deck.model_dump_json()],
+        [_next_deck_version_seq(conn), when, deck_uuid, _version(deck), rationale, deck.model_dump_json()],
     )
 
 
-def deck_version_rows(conn: DuckDBPyConnection, deck_id: str) -> list[dict[str, Any]]:
-    """Return every appended version row for ``deck_id`` in append order (oldest first).
+def deck_version_rows(conn: DuckDBPyConnection, deck_uuid: str) -> list[dict[str, Any]]:
+    """Return every appended version row for ``deck_uuid`` in append order (oldest first).
 
     Pure query over the append-only ledger. Each dict has ``seq, ts, version,
     rationale, deck_json`` (``deck_json`` left as its stored JSON string).
@@ -386,8 +394,8 @@ def deck_version_rows(conn: DuckDBPyConnection, deck_id: str) -> list[dict[str, 
     _ensure_history_tables(conn)
     rows = conn.execute(
         f'SELECT seq, ts, version, rationale, deck_json FROM {_DECK_VERSIONS_TABLE} '
-        'WHERE deck_id = ? ORDER BY seq ASC',
-        [deck_id],
+        'WHERE deck_uuid = ? ORDER BY seq ASC',
+        [deck_uuid],
     ).fetchall()
     return [
         {'seq': seq, 'ts': ts, 'version': ver, 'rationale': rationale, 'deck_json': deck_json}
@@ -395,8 +403,8 @@ def deck_version_rows(conn: DuckDBPyConnection, deck_id: str) -> list[dict[str, 
     ]
 
 
-def previous_deck_version(conn: DuckDBPyConnection, deck_id: str) -> Deck | None:
-    """Return the ``Deck`` BEFORE the current head for ``deck_id`` (the undo target).
+def previous_deck_version(conn: DuckDBPyConnection, deck_uuid: str) -> Deck | None:
+    """Return the ``Deck`` BEFORE the current head for ``deck_uuid`` (the undo target).
 
     Undo restores the second-newest recorded version: the newest row IS the
     current state, so the one before it is what "undo" reverts to. Returns
@@ -404,9 +412,9 @@ def previous_deck_version(conn: DuckDBPyConnection, deck_id: str) -> Deck | None
     """
     _ensure_history_tables(conn)
     row = conn.execute(
-        f'SELECT deck_json FROM {_DECK_VERSIONS_TABLE} WHERE deck_id = ? '
+        f'SELECT deck_json FROM {_DECK_VERSIONS_TABLE} WHERE deck_uuid = ? '
         'ORDER BY seq DESC LIMIT 1 OFFSET 1',
-        [deck_id],
+        [deck_uuid],
     ).fetchone()
     if row is None or row[0] is None:
         return None
