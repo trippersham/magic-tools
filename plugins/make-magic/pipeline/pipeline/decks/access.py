@@ -345,6 +345,25 @@ class DeckAccess:
             )
             if source is not None:
                 return source
+            # r7-m1: distinguish a DEAD binding (a row exists AND is bound, but its
+            # source is gone/re-identified) from a genuine "no row" miss. Saying "no
+            # deck named 'X'" would misdirect the user into re-creating it — the row
+            # and a local copy exist; the SOURCE is what is gone. Point them at pull.
+            if _sync.binding_is_dead(self._decks, self._driver, deck_uuid=existing, source_ref=name):
+                raise DecksError(
+                    f"the source for {name!r} is gone or was re-identified — run \"pull\" to "
+                    'rebind it (its file/record no longer matches its recorded id).'
+                )
+            # r7-m4: the row is bound on ANOTHER backend (a backend switch); its source
+            # lives there, not as a same-named file here. Do NOT report "no deck" (which
+            # would invite a clobbering recreate) — say where it is bound.
+            if _sync._bound_on_other_backend(
+                self._decks, existing, self.backend if self.backend == 'airtable' else 'local'
+            ):
+                raise DecksError(
+                    f"{name!r} is bound to a different backend than the active one ({self.backend}) — "
+                    'switch back to its source backend to read it.'
+                )
             raise DecksError(f'no deck named {name!r}')
         # Genuine first pull (no local row): the ONE controlled name-read fallback.
         # A miss is a clean "no deck named 'X'" — never the driver's tmp-fs path
@@ -367,6 +386,15 @@ class DeckAccess:
         it). Set ``commit=False`` to stage the local edit without touching the
         source.
         """
+        # r7-M1: run the dup-name refusal at the TOP, BEFORE any put. The old order
+        # ``put`` the payload into the oldest row (silent ``uuid_for_name`` tie-break)
+        # and only refused later inside ``push`` — so a refused dup-name save-deck
+        # STAGED its content over a clean baseline, which a routine later ``sync`` of
+        # that row silently landed on the source. Refuse up front (nothing staged).
+        dup_rows = self._decks.rows_for_name(deck.name)
+        if len(dup_rows) > 1:
+            raise DecksError(self._ambiguous_name_message(deck.name, dup_rows))
+
         # Key the local row by the source's external ref when the source already
         # exists (bind to the ONE row), else by the deck's OWN uuid so a later read
         # binds by the same in-file uuid the push writes into the source (no dual
@@ -378,16 +406,39 @@ class DeckAccess:
         # slug. Only a genuine first save (no row yet) name-reads the source to learn
         # whether one already exists on the backend.
         existing_uuid = self._decks.uuid_for_name(deck.name)
+        # P10: a DEAD binding refuses BEFORE the put — the save must not adopt the
+        # gone/re-identified slug path (r7-B1 destruction / r7-M2 fork). A genuine
+        # first save (no bound ref) is NOT dead and proceeds to create.
+        if existing_uuid is not None:
+            _sync.guard_write_binding(
+                self._decks, self._driver, deck_uuid=existing_uuid, source_ref=deck.name
+            )
         source = self._source_for_save(deck.name, existing_uuid)
         baseline = version(source) if source is not None else None
         deck_uuid = self._save_target_uuid(deck, source)
+        pre_edit = self._decks.get(deck_uuid) if commit else None
         self._decks.put(deck, deck_uuid=deck_uuid, sync_status='synced', source_ref=deck.name,
                         synced_baseline=baseline, rationale='save-deck')
-        ext = self._external_ref(source) if source is not None else self._external_ref(deck)
+        # Bind to the source's ref when it EXISTS. For a FIRST save that is about to
+        # COMMIT, do NOT pre-bind to the deck's own (not-yet-written) uuid: the commit
+        # ``push`` would then read the not-yet-created source as a DEAD binding (P10)
+        # and refuse its own create. A committing first save binds AFTER the push
+        # (the re-bind block below). A stage-only (``commit=False``) first save keeps
+        # the eager self-bind so a later read resolves the local identity.
+        ext = self._external_ref(source) if source is not None else (
+            None if commit else self._external_ref(deck)
+        )
         if ext is not None:
             self._decks.set_external_id(deck_uuid, *ext)
         if commit:
-            self.push(deck.name, allow_shrink=allow_shrink)
+            # Transactional (r7-M1 tail): a push-refused save must NOT leave the payload
+            # staged in the row — roll the local edit back (or delete a first-save row)
+            # so a later ``sync`` cannot land refused content.
+            try:
+                self.push(deck.name, allow_shrink=allow_shrink)
+            except Exception:
+                self._rollback_save(deck_uuid, pre_edit)
+                raise
             # Re-bind against the freshly-written source through the chokepoint (a
             # create mints/keeps the in-file uuid; Airtable assigns the recordId on
             # create) — never a base-slug name read.
@@ -397,6 +448,18 @@ class DeckAccess:
             written_ext = self._external_ref(written) if written is not None else None
             if written_ext is not None:
                 self._decks.set_external_id(deck_uuid, *written_ext)
+
+    def _rollback_save(self, deck_uuid: str, pre_edit: Deck | None) -> None:
+        """Undo a refused ``save_deck`` put: restore the pre-edit deck, else drop the row.
+
+        A re-save over an existing row rolls back to its prior content (popping the
+        poison ledger head, like the set-* verbs). A FIRST save (no prior content)
+        deletes the just-created row entirely so nothing refused lingers to be synced.
+        """
+        if pre_edit is not None:
+            self._decks.rollback_failed_edit(deck_uuid, pre_edit)
+        else:
+            self._decks.delete(deck_uuid)
 
     def _source_for_save(self, name: str, existing_uuid: str | None) -> Deck | None:
         """Read the CURRENT source for a ``save_deck`` — bound when a row exists (P9)."""
@@ -510,13 +573,32 @@ class DeckAccess:
             _sync.pull(self._decks, self._driver, deck_uuid=deck_uuid, source_ref=source_ref)
             self._stamp_pulled(deck_uuid)
             return
+        # r7-m2 (= r6-m3): the name path had NO dup-name ambiguity refusal, so
+        # ``pull Precious`` under two Precious rows silently re-pulled the oldest.
+        # Refuse with the candidate list (the same wall push/sync/save-deck hit).
+        dup_rows = self._decks.rows_for_name(name)
+        if len(dup_rows) > 1:
+            raise DecksError(self._ambiguous_name_message(name, dup_rows))
         deck_uuid = self._pull_bound(name)
         self._stamp_pulled(deck_uuid)
 
-    def push(self, name: str, *, allow_shrink: bool = False, id_prefix: str | None = None) -> None:
-        """Push the local deck ``name`` (or ``--id``) to the source through the ceremony."""
+    def push(
+        self,
+        name: str,
+        *,
+        allow_shrink: bool = False,
+        id_prefix: str | None = None,
+        recreate: bool = False,
+    ) -> None:
+        """Push the local deck ``name`` (or ``--id``) to the source through the ceremony.
+
+        ``recreate`` (P10) is the explicit override for a DEAD binding: it drops the
+        stale ref and recreates the deleted source rather than refusing.
+        """
         deck_uuid = self._resolve_existing(name, id_prefix)
-        _sync.push(self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink)
+        _sync.push(
+            self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink, recreate=recreate
+        )
 
     def _resolve_existing(self, name: str, id_prefix: str | None) -> str:
         """Resolve a push/sync target to an EXISTING row — a name-miss is a clean error.
@@ -534,16 +616,26 @@ class DeckAccess:
             raise DecksError(self._ambiguous_name_message(name, rows))
         raise DecksError(f'no deck named {name!r}')
 
-    def sync(self, name: str, *, allow_shrink: bool = False, id_prefix: str | None = None) -> None:
+    def sync(
+        self,
+        name: str,
+        *,
+        allow_shrink: bool = False,
+        id_prefix: str | None = None,
+        recreate: bool = False,
+    ) -> None:
         """Reconcile ``name`` (or ``--id``) against its source — pull / push / drift (M2).
 
         RECONCILE-not-destroy (design §4): compares local / baseline / current source
         and pulls (only source moved), pushes (only local moved), no-ops (neither),
         or raises ``SyncDriftError`` (both moved — nothing changed, both preserved).
-        Never pull-clobbers an unpushed local edit.
+        Never pull-clobbers an unpushed local edit. ``recreate`` (P10) opts a DEAD
+        binding into recreating its deleted source instead of refusing.
         """
         deck_uuid = self._resolve_existing(name, id_prefix)
-        _sync.sync_reconcile(self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink)
+        _sync.sync_reconcile(
+            self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink, recreate=recreate
+        )
 
 
 def deck_access(driver: CollectionStore, *, decks: DecksStore | None = None) -> DeckAccess:

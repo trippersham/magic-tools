@@ -39,7 +39,17 @@ if TYPE_CHECKING:
     from pipeline.contracts import Deck
     from pipeline.decks.store import DecksStore
 
-__all__ = ('SyncDriftError', 'promote', 'pull', 'push', 'read_source_bound', 'sync_reconcile')
+__all__ = (
+    'DeadBindingError',
+    'SyncDriftError',
+    'binding_is_dead',
+    'guard_write_binding',
+    'promote',
+    'pull',
+    'push',
+    'read_source_bound',
+    'sync_reconcile',
+)
 
 
 class SyncDriftError(Exception):
@@ -50,6 +60,93 @@ class SyncDriftError(Exception):
     of record is left untouched; the caller reconciles (re-pull, re-apply) before
     pushing again.
     """
+
+
+class DeadBindingError(Exception):
+    """The row IS bound for the active backend but its source read came back None (P10).
+
+    The write-side mirror of the read chokepoint's "source gone" (P9): a row carrying
+    an ``external_ids`` ref for the ACTIVE backend whose :func:`read_source_bound`
+    returns None means the bound file/record was DELETED or RE-IDENTIFIED (an in-place
+    legacy restore, an out-of-band delete, a hand-edited in-file uuid). A WRITE must
+    NOT read that None as "first push, nothing to drift against" and silently create /
+    adopt an existing slug file / fork — that destroys (r7-B1) or buries (r7-M2) the
+    out-of-band content. Every source write refuses with this instead; the caller runs
+    ``pull`` to rebind or ``--recreate`` to intentionally recreate.
+
+    Distinct from a genuine FIRST push: a row with NO bound ref for the active backend
+    read back as None is "not yet created" and still creates (unchanged).
+    """
+
+
+def binding_is_dead(
+    decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, source_ref: str
+) -> bool:
+    """True iff the row IS bound for the active backend but the bound source read is None.
+
+    Splits the two meanings of ``read_source_bound(...) is None`` that the write side
+    previously conflated (``sync.py`` §crux): "None because the source was never created"
+    (no bound ref → a genuine first push, create is correct) vs "None because the bound
+    ref is DEAD" (a ref exists but its file/record no longer matches it → refuse). The
+    caller knows whether the row HAD a ref; this asks the store + chokepoint for it.
+    """
+    backend = 'airtable' if getattr(driver, 'backend_name', None) == 'airtable' else 'local'
+    bound = _external_ref_value(decks, deck_uuid, backend)
+    if not bound:
+        return False  # no bound ref for the active backend → never-created, not dead.
+    source = read_source_bound(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref)
+    return source is None
+
+
+def guard_write_binding(
+    decks: DecksStore,
+    driver: CollectionStore,
+    *,
+    deck_uuid: str,
+    source_ref: str,
+    recreate: bool = False,
+) -> None:
+    """Refuse a source WRITE against a DEAD binding (P10) — the write-side chokepoint.
+
+    Called at the TOP of every source write (:func:`push`, :func:`promote`, the
+    ``save_deck``/edit-commit path). When the row is bound for the active backend but
+    the bound source is gone/re-identified, raise :class:`DeadBindingError` rather than
+    let the write fall through to a silent create/adopt/fork. ``recreate=True`` is the
+    explicit override: the caller intentionally recreates the deleted source, so the
+    dead ref is dropped and the write proceeds as a first push.
+    """
+    if not binding_is_dead(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref):
+        return
+    if recreate:
+        # Explicit intent to recreate: drop the dead ref so the write is a clean first
+        # push (a fresh in-file uuid / a new record), not an adoption of the slug path.
+        _clear_dead_ref(decks, driver, deck_uuid)
+        return
+    raise DeadBindingError(
+        f"the source for {source_ref!r} is gone or was re-identified (its file/record no "
+        f'longer matches its recorded id). Run "pull" to rebind, or remove the stale file / '
+        'pass --recreate to intentionally recreate it.'
+    )
+
+
+def _clear_dead_ref(decks: DecksStore, driver: CollectionStore, deck_uuid: str) -> None:
+    """Drop the active backend's (now dead) external ref so ``--recreate`` writes fresh."""
+    import contextlib
+    import json as _json
+
+    from pipeline.decks.store import DecksError
+
+    backend = 'airtable' if getattr(driver, 'backend_name', None) == 'airtable' else 'local'
+    raw = decks.external_ids(deck_uuid)
+    try:
+        ext = _json.loads(raw) if raw else {}
+    except (ValueError, TypeError):
+        ext = {}
+    if not isinstance(ext, dict) or backend not in ext:
+        return
+    ext.pop(backend, None)
+    with contextlib.suppress(DecksError):
+        decks.replace_external_ids(deck_uuid, ext)
 
 
 def _require_row(decks: DecksStore, deck_uuid: str) -> tuple[object, str]:
@@ -116,12 +213,43 @@ def read_source_bound(
 
     # (3) genuine first pull — no bound ref: NAME read (the ONE controlled fallback),
     # then bind the row so every subsequent read is bound.
+    #
+    # r7-m4: but if the row is already bound on a DIFFERENT backend (e.g. only
+    # ``{'airtable': rec}`` while the ACTIVE backend is local — a cross-machine /
+    # backend-switch row), a name read here would silently ADOPT an unrelated
+    # same-named file for this backend and clobber the row's content. That is not a
+    # genuine first pull — the row HAS a source, just on another backend. Return None
+    # (source absent HERE) rather than auto-bind a same-named stranger.
+    if _bound_on_other_backend(decks, deck_uuid, backend):
+        return None
     try:
         source = driver.get_deck(source_ref)
     except FileNotFoundError:
         return None
     _bind_from_source(decks, deck_uuid, backend, source)
     return source
+
+
+def _bound_on_other_backend(decks: DecksStore, deck_uuid: str, backend: str | None) -> bool:
+    """True iff the row carries an external ref for a backend OTHER than the active one.
+
+    Guards the name-read fallback (r7-m4): a row bound only on airtable, read under a
+    local backend, must not silently adopt a same-named local file — it is not an
+    unbound first pull, its source lives on the other backend.
+    """
+    import json as _json
+
+    active = 'airtable' if backend == 'airtable' else 'local'
+    raw = decks.external_ids(deck_uuid)
+    if not raw:
+        return False
+    try:
+        ext = _json.loads(raw)
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(ext, dict):
+        return False
+    return any(k != active and v for k, v in ext.items())
 
 
 def _read_by_ref(driver: CollectionStore, backend: str | None, native_ref: str) -> Deck | None:
@@ -192,7 +320,14 @@ def pull(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, source_r
     )
 
 
-def push(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, allow_shrink: bool = False) -> None:
+def push(
+    decks: DecksStore,
+    driver: CollectionStore,
+    *,
+    deck_uuid: str,
+    allow_shrink: bool = False,
+    recreate: bool = False,
+) -> None:
     """Push the local deck to the source THROUGH the ceremony — drift-guarded.
 
     1. DRIFT: read the current source; if ``version(current source) !=
@@ -207,6 +342,12 @@ def push(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, allow_sh
     local, source_ref = _require_row(decks, deck_uuid)
     row = decks.get_row(deck_uuid)
     assert row is not None  # _require_row already validated it exists.
+
+    # P10: a DEAD binding (bound ref for this backend, source read None) must REFUSE —
+    # never fall through the ``current_source is None`` guard-skip below and silently
+    # recreate a deleted source (r7-M2 §B) or fork next to a re-uuid'd file (r7-M2 §C).
+    # A genuine first push (no bound ref) is NOT dead and proceeds to create as before.
+    guard_write_binding(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref, recreate=recreate)
 
     local_version = version(local)  # type: ignore[arg-type]
     # Read the CURRENT source slug-proof: a dup-named local deck makes a name/slug read
@@ -307,6 +448,10 @@ def _promote_exploration(
     source_ref = parent_row.source_ref
     parent_deck = decks.get(parent_uuid)
     assert parent_deck is not None
+
+    # P10: refuse if the PARENT's binding is dead (its source file/record is gone or
+    # re-identified) — promoting onto it would silently recreate/fork the parent source.
+    guard_write_binding(decks, driver, deck_uuid=parent_uuid, source_ref=source_ref)
 
     # Read the parent's CURRENT source now — its own external identity (in-file uuid /
     # recordId) is what the save must be stamped with, mirroring ``push`` (F2/F3). The
@@ -458,7 +603,12 @@ def _promote_clean_slate(
 
 
 def sync_reconcile(
-    decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, allow_shrink: bool = False
+    decks: DecksStore,
+    driver: CollectionStore,
+    *,
+    deck_uuid: str,
+    allow_shrink: bool = False,
+    recreate: bool = False,
 ) -> None:
     """Reconcile a synced deck against its source — pull / push / drift (design §4, M2).
 
@@ -474,6 +624,11 @@ def sync_reconcile(
     local, source_ref = _require_row(decks, deck_uuid)
     row = decks.get_row(deck_uuid)
     assert row is not None
+
+    # P10: a DEAD binding refuses here too — otherwise the ``source_version is None``
+    # branch below reads it as "nothing on the source yet → push (create)" and
+    # resurrects/forks the gone source. ``--recreate`` drops the dead ref to opt in.
+    guard_write_binding(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref, recreate=recreate)
 
     local_version = version(local)  # type: ignore[arg-type]
     # BOUND read (P9, r6-B1): reconcile against the row's OWN bound source, never the

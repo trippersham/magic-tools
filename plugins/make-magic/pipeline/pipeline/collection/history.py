@@ -420,6 +420,19 @@ def drop_deck_version_head(conn: DuckDBPyConnection, deck_uuid: str) -> None:
     )
 
 
+def delete_deck_versions(conn: DuckDBPyConnection, deck_uuid: str) -> None:
+    """Delete ALL ledger rows + the undo cursor for ``deck_uuid`` (row-delete rollback, P10).
+
+    Used ONLY when a FIRST ``save_deck`` is refused at commit: the just-created row
+    (and every version it appended, which is only the one baseline put) is removed
+    wholesale so no refused content lingers for a later ``sync`` to land. Not for the
+    re-save path (that pops just the head via :func:`drop_deck_version_head`).
+    """
+    _ensure_history_tables(conn)
+    conn.execute(f'DELETE FROM {_DECK_VERSIONS_TABLE} WHERE deck_uuid = ?', [deck_uuid])
+    conn.execute(f'DELETE FROM {_DECK_UNDO_CURSOR_TABLE} WHERE deck_uuid = ?', [deck_uuid])
+
+
 def deck_version_rows(conn: DuckDBPyConnection, deck_uuid: str) -> list[dict[str, Any]]:
     """Return every appended version row for ``deck_uuid`` in append order (oldest first).
 

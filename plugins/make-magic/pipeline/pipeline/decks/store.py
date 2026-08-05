@@ -404,6 +404,26 @@ class DecksStore:
                 [json.dumps(ext), deck_uuid],
             )
 
+    def replace_external_ids(self, deck_uuid: str, ext: dict[str, str]) -> None:
+        """Replace a row's ``external_ids`` map wholesale (used to DROP a dead ref, P10).
+
+        Unlike :meth:`set_external_id` (which merges a single key), this writes the
+        whole map — the ``--recreate`` override drops the active backend's now-dead
+        ref so a subsequent write is a clean first push, not an adoption of the stale
+        slug path. Bookkeeping only: it does NOT touch ``deck_json`` (no ledger version).
+        """
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            row = conn.execute(
+                f'SELECT deck_uuid FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
+            ).fetchone()
+            if row is None:
+                raise DecksError(f'no deck with id {deck_uuid!r}')
+            conn.execute(
+                f'UPDATE {_DECKS_TABLE} SET external_ids = ? WHERE deck_uuid = ?',
+                [json.dumps(ext) if ext else None, deck_uuid],
+            )
+
     def external_ids(self, deck_uuid: str) -> str | None:
         """Return the raw ``external_ids`` JSON for ``deck_uuid`` (or None if absent).
 
@@ -561,6 +581,19 @@ class DecksStore:
                 'WHERE deck_uuid = ?',
                 [deck_uuid],
             )
+
+    def delete(self, deck_uuid: str) -> None:
+        """Remove a row and ALL its ledger versions (first-save rollback, P10).
+
+        Used only to undo a FIRST ``save_deck`` whose commit-push was refused: the
+        just-created row never had prior content to roll back to, so it is deleted
+        wholesale (row + versions + undo cursor) — nothing refused lingers for a later
+        ``sync`` to land. A missing row is a no-op (idempotent).
+        """
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            conn.execute(f'DELETE FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid])
+            history.delete_deck_versions(conn, deck_uuid)
 
     def set_freshness(self, deck_uuid: str, freshness: dict[str, object]) -> None:
         """Set the LOCAL-ONLY ``freshness`` JSON for a row (pull stamp / artifact hashes).

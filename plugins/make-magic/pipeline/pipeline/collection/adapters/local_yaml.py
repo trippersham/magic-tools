@@ -479,16 +479,22 @@ class LocalYamlStore:
             return {}
         # PERF gate (r6-m4): the full-dir YAML parse is O(files) and runs on EVERY
         # store construction (twice per verb — a store + a deck-access). Once a pass
-        # finds NO legacy files, drop a marker keyed to the dir's mtime; a later
-        # construction with an unchanged dir skips the whole parse. The marker is
-        # invalidated the instant a file is added/removed/rewritten (mtime bumps).
+        # finds NO legacy files, drop a marker keyed to the FILES' state; a later
+        # construction with unchanged files skips the whole parse.
+        #
+        # r7-B1(a): the key is ``max(st_mtime_ns over *.yaml) + file count``, NOT the
+        # dir mtime. An IN-PLACE content overwrite (``cp backup.yaml decks/vault.yaml``
+        # — the July restore persona) does NOT bump the DIRECTORY mtime, so a dir-mtime
+        # key stayed "clean" and the backfill that heals the restored legacy file never
+        # ran (its row's binding stayed dead → the write path destroyed it). A per-file
+        # stat pass catches the in-place overwrite (the file's own mtime bumps).
         marker = decks_dir / '.uuid-backfill-clean'
         try:
-            dir_mtime = decks_dir.stat().st_mtime_ns
-            if marker.exists() and marker.read_text().strip() == str(dir_mtime):
+            files_key = self._decks_dir_files_key(decks_dir)
+            if marker.exists() and marker.read_text().strip() == files_key:
                 return {}
         except OSError:
-            dir_mtime = None
+            files_key = None
         assigned: dict[str, str] = {}
         for path in sorted(decks_dir.glob('*.yaml')):
             try:
@@ -510,13 +516,27 @@ class LocalYamlStore:
             if isinstance(name, str):
                 assigned[name] = new_uuid
         if not assigned:
-            # A clean pass: drop the marker keyed to the dir mtime AFTER writing it
-            # (the write bumps the mtime, so re-stat) so the next construction skips.
+            # A clean pass: drop the marker keyed to the files' state AFTER writing it
+            # (any write bumps a file mtime, so recompute) so the next construction
+            # skips. Keyed on max file mtime + count (r7-B1a), never the dir mtime.
             import contextlib
 
             with contextlib.suppress(OSError):
-                marker.write_text(str(decks_dir.stat().st_mtime_ns))
+                marker.write_text(self._decks_dir_files_key(decks_dir))
         return assigned
+
+    @staticmethod
+    def _decks_dir_files_key(decks_dir: Path) -> str:
+        """Marker key that changes on an IN-PLACE overwrite (r7-B1a): max mtime + count.
+
+        Keyed on ``max(st_mtime_ns over *.yaml)`` and the file count — a per-file cheap
+        stat pass. Unlike the dir mtime, this bumps when a file's CONTENT is overwritten
+        in place (the restore persona), so a dropped-in legacy backup invalidates the
+        marker and the backfill heals the row on the next read. The marker file itself
+        is not a ``*.yaml`` so it never self-references.
+        """
+        mtimes = [p.stat().st_mtime_ns for p in sorted(decks_dir.glob('*.yaml'))]
+        return f'{max(mtimes) if mtimes else 0}:{len(mtimes)}'
 
     def list_decks(self) -> list[Deck]:
         decks_dir = self._decks_dir()

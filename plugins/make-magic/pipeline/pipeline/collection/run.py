@@ -834,13 +834,17 @@ def _undo_deck(argv: list[str]) -> None:
 
     access = _deck_access(writes_enabled=True)
     deck_uuid, eff_name = _resolve_edit_target(access, args.deck, args.id_prefix)
-    restored = DecksStore().undo(deck_uuid)
+    store_ = DecksStore()
+    pre_edit = store_.get(deck_uuid)
+    restored = store_.undo(deck_uuid)
     if restored is None:
         print(f'undo-deck: {eff_name} — nothing to undo')
     else:
         # The restore is a local edit; commit it so a synced deck's source reflects
-        # the step-back (else the next read re-pulls the un-done state).
-        _commit_deck_edit(access, eff_name, deck_uuid)
+        # the step-back (else the next read re-pulls the un-done state). r7-m3:
+        # TRANSACTIONAL like set-*/deck-* — a drift/dead-binding-refused commit must
+        # not leave the undo half-applied under exit 1; roll it back and re-raise.
+        _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit)
         print(f'undo-deck: {eff_name} — restored to {sum(c.quantity for c in restored.cards)} cards')
 
 
@@ -923,8 +927,16 @@ def _push(argv: list[str]) -> None:
         help='Allow a push that SHRINKS an at-target deck below target (the source shrink ceremony).',
     )
     parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
+    parser.add_argument(
+        '--recreate',
+        action='store_true',
+        help='Intentionally RECREATE a source whose binding is dead (its file/record was deleted or '
+        're-identified). Without this, a dead binding REFUSES rather than silently recreate/fork it.',
+    )
     args = parser.parse_args(argv)
-    _deck_access(writes_enabled=True).push(args.name or '', allow_shrink=args.confirm, id_prefix=args.id_prefix)
+    _deck_access(writes_enabled=True).push(
+        args.name or '', allow_shrink=args.confirm, id_prefix=args.id_prefix, recreate=args.recreate
+    )
     print(f'push: {args.name if args.id_prefix is None else args.id_prefix}')
 
 
@@ -935,8 +947,16 @@ def _sync(argv: list[str]) -> None:
     parser.add_argument('name', nargs='?')
     parser.add_argument('--confirm', action='store_true', help='Allow a shrinking push (see `push --confirm`).')
     parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
+    parser.add_argument(
+        '--recreate',
+        action='store_true',
+        help='Intentionally RECREATE a source whose binding is dead (deleted/re-identified) instead of '
+        'refusing.',
+    )
     args = parser.parse_args(argv)
-    _deck_access(writes_enabled=True).sync(args.name or '', allow_shrink=args.confirm, id_prefix=args.id_prefix)
+    _deck_access(writes_enabled=True).sync(
+        args.name or '', allow_shrink=args.confirm, id_prefix=args.id_prefix, recreate=args.recreate
+    )
     print(f'sync: {args.name if args.id_prefix is None else args.id_prefix}')
 
 
@@ -1258,7 +1278,19 @@ def _recover_decks(argv: list[str]) -> None:
     args = parser.parse_args(argv)
 
     store = _store(writes_enabled=True)
-    all_decks = {d.name: d for d in store.list_decks()}
+    listed = store.list_decks()
+    # r7-m5: the admin recovery verb must not silently collapse dup names into a
+    # last-wins ``{name: deck}`` dict — recovering "Precious" when two exist would
+    # write to an arbitrary one. Refuse loudly, naming the duplicated name(s).
+    from collections import Counter
+
+    dup_names = sorted(n for n, c in Counter(d.name for d in listed).items() if c > 1)
+    if dup_names:
+        raise CollectionError(
+            f'refusing to recover: duplicate deck name(s) {dup_names} — recover-decks '
+            'addresses decks by name and cannot disambiguate. Resolve the duplicates first.'
+        )
+    all_decks = {d.name: d for d in listed}
     if args.names:
         missing_names = [n for n in args.names if n not in all_decks]
         if missing_names:
@@ -1661,7 +1693,7 @@ def main() -> None:
     # here so the local-only path never triggers the adapter import.
     from pipeline.collection.adapters.airtable_collection import ReadOnlyStoreError
     from pipeline.decks.store import DecksError
-    from pipeline.decks.sync import SyncDriftError
+    from pipeline.decks.sync import DeadBindingError, SyncDriftError
 
     try:
         VERBS[verb](sys.argv[2:])
@@ -1672,6 +1704,7 @@ def main() -> None:
         AirtableConfigError,
         DecksError,
         SyncDriftError,
+        DeadBindingError,
     ) as exc:
         # EXPECTED, user-facing failures only (unknown deck, bad --field, malformed
         # YAML, bad user JSON, missing creds, Airtable schema/read-only errors):
