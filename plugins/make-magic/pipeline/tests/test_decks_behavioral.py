@@ -1,23 +1,18 @@
-"""Phase 6 P7 — behavioral regressions that close the round-4 traceability gaps.
+"""Behavioral regressions for draft visibility, ephemeral factsheets, and identity.
 
-Three named regressions the existing suite did NOT pin (B1a/B1b/B2/B3/M1-M7/m1-m3
-are covered elsewhere — these are the MISSING proofs):
-
-- **B4** — ``factsheet`` runs on an EPHEMERAL draft. The round-4 blocker read the
-  source directly and ``FileNotFoundError``'d on a draft (no source of record).
-  Here a fresh ``new-draft`` -> ``factsheet`` through the CLI exits 0 with valid
-  factsheet JSON (routed through the local decks store, design §4).
-- **m4** — a ``new-draft`` reusing a previously-ARCHIVED name is born VISIBLE. A
-  draft could be born hidden if it re-keyed onto an archived row; identity is now
+- ``factsheet`` runs on an EPHEMERAL draft (which has no source of record): a fresh
+  ``new-draft`` -> ``factsheet`` through the CLI exits 0 with valid factsheet JSON,
+  routed through the local decks store, so ASSESS can run on a draft.
+- A ``new-draft`` reusing a previously-ARCHIVED name is born VISIBLE. Identity is
   name-independent, so the new draft mints its own row (``archived=FALSE``) and
-  shows in the default ``list-decks``.
-- **cross-machine identity** — two INDEPENDENT local stores (separate DuckDB files)
-  over ONE shared YAML collection agree on ``deck_uuid``: the source's in-file uuid
-  binds the same identity on both "machines" (design §2 cross-machine claim).
+  shows in the default ``list-decks`` rather than re-keying onto the archived row.
+- Cross-machine identity: two INDEPENDENT local stores (separate DuckDB files) over
+  ONE shared YAML collection agree on ``deck_uuid`` — the source's in-file uuid
+  binds the same identity on both "machines".
 
-OFFLINE. B4/m4 drive the CLI over a tmp ``MAKE_MAGIC_DATA_DIR`` + local backend +
-stub resolver. The cross-machine test uses a REAL canonicalizing resolver over a
-shared ``LocalYamlStore`` — the canonicalization hazard is NOT stubbed away.
+OFFLINE. The first two drive the CLI over a tmp ``MAKE_MAGIC_DATA_DIR`` + local
+backend + stub resolver. The cross-machine test uses a REAL canonicalizing resolver
+over a shared ``LocalYamlStore`` — the canonicalization hazard is NOT stubbed away.
 """
 
 from __future__ import annotations
@@ -56,7 +51,7 @@ def _run(monkeypatch: pytest.MonkeyPatch, *argv: str) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# B4 — factsheet runs on an EPHEMERAL draft (used to FileNotFound on drafts)
+# factsheet runs on an ephemeral draft
 # --------------------------------------------------------------------------- #
 
 
@@ -65,9 +60,8 @@ def test_b4_factsheet_on_ephemeral_draft(
 ) -> None:
     """``factsheet`` on a fresh draft exits 0 with valid JSON — no FileNotFoundError.
 
-    Round-4: ``factsheet`` read the source of record directly and blew up on an
-    ephemeral draft (which has no source). It now routes through the local decks
-    store, so ASSESS can run on a draft the way the guided build needs.
+    An ephemeral draft has no source of record; factsheet routes through the local
+    decks store so ASSESS can run on a draft the way the guided build needs.
     """
     # A clean-slate ephemeral draft — NO source of record exists for it.
     _run(monkeypatch, 'new-draft', 'Scratch Brew', '--commander', 'Grumgully, the Generous', '--format', 'Commander')
@@ -84,11 +78,11 @@ def test_b4_factsheet_on_ephemeral_draft(
 
 
 # --------------------------------------------------------------------------- #
-# m4 — a new-draft reusing a previously-archived name is born VISIBLE
+# a new-draft reusing a previously-archived name is born VISIBLE
 # --------------------------------------------------------------------------- #
 
 
-def test_m4_new_draft_under_archived_name_is_born_visible(
+def test_new_draft_under_archived_name_is_born_visible(
     data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
     """Create 'Scratch', archive it, new-draft 'Scratch' again -> the NEW draft shows.

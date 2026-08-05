@@ -1,8 +1,8 @@
-"""Tests for the DECK-EDIT CLI verbs (Phase 3a — the guided-build surface).
+"""Tests for the DECK-EDIT CLI verbs (the guided-build surface).
 
 OFFLINE: a tmp MAKE_MAGIC_DATA_DIR + local YAML backend + a stub resolver (no
 scripts/ import, no Scryfall, no network). These verbs are thin wrappers over the
-Phase-1/2 ``DecksStore`` / ``sync`` methods — the tests assert the CLI plumbing
+``DecksStore`` / ``sync`` methods — the tests assert the CLI plumbing
 (name -> deck_id resolution, guard surfacing, ephemeral lifecycle), not the store
 semantics (already covered by the store/sync tests).
 """
@@ -359,7 +359,7 @@ def test_deck_combos_inconclusive_on_lake_failure(
 
 
 # --------------------------------------------------------------------------- #
-# --id precedence (P2) — the escape hatch overrides the positional NAME
+# --id precedence — the escape hatch overrides the positional NAME
 # --------------------------------------------------------------------------- #
 
 
@@ -371,7 +371,7 @@ def test_id_flag_disambiguates_two_active_gruul(
 
     _save_source_deck(monkeypatch, tmp_path, 'Gruul', _commander_cards('Grumgully, the Generous'), format_='Commander')
     # A second, distinct ephemeral draft that reuses the name 'Gruul' — a same-named
-    # SOURCE deck exists, so F7 requires --force to make the deliberate shadow.
+    # SOURCE deck exists, so --force is required to make the deliberate shadow.
     _run(monkeypatch, 'new-draft', 'Gruul', '--force')
     capsys.readouterr()
 

@@ -1,4 +1,4 @@
-"""TDD tests for the P1 store-identity migration (deck_id -> deck_uuid).
+"""The store-identity migration (deck_id -> deck_uuid).
 
 The redesign re-keys the local decks store from the name-derived
 ``deck_id = '<backend>:<name>'`` to a globally-unique ``deck_uuid`` PK. A
@@ -25,6 +25,13 @@ import json
 from pathlib import Path
 
 import pytest
+from _decks_helpers import (
+    commander_deck,
+    decks_dir,
+    file_uuid,
+    source_store,
+    write_source_yaml,
+)
 
 from pipeline import store
 from pipeline.collection import history
@@ -137,8 +144,8 @@ def test_external_ids_bound_from_local_row_not_airtable(data_dir: Path) -> None:
     ext_a = json.loads(s.external_ids(by_name['Krenko'].deck_uuid))
     assert ext_a == {'airtable': 'recABC123'}
 
-    # F12: the key is 'local' (the binder's key), NOT 'local_yaml' — a mismatched
-    # key was dead weight that forced the name fallback F2/F4 exploited.
+    # The key is 'local' (the binder's key), NOT 'local_yaml' — a mismatched key
+    # would break binding and force a name fallback.
     ext_b = json.loads(s.external_ids(by_name['Draft Brew'].deck_uuid))
     assert ext_b == {'local': by_name['Draft Brew'].deck_uuid}
 
@@ -194,3 +201,116 @@ def test_migration_does_not_change_version(data_dir: Path) -> None:
     uuid_a = next(r.deck_uuid for r in s.list_rows(include_archived=True) if r.name == 'Krenko')
     after = version(s.get(uuid_a))  # type: ignore[arg-type]
     assert after == before
+
+
+# --------------------------------------------------------------------------- #
+# YAML uuid backfill + identity: injects/idempotent, ghost-null, duplicate-file,
+# and the crash-atomic (transactional) rebuild.
+# --------------------------------------------------------------------------- #
+
+
+def test_backfill_injects_uuids_into_legacy_files(cli, data_dir: Path) -> None:
+    """The backfill walks collection/decks/*.yaml and injects uuid + header (additive)."""
+    legacy = write_source_yaml(
+        data_dir,
+        'legacy-precious',
+        'Legacy Precious',
+        [('Krenko, Mob Boss', 'commander')] + [(f'LCard {i}', None) for i in range(99)],
+    )
+    assert 'uuid:' not in legacy.read_text()  # a genuine legacy file (no in-file uuid)
+
+    # Any deck verb that constructs the local store triggers the one-time backfill.
+    code, _out, _err = cli('list-decks')
+    assert code == 0
+
+    import yaml
+
+    text = legacy.read_text()
+    assert 'uuid:' in text  # a uuid was injected
+    data = yaml.safe_load(text)
+    assert isinstance(data.get('uuid'), str) and data['uuid']
+    assert 'permanent ID' in text  # the protective comment header
+    # Additive only: the content is preserved (still 100 cards, commander intact).
+    assert 'Krenko, Mob Boss' in text
+
+
+def test_backfill_is_idempotent(cli, data_dir: Path) -> None:
+    """A file that already carries a uuid is left byte-identical by the backfill."""
+    keeper = write_source_yaml(
+        data_dir,
+        'keeper',
+        'Keeper',
+        [('Krenko, Mob Boss', 'commander')] + [(f'KCard {i}', None) for i in range(99)],
+        uuid='ffffffffffffffffffffffffffffffff',
+    )
+    before = keeper.read_text()
+    cli('list-decks')
+    cli('list-decks')
+    assert keeper.read_text() == before
+
+
+def test_ghost_uuid_null_file_gets_real_minted_uuid(cli, data_dir: Path) -> None:
+    """A legacy file with ``uuid:`` (null) must receive a REAL minted uuid — the
+    falsy value must not override the mint, and no row may bind to a ghost uuid."""
+    p = decks_dir(data_dir)
+    p.mkdir(parents=True, exist_ok=True)
+    nully = p / 'nully.yaml'
+    nully.write_text('uuid:\nname: Nully\nformat: Commander\ncards:\n- card: "Krenko, Mob Boss"\n  role: commander\n')
+
+    cli('list-decks')  # triggers backfill
+    injected = file_uuid(nully)
+    assert injected, 'a real uuid must be injected (not left null)'
+
+    cli('list-decks')  # idempotent: same uuid, not re-minted
+    assert file_uuid(nully) == injected
+
+    # Any bound row points at a uuid that ACTUALLY exists in a file.
+    cli('get-deck', 'Nully')
+    decks = DecksStore()
+    rows = [r for r in decks.list_rows() if r.name == 'Nully' and r.sync_status == 'synced']
+    assert rows
+    bound = json.loads(rows[0].external_ids or '{}').get('local')
+    assert bound == injected
+    on_disk = source_store(data_dir).find_deck_path_by_uuid(bound)
+    assert on_disk is not None, 'the bound uuid must exist in a real file (no ghost binding)'
+
+
+def test_duplicate_file_uuid_refused(data_dir: Path) -> None:
+    """>1 file carrying the same in-file uuid is refused with a clear duplicate error."""
+    from pipeline.collection.store import CollectionError
+
+    driver = source_store(data_dir)
+    d = decks_dir(data_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    dup_uuid = 'abcabcabcabcabcabcabcabcabcabcab'
+    body = f'uuid: {dup_uuid}\nname: Solo\nformat: Commander\ncards:\n- card: "Sol Ring"\n'
+    (d / 'a-backup-of-solo.yaml').write_text(body)
+    (d / 'solo.yaml').write_text(body)
+
+    with pytest.raises(CollectionError) as exc:
+        driver.get_deck_by_uuid(dup_uuid)
+    msg = str(exc.value)
+    assert 'a-backup-of-solo.yaml' in msg and 'solo.yaml' in msg
+
+
+def test_migration_rebuild_is_transactional(data_dir: Path) -> None:
+    """The migrated store's rebuild leaves a well-formed decks table (never a lost table)."""
+    deck = commander_deck('Brew')
+    with store.connect() as conn:
+        conn.execute(_OLD_DECKS_DDL)
+        conn.execute(
+            'CREATE TABLE deck_versions '
+            '(seq BIGINT, ts TIMESTAMP, deck_id TEXT, version TEXT, rationale TEXT, deck_json JSON)'
+        )
+        conn.execute(
+            'INSERT INTO decks (deck_id, name, deck_json, sync_status, source_ref, archived) '
+            'VALUES (?, ?, ?, ?, ?, FALSE)',
+            ['local:Brew', deck.name, deck.model_dump_json(), 'ephemeral', None],
+        )
+
+    s = DecksStore()
+    rows = s.list_rows(include_archived=True)
+    assert len(rows) == 1  # the row survived the rebuild
+    # A second open is a clean no-op (the table was renamed atomically, not dropped).
+    s2 = DecksStore()
+    assert len(s2.list_rows(include_archived=True)) == 1

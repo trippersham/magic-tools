@@ -1,15 +1,14 @@
-"""TDD tests for provenance stamps (P5 / M7) — derived-phase staleness made REAL.
+"""Provenance stamps — derived-phase staleness.
 
 Everything is OFFLINE: an isolated tmp data root (via ``MAKE_MAGIC_DATA_DIR``)
 backs the ``decks`` table in ``make_magic.duckdb``; no network, Airtable mocked.
 
-The whole point of M7: staleness is STORED (freshness.assessment + last_sim,
-keyed on ``version()``), not remembered — so a fresh ``DecksStore`` in a new
-process reads the stamps back and derives the same tri-state (fresh|stale|absent).
-Covers:
+Staleness is STORED (freshness.assessment + last_sim, keyed on ``version()``),
+not remembered — so a fresh ``DecksStore`` in a new process reads the stamps back
+and derives the same tri-state (fresh|stale|absent). Covers:
 
     - ``set_assessment`` stamps ``freshness.assessment = {version, at}`` and does
-      NOT clobber the existing ``pulled_at`` (the W4 pull stamp coexists);
+      NOT clobber the existing ``pulled_at`` (the pull stamp coexists);
     - a later edit (version moves) makes the assessment stamp STALE;
     - ``set_last_sim`` writes ``last_sim = {result, deck_version, at}``, the result
       round-trips, and a later edit makes the sim stamp STALE;
@@ -25,11 +24,13 @@ import json
 from pathlib import Path
 
 import pytest
+from _decks_helpers import commander_deck, source_store
 
 from pipeline import store
 from pipeline.collection import run as cli
 from pipeline.contracts import Card, Deck, DeckCard
 from pipeline.decks import DecksStore, version
+from pipeline.decks.access import deck_access
 
 
 class _StubResolver:
@@ -80,7 +81,7 @@ def test_set_assessment_stamps_current_version(data_dir: Path) -> None:
 def test_set_assessment_merges_and_preserves_pulled_at(data_dir: Path) -> None:
     s = DecksStore()
     s.put(_deck(), deck_uuid='d1')
-    # A prior W4 pull stamp lives in freshness; the assessment stamp must MERGE.
+    # A prior pull stamp lives in freshness; the assessment stamp must MERGE.
     s.set_freshness('d1', {'pulled_at': '2026-08-04T00:00:00+00:00'})
     s.set_assessment('d1', 'reality synthesis')
 
@@ -141,7 +142,7 @@ def test_sim_absent_when_never_simmed(data_dir: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# CROSS-SESSION — the whole point of M7 (stamps are stored, not remembered)
+# CROSS-SESSION — stamps are stored, not remembered
 # --------------------------------------------------------------------------- #
 
 
@@ -261,3 +262,25 @@ def test_get_deck_provenance_flag_emits_block(
     assert prov['last_sim']['state'] == 'fresh'
     assert prov['last_sim']['result'] == {'winrate': 0.5}
     assert prov['last_sim']['deck_version'] == version(DecksStore().get(uuid))
+
+
+# --------------------------------------------------------------------------- #
+# re-pull preserves the assessment stamp (merge_freshness, not set).
+# --------------------------------------------------------------------------- #
+
+
+def test_re_pull_preserves_assessment_stamp(data_dir: Path) -> None:
+    """A plain re-pull must NOT wipe the assessment freshness stamp (merge, not clobber)."""
+    driver = source_store(data_dir)
+    decks = DecksStore()
+    access = deck_access(driver, decks=decks)
+
+    driver.save_deck(commander_deck('Prov'), allow_shrink=False)
+    access.read_deck('Prov')
+    deck_uuid = access.resolve('Prov')
+    access.set_assessment('Prov', 'looks strong')
+    assert decks.assessment_state(deck_uuid) == 'fresh'
+
+    # Force a re-pull (bind by ref); the assessment stamp must survive.
+    access.pull('Prov')
+    assert decks.assessment_state(deck_uuid) == 'fresh', 're-pull wiped the assessment stamp'

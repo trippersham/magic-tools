@@ -1,15 +1,15 @@
-"""TDD tests for the canonical deck ``version`` primitive (Phase 1).
+"""The canonical deck ``version`` primitive.
 
 ``version(deck)`` is a stable sha256 over ONLY a deck's persisted, non-derived
 facts (cards as sorted ``(name, quantity, role)`` tuples, strategy, assessment,
 sorted focus_otags, format). It is the ONE primitive reused for sync-drift and
-freshness (design §3), so its exact properties are load-bearing:
+freshness, so its exact properties are load-bearing:
 
 - order-independence: cards / focus_otags in a different order → SAME hash;
 - a real edit (qty / role / strategy / assessment / focus_otags / format change)
   MOVES the hash;
 - hydrated Scryfall enrichment is EXCLUDED → an enrichment-only difference does
-  NOT move the hash (that would make it flap for non-edits — the B3 hazard).
+  NOT move the hash (that would make it flap for non-edits).
 """
 
 from __future__ import annotations

@@ -1,13 +1,13 @@
-"""TDD tests for the DuckDB-backed ``DecksStore`` (Phase 1).
+"""The DuckDB-backed ``DecksStore``.
 
 Everything is OFFLINE: an isolated tmp data root (via ``MAKE_MAGIC_DATA_DIR``)
 backs the ``decks`` table in ``make_magic.duckdb``; no network. Covers:
 
     - a typed ``Deck`` round-trips through DuckDB (get == put, VALIDATED on read);
     - list / exists / create_ephemeral;
-    - typed edits are quantity-aware + commander-safe BY CONSTRUCTION — the exact
-      round-3 bugs (quantity-blind removal, two commanders, singleton-dup,
-      cutting the sole commander) are made impossible, asserted here once.
+    - typed edits are quantity-aware + commander-safe BY CONSTRUCTION — quantity-blind
+      removal, two commanders, singleton-dup, and cutting the sole commander are made
+      impossible, asserted here once.
 """
 
 from __future__ import annotations
@@ -97,7 +97,7 @@ def test_put_upserts(data_dir: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# add_card / remove_card — quantity-aware (the R3 quantity-blind fix)
+# add_card / remove_card — quantity-aware
 # --------------------------------------------------------------------------- #
 
 
@@ -120,7 +120,7 @@ def test_add_card_adds_new_entry(data_dir: Path) -> None:
 
 
 def test_remove_card_drops_one_copy_not_the_whole_entry(data_dir: Path) -> None:
-    """A multi-copy basic loses ONE copy, not all of them (the R3 fix)."""
+    """A multi-copy basic loses ONE copy, not all of them."""
     s = DecksStore()
     s.put(_commander_deck(), deck_uuid='d1')
     # Keep the deck at-target so this removal exercises quantity-awareness, not the

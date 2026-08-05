@@ -1,11 +1,11 @@
-"""TDD tests for decks-store sync (pull / push / promote) — Phase 2, W4.
+"""decks-store sync (pull / push / promote).
 
-The whole point (the R3-B3 anti-anti-pattern): sync/version tests run with a
-REAL canonicalizing resolver — the source driver hydrates deck cards through a
-``CardResolver`` that CANONICALIZES names (lowercased/aliased input -> the
-canonical name). We prove ``version(local)`` and ``version(pulled)`` AGREE after
-canonicalization, and that the drift guard hashes both sides the same way. Do
-NOT stub the resolver to name-only — that is exactly how the old B3 bug hid.
+Sync/version tests run with a REAL canonicalizing resolver, NOT stubbed to
+name-only: the source driver hydrates deck cards through a ``CardResolver`` that
+CANONICALIZES names (lowercased/aliased input -> the canonical name). We prove
+``version(local)`` and ``version(pulled)`` AGREE after canonicalization, and that
+the drift guard hashes both sides the same way. Stubbing the resolver to
+name-only would hide the exact hazard these tests exist to catch.
 
 Everything is OFFLINE: a real ``LocalYamlStore`` on a tmp dir stands in for the
 source of record; no network, no Airtable, no Forge.
@@ -83,7 +83,7 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 # --------------------------------------------------------------------------- #
-# Version agrees across canonicalization (the anti-anti-pattern)
+# Version agrees across canonicalization
 # --------------------------------------------------------------------------- #
 
 

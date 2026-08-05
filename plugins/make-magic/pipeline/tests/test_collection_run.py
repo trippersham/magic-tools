@@ -1,4 +1,4 @@
-"""Tests for the collection CLI dispatcher verbs (Phase 2A, verb surface).
+"""Tests for the collection CLI dispatcher verbs.
 
 OFFLINE: a tmp MAKE_MAGIC_DATA_DIR + local backend + a stub resolver (patched in
 so no scripts/ import or Scryfall cache is needed). Asserts the FULL verb surface
@@ -128,9 +128,8 @@ def test_save_deck_then_get_and_field_verbs(
     _run(monkeypatch, 'get-deck', 'Gruul Aggro', '--field', 'focus_otags')
     assert json.loads(capsys.readouterr().out) == ['sacrifice', 'tokens']
 
-    # `commanders` is a derived list[DeckCard] — it must serialize (regression:
-    # it crashed the handler's plain json.dumps since DeckCard isn't natively
-    # JSON-serializable; found by dogfooding `get-deck --field commanders`).
+    # `commanders` is a derived list[DeckCard] — it must serialize, since
+    # DeckCard isn't natively JSON-serializable by the handler's plain json.dumps.
     _run(monkeypatch, 'get-deck', 'Gruul Aggro', '--field', 'commanders')
     commanders = json.loads(capsys.readouterr().out)
     assert [c['name'] for c in commanders] == ['Grumgully, the Generous']
@@ -251,7 +250,7 @@ def test_log_trade_then_list(data_dir: Path, monkeypatch: pytest.MonkeyPatch, ca
 
 
 def test_log_trade_deck_flags(data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
-    """Phase 3.3: --from-deck / --to-deck wire to the Trade contract (no --from-json)."""
+    """--from-deck / --to-deck wire to the Trade contract (no --from-json)."""
     _run(
         monkeypatch,
         'log-trade',
@@ -341,7 +340,7 @@ def test_unknown_deck_prints_clean_error_no_traceback(
     data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
     """An expected failure (unknown deck) surfaces `error: …` on stderr + exit 1,
-    NOT a raw FileNotFoundError traceback (Fable-5 E2E finding)."""
+    NOT a raw FileNotFoundError traceback."""
     with pytest.raises(SystemExit) as ei:
         _run(monkeypatch, 'get-deck', 'Nope')
     assert ei.value.code == 1
@@ -368,7 +367,7 @@ def test_unknown_field_prints_clean_error(
 
 def test_genuine_keyerror_is_not_swallowed(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A real defect (raw KeyError from a verb handler) must NOT be flattened to a
-    clean `error:` line — it should propagate so the bug is visible (Fix 2)."""
+    clean `error:` line — it should propagate so the bug is visible."""
 
     def _boom(_argv: list[str]) -> None:
         raise KeyError('internal invariant broken')
@@ -379,7 +378,7 @@ def test_genuine_keyerror_is_not_swallowed(data_dir: Path, monkeypatch: pytest.M
 
 
 def test_genuine_runtimeerror_is_not_swallowed(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A raw RuntimeError from a bug is not masked by the CLI wrapper (Fix 2)."""
+    """A raw RuntimeError from a bug is not masked by the CLI wrapper."""
 
     def _boom(_argv: list[str]) -> None:
         raise RuntimeError('unexpected')

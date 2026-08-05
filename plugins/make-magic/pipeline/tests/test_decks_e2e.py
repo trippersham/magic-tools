@@ -1,4 +1,4 @@
-"""Phase 5 — BEHAVIORAL end-to-end proof of both guided-build loops.
+"""BEHAVIORAL end-to-end proof of both guided-build loops.
 
 Unlike the unit tests (store/sync/ledger) and the thin-plumbing CLI tests, these
 drive the FULL guided build the way the ``building-decks`` orchestrator does —
@@ -99,16 +99,16 @@ def test_clean_slate_build_commits_a_correct_synced_deck(
         _run(monkeypatch, 'deck-add', 'Fresh', f'Filler {i}')
         capsys.readouterr()
 
-    # ASSESS on the DRAFT (B4 in the loop): factsheet must run on an EPHEMERAL draft
-    # (no source of record) — it used to FileNotFound. Routes through the local store.
+    # ASSESS on the DRAFT: factsheet must run on an EPHEMERAL draft (no source of
+    # record), routed through the local store.
     capsys.readouterr()
     _run(monkeypatch, 'factsheet', 'Fresh')
     factsheet = json.loads(capsys.readouterr().out)
     assert factsheet['deck'] == 'Fresh'  # a real factsheet keyed to the draft
 
     # PROVENANCE substrate: set-assessment stamps freshness against the current
-    # version; list-decks --json reads it back as `assessment: fresh` (M7 stored,
-    # not remembered) — and it holds on an ephemeral draft, cross-session.
+    # version; list-decks --json reads it back as `assessment: fresh` (stored, not
+    # remembered) — and it holds on an ephemeral draft, cross-session.
     _run(monkeypatch, 'set-assessment', 'Fresh', 'Wide counters plan looks coherent.')
     capsys.readouterr()
     _run(monkeypatch, 'list-decks', '--json')
@@ -116,7 +116,7 @@ def test_clean_slate_build_commits_a_correct_synced_deck(
     assert draft_row['assessment'] == 'fresh'
 
     # A subsequent content edit moves the version -> the assessment stamp goes STALE
-    # (derived phase, not a remembered flag).
+    # (a derived value, not a remembered flag).
     _run(monkeypatch, 'deck-add', 'Fresh', 'Sol Ring')
     capsys.readouterr()
     _run(monkeypatch, 'list-decks', '--json')
@@ -194,10 +194,10 @@ def test_improve_existing_explore_copy_leaves_original_until_promote(
     assert 'Filler 0' not in promoted_names
     assert sum(c['quantity'] for c in promoted['cards']) == 100  # size preserved
 
-    # P3: promote AUTO-CONSUMES the exploration draft — it is already consumed +
+    # promote AUTO-CONSUMES the exploration draft — it is already consumed +
     # archived (a retired lineage), so no explicit archive step is needed and it is
     # decluttered out of the default list. The original 'Gruul' remains, now carrying
-    # the change (the single synced row for that source — B1/B2 killed).
+    # the change (the single synced row for that source).
     from pipeline.decks import DecksStore
     from pipeline.decks.store import DecksError
 
@@ -211,7 +211,7 @@ def test_improve_existing_explore_copy_leaves_original_until_promote(
     explore_uuid = rows['Gruul (explore)'].deck_uuid
     with pytest.raises(DecksError):
         decks.add_card(explore_uuid, DeckCard(name='Mountain', quantity=1))
-    # The draft never materialized a source deck of its own (B2 zombie killed).
+    # The draft never materialized a source deck of its own.
     with pytest.raises(FileNotFoundError):
         cli._store().get_deck('Gruul (explore)')
 

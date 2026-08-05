@@ -1,29 +1,28 @@
-"""P4 regression tests — the guard layer + undo cursor (Phase 6, §5).
+"""The deck-edit guard layer + undo cursor.
 
-These are the round-4 blocker repros, written FIRST (strict TDD) so each guard
-is proven to CLOSE its finding:
+Each guard protects an invariant:
 
-- **M5** — ``DeckCard.quantity`` is ``Field(ge=1)`` and the ``deck-add`` /
+- ``DeckCard.quantity`` is ``Field(ge=1)`` and the ``deck-add`` /
   ``deck-remove`` argparse rejects ``--qty < 1``, so ``deck-remove --qty -1`` can
   no longer GROW the deck and ``deck-add --qty 0`` can never land a 0-qty entry.
-- **m2** — ``remove_card`` refuses cutting the SOLE commander.
-- **m1** — ``swap`` / ``add_card`` refuse incrementing an existing commander to
+- ``remove_card`` refuses cutting the SOLE commander.
+- ``swap`` / ``add_card`` refuse incrementing an existing commander to
   qty ≥ 2 (a commander is a singleton).
-- **M3** — ``deck-add`` / ``deck-swap`` canonicalize the card name via the REAL
+- ``deck-add`` / ``deck-swap`` canonicalize the card name via the REAL
   ``default_card_resolver()`` before building the ``DeckCard`` (canonical on a
   lake hit, raw on a miss), so ``lightning bolt`` + ``Lightning Bolt`` collapse to
   ONE entry — still ONE after a push + re-pull.
-- **M5-tail** — an edit whose commit-push is REFUSED (shrink guard) auto-undoes
+- an edit whose commit-push is REFUSED (shrink guard) auto-undoes
   the local edit so a failed edit never half-lands.
-- **M1** — the undo CURSOR walks strictly backward through distinct-content
+- the undo CURSOR walks strictly backward through distinct-content
   versions, continues from the last-restored position across CLI invocations, and
   skips identical-content versions (no oscillation, no deadlock).
 
-The M3 tests use the **REAL canonicalizing resolver** (never a stub) — the load-
-bearing rule from R3-B3: a stub would hide the exact hazard the guard exists to
-kill. A real ``raw/oracle_cards`` lake with a canonical ``Lightning Bolt`` row is
-written so the case-insensitive lake lookup canonicalizes ``lightning bolt``.
-Everything else is OFFLINE (tmp ``MAKE_MAGIC_DATA_DIR``, local YAML backend).
+The canonicalization tests use the **REAL canonicalizing resolver** (never a
+stub) — a stub would hide the exact hazard the guard exists to catch. A real
+``raw/oracle_cards`` lake with a canonical ``Lightning Bolt`` row is written so
+the case-insensitive lake lookup canonicalizes ``lightning bolt``. Everything
+else is OFFLINE (tmp ``MAKE_MAGIC_DATA_DIR``, local YAML backend).
 """
 
 from __future__ import annotations
@@ -51,7 +50,7 @@ def _offline_404(_request: httpx.Request) -> httpx.Response:
     Every live-fallback lookup 404s -> None (a definitive miss, not transient), so a
     lake MISS degrades to a raw name-only card WITHOUT a network call. Lake HITS
     (seeded canonical rows) still canonicalize — that is the real, un-stubbed
-    canonicalization the M3 guard leans on.
+    canonicalization the guard leans on.
     """
     return httpx.Response(404, json={'object': 'error'})
 
@@ -111,7 +110,7 @@ def _land_canonical_card(name: str, oracle_id: str) -> None:
 
     The resolver's lake lookup is ``lower(name) = lower(?)``, so a stored canonical
     ``Lightning Bolt`` row resolves an incoming ``lightning bolt`` to ``.name ==
-    'Lightning Bolt'`` — the exact canonicalization the M3 guard leans on. No stub.
+    'Lightning Bolt'`` — the exact canonicalization the guard leans on. No stub.
     """
     row = {
         'oracle_id': oracle_id,
@@ -155,7 +154,7 @@ def _deck(name: str = 'Krenko', *, strategy: str | None = None) -> Deck:
 
 
 # --------------------------------------------------------------------------- #
-# M5 — quantity guard (ge=1 on the model + argparse rejection)
+# quantity guard (ge=1 on the model + argparse rejection)
 # --------------------------------------------------------------------------- #
 
 
@@ -177,7 +176,7 @@ def test_deckcard_quantity_negative_is_validation_error(data_dir: Path) -> None:
 def test_deck_remove_negative_qty_refused_no_grow(
     data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, tmp_path: Path
 ) -> None:
-    """``deck-remove --qty -1`` is refused and does NOT grow the deck (M5 core repro)."""
+    """``deck-remove --qty -1`` is refused and does NOT grow the deck."""
     cards = _commander_cards()
     cards[1] = {'name': 'Forest', 'quantity': 5}  # a real multi-copy entry to target.
     _save_source_deck(monkeypatch, tmp_path, 'Gruul', cards)
@@ -214,7 +213,7 @@ def test_deck_add_zero_qty_refused(
 
 
 # --------------------------------------------------------------------------- #
-# m2 — remove_card refuses cutting the sole commander
+# remove_card refuses cutting the sole commander
 # --------------------------------------------------------------------------- #
 
 
@@ -251,7 +250,7 @@ def test_remove_card_sole_commander_refused_store_level(data_dir: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# m1 — commander never reaches qty 2 (add / swap increment hole closed)
+# commander never reaches qty 2 (add / swap increment hole closed)
 # --------------------------------------------------------------------------- #
 
 
@@ -268,7 +267,7 @@ def test_add_card_cannot_increment_existing_commander(data_dir: Path) -> None:
 
 
 def test_swap_cannot_increment_existing_commander(data_dir: Path) -> None:
-    """``swap`` refuses re-adding the existing commander (the m1 exemption hole)."""
+    """``swap`` refuses re-adding the existing commander (the exemption hole)."""
     from pipeline.decks.store import DecksError
 
     s = DecksStore()
@@ -285,7 +284,7 @@ def test_swap_cannot_increment_existing_commander(data_dir: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# M3 — boundary canonicalization (REAL resolver): one entry, still one after re-pull
+# boundary canonicalization (real resolver): one entry, still one after re-pull
 # --------------------------------------------------------------------------- #
 
 
@@ -347,7 +346,7 @@ def test_deck_add_unresolved_name_passes_through_verbatim(
 
 
 # --------------------------------------------------------------------------- #
-# M5-tail — a refused commit auto-undoes the local edit (never half-lands)
+# a refused commit auto-undoes the local edit (never half-lands)
 # --------------------------------------------------------------------------- #
 
 
@@ -391,7 +390,7 @@ def test_refused_commit_restores_pre_edit_deck(
 
 
 # --------------------------------------------------------------------------- #
-# M1 — undo cursor: 3 edits then 3 undos reveal 3 prior states, no oscillation
+# undo cursor: 3 edits then 3 undos reveal 3 prior states, no oscillation
 # --------------------------------------------------------------------------- #
 
 
@@ -414,7 +413,7 @@ def test_undo_cursor_walks_back_three_distinct_states(data_dir: Path) -> None:
 
 
 def test_undo_cursor_no_oscillation_between_two(data_dir: Path) -> None:
-    """Two undos never oscillate back to the newer state (the OFFSET-1 bug)."""
+    """Two undos never oscillate back to the newer state (off-by-one floor)."""
     s = DecksStore()
     s.put(_deck(strategy='a'), deck_uuid='d1')
     s.set_strategy('d1', 'b')
@@ -455,3 +454,28 @@ def test_new_edit_resets_cursor_to_head_no_redo(data_dir: Path) -> None:
     # Undo now steps back from s3 -> s1 (the state the new edit branched from), NOT s2.
     DecksStore().undo('d1')
     assert _get(DecksStore(), 'd1').strategy == 's1'
+
+
+# --------------------------------------------------------------------------- #
+# new-draft --commander runs boundary canonicalization too.
+# --------------------------------------------------------------------------- #
+
+
+def test_new_draft_commander_is_canonicalized(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """new-draft --commander runs boundary canonicalization on the new-draft verb.
+
+    A canonical ``Krenko, Mob Boss`` lake row is landed so the REAL resolver rewrites
+    the mis-cased ``krenko, mob boss`` input to the canonical display name on the
+    new-draft boundary — no stub of the hazard.
+    """
+    _land_canonical_card('Krenko, Mob Boss', 'oid-krenko')
+
+    _run(monkeypatch, 'new-draft', 'Brew', '--commander', 'krenko, mob boss', '--format', 'Commander')
+
+    decks = DecksStore()
+    uuid = decks.uuid_for_name('Brew')
+    assert uuid is not None
+    deck = decks.get(uuid)
+    assert deck is not None
+    commanders = [c.name for c in deck.cards if c.role == 'commander']
+    assert commanders == ['Krenko, Mob Boss'], f'commander not canonicalized: {commanders}'

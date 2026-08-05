@@ -1,4 +1,4 @@
-"""OFFLINE tests for the one-shot `copy_collection` interop helper (Phase 3.2).
+"""OFFLINE tests for the one-shot ``copy_collection`` interop helper.
 
 Copies EVERY record (inventory, decks, chase, trades) from a source store to a
 destination store via the domain-typed port — no live sync, no network. The
@@ -191,9 +191,9 @@ def test_round_trip_local_airtable_local_preserves_records(tmp_path: Path, monke
     _populate_local(src)
 
     # Do NOT pre-seed an empty 'Gruul Aggro' decks row: the deck pass CREATES the
-    # real deck, and under P3's dup-name-different-file rule a phantom empty seed
-    # would land as a SECOND same-named file on the round-trip back to local (the
-    # M4 dual-row the copy correctly no longer clobbers). Chase's link target is the
+    # real deck, and under the dup-name-different-file rule a phantom empty seed
+    # would land as a SECOND same-named file on the round-trip back to local (a
+    # dual-row the copy correctly no longer clobbers). Chase's link target is the
     # real deck, created before the chase pass runs.
     fake = _seeded_fake(cards=[], decks=[])
     mid = _airtable_store(fake, writes_enabled=True)
