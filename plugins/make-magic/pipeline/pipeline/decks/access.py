@@ -348,12 +348,11 @@ class DeckAccess:
             # r7-m1: distinguish a DEAD binding (a row exists AND is bound, but its
             # source is gone/re-identified) from a genuine "no row" miss. Saying "no
             # deck named 'X'" would misdirect the user into re-creating it — the row
-            # and a local copy exist; the SOURCE is what is gone. Point them at pull.
+            # and a local copy exist; the SOURCE is what is gone. Point them at the ONE
+            # real recovery (P11): a fresh-identity ``save-deck`` (NOT "pull" — a dead
+            # ref cannot be re-bound by pull; the chokepoint returns None by design).
             if _sync.binding_is_dead(self._decks, self._driver, deck_uuid=existing, source_ref=name):
-                raise DecksError(
-                    f"the source for {name!r} is gone or was re-identified — run \"pull\" to "
-                    'rebind it (its file/record no longer matches its recorded id).'
-                )
+                raise DecksError(_sync.dead_binding_message(self._driver, name))
             # r7-m4: the row is bound on ANOTHER backend (a backend switch); its source
             # lives there, not as a same-named file here. Do NOT report "no deck" (which
             # would invite a clobbering recreate) — say where it is bound.
@@ -386,14 +385,15 @@ class DeckAccess:
         it). Set ``commit=False`` to stage the local edit without touching the
         source.
         """
-        # r7-M1: run the dup-name refusal at the TOP, BEFORE any put. The old order
-        # ``put`` the payload into the oldest row (silent ``uuid_for_name`` tie-break)
-        # and only refused later inside ``push`` — so a refused dup-name save-deck
-        # STAGED its content over a clean baseline, which a routine later ``sync`` of
-        # that row silently landed on the source. Refuse up front (nothing staged).
-        dup_rows = self._decks.rows_for_name(deck.name)
-        if len(dup_rows) > 1:
-            raise DecksError(self._ambiguous_name_message(deck.name, dup_rows))
+        # r7-M1 + r8-M1: run the dup-name refusal at the TOP, BEFORE any put — and make
+        # it ALIAS-AWARE. The old order ``put`` the payload into the oldest row (silent
+        # ``uuid_for_name`` tie-break) and only refused later inside ``push``, staging
+        # refused content a later ``sync`` could land. And the EXACT-name check (r8-M1)
+        # missed a CASE alias: ``save-deck PRECIOUS`` under two ``Precious`` rows matched
+        # zero rows, slid past the wall, and full-overwrote the base-slug file at exit 0.
+        # Resolve the alias to its bound canonical row and refuse if THAT row is one of a
+        # dup set — the same wall the edit verbs use (``resolve_bound`` shape).
+        self._refuse_dupname_save(deck.name)
 
         # Key the local row by the source's external ref when the source already
         # exists (bind to the ONE row), else by the deck's OWN uuid so a later read
@@ -406,14 +406,25 @@ class DeckAccess:
         # slug. Only a genuine first save (no row yet) name-reads the source to learn
         # whether one already exists on the backend.
         existing_uuid = self._decks.uuid_for_name(deck.name)
-        # P10: a DEAD binding refuses BEFORE the put — the save must not adopt the
-        # gone/re-identified slug path (r7-B1 destruction / r7-M2 fork). A genuine
-        # first save (no bound ref) is NOT dead and proceeds to create.
-        if existing_uuid is not None:
-            _sync.guard_write_binding(
-                self._decks, self._driver, deck_uuid=existing_uuid, source_ref=deck.name
-            )
-        source = self._source_for_save(deck.name, existing_uuid)
+        # P11 RECOVERY (replaces P10's --recreate): a save-deck onto a row whose bound
+        # source is gone/re-identified RECOVERS by creating a BRAND-NEW source at a fresh
+        # identity — it does NOT refuse (edit/sync verbs still refuse; save-deck is the
+        # authoritative "write this deck" verb and the one recovery path). Strip the
+        # stale external identity so Airtable takes ``create_record`` (not update→422)
+        # and YAML mints a new file; drop the row's dead ref; then fall through as a
+        # first-save create. It can NEVER adopt a same-named stranger because a dead
+        # binding reads back None (source absent) — the name-read fallback is never
+        # entered for a bound-but-dead row.
+        recovering = existing_uuid is not None and _sync.binding_is_dead(
+            self._decks, self._driver, deck_uuid=existing_uuid, source_ref=deck.name
+        )
+        if recovering:
+            assert existing_uuid is not None
+            deck = self._prepare_recovery(deck, existing_uuid)
+        # During recovery the source is (by definition) gone; do NOT name-read it — a
+        # re-identified base slug would be a same-named STRANGER, and adopting it is the
+        # exact r8-M3 harm. A fresh-identity create writes its own source.
+        source = None if recovering else self._source_for_save(deck.name, existing_uuid)
         baseline = version(source) if source is not None else None
         deck_uuid = self._save_target_uuid(deck, source)
         pre_edit = self._decks.get(deck_uuid) if commit else None
@@ -431,23 +442,115 @@ class DeckAccess:
         if ext is not None:
             self._decks.set_external_id(deck_uuid, *ext)
         if commit:
-            # Transactional (r7-M1 tail): a push-refused save must NOT leave the payload
+            # Transactional (r7-M1 tail): a refused commit must NOT leave the payload
             # staged in the row — roll the local edit back (or delete a first-save row)
             # so a later ``sync`` cannot land refused content.
             try:
-                self.push(deck.name, allow_shrink=allow_shrink)
+                if recovering:
+                    # Fresh-identity CREATE — bypass ``push``'s current-source name-read
+                    # (which would adopt a same-named stranger, r8-M3). The payload
+                    # already carries a fresh identity (no ``airtable_record_id``, a
+                    # fresh in-file uuid), so ``driver.save_deck`` creates a NEW record /
+                    # mints a NEW disambiguated file rather than updating a dead ref.
+                    self._commit_recovery(deck, deck_uuid, allow_shrink=allow_shrink)
+                else:
+                    self.push(deck.name, allow_shrink=allow_shrink)
             except Exception:
                 self._rollback_save(deck_uuid, pre_edit)
                 raise
             # Re-bind against the freshly-written source through the chokepoint (a
             # create mints/keeps the in-file uuid; Airtable assigns the recordId on
-            # create) — never a base-slug name read.
-            written = _sync.read_source_bound(
-                self._decks, self._driver, deck_uuid=deck_uuid, source_ref=deck.name
-            )
-            written_ext = self._external_ref(written) if written is not None else None
-            if written_ext is not None:
-                self._decks.set_external_id(deck_uuid, *written_ext)
+            # create) — never a base-slug name read. Recovery already bound the row to
+            # the fresh identity in ``_commit_recovery`` (a name read here would adopt a
+            # same-named stranger, r8-M3), so skip it.
+            if not recovering:
+                written = _sync.read_source_bound(
+                    self._decks, self._driver, deck_uuid=deck_uuid, source_ref=deck.name
+                )
+                written_ext = self._external_ref(written) if written is not None else None
+                if written_ext is not None:
+                    self._decks.set_external_id(deck_uuid, *written_ext)
+
+    def _refuse_dupname_save(self, name: str) -> None:
+        """Refuse a dup-name ``save_deck`` up front — EXACT-name AND case-alias (r8-M1).
+
+        The exact-name check (r7-M1) refuses ``save-deck Precious`` when two ``Precious``
+        rows exist. But a CASE ALIAS (``save-deck PRECIOUS``) matched zero exact rows,
+        slid past the wall, and full-overwrote the base-slug file at exit 0 (r8-M1). This
+        resolves the alias to the ONE bound canonical row and refuses if THAT row's name
+        has >1 live candidate — the same ``resolve_bound``/``_refuse_alias_under_dup_names``
+        wall the edit verbs use. An unambiguous name / a first-seen name passes through.
+        """
+        exact = self._decks.rows_for_name(name)
+        if len(exact) > 1:
+            raise DecksError(self._ambiguous_name_message(name, exact))
+        if exact:
+            return  # a single exact-name row — unambiguous, not an alias.
+        # No exact-name row: does this name ALIAS a bound canonical row that is one of a
+        # dup set? Resolve the source's external ref and, if it binds a row whose name has
+        # >1 live candidate, refuse with the candidate list (``_refuse_alias_under_dup_names``
+        # raises). A genuine first-seen name (no source, or a source that binds a unique
+        # row) must NOT be refused here — a first save is legitimate. So we swallow a
+        # name-MISS but re-raise a true ambiguity.
+        try:
+            source = self._read_source_rename_safe(name)
+        except DecksError:
+            return  # no source for this name yet — a genuine first save, not an alias.
+        ext = self._external_ref(source)
+        if ext is None:
+            return
+        bound = self._decks.uuid_for_external_ref(*ext)
+        if bound is not None:
+            self._refuse_alias_under_dup_names(name, bound)
+
+    def _prepare_recovery(self, deck: Deck, existing_uuid: str) -> Deck:
+        """Strip the stale external identity for a fresh-identity recovery save (P11).
+
+        A ``save-deck`` onto a row whose bound source is gone/re-identified recovers by
+        creating a BRAND-NEW source. Drop the row's now-dead external ref (so no bound
+        read routes into the dead file/record), and return a payload at a FRESH identity:
+
+        - drop ``airtable_record_id`` so the Airtable adapter takes ``create_record``
+          (not ``update_record`` on the deleted record → 422, the r8-M2 wedge);
+        - mint a FRESH in-file ``uuid`` so the local YAML adapter's slug guard writes a
+          NEW file (never adopting a re-identified same-named stranger, r8-M3).
+        """
+        from uuid import uuid4
+
+        # Drop the dead external ref for the active backend (both, defensively) so the
+        # subsequent create is a clean first push, not a bound read of the dead source.
+        self._decks.replace_external_ids(existing_uuid, {})
+        return deck.model_copy(update={'uuid': uuid4().hex, 'airtable_record_id': None})
+
+    def _commit_recovery(self, deck: Deck, deck_uuid: str, *, allow_shrink: bool) -> None:
+        """Create a fresh source for a recovery save, then bind the row to it (P11).
+
+        Bypasses ``push``'s current-source name-read (which would adopt a same-named
+        STRANGER, r8-M3). The payload already carries a fresh identity, so ``save_deck``
+        creates a NEW record / mints a NEW disambiguated file. Then re-read by the fresh
+        identity (never a name read) to stamp the baseline and rebind the row.
+        """
+        from pipeline.decks.version import version as _version
+
+        to_save = deck  # fresh identity already stamped by ``_prepare_recovery``.
+        self._driver.save_deck(to_save, allow_shrink=allow_shrink)  # create (may stamp recordId).
+        expected = (
+            to_save.airtable_record_id if self.backend == 'airtable' else to_save.uuid
+        )
+        written = _sync.read_source_bound(
+            self._decks, self._driver, deck_uuid=deck_uuid,
+            source_ref=deck.name, expected_ref=expected,
+        )
+        landed = written if written is not None else to_save
+        self._decks.put(
+            landed, deck_uuid=deck_uuid, sync_status='synced', source_ref=deck.name,
+            synced_baseline=_version(landed), rationale='save-deck (recover)',
+        )
+        # BIND the row to the fresh identity HERE — never let the outer re-bind block
+        # name-read (an airtable name-read would adopt a same-named stranger, r8-M3).
+        landed_ext = self._external_ref(landed)
+        if landed_ext is not None:
+            self._decks.set_external_id(deck_uuid, *landed_ext)
 
     def _rollback_save(self, deck_uuid: str, pre_edit: Deck | None) -> None:
         """Undo a refused ``save_deck`` put: restore the pre-edit deck, else drop the row.
@@ -588,17 +691,14 @@ class DeckAccess:
         *,
         allow_shrink: bool = False,
         id_prefix: str | None = None,
-        recreate: bool = False,
     ) -> None:
         """Push the local deck ``name`` (or ``--id``) to the source through the ceremony.
 
-        ``recreate`` (P10) is the explicit override for a DEAD binding: it drops the
-        stale ref and recreates the deleted source rather than refusing.
+        A DEAD binding REFUSES (P10). The one recovery is a fresh-identity
+        ``save-deck`` (P11) — there is no ``--recreate`` override.
         """
         deck_uuid = self._resolve_existing(name, id_prefix)
-        _sync.push(
-            self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink, recreate=recreate
-        )
+        _sync.push(self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink)
 
     def _resolve_existing(self, name: str, id_prefix: str | None) -> str:
         """Resolve a push/sync target to an EXISTING row — a name-miss is a clean error.
@@ -622,20 +722,17 @@ class DeckAccess:
         *,
         allow_shrink: bool = False,
         id_prefix: str | None = None,
-        recreate: bool = False,
     ) -> None:
         """Reconcile ``name`` (or ``--id``) against its source — pull / push / drift (M2).
 
         RECONCILE-not-destroy (design §4): compares local / baseline / current source
         and pulls (only source moved), pushes (only local moved), no-ops (neither),
         or raises ``SyncDriftError`` (both moved — nothing changed, both preserved).
-        Never pull-clobbers an unpushed local edit. ``recreate`` (P10) opts a DEAD
-        binding into recreating its deleted source instead of refusing.
+        Never pull-clobbers an unpushed local edit. A DEAD binding REFUSES (P10) — the
+        one recovery is a fresh-identity ``save-deck`` (P11), not a ``--recreate`` flag.
         """
         deck_uuid = self._resolve_existing(name, id_prefix)
-        _sync.sync_reconcile(
-            self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink, recreate=recreate
-        )
+        _sync.sync_reconcile(self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink)
 
 
 def deck_access(driver: CollectionStore, *, decks: DecksStore | None = None) -> DeckAccess:

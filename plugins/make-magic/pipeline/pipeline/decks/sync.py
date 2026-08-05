@@ -43,6 +43,7 @@ __all__ = (
     'DeadBindingError',
     'SyncDriftError',
     'binding_is_dead',
+    'dead_binding_message',
     'guard_write_binding',
     'promote',
     'pull',
@@ -71,8 +72,13 @@ class DeadBindingError(Exception):
     legacy restore, an out-of-band delete, a hand-edited in-file uuid). A WRITE must
     NOT read that None as "first push, nothing to drift against" and silently create /
     adopt an existing slug file / fork — that destroys (r7-B1) or buries (r7-M2) the
-    out-of-band content. Every source write refuses with this instead; the caller runs
-    ``pull`` to rebind or ``--recreate`` to intentionally recreate.
+    out-of-band content. Edit/sync verbs REFUSE with this instead.
+
+    The ONE recovery (P11) is a fresh-identity ``save-deck`` of the deck: it writes a
+    brand-new source at a fresh identity and rebinds the row. The refusal message names
+    ONLY that — it does NOT tell the user to ``pull`` (a dead ref cannot be re-bound by
+    pull — the chokepoint returns None by design), and P11 removed the ``--recreate``
+    hatch entirely. See :func:`dead_binding_message` for the backend-aware wording.
 
     Distinct from a genuine FIRST push: a row with NO bound ref for the active backend
     read back as None is "not yet created" and still creates (unchanged).
@@ -104,49 +110,48 @@ def guard_write_binding(
     *,
     deck_uuid: str,
     source_ref: str,
-    recreate: bool = False,
 ) -> None:
     """Refuse a source WRITE against a DEAD binding (P10) — the write-side chokepoint.
 
-    Called at the TOP of every source write (:func:`push`, :func:`promote`, the
-    ``save_deck``/edit-commit path). When the row is bound for the active backend but
-    the bound source is gone/re-identified, raise :class:`DeadBindingError` rather than
-    let the write fall through to a silent create/adopt/fork. ``recreate=True`` is the
-    explicit override: the caller intentionally recreates the deleted source, so the
-    dead ref is dropped and the write proceeds as a first push.
+    Called at the TOP of every source EDIT/SYNC write (:func:`push`, :func:`promote`,
+    the ``set-*``/``deck-*``/``undo`` commit path). When the row is bound for the active
+    backend but the bound source is gone/re-identified, raise :class:`DeadBindingError`
+    rather than let the write fall through to a silent create/adopt/fork.
+
+    P11: there is NO ``recreate`` override here. The one recovery is a fresh-identity
+    ``save-deck``, handled in ``access.save_deck`` (which creates a brand-new source at
+    a fresh identity and rebinds the row) — never a dead-ref-drop-then-fall-through
+    (that silently adopted a same-named stranger, r8-M3). The error names ONLY
+    ``save-deck`` (:func:`dead_binding_message`).
     """
     if not binding_is_dead(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref):
         return
-    if recreate:
-        # Explicit intent to recreate: drop the dead ref so the write is a clean first
-        # push (a fresh in-file uuid / a new record), not an adoption of the slug path.
-        _clear_dead_ref(decks, driver, deck_uuid)
-        return
-    raise DeadBindingError(
-        f"the source for {source_ref!r} is gone or was re-identified (its file/record no "
-        f'longer matches its recorded id). Run "pull" to rebind, or remove the stale file / '
-        'pass --recreate to intentionally recreate it.'
+    raise DeadBindingError(dead_binding_message(driver, source_ref))
+
+
+def dead_binding_message(driver: CollectionStore, source_ref: str) -> str:
+    """The backend-aware, honest, hallucination-free dead-binding refusal (P11).
+
+    Names ONLY ``save-deck`` as recovery — the ONE action the code actually makes work
+    (a fresh-identity save recreates the source and rebinds the row). It must NOT tell
+    the user to ``pull`` (circular: a dead ref cannot be re-bound by pull — the read
+    chokepoint returns None by design) and must NOT mention ``--recreate`` (removed in
+    P11). This matters because a bot reads these messages: a hallucinated step could
+    break a contract. Each ends "Your local copy is intact." so the user knows nothing
+    was lost. Tailored to the active backend (the store knows which it is).
+    """
+    if getattr(driver, 'backend_name', None) == 'airtable':
+        return (
+            f"the Airtable record for {source_ref!r} was deleted. Re-save it with: "
+            f'collection save-deck "{source_ref}"  — this creates a new Decks record. '
+            'Your local copy is intact.'
+        )
+    return (
+        f"the deck file for {source_ref!r} is missing or its id changed (it was deleted, "
+        "moved out of the collection, or its 'uuid:' line was changed). Re-save it with: "
+        f'collection save-deck "{source_ref}"  — this writes a fresh deck file. '
+        'Your local copy is intact.'
     )
-
-
-def _clear_dead_ref(decks: DecksStore, driver: CollectionStore, deck_uuid: str) -> None:
-    """Drop the active backend's (now dead) external ref so ``--recreate`` writes fresh."""
-    import contextlib
-    import json as _json
-
-    from pipeline.decks.store import DecksError
-
-    backend = 'airtable' if getattr(driver, 'backend_name', None) == 'airtable' else 'local'
-    raw = decks.external_ids(deck_uuid)
-    try:
-        ext = _json.loads(raw) if raw else {}
-    except (ValueError, TypeError):
-        ext = {}
-    if not isinstance(ext, dict) or backend not in ext:
-        return
-    ext.pop(backend, None)
-    with contextlib.suppress(DecksError):
-        decks.replace_external_ids(deck_uuid, ext)
 
 
 def _require_row(decks: DecksStore, deck_uuid: str) -> tuple[object, str]:
@@ -326,7 +331,6 @@ def push(
     *,
     deck_uuid: str,
     allow_shrink: bool = False,
-    recreate: bool = False,
 ) -> None:
     """Push the local deck to the source THROUGH the ceremony — drift-guarded.
 
@@ -347,7 +351,7 @@ def push(
     # never fall through the ``current_source is None`` guard-skip below and silently
     # recreate a deleted source (r7-M2 §B) or fork next to a re-uuid'd file (r7-M2 §C).
     # A genuine first push (no bound ref) is NOT dead and proceeds to create as before.
-    guard_write_binding(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref, recreate=recreate)
+    guard_write_binding(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref)
 
     local_version = version(local)  # type: ignore[arg-type]
     # Read the CURRENT source slug-proof: a dup-named local deck makes a name/slug read
@@ -608,7 +612,6 @@ def sync_reconcile(
     *,
     deck_uuid: str,
     allow_shrink: bool = False,
-    recreate: bool = False,
 ) -> None:
     """Reconcile a synced deck against its source — pull / push / drift (design §4, M2).
 
@@ -627,8 +630,8 @@ def sync_reconcile(
 
     # P10: a DEAD binding refuses here too — otherwise the ``source_version is None``
     # branch below reads it as "nothing on the source yet → push (create)" and
-    # resurrects/forks the gone source. ``--recreate`` drops the dead ref to opt in.
-    guard_write_binding(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref, recreate=recreate)
+    # resurrects/forks the gone source. Recovery is a fresh-identity ``save-deck`` (P11).
+    guard_write_binding(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref)
 
     local_version = version(local)  # type: ignore[arg-type]
     # BOUND read (P9, r6-B1): reconcile against the row's OWN bound source, never the

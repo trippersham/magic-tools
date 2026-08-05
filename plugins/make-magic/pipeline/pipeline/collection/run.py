@@ -527,22 +527,32 @@ def _resolve_edit_target(access: DeckAccess, name: str | None, id_prefix: str | 
     return deck_uuid, eff_name
 
 
-def _commit_deck_edit(access: DeckAccess, name: str, deck_uuid: str) -> None:
+def _commit_deck_edit(access: DeckAccess, name: str, deck_uuid: str, *, id_prefix: str | None = None) -> None:
     """PUSH a just-applied local deck edit to the source, unless it is ephemeral.
 
     A SYNCED deck edit must be committed through the source ceremony at the edit
     boundary — otherwise a later ``read_deck`` (whose W4 pull policy re-pulls a
     stale source) would silently revert the local edit. An EPHEMERAL draft has no
     source to push to, so it stays purely local (that is the point of a draft).
+
+    r8-m6: an ``--id``-addressed edit commits by the RESOLVED UUID (``id_prefix``),
+    not by name — under dup names a name-keyed commit re-hit the ambiguity refusal,
+    so the verb's own "Re-run with --id" advice failed. A NAME-addressed edit commits
+    by name (KEEPING the dup-name wall — that backstopped r8-M3).
     """
     from pipeline.decks import DecksStore
 
     row = DecksStore().get_row(deck_uuid)
     if row is not None and row.sync_status == 'synced' and row.source_ref is not None:
-        access.push(name)
+        if id_prefix is not None:
+            access.push(name, id_prefix=id_prefix)
+        else:
+            access.push(name)
 
 
-def _commit_deck_edit_transactional(access: DeckAccess, name: str, deck_uuid: str, pre_edit: Deck | None) -> None:
+def _commit_deck_edit_transactional(
+    access: DeckAccess, name: str, deck_uuid: str, pre_edit: Deck | None, *, id_prefix: str | None = None
+) -> None:
     """Commit a just-applied edit; ROLL BACK the local edit if the commit is refused (M5 tail).
 
     Transactional edit+commit: the typed edit already landed locally; this pushes it
@@ -555,7 +565,7 @@ def _commit_deck_edit_transactional(access: DeckAccess, name: str, deck_uuid: st
     from pipeline.decks import DecksStore
 
     try:
-        _commit_deck_edit(access, name, deck_uuid)
+        _commit_deck_edit(access, name, deck_uuid, id_prefix=id_prefix)
     except Exception:
         if pre_edit is not None:
             DecksStore().rollback_failed_edit(deck_uuid, pre_edit)
@@ -618,7 +628,7 @@ def _deck_swap(argv: list[str]) -> None:
     store_ = DecksStore()
     pre_edit = store_.get(deck_uuid)
     store_.swap(deck_uuid, add=DeckCard(name=add_name, role=args.role), cut=cut_name, rationale=args.why)
-    _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit)
+    _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit, id_prefix=args.id_prefix)
     print(f'deck-swap: {eff_name}  -{cut_name}  +{add_name}')
 
 
@@ -642,7 +652,7 @@ def _deck_add(argv: list[str]) -> None:
     store_ = DecksStore()
     pre_edit = store_.get(deck_uuid)
     store_.add_card(deck_uuid, DeckCard(name=card_name, quantity=args.qty, role=args.role), rationale=args.why)
-    _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit)
+    _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit, id_prefix=args.id_prefix)
     print(f'deck-add: {eff_name}  +{args.qty}x {card_name}')
 
 
@@ -666,7 +676,7 @@ def _deck_remove(argv: list[str]) -> None:
     store_ = DecksStore()
     pre_edit = store_.get(deck_uuid)
     store_.remove_card(deck_uuid, card_name, qty=args.qty, rationale=args.why)
-    _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit)
+    _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit, id_prefix=args.id_prefix)
     print(f'deck-remove: {eff_name}  -{args.qty}x {card_name}')
 
 
@@ -836,6 +846,9 @@ def _undo_deck(argv: list[str]) -> None:
     deck_uuid, eff_name = _resolve_edit_target(access, args.deck, args.id_prefix)
     store_ = DecksStore()
     pre_edit = store_.get(deck_uuid)
+    # r8-m4: snapshot the undo cursor BEFORE the undo advances it, so a refused commit
+    # can roll it back too (else the next undo would silently skip the refused step).
+    pre_cursor = store_.undo_cursor(deck_uuid)
     restored = store_.undo(deck_uuid)
     if restored is None:
         print(f'undo-deck: {eff_name} — nothing to undo')
@@ -843,8 +856,14 @@ def _undo_deck(argv: list[str]) -> None:
         # The restore is a local edit; commit it so a synced deck's source reflects
         # the step-back (else the next read re-pulls the un-done state). r7-m3:
         # TRANSACTIONAL like set-*/deck-* — a drift/dead-binding-refused commit must
-        # not leave the undo half-applied under exit 1; roll it back and re-raise.
-        _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit)
+        # not leave the undo half-applied under exit 1; roll it back and re-raise. r8-m4:
+        # the transactional rollback pops the restored CONTENT; also reset the CURSOR to
+        # its pre-undo snapshot so the refused attempt does not burn an undo step.
+        try:
+            _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit, id_prefix=args.id_prefix)
+        except Exception:
+            store_.restore_undo_cursor(deck_uuid, pre_cursor)
+            raise
         print(f'undo-deck: {eff_name} — restored to {sum(c.quantity for c in restored.cards)} cards')
 
 
@@ -927,16 +946,8 @@ def _push(argv: list[str]) -> None:
         help='Allow a push that SHRINKS an at-target deck below target (the source shrink ceremony).',
     )
     parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
-    parser.add_argument(
-        '--recreate',
-        action='store_true',
-        help='Intentionally RECREATE a source whose binding is dead (its file/record was deleted or '
-        're-identified). Without this, a dead binding REFUSES rather than silently recreate/fork it.',
-    )
     args = parser.parse_args(argv)
-    _deck_access(writes_enabled=True).push(
-        args.name or '', allow_shrink=args.confirm, id_prefix=args.id_prefix, recreate=args.recreate
-    )
+    _deck_access(writes_enabled=True).push(args.name or '', allow_shrink=args.confirm, id_prefix=args.id_prefix)
     print(f'push: {args.name if args.id_prefix is None else args.id_prefix}')
 
 
@@ -947,16 +958,8 @@ def _sync(argv: list[str]) -> None:
     parser.add_argument('name', nargs='?')
     parser.add_argument('--confirm', action='store_true', help='Allow a shrinking push (see `push --confirm`).')
     parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
-    parser.add_argument(
-        '--recreate',
-        action='store_true',
-        help='Intentionally RECREATE a source whose binding is dead (deleted/re-identified) instead of '
-        'refusing.',
-    )
     args = parser.parse_args(argv)
-    _deck_access(writes_enabled=True).sync(
-        args.name or '', allow_shrink=args.confirm, id_prefix=args.id_prefix, recreate=args.recreate
-    )
+    _deck_access(writes_enabled=True).sync(args.name or '', allow_shrink=args.confirm, id_prefix=args.id_prefix)
     print(f'sync: {args.name if args.id_prefix is None else args.id_prefix}')
 
 
@@ -1282,15 +1285,29 @@ def _recover_decks(argv: list[str]) -> None:
     # r7-m5: the admin recovery verb must not silently collapse dup names into a
     # last-wins ``{name: deck}`` dict — recovering "Precious" when two exist would
     # write to an arbitrary one. Refuse loudly, naming the duplicated name(s).
+    #
+    # r8-m5: but SCOPE the refusal. Refusing ALL recovery whenever ANY dup name
+    # exists anywhere blocks recovering a uniquely-named deck. When the user names
+    # decks, refuse only if a REQUESTED name is duplicated; when recovering all,
+    # skip the dup names and recover the rest (still naming the dups we skipped).
     from collections import Counter
 
-    dup_names = sorted(n for n, c in Counter(d.name for d in listed).items() if c > 1)
-    if dup_names:
-        raise CollectionError(
-            f'refusing to recover: duplicate deck name(s) {dup_names} — recover-decks '
-            'addresses decks by name and cannot disambiguate. Resolve the duplicates first.'
+    all_dup_names = {n for n, c in Counter(d.name for d in listed).items() if c > 1}
+    if args.names:
+        requested_dups = sorted(n for n in args.names if n in all_dup_names)
+        if requested_dups:
+            raise CollectionError(
+                f'refusing to recover: duplicate deck name(s) {requested_dups} — recover-decks '
+                'addresses decks by name and cannot disambiguate. Resolve the duplicates first.'
+            )
+    elif all_dup_names:
+        # Recovering ALL: the dup names are un-addressable by name, so skip them and
+        # recover the uniquely-named decks. Name what we skipped so it is not silent.
+        print(
+            f'note: skipping duplicate deck name(s) {sorted(all_dup_names)} — '
+            'they cannot be addressed by name; resolve the duplicates to recover them.'
         )
-    all_decks = {d.name: d for d in listed}
+    all_decks = {d.name: d for d in listed if d.name not in all_dup_names}
     if args.names:
         missing_names = [n for n in args.names if n not in all_decks]
         if missing_names:
@@ -1699,6 +1716,7 @@ def main() -> None:
         VERBS[verb](sys.argv[2:])
     except (
         FileNotFoundError,
+        PermissionError,
         CollectionError,
         ReadOnlyStoreError,
         AirtableConfigError,
@@ -1707,11 +1725,11 @@ def main() -> None:
         DeadBindingError,
     ) as exc:
         # EXPECTED, user-facing failures only (unknown deck, bad --field, malformed
-        # YAML, bad user JSON, missing creds, Airtable schema/read-only errors):
-        # surface a clean one-line message instead of a raw traceback. A genuine
-        # bug (KeyError / RuntimeError / ValidationError / AttributeError) is NOT
-        # caught here — it tracebacks so the defect stays visible. SystemExit
-        # (argparse, guards) passes through untouched.
+        # YAML, bad user JSON, missing creds, Airtable schema/read-only errors, a
+        # read-only collection dir — r8-m3/F13): surface a clean one-line message
+        # instead of a raw traceback. A genuine bug (KeyError / RuntimeError /
+        # ValidationError / AttributeError) is NOT caught here — it tracebacks so the
+        # defect stays visible. SystemExit (argparse, guards) passes through untouched.
         print(f'error: {exc}', file=sys.stderr)
         raise SystemExit(1) from exc
 

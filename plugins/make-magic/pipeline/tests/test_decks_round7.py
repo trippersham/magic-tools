@@ -13,9 +13,9 @@ belts around it (the re-keyed backfill marker; save-deck's refusal-before-put):
 - **r7-B1:** an in-place legacy restore (``cp backup.yaml decks/vault.yaml`` — no
   dir-mtime bump) invalidates the re-keyed marker so the backfill heals the row,
   and a subsequent write does NOT destroy the restored file.
-- **r7-M2:** a deleted bound file / a re-uuid'd bound file → every write REFUSES
-  (no silent recreate, no fork; a foreign edit in the re-uuid'd file survives).
-  ``--recreate`` is the explicit opt-in override.
+- **r7-M2:** a deleted bound file / a re-uuid'd bound file → every EDIT write REFUSES
+  (no silent recreate, no fork; a foreign edit in the re-uuid'd file survives). P11
+  removed the ``--recreate`` override — recovery is a fresh-identity ``save-deck``.
 - **r7-M1:** a dup-name ``save-deck`` is refused BEFORE any put, so its content is
   never staged into a row for a later ``sync`` to land.
 - **r7-m2:** ``pull`` under dup names refuses with the candidate list.
@@ -231,7 +231,9 @@ def test_r7_m2a_deleted_bound_file_write_refuses_no_silent_recreate(cli, data_di
         _expire('Treasure')
         code, _out, err = cli(*verb)
         assert code == 1, f'{verb} should refuse a dead binding, got exit {code}'
-        assert 'gone or was re-identified' in err
+        # P11 honest message: names ONLY save-deck; no circular "pull"; no --recreate.
+        assert 'deck file' in err and 'save-deck' in err
+        assert 'pull' not in err.lower() and 'recreate' not in err.lower()
         # The source was NOT silently recreated.
         assert _yaml_files(data_dir) == []
 
@@ -252,31 +254,42 @@ def test_r7_m2b_reuuid_bound_file_write_refuses_no_fork_foreign_edit_survives(cl
     _expire('Gruul')
 
     code, _out, err = cli('push', 'Gruul')
-    assert code == 1 and 'gone or was re-identified' in err
+    assert code == 1 and 'deck file' in err and 'save-deck' in err
+    assert 'pull' not in err.lower() and 'recreate' not in err.lower()
     # No disambiguated FORK file (gruul-xxxx.yaml) was created; the foreign edit lives on.
     assert _yaml_files(data_dir) == ['gruul.yaml']
     assert 'Foreign Addition' in gruul.read_text()
 
     _expire('Gruul')
     code, _out, err = cli('deck-add', 'Gruul', 'X Card')
-    assert code == 1 and 'gone or was re-identified' in err
+    assert code == 1 and 'deck file' in err and 'save-deck' in err
     assert _yaml_files(data_dir) == ['gruul.yaml']
     assert 'Foreign Addition' in gruul.read_text()
 
 
-def test_r7_m2_recreate_override_recreates_deleted_source(cli, data_dir):
-    """``--recreate`` is the explicit opt-in: it recreates a deleted source, no refusal."""
+def test_r7_m2_deleted_source_recovers_via_fresh_save(cli, data_dir):
+    """P11 (replaces ``--recreate``): a deleted source recovers via a fresh-identity save.
+
+    Where round 7 had an explicit ``--recreate`` flag, P11 removes it: recovery is a
+    normal ``save-deck`` that creates a brand-new source at a fresh identity. The edit
+    verbs still REFUSE the dead binding; ``save-deck`` is the one recovery path.
+    """
     _save_source(cli, data_dir, 'Recr', filler=99, prefix='RCard')
     assert cli('get-deck', 'Recr')[0] == 0
     (_decks_dir(data_dir) / 'recr.yaml').unlink()
     os.utime(_decks_dir(data_dir))
 
+    # An edit verb still refuses (no --recreate escape hatch).
     _expire('Recr')
-    assert cli('sync', 'Recr')[0] == 1  # refuses without the override
+    assert cli('sync', 'Recr')[0] == 1
     assert _yaml_files(data_dir) == []
 
+    # save-deck recovers: it writes a FRESH file and rebinds the row.
     _expire('Recr')
-    code, _out, err = cli('sync', 'Recr', '--recreate')
+    payload = _commander_deck('Recr', filler=99, prefix='RCard').model_dump(mode='json')
+    p = data_dir / 'recover.json'
+    p.write_text(json.dumps(payload))
+    code, _out, err = cli('save-deck', '--from-json', str(p))
     assert code == 0, err
     assert _yaml_files(data_dir) == ['recr.yaml']
     _expire('Recr')
@@ -472,13 +485,15 @@ def test_r7_m4_airtable_bound_row_under_local_does_not_clobber_local_file(data_d
 
 
 def test_r7_m5_recover_decks_refuses_dup_names(cli, data_dir):
+    """A REQUESTED duplicate name is refused (r7-m5), now scoped to the request (r8-m5)."""
     _save_source(cli, data_dir, 'Precious', filler=99, prefix='OrigCard')
     assert cli('get-deck', 'Precious')[0] == 0
     assert cli('new-draft', 'JunkB', '--commander', 'Grumgully, the Generous', '--format', 'Commander')[0] == 0
     assert cli('deck-add', 'JunkB', 'Junk Card 1')[0] == 0
     assert cli('promote-deck', 'JunkB', '--to', 'Precious')[0] == 0
 
-    code, _out, err = cli('recover-decks')
+    # Explicitly requesting the dup name is refused (un-addressable by name).
+    code, _out, err = cli('recover-decks', 'Precious')
     assert code == 1
     assert 'duplicate deck name' in err
     assert 'Precious' in err

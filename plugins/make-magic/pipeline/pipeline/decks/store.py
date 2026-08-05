@@ -405,12 +405,13 @@ class DecksStore:
             )
 
     def replace_external_ids(self, deck_uuid: str, ext: dict[str, str]) -> None:
-        """Replace a row's ``external_ids`` map wholesale (used to DROP a dead ref, P10).
+        """Replace a row's ``external_ids`` map wholesale (used to DROP a dead ref, P11).
 
         Unlike :meth:`set_external_id` (which merges a single key), this writes the
-        whole map — the ``--recreate`` override drops the active backend's now-dead
-        ref so a subsequent write is a clean first push, not an adoption of the stale
-        slug path. Bookkeeping only: it does NOT touch ``deck_json`` (no ledger version).
+        whole map — the fresh-identity recovery save (``access._prepare_recovery``,
+        P11) drops the now-dead ref so the subsequent create is a clean first push, not
+        an adoption of the stale slug path. Bookkeeping only: it does NOT touch
+        ``deck_json`` (no ledger version).
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
@@ -1066,3 +1067,25 @@ class DecksStore:
             _ensure_decks_table(conn)
             history.set_undo_cursor(conn, deck_uuid, prior_seq)
         return prior
+
+    def undo_cursor(self, deck_uuid: str) -> int | None:
+        """Return the persisted undo-cursor seq (or None at head) — r8-m4 rollback snapshot."""
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            return history.get_undo_cursor(conn, deck_uuid)
+
+    def restore_undo_cursor(self, deck_uuid: str, cursor: int | None) -> None:
+        """Reset the undo cursor to a prior snapshot after a REFUSED undo commit (r8-m4).
+
+        A drift/dead-binding-refused ``undo-deck`` rolls the CONTENT back
+        (:meth:`rollback_failed_edit` pops the restored head version), but the cursor
+        had already been advanced to the restored version's seq — so the next undo
+        would SKIP the refused step. This resets the cursor to what it was BEFORE the
+        refused undo (``None`` restores it to head), so no step is silently burned.
+        """
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            if cursor is None:
+                history.reset_undo_cursor(conn, deck_uuid)
+            else:
+                history.set_undo_cursor(conn, deck_uuid, cursor)
