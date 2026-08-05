@@ -36,26 +36,27 @@ check and reports back.
 
 ## Just ask
 
-You talk; make-magic does the work. A few things you can say:
+You talk; make-magic does the work. The kinds of things it's actually good at:
 
 **Build & improve decks**
-- *"Build a Krenko goblins deck."*
-- *"Optimize my Ozai deck."* / *"What should I add to it from the latest set?"*
-- *"Is Sol Ring good in my Krenko deck?"* / *"Should I run [card] in [deck]?"*
-- *"Diagnose my deck — what's it missing? Is it too glass-cannon?"*
-- *"Propose a few swaps to make it faster, and explain the tradeoffs."*
+- *"Build a Krenko goblins deck around going wide and alpha-striking."*
+- *"Diagnose my Yuriko deck — do I have enough interaction, or am I too all-in on the commander?"*
+- *"Is Rhystic Study worth the table hatred here, or does it not pull its weight in this deck?"*
+- *"Is The Great Henge a trap in my list, or do I have the creature base to turn it on?"*
+- *"Help me find the last five cuts — I'm over 100 and can't decide."*
+- *"Lightning Greaves or Swiftfoot Boots for Krenko?"* — *"Which quadrant is this deck weakest in?"*
 
 **See how it plays**
-- *"How does my Krenko deck actually play? Simulate it."*
-- *"A/B these two versions over ~300 games and tell me which is better."*
+- *"How does my Yuriko deck actually play? Sim it against the guilds gauntlet."*
+- *"A/B my Cyclonic Rift build against the no-Rift version over ~300 games — is the salt worth it?"*
 
-**Manage your collection**
-- *"Add Sol Ring to my inventory."* / *"I picked up a foil Ragavan."*
-- *"Track Ragavan as a card I want."*
-- *"Is trading my [X] for [Y] a good deal for my Krenko deck?"*
+**Manage your collection & trades**
+- *"Add the foil Ragavan I just pulled."* — *"Track Smothering Tithe as a card I want."*
+- *"Is trading my Rhystic Study for their Smothering Tithe a fair deal for my Selvala deck?"*
 
-Claude picks the right skill for each request and does the analysis — you never touch a
-command line.
+Claude picks the right skill, reasons about strategy fit (not raw power), and does the
+analysis — you never touch a command line. *(And yes, you can still ask whether Sol Ring
+belongs in your deck. It does. It always does.)*
 
 ---
 
