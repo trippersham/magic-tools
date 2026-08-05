@@ -340,12 +340,24 @@ class LocalYamlStore:
         if bound is not None:
             return bound
         base = self._deck_path(deck.name)
-        base_uuid = self._file_uuid(base) if base.exists() else None
-        # The base slug is FREE (no file), UNCLAIMED (a legacy file with no in-file
-        # uuid — upgrade it in place), or already OURS -> use it. Only a base file
-        # bound to a DIFFERENT uuid forces a disambiguated path (the collision case).
-        if not base.exists() or base_uuid is None or base_uuid == deck.uuid:
-            return base
+        if not base.exists():
+            return base  # the base slug is FREE.
+        base_uuid = self._file_uuid(base)
+        if base_uuid == deck.uuid:
+            return base  # the base file is already OURS.
+        # A base file with NO in-file uuid (a legacy pre-P6 file) may be upgraded in
+        # place ONLY when it is the SAME deck by NAME — a legacy file is NEVER a free
+        # upgrade target for a DIFFERENT deck that merely shares the slug (F1). The
+        # shrink ceremony in ``save_deck`` still guards a same-name upgrade.
+        if base_uuid is None:
+            try:
+                stored = self._load_deck_from_dict(yaml.safe_load(base.read_text()) or {}, path=base)
+            except CollectionError:
+                stored = None
+            if stored is not None and stored.name == deck.name:
+                return base
+        # Base file bound to a DIFFERENT uuid (or a legacy file for a DIFFERENT deck)
+        # -> disambiguate so we never overwrite an unrelated file (the collision case).
         return self._decks_dir() / f'{_slugify(deck.name)}-{deck.uuid[:8]}.yaml'
 
     @staticmethod
@@ -423,14 +435,63 @@ class LocalYamlStore:
         decks_dir = self._decks_dir()
         if not decks_dir.exists():
             return None
+        matches: list[Path] = []
         for path in sorted(decks_dir.glob('*.yaml')):
             try:
                 data = yaml.safe_load(path.read_text()) or {}
             except yaml.YAMLError:
                 continue
             if isinstance(data, dict) and data.get('uuid') == uuid:
-                return path
-        return None
+                matches.append(path)
+        if not matches:
+            return None
+        if len(matches) > 1:
+            # A user-duplicated deck FILE (same in-file uuid twice, e.g. a hand-made
+            # backup) would otherwise split reads and writes across files and lose
+            # edits silently (F11). Refuse loudly, naming both offending paths.
+            names = ', '.join(p.name for p in matches)
+            raise CollectionError(
+                f'duplicate deck file: {len(matches)} files share the in-file uuid {uuid!r} '
+                f'({names}). Deck uuids must be unique — delete or re-uuid the extra copy '
+                '(renaming the FILE is fine; two files carrying the same uuid is not).'
+            )
+        return matches[0]
+
+    def backfill_deck_uuids(self) -> dict[str, str]:
+        """Inject an in-file ``uuid`` (+ the protective header) into every LEGACY deck file.
+
+        The §7 migration backfill (F1/F12): a pre-P6 YAML deck carries NO in-file
+        uuid, so ``_deck_save_path`` used to treat it as an unclaimed upgrade target
+        and the slug-collision guard could not protect it. Walk ``collection/decks/
+        *.yaml`` and, for each file MISSING a uuid, mint one and rewrite the file
+        with the ``uuid`` first key + header — ADDITIVE (card content preserved) and
+        IDEMPOTENT (a file that already carries a uuid is left byte-identical, never
+        re-minted). LOCAL-only; no Airtable, no network.
+
+        Returns ``{name: uuid}`` for the files it touched (the newly-assigned uuids),
+        so a caller can bind ``external_ids['local']`` to the file's real in-file uuid.
+        """
+        from uuid import uuid4
+
+        decks_dir = self._decks_dir()
+        if not decks_dir.exists():
+            return {}
+        assigned: dict[str, str] = {}
+        for path in sorted(decks_dir.glob('*.yaml')):
+            try:
+                data = yaml.safe_load(path.read_text()) or {}
+            except yaml.YAMLError:
+                continue  # a malformed file is left untouched (surfaces on real read).
+            if not isinstance(data, dict) or data.get('uuid'):
+                continue  # already carries a uuid — idempotent skip.
+            new_uuid = uuid4().hex
+            # ``uuid`` MUST be the first key so the header sits directly above it.
+            reordered = {'uuid': new_uuid, **data}
+            self._write_deck_yaml(path, reordered)
+            name = data.get('name')
+            if isinstance(name, str):
+                assigned[name] = new_uuid
+        return assigned
 
     def list_decks(self) -> list[Deck]:
         decks_dir = self._decks_dir()
@@ -446,11 +507,14 @@ class LocalYamlStore:
         # Bind to THIS deck's file (by uuid, then a free/own slug) so a dup-named
         # deck can never overwrite an unrelated file (slug-collision guard, B1).
         path = self._deck_save_path(deck)
-        if not allow_shrink and path.exists() and self._file_uuid(path) == deck.uuid:
-            # Defensive shrink guard (Phase 4): refuse a save that drops an
+        if not allow_shrink and path.exists():
+            # Defensive shrink guard (Phase 4 + F1): refuse a save that drops an
             # at-target deck under target unless explicitly allowed. Compare against
-            # the SAME deck's prior file (a different deck sharing the slug never
-            # gates this save — it lands on a disambiguated path instead).
+            # the file's CURRENT contents REGARDLESS of uuid match — a legacy (no
+            # in-file uuid) file must not be a free upgrade target that bypasses the
+            # ceremony (``_deck_save_path`` already routes a DIFFERENT deck to a
+            # disambiguated path, so a compared shrink here is a genuine same-file
+            # gutting write).
             prior = self._load_deck_from_dict(yaml.safe_load(path.read_text()) or {}, path=path)
             if shrink_check(prior, deck):
                 raise CollectionError(

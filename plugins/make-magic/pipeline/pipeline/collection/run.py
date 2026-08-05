@@ -70,7 +70,36 @@ def _store(*, writes_enabled: bool = False) -> CollectionStore:
     it unchanged (W1: only the DECK verbs route through the local decks store via
     :func:`_deck_access`).
     """
-    return get_store(writes_enabled=writes_enabled)
+    store = get_store(writes_enabled=writes_enabled)
+    _backfill_local_deck_uuids(store)
+    return store
+
+
+def _backfill_local_deck_uuids(store: CollectionStore) -> None:
+    """Run the §7 legacy-YAML uuid backfill once for the local backend (F1/F12).
+
+    Additive + idempotent: injects an in-file ``uuid`` into every pre-P6 deck file
+    lacking one so it stops being an unclaimed clobber target, then binds each
+    touched deck's local row ``external_ids['local']`` to the file's real in-file
+    uuid. LOCAL-only; a no-op for the Airtable backend. Guarded so a store built
+    for a store with no decks dir (or a driver without the hook) is a cheap no-op.
+    """
+    backfill = getattr(store, 'backfill_deck_uuids', None)
+    if backfill is None:
+        return
+    try:
+        assigned = backfill()
+    except Exception:  # a backfill hiccup must never break an unrelated verb.
+        return
+    if not assigned:
+        return
+    from pipeline.decks import DecksStore
+
+    decks = DecksStore()
+    for name, file_uuid in assigned.items():
+        bound = decks.uuid_for_name(name)
+        if bound is not None:
+            decks.set_external_id(bound, 'local', file_uuid)
 
 
 def _deck_access(*, writes_enabled: bool = False) -> DeckAccess:
@@ -84,7 +113,9 @@ def _deck_access(*, writes_enabled: bool = False) -> DeckAccess:
     """
     from pipeline.decks.access import deck_access
 
-    return deck_access(get_store(writes_enabled=writes_enabled))
+    store = get_store(writes_enabled=writes_enabled)
+    _backfill_local_deck_uuids(store)
+    return deck_access(store)
 
 
 def _dump(models: BaseModel | Sequence[BaseModel]) -> str:
@@ -222,7 +253,7 @@ def _archive_deck(argv: list[str]) -> None:
     args = parser.parse_args(argv)
     from pipeline.decks import DecksStore
 
-    deck_uuid = _resolve_target(_deck_access(), args.deck, args.id_prefix)
+    deck_uuid = _resolve_existing_local(_deck_access(), args.deck, args.id_prefix)
     DecksStore().archive(deck_uuid)
     print(f'archive-deck: {args.deck if args.id_prefix is None else args.id_prefix}')
 
@@ -237,7 +268,7 @@ def _unarchive_deck(argv: list[str]) -> None:
     args = parser.parse_args(argv)
     from pipeline.decks import DecksStore
 
-    deck_uuid = _resolve_target(_deck_access(), args.deck, args.id_prefix)
+    deck_uuid = _resolve_existing_local(_deck_access(), args.deck, args.id_prefix)
     DecksStore().unarchive(deck_uuid)
     print(f'unarchive-deck: {args.deck if args.id_prefix is None else args.id_prefix}')
 
@@ -406,6 +437,26 @@ def _resolve_target(access: DeckAccess, name: str | None, id_prefix: str | None)
     return access.resolve(name)
 
 
+def _resolve_existing_local(access: DeckAccess, name: str | None, id_prefix: str | None) -> str:
+    """Resolve a verb that requires an EXISTING LOCAL row (archive/unarchive) — clean miss.
+
+    Unlike ``_resolve_target``, a name-miss here is NOT a create: the resolver would
+    mint a fresh uuid and the downstream op would raise ``no deck with id '<hex>'``,
+    leaking a uuid the user never saw (F13). Instead, a missing local row is a clean
+    ``error: no deck named 'X'`` — never a minted uuid, never a filesystem path.
+    """
+    if id_prefix is not None:
+        return access.resolve(id_prefix=id_prefix)
+    if not name:
+        raise CollectionError('a deck name or --id prefix is required')
+    from pipeline.decks import DecksStore
+
+    deck_uuid = DecksStore().uuid_for_name(name)
+    if deck_uuid is None:
+        raise CollectionError(f'no deck named {name!r}')
+    return deck_uuid
+
+
 def _resolve_deck_uuid(access: DeckAccess, name: str) -> str:
     """Resolve a deck NAME to the local ``deck_uuid`` the edit verbs operate on.
 
@@ -417,13 +468,10 @@ def _resolve_deck_uuid(access: DeckAccess, name: str) -> str:
     pull minted. A name that is neither a known draft nor a readable source deck
     surfaces the source's clean error.
     """
-    uuid = access.resolve(name)
-    if access.has_local_row(uuid):
-        return uuid
-    # Synced: pull the source deck into the local store so an edit has a row (bound
-    # by external ref), then re-resolve to the uuid the pull persisted under.
-    access.read_deck(name)
-    return access.resolve(name)
+    # Bind by external ref so a case-alias / rename WRITE lands on the ONE canonical
+    # row (F9 — the M4 write-path fix), never a freshly-minted uuid. ``resolve_bound``
+    # short-circuits a directly-resolvable name and otherwise reads/binds the source.
+    return access.resolve_bound(name)
 
 
 def _resolve_edit_target(access: DeckAccess, name: str | None, id_prefix: str | None) -> tuple[str, str]:
@@ -445,7 +493,15 @@ def _resolve_edit_target(access: DeckAccess, name: str | None, id_prefix: str | 
         return deck_uuid, eff_name
     if not name:
         raise CollectionError('a deck name or --id prefix is required')
-    return _resolve_deck_uuid(access, name), name
+    deck_uuid = _resolve_deck_uuid(access, name)
+    # The effective name must be the ROW's CANONICAL name (not the raw alias) so the
+    # commit-boundary push resolves back to THIS row (F9): pushing under a cased alias
+    # would re-mint a uuid and fail. Fall back to the given name if the row is absent.
+    from pipeline.decks import DecksStore
+
+    row = DecksStore().get_row(deck_uuid)
+    eff_name = row.name if row is not None else name
+    return deck_uuid, eff_name
 
 
 def _commit_deck_edit(access: DeckAccess, name: str, deck_uuid: str) -> None:
@@ -591,6 +647,24 @@ def _deck_remove(argv: list[str]) -> None:
     print(f'deck-remove: {eff_name}  -{args.qty}x {card_name}')
 
 
+def _source_deck_exists(name: str) -> bool:
+    """True iff a deck named ``name`` reads on the source of record (one cheap probe).
+
+    Backs the F7 new-draft collision guard: ``resolve`` consults only LOCAL rows, so
+    a never-pulled source deck is invisible to it. A direct ``driver.get_deck`` probe
+    (name/slug for local YAML; a filterByFormula for Airtable) surfaces it. A miss
+    (``FileNotFoundError`` / any read error) reads as "not on the source" — the guard
+    then permits the draft.
+    """
+    try:
+        _store().get_deck(name)
+    except FileNotFoundError:
+        return False
+    except Exception:
+        return False
+    return True
+
+
 def _new_draft(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog='collection new-draft',
@@ -600,6 +674,11 @@ def _new_draft(argv: list[str]) -> None:
     parser.add_argument('--from', dest='source', default=None, help='Copy an existing deck as the starting point.')
     parser.add_argument('--commander', default=None, help='Commander card name (clean-slate only).')
     parser.add_argument('--format', dest='format_', default=None, help="Deck format (e.g. 'Commander').")
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Make a same-named draft even when a deck of that name already exists on the source.',
+    )
     args = parser.parse_args(argv)
 
     from uuid import uuid4
@@ -607,6 +686,15 @@ def _new_draft(argv: list[str]) -> None:
     from pipeline.decks import DecksStore
 
     decks = DecksStore()
+    # F7 (USER DECISION): a clean-slate draft named after an EXISTING source deck is
+    # refused without --force — a same-named draft silently SHADOWS the source deck
+    # (get-deck / set-strategy land on the draft; the real deck is unreachable by
+    # name). One cheap driver probe; --from is exempt (it deliberately branches).
+    if args.source is None and not args.force and _source_deck_exists(args.name):
+        raise CollectionError(
+            f'a deck named {args.name!r} already exists on the source; use --from to branch '
+            'it into an exploration draft, or --force to make a same-named draft anyway.'
+        )
     derived_from: str | None = None
     if args.source is not None:
         # An exploration COPY of an existing deck — read it via the access path
@@ -624,8 +712,13 @@ def _new_draft(argv: list[str]) -> None:
         )
     else:
         # A clean-slate draft: a minimal Deck (name/format + optional commander); its
-        # uuid is minted by the Deck model's default_factory. No lineage.
-        cards = [DeckCard(name=args.commander, role='commander')] if args.commander else []
+        # uuid is minted by the Deck model's default_factory. No lineage. The
+        # commander is CANONICALIZED (F10 — the M3 hole one verb over): a raw
+        # ``krenko, mob boss`` becomes canonical so a later ``deck-add`` of the same
+        # card merges into the one entry instead of spawning a duplicate singleton.
+        cards = (
+            [DeckCard(name=_resolve_card_name(args.commander), role='commander')] if args.commander else []
+        )
         draft = Deck(name=args.name, format=args.format_, cards=cards)
     deck_uuid = decks.create_ephemeral(draft, derived_from=derived_from)
     print(f'new-draft: {args.name} [ephemeral] ({deck_uuid})')
@@ -640,7 +733,13 @@ def _promote_deck(argv: list[str]) -> None:
             'clean-slate draft CREATES a new source deck named --to.'
         ),
     )
-    parser.add_argument('deck', help='The ephemeral draft name to promote.')
+    parser.add_argument('deck', nargs='?', help='The ephemeral draft name to promote.')
+    parser.add_argument(
+        '--id',
+        dest='id_prefix',
+        default=None,
+        help='Address the draft by deck_uuid prefix (disambiguates dup-named drafts; overrides name).',
+    )
     parser.add_argument(
         '--to',
         dest='source_name',
@@ -651,31 +750,58 @@ def _promote_deck(argv: list[str]) -> None:
 
     from pipeline.decks import DecksStore, sync
 
+    access = _deck_access(writes_enabled=True)
     decks = DecksStore()
-    deck_uuid = decks.uuid_for_name(args.deck)
-    if deck_uuid is None or not decks.exists(deck_uuid):
-        raise CollectionError(f'no ephemeral draft named {args.deck!r} to promote')
+    # Route the lookup through the P2 resolver (F6): dup-named drafts REFUSE with a
+    # copy-paste candidate list rather than silently promoting the oldest; ``--id``
+    # is the escape hatch. A clean name-miss is a clear error (F13), never a uuid.
+    if args.id_prefix is not None:
+        deck_uuid = access.resolve(id_prefix=args.id_prefix)
+    elif args.deck:
+        if decks.uuid_for_name(args.deck) is None:
+            raise CollectionError(f"no deck named {args.deck!r} to promote")
+        deck_uuid = access.resolve(args.deck)
+    else:
+        raise CollectionError('promote-deck: a draft name or --id prefix is required')
+
     row = decks.get_row(deck_uuid)
-    is_exploration = row is not None and bool(row.derived_from)
+    if row is None or not decks.exists(deck_uuid):
+        raise CollectionError(f"no ephemeral draft named {args.deck!r} to promote")
+    # F5: promote is for DRAFTS only. A synced (or consumed) row is refused BEFORE
+    # any write, so a synced source deck can never be renamed in place by promoting it.
+    if row.sync_status != 'ephemeral':
+        raise CollectionError(
+            f'{row.name!r} is already a {row.sync_status} deck — promote is for drafts '
+            '(new-draft). Edit it directly, or branch it with new-draft --from.'
+        )
+    is_exploration = bool(row.derived_from)
     if not is_exploration and not args.source_name:
-        raise CollectionError(f'promote-deck {args.deck!r}: a clean-slate draft requires --to <name>')
+        raise CollectionError(f'promote-deck {row.name!r}: a clean-slate draft requires --to <name>')
 
     driver = _store(writes_enabled=True)
     sync.promote(decks, driver, deck_uuid=deck_uuid, to_name=args.source_name)
-    # The promoted content landed on the source of record; force-pull the affected
-    # canonical row current so a later `get-deck` within the W4 TTL reflects the
-    # promotion (exploration -> the parent; clean-slate -> the new deck under --to).
-    access = _deck_access(writes_enabled=True)
-    target_name = args.source_name if not is_exploration else None
-    if target_name:
-        access.pull(target_name)
-    landed = args.source_name or args.deck
-    print(f'promote-deck: {args.deck} -> {landed} [synced]')
+    # No force-pull (F4): ``sync.promote`` already made the affected canonical row
+    # current via its own ``decks.put`` — an exploration refreshes the PARENT row and
+    # a clean-slate makes the draft's OWN row synced. A name-addressed re-pull here
+    # would rebind a just-promoted --to name onto an UNRELATED same-named source deck.
+    if is_exploration:
+        # F16: an exploration lands on the lineage PARENT — name IT, not the draft.
+        parent_row = decks.get_row(row.derived_from) if row.derived_from else None
+        landed = parent_row.name if parent_row is not None else row.name
+    else:
+        landed = args.source_name or row.name
+    print(f'promote-deck: {row.name} -> {landed} [synced]')
 
 
 def _undo_deck(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
-        prog='collection undo-deck', description='Restore a deck to its prior ledger version (step back one edit).'
+        prog='collection undo-deck',
+        description=(
+            'Restore a deck to its prior ledger version (step back one edit). '
+            'NOTE: undo can undo a PULL — an intervening auto-pull is an undoable step, '
+            'so an undo after one steps back over it (the foreign source change is '
+            'recoverable via the ledger).'
+        ),
     )
     parser.add_argument('deck', nargs='?')
     parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')

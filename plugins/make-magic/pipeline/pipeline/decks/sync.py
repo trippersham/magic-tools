@@ -109,12 +109,10 @@ def push(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, allow_sh
     assert row is not None  # _require_row already validated it exists.
 
     local_version = version(local)  # type: ignore[arg-type]
-    try:
-        current_source = driver.get_deck(source_ref)
-    except FileNotFoundError:
-        # The source does not exist yet — this push CREATES it through the
-        # ceremony (nothing to drift against). Skip the drift check.
-        current_source = None
+    # Read the CURRENT source slug-proof: a dup-named local deck makes a name/slug read
+    # ambiguous, so prefer the row's bound in-file uuid (``get_deck_by_uuid``) — reading
+    # the base slug could pick an UNRELATED same-named deck and spuriously drift (F4).
+    current_source = _read_bound_source(decks, driver, deck_uuid, source_ref)
     current_source_version = version(current_source) if current_source is not None else None
 
     if (
@@ -140,8 +138,9 @@ def push(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, allow_sh
 
     # Baseline := the source AS RE-READ after the write, so a later drift check
     # compares like-for-like (the ceremony may canonicalize names on save; the
-    # baseline must be what ``get_deck`` reads back, not our pre-write local hash).
-    written_version = version(driver.get_deck(source_ref))
+    # baseline must be what the bound read reads back, not our pre-write local hash).
+    reread = _read_bound_source(decks, driver, deck_uuid, source_ref)
+    written_version = version(reread) if reread is not None else local_version
     decks.put(
         local,  # type: ignore[arg-type]
         deck_uuid=deck_uuid,
@@ -209,19 +208,31 @@ def _promote_exploration(
     parent_deck = decks.get(parent_uuid)
     assert parent_deck is not None
 
-    # The content to land = the draft's cards/metadata, but stamped with the PARENT's
-    # identity (uuid + name) so the save binds to the PARENT's source file/ref — not
-    # the draft's name. version() excludes uuid + name, so the baseline is unaffected.
-    to_source = draft.model_copy(update={'uuid': parent_deck.uuid, 'name': parent_deck.name})
-
-    # DRIFT GUARD against the parent's current source (reuse the push ceremony's
-    # semantics): if the source moved since the parent's baseline AND the new content
-    # is not already what we would write, refuse WITHOUT saving (M6 leaves the draft
-    # a clean ephemeral draft — no state was flipped).
+    # Read the parent's CURRENT source now — its own external identity (in-file uuid /
+    # recordId) is what the save must be stamped with, mirroring ``push`` (F2/F3). The
+    # local row PK is NOT that identity: in a migrated store the PK diverges from the
+    # source file's in-file uuid, and a ``--from`` draft deliberately NULLs the
+    # recordId, so stamping the PK forks the file (F2) / creates a junk duplicate
+    # Airtable row (F3). We reuse this read for the drift guard below.
     try:
         current_source = driver.get_deck(source_ref)
     except FileNotFoundError:
         current_source = None
+
+    # The content to land = the draft's cards/metadata, but stamped with the PARENT
+    # SOURCE's OWN external identity so the save binds to the parent's FILE/RECORD:
+    #   - name: the parent's name (address the same source deck, not the draft's name);
+    #   - uuid: the source file's in-file uuid (local YAML slug-collision guard writes
+    #     back to the SAME file) — fall back to the local row's bound 'local' ref, then
+    #     the parent PK only as a last resort;
+    #   - airtable_record_id: the parent record's recordId (adapter takes the
+    #     update_record branch — no duplicate create). version() excludes uuid + name +
+    #     record id, so the baseline hash is unaffected.
+    source_uuid = _source_local_uuid(decks, parent_uuid, current_source) or parent_deck.uuid
+    record_id = _source_record_id(decks, parent_uuid, current_source)
+    to_source = draft.model_copy(
+        update={'uuid': source_uuid, 'name': parent_deck.name, 'airtable_record_id': record_id}
+    )
     current_version = version(current_source) if current_source is not None else None
     to_source_version = version(to_source)
     if (
@@ -252,6 +263,61 @@ def _promote_exploration(
     decks.consume(deck_uuid)
 
 
+def _read_bound_source(
+    decks: DecksStore, driver: CollectionStore, deck_uuid: str, source_ref: str
+) -> Deck | None:
+    """Read the current source for a row, slug-proof: prefer its bound local in-file uuid.
+
+    A dup-named local deck makes a name/slug read AMBIGUOUS — the base slug could
+    return an UNRELATED same-named deck and cause a spurious drift or clobber the
+    wrong file (F4). When the row is bound to a ``local`` in-file uuid and the driver
+    supports a uuid read, read by THAT uuid; fall back to the name read (and to None
+    on a not-yet-existing source, so a create path is unaffected).
+    """
+    get_by_uuid = getattr(driver, 'get_deck_by_uuid', None)
+    file_uuid = _external_ref_value(decks, deck_uuid, 'local')
+    if get_by_uuid is not None and file_uuid:
+        try:
+            return get_by_uuid(file_uuid)
+        except FileNotFoundError:
+            pass
+    try:
+        return driver.get_deck(source_ref)
+    except FileNotFoundError:
+        return None
+
+
+def _external_ref_value(decks: DecksStore, deck_uuid: str, backend: str) -> str | None:
+    """Return the parent row's bound ``external_ids[backend]`` native ref (or None)."""
+    import json as _json
+
+    raw = decks.external_ids(deck_uuid)
+    if not raw:
+        return None
+    try:
+        ext = _json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(ext, dict):
+        return None
+    ref = ext.get(backend)
+    return ref if isinstance(ref, str) and ref else None
+
+
+def _source_local_uuid(decks: DecksStore, parent_uuid: str, current_source: Deck | None) -> str | None:
+    """The parent SOURCE's in-file uuid: the source read's own uuid, else the bound 'local' ref."""
+    if current_source is not None and current_source.uuid:
+        return current_source.uuid
+    return _external_ref_value(decks, parent_uuid, 'local')
+
+
+def _source_record_id(decks: DecksStore, parent_uuid: str, current_source: Deck | None) -> str | None:
+    """The parent SOURCE's Airtable recordId: the source read's own, else the bound 'airtable' ref."""
+    if current_source is not None and current_source.airtable_record_id:
+        return current_source.airtable_record_id
+    return _external_ref_value(decks, parent_uuid, 'airtable')
+
+
 def _promote_clean_slate(
     decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, draft: Deck, to_name: str
 ) -> None:
@@ -272,6 +338,15 @@ def _promote_clean_slate(
         synced_baseline=version(written),
         rationale=f'promote (clean-slate) -> {to_name}',
     )
+    # BIND the promoted row to ITS OWN source's external ref (F4): otherwise a later
+    # name-addressed read/pull of ``to_name`` would re-read the BASE slug file (an
+    # unrelated same-named deck) and rebind this row to it, redirecting every edit
+    # onto the wrong deck. The disambiguated file carries the draft's own in-file
+    # uuid; on Airtable a create just assigned a recordId.
+    if driver.backend_name == 'airtable' and written.airtable_record_id:
+        decks.set_external_id(deck_uuid, 'airtable', written.airtable_record_id)
+    elif written.uuid:
+        decks.set_external_id(deck_uuid, 'local', written.uuid)
 
 
 def _reread_source(driver: CollectionStore, source_ref: str, expected_uuid: str) -> Deck:

@@ -161,8 +161,14 @@ class DeckAccess:
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
     def _stamp_pulled(self, deck_uuid: str) -> None:
-        """Record the pull time in the local-only ``freshness`` column."""
-        self._decks.set_freshness(deck_uuid, {'pulled_at': datetime.now(tz=UTC).isoformat()})
+        """Record the pull time in the local-only ``freshness`` column.
+
+        MERGE (not set): a plain re-pull must PRESERVE the sibling ``assessment``
+        stamp (F8) — ``set_freshness`` would clobber the whole blob and erase the
+        M7 cross-session assessment staleness at the very session boundary it exists
+        for. Only the ``pulled_at`` key is touched.
+        """
+        self._decks.merge_freshness(deck_uuid, {'pulled_at': datetime.now(tz=UTC).isoformat()})
 
     def read_deck(self, name: str, *, id_prefix: str | None = None) -> Deck:
         """Return the deck for ``name`` (or ``--id`` prefix), applying the pull policy (W4).
@@ -197,6 +203,43 @@ class DeckAccess:
         if local is None:  # pragma: no cover - pull just wrote it.
             return self._driver.get_deck(name)
         return local
+
+    def resolve_bound(self, name: str) -> str:
+        """Resolve ``name`` to the ONE local ``deck_uuid`` it BINDS to (M4 on the write path).
+
+        A case-alias / rename write must land on the SAME row a read binds to. The
+        naive ``resolve(name)`` is exact-match against the canonical row name, so a
+        cased alias misses and mints a fresh uuid (F9: the M4-write regression). This
+        instead runs the read/bind path (``read_deck`` → ``_pull_bound`` binds the
+        alias to the canonical row via the source's external ref) and returns the
+        BOUND uuid, resolved by that external ref — never a freshly-minted hex.
+
+        Ephemeral drafts and already-resolvable names short-circuit through the plain
+        resolver; a genuine name-miss surfaces the resolver's clean error (F13).
+        """
+        # A directly-resolvable name (an ephemeral draft, an already-bound synced
+        # row, or a live source deck that resolves 1:1) needs no re-bind.
+        rows = self._decks.rows_for_name(name)
+        if len(rows) == 1:
+            return rows[0].deck_uuid
+        if len(rows) > 1:
+            raise DecksError(self._ambiguous_name_message(name, rows))
+        # No exact-name row: read the source (which binds the alias to the canonical
+        # row by external ref) and return that bound uuid.
+        source = self._read_source_rename_safe(name)
+        ext = self._external_ref(source)
+        if ext is not None:
+            bound = self._decks.uuid_for_external_ref(*ext)
+            if bound is not None:
+                return bound
+        # Fall through to the read/bind path (mints + binds a fresh row for a
+        # first-seen source deck), then resolve by the now-bound external ref.
+        self.read_deck(name)
+        if ext is not None:
+            bound = self._decks.uuid_for_external_ref(*ext)
+            if bound is not None:
+                return bound
+        return self.resolve(name)
 
     def _read_known_uuid(self, deck_uuid: str, *, name: str) -> Deck:
         """Serve a deck addressed by an EXISTING uuid, applying the pull policy."""
@@ -246,7 +289,19 @@ class DeckAccess:
                 # (e.g. a pre-binding local row), else mint from the source's own uuid
                 # so the local identity matches the source's in-file uuid.
                 bound = self._decks.uuid_for_name(name) or source.uuid
-            _sync.pull(self._decks, self._driver, deck_uuid=bound, source_ref=name)
+            # Persist the SOURCE we already read (bound by ref) rather than re-reading
+            # by the ambiguous name in ``pull`` — a name/slug re-read could return an
+            # UNRELATED same-named deck and clobber this bound row (F4). ``version``
+            # excludes uuid, so stamping the local PK leaves the baseline hash intact.
+            stamped = source if source.uuid == bound else source.model_copy(update={'uuid': bound})
+            self._decks.put(
+                stamped,
+                deck_uuid=bound,
+                sync_status='synced',
+                source_ref=name,
+                synced_baseline=version(stamped),
+                rationale=f'pull from {name}',
+            )
             self._decks.set_external_id(bound, backend, native_ref)
             return bound
         deck_uuid = self.resolve(name)
@@ -275,6 +330,26 @@ class DeckAccess:
                 if rid:
                     try:
                         return get_by_id(rid)
+                    except FileNotFoundError:
+                        pass
+        else:
+            # Local YAML: a name/slug is AMBIGUOUS under dup names — the base-slug read
+            # would return an UNRELATED same-named deck and rebind this row onto it
+            # (F4). When the name resolves to a SINGLE local row already bound to a
+            # 'local' in-file uuid, read the source by THAT uuid (rename/slug-proof)
+            # so a promoted/dup-named row keeps reading ITS OWN file.
+            get_by_uuid = getattr(self._driver, 'get_deck_by_uuid', None)
+            existing = self._decks.uuid_for_name(name)
+            if get_by_uuid is not None and existing is not None:
+                ext_raw = self._decks.external_ids(existing)
+                try:
+                    ext = json.loads(ext_raw) if ext_raw else {}
+                except (json.JSONDecodeError, TypeError):
+                    ext = {}
+                file_uuid = ext.get('local') if isinstance(ext, dict) else None
+                if file_uuid:
+                    try:
+                        return get_by_uuid(file_uuid)
                     except FileNotFoundError:
                         pass
         return self._driver.get_deck(name)
@@ -363,8 +438,11 @@ class DeckAccess:
                 self._read_known_uuid(deck_uuid, name=eff_name)
             return deck_uuid, eff_name
         assert name is not None
-        self.read_deck(name)  # pull-current / mint a row
-        return self.resolve(name), name
+        # Bind the (possibly aliased/renamed) name to the ONE canonical row and edit
+        # THAT row (F9 — the M4 write-path fix): ``resolve_bound`` reads/binds by the
+        # source's external ref and returns the bound uuid, never a freshly-minted hex.
+        deck_uuid = self.resolve_bound(name)
+        return deck_uuid, name
 
     def _commit(self, deck_uuid: str, name: str, *, allow_shrink: bool = False) -> None:
         """Push a just-applied local edit to the source ONLY when the deck is synced.

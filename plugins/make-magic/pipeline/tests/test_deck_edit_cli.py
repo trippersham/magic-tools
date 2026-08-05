@@ -370,8 +370,9 @@ def test_id_flag_disambiguates_two_active_gruul(
     from pipeline.decks import DecksStore
 
     _save_source_deck(monkeypatch, tmp_path, 'Gruul', _commander_cards('Grumgully, the Generous'), format_='Commander')
-    # A second, distinct ephemeral draft that reuses the name 'Gruul'.
-    _run(monkeypatch, 'new-draft', 'Gruul')
+    # A second, distinct ephemeral draft that reuses the name 'Gruul' — a same-named
+    # SOURCE deck exists, so F7 requires --force to make the deliberate shadow.
+    _run(monkeypatch, 'new-draft', 'Gruul', '--force')
     capsys.readouterr()
 
     # Bare name is ambiguous (2 rows) -> clean one-line refusal, exit 1.

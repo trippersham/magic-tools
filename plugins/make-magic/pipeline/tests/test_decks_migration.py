@@ -8,7 +8,7 @@ must migrate LOSSLESSLY and IDEMPOTENTLY on the next ``DecksStore`` open:
 
     - every row gains a ``deck_uuid`` (the old ``deck_id`` column is gone);
     - ``external_ids`` is populated ``{"airtable": <rec>}`` when the deck held an
-      Airtable record id, else ``{"local_yaml": <deck_uuid>}``;
+      Airtable record id, else ``{"local": <deck_uuid>}``;
     - the ``deck_versions`` ledger is re-keyed from the old ``deck_id`` to the new
       ``deck_uuid`` so undo still reaches the pre-migration history;
     - a SECOND open is a no-op (no re-mint, no double-rebuild);
@@ -64,7 +64,7 @@ def _seed_old_store(deck_a: Deck, deck_b: Deck) -> tuple[str, str]:
 
     Returns the two old ``deck_id`` keys. ``deck_a`` carries an Airtable record id
     (so migration should bind ``external_ids['airtable']``); ``deck_b`` does not
-    (so it binds ``external_ids['local_yaml']``). Each deck gets a two-version
+    (so it binds ``external_ids['local']``). Each deck gets a two-version
     ledger history so we can prove undo still reaches the pre-migration version.
     """
     id_a = f'airtable:{deck_a.name}'
@@ -126,7 +126,7 @@ def test_populated_old_store_migrates_losslessly(data_dir: Path) -> None:
 
 
 def test_external_ids_bound_from_local_row_not_airtable(data_dir: Path) -> None:
-    """external_ids: airtable-record-id row -> {"airtable": rec}; else local_yaml."""
+    """external_ids: airtable-record-id row -> {"airtable": rec}; else local."""
     deck_a = _deck('Krenko', record_id='recABC123')
     deck_b = _deck('Draft Brew')
     _seed_old_store(deck_a, deck_b)
@@ -137,8 +137,10 @@ def test_external_ids_bound_from_local_row_not_airtable(data_dir: Path) -> None:
     ext_a = json.loads(s.external_ids(by_name['Krenko'].deck_uuid))
     assert ext_a == {'airtable': 'recABC123'}
 
+    # F12: the key is 'local' (the binder's key), NOT 'local_yaml' — a mismatched
+    # key was dead weight that forced the name fallback F2/F4 exploited.
     ext_b = json.loads(s.external_ids(by_name['Draft Brew'].deck_uuid))
-    assert ext_b == {'local_yaml': by_name['Draft Brew'].deck_uuid}
+    assert ext_b == {'local': by_name['Draft Brew'].deck_uuid}
 
 
 def test_ledger_history_reachable_under_new_uuid(data_dir: Path) -> None:

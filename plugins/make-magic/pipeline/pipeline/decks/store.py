@@ -139,7 +139,8 @@ def _migrate_deck_id_to_uuid(conn: DuckDBPyConnection) -> None:
 
     For each existing row: mint a fresh ``deck_uuid``; set ``external_ids`` from
     the LOCAL row (``{"airtable": <record_id>}`` when the deck holds one, else
-    ``{"local_yaml": <deck_uuid>}``); re-key that row's ``deck_versions`` ledger
+    ``{"local": <deck_uuid>}`` — the key the binder reads); re-key that row's
+    ``deck_versions`` ledger
     entries from the old ``deck_id`` to the new ``deck_uuid`` so undo still reaches
     the pre-migration history. Purely local — no Airtable call, no delete_record.
     """
@@ -165,7 +166,14 @@ def _migrate_deck_id_to_uuid(conn: DuckDBPyConnection) -> None:
     for old_id, name, deck_json, sync_status, source_ref, synced_baseline, freshness, last_sim, archived in old_rows:
         new_uuid = uuid4().hex
         record_id = _airtable_record_id(deck_json)
-        external_ids = {'airtable': record_id} if record_id else {'local_yaml': new_uuid}
+        # Key MUST be 'local' (not 'local_yaml') to match the binder
+        # (``access._external_ref`` / ``uuid_for_external_ref``): a mismatched key is
+        # dead weight and forces the name fallback F2/F4 exploit. The value is the
+        # row's minted uuid as a self-consistent placeholder; the real file-uuid
+        # binding self-heals on the first pull (``access._pull_bound`` →
+        # ``set_external_id``) and the local YAML backfill injects the matching
+        # in-file uuid additively.
+        external_ids = {'airtable': record_id} if record_id else {'local': new_uuid}
         conn.execute(
             f'INSERT INTO {staging} '
             '(deck_uuid, name, deck_json, sync_status, source_ref, synced_baseline, '
@@ -181,8 +189,18 @@ def _migrate_deck_id_to_uuid(conn: DuckDBPyConnection) -> None:
             'UPDATE deck_versions SET deck_uuid = ? WHERE deck_uuid = ?', [new_uuid, old_id]
         )
 
-    conn.execute(f'DROP TABLE {_DECKS_TABLE}')
-    conn.execute(f'ALTER TABLE {staging} RENAME TO {_DECKS_TABLE}')
+    # Crash-atomic swap (F14): DROP + RENAME as ONE transaction so a crash between
+    # them can never leave the store with no ``decks`` table (which would strand all
+    # rows in the orphaned staging table). DuckDB rolls the whole BEGIN..COMMIT back
+    # on failure.
+    conn.execute('BEGIN TRANSACTION')
+    try:
+        conn.execute(f'DROP TABLE {_DECKS_TABLE}')
+        conn.execute(f'ALTER TABLE {staging} RENAME TO {_DECKS_TABLE}')
+    except Exception:
+        conn.execute('ROLLBACK')
+        raise
+    conn.execute('COMMIT')
 
 
 def _airtable_record_id(deck_json: str | None) -> str | None:
