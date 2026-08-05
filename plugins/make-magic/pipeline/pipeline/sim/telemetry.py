@@ -1,13 +1,13 @@
-"""Tier-1 numerical telemetry from a captured Forge verbose game log (pure parse).
+"""Numerical telemetry from a captured Forge verbose game log (pure parse).
 
-Phase 2 (:mod:`pipeline.sim.runner`) captured the whole verbose stdout+stderr in
+:mod:`pipeline.sim.runner` captures the whole verbose stdout+stderr in
 ``MatchResult.raw_log``; this module turns that text into aggregatable numbers
-WITHOUT re-running Forge. Every field of :class:`GameFeatures` is numeric or a
+without re-running Forge. Every field of :class:`GameFeatures` is numeric or a
 small enum-like string so a batch of games reduces to statistics (means, ramp
 curves, kill-turn distributions).
 
 The line formats below are verified against the real captured fixtures in
-``tests/fixtures/forge/`` (``sim2.log`` is the ONE fully-verbose game):
+``tests/fixtures/forge/`` (``sim2.log`` is the one fully-verbose game):
 
   * ``Turn: Turn N (Ai(k)-Deck)``     — the authoritative game turn counter.
   * ``Mulligan: Ai(k)-Deck has mulliganed down to M cards.``
@@ -19,7 +19,7 @@ The line formats below are verified against the real captured fixtures in
     — the empty-library (mill) loss signal (compact logs carry only Outcome
     lines, no per-turn detail).
 
-Robustness is a hard contract: a malformed / truncated / empty log NEVER raises.
+Robustness is a hard contract: a malformed / truncated / empty log never raises.
 Any field that cannot be derived is ``None`` (scalars) or ``[]`` (curves), and
 the winner defaults to ``'draw'`` when no result line is present.
 
@@ -69,7 +69,7 @@ def _slot_to_side(slot: str) -> str:
 
 @dataclass(frozen=True)
 class GameFeatures:
-    """Tier-1 numerical features for ONE game — every field aggregates cleanly.
+    """Numerical features for one game — every field aggregates cleanly.
 
     ``winner`` is ``'a'`` / ``'b'`` / ``'draw'``. Scalars that could not be parsed
     are ``None``; the per-turn ramp curves are ``[]`` when no ``Turn:`` boundaries
@@ -114,7 +114,7 @@ def split_games(match_log: str) -> list[str]:
 
 
 def extract_game_features(game_log: str, *, deck_a: str, deck_b: str, commander: bool | None = None) -> GameFeatures:
-    """Parse ONE game's verbose log into :class:`GameFeatures` (pure, never raises).
+    """Parse one game's verbose log into :class:`GameFeatures` (pure, never raises).
 
     ``deck_a`` / ``deck_b`` are accepted for symmetry with the runner API and to
     document the slot mapping; the parse keys off the ``Ai(1)`` / ``Ai(2)`` slots
@@ -132,7 +132,7 @@ def extract_game_features(game_log: str, *, deck_a: str, deck_b: str, commander:
 
     ``commander`` selects the 40-life start; ``None`` (a standalone single-game
     parse) detects it from this log's text. :func:`extract_match_features` passes
-    it explicitly because the ``… games of Commander`` header prints ONCE in the
+    it explicitly because the ``… games of Commander`` header prints once in the
     match preamble — which :func:`split_games` folds into game 1 only, so
     per-segment detection would silently seed games 2+ with 20 life.
     """
@@ -265,7 +265,7 @@ def extract_match_features(match_log: str, *, deck_a: str, deck_b: str) -> list[
     """Extract per-game :class:`GameFeatures` for every game in a multi-game log.
 
     Splits with :func:`split_games`, then extracts each segment independently.
-    The Commander flag is detected ONCE over the whole match log (the header
+    The Commander flag is detected once over the whole match log (the header
     prints only in the preamble, which lands in game 1's segment) and applied to
     every game. Returns ``[]`` for empty / result-less input (never raises).
     """

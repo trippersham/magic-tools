@@ -1,10 +1,9 @@
-"""Store path resolution — the ONE place that knows where the lake lives.
+"""Store path resolution — the one place that knows where the lake lives.
 
 The medallion lake (``raw/`` -> ``normalized/`` -> ``marts/``) plus the DuckDB
-file live under ``pipeline/data/``. Paths anchor to this module's location (NOT
+file live under ``pipeline/data/``. Paths anchor to this module's location (not
 the current working directory) so ``uv run`` from anywhere resolves the same
-lake — mirroring the compsych ``config.py`` ``.git``-walk-up pattern, but here
-the data dir sits inside the package so a package-relative anchor is enough.
+lake; the data dir sits inside the package, so a package-relative anchor is enough.
 
 Overridable via the ``MAKE_MAGIC_DATA_DIR`` env var (used by tests to point at
 an isolated tmp dir). Directories are created on demand, never eagerly.
@@ -32,7 +31,7 @@ def _default_data_dir() -> Path:
     Anchored to this file (``pipeline/pipeline/store/paths.py``) so it is
     cwd-independent: parents[2] is the project root (the dir holding
     ``pyproject.toml``, ``.gitignore``, and the committed ``data/snapshots/``);
-    its ``data`` child is the lake. This is the SAME ``data/`` the ingest
+    its ``data`` child is the lake. This is the same ``data/`` the ingest
     snapshot loaders resolve, so raw/normalized/marts sit alongside the
     bundled snapshots.
     """
@@ -72,7 +71,7 @@ class StorePaths:
     def collection(self) -> Path:
         """The hand-editable ``collection/`` dir (decks/inventory/chase/trades YAML).
 
-        Resolved off the SAME data root as the lake + DuckDB so a single
+        Resolved off the same data root as the lake + DuckDB so a single
         ``MAKE_MAGIC_DATA_DIR`` override relocates the whole store (lake, db, and
         collection) together — the cleanest one-knob option for tests + isolation.
         """

@@ -1,7 +1,7 @@
 """Deck format -> target-size mapping (the single source of truth for a target).
 
 A deck's target size is a pure function of its declared format. The mapping is
-deliberately TOLERANT: the live Airtable ``Format`` field's exact string values
+deliberately tolerant: the live Airtable ``Format`` field's exact string values
 are human-owned and not yet pinned down (could be ``'Commander'``, ``'EDH'``,
 ``'Duel Commander'``, ...), so :func:`target_for_format` normalizes (strip +
 casefold) and matches on substring/equality rather than an exact enum. An empty

@@ -1,4 +1,4 @@
-"""TDD tests for the local YAML CollectionStore adapter (Phase 1.3).
+"""TDD tests for the local YAML CollectionStore adapter.
 
 OFFLINE: a tmp MAKE_MAGIC_DATA_DIR + a STUB CardResolver (no network, no
 scripts/ import). Covers per domain: write -> read round-trips, hydrate-on-read
@@ -341,12 +341,12 @@ def test_set_focus_otags_missing_deck_raises(adapter: LocalYamlStore) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Fix 2 — role + non-default quantity both round-trip (they are orthogonal)
+# Role + non-default quantity both round-trip (they are orthogonal)
 # --------------------------------------------------------------------------- #
 
 
 def test_deck_card_role_and_quantity_both_round_trip(adapter: LocalYamlStore) -> None:
-    """A commander with 2 copies must preserve BOTH role and quantity on save/read."""
+    """A commander with 2 copies must preserve both role and quantity on save/read."""
     deck = Deck(
         name='Gruul Aggro',
         cards=[
@@ -371,12 +371,12 @@ def test_deck_card_role_and_quantity_both_round_trip(adapter: LocalYamlStore) ->
 
 
 # --------------------------------------------------------------------------- #
-# Fix 3 — comma card names: flow-style corruption is LOUD; quoted names round-trip
+# Comma card names: flow-style corruption is loud; quoted names round-trip
 # --------------------------------------------------------------------------- #
 
 
 def test_unquoted_comma_flow_entry_raises_actionable_error(adapter: LocalYamlStore) -> None:
-    """A hand-edited flow-style entry with an unquoted comma name must NOT silently
+    """A hand-edited flow-style entry with an unquoted comma name must not silently
     read the wrong card — it raises a clear ValueError telling the user to quote."""
     decks = _collection_dir() / 'decks'
     decks.mkdir(parents=True, exist_ok=True)
@@ -419,7 +419,7 @@ def test_inventory_unquoted_comma_flow_entry_raises(adapter: LocalYamlStore) -> 
 
 
 # --------------------------------------------------------------------------- #
-# Fix 4 — trade reads tolerate a harmless extra hand-added key
+# Trade reads tolerate a harmless extra hand-added key
 # --------------------------------------------------------------------------- #
 
 

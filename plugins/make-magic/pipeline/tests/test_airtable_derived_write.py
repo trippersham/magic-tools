@@ -1,19 +1,19 @@
-"""OFFLINE tests for the 5b-1 guarded derived-column write primitive + refresh.
+"""OFFLINE tests for the guarded derived-column write primitive + refresh.
 
 The primitive :func:`write_derived_fields` sources the nine Scryfall-derived
-columns from the lake resolver (`get_card`) + a LIVE price fetch and writes them
-onto the Inventory Cards records via the SAME 5a allowlist guard. The explicit
+columns from the lake resolver (`get_card`) + a live price fetch and writes them
+onto the Inventory Cards records via the same allowlist guard. The explicit
 refresh entry point (`--refresh`) runs it over the pulled Cards, dry-run by
 default.
 
 Core safety proofs (mirroring the task guardrails):
     (a) derived cols are written under a MOCKED httpx transport when
         backend=airtable + apply;
-    (b) local mode makes ZERO Airtable calls (no-op plan);
+    (b) local mode makes zero Airtable calls (no-op plan);
     (c) dry-run default plans but does not write;
-    (d) a human field can NEVER enter the payload (5a guard reused);
-    (e) a missing derived-field id fails LOUD;
-    (f) price is sourced LIVE, not from the lake Card.
+    (d) a human field can never enter the payload (allowlist guard reused);
+    (e) a missing derived-field id fails loud;
+    (f) price is sourced live, not from the lake Card.
 
 No real network: transports are httpx.MockTransport, resolver/price are stubs.
 """
@@ -332,7 +332,7 @@ def test_apply_real_client_mocked_transport_writes_field_id_body(monkeypatch: py
     def _schema_fields() -> list[dict[str, str]]:
         fields = [{'name': name, 'id': fid} for name, fid in _SCHEMA.items()]
         # Also carry the ⚙ fields + every human field so the wrong-table binding
-        # (FIX A) is satisfied (denylist is a subset of the resolved table).
+        # is satisfied (denylist is a subset of the resolved table).
         fields += [{'name': f'{wb.NS}Buckets', 'id': 'fldB'}, {'name': f'{wb.NS}Otags', 'id': 'fldO'}]
         for i, human in enumerate(sorted(wb._human_denylist())):
             if human not in _SCHEMA:

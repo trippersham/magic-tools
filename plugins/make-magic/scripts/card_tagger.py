@@ -13,19 +13,18 @@
 # exclude-newer = "2026-06-08T00:00:00Z"
 # ///
 """
-MTG card mechanic tagger — otag-bucket sourced, deck-fit scoring kept.
+MTG card mechanic tagger — otag-bucket sourced, with deck-fit scoring.
 
-#5 Phase 3a RETIRED the ~54-pattern regex census (`tag_mechanics`): a card's
-mechanic tags now come STRAIGHT from the pipeline card dim's `otag_buckets` (the
-crosswalk over its rolled-up oracle tags), resolved via the package
+A card's mechanic tags come straight from the pipeline card dim's `otag_buckets`
+(the crosswalk over its rolled-up oracle tags), resolved via the package
 `CardResolver` seam (`pipeline.collection.resolver.default_card_resolver()`).
 otags are more accurate than regex (regex leaves 60%+ of nonlands uncategorized;
-otags land 84-92%), so rankings SHIFT — that is expected and desired.
+otags land 84-92%).
 
-What is KEPT is the unique deck-fit SCORING engine (`score_card_for_deck`) — the
-pipeline deliberately has no equivalent (it emits neutral facts, defers scoring
-to reasoning). Its STRUCTURE is unchanged; only its tag INPUT vocabulary moved
-from regex labels to crosswalk BUCKET names, adapted via `BUCKET_STRATEGY_SYNONYMS`.
+The deck-fit scoring engine (`score_card_for_deck`) is unique to this script —
+the pipeline deliberately has no equivalent (it emits neutral facts, defers
+scoring to reasoning). Its tag input vocabulary is crosswalk bucket names,
+adapted via `BUCKET_STRATEGY_SYNONYMS`.
 
 Tags are the crosswalk buckets (see pipeline `transforms/crosswalk.py`):
     removal ramp draw tokens counters burn tutor sac counterspells flicker typal
@@ -85,10 +84,9 @@ def _default_resolver() -> _Resolver:
 
 
 # ── Bucket→Strategy synonym layer ───────────────────────────────────────
-# Maps each crosswalk otag BUCKET to the deck-strategy synonym keywords the
-# scoring engine's overlap check keys on. This REPLACES the retired regex
-# tag-label synonym table: the keys are now bucket names (crosswalk vocabulary),
-# not regex mechanic labels. A card's `tags` are its `otag_buckets`.
+# Maps each crosswalk otag bucket to the deck-strategy synonym keywords the
+# scoring engine's overlap check keys on. The keys are bucket names (crosswalk
+# vocabulary). A card's `tags` are its `otag_buckets`.
 BUCKET_STRATEGY_SYNONYMS: dict[str, list[str]] = {
     "removal": ["removal", "control", "interaction"],
     "ramp": ["ramp", "mana", "big mana", "lands-matter"],
@@ -110,31 +108,29 @@ BUCKET_STRATEGY_SYNONYMS: dict[str, list[str]] = {
 }
 
 
-# ── Bucket→Scryfall discovery map (channel A of refine-methodology §2) ──
+# ── Bucket→Scryfall discovery map ──────────────────────────────────────
 # Sibling to BUCKET_STRATEGY_SYNONYMS: where that maps a bucket to the deck-
-# strategy KEYWORDS the scoring engine keys on, THIS maps each bucket to the
-# Scryfall functional-search FRAGMENTS the discovery step runs to pull a real,
-# cross-Magic, in-identity, format-legal candidate pool (channel A / primary).
+# strategy keywords the scoring engine keys on, this maps each bucket to the
+# Scryfall functional-search fragments the discovery step runs to pull a real,
+# cross-Magic, in-identity, format-legal candidate pool.
 #
-# DERIVED, NOT HAND-AUTHORED. Our otag vocabulary IS Scryfall's oracle-tagger
+# Derived, not hand-authored. Our otag vocabulary is Scryfall's oracle-tagger
 # vocabulary — the crosswalk (`pipeline.transforms.crosswalk.BUCKET_ROOTS`) was
-# built from it — so `otag:<root>` is a live `/cards/search` query BY CONSTRUCTION.
+# built from it — so `otag:<root>` is a live `/cards/search` query by construction.
 # Deriving means the map can never drift from the crosswalk and can never carry a
-# guessed/dead slug (an earlier hand-authored version shipped several: e.g.
-# `otag:creates-tokens`, `otag:double-strike`, `otag:aristocrats` all return
-# nothing). Every root was live-validated against the Scryfall API (2026-08-04);
-# the env-gated `live` test (MAKE_MAGIC_LIVE=1) re-checks each returns cards.
+# guessed/dead slug. Every root is live-validated against the Scryfall API; the
+# env-gated `live` test (MAKE_MAGIC_LIVE=1) re-checks each returns cards.
 #
-# SURGICAL discovery = query ONE specific root from a bucket's set (e.g.
+# Surgical discovery queries one specific root from a bucket's set (e.g.
 # `otag:gives-double-strike` rather than the whole `combat` bucket) — every root is
-# a live tag, so this is safe and finer-grained. See refine-methodology.md
-# "Going surgical". Multiple roots per bucket are OR-joined by build_discovery_query.
+# a live tag, so this is safe and finer-grained. Multiple roots per bucket are
+# OR-joined by build_discovery_query.
 BUCKET_TO_SCRYFALL_OTAG: dict[str, list[str]] = {
     bucket: [f"otag:{root}" for root in sorted(roots)] for bucket, roots in BUCKET_ROOTS.items()
 }
 
 
-# ── Discovery query builder (channel A — PURE, offline, unit-testable) ──
+# ── Discovery query builder (pure, offline, unit-testable) ──
 
 
 def build_discovery_query(
@@ -144,9 +140,9 @@ def build_discovery_query(
     cmc_max: int | None = None,
     extra: str | None = None,
 ) -> str:
-    """Build a Scryfall functional-search query for discovery channel A.
+    """Build a Scryfall functional-search query for discovery.
 
-    PURE / offline (no network) so it is unit-testable: it only assembles a query
+    Pure / offline (no network) so it is unit-testable: it only assembles a query
     string. The caller runs it via `scryfall_cache.py search "<query>"`.
 
     Shape: `id<=<colors> f:commander (<frag> or <frag> ...) [cmc<=<n>] [extra]`
@@ -194,7 +190,7 @@ def build_discovery_query(
 def tags_for_card(card: Card | None) -> list[str]:
     """A card's mechanic tags = its otag buckets (crosswalk vocabulary).
 
-    Fail-open (I5): an unresolved card (None) or a card with no otag buckets
+    Fail-open: an unresolved card (None) or a card with no otag buckets
     yields an empty list — an honest "uncategorized" signal, never a crash.
     """
     if card is None:
@@ -246,9 +242,8 @@ def process_card(name: str, *, resolver: _Resolver) -> dict:
 
 
 # ── Scoring functions ──────────────────────────────────────────────────
-# KEPT from the prior engine (deck-fit weighting). Structure unchanged; the tag
-# input vocabulary is now crosswalk buckets, and oracle-text pattern checks use
-# plain substring matching (no regex — the census is retired).
+# Deck-fit weighting. The tag input vocabulary is crosswalk buckets, and
+# oracle-text pattern checks use plain substring matching (no regex).
 
 
 def parse_color_identity(color_str: str) -> set[str]:
@@ -264,7 +259,7 @@ def card_fits_color_identity(card_colors: list[str], deck_colors: set[str]) -> b
 def compute_tag_strategy_overlap(
     card_tags: list[str], strategy_keywords: list[str]
 ) -> tuple[float, list[str]]:
-    """Score how well a card's otag BUCKETS align with a deck's strategy via the
+    """Score how well a card's otag buckets align with a deck's strategy via the
     bucket->strategy synonym layer."""
     kw_set = {k.lower() for k in strategy_keywords}
     if not kw_set:
@@ -292,8 +287,7 @@ def score_card_for_deck(card: dict, deck: dict) -> tuple[float, list[str], str]:
     """Score a card's fit for a deck. Returns (score, match_reasons, why_chase).
 
     Fed by otag-bucket `tags` (via the synonym layer) plus oracle-text substring
-    signals. Weighting structure is unchanged from the prior engine; rankings
-    shift only because the tag SOURCE moved from regex to otag buckets.
+    signals.
     """
     score = 0.0
     reasons: list[str] = []

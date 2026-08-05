@@ -1,4 +1,4 @@
-"""Tests for the read-only ``collection audit-decks`` verb (Phase 3).
+"""Tests for the read-only ``collection audit-decks`` verb.
 
 OFFLINE + source-agnostic: an in-memory ``FakeAirtable`` (reused from
 ``test_airtable_collection``) is the source of record, and a tmp

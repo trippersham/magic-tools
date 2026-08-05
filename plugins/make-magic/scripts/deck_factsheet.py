@@ -14,17 +14,17 @@
 """
 MTG deck fact sheet — emits a NEUTRAL, verifiable JSON fact sheet for a decklist.
 
-This is NOT a scorer. It never assigns a role/quadrant, never decides if a card
+This is not a scorer. It never assigns a role/quadrant, never decides if a card
 is a wincon / ramp-vs-combo / engine-vs-clawback / "good." Those are contextual
 roles → reasoning (LLM). This script emits only objective facts about the cards.
 
 Two layers of facts:
 
-  1. STRUCTURED facts (this file): Scryfall structured fields — cmc curve, color
+  1. Structured facts (this file): Scryfall structured fields — cmc curve, color
      pips, produced_mana ramp/fixing, keyword census, instant-speed. These never
-     touch oracle-text regex and are the OFFLINE fallback baseline.
+     touch oracle-text regex and are the offline fallback baseline.
 
-  2. OTAG facts (delegated to ``pipeline.transforms.deck_factsheet.factsheet_for``):
+  2. Otag facts (delegated to ``pipeline.transforms.deck_factsheet.factsheet_for``):
      the multi-label ``otag_buckets`` map (bucket -> nonland card count) and a
      data-grounded ``susceptibility`` list, computed from Scryfall oracle-tags
      rolled up the tag DAG. Otags categorize where an oracle-text regex census
@@ -32,16 +32,16 @@ Two layers of facts:
 
 Bundled + self-refreshing otag dataset: the otag layer routes through the
 ``sources.oracle_tags`` puller's normal fetch -> cursor -> load path. On first
-ONLINE use it pulls the FULL daily oracle-tags file into the store's ``raw/``
-layer (the source of ~84-92% coverage) and REUSES that cached loaded copy on
+online use it pulls the full daily oracle-tags file into the store's ``raw/``
+layer (the source of ~84-92% coverage) and reuses that cached loaded copy on
 later runs (daily cursor — no 18 MB refetch). With no network it fails open to
 the bundled compressed snapshot (~20% baseline), and with no store at all it
 degrades to structured facts only.
 
-Graceful degradation (invariant I5): if the pipeline package or its otag data is
-unavailable, this script STILL emits the structured facts with
+Graceful degradation: if the pipeline package or its otag data is
+unavailable, this script still emits the structured facts with
 ``otag_buckets == {}`` and a clear "otag layer unavailable" signal in
-``susceptibility``. It NEVER hard-requires the engine and NEVER crashes on it.
+``susceptibility``. It never hard-requires the engine and never crashes on it.
 
 The emitted JSON validates against ``pipeline/contracts`` ``FactSheet`` in both
 the pipeline-backed and the fallback path (same top-level shape).
@@ -81,17 +81,16 @@ _OTAG_UNAVAILABLE = (
 
 
 # --------------------------------------------------------------------------- #
-# STRUCTURED-FACT functions — ONE copy of the math lives in the shared pipeline
-# transform (``pipeline.transforms.deck_factsheet``); this script is a CONSUMER.
+# Structured-fact functions — one copy of the math lives in the shared pipeline
+# transform (``pipeline.transforms.deck_factsheet``); this script is a consumer.
 #
-# The in-script census math (shape / mana / pip / keyword / cmc / per-card /
-# instant-speed / is_land) was DELETED in #5 Task 6a and is now sourced from the
-# transform via ``_facts()``. The wrappers below preserve the script's public
-# names (kept for its tests + the CLI shell) but delegate to the single copy, so
-# the fact sheet output is byte-identical while there is no duplicated logic.
+# The census math (shape / mana / pip / keyword / cmc / per-card / instant-speed
+# / is_land) is sourced from the transform via ``_facts()``. The wrappers below
+# preserve the script's public names (for its tests + the CLI shell) but delegate
+# to the single copy, so there is no duplicated logic.
 #
-# The transform import is LAZY (never at module top level) so the script keeps
-# its graceful degradation (invariant I5): if the pipeline package is missing the
+# The transform import is lazy (never at module top level) so the script keeps
+# its graceful degradation: if the pipeline package is missing the
 # fallback path is not reachable anyway (it needs the same transform), but the
 # import failure surfaces as the normal degrade, never a hard crash on load.
 # --------------------------------------------------------------------------- #
@@ -100,7 +99,7 @@ _OTAG_UNAVAILABLE = (
 def _facts():
     """Return the shared ``pipeline.transforms.deck_factsheet`` module (lazy).
 
-    The SOLE home for the structured-fact math + the otag mart. Adds the pipeline
+    The sole home for the structured-fact math + the otag mart. Adds the pipeline
     package root to sys.path first (idempotent) so the PEP-723 script — which does
     not vendor the package — can reach it.
     """
@@ -111,7 +110,7 @@ def _facts():
 
 
 def is_land(type_line: str) -> bool:
-    """A card is a land iff its FRONT face is a land (delegates to the transform).
+    """A card is a land iff its front face is a land (delegates to the transform).
 
     Front-face only so a modal DFC spell // land (e.g. Malakir Rebirth // Malakir
     Mire, "Instant // Land") is treated as the castable spell it is.
@@ -131,7 +130,7 @@ def _is_instant_speed(card: dict) -> bool:
 def ramp_and_fixing(cards: list[dict]) -> dict:
     """Ramp/fixing/pip distribution (nonland only), structured-only fallback rule.
 
-    Ramp keys on structured ``produced_mana`` ONLY (the transform's
+    Ramp keys on structured ``produced_mana`` only (the transform's
     ``structured_ramp`` — the regex-free baseline); the pipeline path additionally
     counts land-fetch ramp. Fixing + pip counts reuse the transform's copy.
     """
@@ -179,13 +178,13 @@ def _card_record(card: dict) -> dict:
 # --------------------------------------------------------------------------- #
 # Pipeline integration — the otag layer (buckets + susceptibility).
 #
-# We add the pipeline package to sys.path with the SAME shim used to reach
-# scryfall_cache, then call the pipeline's DONE, tested transforms. We do NOT
+# We add the pipeline package to sys.path with the same shim used to reach
+# scryfall_cache, then call the pipeline's tested transforms. We do not
 # re-implement the rollup, the crosswalk, or the puller's fetch/cursor/land
-# logic here (constraint): the script is a CONSUMER of the pipeline's puller and
-# transforms. The otag source is self-refreshing (puller-backed, cached) with a
-# snapshot fallback; every layer and the delegation are try-guarded so a missing
-# package / unusable store / missing snapshot / any error degrades gracefully.
+# logic here: the script is a consumer of the pipeline's puller and transforms.
+# The otag source is self-refreshing (puller-backed, cached) with a snapshot
+# fallback; every layer and the delegation are try-guarded so a missing package /
+# unusable store / missing snapshot / any error degrades gracefully.
 # --------------------------------------------------------------------------- #
 
 #: The pipeline package root (``plugins/make-magic/pipeline``) — the dir holding
@@ -204,7 +203,7 @@ def _rollup_to_card_otag(tags: list[dict]) -> dict[str, set[str]]:
     """Explode ``tags`` into the ``oracle_id -> set[slug]`` closure map.
 
     Wraps the pipeline's pure-Python DAG rollup (``otag_rollup.rollup_rows``);
-    kept tiny and separate so BOTH the puller-backed path and the snapshot
+    kept tiny and separate so both the puller-backed path and the snapshot
     fallback path build the map from the same rollup.
     """
     from pipeline.transforms import otag_rollup
@@ -221,11 +220,11 @@ def _load_tags_via_puller() -> list[dict]:
     This is the "bundled + self-refreshing dataset" pattern:
 
       * ``oracle_tags.sync()`` does fetch -> **cursor** check -> load into the
-        store's ``raw/oracle_tags`` layer. On the FIRST online use it fetches the
+        store's ``raw/oracle_tags`` layer. On the first online use it fetches the
         full ~18 MB daily file (the source of ~84-92% coverage) and loads it; on
-        SUBSEQUENT runs the daily cursor short-circuits the re-load, so we do
-        NOT refetch 18 MB every invocation — we REUSE the cached raw/ copy.
-      * The puller itself FAILS OPEN to the bundled snapshot on any network/HTTP
+        subsequent runs the daily cursor short-circuits the re-load, so we do
+        not refetch 18 MB every invocation — we reuse the cached raw/ copy.
+      * The puller itself fails open to the bundled snapshot on any network/HTTP
         error, so this path still yields tags offline (just the capped baseline).
 
     After loading, we read the tags back out of ``raw/oracle_tags`` with the
@@ -250,19 +249,19 @@ def _load_card_otag() -> dict[str, set[str]] | None:
     "Bundled + self-refreshing dataset". Source selection, in order:
 
       1. **Puller-backed (preferred):** route through ``oracle_tags.sync()`` — its
-         fetch -> cursor -> load pipeline — to get the FULL oracle-tags into
-         the store's ``raw/`` layer on first online use and REUSE that cached
+         fetch -> cursor -> load pipeline — to get the full oracle-tags into
+         the store's ``raw/`` layer on first online use and reuse that cached
          loaded copy on later runs (daily cursor; no 18 MB refetch). This is
          what delivers the ~84-92% coverage. Read the loaded tags back and roll
          them up.
       2. **Snapshot fallback:** if the puller path raises (store/duckdb missing,
          load error, etc.), load the bundled compressed snapshot directly
          (``oracle_tags._load_snapshot``) — the offline baseline (~20% coverage).
-         Note the puller ALSO fails open to this snapshot internally on a network
+         Note the puller also fails open to this snapshot internally on a network
          error; this second try only fires when the store machinery itself is
          unusable.
       3. **None (structured-only):** if even the snapshot cannot load, return
-         None so the caller degrades to structured facts only (invariant I5).
+         None so the caller degrades to structured facts only.
 
     Never crashes: every layer is try-guarded and fails open to the next.
     """
@@ -303,8 +302,8 @@ def _pipeline_factsheet(
     ``focus_relative``), or None on ANY import/build failure so the caller
     degrades to the structured-only fallback.
 
-    ``focus`` is the deck's NARROW declared focus set, passed READ-ONLY to the
-    pipeline. This script NEVER writes ``Focus Otags`` (or any Deck field).
+    ``focus`` is the deck's narrow declared focus set, passed read-only to the
+    pipeline. This script never writes ``Focus Otags`` (or any Deck field).
     """
     try:
         _ensure_pipeline_on_path()
@@ -319,7 +318,7 @@ def _pipeline_factsheet(
 # --------------------------------------------------------------------------- #
 # Fallback fact sheet — structured facts only, when the otag layer is absent.
 #
-# Emits the SAME top-level shape as the pipeline (so it still validates against
+# Emits the same top-level shape as the pipeline (so it still validates against
 # contracts.FactSheet), degraded to the structured subset: instant_speed is real
 # (structured); the functional interaction census fields are zeroed; coverage
 # lists every nonland as uncategorized (an honest "no otag signal" tell);
@@ -348,7 +347,7 @@ def _fallback_factsheet(
         'shape': _shape(cards),
         'mana': ramp_and_fixing(cards),
         'keywords': keyword_census(cards),
-        # Retired regex census -> zeroed; instant_speed stays (structured).
+        # The functional census is zeroed; instant_speed stays (structured).
         'interaction': {
             'board_wipes': 0,
             'spot_removal': 0,
@@ -385,7 +384,7 @@ def build_factsheet(
 ) -> dict:
     """Assemble the neutral fact sheet, otag-powered when the pipeline is present.
 
-    NO role/quadrant labels appear anywhere in the output — only facts.
+    No role/quadrant labels appear anywhere in the output — only facts.
 
     The primary path delegates to the pipeline's ``factsheet_for`` (structured
     facts + ``otag_buckets`` + ``susceptibility`` + focus-relative signals). If
@@ -400,9 +399,9 @@ def build_factsheet(
         missing: Decklist names that did not resolve to a card.
         card_otag: ``oracle_id -> set[slug]`` closure. When None, the otag layer
             is treated as unavailable and the fallback is used.
-        focus: The deck's NARROW declared focus set (``Focus Otags``), READ-ONLY.
+        focus: The deck's narrow declared focus set (``Focus Otags``), read-only.
             Optional; when None/empty the focus-relative fields come back empty.
-            This script NEVER writes the focus back to Airtable or anywhere else.
+            This script never writes the focus back to Airtable or anywhere else.
     """
     if card_otag is not None:
         built = _pipeline_factsheet(cards, deck, missing, card_otag, focus=focus)
@@ -414,7 +413,7 @@ def build_factsheet(
 # --------------------------------------------------------------------------- #
 # Deck entry point — build a fact sheet from a resolved ``contracts.Deck``.
 #
-# The SECOND entry point (alongside raw-text ``_parse_decklist``): a caller that
+# The second entry point (alongside raw-text ``_parse_decklist``): a caller that
 # already has a ``Deck`` from the CollectionStore (local YAML in offline mode)
 # hands its hydrated ``DeckCard``s straight in, no Scryfall fetch. Each DeckCard
 # is a hydrated base-``Card`` (name + Scryfall enrichment), which we map into the
@@ -450,13 +449,13 @@ def factsheet_from_deck(deck, focus: list[str] | None = None) -> dict:  # a cont
     """Build a neutral fact sheet from a resolved ``contracts.Deck``.
 
     The offline entry point: the deck's ``DeckCard``s are already hydrated (via
-    the CollectionStore's ``CardResolver``), so NO Scryfall fetch happens here.
+    the CollectionStore's ``CardResolver``), so no Scryfall fetch happens here.
     Loads the otag closure (self-refreshing / snapshot / degrade) exactly like the
     text path, then delegates to ``build_factsheet``. Output validates against
     ``contracts.FactSheet``.
     """
     cards = [_deck_card_to_fields(c) for c in deck.cards]
-    card_otag = _load_card_otag()  # None -> graceful fallback (I5).
+    card_otag = _load_card_otag()  # None -> graceful fallback.
     return build_factsheet(cards, deck=deck.name, missing=[], card_otag=card_otag, focus=focus or [])
 
 
@@ -496,7 +495,7 @@ def _parse_decklist(raw: str) -> list[tuple[int, str]]:
 # Scryfall-backed CLI — thin shell over the pure functions above.
 # --------------------------------------------------------------------------- #
 
-#: A TRAILING printing annotation, e.g. the "(Borderless)" in "Parallel Lives
+#: A trailing printing annotation, e.g. the "(Borderless)" in "Parallel Lives
 #: (Borderless)" or "(Retro)" in "Sol Ring (Retro)". Real cardlist names carry
 #: these cosmetic suffixes but Scryfall oracle names do not, so an exact name
 #: lookup misses. We strip a single trailing parenthetical as a fallback.
@@ -504,7 +503,7 @@ _PRINTING_ANNOTATION = re.compile(r'\s*\([^()]*\)\s*$')
 
 
 def _strip_printing_annotation(name: str) -> str:
-    """Strip a TRAILING parenthetical printing annotation from a card name.
+    """Strip a trailing parenthetical printing annotation from a card name.
 
     ``"Parallel Lives (Borderless)"`` -> ``"Parallel Lives"``. A name with no
     trailing parenthetical is returned unchanged.
@@ -591,18 +590,18 @@ def _deck_name_from_header(raw: str) -> str | None:
 
 
 def _run_cli() -> None:
-    """The typer CLI entrypoint. ``typer`` is imported HERE (lazily), NOT at module
+    """The typer CLI entrypoint. ``typer`` is imported here (lazily), not at module
     scope, so importing this module for ``factsheet_from_deck`` never drags typer
     into an importer's environment — e.g. the ``collection`` CLI reuses
     ``factsheet_from_deck`` and declares no typer dependency. typer stays in this
-    script's OWN inline deps for when it's run directly as a CLI.
+    script's own inline deps for when it's run directly as a CLI.
     """
     import typer
 
     # PEP 563 (`from __future__ import annotations`) makes the callback's
-    # ``ctx: typer.Context`` annotation a STRING that typer eval-resolves against
+    # ``ctx: typer.Context`` annotation a string that typer eval-resolves against
     # this module's globals. Since ``typer`` is imported lazily (function-local),
-    # expose it in module globals HERE so that resolution works — this only runs
+    # expose it in module globals here so that resolution works — this only runs
     # under ``__main__`` (direct CLI use), so an importer of ``factsheet_from_deck``
     # never gains a module-level typer.
     globals()['typer'] = typer
@@ -640,7 +639,7 @@ def _run_cli() -> None:
 
         deck_name = _deck_name_from_header(raw)
         focus_set = _parse_focus(focus)
-        card_otag = _load_card_otag()  # None -> graceful fallback (I5).
+        card_otag = _load_card_otag()  # None -> graceful fallback.
         report = build_factsheet(cards, deck=deck_name, missing=missing, card_otag=card_otag, focus=focus_set)
         payload = json.dumps(report, indent=2)
         if output:

@@ -230,7 +230,7 @@ def test_scryfall_bulk_streams_and_projects(data_dir: Path, monkeypatch: pytest.
     assert n == 2
     assert 'extra' not in cols  # projected away
     assert 'oracle_id' in cols and 'produced_mana' in cols
-    # W1: widened presentation columns present.
+    # Widened presentation columns present.
     for col in ('power', 'toughness', 'art_crop', 'scryfall_uri', 'set_name'):
         assert col in cols
     assert row['power'] == '1'

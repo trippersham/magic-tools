@@ -3,7 +3,7 @@
 Proves the SQLite-free replacement for ``spoiler_cache.db``:
     - ``sources.spoilers.sync`` scrapes MythicSpoiler HTML (mocked httpx) and
       lands ``raw/spoilers``; a re-scrape append-dedupes on ``(set_code, slug)``.
-    - MythicSpoiler-unreachable degrades to the last snapshot (fail-open, I5).
+    - MythicSpoiler-unreachable degrades to the last snapshot (fail-open).
     - ``transforms.spoilers`` reconciles slug -> oracle_id via a MOCKED resolver;
       "new since last sync" derives from the lake (current vs. prior normalized),
       NOT a SQLite meta table.

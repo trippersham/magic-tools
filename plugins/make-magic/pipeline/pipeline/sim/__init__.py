@@ -1,9 +1,9 @@
 """Sim — AI-vs-AI matchup simulation via headless MTG Forge.
 
-Two building blocks (Phase 2): :mod:`pipeline.sim.forge_runtime` locates (or
-fetches) a launchable Forge install, and :mod:`pipeline.sim.runner` runs ONE
-matchup and tallies the result. Higher layers (telemetry, governor, cache,
-core, CLI) build on top of these later.
+Two building blocks: :mod:`pipeline.sim.forge_runtime` locates (or fetches) a
+launchable Forge install, and :mod:`pipeline.sim.runner` runs one matchup and
+tallies the result. Higher layers (telemetry, governor, cache, core, CLI) build
+on top of these.
 
     from pipeline.sim import ensure, run_matchup, deck_to_dck
     install = ensure()

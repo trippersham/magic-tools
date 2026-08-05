@@ -1,11 +1,11 @@
 """Card-export destination — render + validate a SINGLE card for a target format.
 
 A deck-export adapter is really "render each card, then join" — but the per-card
-step is where target-specific truth lives: how a card's line is written AND
+step is where target-specific truth lives: how a card's line is written and
 whether the target can actually use it. Factoring that into a :class:`CardExporter`
 port lets every deck adapter (``forge_dck`` now; ``arena``/``moxfield``/``text``
-later) COMPOSE its paired card exporter, so card rendering and validation run
-identically across destinations instead of each re-implementing them (gap 0.4).
+later) compose its paired card exporter, so card rendering and validation run
+identically across destinations instead of each re-implementing them.
 
 The first adapter is :class:`ForgeDckCardExporter`: it renders the ``<qty> <name>``
 line and validates a card two ways — resolution (does it have a Scryfall
@@ -88,7 +88,7 @@ class ForgeDckCardExporter:
 
         The name is resolved to the form Forge's deck loader accepts. With an
         availability oracle it goes through ``forge_deck_name`` (front face for an
-        MDFC whose combined ``A // B`` name Forge REJECTS; unchanged for a name
+        MDFC whose combined ``A // B`` name Forge rejects; unchanged for a name
         Forge already loads). Without an oracle — or when the oracle reports the
         name unloadable — a best-effort pure-string ``A // B`` → front-face repair
         still fixes the common MDFC case; a genuinely unloadable name is emitted

@@ -1,4 +1,4 @@
-"""Tests for the mutating ``collection recover-decks`` verb (Phase 5).
+"""Tests for the mutating ``collection recover-decks`` verb.
 
 OFFLINE + source-agnostic: an in-memory ``FakeAirtable`` (reused from
 ``test_airtable_collection``) is the source of record, and a tmp

@@ -15,26 +15,25 @@
 """
 Scryfall lookup façade over the pipeline's lake-backed card dim.
 
-#5 retired the session-scoped SQLite cache: the DuckDB/Parquet lake is now the
-SOLE durable store. `ScryfallCache` is a THIN façade that delegates card lookups
-to the package (`pipeline.collection.resolver`) via `fetch_card_raw`, which does
-a single live Scryfall fetch and LANDS the card durably into the lake — so no
-SQLite, no `$TMPDIR/*.db`, and the lake is the one shared durable card dim.
+The DuckDB/Parquet lake is the sole durable store. `ScryfallCache` is a thin
+façade that delegates card lookups to the package
+(`pipeline.collection.resolver`) via `fetch_card_raw`, which does a single live
+Scryfall fetch and lands the card durably into the lake — so the lake is the one
+shared durable card dim.
 
 Package access (house convention, same as `scripts/collection`): this is a
 PEP-723 script that pins the local package via `[tool.uv.sources]` as an editable
 path dep, so `uv run` resolves `pipeline` on invocation — the package never
 imports `scripts/` (the coupling stays one-directional).
 
-Output shape is UNCHANGED for the six consumers (`chasing-cards`,
+Output shape is unchanged for the six consumers (`chasing-cards`,
 `building-decks`, `deck_factsheet.py`, `card_tagger.py`, `scryfall_batch.py`,
-`spoiler_sync.py`): `get_card`/`search`/`get_set` still return raw Scryfall
-dicts. NOTE the FULL raw dict (`prices`, `card_faces`, `image_uris`, …) is a
+`spoiler_sync.py`): `get_card`/`search`/`get_set` return raw Scryfall
+dicts. The full raw dict (`prices`, `card_faces`, `image_uris`, …) is a
 superset of the projected `Card` the lake stores; the lake cannot reconstruct it,
 so `get_card` fetches live-per-card (in-process memo, then lands durably into the
 lake for `Card`-consumers). `search`/`get_set` likewise stay live (no lake/DuckDB
-equivalent yet — a later phase migrates their consumers onto the projected
-`Card`, at which point offline-first applies).
+equivalent).
 
 Usage (CLI):
     ./scryfall_cache.py get-card "Sol Ring"
@@ -71,9 +70,9 @@ RATE_LIMIT_MS = 100
 class ScryfallCache:
     """Thin façade: `get_card` delegates to the package (`fetch_card_raw`, which
     lands the card durably in the lake); `search` / `get_set` stay live. All three
-    use an in-process memo — the SQLite cache is retired.
+    use an in-process memo.
 
-    `get_card` returns the FULL raw Scryfall dict, preserving the shape every
+    `get_card` returns the full raw Scryfall dict, preserving the shape every
     consumer relies on (a superset of the projected `Card` the lake stores).
     """
 
@@ -82,7 +81,7 @@ class ScryfallCache:
         self._last_request: float = 0
         self._hits = 0
         self._misses = 0
-        # In-process memo (replaces the SQLite tables) for the live-only surfaces.
+        # In-process memo for the live-only surfaces.
         self._card_mem: dict[str, dict | None] = {}
         self._set_mem: dict[str, list[dict]] = {}
         self._search_mem: dict[str, list[dict]] = {}

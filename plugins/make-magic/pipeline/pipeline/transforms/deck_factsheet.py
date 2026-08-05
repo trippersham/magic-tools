@@ -32,12 +32,12 @@ _THIN_FOCUS_THRESHOLD = 2
 
 
 # --------------------------------------------------------------------------- #
-# Small structured-fact helpers (precision-first; mirror scripts/deck_factsheet).
+# Small structured-fact helpers (precision-first).
 # --------------------------------------------------------------------------- #
 
 
 def is_land(type_line: str) -> bool:
-    """A card is a land iff its FRONT face is a land (modal DFC spell // land is a spell)."""
+    """A card is a land iff its front face is a land (modal DFC spell // land is a spell)."""
     front = (type_line or '').split('//')[0]
     return 'land' in front.lower()
 
@@ -122,12 +122,10 @@ def _is_land_fetch_ramp(c: dict) -> bool:
 
 
 def structured_ramp(c: dict) -> bool:
-    """A NONLAND ramp source keyed on structured ``produced_mana`` ONLY.
+    """A nonland ramp source keyed on structured ``produced_mana`` only.
 
-    The precision-first, regex-free ramp signal (no oracle-text). This is the
-    baseline the scripts fallback census reuses so there is ONE copy of the
-    produced_mana ramp rule; the pipeline path layers ``_is_land_fetch_ramp`` on
-    top of it (see ``_is_ramp_source``).
+    The precision-first, regex-free ramp signal (no oracle-text). The pipeline
+    path layers ``_is_land_fetch_ramp`` on top of it (see ``_is_ramp_source``).
     """
     if is_land(_type_line(c)):
         return False
@@ -266,9 +264,9 @@ def _card_slugs(card: dict, card_otag: dict[str, set[str]]) -> set[str]:
 
 
 def otag_buckets(cards: list[dict], card_otag: dict[str, set[str]]) -> dict[str, int]:
-    """Multi-label bucket -> NONLAND card count.
+    """Multi-label bucket -> nonland card count.
 
-    A card counts once in EVERY bucket its slug closure hits (Cultivate ->
+    A card counts once in every bucket its slug closure hits (Cultivate ->
     ramp+tutor). Only buckets with a nonzero count appear. Lands are excluded so
     the count aligns with the nonland denominator used for coverage.
     """
@@ -283,7 +281,7 @@ def otag_buckets(cards: list[dict], card_otag: dict[str, set[str]]) -> dict[str,
 
 
 def _coverage(cards: list[dict], card_otag: dict[str, set[str]]) -> dict:
-    """otag coverage: % of NONLAND cards that land in >=1 bucket.
+    """otag coverage: % of nonland cards that land in >=1 bucket.
 
     The uncategorized list is the residual (cards no bucket claims), the synergy /
     low-signal tell the reasoning layer inspects.
@@ -313,11 +311,11 @@ def susceptibility(
     card_otag: dict[str, set[str]],
 ) -> list[str]:
     """Data-grounded weaknesses: over-reliance on X + X has a common answer +
-    deck lacks the resilience. Each signal CITES the counts driving it.
+    deck lacks the resilience. Each signal cites the counts driving it.
 
-    This is the research's susceptibility model. It is deliberately conservative
-    and count-referenced (the tag->answer mapping is a reasoning layer, but every
-    claim points at concrete numbers so it is auditable, not a vibe).
+    The susceptibility model is deliberately conservative and count-referenced
+    (the tag->answer mapping is a reasoning layer, but every claim points at
+    concrete numbers so it is auditable, not a vibe).
     """
     signals: list[str] = []
     tokens = buckets.get('tokens', 0)
@@ -351,7 +349,7 @@ def susceptibility(
             f'strands the value engine.'
         )
 
-    # 4. Typal dependency (PTTD's tell): heavy changeling / typal-hero.
+    # 4. Typal dependency: heavy changeling / typal-hero.
     typal = sum(
         1
         for c in cards
@@ -376,15 +374,15 @@ def susceptibility(
 
 
 # --------------------------------------------------------------------------- #
-# Focus-relative analysis — actual card tags measured vs the deck's NARROW,
-# skill-authored focus set. The engine only READS the focus; it never writes it.
+# Focus-relative analysis — actual card tags measured vs the deck's narrow,
+# skill-authored focus set. The engine only reads the focus; it never writes it.
 # --------------------------------------------------------------------------- #
 
 
 def _card_supports_focus_entry(card: dict, entry: str, card_otag: dict[str, set[str]]) -> bool:
     """Does one card support a single focus entry?
 
-    A focus entry resolves at BOTH levels of the actual derived set:
+    A focus entry resolves at both levels of the actual derived set:
       * bucket-level — the entry is a bucket name (e.g. ``counters``, ``tokens``):
         the card supports it iff the entry is among the card's rolled-up buckets
         (``buckets_for`` of its slug closure).
@@ -411,18 +409,18 @@ def focus_relative(
     Args:
         cards: The deck's resolved card dicts.
         buckets: The already-computed multi-label ``otag_buckets`` (bucket ->
-            nonland card count) — used to surface prominent OFF-focus buckets.
-        focus: The deck's NARROW declared focus set (bucket names and/or otag
+            nonland card count) — used to surface prominent off-focus buckets.
+        focus: The deck's narrow declared focus set (bucket names and/or otag
             slugs). Read-only; never mutated, never persisted.
         card_otag: ``oracle_id -> set[slug]`` closure.
 
     Returns:
         ``{coverage_of_focus, thin_focus, off_focus}``:
-          * ``coverage_of_focus``: focus entry -> count of NONLAND cards supporting
+          * ``coverage_of_focus``: focus entry -> count of nonland cards supporting
             it (bucket- or slug-level). Every declared entry is echoed (0 support
             included), so thin items stay visible.
           * ``thin_focus``: focus entries with support < ``_THIN_FOCUS_THRESHOLD``.
-          * ``off_focus``: prominent card buckets present in the deck but NOT in
+          * ``off_focus``: prominent card buckets present in the deck but not in
             the focus set (and not implied by a slug-level focus entry).
     """
     nonland = [c for c in cards if not is_land(_type_line(c))]
@@ -433,8 +431,8 @@ def focus_relative(
 
     thin = [entry for entry in focus if coverage[entry] < _THIN_FOCUS_THRESHOLD]
 
-    # off_focus: prominent card buckets the deck did NOT declare. A focus entry
-    # can be a bucket name directly, or a slug that rolls up INTO a bucket — either
+    # off_focus: prominent card buckets the deck did not declare. A focus entry
+    # can be a bucket name directly, or a slug that rolls up into a bucket — either
     # way that bucket is "declared" and should not read as off-focus noise.
     focus_set = set(focus)
     declared_buckets = set(focus_set)
@@ -472,16 +470,16 @@ def factsheet_for(
             ``otag_rollup``). Defaults to empty (buckets/susceptibility empty).
         deck: Optional deck name.
         missing: Decklist names that did not resolve to a card.
-        focus: The deck's NARROW, skill-authored focus set (``Focus Otags`` —
-            bucket names and/or otag slugs). READ-ONLY: this transform measures
-            the deck's actual card tags against it and NEVER authors or persists
+        focus: The deck's narrow, skill-authored focus set (``Focus Otags`` —
+            bucket names and/or otag slugs). Read-only: this transform measures
+            the deck's actual card tags against it and never authors or persists
             it. When None/empty the focus fields are emitted empty and the output
-            is byte-identical to the pre-focus build.
+            is byte-identical to a build without focus.
 
     Returns:
-        A dict that satisfies ``contracts.FactSheet.model_validate``. The
-        structured facts mirror the scripts census; ``coverage`` is the OTAG
-        coverage; ``otag_buckets`` + ``susceptibility`` are the otag-derived
+        A dict that satisfies ``contracts.FactSheet.model_validate``.
+        ``coverage`` is the otag coverage; ``otag_buckets`` + ``susceptibility``
+        are the otag-derived
         fields; ``focus`` + ``focus_relative`` are the focus-relative
         signals (empty when no focus is supplied).
     """

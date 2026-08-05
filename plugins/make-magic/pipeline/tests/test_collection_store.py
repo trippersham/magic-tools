@@ -1,4 +1,4 @@
-"""TDD tests for the CollectionStore port + app_state (Phase 1.2).
+"""TDD tests for the CollectionStore port + app_state.
 
 Everything is OFFLINE: a tmp data dir (via MAKE_MAGIC_DATA_DIR) backs the
 DuckDB `app_state` table; no network. Covers:
@@ -125,20 +125,20 @@ def test_resolve_backend_defaults_local_without_creds(data_dir: Path) -> None:
 
 
 def test_resolve_backend_normalizes_env_case(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """`MAKE_MAGIC_BACKEND=Airtable` (wrong case) normalizes to 'airtable' (Fix 3)."""
+    """`MAKE_MAGIC_BACKEND=Airtable` (wrong case) normalizes to 'airtable'."""
     monkeypatch.setenv('MAKE_MAGIC_BACKEND', '  Airtable ')
     assert resolve_backend() == 'airtable'
 
 
 def test_resolve_backend_invalid_env_raises(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """An explicit but invalid env value fails LOUDLY, never silently local (Fix 3)."""
+    """An explicit but invalid env value fails loudly, never silently local."""
     monkeypatch.setenv('MAKE_MAGIC_BACKEND', 'garbage')
     with pytest.raises(CollectionError, match='garbage'):
         resolve_backend()
 
 
 def test_resolve_backend_ignores_corrupt_persisted_backend(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A corrupt onboarded app_state.backend is IGNORED -> falls through to local (Fix 3)."""
+    """A corrupt onboarded app_state.backend is ignored -> falls through to local."""
     write_app_state(AppState(backend='garbage', onboarded=True))
     monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)
     assert resolve_backend() == 'local'
@@ -147,9 +147,9 @@ def test_resolve_backend_ignores_corrupt_persisted_backend(data_dir: Path, monke
 def test_status_label_matches_get_store_branch(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """`effective_backend` can never disagree with the branch get_store constructs.
 
-    A wrong-case env normalizes to 'airtable' in BOTH resolve_backend (status
+    A wrong-case env normalizes to 'airtable' in both resolve_backend (status
     label) and get_store (which requires creds) — no lie where status says
-    airtable while get_store silently builds local (Fix 3).
+    airtable while get_store silently builds local.
     """
     from pipeline.collection import onboarding_status
 

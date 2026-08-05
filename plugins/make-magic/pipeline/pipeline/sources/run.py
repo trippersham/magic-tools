@@ -1,6 +1,6 @@
 """Sources dispatcher: ``python -m pipeline.sources.run <source> [args...]``.
 
-A no-orchestrator CLI (data-architecture §"No orchestrator"): each source is a
+A no-orchestrator CLI: each source is a
 plain module with a ``main()``; this dispatcher just routes to it so a stage can
 run as either ``python -m pipeline.sources.run oracle_tags`` or directly
 ``python -m pipeline.sources.oracle_tags``.

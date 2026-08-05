@@ -1,17 +1,15 @@
 """Tests for card_tagger — otag-bucket sourced tags + the kept scoring engine.
 
-#5 Phase 3a retired ``tag_mechanics`` (the ~54-pattern regex census). Card
-mechanic tags now come STRAIGHT from the card dim's ``otag_buckets`` (via the
-package ``CardResolver`` seam), and the deck-fit scoring engine — kept intact —
-is fed those buckets through a bucket->strategy synonym layer.
+Card mechanic tags come straight from the card dim's ``otag_buckets`` (via the
+package ``CardResolver`` seam), and the deck-fit scoring engine is fed those
+buckets through a bucket->strategy synonym layer.
 
 Governing invariants:
-  - ``tag-card`` / ``tag-set`` / ``tag-file`` emit otag-DERIVED tags; ZERO regex
+  - ``tag-card`` / ``tag-set`` / ``tag-file`` emit otag-derived tags; zero regex
     is involved (``re`` is not imported by the module at all).
-  - Fail-open (I5): an unresolved card -> empty tags, never a crash.
-  - The scoring engine's STRUCTURE is unchanged; only its tag INPUT vocabulary
-    moved from regex labels to crosswalk buckets. The golden rankings below are
-    the POST-OTAG rankings (they intentionally differ from the old regex ones).
+  - Fail-open: an unresolved card -> empty tags, never a crash.
+  - The scoring engine is fed its tag input vocabulary from crosswalk buckets.
+    The golden rankings below are the otag-sourced rankings.
 
 Run:
     cd plugins/make-magic/scripts && uv run --with pytest --with typer \

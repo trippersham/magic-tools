@@ -4,9 +4,9 @@ A deck's human name (Airtable primary field) is arbitrary text — it can contai
 ``/`` (``U/R Izzet``), ``:``, or other path-illegal characters, and it changes
 over time. When a backend stages a deck to a file for a downstream tool (e.g. the
 Forge ``sim`` runner writes ``<name>.dck`` into Forge's decks dir), using the raw
-name as the FILENAME breaks: ``U/R Izzet`` becomes a ``U/`` sub-directory + a
+name as the filename breaks: ``U/R Izzet`` becomes a ``U/`` sub-directory + a
 missing file. The display name still belongs in the file's ``Name=`` metadata —
-only the on-disk STEM needs sanitizing. This is that (owned by the destination
+only the on-disk stem needs sanitizing. This is that (owned by the destination
 layer, per design, so every consumer sanitizes identically).
 """
 
@@ -16,7 +16,7 @@ import re
 
 __all__ = ('safe_deck_stem',)
 
-#: Characters we KEEP in a stem: word chars (letters/digits/underscore, unicode),
+#: Characters we keep in a stem: word chars (letters/digits/underscore, unicode),
 #: space, dash, dot, parentheses. Everything else (``/ : * ? " < > |`` control
 #: chars, …) collapses to ``_``.
 _UNSAFE = re.compile(r'[^\w.\-() ]+', re.UNICODE)
@@ -35,7 +35,7 @@ def safe_deck_stem(name: str) -> str:
     idempotent; the human name is preserved separately (in the ``.dck`` ``Name=``
     line), so this only governs the on-disk stem.
 
-    Note: two DIFFERENT names can sanitize to the SAME stem (e.g. ``A/B`` and
+    Note: two different names can sanitize to the same stem (e.g. ``A/B`` and
     ``A:B`` -> ``A_B``); callers that stage two decks at once must disambiguate
     a collision themselves (the sim runner appends distinct suffixes).
     """

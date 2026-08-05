@@ -1,26 +1,26 @@
-"""Run ONE AI-vs-AI matchup through headless Forge and tally the result.
+"""Run one AI-vs-AI matchup through headless Forge and tally the result.
 
 :func:`run_matchup` stages two already-rendered ``.dck`` files into the Forge
 profile decks dir, launches a single ``sim`` JVM from the Forge home (so ``res/``
-resolves), enforces an EXTERNAL subprocess timeout + kill (Forge's own ``-c`` is
+resolves), enforces an external subprocess timeout + kill (Forge's own ``-c`` is
 only the in-game draw clock), and hands the captured log to :func:`parse_match_log`.
 
 Parsing is a pure function so it is unit-testable against real captured logs.
 Every gotcha below is empirically validated against Forge 2.0.13 + Temurin 21:
 
-  * Count ONLY ``Game Result:`` lines. Each finished game ALSO prints a
-    ``Game Outcome: … has won`` twin — tallying both DOUBLE-counts every win.
-  * A missing/broken deck EXITS 0 and prints ``Could not load deck`` — success
+  * Count only ``Game Result:`` lines. Each finished game also prints a
+    ``Game Outcome: … has won`` twin — tallying both double-counts every win.
+  * A missing/broken deck exits 0 and prints ``Could not load deck`` — success
     is judged by counting ``Game Result`` lines, never by exit code.
   * The winner maps by the ``Ai(1)``/``Ai(2)`` slot = the ``-d`` order, so
     ``deck_a`` is always ``Ai(1)`` and ``deck_b`` is ``Ai(2)``; deck names with
     spaces are safe.
   * Headless flags are platform-specific: macOS needs
     ``-Dapple.awt.UIElement=true``; a truly headless Linux host needs an
-    ``xvfb-run`` wrapper. NEVER ``-Djava.awt.headless=true`` (silent exit 1).
+    ``xvfb-run`` wrapper. Never ``-Djava.awt.headless=true`` (silent exit 1).
 
-Telemetry (kill-turn, per-turn parsing) is deliberately NOT extracted here — the
-verbose log is captured whole in ``MatchResult.raw_log`` for a later phase.
+Telemetry (kill-turn, per-turn parsing) is deliberately not extracted here — the
+verbose log is captured whole in ``MatchResult.raw_log`` for later.
 """
 
 from __future__ import annotations
@@ -46,12 +46,12 @@ __all__ = (
     'run_matchup',
 )
 
-#: The ONLY line the tally counts: ``Game Result: Game N ended in <ms> ms. <tail>``.
+#: The only line the tally counts: ``Game Result: Game N ended in <ms> ms. <tail>``.
 _RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in (\d+) ms\. (.+)$')
 #: Winner tail: ``Ai(<slot>)-<name> has won!`` — slot 1 = deck_a, 2 = deck_b.
-#: The name is matched non-greedily (``.+?``, NOT ``\S+``) so deck names with
+#: The name is matched non-greedily (``.+?``, not ``\S+``) so deck names with
 #: spaces/parens (e.g. a real Airtable deck ``UR Izzet (Chaos Sealed)``) parse —
-#: only the SLOT drives attribution, so the name span is irrelevant otherwise.
+#: only the slot drives attribution, so the name span is irrelevant otherwise.
 _WINNER_RE = re.compile(r'Ai\((\d)\)-.+? has won!')
 #: exit-0 deck-load failures. Presence -> ForgeError regardless of exit code.
 _LOAD_FAILURE_MARKERS = ('Could not load deck', 'No deck found in')
@@ -89,8 +89,8 @@ class MatchResult:
     """The tallied outcome of one matchup + the raw verbose log.
 
     ``per_game`` preserves per-game order (winner + elapsed_ms). ``raw_log`` holds
-    the full verbose stdout+stderr so a later telemetry phase can re-parse it
-    without re-running the match.
+    the full verbose stdout+stderr so telemetry can re-parse it without re-running
+    the match.
     """
 
     deck_a: str
@@ -108,7 +108,7 @@ class MatchResult:
 
 
 def deck_to_dck(deck: Deck) -> str:
-    """Render a :class:`~pipeline.contracts.Deck` to ``.dck`` text via the Phase-1
+    """Render a :class:`~pipeline.contracts.Deck` to ``.dck`` text via the Forge
     exporter — a thin convenience so callers can produce the text
     :func:`run_matchup` consumes. ``run_matchup`` itself stays decoupled (it takes
     already-rendered text), so this helper is optional."""
@@ -118,9 +118,9 @@ def deck_to_dck(deck: Deck) -> str:
 def parse_match_log(output: str, *, deck_a: str, deck_b: str) -> MatchResult:
     """Tally a Forge ``sim`` log into a :class:`MatchResult` (pure function).
 
-    Counts ONLY ``Game Result:`` lines (the ``Game Outcome:`` twin would
+    Counts only ``Game Result:`` lines (the ``Game Outcome:`` twin would
     double-count), mapping the ``Ai(1)``/``Ai(2)`` slot to ``deck_a``/``deck_b``.
-    Raises :class:`ForgeError` on a deck-load failure marker (exit code is NOT
+    Raises :class:`ForgeError` on a deck-load failure marker (exit code is not
     reliable — a broken deck still exits 0) or when no ``Game Result`` line is
     present at all.
     """
@@ -171,7 +171,7 @@ def parse_match_log(output: str, *, deck_a: str, deck_b: str) -> MatchResult:
 def _jvm_args() -> tuple[str, ...]:
     """Base + platform headless JVM args.
 
-    macOS: ``-Dapple.awt.UIElement=true`` (background-agent AWT; the ONLY reliable
+    macOS: ``-Dapple.awt.UIElement=true`` (background-agent AWT; the only reliable
     headless flag — ``-Djava.awt.headless=true`` makes Forge exit 1 silently).
     Other platforms rely on an ``xvfb-run`` wrapper (see :func:`_launch_prefix`).
     """
@@ -201,7 +201,7 @@ def _launch_prefix() -> list[str]:
 def _kill_process_group(proc: subprocess.Popen[str]) -> None:
     """SIGKILL the JVM's whole process group, then reap it.
 
-    The child was started with ``start_new_session=True``, so its pid IS its
+    The child was started with ``start_new_session=True``, so its pid is its
     process-group id and ``killpg`` takes out every descendant (the JVM itself
     when a launch prefix like ``xvfb-run`` made it a grandchild). The final
     ``communicate`` reaps the child and drains the now-closed pipes — without
@@ -224,15 +224,15 @@ def run_matchup(
     fmt: str = 'constructed',
     timeout_s: int = 30,
 ) -> MatchResult:
-    """Run ONE matchup of ``n`` games: ``deck_a`` (Ai(1)) vs ``deck_b`` (Ai(2)).
+    """Run one matchup of ``n`` games: ``deck_a`` (Ai(1)) vs ``deck_b`` (Ai(2)).
 
     ``deck_a`` / ``deck_b`` are ``(name, dck_text)`` pairs — already-rendered
     ``.dck`` content (use :func:`deck_to_dck` to produce it from a
     :class:`~pipeline.contracts.Deck`). Each is written into
     ``install.decks_dir/<constructed|commander>/`` (Forge resolves ``-d`` against
     the profile dir, never absolute paths). The JVM runs from ``install.forge_dir``
-    so ``res/`` resolves, VERBOSE (no ``-q``) so the log is captured for later
-    telemetry, with an EXTERNAL timeout + kill on top of Forge's in-game ``-c``
+    so ``res/`` resolves, verbose (no ``-q``) so the log is captured for later
+    telemetry, with an external timeout + kill on top of Forge's in-game ``-c``
     clock.
 
     Raises :class:`ForgeError` on a deck-load failure or an unparseable/empty log,
@@ -241,7 +241,7 @@ def run_matchup(
     name_a, text_a = deck_a
     name_b, text_b = deck_b
 
-    # Stage under FILESYSTEM-SAFE stems (the human name may contain '/' etc. and
+    # Stage under filesystem-safe stems (the human name may contain '/' etc. and
     # is used only for display — it survives inside each .dck's `Name=`). Forge
     # resolves `-d <stem>` against the profile dir, so the stem drives both the
     # filename and the `-d` arg. Disambiguate the rare case where two distinct
@@ -277,11 +277,11 @@ def run_matchup(
     if fmt == 'commander':
         cmd += ['-f', 'commander']
 
-    # EXTERNAL kill-switch: Forge's -c is only the per-game draw clock, so bound
+    # External kill-switch: Forge's -c is only the per-game draw clock, so bound
     # the whole JVM at one-time-load headroom + per-game budget across n games.
-    # start_new_session puts the child in its OWN process group so the timeout
+    # start_new_session puts the child in its own process group so the timeout
     # kill can reap the whole tree — under an `xvfb-run` prefix the JVM is a
-    # GRANDCHILD, and killing only the direct child would leak it.
+    # grandchild, and killing only the direct child would leak it.
     external_timeout = _JVM_LOAD_HEADROOM_S + max(1, n) * timeout_s
     proc = subprocess.Popen(
         cmd,

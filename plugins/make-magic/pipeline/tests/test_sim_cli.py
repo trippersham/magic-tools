@@ -1,4 +1,4 @@
-"""TDD tests for the ``simulate`` CLI dispatcher (Phase 7).
+"""TDD tests for the ``simulate`` CLI dispatcher.
 
 Every verb that would spawn Forge is exercised with the sim CORE mocked
 (``core.simulate`` / ``core.compare`` / ``runner.run_matchup`` /
@@ -440,7 +440,7 @@ def test_match_auto_provisions_via_ensure(
 
 
 # --------------------------------------------------------------------------- #
-# S2 — first-run ~350MB download consent gate
+# First-run ~350MB download consent gate
 # --------------------------------------------------------------------------- #
 
 
@@ -453,7 +453,7 @@ def test_ensure_forge_returns_cached_without_prompt(monkeypatch: pytest.MonkeyPa
 
 
 def test_ensure_forge_non_interactive_auto_proceeds(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
-    """S2: non-interactive stdin (agent/CI) fetches WITHOUT prompting."""
+    """Non-interactive stdin (agent/CI) fetches without prompting."""
     monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
     monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: False)
@@ -462,7 +462,7 @@ def test_ensure_forge_non_interactive_auto_proceeds(monkeypatch: pytest.MonkeyPa
 
 
 def test_ensure_forge_tty_decline_aborts(monkeypatch: pytest.MonkeyPatch) -> None:
-    """S2: an interactive user answering 'n' aborts with a clean ForgeUnavailableError."""
+    """An interactive user answering 'n' aborts with a clean ForgeUnavailableError."""
     monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
     monkeypatch.setattr(sim_run, 'ensure', lambda **_: pytest.fail('declined download must not fetch'))
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
@@ -472,7 +472,7 @@ def test_ensure_forge_tty_decline_aborts(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_ensure_forge_tty_accept_fetches(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
-    """S2: an interactive user answering 'y' proceeds with the fetch."""
+    """An interactive user answering 'y' proceeds with the fetch."""
     monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
     monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
@@ -481,7 +481,7 @@ def test_ensure_forge_tty_accept_fetches(monkeypatch: pytest.MonkeyPatch, instal
 
 
 def test_ensure_forge_yes_flag_skips_prompt(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
-    """S2: --yes fetches without prompting even on an interactive TTY."""
+    """--yes fetches without prompting even on an interactive TTY."""
     monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
     monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)

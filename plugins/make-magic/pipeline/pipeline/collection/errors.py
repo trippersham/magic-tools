@@ -1,10 +1,10 @@
 """Collection-layer error types.
 
-`CollectionError` is the ONE exception the CLI wrapper (`run.main`) treats as a
+`CollectionError` is the one exception the CLI wrapper (`run.main`) treats as a
 clean, user-facing failure (alongside `FileNotFoundError` and the Airtable
 `ReadOnlyStoreError` / `AirtableConfigError`). It subclasses `RuntimeError` (the
 same pattern the sibling `ReadOnlyStoreError` follows), so a raw `KeyError` /
-`ValueError` / `pydantic.ValidationError` from a genuine defect is NOT swallowed —
+`ValueError` / `pydantic.ValidationError` from a genuine defect is not swallowed —
 it tracebacks.
 
 Deliberate, user-facing raises (unknown ``--field``, missing creds, malformed
@@ -20,7 +20,7 @@ __all__ = ('CollectionError',)
 class CollectionError(RuntimeError):
     """A clean, user-facing collection failure (bad input / config / state).
 
-    Lets `run.main` catch EXACTLY the user-facing failures and let real defects
+    Lets `run.main` catch exactly the user-facing failures and let real defects
     (`KeyError`, `ValueError`, `ValidationError`) traceback.
     """
 

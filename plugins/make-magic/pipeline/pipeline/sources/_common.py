@@ -1,10 +1,9 @@
 """Pure ingest primitives: incremental cursor tracking + append-dedupe.
 
-These are the TDD'd, side-effect-light building blocks every puller shares. The
-design (data-architecture §ingest): a puller does
-``fetch -> cursor/updated_at check (skip if not newer) -> append-dedupe into raw/``.
-This module owns the first and third steps as pure-ish functions so the pullers
-stay thin and the gate logic is tested in isolation.
+These are the side-effect-light building blocks every puller shares. A puller
+does ``fetch -> cursor/updated_at check (skip if not newer) -> append-dedupe into
+raw/``. This module owns the first and third steps as pure-ish functions so the
+pullers stay thin and the gate logic is tested in isolation.
 
 Cursor storage: a single JSON map ``{source: token}`` at
 ``data/raw/_cursors.json``. ``token`` is whatever a source uses to detect
@@ -137,7 +136,7 @@ def dedupe[Row: Mapping[str, object]](
     rows: Sequence[Row],
     key: str | Callable[[Row], Hashable],
 ) -> list[Row]:
-    """Append-dedupe: keep the LAST row per key, preserving first-seen order.
+    """Append-dedupe: keep the last row per key, preserving first-seen order.
 
     ``key`` is either a field name (dict subscript) or a callable extracting the
     key. Last-wins matches append-dedupe semantics: a re-fetched record replaces

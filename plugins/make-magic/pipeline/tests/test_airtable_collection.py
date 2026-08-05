@@ -1,4 +1,4 @@
-"""OFFLINE tests for the Airtable-records `CollectionStore` adapter (Phase 2.1).
+"""OFFLINE tests for the Airtable-records `CollectionStore` adapter.
 
 No network, no creds: every request is served by an in-memory
 ``httpx.MockTransport`` that returns representative meta (schema) + record
@@ -43,9 +43,9 @@ from pipeline.contracts import Card, Deck, DeckCard, Trade
 
 class _StubCardResolver:
     """A `CardResolver` double: canned enrichment for the deck-fixture cards so
-    deck reads HYDRATE without the network, and tests can ASSERT the reconstructed
-    DeckCards carry real type/CMC/oracle_id. Regression guard: deck cards used to
-    come back name-only (breaking the fact sheet against a real base)."""
+    deck reads hydrate without the network, and tests can assert the reconstructed
+    DeckCards carry real type/CMC/oracle_id. Regression guard against deck cards
+    coming back name-only (which breaks the fact sheet against a real base)."""
 
     _CARDS: ClassVar[dict[str, dict[str, Any]]] = {
         'Grumgully, the Generous': {
@@ -401,9 +401,9 @@ def test_deck_reconstruction_round_trip() -> None:
     assert deck.assessment is None
     assert deck.focus_otags == []
     assert deck.airtable_record_id == 'recDeck'
-    # commander resolved from link -> role=commander, AND HYDRATED via the
-    # resolver (regression: deck cards used to come back name-only, so the fact
-    # sheet got nothing against a real base).
+    # commander resolved from link -> role=commander, and hydrated via the
+    # resolver (regression guard: deck cards must not come back name-only, or the
+    # fact sheet gets nothing against a real base).
     assert [c.name for c in deck.commanders] == ['Grumgully, the Generous']
     cmdr = deck.commanders[0]
     assert cmdr.type_line == 'Legendary Creature — Goblin Shaman'
@@ -496,7 +496,7 @@ def test_hydration_preserves_airtable_link_name() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# #16 — surface unresolved (name-only) deck cards in get_deck
+# Surface unresolved (name-only) deck cards in get_deck
 # --------------------------------------------------------------------------- #
 
 
@@ -522,9 +522,9 @@ def _partial_resolve_fixture() -> FakeAirtable:
 
 
 def test_get_deck_warns_on_unresolved_name_only_cards(caplog: pytest.LogCaptureFixture) -> None:
-    """#16: a get-deck over a deck with >=1 card the resolver can't hydrate must
-    log a WARNING naming the count + the unresolved card names, so the silent
-    name-only degradation (oracle_id=None, no enrichment) is VISIBLE."""
+    """A get-deck over a deck with >=1 card the resolver can't hydrate must
+    log a warning naming the count + the unresolved card names, so the silent
+    name-only degradation (oracle_id=None, no enrichment) is visible."""
     with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
         deck = _store(_partial_resolve_fixture()).get_deck('Gruul Aggro')
     # resolution behaviour is unchanged: the miss still comes back name-only.
@@ -543,14 +543,14 @@ def test_get_deck_warns_on_unresolved_name_only_cards(caplog: pytest.LogCaptureF
 
 
 def test_get_deck_no_warning_when_all_resolve(caplog: pytest.LogCaptureFixture) -> None:
-    """#16: a fully-resolved deck logs NOTHING (no false alarm)."""
+    """A fully-resolved deck logs nothing (no false alarm)."""
     with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
         _store(_deck_fixture()).get_deck('Gruul Aggro')
     assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
 
 
 def test_list_decks_does_not_warn_on_name_only(caplog: pytest.LogCaptureFixture) -> None:
-    """#16: the deliberately name-only ``list_decks`` path must NOT trip the
+    """The deliberately name-only ``list_decks`` path must not trip the
     unresolved-card warning (it never hydrates, so 'unresolved' is meaningless)."""
     with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
         _store(_partial_resolve_fixture()).list_decks()
@@ -558,7 +558,7 @@ def test_list_decks_does_not_warn_on_name_only(caplog: pytest.LogCaptureFixture)
 
 
 # --------------------------------------------------------------------------- #
-# #17 — deck-size integrity check vs Airtable Deck Size in get_deck
+# Deck-size integrity check vs Airtable Deck Size in get_deck
 # --------------------------------------------------------------------------- #
 
 
@@ -585,7 +585,7 @@ def _deck_size_fixture(deck_size: int | None) -> FakeAirtable:
 
 
 def test_get_deck_warns_on_deck_size_gap(caplog: pytest.LogCaptureFixture) -> None:
-    """#17: reconstructed Σquantity (15) != Airtable Deck Size (18) logs a WARNING
+    """Reconstructed Σquantity (15) != Airtable Deck Size (18) logs a warning
     naming both numbers + the gap; the deck is not mutated."""
     with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
         deck = _store(_deck_size_fixture(18)).get_deck('Gruul Aggro')
@@ -600,14 +600,14 @@ def test_get_deck_warns_on_deck_size_gap(caplog: pytest.LogCaptureFixture) -> No
 
 
 def test_get_deck_no_warning_when_deck_size_matches(caplog: pytest.LogCaptureFixture) -> None:
-    """#17: reconstructed Σquantity == Deck Size -> no warning."""
+    """Reconstructed Σquantity == Deck Size -> no warning."""
     with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
         _store(_deck_size_fixture(15)).get_deck('Gruul Aggro')
     assert [r for r in caplog.records if r.levelname == 'WARNING'] == []
 
 
 def test_get_deck_no_size_check_when_field_absent(caplog: pytest.LogCaptureFixture) -> None:
-    """#17: no ``Deck Size`` value -> no check, no error, no warning."""
+    """No ``Deck Size`` value -> no check, no error, no warning."""
     with caplog.at_level('WARNING', logger='make_magic.collection.airtable'):
         deck = _store(_deck_size_fixture(None)).get_deck('Gruul Aggro')
     assert sum(c.quantity for c in deck.cards) == 15
@@ -615,7 +615,7 @@ def test_get_deck_no_size_check_when_field_absent(caplog: pytest.LogCaptureFixtu
 
 
 # --------------------------------------------------------------------------- #
-# Phase 1 — deck Format read -> Deck.format / Deck.target_size
+# Deck Format read -> Deck.format / Deck.target_size
 # --------------------------------------------------------------------------- #
 
 
@@ -646,14 +646,14 @@ def test_row_to_deck_absent_format_is_untargeted() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# #15 — regression guard: basics reconstruction from count columns
+# Regression guard: basics reconstruction from count columns
 # --------------------------------------------------------------------------- #
 
 
 def test_basics_reconstructed_from_count_columns() -> None:
-    """#15 regression guard: basic-land count columns (Forests/Islands/…) must
+    """Regression guard: basic-land count columns (Forests/Islands/…) must
     reconstruct into ``DeckCard``s with the right quantity + type, and their
-    copies must be included in Σquantity. This FAILS if the ``BASIC_LAND_FIELDS``
+    copies must be included in Σquantity. This fails if the ``BASIC_LAND_FIELDS``
     loop in ``_row_to_deck`` is removed."""
     inv = _FIELDS['Inventory Cards']
     d = _FIELDS['Decks']
@@ -786,7 +786,7 @@ def test_log_trade_notes_maps_to_notes_column() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Fix B — save_deck writes full membership (Commander/Cards links + basics)
+# save_deck writes full membership (Commander/Cards links + basics)
 # --------------------------------------------------------------------------- #
 
 
@@ -872,7 +872,7 @@ def test_save_deck_never_writes_format() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Fix C — add_chase writes Target Decks; skips non-persistable fields
+# add_chase writes Target Decks; skips non-persistable fields
 # --------------------------------------------------------------------------- #
 
 
@@ -916,7 +916,7 @@ def test_add_chase_skips_non_persistable_fields_without_error() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Fix D — log_trade writes cards_in/out + from/to deck links
+# log_trade writes cards_in/out + from/to deck links
 # --------------------------------------------------------------------------- #
 
 
@@ -993,8 +993,7 @@ def test_list_decks_tolerates_missing_skill_authored_fields() -> None:
     neither ``Assessment`` nor ``Focus Otags``): resolving those field ids raises
     ``AirtableConfigError``, and ``_get_optional`` must degrade the read to
     ``None`` / ``[]`` rather than exploding ``list_decks``. The default fixture
-    schema now MATCHES that reality (no Assessment / Focus Otags), which is what
-    the pre-fix fixture masked.
+    schema matches that reality (no Assessment / Focus Otags).
     """
     fake = FakeAirtable()
     fake.tables['tblDecks'] = [{'id': 'recDeck1', 'fields': {'fldDeckName': 'Gruul', 'fldStrategy': 'aggro'}}]
@@ -1115,9 +1114,9 @@ def test_cross_backend_parity_maindeck_commander_sideboard(tmp_path: Path) -> No
 
 
 # --------------------------------------------------------------------------- #
-# B1: a SIDEBOARD basic must be LINKED in the Sideboard field, NOT folded into
+# A sideboard basic must be linked in the Sideboard field, not folded into
 # the maindeck count fields (which silently vanishes it and inflates the
-# maindeck — the July deck-drift failure class).
+# maindeck).
 # --------------------------------------------------------------------------- #
 
 
@@ -1174,8 +1173,8 @@ def test_save_deck_sideboard_quantity_folds_into_repeat_count() -> None:
 
 
 def test_cross_backend_parity_with_sideboard_basic_and_quantity(tmp_path: Path) -> None:
-    """Strengthened parity: a sideboard BASIC + a qty>1 sideboard card partition
-    identically across both backends (the shapes B1/S1 previously corrupted)."""
+    """Strengthened parity: a sideboard basic + a qty>1 sideboard card partition
+    identically across both backends."""
     from pipeline.collection.adapters.local_yaml import LocalYamlStore
 
     deck = Deck(

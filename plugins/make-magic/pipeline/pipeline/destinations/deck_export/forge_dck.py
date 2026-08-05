@@ -6,7 +6,7 @@ against Forge 2.0.13):
     [metadata]
     Name=<deck name>
     Deck Type=Constructed        # or "Commander" when the deck has commander(s)
-    [Commander]                  # emitted ONLY when commanders exist
+    [Commander]                  # emitted only when commanders exist
     <qty> <Commander Card Name>
     [Main]
     <qty> <Card Name>
@@ -19,13 +19,13 @@ Rendering rules:
       arrive as a single DeckCard with ``quantity>1`` — one line, not repeated).
       Set codes are omitted (the DeckCard carries none).
     - Commanders (``deck.commanders`` / ``role == 'commander'``) go in
-      ``[Commander]`` and are EXCLUDED from ``[Main]``; their presence flips
+      ``[Commander]`` and are excluded from ``[Main]``; their presence flips
       ``Deck Type`` to ``Commander``.
     - Sideboard cards (``deck.sideboard`` / ``role == 'sideboard'``) go in
-      ``[Sideboard]`` and are EXCLUDED from ``[Main]``; a deck with no sideboard
-      leaves ``[Sideboard]`` empty (byte-identical to a pre-sideboard render).
-    - An MDFC/DFC combined name (``A // B``) is REWRITTEN to its front face ``A``:
-      Forge's deck loader REJECTS the combined name (the card is silently dropped)
+      ``[Sideboard]`` and are excluded from ``[Main]``; a deck with no sideboard
+      leaves ``[Sideboard]`` empty.
+    - An MDFC/DFC combined name (``A // B``) is rewritten to its front face ``A``:
+      Forge's deck loader rejects the combined name (the card is silently dropped)
       and matches the front face. A true split card that Forge stores under its
       own combined name is emitted unchanged (the loader's own name) when an
       availability index confirms Forge knows that exact name; without an index
@@ -52,7 +52,7 @@ class ForgeDckExporter:
     Satisfies the :class:`~pipeline.destinations.deck_export.DeckExporter` port:
     exposes ``format == 'forge_dck'``, :meth:`export`, and :meth:`validate`. The
     per-card render + validation are delegated to a composed
-    :class:`~pipeline.destinations.card_export.ForgeDckCardExporter` (gap 0.4), so
+    :class:`~pipeline.destinations.card_export.ForgeDckCardExporter`, so
     an ``availability`` oracle (a Forge card index) — when injected — drives the
     blocking "card absent from Forge" check consistently.
     """
@@ -86,8 +86,8 @@ class ForgeDckExporter:
         commanders (``role == 'commander'``) render in ``[Commander]``, sideboard
         cards (``role == 'sideboard'``) in ``[Sideboard]``, and the maindeck
         (everything else) in ``[Main]``. A commander's presence sets
-        ``Deck Type=Commander``. A deck with NO sideboard renders an empty
-        ``[Sideboard]`` line exactly as before (byte-stable).
+        ``Deck Type=Commander``. A deck with no sideboard renders an empty
+        ``[Sideboard]`` line.
         """
         commanders = deck.commanders
         deck_type = 'Commander' if commanders else 'Constructed'
@@ -96,7 +96,7 @@ class ForgeDckExporter:
 
         if commanders:
             lines.append('[Commander]')
-            # Forge parses EVERY deck line as `<qty> <name>` — a bare name fails
+            # Forge parses every deck line as `<qty> <name>` — a bare name fails
             # to load the commander. Use the same `<qty> <name>` form as [Main]
             # (empirically verified against Forge 2.0.13 via forge_backend.py).
             lines.extend(self._card_line(c) for c in commanders)
@@ -105,8 +105,8 @@ class ForgeDckExporter:
         lines.extend(self._card_line(card) for card in deck.maindeck)
 
         lines.append('[Sideboard]')
-        # Sideboard cards use the SAME `<qty> <name>` line form as [Main]; a deck
-        # with no sideboard leaves this section empty (byte-identical to before).
+        # Sideboard cards use the same `<qty> <name>` line form as [Main]; a deck
+        # with no sideboard leaves this section empty.
         lines.extend(self._card_line(card) for card in deck.sideboard)
         return '\n'.join(lines)
 

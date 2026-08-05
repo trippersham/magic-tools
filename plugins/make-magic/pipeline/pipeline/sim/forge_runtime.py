@@ -2,8 +2,8 @@
 
 A Forge ``sim`` run needs two things on disk: the ``forge-gui-desktop-*.jar``
 (alongside its ``res/`` card DB) and a ``java`` binary to launch it. This module
-resolves both via an OVERRIDE-FIRST ladder so tests and a pre-provisioned box
-can reuse an existing install WITHOUT a download:
+resolves both via an override-first ladder so tests and a pre-provisioned box
+can reuse an existing install without a download:
 
     1. env overrides — ``MAKE_MAGIC_FORGE_HOME`` (a Forge dir with the desktop
        jar + ``res/``) and ``MAKE_MAGIC_JAVA`` (a java binary). Both win first.
@@ -73,12 +73,12 @@ FORGE_TARBALL_URL = (
 #: verified before extraction.
 FORGE_TARBALL_SHA256 = 'df23b237095cfc5ff97a4711946b25ff852da9ff43b916c40783f6b5a41ce855'
 
-#: Adoptium ASSETS metadata endpoint — returns the JRE asset's download ``link``
-#: AND its published ``checksum`` (SHA256) in one call, so a fetched JRE is
+#: Adoptium assets metadata endpoint — returns the JRE asset's download ``link``
+#: and its published ``checksum`` (SHA256) in one call, so a fetched JRE is
 #: integrity-verified (SHA-pinned) before its ``java`` binary is executed (see
 #: :func:`_temurin_asset`). The ``link`` 307-redirects to a GitHub release asset;
 #: the HTTPS-only opener (:func:`_urlopen`) follows it without allowing a
-#: downgrade. There is intentionally NO checksum-less binary-redirect fallback —
+#: downgrade. There is intentionally no checksum-less binary-redirect fallback —
 #: an unverifiable JRE fails closed.
 _TEMURIN_ASSETS_API = 'https://api.adoptium.net/v3/assets/latest/21/ga'
 
@@ -86,14 +86,14 @@ _TEMURIN_ASSETS_API = 'https://api.adoptium.net/v3/assets/latest/21/ga'
 #: rate-limit requests that send no (or a bare ``Python-urllib``) UA under load,
 #: so identify with a real UA string.
 _USER_AGENT = 'make-magic-sim/1.0 (+https://github.com/Card-Forge/forge)'
-#: Download retry budget (linear backoff) for TRANSIENT failures only.
+#: Download retry budget (linear backoff) for transient failures only.
 _DOWNLOAD_ATTEMPTS = 3
 #: HTTP statuses worth retrying (rate-limit + transient server errors). A 404
 #: (URL rot) or any non-HTTP ``OSError`` (e.g. disk-full) is permanent -> fail
 #: fast with no backoff.
 _TRANSIENT_HTTP = frozenset({403, 429, 500, 502, 503, 504})
 #: Socket timeout (s) for every download / metadata request. Without one,
-#: ``urlopen`` inherits the default of NO timeout and a stalled connection hangs
+#: ``urlopen`` inherits the default of no timeout and a stalled connection hangs
 #: the first-run provision forever (the retry loop never even gets to fire).
 #: This is a per-socket-op inactivity timeout, so a slow-but-moving ~350 MB
 #: stream is unaffected.
@@ -101,11 +101,11 @@ _HTTP_TIMEOUT_S = 60.0
 
 
 class _HTTPSOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """A redirect handler that REFUSES to follow a redirect to a non-HTTPS target.
+    """A redirect handler that refuses to follow a redirect to a non-HTTPS target.
 
     Both fetch targets are redirect-based (GitHub releases 302, Adoptium
     ``binary/latest`` 307), and ``urllib``'s default handler silently follows an
-    ``https -> http`` DOWNGRADE. Since the downloaded ``java`` is then executed, a
+    ``https -> http`` downgrade. Since the downloaded ``java`` is then executed, a
     network attacker who controls the redirect hop could serve a swapped binary
     over plain HTTP — so a redirect ``Location`` that is not ``https://`` is
     rejected here, closing the downgrade.
@@ -162,7 +162,7 @@ class ForgeInstall:
         """The Forge profile decks root the runner stages ``.dck`` files under.
 
         Forge resolves ``-d`` filenames against ``<profile>/decks/<fmt-dir>/``;
-        the profile dir is PER-PLATFORM (macOS ``~/Library/Application Support/
+        the profile dir is per-platform (macOS ``~/Library/Application Support/
         Forge``, Linux ``~/.forge``), so decks staged here are exactly where Forge
         looks. The runner appends the per-format subdir (``constructed/`` or
         ``commander/``).
@@ -176,7 +176,7 @@ def _forge_profile_dir() -> Path:
     Forge stores its profile under the OS-native app-data location: macOS uses
     ``~/Library/Application Support/Forge``, Linux uses ``~/.forge``. Staging a
     ``.dck`` anywhere else means Forge silently never finds it (it exits 0 on a
-    deck-load miss), so this MUST track Forge's own resolution. Windows is
+    deck-load miss), so this must track Forge's own resolution. Windows is
     rejected up-front (see :func:`_guard_supported_os`).
     """
     if platform.system() == 'Darwin':
@@ -193,7 +193,7 @@ def _find_jar(forge_dir: Path) -> Path | None:
 def _validate_forge_home(forge_dir: Path) -> Path:
     """Return the desktop jar in ``forge_dir`` or raise a clear error.
 
-    A valid Forge home MUST contain the ``forge-gui-desktop-*.jar`` (``res/`` is
+    A valid Forge home must contain the ``forge-gui-desktop-*.jar`` (``res/`` is
     shipped beside it in the same tarball, so the jar is the reliable tell).
     """
     jar = _find_jar(forge_dir)
@@ -274,7 +274,7 @@ def ensure(
     ``<data_dir>/forge/`` and re-resolves. Any fetch/verify/extract failure is
     re-raised as :class:`ForgeUnavailableError` with an actionable message.
 
-    ``on_fetch`` (if given) is called ONCE, right before the download begins —
+    ``on_fetch`` (if given) is called once, right before the download begins —
     only on the fetch path, never when Forge already resolves. Callers use it to
     surface a one-time "downloading Forge…" notice so a first run doesn't appear
     to hang on the ~350 MB pull.
@@ -285,7 +285,7 @@ def ensure(
     except ForgeUnavailableError:
         pass
 
-    # Fail Windows CLEANLY before burning a ~350 MB wrong-OS download (S3).
+    # Fail Windows cleanly before burning a ~350 MB wrong-OS download.
     _guard_supported_os()
 
     if on_fetch is not None:
@@ -316,7 +316,7 @@ def _guard_supported_os() -> None:
     wrapping, and the Temurin OS mapping (:func:`_temurin_os`) are all built for
     macOS + Linux. On Windows they would silently mis-resolve (wrong JRE, wrong
     profile dir) and burn a ~350 MB download before an opaque JVM failure — so
-    fail CLEANLY before any of that, pointing at WSL2.
+    fail cleanly before any of that, pointing at WSL2.
     """
     if platform.system() == 'Windows':
         raise ForgeUnavailableError('Windows is not supported; use WSL2 (a Linux env) to run Forge simulations.')
@@ -350,12 +350,12 @@ def _parse_temurin_asset(payload: object) -> tuple[str, str | None]:
 
 
 def _temurin_asset() -> tuple[str, str]:
-    """Resolve the Temurin 21 JRE ``(url, sha256)`` for this platform — FAIL CLOSED.
+    """Resolve the Temurin 21 JRE ``(url, sha256)`` for this platform — fail closed.
 
     Uses the Adoptium assets-metadata endpoint, which returns both the asset
     ``link`` and its published ``checksum`` in one call — so the JRE is
     integrity-verified like Forge before its ``java`` binary is ever executed.
-    A missing checksum (or any endpoint/schema/parse failure) RAISES rather than
+    A missing checksum (or any endpoint/schema/parse failure) raises rather than
     degrading to an unverified download: running an integrity-unchecked binary
     fetched on a hostile network is the exact RCE gap this closes. Network work —
     reached only on the fetch path (``_fetch_and_extract`` is mocked in tests).
@@ -383,17 +383,17 @@ def _fetch_and_extract(
     forge_url: str,
     forge_sha256: str,
 ) -> None:
-    """Download + verify + extract Forge and a Temurin JRE into ``forge_dir`` ATOMICALLY.
+    """Download + verify + extract Forge and a Temurin JRE into ``forge_dir`` atomically.
 
     Builds the whole install (jar + ``res/`` + ``jre/``) in a sibling staging dir
-    and ``os.replace``s it into ``forge_dir`` only after BOTH archives extract —
+    and ``os.replace``s it into ``forge_dir`` only after both archives extract —
     so an interrupted fetch never leaves a truncated jar that :func:`resolve`
     (which checks jar existence, not integrity) would report as 'available'. The
     Forge tarball is SHA256-verified against ``forge_sha256``; the JRE against the
     Adoptium-published checksum when available (else gzip-validated on extract;
     see :func:`_temurin_asset`).
 
-    Real network + disk work; tests MONKEYPATCH this function (or the
+    Real network + disk work; tests monkeypatch this function (or the
     ``_download_verified`` / ``_temurin_asset`` / ``tarfile`` helpers) so no
     download runs in the suite.
     """
@@ -427,13 +427,13 @@ def _fetch_and_extract(
 
 
 def _download_verified(url: str, dest: Path, *, sha256: str | None) -> None:
-    """:func:`_download` ``url`` to ``dest``, then SHA256-verify — FAIL CLOSED.
+    """:func:`_download` ``url`` to ``dest``, then SHA256-verify — fail closed.
 
-    A ``None`` checksum is a HARD ERROR, not a skip: the downloaded ``java`` is
+    A ``None`` checksum is a hard error, not a skip: the downloaded ``java`` is
     executed, so an unverifiable JRE (Adoptium metadata unreachable or its
     published checksum missing) must abort the provision rather than run an
     integrity-unchecked binary fetched over the network. bz2/gzip validation on
-    extract only catches truncation, never substitution — so it is NOT a
+    extract only catches truncation, never substitution — so it is not a
     substitute for the SHA gate.
     """
     if sha256 is None:
@@ -451,10 +451,10 @@ def _download(url: str, dest: Path, *, attempts: int = _DOWNLOAD_ATTEMPTS) -> No
     link injected via a compromised metadata payload) is refused up front;
     ``urlopen`` would otherwise happily open any scheme it knows.
 
-    Retries ONLY transient failures — an HTTP status in :data:`_TRANSIENT_HTTP`
+    Retries only transient failures — an HTTP status in :data:`_TRANSIENT_HTTP`
     (rate-limit / 5xx) or a connection-level ``URLError`` / timeout — up to
-    ``attempts`` times. A PERMANENT error (a 404 URL-rot, or a non-HTTP
-    ``OSError`` such as disk-full) FAILS FAST with no retry, so it surfaces
+    ``attempts`` times. A permanent error (a 404 URL-rot, or a non-HTTP
+    ``OSError`` such as disk-full) fails fast with no retry, so it surfaces
     immediately instead of burning the full backoff. Every attempt carries the
     :data:`_HTTP_TIMEOUT_S` socket timeout so a stalled connection cannot hang
     the provision forever. The final error propagates so :func:`ensure` can wrap

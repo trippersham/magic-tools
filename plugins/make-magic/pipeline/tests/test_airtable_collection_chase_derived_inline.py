@@ -1,31 +1,30 @@
-"""OFFLINE tests for the INLINE CHASE derived-column write on chase mutations (#5, 5b-3).
+"""OFFLINE tests for the inline chase derived-column write on chase mutations.
 
-When a card is ADDED or UPDATED on the Chase Cards table in airtable mode, the
-adapter — AFTER persisting the chase facts (Card Name + Target Decks) — writes the
-NINE Chase Cards Scryfall-DERIVED columns for THAT ONE card via the 5b-3 primitive,
-INLINE, following the mutation's apply semantics (apply=True, not dry-run).
+When a card is added or updated on the Chase Cards table in airtable mode, the
+adapter — after persisting the chase facts (Card Name + Target Decks) — writes the
+nine Chase Cards Scryfall-derived columns for that one card via the guarded
+primitive, inline, following the mutation's apply semantics (apply=True, not dry-run).
 
-Corrected against the LIVE base (tblXsNtGgT7UQLPXZ): the Chase Cards table now carries
-the SAME ELEVEN engine-derived columns as Inventory Cards — the nine Scryfall-pure
-columns (Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art,
-Scryfall URL, Price (TCGPlayer), Color Identity — INCLUDING a live-sourced price)
-PLUS the two engine ⚙ otag fields (⚙ Buckets / ⚙ Otags), which were just added to the
-live Chase table. Unlike Inventory (whose ⚙ come from the separate otag SYNC), Chase
-has NO otag sync, so this inline write is chase's ONLY path to ⚙. The write reuses the
-adapter's existing httpx connection and is best-effort (fail-open) so it can never
-break the chase mutation.
+Against the live base (tblXsNtGgT7UQLPXZ): the Chase Cards table carries the same
+eleven engine-derived columns as Inventory Cards — the nine Scryfall-pure columns
+(Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card Art, Scryfall URL,
+Price (TCGPlayer), Color Identity — including a live-sourced price) plus the two
+engine ⚙ otag fields (⚙ Buckets / ⚙ Otags). Unlike Inventory (whose ⚙ come from the
+separate otag sync), Chase has no otag sync, so this inline write is chase's only path
+to ⚙. The write reuses the adapter's existing httpx connection and is best-effort
+(fail-open) so it can never break the chase mutation.
 
 Safety proofs (task guardrails):
-    (a) `add_chase` (new + existing) in airtable-mode writes ALL ELEVEN chase derived
-        cols — the nine Scryfall + a live price, ⚙ Buckets as a LIST of bucket names,
+    (a) `add_chase` (new + existing) in airtable-mode writes all eleven chase derived
+        cols — the nine Scryfall + a live price, ⚙ Buckets as a list of bucket names,
         ⚙ Otags as newline-joined text — keyed by chase field id;
-    (a2) a card with EMPTY otag_buckets/otags writes EMPTY ⚙ (empty list / empty
+    (a2) a card with empty otag_buckets/otags writes empty ⚙ (empty list / empty
         string) — no crash;
-    (b) the chase write NEVER touches a chase human field (Card Name / Target Decks /
-        Sets / Priority / Status / Target Price) — the CHASE guard fails CLOSED;
-    (c) LOCAL-mode chase add makes ZERO Airtable calls (the primitive self-guards
+    (b) the chase write never touches a chase human field (Card Name / Target Decks /
+        Sets / Priority / Status / Target Price) — the chase guard fails closed;
+    (c) local-mode chase add makes zero Airtable calls (the primitive self-guards
         on the backend);
-    (d) a pure read (list_chase) makes NO chase derived write;
+    (d) a pure read (list_chase) makes no chase derived write;
     (e) a resolve-failure fails open (chase facts still persist).
 
 No real network: every request is served by an in-memory httpx.MockTransport;
@@ -59,7 +58,7 @@ _CHASE_FIELDS: dict[str, str] = {
     'Sets': 'fldChaseSets',
     'Target Decks': 'fldTargetDecks',
     'Price Last Updated': 'fldChasePriceUpd',
-    # the eleven chase derived cols (the chase allowlist) — now identical to the
+    # the eleven chase derived cols (the chase allowlist) — identical to the
     # Inventory engine-derived set: nine Scryfall + the two engine ⚙ otag fields.
     'Card Type': 'fldChaseType',
     'Mana Cost': 'fldChaseMana',

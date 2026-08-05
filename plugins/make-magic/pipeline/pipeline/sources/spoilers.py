@@ -1,20 +1,18 @@
 """Puller: MythicSpoiler preview scrape -> ``raw/spoilers``.
 
-Migrated from the standalone ``scripts/spoiler_sync.py`` SQLite state machine.
-The scrape (``httpx`` + ``BeautifulSoup``) that used to feed ``spoiler_cache.db``
-now lands raw preview rows into ``raw/spoilers`` Parquet, and the cross-run
-"new since last sync" diff derives from the lake (current snapshot vs. the prior
-``normalized/spoilers``) instead of a SQLite ``meta`` table.
+The scrape (``httpx`` + ``BeautifulSoup``) lands raw preview rows into
+``raw/spoilers`` Parquet, and the cross-run "new since last sync" diff derives
+from the lake (current snapshot vs. the prior ``normalized/spoilers``).
 
-Flow (mirrors ``scryfall_bulk`` / ``spellbook``):
+Flow:
     1. Scrape each target set's MythicSpoiler index page (+ ``newspoilers.html``)
        for card entries — slug, image, set code.
     2. Append-dedupe the rows into ``raw/spoilers`` Parquet via ``store``.
-    3. FAIL-OPEN (invariant I5): if MythicSpoiler is unreachable, keep the last
+    3. FAIL-OPEN: if MythicSpoiler is unreachable, keep the last
        ``raw/spoilers`` snapshot (return it untouched) rather than crashing.
 
-There is NO bundled snapshot for spoilers (they are set-specific and ephemeral);
-the fail-open baseline is whatever the LAST successful scrape already landed in
+There is no bundled snapshot for spoilers (they are set-specific and ephemeral);
+the fail-open baseline is whatever the last successful scrape already landed in
 ``raw/spoilers``. On a first-ever run with no prior snapshot and a dead network,
 an empty table is materialized so downstream reads still succeed.
 """
@@ -47,7 +45,7 @@ RATE_LIMIT_S = 1.5
 
 
 # --------------------------------------------------------------------------- #
-# Scrape — the MythicSpoiler HTML parse (moved verbatim from spoiler_sync.py).
+# Scrape — the MythicSpoiler HTML parse.
 # --------------------------------------------------------------------------- #
 
 
@@ -131,7 +129,7 @@ def scrape_new(client: httpx.Client, base_url: str, target_sets: Iterable[str]) 
 def _scrape_sets(client: httpx.Client, base_url: str, set_codes: list[str]) -> list[dict[str, str]]:
     """Scrape every target set's index + newspoilers, deduped on ``(set_code, slug)``.
 
-    Raises on the FIRST unreachable-network error so ``sync`` fails open to the
+    Raises on the first unreachable-network error so ``sync`` fails open to the
     last snapshot (a partial scrape would silently drop already-seen cards).
     """
     rows: list[dict[str, str]] = []
@@ -192,7 +190,7 @@ def sync(
     Append-dedupe (a re-scraped slug refreshes the row, keeping first-seen order),
     then advance the spoiler cursor to the run timestamp — the ``first_seen_cursor``
     the transform stamps on newly-seen rows. FAIL-OPEN: any scrape failure keeps
-    the last snapshot (materialized untouched) rather than crashing (invariant I5).
+    the last snapshot (materialized untouched) rather than crashing.
     """
     codes = [sc.lower() for sc in set_codes]
     cursor = Cursor.load()

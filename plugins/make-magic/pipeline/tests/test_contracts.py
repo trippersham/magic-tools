@@ -144,7 +144,7 @@ def test_card_unresolved_name_only() -> None:
 
 
 def test_card_dim_presentation_fields() -> None:
-    """#5 card-dim presentation fields carry through and default to None."""
+    """Card-dim presentation fields carry through and default to None."""
     card = Card(
         name='Llanowar Elves',
         power='1',
@@ -171,7 +171,7 @@ def test_card_dim_presentation_defaults_none() -> None:
 
 
 def test_card_dim_otag_fields() -> None:
-    """#5 otag fields carry through and default to empty lists."""
+    """Otag fields carry through and default to empty lists."""
     card = Card(name='Academy Manufactor', otag_buckets=['ramp', 'draw'], otags=['ramp', 'card-draw'])
     assert card.otag_buckets == ['ramp', 'draw']
     assert card.otags == ['ramp', 'card-draw']
@@ -604,7 +604,7 @@ def test_deck_no_sideboard_is_empty() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# DeckCard.role validation (S4): normalize known roles, reject unknown ones.
+# DeckCard.role validation: normalize known roles, reject unknown ones.
 # --------------------------------------------------------------------------- #
 
 

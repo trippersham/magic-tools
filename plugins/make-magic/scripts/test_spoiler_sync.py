@@ -1,9 +1,8 @@
 """Tests for spoiler_sync — the thin façade over the pipeline spoiler lineage.
 
-#5 Task 8 migrated the spoiler tracker onto the lake and DELETED its SQLite
-(``spoiler_cache.db`` — the last SQLite in the plugin). This test proves the
-``sync`` / ``status`` / ``list`` verbs AND their output shape are preserved for
-``chasing-cards``, driving the lineage entirely from FIXTURE lake snapshots (no
+The spoiler tracker runs on the lake, with no SQLite. This test proves the
+``sync`` / ``status`` / ``list`` verbs and their output shape are preserved for
+``chasing-cards``, driving the lineage entirely from fixture lake snapshots (no
 SQLite, no network).
 
 Run:

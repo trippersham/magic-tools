@@ -14,7 +14,7 @@ Layout:
       chase.yaml          # intent-facts only: [{card, priority, for_decks, status, target_price}]
       trades.yaml         # movement events
 
-This module MUST NOT import scripts/ — the concrete Scryfall-cache resolver is
+This module must not import scripts/ — the concrete Scryfall-cache resolver is
 injected at the edge; here we only depend on the `CardResolver` Protocol.
 """
 
@@ -57,7 +57,7 @@ def _validate_card_entry(entry: Any, allowed: set[str], *, path: Path, index: in
 
     PyYAML flow style ``{ card: Grumgully, the Generous, role: commander }`` parses
     to ``{'card': 'Grumgully', 'the Generous': None, 'role': 'commander'}`` — a
-    silent WRONG-identity read. Reject any entry that is not a mapping, carries an
+    silent wrong-identity read. Reject any entry that is not a mapping, carries an
     unexpected key, or carries a null-valued key (the flow-comma tell), with an
     actionable message telling the user to quote comma-containing card names.
 
@@ -325,7 +325,7 @@ class LocalYamlStore:
         return self._decks_dir() / f'{_slugify(name)}.yaml'
 
     def _deck_save_path(self, deck: Deck, *, force_fresh: bool = False) -> Path:
-        """Pick the file to save ``deck`` into without CLOBBERING an unrelated deck.
+        """Pick the file to save ``deck`` into without clobbering an unrelated deck.
 
         Two decks may share a name (dup names are legal under uuid identity), so
         they must not share a file. The base slug path is used only when it is free
@@ -347,22 +347,22 @@ class LocalYamlStore:
         """
         base = self._deck_path(deck.name)
         if force_fresh:
-            # RECOVERY: never adopt an existing file. Take the base slug only when it is
+            # Recovery: never adopt an existing file. Take the base slug only when it is
             # genuinely free; any occupant (legacy no-uuid backup, same-name stranger, or
             # even a same-uuid file — impossible for a fresh recovery id) disambiguates.
             if not base.exists():
                 return base
             return self._fresh_disambiguated_path(deck)
-        # A file already bound to THIS uuid (possibly a disambiguated one) wins — a
+        # A file already bound to this uuid (possibly a disambiguated one) wins — a
         # re-save must land on the same file, not spawn a new one.
         bound = self.find_deck_path_by_uuid(deck.uuid)
         if bound is not None:
             return bound
         if not base.exists():
-            return base  # the base slug is FREE.
+            return base  # the base slug is free.
         base_uuid = self._file_uuid(base)
         if base_uuid == deck.uuid:
-            return base  # the base file is already OURS.
+            return base  # the base file is already ours.
         # A base file with no in-file uuid (a legacy file) may be upgraded in place
         # only when it is the same deck by name — a legacy file is never a free
         # upgrade target for a different deck that merely shares the slug. The
@@ -374,7 +374,7 @@ class LocalYamlStore:
                 stored = None
             if stored is not None and stored.name == deck.name:
                 return base
-        # Base file bound to a DIFFERENT uuid (or a legacy file for a DIFFERENT deck)
+        # Base file bound to a different uuid (or a legacy file for a different deck)
         # -> disambiguate so we never overwrite an unrelated file (the collision case).
         return self._decks_dir() / f'{_slugify(deck.name)}-{deck.uuid[:8]}.yaml'
 
@@ -418,7 +418,7 @@ class LocalYamlStore:
 
         Both ``role`` and ``qty`` are emitted independently: ``role`` whenever set,
         and ``qty`` whenever ``quantity != 1`` (the non-default). A commander with
-        two copies therefore round-trips BOTH facts — they are orthogonal.
+        two copies therefore round-trips both facts — they are orthogonal.
         """
         row: dict[str, Any] = {'card': card.name}
         if card.role is not None:
@@ -520,7 +520,7 @@ class LocalYamlStore:
         # verb), so once a pass finds no legacy files, drop a marker keyed to the
         # files' state and skip the parse while that state is unchanged.
         #
-        # The key is max(st_mtime_ns over *.yaml) + file count — NOT the directory
+        # The key is max(st_mtime_ns over *.yaml) + file count — not the directory
         # mtime, which does not change when a file's content is overwritten in
         # place (e.g. `cp backup.yaml decks/vault.yaml`). A restored legacy backup
         # must invalidate the marker so the backfill heals it on the next read.
@@ -637,7 +637,7 @@ class LocalYamlStore:
         """Write a deck YAML with the protective ``uuid`` comment header on top.
 
         ``safe_dump`` cannot emit comments, so the header is prepended manually.
-        The ``uuid`` MUST be the first key of ``data`` (``sort_keys=False`` keeps
+        The ``uuid`` must be the first key of ``data`` (``sort_keys=False`` keeps
         insertion order) so the header lands directly above it.
         """
         path.parent.mkdir(parents=True, exist_ok=True)

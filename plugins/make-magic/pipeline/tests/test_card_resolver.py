@@ -1,4 +1,4 @@
-"""Tests for the DuckDB-backed card-dim resolver (#5 Task 3).
+"""Tests for the DuckDB-backed card-dim resolver.
 
 The resolver satisfies the `CardResolver` port (`get_card(name) -> Card | None`)
 by reading `raw/oracle_cards` from the lake (offline-first), joining the
@@ -252,7 +252,7 @@ def test_otag_layer_absent_fails_open(tmp_path: Path, monkeypatch: pytest.Monkey
 
 
 # --------------------------------------------------------------------------- #
-# Live-fallback on miss (W2) — exactly one fetch, landed durably, offline after.
+# Live-fallback on miss — exactly one fetch, landed durably, offline after.
 # --------------------------------------------------------------------------- #
 
 
@@ -415,7 +415,7 @@ def test_fetch_card_raw_unresolved_returns_none(lake: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# V2 — boundary hydration: the extended card-dim fields (presentation + otags)
+# Boundary hydration: the extended card-dim fields (presentation + otags)
 # survive hydrate-on-read at the STORE boundary, end to end.
 #
 # A REAL lake (oracle_cards with presentation + card_otag data) + a REAL

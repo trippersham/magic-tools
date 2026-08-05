@@ -1,20 +1,19 @@
 """Puller: Scryfall ``oracle_cards`` bulk -> ``raw/oracle_cards``.
 
-Flow (data-architecture §ingest, incremental step 3 — "the most annoying to
-refresh"):
+Flow:
     1. GET ``https://api.scryfall.com/bulk-data/oracle_cards`` metadata
        (``updated_at`` + ``jsonl_download_uri``).
     2. Cursor check: skip if ``updated_at`` is not newer than the last load.
     3. Stream the ``jsonl_download_uri`` gzipped JSONL (~24 MB compressed) and load
        to ``raw/oracle_cards``.
 
-FETCH-ON-DEMAND, NOT BUNDLED: the oracle_cards file is ~140 MB, far too large to
+FETCH-ON-DEMAND, not bundled: the oracle_cards file is ~140 MB, far too large to
 commit. There is no offline snapshot — instead the puller streams the file on
 demand and caches it as Parquet in ``raw/`` (which is git-ignored). ``max_cards``
 caps the number of cards loaded, so verification/tests never pull the whole
 file. In production, call ``sync()`` with no cap for a full refresh.
 
-This is deliberately NOT fail-open to a bundled baseline (there is none); on
+This is deliberately not fail-open to a bundled baseline (there is none); on
 failure it raises so a caller knows the (large, on-demand) fetch did not load.
 """
 
@@ -44,9 +43,8 @@ RATE_LIMIT_MS = 100
 def _fetch_meta(client: httpx.Client) -> tuple[str, str]:
     """Return ``(jsonl_download_uri, updated_at)`` for the oracle_cards bulk file.
 
-    Scryfall now serves bulk data as gzipped JSONL; the metadata exposes the file
-    URL as ``jsonl_download_uri`` (the older ``download_uri`` JSON-array field was
-    removed in 2026).
+    Scryfall serves bulk data as gzipped JSONL; the metadata exposes the file
+    URL as ``jsonl_download_uri``.
     """
     resp = client.get(BULK_META_URL, headers=HEADERS, timeout=30)
     resp.raise_for_status()
@@ -57,7 +55,7 @@ def _fetch_meta(client: httpx.Client) -> tuple[str, str]:
 def _stream_cards(client: httpx.Client, download_uri: str, max_cards: int | None) -> Iterator[dict[str, Any]]:
     """Stream cards from the gzipped-JSONL bulk download, stopping after ``max_cards``.
 
-    Scryfall's bulk file is GZIPPED JSONL — one JSON object per line, served as
+    Scryfall's bulk file is gzipped JSONL — one JSON object per line, served as
     ``application/gzip`` (not HTTP ``Content-Encoding``, so httpx does not
     auto-inflate it). We gunzip incrementally and split on the ASCII ``\\n`` byte
     (UTF-8-safe: a newline never occurs inside a multi-byte sequence) so a bounded
@@ -116,8 +114,8 @@ def _project(card: dict[str, Any]) -> dict[str, Any]:
         'produced_mana': card.get('produced_mana', []),
         'keywords': card.get('keywords', []),
         'oracle_text': card.get('oracle_text'),
-        # --- #5 presentation fields (all present in the daily oracle_cards bulk;
-        #     price is NOT projected — it is volatile and served live) --- #
+        # --- presentation fields (all present in the daily oracle_cards bulk;
+        #     price is not projected — it is volatile and served live) --- #
         'power': card.get('power'),
         'toughness': card.get('toughness'),
         'art_crop': card.get('image_uris', {}).get('art_crop'),
@@ -135,7 +133,7 @@ def sync(
     """Pull oracle_cards into ``raw/oracle_cards``; return the loaded path.
 
     Cursor-gated (skip-if-not-newer). ``max_cards`` bounds the pull (None =
-    full refresh, ~140 MB). NOT fail-open — there is no bundled snapshot; a fetch
+    full refresh, ~140 MB). Not fail-open — there is no bundled snapshot; a fetch
     failure raises.
     """
     cursor = Cursor.load()
@@ -149,7 +147,7 @@ def sync(
             return store.StorePaths.resolve().parquet_path('raw', SOURCE, create=False)
         cards = list(_stream_cards(client, download_uri, max_cards))
         path = _load(cards)
-        # A capped pull is NOT a full refresh; only advance the cursor on full.
+        # A capped pull is not a full refresh; only advance the cursor on full.
         if max_cards is None:
             cursor.set(SOURCE, updated_at)
             cursor.save()
