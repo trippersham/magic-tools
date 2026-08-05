@@ -27,7 +27,7 @@ import pytest
 
 from pipeline import store
 from pipeline.collection import run as cli
-from pipeline.contracts import Card
+from pipeline.contracts import Card, DeckCard
 
 
 class _StubResolver:
@@ -98,6 +98,33 @@ def test_clean_slate_build_commits_a_correct_synced_deck(
     for i in range(99):
         _run(monkeypatch, 'deck-add', 'Fresh', f'Filler {i}')
         capsys.readouterr()
+
+    # ASSESS on the DRAFT (B4 in the loop): factsheet must run on an EPHEMERAL draft
+    # (no source of record) — it used to FileNotFound. Routes through the local store.
+    capsys.readouterr()
+    _run(monkeypatch, 'factsheet', 'Fresh')
+    factsheet = json.loads(capsys.readouterr().out)
+    assert factsheet['deck'] == 'Fresh'  # a real factsheet keyed to the draft
+
+    # PROVENANCE substrate: set-assessment stamps freshness against the current
+    # version; list-decks --json reads it back as `assessment: fresh` (M7 stored,
+    # not remembered) — and it holds on an ephemeral draft, cross-session.
+    _run(monkeypatch, 'set-assessment', 'Fresh', 'Wide counters plan looks coherent.')
+    capsys.readouterr()
+    _run(monkeypatch, 'list-decks', '--json')
+    draft_row = next(r for r in json.loads(capsys.readouterr().out) if r['name'] == 'Fresh')
+    assert draft_row['assessment'] == 'fresh'
+
+    # A subsequent content edit moves the version -> the assessment stamp goes STALE
+    # (derived phase, not a remembered flag).
+    _run(monkeypatch, 'deck-add', 'Fresh', 'Sol Ring')
+    capsys.readouterr()
+    _run(monkeypatch, 'list-decks', '--json')
+    draft_row = next(r for r in json.loads(capsys.readouterr().out) if r['name'] == 'Fresh')
+    assert draft_row['assessment'] == 'stale'
+    # Undo that extra add so the deck returns to its legal 100 for the promote below.
+    _run(monkeypatch, 'deck-remove', 'Fresh', 'Sol Ring')
+    capsys.readouterr()
 
     # VALIDATE: the combo fold runs and DEGRADES HONESTLY (no lake here).
     capsys.readouterr()
@@ -172,10 +199,21 @@ def test_improve_existing_explore_copy_leaves_original_until_promote(
     # decluttered out of the default list. The original 'Gruul' remains, now carrying
     # the change (the single synced row for that source — B1/B2 killed).
     from pipeline.decks import DecksStore
+    from pipeline.decks.store import DecksError
 
-    rows = {r.name: r for r in DecksStore().list_rows(include_archived=True)}
+    decks = DecksStore()
+    rows = {r.name: r for r in decks.list_rows(include_archived=True)}
     assert rows['Gruul (explore)'].sync_status == 'consumed'
     assert rows['Gruul (explore)'].archived is True
+
+    # CONSUME LIFECYCLE (explicit): the consumed draft is INERT. A deck-add on it is
+    # REFUSED and creates NO new source file — the content lives on the parent now.
+    explore_uuid = rows['Gruul (explore)'].deck_uuid
+    with pytest.raises(DecksError):
+        decks.add_card(explore_uuid, DeckCard(name='Mountain', quantity=1))
+    # The draft never materialized a source deck of its own (B2 zombie killed).
+    with pytest.raises(FileNotFoundError):
+        cli._store().get_deck('Gruul (explore)')
 
     _run(monkeypatch, 'list-decks')
     default_listing = capsys.readouterr().out
