@@ -250,7 +250,10 @@ Present it to the user.
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection set-assessment "<deck>" "<the Step-7 synthesis>"
 ```
-Never overwrite `Strategy`. This is the same call standalone and under the orchestrator;
+`set-assessment` STAMPS assessment freshness on the deck row (it records the post-write
+deck version), so a later content edit makes the assessment derivably `stale` — that stamp
+is what the building-decks orchestrator reads to route back to ASSESS. Never overwrite
+`Strategy`. This is the same call standalone and under the orchestrator;
 on a real deck it commits through to the source of record, and on an ephemeral
 building-decks draft it stays local until the orchestrator promotes it.
 

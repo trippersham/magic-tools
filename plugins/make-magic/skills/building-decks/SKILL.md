@@ -22,9 +22,14 @@ it. It does not own strategy, diagnosis, discovery, or simulation — those are 
 **Enforce the data; guide the flow.**
 
 The deck is ALWAYS a valid typed `Deck` — the local decks store enforces every invariant
-(singleton, commander count, quantity-correct swaps, the shrink guard). You never do
-dict-surgery, never maintain a parallel draft structure. So you do not need to *enforce
-the flow*: the flow is **advisory guidance**, with exactly one hard, ceremony-backed gate
+on each edit: **singleton** (an add merges into the existing entry — no duplicate line),
+**single-commander** (never cut the sole commander; never let a commander reach qty ≥ 2),
+**quantity ≥ 1** (a remove decrements and only drops the entry at 0), the **size / shrink
+guard** (a removal that would push an at-target deck below its target is refused), and
+**quantity-aware add/remove** (a multi-copy basic loses `qty` copies, not the whole entry).
+These are TRUE guards you may rely on — not aspirations. You never do dict-surgery, never
+maintain a parallel draft structure. So you do not need to *enforce the flow*: the flow is
+**advisory guidance**, with exactly one hard, ceremony-backed gate
 — the push at COMMIT. Everything before COMMIT is "here's what's stale, here's the next
 step, want to sim first?" — never pretend-enforcement.
 
@@ -36,7 +41,8 @@ the flow is soft.
 <red-flags>
 If you catch yourself about to:
 - **Track phase in a session file or a `draft.*` field** — STOP. Phase is DERIVED every
-  turn from the fetched deck (below). There is no stored state, no `session.json`, no
+  turn from the deck's stored provenance stamps (`list-decks --json` / `get-deck
+  --provenance`; below). There is no in-skill session state, no `session.json`, no
   `draft.working_deck` / `draft.candidates` / `draft.stale`, no transitions.
 - **Hand-edit a decklist dict, or apply swaps yourself** — STOP. All deck edits go through
   the typed CLI verbs (`deck-swap`, `deck-add`, `deck-remove`, `set-strategy`, …). The
@@ -44,9 +50,9 @@ If you catch yourself about to:
 - **Evaluate a card without the deck's Strategy** — STOP. Read the Strategy first;
   evaluate fit, not raw power (see Operation A).
 - **Explore options by mutating the real deck** — STOP. To try things without touching the
-  deck of record, work on a `new-draft --from "<deck>"` copy, then `promote-deck` +
-  `archive-deck` the exploration when done. Simple, confident edits can go straight to the
-  synced deck (commit-through).
+  deck of record, work on a `new-draft --from "<deck>"` copy, then `promote-deck` when done
+  — promote lands the change AND auto-retires the draft (it is consumed; do not read or edit
+  it afterward). Simple, confident edits can go straight to the synced deck (commit-through).
 </red-flags>
 
 ## The data surface: the `collection` CLI
@@ -70,17 +76,19 @@ The verbs this orchestrator uses:
 | Purpose | Verb |
 |---|---|
 | Read a deck (strategy, assessment, focus_otags, cards[]) | `get-deck "<deck>" [--field …]` |
+| Read a deck + its provenance freshness (for phase derivation) | `get-deck "<deck>" --provenance` |
 | Neutral fact sheet (for ASSESS) | `factsheet "<deck>"` |
-| List decks — `[synced]` vs `[ephemeral]` | `list-decks [--archived]` |
+| List decks — `[synced]` vs `[ephemeral]`, each with `assessment`/`sim` = `fresh\|stale\|absent` | `list-decks [--json] [--archived]` |
+| Record a sim result as provenance (for VALIDATE) | `stamp-sim "<deck>" --result '<json>'` |
 | Set the human-authored aim | `set-strategy "<deck>" "<text>"` |
 | Set the reasoning-authored reality-check | `set-assessment "<deck>" "<text>"` |
 | Set the curated intended identity | `set-focus-otags "<deck>" <otags…>` |
 | Apply a size-preserving swap (records `--why` in the ledger) | `deck-swap "<deck>" --add "<in>" --cut "<out>" [--role R] [--why …]` |
 | Add / remove copies (grow a skeleton / trim) | `deck-add "<deck>" "<card>" [--qty N] [--why …]` · `deck-remove …` |
 | Start an EPHEMERAL draft (clean-slate, or `--from` = a local COPY) | `new-draft "<name>" [--from "<src>"] [--commander …] [--format …]` |
-| Promote an ephemeral draft to a synced deck (through the save ceremony) | `promote-deck "<draft>" --to "<source-name>"` |
+| Promote an ephemeral draft to a synced deck (through the save ceremony; auto-consumes the draft) | `promote-deck "<draft>" --to "<source-name>"` |
 | Step back one edit | `undo-deck "<deck>"` |
-| Hide / restore an exploration draft | `archive-deck "<draft>"` · `unarchive-deck "<draft>"` |
+| Hide / restore a draft you're NOT promoting (promote already retires the one it lands) | `archive-deck "<draft>"` · `unarchive-deck "<draft>"` |
 | Archetype-fidelity combo signal (for VALIDATE) | `deck-combos "<deck>"` |
 | Sync (normally opaque; you rarely type these) | `pull` · `push` · `sync "<deck>"` |
 
@@ -113,11 +121,14 @@ Two ways in. Pick by whether a deck already exists.
   ${CLAUDE_PLUGIN_ROOT}/scripts/collection new-draft "<deck> (explore)" --from "<deck>"
   ```
   All edits land on the draft (ephemeral → local only; the original is never touched).
-  When the exploration is good, commit it back and clean up:
+  When the exploration is good, promote it — that lands the change AND auto-retires the
+  draft (no manual archive step):
   ```bash
   ${CLAUDE_PLUGIN_ROOT}/scripts/collection promote-deck "<deck> (explore)" --to "<deck>"
-  ${CLAUDE_PLUGIN_ROOT}/scripts/collection archive-deck "<deck> (explore)"
   ```
+  `promote-deck` commits the draft's content onto the deck of record and then CONSUMES the
+  draft (it becomes `consumed` + archived, inert). Do not read or edit the draft afterward
+  — it is retired; there is nothing to clean up.
 
 **Build clean-slate.** Start ephemeral, build locally (zero network), then promote:
 ```bash
@@ -137,23 +148,42 @@ Don't guess; the difference is whether the real deck moves.
 
 ## The derived phase — reason, don't transition
 
-There is **no state machine.** Each turn, `get-deck "<deck>"` and reason about the
-earliest artifact that is missing or stale. "Stale" is derived: an edit upstream makes
-everything downstream stale by definition (a changed deck ⇒ its Assessment and its last
-sim no longer describe it). You re-derive; you never track it.
+There is **no state machine.** Each turn, read the deck and reason about the earliest
+artifact that is missing or stale. "Stale" is now DERIVED FROM STORED STAMPS, not
+remembered: P5 records provenance on the deck row, so freshness survives across sessions.
+Read it two ways:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection list-decks --json    # each row carries assessment + sim: fresh|stale|absent
+${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "<deck>" --provenance   # the {deck, provenance} envelope for one deck
+```
+
+Each deck's `assessment` and `sim` states are one of `fresh` | `stale` | `absent`. At the
+START of each turn, read the deck + its provenance to derive the phase:
+- `assessment: absent` → never assessed → **ASSESS**; `assessment: stale` (the deck moved
+  since the Assessment was written) → **re-ASSESS**.
+- `sim: absent` → never validated → **VALIDATE**; `sim: stale` (the deck moved since the
+  last sim) → **re-VALIDATE**.
+
+This is cross-session: the stamps are stored, so a deck picked up in a later session
+derives the same phase. An edit upstream makes everything downstream stale by definition
+(a changed deck ⇒ its Assessment and its last sim no longer describe it) — the store marks
+it `stale` for you; you read the stamp, you never track it by hand.
 
 ```
 no strategy                                  → FRAME    (distilling-strategy)
-strategy present, assessment missing/stale   → ASSESS   (assessing-decks)
+strategy present, assessment absent/stale    → ASSESS   (assessing-decks)
 assessment fresh, upgrades wanted            → REFINE   (refining-decks → deck-swap the picks)
-deck changed since last sim (or none)        → VALIDATE (simulating-games + deck-combos fidelity)
+sim absent/stale                             → VALIDATE (simulating-games + stamp-sim + deck-combos fidelity)
 user satisfied                               → COMMIT   (promote-deck / push, through the ceremony)
 ```
 
 - **Reverse is just an edit.** Want to revisit the Strategy after refining? `set-strategy`.
-  That makes the Assessment stale → next turn re-derives to ASSESS. No backward events.
-- **Loops are just re-derivation.** REFINE changes the deck → the deck moved → ASSESS and
-  VALIDATE are stale → you re-run them on the current deck. Nothing to invalidate by hand.
+  That moves the deck version, so the stamp reads `assessment: stale` → next turn derives
+  to ASSESS. No backward events.
+- **Loops fall out of the stamps.** REFINE changes the deck → the version moves → the store
+  marks `assessment: stale` and `sim: stale` → you re-run them on the current deck. Nothing
+  to invalidate by hand; you read the stamp.
 - **Undo** any applied edit with `undo-deck "<deck>"` (restores the prior ledger version).
 
 Because the deck is always the live, valid `Deck`, every delegated skill reads the CURRENT
@@ -166,7 +196,7 @@ deck with `get-deck` — there is no held/stale copy to reconcile.
 | FRAME | **distilling-strategy** | route in when `strategy` is absent/needs refresh; it writes via `set-strategy` / `set-focus-otags` (clean-slate: `new-draft` first) |
 | ASSESS | **assessing-decks** | route in when the Strategy is present but the Assessment is missing or the deck moved; it reads `factsheet` + writes `set-assessment` |
 | REFINE | **refining-decks** | route in when the user wants upgrades; it proposes ranked swaps and APPLIES the accepted ones with `deck-swap` |
-| VALIDATE | **simulating-games** + `deck-combos` | route in when the deck changed since the last sim; run games AND the archetype-fidelity fold (below) |
+| VALIDATE | **simulating-games** + `deck-combos` | route in when `sim` is `absent`/`stale`; run games, `stamp-sim` the result, AND the archetype-fidelity fold (below) |
 | COMMIT | (this skill) | `promote-deck` an ephemeral draft, or `push` a synced deck — through the save ceremony (the one hard gate) |
 
 ---
@@ -176,6 +206,13 @@ deck with `get-deck` — there is no held/stale copy to reconcile.
 Two parts, and the second keeps the first honest.
 
 1. **Run the games** via **simulating-games** on the current deck (a-posteriori win-rate).
+   Then **stamp the result as provenance** so the sim's freshness becomes derivable — this
+   is what lets a later turn read `sim: fresh|stale` instead of guessing:
+   ```bash
+   ${CLAUDE_PLUGIN_ROOT}/scripts/collection stamp-sim "<deck>" --result '<sim summary json>'
+   ```
+   It records `last_sim = {result, deck_version, at}` keyed on the deck's current version;
+   a subsequent content edit moves the version, so the stamp reads `stale` next turn.
 2. **Archetype-fidelity fold** — before you present the sim as a verdict, run the
    deterministic combo signal:
    ```bash
@@ -190,7 +227,11 @@ Two parts, and the second keeps the first honest.
      **INCONCLUSIVE, not a clean bill.** Say so plainly: "the combo check couldn't run, so
      I can't confirm the sim captured the deck's fastest line." Never present an
      unavailable check as "no combos found / trust the sim."
-   - **`available: true`, no combos, no voltron/free-mana read:** the sim is a fair verdict.
+   - **`available: true`, no combos, no voltron/free-mana read:** the sim is a fair verdict
+     — with one honest caveat (m8). The combo lake has an AGE: a non-empty-but-stale lake
+     can miss a combo that postdates it. So `available: true, no combos` means "none found
+     in a lake of age X," NOT a guarantee the deck has no combo. If a swap brought in a
+     recent card, treat a clean combo read as provisional and lean on your own reasoning.
 
 ---
 
@@ -224,7 +265,8 @@ Some questions are single-shot and don't need the phase loop.
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "<deck>" --field strategy   # or the whole deck
 ```
-Address the deck **by name** (`list-decks` disambiguates); no record ids.
+Address the deck **by name**; no record ids. If the name is ambiguous (dup names are
+allowed), the CLI refuses with a candidate list — re-run with `--id <prefix>`.
 
 **Step 2 — Fetch + tag the card:**
 ```bash
@@ -304,14 +346,20 @@ the data lives in `card_faces[0]`. The tagger handles this automatically.
 <constraint name="address-by-name">
 **Address decks by name through the CLI — never juggle record IDs.** `get-deck "<deck>"`
 returns exactly one deck (strategy, focus_otags, assessment, cards[]) in a single call, in
-either backend. No record-id lookup at the skill layer.
+either backend. No record-id lookup at the skill layer. **Names may now REPEAT** (identity
+is a uuid, not the label): when a name is ambiguous, the CLI REFUSES with a candidate list
+of `--id <prefix>` lines — re-run the same verb with `--id <prefix>` to disambiguate.
 </constraint>
 
 <constraint name="edits-through-the-store">
 **All deck edits go through the typed CLI verbs — never hand-edit a decklist.** The local
 decks store enforces every `Deck` invariant on `deck-swap` / `deck-add` / `deck-remove` /
-`set-*`: quantity-correct, singleton, commander-safe, shrink-guarded. There is no
-dict-surgery and no parallel draft structure to keep in sync.
+`set-*`, and these guards are LIVE (P4): **singleton** (an add merges, never spawns a
+duplicate), **single-commander** (no cut of the sole commander, no commander at qty ≥ 2),
+**quantity ≥ 1** (a remove decrements, drops the entry only at 0), the **size / shrink
+guard** (a shrink below target is refused), and **quantity-aware add/remove**. A violating
+edit is REFUSED — the stored deck is untouched. There is no dict-surgery and no parallel
+draft structure to keep in sync.
 </constraint>
 
 ---

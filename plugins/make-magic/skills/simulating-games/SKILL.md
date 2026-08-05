@@ -148,6 +148,15 @@ profile in quadrant-theory language against the deck's building-decks intent —
 measured behavior match the a-priori plan? See
 [Interpreting results](#interpreting-results).
 
+**Record the run as provenance (VALIDATE hook).** When the deck was addressed by NAME (not
+a bare `.dck`), stamp the result so the deck's `last_sim` freshness becomes derivable — the
+building-decks orchestrator reads this to know the deck is validated (and to detect when a
+later edit makes the sim `stale`):
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection stamp-sim "<deck name>" --result '<win-rate + CI summary json>'
+```
+It records `last_sim = {result, deck_version, at}` keyed on the deck's current version.
+
 ## 2. A/B a change
 
 "Is this swap actually an improvement?" — the a-posteriori half of a building-decks
