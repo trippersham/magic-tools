@@ -95,11 +95,34 @@ def _backfill_local_deck_uuids(store: CollectionStore) -> None:
         return
     from pipeline.decks import DecksStore
 
+    find_path = getattr(store, 'find_deck_path_by_uuid', None)
     decks = DecksStore()
     for name, file_uuid in assigned.items():
         bound = decks.uuid_for_name(name)
-        if bound is not None:
-            decks.set_external_id(bound, 'local', file_uuid)
+        if bound is None:
+            continue
+        row = decks.get_row(bound)
+        # r6-B3: bind ONLY a genuinely dead/unbound row — NEVER overwrite a live
+        # 'local' ref, and skip non-synced rows. A dropped-in backup YAML that
+        # happens to share a live deck's NAME must not hijack the live row's binding.
+        if row is None or row.sync_status != 'synced':
+            continue
+        current = _local_ref(row.external_ids)
+        if current and (find_path is None or find_path(current) is not None):
+            continue  # live binding to an existing file — leave it alone.
+        decks.set_external_id(bound, 'local', file_uuid)
+
+
+def _local_ref(external_ids: str | None) -> str | None:
+    """The row's bound ``external_ids['local']`` in-file uuid (or None)."""
+    if not external_ids:
+        return None
+    try:
+        ext = json.loads(external_ids)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    ref = ext.get('local') if isinstance(ext, dict) else None
+    return ref if isinstance(ref, str) and ref else None
 
 
 def _deck_access(*, writes_enabled: bool = False) -> DeckAccess:

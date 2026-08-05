@@ -231,15 +231,32 @@ class DeckAccess:
         if ext is not None:
             bound = self._decks.uuid_for_external_ref(*ext)
             if bound is not None:
-                return bound
+                return self._refuse_alias_under_dup_names(name, bound)
         # Fall through to the read/bind path (mints + binds a fresh row for a
         # first-seen source deck), then resolve by the now-bound external ref.
         self.read_deck(name)
         if ext is not None:
             bound = self._decks.uuid_for_external_ref(*ext)
             if bound is not None:
-                return bound
+                return self._refuse_alias_under_dup_names(name, bound)
         return self.resolve(name)
+
+    def _refuse_alias_under_dup_names(self, name: str, bound: str) -> str:
+        """Refuse a case-alias WRITE that a slug read silently bound under dup names (r6-M1).
+
+        The exact-name resolver REFUSES an ambiguous dup-name with the candidate list
+        precisely because the system cannot know which row the user meant. A cased
+        alias (``PRECIOUS`` vs two ``Precious`` rows) misses the exact match and would
+        otherwise fall through the slug read to ONE row silently. Re-check the BOUND
+        row's canonical name: if it now has >1 live candidate, refuse with the same
+        candidate list instead of committing the alias to an arbitrary base pick.
+        """
+        row = self._decks.get_row(bound)
+        if row is not None:
+            siblings = self._decks.rows_for_name(row.name)
+            if len(siblings) > 1:
+                raise DecksError(self._ambiguous_name_message(row.name, siblings))
+        return bound
 
     def _read_known_uuid(self, deck_uuid: str, *, name: str) -> Deck:
         """Serve a deck addressed by an EXISTING uuid, applying the pull policy."""
@@ -250,6 +267,9 @@ class DeckAccess:
                 return local
         if self._needs_pull(deck_uuid):
             source_ref = row.source_ref if row is not None and row.source_ref else name
+            # ``_sync.pull`` reads the source through the ONE bound-read chokepoint
+            # (r6-B1/M3): a dup-named / renamed row addressed by --id pulls ITS OWN
+            # bound file/record, never the base slug.
             _sync.pull(self._decks, self._driver, deck_uuid=deck_uuid, source_ref=source_ref)
             self._stamp_pulled(deck_uuid)
         local = self._decks.get(deck_uuid)
@@ -309,50 +329,30 @@ class DeckAccess:
         return deck_uuid
 
     def _read_source_rename_safe(self, name: str) -> Deck:
-        """Read the source deck for ``name``, preferring a known bound recordId (Airtable).
+        """Read the source deck for ``name`` through the ONE bound-read chokepoint (P9).
 
-        A source deck RENAMED on the backend would 404 on a name read; when a local
-        row addressed by ``name`` already carries a bound Airtable recordId, re-read
-        by that stable id (rename-proof, design §4) and fall back to the name read
-        on any miss. The local YAML backend is name/slug-addressed and rename-safe
-        via the in-file uuid scan, so this only augments the Airtable path.
+        When ``name`` resolves to a SINGLE existing local row, read that row's BOUND
+        source (its Airtable recordId / local in-file uuid) — rename/slug-proof, so a
+        promoted/dup-named/renamed row keeps reading ITS OWN file/record and never a
+        same-named sibling (r6-B1/B2). Only a genuine first-pull (no row for ``name``
+        yet) falls back to the controlled NAME read inside the chokepoint. A dead
+        bound ref surfaces as the source's clean FileNotFoundError (source gone).
         """
-        if self.backend == 'airtable':
-            get_by_id = getattr(self._driver, 'get_deck_by_record_id', None)
-            existing = self._decks.uuid_for_name(name)
-            if get_by_id is not None and existing is not None:
-                ext_raw = self._decks.external_ids(existing)
-                try:
-                    ext = json.loads(ext_raw) if ext_raw else {}
-                except (json.JSONDecodeError, TypeError):
-                    ext = {}
-                rid = ext.get('airtable') if isinstance(ext, dict) else None
-                if rid:
-                    try:
-                        return get_by_id(rid)
-                    except FileNotFoundError:
-                        pass
-        else:
-            # Local YAML: a name/slug is AMBIGUOUS under dup names — the base-slug read
-            # would return an UNRELATED same-named deck and rebind this row onto it
-            # (F4). When the name resolves to a SINGLE local row already bound to a
-            # 'local' in-file uuid, read the source by THAT uuid (rename/slug-proof)
-            # so a promoted/dup-named row keeps reading ITS OWN file.
-            get_by_uuid = getattr(self._driver, 'get_deck_by_uuid', None)
-            existing = self._decks.uuid_for_name(name)
-            if get_by_uuid is not None and existing is not None:
-                ext_raw = self._decks.external_ids(existing)
-                try:
-                    ext = json.loads(ext_raw) if ext_raw else {}
-                except (json.JSONDecodeError, TypeError):
-                    ext = {}
-                file_uuid = ext.get('local') if isinstance(ext, dict) else None
-                if file_uuid:
-                    try:
-                        return get_by_uuid(file_uuid)
-                    except FileNotFoundError:
-                        pass
-        return self._driver.get_deck(name)
+        existing = self._decks.uuid_for_name(name)
+        if existing is not None:
+            source = _sync.read_source_bound(
+                self._decks, self._driver, deck_uuid=existing, source_ref=name
+            )
+            if source is not None:
+                return source
+            raise DecksError(f'no deck named {name!r}')
+        # Genuine first pull (no local row): the ONE controlled name-read fallback.
+        # A miss is a clean "no deck named 'X'" — never the driver's tmp-fs path
+        # (r6-m1 / F13 residue: get-deck/deck-add/set-strategy/pull/deck-swap/undo).
+        try:
+            return self._driver.get_deck(name)
+        except FileNotFoundError:
+            raise DecksError(f'no deck named {name!r}') from None
 
     # ----------------------------------------------------------------------- #
     # Write (local edits; push at the explicit commit boundary)
@@ -371,10 +371,14 @@ class DeckAccess:
         # exists (bind to the ONE row), else by the deck's OWN uuid so a later read
         # binds by the same in-file uuid the push writes into the source (no dual
         # row). This is the write-side half of the M4 bind-by-ref invariant.
-        try:
-            source = self._driver.get_deck(deck.name)
-        except FileNotFoundError:
-            source = None
+        #
+        # When a local row for this name already exists, read its CURRENT source
+        # through the bound-read chokepoint (P9): a re-save of a dup-named / renamed
+        # deck derives its baseline from ITS OWN bound file/record, never the base
+        # slug. Only a genuine first save (no row yet) name-reads the source to learn
+        # whether one already exists on the backend.
+        existing_uuid = self._decks.uuid_for_name(deck.name)
+        source = self._source_for_save(deck.name, existing_uuid)
         baseline = version(source) if source is not None else None
         deck_uuid = self._save_target_uuid(deck, source)
         self._decks.put(deck, deck_uuid=deck_uuid, sync_status='synced', source_ref=deck.name,
@@ -384,11 +388,28 @@ class DeckAccess:
             self._decks.set_external_id(deck_uuid, *ext)
         if commit:
             self.push(deck.name, allow_shrink=allow_shrink)
-            # Re-bind against the freshly-written source (a create mints/keeps the
-            # in-file uuid; the recordId is assigned by Airtable on create).
-            written_ext = self._external_ref(self._driver.get_deck(deck.name))
+            # Re-bind against the freshly-written source through the chokepoint (a
+            # create mints/keeps the in-file uuid; Airtable assigns the recordId on
+            # create) — never a base-slug name read.
+            written = _sync.read_source_bound(
+                self._decks, self._driver, deck_uuid=deck_uuid, source_ref=deck.name
+            )
+            written_ext = self._external_ref(written) if written is not None else None
             if written_ext is not None:
                 self._decks.set_external_id(deck_uuid, *written_ext)
+
+    def _source_for_save(self, name: str, existing_uuid: str | None) -> Deck | None:
+        """Read the CURRENT source for a ``save_deck`` — bound when a row exists (P9)."""
+        if existing_uuid is not None:
+            return _sync.read_source_bound(
+                self._decks, self._driver, deck_uuid=existing_uuid, source_ref=name
+            )
+        # Genuine first save: no local row yet, so a name read is the only address —
+        # the chokepoint's own controlled first-pull fallback shape.
+        try:
+            return self._driver.get_deck(name)
+        except FileNotFoundError:
+            return None
 
     def _save_target_uuid(self, deck: Deck, source: Deck | None) -> str:
         """Pick the local row uuid for a ``save_deck`` (bind to an existing ref if any)."""
@@ -405,23 +426,41 @@ class DeckAccess:
 
     def set_strategy(self, name: str, text: str, *, commit: bool = True, id_prefix: str | None = None) -> None:
         deck_uuid, eff_name = self._target(name, id_prefix)
+        pre_edit = self._decks.get(deck_uuid) if commit else None
         self._decks.set_strategy(deck_uuid, text, rationale='set-strategy')
         if commit:
-            self._commit(deck_uuid, eff_name)
+            self._commit_transactional(deck_uuid, eff_name, pre_edit)
 
     def set_assessment(self, name: str, text: str, *, commit: bool = True, id_prefix: str | None = None) -> None:
         deck_uuid, eff_name = self._target(name, id_prefix)
+        pre_edit = self._decks.get(deck_uuid) if commit else None
         self._decks.set_assessment(deck_uuid, text, rationale='set-assessment')
         if commit:
-            self._commit(deck_uuid, eff_name)
+            self._commit_transactional(deck_uuid, eff_name, pre_edit)
 
     def set_focus_otags(
         self, name: str, otags: list[str], *, commit: bool = True, id_prefix: str | None = None
     ) -> None:
         deck_uuid, eff_name = self._target(name, id_prefix)
+        pre_edit = self._decks.get(deck_uuid) if commit else None
         self._decks.set_focus_otags(deck_uuid, list(otags), rationale='set-focus-otags')
         if commit:
-            self._commit(deck_uuid, eff_name)
+            self._commit_transactional(deck_uuid, eff_name, pre_edit)
+
+    def _commit_transactional(self, deck_uuid: str, name: str, pre_edit: Deck | None) -> None:
+        """Push a just-applied set-* edit; ROLL BACK the local edit if the push refuses (r6-m6).
+
+        Aligns the ``set-*`` verbs with the ``deck-add`` family's transactional commit:
+        a push-refused ``set-strategy`` (shrink guard / :class:`SyncDriftError`) must not
+        leave the local edit half-applied under exit 1 — restore the pre-edit deck
+        (popping the poison ledger head) and re-raise so the user sees why it was rejected.
+        """
+        try:
+            self._commit(deck_uuid, name)
+        except Exception:
+            if pre_edit is not None:
+                self._decks.rollback_failed_edit(deck_uuid, pre_edit)
+            raise
 
     def _target(self, name: str | None, id_prefix: str | None) -> tuple[str, str]:
         """Resolve a verb's (name | --id) target to ``(deck_uuid, effective_name)``.
@@ -476,8 +515,24 @@ class DeckAccess:
 
     def push(self, name: str, *, allow_shrink: bool = False, id_prefix: str | None = None) -> None:
         """Push the local deck ``name`` (or ``--id``) to the source through the ceremony."""
-        deck_uuid = self.resolve(id_prefix=id_prefix) if id_prefix is not None else self.resolve(name)
+        deck_uuid = self._resolve_existing(name, id_prefix)
         _sync.push(self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink)
+
+    def _resolve_existing(self, name: str, id_prefix: str | None) -> str:
+        """Resolve a push/sync target to an EXISTING row — a name-miss is a clean error.
+
+        A bare ``resolve(name)`` MINTS a fresh uuid on a miss, so ``push``/``sync`` of
+        an unknown name would surface ``no deck with id '<hex>'`` — leaking a uuid the
+        user never saw (r6-m1). An unknown name here is instead ``no deck named 'X'``.
+        """
+        if id_prefix is not None:
+            return self.resolve(id_prefix=id_prefix)
+        rows = self._decks.rows_for_name(name)
+        if len(rows) == 1:
+            return rows[0].deck_uuid
+        if len(rows) > 1:
+            raise DecksError(self._ambiguous_name_message(name, rows))
+        raise DecksError(f'no deck named {name!r}')
 
     def sync(self, name: str, *, allow_shrink: bool = False, id_prefix: str | None = None) -> None:
         """Reconcile ``name`` (or ``--id``) against its source — pull / push / drift (M2).
@@ -487,7 +542,7 @@ class DeckAccess:
         or raises ``SyncDriftError`` (both moved — nothing changed, both preserved).
         Never pull-clobbers an unpushed local edit.
         """
-        deck_uuid = self.resolve(id_prefix=id_prefix) if id_prefix is not None else self.resolve(name)
+        deck_uuid = self._resolve_existing(name, id_prefix)
         _sync.sync_reconcile(self._decks, self._driver, deck_uuid=deck_uuid, allow_shrink=allow_shrink)
 
 

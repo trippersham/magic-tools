@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from pipeline.contracts import Deck
     from pipeline.decks.store import DecksStore
 
-__all__ = ('SyncDriftError', 'promote', 'pull', 'push', 'sync_reconcile')
+__all__ = ('SyncDriftError', 'promote', 'pull', 'push', 'read_source_bound', 'sync_reconcile')
 
 
 class SyncDriftError(Exception):
@@ -67,6 +67,98 @@ def _require_row(decks: DecksStore, deck_uuid: str) -> tuple[object, str]:
     return deck, row.source_ref
 
 
+def read_source_bound(
+    decks: DecksStore,
+    driver: CollectionStore,
+    *,
+    deck_uuid: str,
+    source_ref: str,
+    expected_ref: str | None = None,
+) -> Deck | None:
+    """THE single source-of-record read chokepoint — always by BOUND external ref (P9).
+
+    Round 6 was one class of defect: a source read went by NAME instead of by the
+    row's bound external ref, so a dup-named / renamed source read the WRONG object
+    (clobber, spurious drift, or a write to an unrelated Airtable record). This is
+    the one function every source read routes through, so reading a source BY NAME
+    becomes impossible to write outside this function's OWN controlled fallback.
+
+    Resolution order:
+
+    1. ``expected_ref`` set (reread-after-create, B4): read STRICTLY by that ref —
+       the just-created recordId (Airtable ``get_deck_by_record_id``) / just-written
+       in-file uuid (local ``get_deck_by_uuid``). NEVER a name read; None on miss.
+    2. The row's BOUND ref in ``external_ids`` — ``airtable`` -> ``get_deck_by_record_id``
+       (M2), ``local`` -> ``get_deck_by_uuid``. When bound, read by THAT ref; if it
+       resolves to nothing (deleted file/record) return None ("source gone") — never
+       fall through to a name read of a DIFFERENT same-named object.
+    3. No bound ref at all (a genuine first pull of a never-bound deck): fall back to
+       the NAME read, then BIND the row from what was read so the next read is bound.
+
+    Returns the source :class:`Deck`, or None when the source is genuinely absent
+    (a not-yet-created source, or a dead bound ref). Never raises FileNotFoundError.
+    """
+    backend = getattr(driver, 'backend_name', None)
+
+    # (1) expected_ref — reread by the just-written identity, strictly.
+    if expected_ref:
+        return _read_by_ref(driver, backend, expected_ref)
+
+    # (2) the row's bound external ref — read by THAT ref; a dead ref returns None.
+    if backend == 'airtable':
+        bound = _external_ref_value(decks, deck_uuid, 'airtable')
+        if bound:
+            return _read_by_ref(driver, backend, bound)
+    else:
+        bound = _external_ref_value(decks, deck_uuid, 'local')
+        if bound:
+            return _read_by_ref(driver, backend, bound)
+
+    # (3) genuine first pull — no bound ref: NAME read (the ONE controlled fallback),
+    # then bind the row so every subsequent read is bound.
+    try:
+        source = driver.get_deck(source_ref)
+    except FileNotFoundError:
+        return None
+    _bind_from_source(decks, deck_uuid, backend, source)
+    return source
+
+
+def _read_by_ref(driver: CollectionStore, backend: str | None, native_ref: str) -> Deck | None:
+    """Read a source deck by its native external ref (recordId / in-file uuid); None on miss."""
+    reader = (
+        getattr(driver, 'get_deck_by_record_id', None)
+        if backend == 'airtable'
+        else getattr(driver, 'get_deck_by_uuid', None)
+    )
+    if reader is None:
+        return None
+    try:
+        return reader(native_ref)
+    except FileNotFoundError:
+        return None
+
+
+def _bind_from_source(decks: DecksStore, deck_uuid: str, backend: str | None, source: Deck) -> None:
+    """Bind the row to the source's external ref after a first-pull name read (P9 step 3).
+
+    Best-effort: a first pull may not have MATERIALIZED the row yet (``pull`` itself
+    ``put``s it right after this read), so a missing row is not an error — the caller
+    binds explicitly after the put. Only an existing row is bound here.
+    """
+    import contextlib
+
+    from pipeline.decks.store import DecksError
+
+    ref = ('airtable', source.airtable_record_id) if backend == 'airtable' else ('local', source.uuid)
+    if not ref[1]:
+        return
+    if decks.get_row(deck_uuid) is None:
+        return
+    with contextlib.suppress(DecksError):
+        decks.set_external_id(deck_uuid, ref[0], ref[1])
+
+
 def pull(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, source_ref: str) -> None:
     """Pull the source deck into the local store and stamp the baseline.
 
@@ -76,7 +168,15 @@ def pull(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, source_r
     is "take the source's version"), preserving nothing local — the caller pulls
     deliberately (first access / explicit ``pull`` verb).
     """
-    source = driver.get_deck(source_ref)
+    # Read the source through the ONE bound-read chokepoint (P9): a dup-named /
+    # renamed row reads ITS OWN bound file/record, never the base slug (r6-B1). A
+    # dead bound ref returns None — treat as "source gone" rather than clobbering
+    # the local copy with an unrelated same-named deck.
+    source = read_source_bound(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref)
+    if source is None:
+        from pipeline.decks.store import DecksError
+
+        raise DecksError(f'cannot pull {deck_uuid!r}: its source {source_ref!r} no longer exists')
     # Stamp the stored deck's own ``uuid`` to the local PK so ``Deck.uuid`` is the
     # stable local identity (a source with a per-read/meaningless uuid — e.g. an
     # Airtable read minting a fresh one — must not leak into the local row's
@@ -112,7 +212,7 @@ def push(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, allow_sh
     # Read the CURRENT source slug-proof: a dup-named local deck makes a name/slug read
     # ambiguous, so prefer the row's bound in-file uuid (``get_deck_by_uuid``) — reading
     # the base slug could pick an UNRELATED same-named deck and spuriously drift (F4).
-    current_source = _read_bound_source(decks, driver, deck_uuid, source_ref)
+    current_source = read_source_bound(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref)
     current_source_version = version(current_source) if current_source is not None else None
 
     if (
@@ -139,7 +239,7 @@ def push(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, allow_sh
     # Baseline := the source AS RE-READ after the write, so a later drift check
     # compares like-for-like (the ceremony may canonicalize names on save; the
     # baseline must be what the bound read reads back, not our pre-write local hash).
-    reread = _read_bound_source(decks, driver, deck_uuid, source_ref)
+    reread = read_source_bound(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref)
     written_version = version(reread) if reread is not None else local_version
     decks.put(
         local,  # type: ignore[arg-type]
@@ -214,10 +314,11 @@ def _promote_exploration(
     # source file's in-file uuid, and a ``--from`` draft deliberately NULLs the
     # recordId, so stamping the PK forks the file (F2) / creates a junk duplicate
     # Airtable row (F3). We reuse this read for the drift guard below.
-    try:
-        current_source = driver.get_deck(source_ref)
-    except FileNotFoundError:
-        current_source = None
+    #
+    # BOUND read (P9, r6-B2): read the parent's source by ITS bound ref, not by name.
+    # A renamed parent FILE (a supported persona) 404s on a name read -> None ->
+    # the drift guard would silently disengage and DESTROY a concurrent foreign edit.
+    current_source = read_source_bound(decks, driver, deck_uuid=parent_uuid, source_ref=source_ref)
 
     # The content to land = the draft's cards/metadata, but stamped with the PARENT
     # SOURCE's OWN external identity so the save binds to the parent's FILE/RECORD:
@@ -247,11 +348,15 @@ def _promote_exploration(
         )
 
     # SAVE FIRST (M6) — any shrink/ceremony refusal surfaces here, before any flip.
+    # ``save_deck`` may STAMP a created recordId onto ``to_source`` in place (Airtable
+    # create branch); we reread by that identity below (never by name).
     driver.save_deck(to_source, allow_shrink=False)
 
     # Success: refresh the parent's canonical local row + baseline (bound by ref),
-    # then CONSUME the draft (retire the exploration copy).
-    written = _reread_source(driver, source_ref, to_source.uuid)
+    # then CONSUME the draft (retire the exploration copy). Reread by the SOURCE's
+    # own external identity through the chokepoint (r6-B4) — the parent's recordId
+    # (Airtable) or the just-written in-file uuid (local), never a name read.
+    written = _reread_after_write(decks, driver, parent_uuid, source_ref, to_source)
     decks.put(
         written,
         deck_uuid=parent_uuid,
@@ -263,28 +368,26 @@ def _promote_exploration(
     decks.consume(deck_uuid)
 
 
-def _read_bound_source(
-    decks: DecksStore, driver: CollectionStore, deck_uuid: str, source_ref: str
-) -> Deck | None:
-    """Read the current source for a row, slug-proof: prefer its bound local in-file uuid.
+def _reread_after_write(
+    decks: DecksStore, driver: CollectionStore, deck_uuid: str, source_ref: str, written: Deck
+) -> Deck:
+    """Reread a just-written source by its OWN external identity through the chokepoint.
 
-    A dup-named local deck makes a name/slug read AMBIGUOUS — the base slug could
-    return an UNRELATED same-named deck and cause a spurious drift or clobber the
-    wrong file (F4). When the row is bound to a ``local`` in-file uuid and the driver
-    supports a uuid read, read by THAT uuid; fall back to the name read (and to None
-    on a not-yet-existing source, so a create path is unaffected).
+    After a save the source's identity is known exactly: the recordId ``save_deck``
+    stamped onto ``written`` (Airtable create), the parent's already-bound recordId
+    (Airtable update), or the just-written in-file uuid (local). Reread by THAT ref
+    (``expected_ref``) so the baseline reflects THIS deck, never a same-named sibling
+    (r6-B4). Falls back to the written deck itself if the reread comes back empty.
     """
-    get_by_uuid = getattr(driver, 'get_deck_by_uuid', None)
-    file_uuid = _external_ref_value(decks, deck_uuid, 'local')
-    if get_by_uuid is not None and file_uuid:
-        try:
-            return get_by_uuid(file_uuid)
-        except FileNotFoundError:
-            pass
-    try:
-        return driver.get_deck(source_ref)
-    except FileNotFoundError:
-        return None
+    backend = getattr(driver, 'backend_name', None)
+    if backend == 'airtable':
+        expected = written.airtable_record_id or _external_ref_value(decks, deck_uuid, 'airtable')
+    else:
+        expected = written.uuid
+    reread = read_source_bound(
+        decks, driver, deck_uuid=deck_uuid, source_ref=source_ref, expected_ref=expected
+    )
+    return reread if reread is not None else written
 
 
 def _external_ref_value(decks: DecksStore, deck_uuid: str, backend: str) -> str | None:
@@ -327,9 +430,14 @@ def _promote_clean_slate(
     # draft under ``to_name`` FIRST (M6). The slug-collision guard in the local
     # adapter makes a dup name land on its own file rather than clobber the existing.
     to_source = draft if draft.name == to_name else draft.model_copy(update={'name': to_name})
+    # ``save_deck`` may STAMP the created recordId onto ``to_source`` in place
+    # (Airtable create branch) so we can reread THIS record, never a name sibling.
     driver.save_deck(to_source, allow_shrink=False)
 
-    written = _reread_source(driver, to_name, to_source.uuid)
+    # Reread by the JUST-CREATED identity through the chokepoint (r6-B4): the created
+    # recordId (Airtable) / the draft's own in-file uuid (local). The row is not yet
+    # bound, so pass the identity as ``expected_ref`` — never fall back to a name read.
+    written = _reread_after_write(decks, driver, deck_uuid, to_name, to_source)
     decks.put(
         written,
         deck_uuid=deck_uuid,
@@ -347,22 +455,6 @@ def _promote_clean_slate(
         decks.set_external_id(deck_uuid, 'airtable', written.airtable_record_id)
     elif written.uuid:
         decks.set_external_id(deck_uuid, 'local', written.uuid)
-
-
-def _reread_source(driver: CollectionStore, source_ref: str, expected_uuid: str) -> Deck:
-    """Re-read a just-written source deck, preferring the uuid-bound read when available.
-
-    A dup name means a name read is ambiguous, so re-read by the deck's in-file uuid
-    when the driver supports it (``get_deck_by_uuid`` — local YAML) so the baseline
-    reflects THIS deck, not a same-named sibling. Falls back to the name read.
-    """
-    by_uuid = getattr(driver, 'get_deck_by_uuid', None)
-    if by_uuid is not None:
-        try:
-            return by_uuid(expected_uuid)
-        except FileNotFoundError:
-            pass
-    return driver.get_deck(source_ref)
 
 
 def sync_reconcile(
@@ -384,10 +476,9 @@ def sync_reconcile(
     assert row is not None
 
     local_version = version(local)  # type: ignore[arg-type]
-    try:
-        source = driver.get_deck(source_ref)
-    except FileNotFoundError:
-        source = None
+    # BOUND read (P9, r6-B1): reconcile against the row's OWN bound source, never the
+    # base slug (a dup-named / renamed row must not compare against an unrelated deck).
+    source = read_source_bound(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref)
     source_version = version(source) if source is not None else None
     baseline = row.synced_baseline
 

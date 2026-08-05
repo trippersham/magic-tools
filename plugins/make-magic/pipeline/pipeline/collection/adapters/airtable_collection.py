@@ -1184,7 +1184,14 @@ class AirtableCollectionStore:
         if deck.airtable_record_id:
             self._client.update_record(table_id, deck.airtable_record_id, fields)
         else:
-            self._client.create_record(table_id, fields)
+            created = self._client.create_record(table_id, fields)
+            # P9 (r6-B4): SURFACE the created recordId back to the caller by stamping
+            # it onto the passed ``deck`` in place. The sync layer rereads a just-
+            # created record by THIS id (never by name — a dup name would reread an
+            # unrelated record and bind/update the wrong Decks row on the base).
+            new_id = created.get('id') if isinstance(created, dict) else None
+            if isinstance(new_id, str) and new_id:
+                deck.airtable_record_id = new_id
 
     def _set_deck_field(self, name: str, field: str, value: Any) -> None:
         rec = self._find_deck_record(name)

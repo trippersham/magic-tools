@@ -20,6 +20,7 @@ injected at the edge; here we only depend on the `CardResolver` Protocol.
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -476,6 +477,18 @@ class LocalYamlStore:
         decks_dir = self._decks_dir()
         if not decks_dir.exists():
             return {}
+        # PERF gate (r6-m4): the full-dir YAML parse is O(files) and runs on EVERY
+        # store construction (twice per verb — a store + a deck-access). Once a pass
+        # finds NO legacy files, drop a marker keyed to the dir's mtime; a later
+        # construction with an unchanged dir skips the whole parse. The marker is
+        # invalidated the instant a file is added/removed/rewritten (mtime bumps).
+        marker = decks_dir / '.uuid-backfill-clean'
+        try:
+            dir_mtime = decks_dir.stat().st_mtime_ns
+            if marker.exists() and marker.read_text().strip() == str(dir_mtime):
+                return {}
+        except OSError:
+            dir_mtime = None
         assigned: dict[str, str] = {}
         for path in sorted(decks_dir.glob('*.yaml')):
             try:
@@ -486,11 +499,23 @@ class LocalYamlStore:
                 continue  # already carries a uuid — idempotent skip.
             new_uuid = uuid4().hex
             # ``uuid`` MUST be the first key so the header sits directly above it.
+            # STRIP a falsy in-file ``uuid`` (``uuid:`` -> None / ``uuid: ''``) from
+            # ``data`` first (r6-m2): otherwise ``{**data}`` re-inserts the falsy value
+            # and OVERRIDES the mint, so the injection silently fails, the file is
+            # rewritten on every run, and a row would bind to a ghost uuid in no file.
+            data = {k: v for k, v in data.items() if k != 'uuid'}
             reordered = {'uuid': new_uuid, **data}
             self._write_deck_yaml(path, reordered)
             name = data.get('name')
             if isinstance(name, str):
                 assigned[name] = new_uuid
+        if not assigned:
+            # A clean pass: drop the marker keyed to the dir mtime AFTER writing it
+            # (the write bumps the mtime, so re-stat) so the next construction skips.
+            import contextlib
+
+            with contextlib.suppress(OSError):
+                marker.write_text(str(decks_dir.stat().st_mtime_ns))
         return assigned
 
     def list_decks(self) -> list[Deck]:
@@ -565,7 +590,16 @@ class LocalYamlStore:
         """
         path.parent.mkdir(parents=True, exist_ok=True)
         body = yaml.safe_dump(data, sort_keys=False, allow_unicode=True, default_flow_style=False)
-        path.write_text(_UUID_COMMENT + body)
+        # ATOMIC write (r6-m5): write a sibling tmp file then ``os.replace`` it into
+        # place, so a crash mid-write (e.g. the backfill mass-rewriting legacy files)
+        # can never truncate/destroy an intact deck file — the old file survives until
+        # the new one is complete. ``os.replace`` is atomic within a filesystem.
+        tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp')
+        try:
+            tmp.write_text(_UUID_COMMENT + body)
+            os.replace(tmp, path)
+        finally:
+            tmp.unlink(missing_ok=True)
 
     def _set_deck_field(self, name: str, key: str, value: object) -> None:
         """Set one top-level field on an existing deck YAML in place (cards preserved)."""
@@ -579,7 +613,8 @@ class LocalYamlStore:
         if not data.get('uuid'):
             from uuid import uuid4
 
-            data = {'uuid': uuid4().hex, **data}
+            # Strip a falsy ``uuid`` first so it can't override the mint (r6-m2).
+            data = {'uuid': uuid4().hex, **{k: v for k, v in data.items() if k != 'uuid'}}
         self._write_deck_yaml(path, data)
 
     def set_strategy(self, name: str, text: str) -> None:
