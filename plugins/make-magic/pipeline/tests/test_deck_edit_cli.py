@@ -380,7 +380,7 @@ def test_id_flag_disambiguates_two_active_gruul(
         _run(monkeypatch, 'get-deck', 'Gruul')
     assert ei.value.code == 1
     err = capsys.readouterr().err
-    assert "is ambiguous (2 decks)" in err
+    assert 'is ambiguous (2 decks)' in err
     assert 'Traceback' not in err
 
     # Pick the ephemeral draft by its short id -> resolves that specific row.

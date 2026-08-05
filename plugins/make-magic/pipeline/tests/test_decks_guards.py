@@ -69,9 +69,7 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)
 
     def _make_resolver() -> DuckDBCardResolver:
-        return DuckDBCardResolver(
-            client=httpx.Client(transport=httpx.MockTransport(_offline_404)), min_interval=0.0
-        )
+        return DuckDBCardResolver(client=httpx.Client(transport=httpx.MockTransport(_offline_404)), min_interval=0.0)
 
     monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', _make_resolver)
     return root
@@ -233,9 +231,7 @@ def test_deck_remove_sole_commander_refused(
 
     _run(monkeypatch, 'get-deck', 'Gruul')
     deck = json.loads(capsys.readouterr().out)
-    assert any(
-        c['name'] == 'Grumgully, the Generous' and c['role'] == 'commander' for c in deck['cards']
-    )
+    assert any(c['name'] == 'Grumgully, the Generous' and c['role'] == 'commander' for c in deck['cards'])
 
 
 def test_remove_card_sole_commander_refused_store_level(data_dir: Path) -> None:

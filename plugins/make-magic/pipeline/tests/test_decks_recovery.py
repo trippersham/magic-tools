@@ -220,7 +220,8 @@ def test_savedeck_airtable_does_not_adopt_stranger(data_dir, monkeypatch):
     del at.records['rec00001']
     # A STRANGER same-named record appears (another user's deck).
     stranger = Deck(
-        name='Azula', format='Commander',
+        name='Azula',
+        format='Commander',
         cards=[DeckCard(name='Stranger Cmdr', role='commander'), DeckCard(name='Stranger 1')],
         airtable_record_id='rec00777',
     )
@@ -310,8 +311,7 @@ def test_failed_recovery_leaves_dead_binding_local(cli, data_dir):
     # Re-identified STRANGER at the slug (the source is gone, a different deck sits here).
     cy = decks_dir(data_dir) / 'cinder.yaml'
     stranger = (
-        'name: Cinder\nuuid: ffffffffffffffffffffffffffffffff\ncards:\n'
-        '- card: Stranger Cmdr\n- card: Stranger Keep 1\n'
+        'name: Cinder\nuuid: ffffffffffffffffffffffffffffffff\ncards:\n- card: Stranger Cmdr\n- card: Stranger Keep 1\n'
     )
     cy.write_text(stranger)
     expire('Cinder')
@@ -339,9 +339,7 @@ def test_failed_recovery_leaves_dead_binding_local(cli, data_dir):
     expire('Cinder')
     cli('save-deck', 'Cinder', '--confirm')
     assert cy.read_text() == stranger, 'the stranger file was overwritten by a retry'
-    assert 'ffffffffffffffffffffffffffffffff' not in (_ext('Cinder') or ''), (
-        'the row was rebound to the stranger'
-    )
+    assert 'ffffffffffffffffffffffffffffffff' not in (_ext('Cinder') or ''), 'the row was rebound to the stranger'
 
 
 def test_failed_recovery_leaves_dead_binding_airtable(data_dir, monkeypatch):
@@ -434,7 +432,7 @@ def test_get_deck_local_serves_local_copy(cli, data_dir):
     assert code == 0, err
     note = (out + err).lower()
     assert 'source missing' in note or 'local copy' in note
-    served = json.loads(out[out.index('{'):])
+    served = json.loads(out[out.index('{') :])
     assert sum(c.get('quantity', 1) for c in served['cards']) == 100
     # No fresh file was written (a --local read must not create/adopt anything).
     assert yaml_files(data_dir, 'toph*.yaml') == []
@@ -478,8 +476,14 @@ def test_dup_named_dead_recovers_via_id(cli, data_dir):
 
     decks = DecksStore()
     for deck in (d1, d2):
-        decks.put(deck, deck_uuid=deck.uuid, sync_status='synced', source_ref='Precious',
-                  synced_baseline=None, rationale='seed')
+        decks.put(
+            deck,
+            deck_uuid=deck.uuid,
+            sync_status='synced',
+            source_ref='Precious',
+            synced_baseline=None,
+            rationale='seed',
+        )
         decks.set_external_id(deck.uuid, 'local', deck.uuid)
 
     rows = _rows('Precious')
@@ -521,8 +525,7 @@ def test_stranger_present_recovery_local_mints_fresh(cli, data_dir):
 
     gy = decks_dir(data_dir) / 'gruul.yaml'
     stranger = (
-        'name: Gruul\nuuid: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ncards:\n'
-        '- card: Stranger Cmdr\n- card: Stranger G 1\n'
+        'name: Gruul\nuuid: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ncards:\n- card: Stranger Cmdr\n- card: Stranger G 1\n'
     )
     gy.write_text(stranger)
     expire('Gruul')
@@ -608,8 +611,7 @@ def _dup_dead_state(cli, data_dir: Path, name: str) -> tuple[str, str]:
     data_dir.mkdir(parents=True, exist_ok=True)
     save_source(cli, data_dir, name, filler=99, prefix='A')
     assert cli('get-deck', name)[0] == 0
-    assert cli('new-draft', f'Junk{name}', '--commander', 'Grumgully, the Generous',
-               '--format', 'Commander')[0] == 0
+    assert cli('new-draft', f'Junk{name}', '--commander', 'Grumgully, the Generous', '--format', 'Commander')[0] == 0
     assert cli('deck-add', f'Junk{name}', 'Junk Card 1')[0] == 0
     assert cli('promote-deck', f'Junk{name}', '--to', name)[0] == 0
     rows = _rows(name)
@@ -657,8 +659,7 @@ def test_savedeck_id_live_dup_row_composes(cli, data_dir):
     data_dir.mkdir(parents=True, exist_ok=True)
     save_source(cli, data_dir, 'Gamma', filler=99, prefix='A')
     assert cli('get-deck', 'Gamma')[0] == 0
-    assert cli('new-draft', 'JunkGamma', '--commander', 'Grumgully, the Generous',
-               '--format', 'Commander')[0] == 0
+    assert cli('new-draft', 'JunkGamma', '--commander', 'Grumgully, the Generous', '--format', 'Commander')[0] == 0
     assert cli('deck-add', 'JunkGamma', 'Junk Card 1')[0] == 0
     assert cli('promote-deck', 'JunkGamma', '--to', 'Gamma')[0] == 0
     rows = _rows('Gamma')

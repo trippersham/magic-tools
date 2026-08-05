@@ -141,8 +141,14 @@ def test_promote_bound_read_preserves_foreign_edit(data_dir: Path) -> None:
     decks = DecksStore()
     p_uuid = uuid4().hex
     stored = src.get_deck_by_uuid(file_uuid_).model_copy(update={'uuid': p_uuid})
-    decks.put(stored, deck_uuid=p_uuid, sync_status='synced', source_ref='Gruul',
-              synced_baseline=version(stored), rationale='pull')
+    decks.put(
+        stored,
+        deck_uuid=p_uuid,
+        sync_status='synced',
+        source_ref='Gruul',
+        synced_baseline=version(stored),
+        rationale='pull',
+    )
     decks.set_external_id(p_uuid, 'local', file_uuid_)
 
     draft = stored.model_copy(update={'name': 'Explore', 'uuid': uuid4().hex})
@@ -174,8 +180,14 @@ def test_read_bound_source_returns_none_when_bound_ref_is_gone(data_dir: Path) -
     decks = DecksStore()
     g_uuid = uuid4().hex
     stored = src.get_deck_by_uuid(file_uuid_).model_copy(update={'uuid': g_uuid})
-    decks.put(stored, deck_uuid=g_uuid, sync_status='synced', source_ref='Ghost',
-              synced_baseline=version(stored), rationale='pull')
+    decks.put(
+        stored,
+        deck_uuid=g_uuid,
+        sync_status='synced',
+        source_ref='Ghost',
+        synced_baseline=version(stored),
+        rationale='pull',
+    )
     decks.set_external_id(g_uuid, 'local', file_uuid_)
 
     # Delete the file the row is bound to; another same-named file appears.
@@ -198,8 +210,14 @@ def test_read_bound_source_expected_ref_reads_that_ref(data_dir: Path) -> None:
 
     decks = DecksStore()
     b_uuid = uuid4().hex
-    decks.put(commander_deck('Base').model_copy(update={'uuid': b_uuid}), deck_uuid=b_uuid,
-              sync_status='synced', source_ref='Base', synced_baseline='x', rationale='pull')
+    decks.put(
+        commander_deck('Base').model_copy(update={'uuid': b_uuid}),
+        deck_uuid=b_uuid,
+        sync_status='synced',
+        source_ref='Base',
+        synced_baseline='x',
+        rationale='pull',
+    )
     decks.set_external_id(b_uuid, 'local', base_uuid)
 
     got = read_bound_source(decks, src, deck_uuid=b_uuid, source_ref='Base', expected_ref=two_uuid)

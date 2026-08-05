@@ -274,8 +274,7 @@ def test_airtable_bound_row_under_local_does_not_clobber_local_file(data_dir, mo
     ldir = decks_dir(data_dir)
     ldir.mkdir(parents=True, exist_ok=True)
     (ldir / 'shared.yaml').write_text(
-        'uuid: 1111aaaa1111aaaa1111aaaa1111aaaa\n'
-        'name: Shared\ncards:\n- card: Local Only Card\n  role: commander\n'
+        'uuid: 1111aaaa1111aaaa1111aaaa1111aaaa\nname: Shared\ncards:\n- card: Local Only Card\n  role: commander\n'
     )
     before = (ldir / 'shared.yaml').read_text()
 
@@ -317,8 +316,7 @@ def test_backfill_does_not_adopt_local_name_for_airtable_bound_row(data_dir, mon
     ldir = decks_dir(data_dir)
     ldir.mkdir(parents=True, exist_ok=True)
     (ldir / 'shared.yaml').write_text(
-        'uuid: 1111aaaa1111aaaa1111aaaa1111aaaa\n'
-        'name: Shared\ncards:\n- card: Local Only Card\n  role: commander\n'
+        'uuid: 1111aaaa1111aaaa1111aaaa1111aaaa\nname: Shared\ncards:\n- card: Local Only Card\n  role: commander\n'
     )
     before = (ldir / 'shared.yaml').read_text()
 
@@ -427,8 +425,7 @@ def _dup_dead_state(cli, data_dir: Path, name: str) -> tuple[str, str]:
     data_dir.mkdir(parents=True, exist_ok=True)
     save_source(cli, data_dir, name, filler=99, prefix='A')
     assert cli('get-deck', name)[0] == 0
-    assert cli('new-draft', f'Junk{name}', '--commander', 'Grumgully, the Generous',
-               '--format', 'Commander')[0] == 0
+    assert cli('new-draft', f'Junk{name}', '--commander', 'Grumgully, the Generous', '--format', 'Commander')[0] == 0
     assert cli('deck-add', f'Junk{name}', 'Junk Card 1')[0] == 0
     assert cli('promote-deck', f'Junk{name}', '--to', name)[0] == 0
     rows = _rows(name)
@@ -466,8 +463,9 @@ def test_backfill_does_not_adopt_cross_backend(cli, data_dir):
     decks = DecksStore()
     cards = [DeckCard(name='Krenko, Mob Boss', role='commander')] + [DeckCard(name=f'F {i}') for i in range(99)]
     seed = Deck(name='Foreign', format='Commander', cards=cards)
-    decks.put(seed, deck_uuid=seed.uuid, sync_status='synced', source_ref='Foreign',
-              synced_baseline=None, rationale='seed')
+    decks.put(
+        seed, deck_uuid=seed.uuid, sync_status='synced', source_ref='Foreign', synced_baseline=None, rationale='seed'
+    )
     decks.set_external_id(seed.uuid, 'airtable', 'recFOREIGN')
 
     # A dropped-in same-named LEGACY (no-uuid) local backup at the slug.

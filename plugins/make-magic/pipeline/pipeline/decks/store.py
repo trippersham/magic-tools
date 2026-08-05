@@ -67,6 +67,7 @@ class DeckRow(BaseModel):
     external_ids: str | None = None
     derived_from: str | None = None
 
+
 #: The DuckDB table holding the local working-copy decks.
 _DECKS_TABLE = 'decks'
 
@@ -83,7 +84,7 @@ _DECKS_DDL = (
     'deck_uuid TEXT PRIMARY KEY, '  # stable, name-independent identity (minted once)
     'name TEXT, '  # a label (dup names allowed; resolve by name -> uuid)
     'deck_json TEXT, '
-    "sync_status TEXT, "  # 'ephemeral' | 'synced' | 'consumed'
+    'sync_status TEXT, '  # 'ephemeral' | 'synced' | 'consumed'
     'source_ref TEXT, '  # JSON {backend, name/record-id} | NULL (ephemeral)
     'synced_baseline TEXT, '  # version() of source at last sync | NULL
     'freshness TEXT, '  # JSON {assessment: <hash>, sim: <hash>} | NULL
@@ -177,14 +178,20 @@ def _migrate_deck_id_to_uuid(conn: DuckDBPyConnection) -> None:
             'freshness, last_sim, archived, external_ids, derived_from) '
             'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
             [
-                new_uuid, name, deck_json, sync_status, source_ref, synced_baseline,
-                freshness, last_sim, bool(archived), json.dumps(external_ids),
+                new_uuid,
+                name,
+                deck_json,
+                sync_status,
+                source_ref,
+                synced_baseline,
+                freshness,
+                last_sim,
+                bool(archived),
+                json.dumps(external_ids),
             ],
         )
         # Re-key the ledger rows for this deck (old id value -> the minted uuid).
-        conn.execute(
-            'UPDATE deck_versions SET deck_uuid = ? WHERE deck_uuid = ?', [new_uuid, old_id]
-        )
+        conn.execute('UPDATE deck_versions SET deck_uuid = ? WHERE deck_uuid = ?', [new_uuid, old_id])
 
     # Crash-atomic swap: DROP + RENAME as one transaction so a crash between them
     # can never leave the store with no ``decks`` table (which would strand all rows
@@ -281,9 +288,7 @@ class DecksStore:
         """Return the validated ``Deck`` for ``deck_uuid``, or ``None`` if absent."""
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            row = conn.execute(
-                f'SELECT deck_json FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
-            ).fetchone()
+            row = conn.execute(f'SELECT deck_json FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]).fetchone()
         if row is None or row[0] is None:
             return None
         return Deck.model_validate_json(row[0])
@@ -298,18 +303,14 @@ class DecksStore:
         where = '' if include_archived else 'WHERE NOT archived '
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            rows = conn.execute(
-                f'SELECT deck_json FROM {_DECKS_TABLE} {where}ORDER BY deck_uuid'
-            ).fetchall()
+            rows = conn.execute(f'SELECT deck_json FROM {_DECKS_TABLE} {where}ORDER BY deck_uuid').fetchall()
         return [Deck.model_validate_json(r[0]) for r in rows if r[0] is not None]
 
     def exists(self, deck_uuid: str) -> bool:
         """True iff a row for ``deck_uuid`` exists."""
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            row = conn.execute(
-                f'SELECT 1 FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
-            ).fetchone()
+            row = conn.execute(f'SELECT 1 FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]).fetchone()
         return row is not None
 
     def uuid_for_name(self, name: str) -> str | None:
@@ -380,8 +381,7 @@ class DecksStore:
         with self._connect() as conn:
             _ensure_decks_table(conn)
             rows = conn.execute(
-                f'SELECT deck_uuid, external_ids FROM {_DECKS_TABLE} '
-                "WHERE sync_status IS DISTINCT FROM 'consumed'",
+                f"SELECT deck_uuid, external_ids FROM {_DECKS_TABLE} WHERE sync_status IS DISTINCT FROM 'consumed'",
             ).fetchall()
         for deck_uuid, raw in rows:
             try:
@@ -401,9 +401,7 @@ class DecksStore:
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            row = conn.execute(
-                f'SELECT external_ids FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
-            ).fetchone()
+            row = conn.execute(f'SELECT external_ids FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]).fetchone()
             if row is None:
                 raise DecksError(f'no deck with id {deck_uuid!r}')
             try:
@@ -429,9 +427,7 @@ class DecksStore:
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            row = conn.execute(
-                f'SELECT deck_uuid FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
-            ).fetchone()
+            row = conn.execute(f'SELECT deck_uuid FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]).fetchone()
             if row is None:
                 raise DecksError(f'no deck with id {deck_uuid!r}')
             conn.execute(
@@ -447,9 +443,7 @@ class DecksStore:
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            row = conn.execute(
-                f'SELECT external_ids FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
-            ).fetchone()
+            row = conn.execute(f'SELECT external_ids FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]).fetchone()
         return row[0] if row is not None else None
 
     def external_ref(self, deck_uuid: str, backend: str) -> str | None:
@@ -478,9 +472,7 @@ class DecksStore:
             return None
         return _row_to_deckrow(row)
 
-    def list_rows(
-        self, *, sync_status: str | None = None, include_archived: bool = False
-    ) -> list[DeckRow]:
+    def list_rows(self, *, sync_status: str | None = None, include_archived: bool = False) -> list[DeckRow]:
         """Return the local-only sync bookkeeping rows (deck_uuid order).
 
         Optionally filtered by ``sync_status`` (``'ephemeral'`` / ``'synced'`` /
@@ -556,8 +548,7 @@ class DecksStore:
                 # NOTE: `archived` / `external_ids` are deliberately not in the UPDATE
                 # set — a re-put (e.g. a re-pull of an unchanged source) must preserve
                 # the local archived flag + binding identity rather than reset them.
-                [deck_uuid, deck.name, deck.model_dump_json(), sync_status, source_ref,
-                 synced_baseline, derived_from],
+                [deck_uuid, deck.name, deck.model_dump_json(), sync_status, source_ref, synced_baseline, derived_from],
             )
             if not head or head[-1]['version'] != new_version:
                 history.append_deck_version(conn, deck_uuid=deck_uuid, deck=deck, rationale=rationale or 'put')
@@ -578,8 +569,12 @@ class DecksStore:
         """
         deck_uuid = deck.uuid
         self.put(
-            deck, deck_uuid=deck_uuid, sync_status='ephemeral', source_ref=None,
-            synced_baseline=None, derived_from=derived_from,
+            deck,
+            deck_uuid=deck_uuid,
+            sync_status='ephemeral',
+            source_ref=None,
+            synced_baseline=None,
+            derived_from=derived_from,
         )
         return deck_uuid
 
@@ -594,14 +589,11 @@ class DecksStore:
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            exists = conn.execute(
-                f'SELECT 1 FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
-            ).fetchone()
+            exists = conn.execute(f'SELECT 1 FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]).fetchone()
             if exists is None:
                 raise DecksError(f'no deck with id {deck_uuid!r}')
             conn.execute(
-                f"UPDATE {_DECKS_TABLE} SET sync_status = 'consumed', archived = TRUE "
-                'WHERE deck_uuid = ?',
+                f"UPDATE {_DECKS_TABLE} SET sync_status = 'consumed', archived = TRUE WHERE deck_uuid = ?",
                 [deck_uuid],
             )
 
@@ -647,9 +639,7 @@ class DecksStore:
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            row = conn.execute(
-                f'SELECT freshness FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
-            ).fetchone()
+            row = conn.execute(f'SELECT freshness FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]).fetchone()
             if row is None:
                 return
             try:
@@ -793,14 +783,10 @@ class DecksStore:
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            exists = conn.execute(
-                f'SELECT 1 FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
-            ).fetchone()
+            exists = conn.execute(f'SELECT 1 FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]).fetchone()
             if exists is None:
                 raise DecksError(f'no deck with id {deck_uuid!r}')
-            conn.execute(
-                f'UPDATE {_DECKS_TABLE} SET archived = ? WHERE deck_uuid = ?', [archived, deck_uuid]
-            )
+            conn.execute(f'UPDATE {_DECKS_TABLE} SET archived = ? WHERE deck_uuid = ?', [archived, deck_uuid])
 
     # ----------------------------------------------------------------------- #
     # Typed edits — the whole point (no dict-surgery)
@@ -830,9 +816,7 @@ class DecksStore:
     #: caller-supplied one).
     _DEFAULT_RATIONALE = 'edit'
 
-    def _write_edit(
-        self, deck_uuid: str, deck: Deck, *, rationale: str | None, is_undo: bool = False
-    ) -> None:
+    def _write_edit(self, deck_uuid: str, deck: Deck, *, rationale: str | None, is_undo: bool = False) -> None:
         """Persist an edited deck + append a version to the ledger (edit-triggered).
 
         An edit changes only ``deck_json`` / ``name``; ``sync_status`` /
@@ -902,10 +886,7 @@ class DecksStore:
         if card.role == ROLE_COMMANDER and existing is None:
             others = [c.name for c in deck.commanders]
             if others:
-                raise DecksError(
-                    f'refusing to add a second commander {card.name!r} '
-                    f'(deck already has: {others})'
-                )
+                raise DecksError(f'refusing to add a second commander {card.name!r} (deck already has: {others})')
 
     def add_card(self, deck_uuid: str, card: DeckCard, *, rationale: str | None = None) -> None:
         """Add ``card`` to the deck — increment the existing entry, else append.

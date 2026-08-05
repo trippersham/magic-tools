@@ -54,9 +54,7 @@ def test_put_get_roundtrip_is_validated_deck(data_dir: Path) -> None:
     assert isinstance(got, Deck)
     assert got.name == deck.name
     assert got.format == 'commander'
-    assert {(c.name, c.quantity, c.role) for c in got.cards} == {
-        (c.name, c.quantity, c.role) for c in deck.cards
-    }
+    assert {(c.name, c.quantity, c.role) for c in got.cards} == {(c.name, c.quantity, c.role) for c in deck.cards}
 
 
 def test_get_missing_returns_none(data_dir: Path) -> None:

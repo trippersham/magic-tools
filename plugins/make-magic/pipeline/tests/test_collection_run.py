@@ -164,9 +164,7 @@ def test_list_decks_unions_source_synced_and_local_ephemeral(
 
     # A source-backed deck (saved through the source) + a purely-local ephemeral draft.
     _save_a_source_deck(monkeypatch, tmp_path, 'Sourced')
-    DecksStore().create_ephemeral(
-        Deck(name='Draft', cards=[DeckCard(name='Sol Ring', role='commander')])
-    )
+    DecksStore().create_ephemeral(Deck(name='Draft', cards=[DeckCard(name='Sol Ring', role='commander')]))
     capsys.readouterr()
 
     _run(monkeypatch, 'list-decks', '--json')

@@ -458,8 +458,10 @@ def test_slug_collision_two_twins_two_files(data_dir: Path, tmp_path: Path) -> N
     # A SECOND, distinct deck (distinct uuid) that shares the name "Twin" but has
     # different content.
     second = _commander_deck('Twin', extra=None).model_copy(
-        update={'cards': [c for c in _commander_deck('Twin').cards if c.name != 'Goblin 0']
-                + [DeckCard(name='sol ring', quantity=1)]}
+        update={
+            'cards': [c for c in _commander_deck('Twin').cards if c.name != 'Goblin 0']
+            + [DeckCard(name='sol ring', quantity=1)]
+        }
     )
     # ensure distinct uuid
     assert second.uuid != first.uuid

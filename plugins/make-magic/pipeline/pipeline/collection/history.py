@@ -98,10 +98,7 @@ def _ensure_history_tables(conn: DuckDBPyConnection) -> None:
         # order is total + stable even within one timestamp (ts alone can tie).
         'seq BIGINT, ts TIMESTAMP, deck_uuid TEXT, version TEXT, rationale TEXT, deck_json JSON)'
     )
-    conn.execute(
-        f'CREATE TABLE IF NOT EXISTS {_DECK_UNDO_CURSOR_TABLE} ('
-        'deck_uuid TEXT PRIMARY KEY, seq BIGINT)'
-    )
+    conn.execute(f'CREATE TABLE IF NOT EXISTS {_DECK_UNDO_CURSOR_TABLE} (deck_uuid TEXT PRIMARY KEY, seq BIGINT)')
     # Migrate a pre-existing ledger (created before the deck_id -> deck_uuid re-key)
     # in place: rename the key column so the ledger and the decks store agree. The
     # ROW re-keying (old '<backend>:<name>' value -> the new uuid) is done by the
@@ -464,9 +461,7 @@ def get_undo_cursor(conn: DuckDBPyConnection, deck_uuid: str) -> int | None:
     strictly backward from there rather than restarting at head.
     """
     _ensure_history_tables(conn)
-    row = conn.execute(
-        f'SELECT seq FROM {_DECK_UNDO_CURSOR_TABLE} WHERE deck_uuid = ?', [deck_uuid]
-    ).fetchone()
+    row = conn.execute(f'SELECT seq FROM {_DECK_UNDO_CURSOR_TABLE} WHERE deck_uuid = ?', [deck_uuid]).fetchone()
     return int(row[0]) if row is not None and row[0] is not None else None
 
 

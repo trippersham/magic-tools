@@ -103,9 +103,7 @@ def _active_backend(driver: CollectionStore) -> Literal['local', 'airtable']:
     return 'airtable' if driver.backend_name == 'airtable' else 'local'
 
 
-def binding_is_dead(
-    decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, source_ref: str
-) -> bool:
+def binding_is_dead(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, source_ref: str) -> bool:
     """True iff the row is bound for the active backend but the bound source read is None.
 
     Splits the two meanings of ``read_bound_source(...) is None``: "None because the
@@ -157,9 +155,7 @@ def require_writable_binding(
     siblings = decks.rows_for_name(source_ref)
     dup = len(siblings) > 1
     raise DeadBindingError(
-        dead_binding_message(
-            driver, source_ref, dup_names=dup, id_prefix=deck_uuid[:6] if dup else None
-        )
+        dead_binding_message(driver, source_ref, dup_names=dup, id_prefix=deck_uuid[:6] if dup else None)
     )
 
 
@@ -200,13 +196,13 @@ def dead_binding_message(
     view = f'collection get-deck "{source_ref}" --local'
     if driver.backend_name == 'airtable':
         return (
-            f"the Airtable record for {source_ref!r} was deleted. Re-save it with: "
+            f'the Airtable record for {source_ref!r} was deleted. Re-save it with: '
             f'{save_cmd}  — this creates a new Decks record from your local copy. '
             f'(View the local copy first with: {view}.) '
             'Your local copy is intact.'
         )
     return (
-        f"the deck file for {source_ref!r} is missing or its id changed (it was deleted, "
+        f'the deck file for {source_ref!r} is missing or its id changed (it was deleted, '
         "moved out of the collection, or its 'uuid:' line was changed). Re-save it with: "
         f'{save_cmd}  — this writes a fresh deck file from your local copy. '
         f'(View the local copy first with: {view}.) '
@@ -426,9 +422,7 @@ def push(
     )
 
 
-def promote(
-    decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, to_name: str | None = None
-) -> None:
+def promote(decks: DecksStore, driver: CollectionStore, *, deck_uuid: str, to_name: str | None = None) -> None:
     """Commit an ephemeral draft — by lineage, save-before-flip, then consume.
 
     Decided by the draft's ``derived_from``:
@@ -457,9 +451,7 @@ def promote(
     row = decks.get_row(deck_uuid)
     assert row is not None  # get() already proved the row exists.
     if row.sync_status == 'consumed':
-        raise DecksError(
-            f'{row.name!r} is a consumed draft (already promoted) and cannot be promoted again'
-        )
+        raise DecksError(f'{row.name!r} is a consumed draft (already promoted) and cannot be promoted again')
 
     if row.derived_from:
         _promote_exploration(decks, driver, deck_uuid=deck_uuid, draft=draft, parent_uuid=row.derived_from)
@@ -562,9 +554,7 @@ def _reread_after_write(
         expected = written.airtable_record_id or decks.external_ref(deck_uuid, 'airtable')
     else:
         expected = written.uuid
-    reread = read_bound_source(
-        decks, driver, deck_uuid=deck_uuid, source_ref=source_ref, expected_ref=expected
-    )
+    reread = read_bound_source(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref, expected_ref=expected)
     return reread if reread is not None else written
 
 

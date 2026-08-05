@@ -209,9 +209,7 @@ def expire(name: str | None = None) -> None:
             d.set_freshness(row.deck_uuid, {})
 
 
-def write_legacy_yaml(
-    data_dir: Path, slug: str, name: str, cards: Sequence[str], *, uuid: str | None = None
-) -> Path:
+def write_legacy_yaml(data_dir: Path, slug: str, name: str, cards: Sequence[str], *, uuid: str | None = None) -> Path:
     d = decks_dir(data_dir)
     d.mkdir(parents=True, exist_ok=True)
     lines: list[str] = []

@@ -206,8 +206,13 @@ def test_push_fires_the_shrink_ceremony(data_dir: Path, tmp_path: Path) -> None:
     local = decks.get('d1')
     assert local is not None
     shrunk = local.model_copy(update={'cards': [c for c in local.cards if c.name != 'Goblin 5']})
-    decks.put(shrunk, deck_uuid='d1', sync_status='synced', source_ref='Krenko Goblins',
-              synced_baseline=decks.get_row('d1').synced_baseline)  # type: ignore[union-attr]
+    decks.put(
+        shrunk,
+        deck_uuid='d1',
+        sync_status='synced',
+        source_ref='Krenko Goblins',
+        synced_baseline=decks.get_row('d1').synced_baseline,
+    )  # type: ignore[union-attr]
 
     with pytest.raises(CollectionError):
         push(decks, driver, deck_uuid='d1')

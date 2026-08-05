@@ -74,7 +74,8 @@ def test_dup_name_promote_binds_and_updates_new_record(data_dir: Path) -> None:
 
     access.read_deck('Ozai')  # row A -> rec00001
     draft = Deck(
-        name='Junk', format='Commander',
+        name='Junk',
+        format='Commander',
         cards=[DeckCard(name='Grumgully, the Generous', role='commander'), DeckCard(name='Junk 1')],
     )
     d_uuid = decks.create_ephemeral(draft)
@@ -109,8 +110,14 @@ def test_correctly_bound_row_pushes_without_spurious_drift(data_dir: Path) -> No
 
     p_uuid = uuid4().hex
     src = driver.get_deck_by_record_id('rec00002')
-    decks.put(src.model_copy(update={'uuid': p_uuid}), deck_uuid=p_uuid, sync_status='synced',
-              source_ref='Azula', synced_baseline=version(src), rationale='pull')
+    decks.put(
+        src.model_copy(update={'uuid': p_uuid}),
+        deck_uuid=p_uuid,
+        sync_status='synced',
+        source_ref='Azula',
+        synced_baseline=version(src),
+        rationale='pull',
+    )
     decks.set_external_id(p_uuid, 'airtable', 'rec00002')
     decks.add_card(p_uuid, DeckCard(name='My Edit'), rationale='edit')
 

@@ -87,8 +87,7 @@ class DeckAccess:
             raise DecksError(f'no deck with id prefix {id_prefix!r}')
         if len(matches) > 1:
             raise DecksError(
-                f'--id prefix {id_prefix!r} is ambiguous ({len(matches)} decks); '
-                'use more characters of the id.'
+                f'--id prefix {id_prefix!r} is ambiguous ({len(matches)} decks); use more characters of the id.'
             )
         return matches[0]
 
@@ -119,9 +118,7 @@ class DeckAccess:
         """
         siblings = self._decks.rows_for_name(name)
         dup = len(siblings) > 1
-        return _sync.dead_binding_message(
-            self._driver, name, dup_names=dup, id_prefix=deck_uuid[:6] if dup else None
-        )
+        return _sync.dead_binding_message(self._driver, name, dup_names=dup, id_prefix=deck_uuid[:6] if dup else None)
 
     def _alias_dead_row(self, name: str) -> tuple[str, str] | None:
         """A case-alias of ``name`` that binds a single dead row (anti-fork).
@@ -141,9 +138,7 @@ class DeckAccess:
                 return None  # an exact-name row exists — not an alias case.
             if ' '.join(row.name.split()).casefold() != key:
                 continue
-            if _sync.binding_is_dead(
-                self._decks, self._driver, deck_uuid=row.deck_uuid, source_ref=row.source_ref
-            ):
+            if _sync.binding_is_dead(self._decks, self._driver, deck_uuid=row.deck_uuid, source_ref=row.source_ref):
                 candidates.append(row)
         if len(candidates) == 1:
             return candidates[0].deck_uuid, candidates[0].name
@@ -192,7 +187,9 @@ class DeckAccess:
         canonical = row.name if row is not None else name
         self.save_deck(
             local.model_copy(update={'name': canonical}),
-            allow_shrink=allow_shrink, commit=True, target_uuid=deck_uuid,
+            allow_shrink=allow_shrink,
+            commit=True,
+            target_uuid=deck_uuid,
         )
         return canonical
 
@@ -239,17 +236,13 @@ class DeckAccess:
         for row in self._decks.list_rows(sync_status='synced'):
             if row.source_ref is None:
                 continue
-            if _sync.binding_is_dead(
-                self._decks, self._driver, deck_uuid=row.deck_uuid, source_ref=row.source_ref
-            ):
+            if _sync.binding_is_dead(self._decks, self._driver, deck_uuid=row.deck_uuid, source_ref=row.source_ref):
                 out.append(row)
         return out
 
     def is_binding_dead(self, deck_uuid: str, source_ref: str) -> bool:
         """True iff the row is bound for the active backend but its source read is dead."""
-        return _sync.binding_is_dead(
-            self._decks, self._driver, deck_uuid=deck_uuid, source_ref=source_ref
-        )
+        return _sync.binding_is_dead(self._decks, self._driver, deck_uuid=deck_uuid, source_ref=source_ref)
 
     # ----------------------------------------------------------------------- #
     # Read (pull policy)
@@ -465,9 +458,7 @@ class DeckAccess:
         """
         existing = self._decks.uuid_for_name(name)
         if existing is not None:
-            source = _sync.read_bound_source(
-                self._decks, self._driver, deck_uuid=existing, source_ref=name
-            )
+            source = _sync.read_bound_source(self._decks, self._driver, deck_uuid=existing, source_ref=name)
             if source is not None:
                 return source
             # Distinguish a dead binding (a row exists and is bound, but its source is
@@ -483,7 +474,7 @@ class DeckAccess:
             # (which would invite a clobbering recreate) — say where it is bound.
             if self._decks.bound_backends(existing) - {_sync._active_backend(self._driver)}:
                 raise DecksError(
-                    f"{name!r} is bound to a different backend than the active one ({self.backend}) — "
+                    f'{name!r} is bound to a different backend than the active one ({self.backend}) — '
                     'switch back to its source backend to read it.'
                 )
             raise DecksError(f'no deck named {name!r}')
@@ -580,17 +571,21 @@ class DeckAccess:
         baseline = version(source) if source is not None else None
         deck_uuid = self._save_target_uuid(deck, source, existing_uuid=existing_uuid)
         pre_edit = self._decks.get(deck_uuid) if commit else None
-        self._decks.put(deck, deck_uuid=deck_uuid, sync_status='synced', source_ref=deck.name,
-                        synced_baseline=baseline, rationale='save-deck')
+        self._decks.put(
+            deck,
+            deck_uuid=deck_uuid,
+            sync_status='synced',
+            source_ref=deck.name,
+            synced_baseline=baseline,
+            rationale='save-deck',
+        )
         # Bind to the source's ref when it exists. For a first save that is about to
         # commit, do not pre-bind to the deck's own (not-yet-written) uuid: the commit
         # ``push`` would then read the not-yet-created source as a dead binding and
         # refuse its own create. A committing first save binds after the push (the
         # re-bind block below). A stage-only (``commit=False``) first save keeps the
         # eager self-bind so a later read resolves the local identity.
-        ext = self._external_ref(source) if source is not None else (
-            None if commit else self._external_ref(deck)
-        )
+        ext = self._external_ref(source) if source is not None else (None if commit else self._external_ref(deck))
         if ext is not None:
             self._decks.set_external_id(deck_uuid, *ext)
         if commit:
@@ -622,9 +617,7 @@ class DeckAccess:
             # the fresh identity in ``_commit_recovery`` (a name read here would adopt a
             # same-named stranger), so skip it.
             if not recovering:
-                written = _sync.read_bound_source(
-                    self._decks, self._driver, deck_uuid=deck_uuid, source_ref=deck.name
-                )
+                written = _sync.read_bound_source(self._decks, self._driver, deck_uuid=deck_uuid, source_ref=deck.name)
                 written_ext = self._external_ref(written) if written is not None else None
                 if written_ext is not None:
                     self._decks.set_external_id(deck_uuid, *written_ext)
@@ -700,12 +693,13 @@ class DeckAccess:
         # Forced-fresh create — never adopt a same-named legacy backup in place.
         # This runs before any ref change; a failure raises here, ref untouched.
         self._driver.save_deck(to_save, allow_shrink=allow_shrink, force_fresh=True)
-        expected = (
-            to_save.airtable_record_id if self.backend == 'airtable' else to_save.uuid
-        )
+        expected = to_save.airtable_record_id if self.backend == 'airtable' else to_save.uuid
         written = _sync.read_bound_source(
-            self._decks, self._driver, deck_uuid=deck_uuid,
-            source_ref=deck.name, expected_ref=expected,
+            self._decks,
+            self._driver,
+            deck_uuid=deck_uuid,
+            source_ref=deck.name,
+            expected_ref=expected,
         )
         landed = written if written is not None else to_save
         # Create succeeded — now (and only now) replace the dead ref with the fresh one,
@@ -714,8 +708,12 @@ class DeckAccess:
         # fresh identity's ref (the ref transitions dead → fresh in one step).
         landed_ext = self._external_ref(landed)
         self._decks.put(
-            landed, deck_uuid=deck_uuid, sync_status='synced', source_ref=deck.name,
-            synced_baseline=_version(landed), rationale='save-deck (recover)',
+            landed,
+            deck_uuid=deck_uuid,
+            sync_status='synced',
+            source_ref=deck.name,
+            synced_baseline=_version(landed),
+            rationale='save-deck (recover)',
         )
         if landed_ext is not None:
             self._decks.replace_external_ids(deck_uuid, {landed_ext[0]: landed_ext[1]})
@@ -737,9 +735,7 @@ class DeckAccess:
     def _source_for_save(self, name: str, existing_uuid: str | None) -> Deck | None:
         """Read the current source for a ``save_deck`` — bound when a row exists."""
         if existing_uuid is not None:
-            return _sync.read_bound_source(
-                self._decks, self._driver, deck_uuid=existing_uuid, source_ref=name
-            )
+            return _sync.read_bound_source(self._decks, self._driver, deck_uuid=existing_uuid, source_ref=name)
         # Genuine first save: no local row yet, so a name read is the only address —
         # the chokepoint's own controlled first-pull fallback shape.
         try:

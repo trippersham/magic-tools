@@ -216,13 +216,20 @@ def _provenance_block(decks_store: DecksStore, deck_uuid: str | None) -> dict[st
     if row is not None and row.freshness:
         stamp = json.loads(row.freshness).get('assessment')
         if isinstance(stamp, dict):
-            assessment = {'version': stamp.get('version'), 'at': stamp.get('at'),
-                          'state': decks_store.assessment_state(deck_uuid)}
+            assessment = {
+                'version': stamp.get('version'),
+                'at': stamp.get('at'),
+                'state': decks_store.assessment_state(deck_uuid),
+            }
     if row is not None and row.last_sim:
         stamp = json.loads(row.last_sim)
         if isinstance(stamp, dict):
-            last_sim = {'result': stamp.get('result'), 'deck_version': stamp.get('deck_version'),
-                        'at': stamp.get('at'), 'state': decks_store.sim_state(deck_uuid)}
+            last_sim = {
+                'result': stamp.get('result'),
+                'deck_version': stamp.get('deck_version'),
+                'at': stamp.get('at'),
+                'state': decks_store.sim_state(deck_uuid),
+            }
     return {'assessment': assessment, 'last_sim': last_sim}
 
 
@@ -245,8 +252,15 @@ def _list_decks(argv: list[str]) -> None:
     decks_store = DecksStore()
     rows: list[dict[str, object]] = []
     for deck in sorted(_store().list_decks(), key=lambda d: d.name):
-        rows.append({'name': deck.name, 'status': 'synced', 'archived': False, 'source_missing': False,
-                     **_provenance_states(decks_store, decks_store.uuid_for_name(deck.name))})
+        rows.append(
+            {
+                'name': deck.name,
+                'status': 'synced',
+                'archived': False,
+                'source_missing': False,
+                **_provenance_states(decks_store, decks_store.uuid_for_name(deck.name)),
+            }
+        )
     # A dead-bound synced deck's source is gone, so it drops out of the source
     # ``list_decks`` above and would vanish from the listing. Surface it, flagged
     # ``source-missing``, so the agent can see + recover it rather than hunt a stranger.
@@ -254,13 +268,26 @@ def _list_decks(argv: list[str]) -> None:
     for dead in sorted(_deck_access().dead_bound_rows(), key=lambda r: r.name):
         if dead.name in listed_names:
             continue  # a same-named LIVE deck is already listed; the dead row rides its flag.
-        rows.append({'name': dead.name, 'status': 'synced', 'archived': dead.archived,
-                     'source_missing': True, **_provenance_states(decks_store, dead.deck_uuid)})
+        rows.append(
+            {
+                'name': dead.name,
+                'status': 'synced',
+                'archived': dead.archived,
+                'source_missing': True,
+                **_provenance_states(decks_store, dead.deck_uuid),
+            }
+        )
     drafts = decks_store.list_rows(sync_status='ephemeral', include_archived=args.archived)
     for row in sorted(drafts, key=lambda r: r.name):
-        rows.append({'name': row.name, 'status': 'ephemeral', 'archived': row.archived,
-                     'source_missing': False,
-                     **_provenance_states(decks_store, row.deck_uuid)})
+        rows.append(
+            {
+                'name': row.name,
+                'status': 'ephemeral',
+                'archived': row.archived,
+                'source_missing': False,
+                **_provenance_states(decks_store, row.deck_uuid),
+            }
+        )
 
     if args.json:
         print(json.dumps(rows))
@@ -317,7 +344,7 @@ def _get_deck(argv: list[str]) -> None:
     parser.add_argument(
         '--local',
         action='store_true',
-        help="Serve the LOCAL copy directly (no pull) — reachable even under a dead binding "
+        help='Serve the LOCAL copy directly (no pull) — reachable even under a dead binding '
         "(the deck's source file/record is missing). Prints a 'source missing' note.",
     )
     args = parser.parse_args(argv)
@@ -344,12 +371,9 @@ def _get_deck(argv: list[str]) -> None:
                 else access.resolve(args.name or '')
             )
             row = DecksStore().get_row(resolved)
-            if row is not None and row.source_ref is not None and access.is_binding_dead(
-                resolved, row.source_ref
-            ):
+            if row is not None and row.source_ref is not None and access.is_binding_dead(resolved, row.source_ref):
                 note = (
-                    f'note: source missing — showing local copy of {deck.name!r} (no pull). '
-                    'Recover it with save-deck.'
+                    f'note: source missing — showing local copy of {deck.name!r} (no pull). Recover it with save-deck.'
                 )
         except CollectionError:
             pass
@@ -395,7 +419,7 @@ def _save_deck(argv: list[str]) -> None:
         prog='collection save-deck',
         description=(
             'Save a deck. Authoring: `save-deck --from-json <file>` writes arbitrary deck JSON. '
-            "Recovery: `save-deck \"<name>\"` (or `--id <prefix>`) re-saves the deck from its LOCAL "
+            'Recovery: `save-deck "<name>"` (or `--id <prefix>`) re-saves the deck from its LOCAL '
             "copy — the advised fix when a deck's source file/record is missing (a DEAD binding). "
             'For a dead binding this writes a FRESH source and rebinds the row; for a HEALTHY, '
             'bound deck it is an authoritative push of the local copy to the EXISTING source '
@@ -405,7 +429,9 @@ def _save_deck(argv: list[str]) -> None:
     parser.add_argument('name', nargs='?', help='Deck name to RECOVER from its local copy (recovery mode).')
     parser.add_argument('--from-json', help='Path to a JSON Deck (- for stdin) — authoring mode.')
     parser.add_argument(
-        '--id', dest='id_prefix', default=None,
+        '--id',
+        dest='id_prefix',
+        default=None,
         help='Address a dup-named deck by deck_uuid prefix (recovery mode).',
     )
     parser.add_argument(
@@ -821,18 +847,14 @@ def _new_draft(argv: list[str]) -> None:
         access = _deck_access()
         source_deck = access.read_deck(args.source)
         derived_from = access.resolve(args.source)
-        draft = source_deck.model_copy(
-            update={'name': args.name, 'airtable_record_id': None, 'uuid': uuid4().hex}
-        )
+        draft = source_deck.model_copy(update={'name': args.name, 'airtable_record_id': None, 'uuid': uuid4().hex})
     else:
         # A clean-slate draft: a minimal Deck (name/format + optional commander); its
         # uuid is minted by the Deck model's default_factory. No lineage. The
         # commander is canonicalized: a raw ``krenko, mob boss`` becomes canonical so
         # a later ``deck-add`` of the same card merges into the one entry instead of
         # spawning a duplicate singleton.
-        cards = (
-            [DeckCard(name=_resolve_card_name(args.commander), role='commander')] if args.commander else []
-        )
+        cards = [DeckCard(name=_resolve_card_name(args.commander), role='commander')] if args.commander else []
         draft = Deck(name=args.name, format=args.format_, cards=cards)
     deck_uuid = decks.create_ephemeral(draft, derived_from=derived_from)
     print(f'new-draft: {args.name} [ephemeral] ({deck_uuid})')
@@ -873,14 +895,14 @@ def _promote_deck(argv: list[str]) -> None:
         deck_uuid = access.resolve(id_prefix=args.id_prefix)
     elif args.deck:
         if decks.uuid_for_name(args.deck) is None:
-            raise CollectionError(f"no deck named {args.deck!r} to promote")
+            raise CollectionError(f'no deck named {args.deck!r} to promote')
         deck_uuid = access.resolve(args.deck)
     else:
         raise CollectionError('promote-deck: a draft name or --id prefix is required')
 
     row = decks.get_row(deck_uuid)
     if row is None or not decks.exists(deck_uuid):
-        raise CollectionError(f"no ephemeral draft named {args.deck!r} to promote")
+        raise CollectionError(f'no ephemeral draft named {args.deck!r} to promote')
     # Promote is for drafts only. A synced (or consumed) row is refused before any
     # write, so a synced source deck can never be renamed in place by promoting it.
     if row.sync_status != 'ephemeral':
@@ -992,9 +1014,7 @@ def _deck_combos(argv: list[str]) -> None:
     out = {
         'deck': deck.name,
         'combo_data_available': available,
-        'combos': [
-            {'variant_id': c.variant_id, 'cards': list(c.card_names), 'result': c.result} for c in matched
-        ],
+        'combos': [{'variant_id': c.variant_id, 'cards': list(c.card_names), 'result': c.result} for c in matched],
     }
     print(json.dumps(out, indent=2))
 

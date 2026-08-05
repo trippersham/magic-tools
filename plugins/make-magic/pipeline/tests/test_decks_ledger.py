@@ -129,8 +129,13 @@ def test_undo_preserves_sync_bookkeeping(data_dir: Path) -> None:
     """Undo restores deck_json but keeps the row's sync_status/source_ref/baseline."""
     s = DecksStore()
     deck = _deck()
-    s.put(deck, deck_uuid='d1', sync_status='synced', source_ref='{"backend":"local","name":"Krenko Goblins"}',
-          synced_baseline=version(deck))
+    s.put(
+        deck,
+        deck_uuid='d1',
+        sync_status='synced',
+        source_ref='{"backend":"local","name":"Krenko Goblins"}',
+        synced_baseline=version(deck),
+    )
     s.set_strategy('d1', 'changed')
     s.undo('d1')
     row = s.get_row('d1')
@@ -246,8 +251,7 @@ def test_first_save_permission_error_is_clean(cli, data_dir: Path) -> None:
         code, _out, err = save_json(
             cli,
             data_dir,
-            {'name': 'Brandnew', 'format': 'Commander',
-             'cards': [{'name': 'Krenko, Mob Boss', 'role': 'commander'}]},
+            {'name': 'Brandnew', 'format': 'Commander', 'cards': [{'name': 'Krenko, Mob Boss', 'role': 'commander'}]},
         )
     finally:
         os.chmod(ddir, mode)
