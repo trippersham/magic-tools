@@ -9,7 +9,7 @@ advice/composability minors:
 - **r10-M1 (MAJOR):** the READ side refuses a row bound on a DIFFERENT backend than
   the active one ("switch back to its source backend"); the WRITE side had no twin.
   ``binding_is_dead`` answers "no ref for the ACTIVE backend → never-created", so
-  ``guard_write_binding`` passes and ``push`` falls through to a first-save create
+  ``require_writable_binding`` passes and ``push`` falls through to a first-save create
   that adopts a same-named legacy file in place (marker-evading restore), destroying
   the restored backup at exit 0, unledgered. FIX: write-side r7-m4 parity — a row
   with an ``external_ids`` ref but NONE for the active backend REFUSES with the same

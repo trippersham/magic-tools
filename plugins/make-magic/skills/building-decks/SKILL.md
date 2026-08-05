@@ -149,8 +149,8 @@ Don't guess; the difference is whether the real deck moves.
 ## The derived phase — reason, don't transition
 
 There is **no state machine.** Each turn, read the deck and reason about the earliest
-artifact that is missing or stale. "Stale" is now DERIVED FROM STORED STAMPS, not
-remembered: P5 records provenance on the deck row, so freshness survives across sessions.
+artifact that is missing or stale. Staleness is derived from stored stamps — provenance
+lives on the deck row, so freshness survives across sessions.
 Read it two ways:
 
 ```bash
@@ -354,7 +354,7 @@ of `--id <prefix>` lines — re-run the same verb with `--id <prefix>` to disamb
 <constraint name="edits-through-the-store">
 **All deck edits go through the typed CLI verbs — never hand-edit a decklist.** The local
 decks store enforces every `Deck` invariant on `deck-swap` / `deck-add` / `deck-remove` /
-`set-*`, and these guards are LIVE (P4): **singleton** (an add merges, never spawns a
+`set-*`, and these guards are enforced on every edit: **singleton** (an add merges, never spawns a
 duplicate), **single-commander** (no cut of the sole commander, no commander at qty ≥ 2),
 **quantity ≥ 1** (a remove decrements, drops the entry only at 0), the **size / shrink
 guard** (a shrink below target is refused), and **quantity-aware add/remove**. A violating

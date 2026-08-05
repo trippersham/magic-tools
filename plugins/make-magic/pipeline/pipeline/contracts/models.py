@@ -135,8 +135,8 @@ class Card(BaseModel):
 class OwnedCard(Card):
     """A `Card` + your ownership facts — the "inventory item".
 
-    Supersedes the flat `InventoryRow`: enrichment is inherited from `Card`
-    (hydrated on read), and only the owned-facts below are persisted locally.
+    Enrichment is inherited from `Card` (hydrated on read); only the owned-facts
+    below are persisted locally.
     """
 
     owned: int = Field(default=0, description='Number of copies owned.')
@@ -158,10 +158,7 @@ class ChaseCard(Card):
 
 
 class DeckCard(Card):
-    """A `Card` as it sits in a deck — how it participates in this deck.
-
-    Supersedes `DeckLine` (now inherits `Card`, carries `role`).
-    """
+    """A `Card` as it sits in a deck — how it participates in this deck."""
 
     quantity: int = Field(
         default=1,
@@ -475,8 +472,7 @@ class Trade(BaseModel):
     """A card movement event.
 
     Source/Destination are categories (Library/Deck/Store/Person); the *_deck
-    fields add specificity when the category is "Deck". (Formerly `TradeRow`;
-    the Airtable-ish `Row` suffix is dropped, fields unchanged.)
+    fields add specificity when the category is "Deck".
     """
 
     model_config = ConfigDict(extra='forbid')

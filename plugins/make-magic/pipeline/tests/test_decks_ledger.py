@@ -81,35 +81,6 @@ def test_append_is_append_only_no_row_mutated(data_dir: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# undo — previous_deck_version restores the version BEFORE the head
-# --------------------------------------------------------------------------- #
-
-
-def test_previous_deck_version_returns_the_version_before_head(data_dir: Path) -> None:
-    deck1 = _deck(strategy='v1')
-    deck2 = _deck(strategy='v2')
-    with store.connect() as conn:
-        history.append_deck_version(conn, deck_uuid='d1', deck=deck1, rationale='first')
-        history.append_deck_version(conn, deck_uuid='d1', deck=deck2, rationale='second')
-        prev = history.previous_deck_version(conn, 'd1')
-    assert prev is not None
-    assert prev.strategy == 'v1'
-    assert version(prev) == version(deck1)
-
-
-def test_previous_deck_version_none_with_single_version(data_dir: Path) -> None:
-    """With only one recorded version there is nothing to undo TO."""
-    with store.connect() as conn:
-        history.append_deck_version(conn, deck_uuid='d1', deck=_deck(), rationale='only')
-        assert history.previous_deck_version(conn, 'd1') is None
-
-
-def test_previous_deck_version_none_when_absent(data_dir: Path) -> None:
-    with store.connect() as conn:
-        assert history.previous_deck_version(conn, 'nope') is None
-
-
-# --------------------------------------------------------------------------- #
 # DecksStore edits append a version (edit-triggered wiring)
 # --------------------------------------------------------------------------- #
 

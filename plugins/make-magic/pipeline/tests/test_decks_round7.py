@@ -1,6 +1,6 @@
 """Round-7 hardening regressions (Phase 6 P10) — a DEAD binding is a REFUSAL.
 
-P9 collapsed all source READS through one chokepoint (``read_source_bound``): a
+P9 collapsed all source READS through one chokepoint (``read_bound_source``): a
 dead bound ref returns None ("source gone") and every read surfaces an error. P10
 is the WRITE-side mirror: a write against a row that IS bound for the active
 backend but whose bound source reads back None must REFUSE (never fall through the
@@ -500,7 +500,7 @@ def test_r7_m5_recover_decks_refuses_dup_names(cli, data_dir):
 
 
 # --------------------------------------------------------------------------- #
-# Unit: binding_is_dead / guard_write_binding split never-created from ref-dead.
+# Unit: binding_is_dead / require_writable_binding split never-created from ref-dead.
 # --------------------------------------------------------------------------- #
 
 

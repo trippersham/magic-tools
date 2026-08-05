@@ -3,7 +3,7 @@
 The round-6 spine is a single class of defect: a source-of-record read went by
 NAME instead of by the row's bound external ref (in-file uuid for ``local``,
 recordId for ``airtable``). P8 taught ``push`` to read bound; P9 collapses ALL
-source reads through ONE chokepoint (``read_source_bound``) so reading a source
+source reads through ONE chokepoint (``read_bound_source``) so reading a source
 by NAME becomes impossible to write outside its own controlled first-pull
 fallback. These regressions pin each Fable round-6 finding to that structural fix:
 
@@ -44,7 +44,7 @@ from pipeline.collection.adapters.local_yaml import LocalYamlStore
 from pipeline.contracts import Card, Deck, DeckCard
 from pipeline.decks import DecksStore
 from pipeline.decks.access import DeckAccess
-from pipeline.decks.sync import SyncDriftError, promote, push, read_source_bound
+from pipeline.decks.sync import SyncDriftError, promote, push, read_bound_source
 from pipeline.decks.version import version
 
 
@@ -524,7 +524,7 @@ def test_r6_m6_set_strategy_rolls_back_on_push_refusal(cli, data_dir: Path) -> N
 
 
 # --------------------------------------------------------------------------- #
-# The chokepoint itself — direct unit coverage of read_source_bound.
+# The chokepoint itself — direct unit coverage of read_bound_source.
 # --------------------------------------------------------------------------- #
 
 
@@ -545,7 +545,7 @@ def test_read_source_bound_returns_none_when_bound_ref_is_gone(data_dir: Path) -
     (_decks_dir(data_dir) / 'ghost.yaml').unlink()
     _write_legacy_yaml(data_dir, 'ghost-decoy', 'Ghost', [f'Decoy {i}' for i in range(5)])
 
-    got = read_source_bound(decks, src, deck_uuid=g_uuid, source_ref='Ghost')
+    got = read_bound_source(decks, src, deck_uuid=g_uuid, source_ref='Ghost')
     assert got is None, 'a dead bound ref returns None, never the same-named decoy'
 
 
@@ -566,6 +566,6 @@ def test_read_source_bound_expected_ref_reads_that_ref(data_dir: Path) -> None:
               sync_status='synced', source_ref='Base', synced_baseline='x', rationale='pull')
     decks.set_external_id(b_uuid, 'local', base_uuid)
 
-    got = read_source_bound(decks, src, deck_uuid=b_uuid, source_ref='Base', expected_ref=two_uuid)
+    got = read_bound_source(decks, src, deck_uuid=b_uuid, source_ref='Base', expected_ref=two_uuid)
     assert got is not None
     assert any(c.name.startswith('Two') for c in got.cards), 'expected_ref must win over the bound ref + name'

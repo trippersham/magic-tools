@@ -1,13 +1,13 @@
 """Collection dispatcher: ``python -m pipeline.collection.run <verb> [args...]``.
 
-Mirrors ``sources/run.py`` (delta D2): a plain ``sys.argv`` dispatcher routing to
-a per-verb ``argparse`` handler — no Typer, no new dep. This is the SINGLE,
-backend-agnostic data surface the three skills (building-decks, chasing-cards,
-managing-inventory) bind to in BOTH modes; the active backend is resolved by
+Mirrors ``sources/run.py``: a plain ``sys.argv`` dispatcher routing to a per-verb
+``argparse`` handler — no Typer, no new dep. This is the single, backend-agnostic
+data surface the three skills (building-decks, chasing-cards, managing-inventory)
+bind to in both modes; the active backend is resolved by
 ``get_store`` (local YAML or Airtable records), so a verb's behavior is identical
 regardless of source of record.
 
-Verbs print STABLE, parseable output — JSON where a skill consumes structured
+Verbs print stable, parseable output — JSON where a skill consumes structured
 data (``get-deck``, ``list-*``, ``factsheet``, ``status``), and a short
 confirmation line for writes.
 
@@ -26,8 +26,9 @@ import logging
 import os
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, ValidationError
 
@@ -66,8 +67,8 @@ def _store(*, writes_enabled: bool = False) -> CollectionStore:
     local adapter, which always writes to YAML). The local adapter's resolver is
     supplied by ``get_store`` (the package default) — nothing is injected here.
 
-    This is the DIRECT source-of-record store — inventory / chase / trades bind to
-    it unchanged (W1: only the DECK verbs route through the local decks store via
+    This is the direct source-of-record store — inventory / chase / trades bind to
+    it unchanged (only the deck verbs route through the local decks store via
     :func:`_deck_access`).
     """
     store = get_store(writes_enabled=writes_enabled)
@@ -76,12 +77,12 @@ def _store(*, writes_enabled: bool = False) -> CollectionStore:
 
 
 def _backfill_local_deck_uuids(store: CollectionStore) -> None:
-    """Run the §7 legacy-YAML uuid backfill once for the local backend (F1/F12).
+    """Run the legacy-YAML uuid backfill once for the local backend.
 
-    Additive + idempotent: injects an in-file ``uuid`` into every pre-P6 deck file
+    Additive + idempotent: injects an in-file ``uuid`` into every legacy deck file
     lacking one so it stops being an unclaimed clobber target, then binds each
     touched deck's local row ``external_ids['local']`` to the file's real in-file
-    uuid. LOCAL-only; a no-op for the Airtable backend. Guarded so a store built
+    uuid. Local-only; a no-op for the Airtable backend. Guarded so a store built
     for a store with no decks dir (or a driver without the hook) is a cheap no-op.
     """
     backfill = getattr(store, 'backfill_deck_uuids', None)
@@ -102,57 +103,32 @@ def _backfill_local_deck_uuids(store: CollectionStore) -> None:
         if bound is None:
             continue
         row = decks.get_row(bound)
-        # r6-B3: bind ONLY a genuinely dead/unbound row — NEVER overwrite a live
-        # 'local' ref, and skip non-synced rows. A dropped-in backup YAML that
-        # happens to share a live deck's NAME must not hijack the live row's binding.
+        # Bind only a genuinely dead/unbound row — never overwrite a live 'local'
+        # ref, and skip non-synced rows. A dropped-in backup YAML that happens to
+        # share a live deck's name must not hijack the live row's binding.
         if row is None or row.sync_status != 'synced':
             continue
-        current = _local_ref(row.external_ids)
+        current = decks.external_ref(bound, 'local')
         if current and (find_path is None or find_path(current) is not None):
             continue  # live binding to an existing file — leave it alone.
-        # r9-m2 (honor r7-m4): a row bound on ANOTHER backend (e.g. only
-        # ``{'airtable': rec}`` — a backend-switch / cross-machine row) has its source
-        # THERE, not as a same-named local file. Binding a dropped-in local backup to it
-        # would ADOPT an unrelated same-named file cross-backend. Skip — it is not an
-        # unbound legacy deck. (A row with NO airtable ref is a genuine local backfill.)
-        if _bound_on_other_local(row.external_ids):
+        # A row bound on another backend (e.g. only ``{'airtable': rec}`` — a
+        # backend-switch / cross-machine row) has its source there, not as a
+        # same-named local file. Binding a dropped-in local backup to it would adopt
+        # an unrelated same-named file cross-backend. Skip — it is not an unbound
+        # legacy deck. (A row with no airtable ref is a genuine local backfill.)
+        if decks.bound_backends(bound) - {'local'}:
             continue
         decks.set_external_id(bound, 'local', file_uuid)
-
-
-def _bound_on_other_local(external_ids: str | None) -> bool:
-    """True iff the row carries an external ref for a backend OTHER than ``local`` (r7-m4)."""
-    if not external_ids:
-        return False
-    try:
-        ext = json.loads(external_ids)
-    except (json.JSONDecodeError, TypeError):
-        return False
-    if not isinstance(ext, dict):
-        return False
-    return any(k != 'local' and v for k, v in ext.items())
-
-
-def _local_ref(external_ids: str | None) -> str | None:
-    """The row's bound ``external_ids['local']`` in-file uuid (or None)."""
-    if not external_ids:
-        return None
-    try:
-        ext = json.loads(external_ids)
-    except (json.JSONDecodeError, TypeError):
-        return None
-    ref = ext.get('local') if isinstance(ext, dict) else None
-    return ref if isinstance(ref, str) and ref else None
 
 
 def _deck_access(*, writes_enabled: bool = False) -> DeckAccess:
     """The DECK access path — deck reads/writes route through the local decks store.
 
-    W1/W4: only DECK verbs (``get-deck`` / ``save-deck`` / ``set-*`` / ``pull`` /
+    Only deck verbs (``get-deck`` / ``save-deck`` / ``set-*`` / ``pull`` /
     ``push`` / ``sync``) go through here; a synced deck is pulled-current per the
-    W4 TTL policy and served locally, edits stage locally, and a push through the
+    TTL policy and served locally, edits stage locally, and a push through the
     source ceremony happens at the commit boundary. Inventory / chase / trades do
-    NOT use this — they call :func:`_store` directly.
+    not use this — they call :func:`_store` directly.
     """
     from pipeline.decks.access import deck_access
 
@@ -209,9 +185,9 @@ def _onboard(argv: list[str]) -> None:
 
 
 def _provenance_states(decks_store: DecksStore, deck_uuid: str | None) -> dict[str, str]:
-    """The per-row provenance tri-state (``fresh``/``stale``/``absent``) for a deck (M7).
+    """The per-row provenance tri-state (``fresh``/``stale``/``absent``) for a deck.
 
-    Derived against the deck's CURRENT ``version()`` from the stored stamps. A deck
+    Derived against the deck's current ``version()`` from the stored stamps. A deck
     with no local row yet (``deck_uuid`` is None — a synced source deck never pulled
     locally) has no stamps, so both states are ``absent``.
     """
@@ -224,7 +200,7 @@ def _provenance_states(decks_store: DecksStore, deck_uuid: str | None) -> dict[s
 
 
 def _provenance_block(decks_store: DecksStore, deck_uuid: str | None) -> dict[str, object]:
-    """The full ``get-deck --provenance`` block for a deck (design §6 / M7).
+    """The full ``get-deck --provenance`` block for a deck.
 
     Emits ``{assessment: {version, at, state}, last_sim: {result, deck_version, at,
     state}}`` — the stored stamps augmented with the derived tri-state. Missing
@@ -263,17 +239,17 @@ def _list_decks(argv: list[str]) -> None:
 
     from pipeline.decks import DecksStore
 
-    # The UNION (design §8): source-backed decks are `synced`; purely-local drafts
-    # (no source) are `ephemeral`. Ephemeral drafts have no source, so the two sets
-    # never overlap — a synced deck's local row is enumerated only via the source.
+    # The union: source-backed decks are `synced`; purely-local drafts (no source)
+    # are `ephemeral`. Ephemeral drafts have no source, so the two sets never
+    # overlap — a synced deck's local row is enumerated only via the source.
     decks_store = DecksStore()
     rows: list[dict[str, object]] = []
     for deck in sorted(_store().list_decks(), key=lambda d: d.name):
         rows.append({'name': deck.name, 'status': 'synced', 'archived': False, 'source_missing': False,
                      **_provenance_states(decks_store, decks_store.uuid_for_name(deck.name))})
-    # r9-M1 / r9-m3: a DEAD-bound synced deck's source is gone, so it drops out of the
-    # source ``list_decks`` above and would VANISH from the listing. Surface it, flagged
-    # ``source-missing``, so the agent can SEE + recover it rather than hunt a stranger.
+    # A dead-bound synced deck's source is gone, so it drops out of the source
+    # ``list_decks`` above and would vanish from the listing. Surface it, flagged
+    # ``source-missing``, so the agent can see + recover it rather than hunt a stranger.
     listed_names = {r['name'] for r in rows}
     for dead in sorted(_deck_access().dead_bound_rows(), key=lambda r: r.name):
         if dead.name in listed_names:
@@ -347,17 +323,17 @@ def _get_deck(argv: list[str]) -> None:
     args = parser.parse_args(argv)
     if args.id_prefix is None and not args.name:
         raise CollectionError('get-deck: a deck name or --id prefix is required')
-    # W1/W4: route the deck READ through the local decks store (pull-current per
-    # the TTL policy, serve local thereafter). --id takes precedence over the name.
+    # Route the deck read through the local decks store (pull-current per the TTL
+    # policy, serve local thereafter). --id takes precedence over the name.
     access = _deck_access()
     if args.local:
-        # r9-M1: serve the local copy with NO pull (dead-binding-reachable). A loud
-        # note goes to STDERR so STDOUT stays parseable deck JSON.
+        # Serve the local copy with no pull (dead-binding-reachable). A loud note
+        # goes to stderr so stdout stays parseable deck JSON.
         deck = access.read_local(args.name or '', id_prefix=args.id_prefix)
-        # r10-m4: the note must be TRUE. ``--local`` serves the local copy with no pull
-        # on ANY deck (healthy or dead), so the unconditional "source missing" was false
-        # on a healthy deck. Only claim the source is gone when the binding is actually
-        # dead; otherwise state the accurate "no pull" fact.
+        # The note must be true. ``--local`` serves the local copy with no pull on
+        # any deck (healthy or dead), so an unconditional "source missing" would be
+        # false on a healthy deck. Only claim the source is gone when the binding is
+        # actually dead; otherwise state the accurate "no pull" fact.
         from pipeline.decks import DecksStore
 
         note = f'note: showing local copy of {deck.name!r} (no pull).'
@@ -384,8 +360,8 @@ def _get_deck(argv: list[str]) -> None:
     else:
         deck = access.read_deck(args.name or '', id_prefix=args.id_prefix)
     if args.provenance:
-        # The M7 provenance view: a {deck, provenance} envelope. DEFAULT output
-        # (no flag) stays byte-for-byte the deck JSON — existing parsers unaffected.
+        # The provenance view: a {deck, provenance} envelope. Default output (no
+        # flag) stays byte-for-byte the deck JSON — existing parsers unaffected.
         from pipeline.decks import DecksStore
 
         decks_store = DecksStore()
@@ -440,23 +416,23 @@ def _save_deck(argv: list[str]) -> None:
     )
     args = parser.parse_args(argv)
 
-    # Recovery mode (r9-M1): a bare NAME (or --id) with no --from-json re-saves the deck
-    # from its own LOCAL copy to a fresh source — the executable form of the dead-binding
-    # advice. Forced-fresh + atomic (safe by construction: it can never adopt/overwrite a
-    # same-named stranger, even run blindly).
+    # Recovery mode: a bare name (or --id) with no --from-json re-saves the deck
+    # from its own local copy to a fresh source — the executable form of the
+    # dead-binding advice. Forced-fresh + atomic (safe by construction: it can never
+    # adopt/overwrite a same-named stranger, even run blindly).
     if args.from_json is None:
         if not args.name and args.id_prefix is None:
             parser.error('a deck NAME (recovery) or --from-json <file> (authoring) is required')
         access = _deck_access(writes_enabled=True)
-        saved = access.save_local(args.name or '', id_prefix=args.id_prefix, allow_shrink=args.confirm)
+        saved = access.save_from_local(args.name or '', id_prefix=args.id_prefix, allow_shrink=args.confirm)
         print(f'save-deck: {saved}')
         return
 
     if args.name is not None:
         parser.error('give a deck NAME (recovery) OR --from-json (authoring), not both')
-    # r10-m3: --id is a RECOVERY addressing flag; authoring (--from-json) never reads it.
-    # Combining them silently ignored --id and then refused on dup ambiguity — refuse the
-    # combination up front (mutually exclusive) rather than loop the user.
+    # --id is a recovery addressing flag; authoring (--from-json) never reads it.
+    # Combining them would silently ignore --id and then refuse on dup ambiguity —
+    # refuse the combination up front (mutually exclusive) rather than loop the user.
     if args.id_prefix is not None:
         parser.error('--from-json (authoring) and --id (recovery addressing) are mutually exclusive')
     raw = sys.stdin.read() if args.from_json == '-' else Path(args.from_json).read_text()
@@ -482,7 +458,7 @@ def _save_deck(argv: list[str]) -> None:
             f'to {sum(c.quantity for c in deck.cards)} cards, below its target of {prior.target_size}. '
             'Pass --confirm to proceed. (This guards against silently dropping a legal deck under size.)'
         )
-    # W1/W4: stage locally, then commit (push) through the source ceremony.
+    # Stage locally, then commit (push) through the source ceremony.
     access.save_deck(deck, allow_shrink=args.confirm, commit=True)
     print(f'save-deck: {deck.name}')
 
@@ -518,14 +494,14 @@ def _set_focus_otags(argv: list[str]) -> None:
 
 
 def _stamp_sim(argv: list[str]) -> None:
-    """The thin VALIDATE hook (M7 / preflight W-E): stamp ``last_sim`` on a deck row.
+    """The thin validate hook: stamp ``last_sim`` on a deck row.
 
     ``collection stamp-sim "<deck>" --result '<json>'`` (or ``--id <prefix>``) writes
     ``last_sim = {result, deck_version, at}`` keyed on the deck's current ``version()``
-    so derived-phase staleness becomes REAL across sessions. The ``pipeline/sim/``
-    subsystem is UNTOUCHED — the simulating-games step calls this verb with its run
+    so derived-phase staleness becomes real across sessions. The ``pipeline/sim/``
+    subsystem is untouched — the simulating-games step calls this verb with its run
     summary. ``--result`` accepts an arbitrary JSON blob (win-rate, games, ...) and
-    is stored VERBATIM; a non-JSON value is stored as the raw string.
+    is stored verbatim; a non-JSON value is stored as the raw string.
     """
     parser = argparse.ArgumentParser(prog='collection stamp-sim')
     parser.add_argument('name', nargs='?')
@@ -554,9 +530,9 @@ def _stamp_sim(argv: list[str]) -> None:
 def _resolve_target(access: DeckAccess, name: str | None, id_prefix: str | None) -> str:
     """Resolve a verb's (NAME | ``--id`` prefix) to a ``deck_uuid``.
 
-    ``--id`` takes PRECEDENCE over the positional name (design §2/§3): when given,
-    it prefix-matches ``deck_uuid`` and the name is ignored; otherwise the name is
-    resolved (dup names refuse with the candidate list). Exactly one is required.
+    ``--id`` takes precedence over the positional name: when given, it prefix-matches
+    ``deck_uuid`` and the name is ignored; otherwise the name is resolved (dup names
+    refuse with the candidate list). Exactly one is required.
     """
     if id_prefix is not None:
         return access.resolve(id_prefix=id_prefix)
@@ -568,9 +544,9 @@ def _resolve_target(access: DeckAccess, name: str | None, id_prefix: str | None)
 def _resolve_existing_local(access: DeckAccess, name: str | None, id_prefix: str | None) -> str:
     """Resolve a verb that requires an EXISTING LOCAL row (archive/unarchive) — clean miss.
 
-    Unlike ``_resolve_target``, a name-miss here is NOT a create: the resolver would
+    Unlike ``_resolve_target``, a name-miss here is not a create: the resolver would
     mint a fresh uuid and the downstream op would raise ``no deck with id '<hex>'``,
-    leaking a uuid the user never saw (F13). Instead, a missing local row is a clean
+    leaking a uuid the user never saw. Instead, a missing local row is a clean
     ``error: no deck named 'X'`` — never a minted uuid, never a filesystem path.
     """
     if id_prefix is not None:
@@ -588,27 +564,27 @@ def _resolve_existing_local(access: DeckAccess, name: str | None, id_prefix: str
 def _resolve_deck_uuid(access: DeckAccess, name: str) -> str:
     """Resolve a deck NAME to the local ``deck_uuid`` the edit verbs operate on.
 
-    The MINIMAL name->uuid shim (design §3): names are labels, ``deck_uuid`` is the
-    identity. A known local row (a draft, or an already-pulled synced deck) resolves
-    to its stable uuid; when no local row exists yet the name is a SYNCED source
-    deck — ``read_deck`` pulls it current into the local store (per the W4 policy)
-    so the typed edit has a row to mutate, and the row is then keyed by the uuid the
-    pull minted. A name that is neither a known draft nor a readable source deck
-    surfaces the source's clean error.
+    The minimal name->uuid shim: names are labels, ``deck_uuid`` is the identity. A
+    known local row (a draft, or an already-pulled synced deck) resolves to its
+    stable uuid; when no local row exists yet the name is a synced source deck —
+    ``read_deck`` pulls it current into the local store (per the TTL policy) so the
+    typed edit has a row to mutate, and the row is then keyed by the uuid the pull
+    minted. A name that is neither a known draft nor a readable source deck surfaces
+    the source's clean error.
     """
-    # Bind by external ref so a case-alias / rename WRITE lands on the ONE canonical
-    # row (F9 — the M4 write-path fix), never a freshly-minted uuid. ``resolve_bound``
-    # short-circuits a directly-resolvable name and otherwise reads/binds the source.
-    return access.resolve_bound(name)
+    # Bind by external ref so a case-alias / rename write lands on the one canonical
+    # row, never a freshly-minted uuid. ``resolve_for_write`` short-circuits a directly-
+    # resolvable name and otherwise reads/binds the source.
+    return access.resolve_for_write(name)
 
 
 def _resolve_edit_target(access: DeckAccess, name: str | None, id_prefix: str | None) -> tuple[str, str]:
     """Resolve a deck-EDIT verb's (NAME | ``--id``) to ``(deck_uuid, effective_name)``.
 
-    ``--id`` takes precedence (design §2/§3). For an ``--id`` target we pull-current
-    an absent/stale synced row so the typed edit has a row to mutate, mirroring the
-    name path's ``_resolve_deck_uuid``. The effective name is the row's own label,
-    used to address the source push at the commit boundary.
+    ``--id`` takes precedence. For an ``--id`` target we pull-current an absent/stale
+    synced row so the typed edit has a row to mutate, mirroring the name path's
+    ``_resolve_deck_uuid``. The effective name is the row's own label, used to
+    address the source push at the commit boundary.
     """
     if id_prefix is not None:
         deck_uuid = access.resolve(id_prefix=id_prefix)
@@ -622,8 +598,8 @@ def _resolve_edit_target(access: DeckAccess, name: str | None, id_prefix: str | 
     if not name:
         raise CollectionError('a deck name or --id prefix is required')
     deck_uuid = _resolve_deck_uuid(access, name)
-    # The effective name must be the ROW's CANONICAL name (not the raw alias) so the
-    # commit-boundary push resolves back to THIS row (F9): pushing under a cased alias
+    # The effective name must be the row's canonical name (not the raw alias) so the
+    # commit-boundary push resolves back to this row: pushing under a cased alias
     # would re-mint a uuid and fail. Fall back to the given name if the row is absent.
     from pipeline.decks import DecksStore
 
@@ -636,14 +612,14 @@ def _commit_deck_edit(access: DeckAccess, name: str, deck_uuid: str, *, id_prefi
     """PUSH a just-applied local deck edit to the source, unless it is ephemeral.
 
     A SYNCED deck edit must be committed through the source ceremony at the edit
-    boundary — otherwise a later ``read_deck`` (whose W4 pull policy re-pulls a
+    boundary — otherwise a later ``read_deck`` (whose pull policy re-pulls a
     stale source) would silently revert the local edit. An EPHEMERAL draft has no
     source to push to, so it stays purely local (that is the point of a draft).
 
-    r8-m6: an ``--id``-addressed edit commits by the RESOLVED UUID (``id_prefix``),
-    not by name — under dup names a name-keyed commit re-hit the ambiguity refusal,
-    so the verb's own "Re-run with --id" advice failed. A NAME-addressed edit commits
-    by name (KEEPING the dup-name wall — that backstopped r8-M3).
+    An ``--id``-addressed edit commits by the resolved uuid (``id_prefix``), not by
+    name — under dup names a name-keyed commit re-hits the ambiguity refusal, so the
+    verb's own "Re-run with --id" advice would fail. A name-addressed edit commits
+    by name (keeping the dup-name wall).
     """
     from pipeline.decks import DecksStore
 
@@ -658,7 +634,7 @@ def _commit_deck_edit(access: DeckAccess, name: str, deck_uuid: str, *, id_prefi
 def _commit_deck_edit_transactional(
     access: DeckAccess, name: str, deck_uuid: str, pre_edit: Deck | None, *, id_prefix: str | None = None
 ) -> None:
-    """Commit a just-applied edit; ROLL BACK the local edit if the commit is refused (M5 tail).
+    """Commit a just-applied edit; roll back the local edit if the commit is refused.
 
     Transactional edit+commit: the typed edit already landed locally; this pushes it
     to the source. If the push is REFUSED (shrink guard / :class:`SyncDriftError`),
@@ -678,10 +654,10 @@ def _commit_deck_edit_transactional(
 
 
 def _positive_qty(value: str) -> int:
-    """An argparse ``type=`` that accepts only a qty >= 1 (M5).
+    """An argparse ``type=`` that accepts only a qty >= 1.
 
-    A ``--qty`` below 1 is a clean CLI error (argparse exit 2), NOT a traceback:
-    ``deck-remove --qty -1`` can no longer GROW the deck and ``deck-add --qty 0``
+    A ``--qty`` below 1 is a clean CLI error (argparse exit 2), not a traceback:
+    ``deck-remove --qty -1`` can no longer grow the deck and ``deck-add --qty 0``
     can no longer land a 0-qty entry (both mirror the ``DeckCard.quantity`` ge=1
     model guard at the CLI boundary).
     """
@@ -695,15 +671,15 @@ def _positive_qty(value: str) -> int:
 
 
 def _resolve_card_name(name: str) -> str:
-    """Canonicalize a card ``name`` via the REAL resolver — canonical on a hit, raw on a miss (M3).
+    """Canonicalize a card ``name`` via the resolver — canonical on a hit, raw on a miss.
 
     ``deck-add`` / ``deck-swap`` resolve the card name through the package resolver
-    BEFORE building the ``DeckCard`` so a local entry's name matches the source's
+    before building the ``DeckCard`` so a local entry's name matches the source's
     canonicalization: ``lightning bolt`` becomes canonical ``Lightning Bolt`` and
     merges into the existing entry (never a duplicate singleton that a later pull
-    hydrates into two — the M3 fix). An UNRESOLVED name passes through VERBATIM
-    (honest — unreleased / spoiler cards are real but not yet on Scryfall, per the
-    resolving-card-names lesson), so a miss never drops or mangles the name.
+    hydrates into two). An unresolved name passes through verbatim (unreleased /
+    spoiler cards are real but not yet on Scryfall), so a miss never drops or mangles
+    the name.
     """
     from pipeline.collection import resolver as resolver_mod
 
@@ -788,8 +764,8 @@ def _deck_remove(argv: list[str]) -> None:
 def _source_deck_exists(name: str) -> bool:
     """True iff a deck named ``name`` reads on the source of record (one cheap probe).
 
-    Backs the F7 new-draft collision guard: ``resolve`` consults only LOCAL rows, so
-    a never-pulled source deck is invisible to it. A direct ``driver.get_deck`` probe
+    Backs the new-draft collision guard: ``resolve`` consults only local rows, so a
+    never-pulled source deck is invisible to it. A direct ``driver.get_deck`` probe
     (name/slug for local YAML; a filterByFormula for Airtable) surfaces it. A miss
     (``FileNotFoundError`` / any read error) reads as "not on the source" — the guard
     then permits the draft.
@@ -824,10 +800,10 @@ def _new_draft(argv: list[str]) -> None:
     from pipeline.decks import DecksStore
 
     decks = DecksStore()
-    # F7 (USER DECISION): a clean-slate draft named after an EXISTING source deck is
-    # refused without --force — a same-named draft silently SHADOWS the source deck
-    # (get-deck / set-strategy land on the draft; the real deck is unreachable by
-    # name). One cheap driver probe; --from is exempt (it deliberately branches).
+    # A clean-slate draft named after an existing source deck is refused without
+    # --force — a same-named draft silently shadows the source deck (get-deck /
+    # set-strategy land on the draft; the real deck is unreachable by name). One
+    # cheap driver probe; --from is exempt (it deliberately branches).
     if args.source is None and not args.force and _source_deck_exists(args.name):
         raise CollectionError(
             f'a deck named {args.name!r} already exists on the source; use --from to branch '
@@ -835,13 +811,13 @@ def _new_draft(argv: list[str]) -> None:
         )
     derived_from: str | None = None
     if args.source is not None:
-        # An exploration COPY of an existing deck — read it via the access path
+        # An exploration copy of an existing deck — read it via the access path
         # (pull-current per the policy), then re-name it as a local-only draft. A
-        # FRESH uuid is minted so the draft can never hijack the source's row
-        # (design §3); the airtable binding is dropped (a draft has no source of
-        # record yet). The parent's ``deck_uuid`` is recorded as ``derived_from``
-        # (LINEAGE) so a later ``promote`` commits back onto the PARENT's external
-        # ref (never clobbering an unrelated deck by name — kills B1).
+        # fresh uuid is minted so the draft can never hijack the source's row; the
+        # airtable binding is dropped (a draft has no source of record yet). The
+        # parent's ``deck_uuid`` is recorded as ``derived_from`` (lineage) so a later
+        # ``promote`` commits back onto the parent's external ref, never clobbering
+        # an unrelated deck by name.
         access = _deck_access()
         source_deck = access.read_deck(args.source)
         derived_from = access.resolve(args.source)
@@ -851,9 +827,9 @@ def _new_draft(argv: list[str]) -> None:
     else:
         # A clean-slate draft: a minimal Deck (name/format + optional commander); its
         # uuid is minted by the Deck model's default_factory. No lineage. The
-        # commander is CANONICALIZED (F10 — the M3 hole one verb over): a raw
-        # ``krenko, mob boss`` becomes canonical so a later ``deck-add`` of the same
-        # card merges into the one entry instead of spawning a duplicate singleton.
+        # commander is canonicalized: a raw ``krenko, mob boss`` becomes canonical so
+        # a later ``deck-add`` of the same card merges into the one entry instead of
+        # spawning a duplicate singleton.
         cards = (
             [DeckCard(name=_resolve_card_name(args.commander), role='commander')] if args.commander else []
         )
@@ -890,9 +866,9 @@ def _promote_deck(argv: list[str]) -> None:
 
     access = _deck_access(writes_enabled=True)
     decks = DecksStore()
-    # Route the lookup through the P2 resolver (F6): dup-named drafts REFUSE with a
+    # Route the lookup through the resolver: dup-named drafts refuse with a
     # copy-paste candidate list rather than silently promoting the oldest; ``--id``
-    # is the escape hatch. A clean name-miss is a clear error (F13), never a uuid.
+    # is the escape hatch. A clean name-miss is a clear error, never a uuid.
     if args.id_prefix is not None:
         deck_uuid = access.resolve(id_prefix=args.id_prefix)
     elif args.deck:
@@ -905,8 +881,8 @@ def _promote_deck(argv: list[str]) -> None:
     row = decks.get_row(deck_uuid)
     if row is None or not decks.exists(deck_uuid):
         raise CollectionError(f"no ephemeral draft named {args.deck!r} to promote")
-    # F5: promote is for DRAFTS only. A synced (or consumed) row is refused BEFORE
-    # any write, so a synced source deck can never be renamed in place by promoting it.
+    # Promote is for drafts only. A synced (or consumed) row is refused before any
+    # write, so a synced source deck can never be renamed in place by promoting it.
     if row.sync_status != 'ephemeral':
         raise CollectionError(
             f'{row.name!r} is already a {row.sync_status} deck — promote is for drafts '
@@ -918,12 +894,12 @@ def _promote_deck(argv: list[str]) -> None:
 
     driver = _store(writes_enabled=True)
     sync.promote(decks, driver, deck_uuid=deck_uuid, to_name=args.source_name)
-    # No force-pull (F4): ``sync.promote`` already made the affected canonical row
-    # current via its own ``decks.put`` — an exploration refreshes the PARENT row and
-    # a clean-slate makes the draft's OWN row synced. A name-addressed re-pull here
-    # would rebind a just-promoted --to name onto an UNRELATED same-named source deck.
+    # No force-pull: ``sync.promote`` already made the affected canonical row
+    # current via its own ``decks.put`` — an exploration refreshes the parent row and
+    # a clean-slate makes the draft's own row synced. A name-addressed re-pull here
+    # would rebind a just-promoted --to name onto an unrelated same-named source deck.
     if is_exploration:
-        # F16: an exploration lands on the lineage PARENT — name IT, not the draft.
+        # An exploration lands on the lineage parent — name it, not the draft.
         parent_row = decks.get_row(row.derived_from) if row.derived_from else None
         landed = parent_row.name if parent_row is not None else row.name
     else:
@@ -951,19 +927,19 @@ def _undo_deck(argv: list[str]) -> None:
     deck_uuid, eff_name = _resolve_edit_target(access, args.deck, args.id_prefix)
     store_ = DecksStore()
     pre_edit = store_.get(deck_uuid)
-    # r8-m4: snapshot the undo cursor BEFORE the undo advances it, so a refused commit
-    # can roll it back too (else the next undo would silently skip the refused step).
+    # Snapshot the undo cursor before the undo advances it, so a refused commit can
+    # roll it back too (else the next undo would silently skip the refused step).
     pre_cursor = store_.undo_cursor(deck_uuid)
     restored = store_.undo(deck_uuid)
     if restored is None:
         print(f'undo-deck: {eff_name} — nothing to undo')
     else:
         # The restore is a local edit; commit it so a synced deck's source reflects
-        # the step-back (else the next read re-pulls the un-done state). r7-m3:
-        # TRANSACTIONAL like set-*/deck-* — a drift/dead-binding-refused commit must
-        # not leave the undo half-applied under exit 1; roll it back and re-raise. r8-m4:
-        # the transactional rollback pops the restored CONTENT; also reset the CURSOR to
-        # its pre-undo snapshot so the refused attempt does not burn an undo step.
+        # the step-back (else the next read re-pulls the un-done state). Transactional
+        # like set-*/deck-* — a drift/dead-binding-refused commit must not leave the
+        # undo half-applied under exit 1; roll it back and re-raise. The rollback pops
+        # the restored content; it also resets the cursor to its pre-undo snapshot so
+        # the refused attempt does not burn an undo step.
         try:
             _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit, id_prefix=args.id_prefix)
         except Exception:
@@ -983,12 +959,12 @@ def _deck_combos(argv: list[str]) -> None:
     Reads the deck's card names and runs ``combos_in_deck`` against the normalized
     combo table. Prints the matched combos plus a ``combo_data_available`` flag.
 
-    HONEST DEGRADATION (design §5): if the combo lake is sparse — ``load_combos``
-    raises, or returns empty — this prints ``combo_data_available: false`` and an
-    EMPTY match set. That is INCONCLUSIVE, NOT a clean bill: an empty match with
+    Honest degradation: if the combo lake is sparse — ``load_combos`` raises, or
+    returns empty — this prints ``combo_data_available: false`` and an empty match
+    set. That is inconclusive, not a clean bill: an empty match with
     ``available: false`` must never be read as "no combos / safe to trust the sim
     verdict". Only ``available: true`` with an empty match set means "checked, none
-    found". VALIDATE prose treats an unavailable check as unknown, not clean.
+    found". Treat an unavailable check as unknown, not clean.
     """
     parser = argparse.ArgumentParser(
         prog='collection deck-combos',
@@ -1024,7 +1000,7 @@ def _deck_combos(argv: list[str]) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Sync (manual pull / push / sync — the override; normally opaque) — W4
+# Sync (manual pull / push / sync — the override; normally opaque)
 # --------------------------------------------------------------------------- #
 
 
@@ -1069,54 +1045,49 @@ def _sync(argv: list[str]) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Audit (read-only drift detector — Phase 3)
+# Audit (read-only drift detector)
 # --------------------------------------------------------------------------- #
 
 
+@dataclass(frozen=True)
 class _DeckDrift:
     """The mirror-diff of a below-target deck against its last known-good baseline.
 
     Shared by ``audit-decks`` (report) and ``recover-decks`` (propose/apply) so
     the mirror query + subset/overfill decision + unlinked/deleted-row tagging
-    live in ONE place. Every field is derived read-only; nothing here mutates the
+    live in one place. Every field is derived read-only; nothing here mutates the
     source of record.
 
     Attributes:
         baseline: The newest at-target ``deck_history`` row, or None (fresh mirror).
-        baseline_cards: The baseline's ``{name, oracle_id, quantity, role}`` list.
+        baseline_cards: The baseline's ``{name, oracle_id, quantity, role}`` list,
+            derived from ``baseline`` (empty when there is no baseline).
         missing: ``(name, tag)`` pairs for cards in the baseline but not current,
             tag ``'unlinked'`` (a live inventory row exists), ``'deleted-row'``
             (the row is gone but a history capture exists — faithful recreate), or
-            ``'deleted-row:no-history'`` (the row is gone AND no history capture
-            exists — apply will fabricate a PLACEHOLDER row, owned=1). Empty unless
+            ``'deleted-row:no-history'`` (the row is gone and no history capture
+            exists — apply will fabricate a placeholder row, owned=1). Empty unless
             ``recoverable`` is True. The deleted-row vs no-history split is decided
-            HERE (single source) so the dry-run plan and apply agree.
-        diverged: True when the current deck holds a card NOT in the baseline (an
-            active swap) — recovery must BLOCK, never overfill / re-add a cut card.
-        recoverable: True when a baseline exists, the deck is a STRICT subset of it
-            (not diverged), AND re-adding the missing set lands EXACTLY on target.
+            here (single source) so the dry-run plan and apply agree.
+        diverged: True when the current deck holds a card not in the baseline (an
+            active swap) — recovery must block, never overfill / re-add a cut card.
+        recoverable: True when a baseline exists, the deck is a strict subset of it
+            (not diverged), and re-adding the missing set lands exactly on target.
         predicted_size: current size + Σ missing quantities (the size after recovery).
     """
 
-    def __init__(
-        self,
-        *,
-        baseline: dict[str, object] | None,
-        current_size: int,
-        target: int | None,
-        missing: list[tuple[str, str]],
-        diverged: bool,
-        recoverable: bool,
-        predicted_size: int,
-    ) -> None:
-        self.baseline = baseline
-        self.baseline_cards: list[dict] = list(baseline['cards']) if baseline else []  # type: ignore[index]
-        self.current_size = current_size
-        self.target = target
-        self.missing = missing
-        self.diverged = diverged
-        self.recoverable = recoverable
-        self.predicted_size = predicted_size
+    baseline: dict[str, object] | None
+    current_size: int
+    target: int | None
+    missing: list[tuple[str, str]]
+    diverged: bool
+    recoverable: bool
+    predicted_size: int
+    baseline_cards: list[dict] = field(init=False)
+
+    def __post_init__(self) -> None:
+        raw = cast('list[dict]', self.baseline['cards']) if self.baseline else []
+        object.__setattr__(self, 'baseline_cards', list(raw))
 
 
 def _deck_drift(deck: Deck, store: CollectionStore) -> _DeckDrift:
@@ -1232,8 +1203,8 @@ def _audit_decks(argv: list[str]) -> None:
 
     store = _store()
 
-    # Best-effort capture-then-report: the Phase-2 full-capture opportunity. A
-    # mirror write must never break the audit, so swallow any failure.
+    # Best-effort capture-then-report: take a full capture here. A mirror write must
+    # never break the audit, so swallow any failure.
     try:
         record_snapshot(store)
     except Exception:  # pragma: no cover - record_snapshot is already best-effort.
@@ -1296,7 +1267,7 @@ def _print_audit_table(reports: list[dict[str, object]], under_target: int) -> N
 
 
 # --------------------------------------------------------------------------- #
-# Recover (mirror-based recovery — Phase 5; PROPOSES, never blind-applies)
+# Recover (mirror-based recovery; proposes, never blind-applies)
 # --------------------------------------------------------------------------- #
 
 
@@ -1387,14 +1358,14 @@ def _recover_decks(argv: list[str]) -> None:
 
     store = _store(writes_enabled=True)
     listed = store.list_decks()
-    # r7-m5: the admin recovery verb must not silently collapse dup names into a
-    # last-wins ``{name: deck}`` dict — recovering "Precious" when two exist would
-    # write to an arbitrary one. Refuse loudly, naming the duplicated name(s).
+    # The admin recovery verb must not silently collapse dup names into a last-wins
+    # ``{name: deck}`` dict — recovering "Precious" when two exist would write to an
+    # arbitrary one. Refuse loudly, naming the duplicated name(s).
     #
-    # r8-m5: but SCOPE the refusal. Refusing ALL recovery whenever ANY dup name
-    # exists anywhere blocks recovering a uniquely-named deck. When the user names
-    # decks, refuse only if a REQUESTED name is duplicated; when recovering all,
-    # skip the dup names and recover the rest (still naming the dups we skipped).
+    # But scope the refusal. Refusing all recovery whenever any dup name exists
+    # anywhere blocks recovering a uniquely-named deck. When the user names decks,
+    # refuse only if a requested name is duplicated; when recovering all, skip the
+    # dup names and recover the rest (still naming the dups we skipped).
     from collections import Counter
 
     all_dup_names = {n for n, c in Counter(d.name for d in listed).items() if c > 1}
@@ -1672,7 +1643,7 @@ def _log_trade(argv: list[str]) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Factsheet (offline behavioral verb — Phase 1.4)
+# Factsheet (offline behavioral verb)
 # --------------------------------------------------------------------------- #
 
 
@@ -1738,8 +1709,8 @@ def _factsheet(argv: list[str]) -> None:
     args = parser.parse_args(argv)
     if args.id_prefix is None and not args.name:
         raise CollectionError('factsheet: a deck name or --id prefix is required')
-    # Route through the local decks store (design §4, B4) so factsheet works on
-    # ephemeral drafts too; --id takes precedence over the name.
+    # Route through the local decks store so factsheet works on ephemeral drafts
+    # too; --id takes precedence over the name.
     deck = _deck_access().read_deck(args.name or '', id_prefix=args.id_prefix)
 
     root = str(_SCRIPTS_DIR)
@@ -1830,12 +1801,12 @@ def main() -> None:
         DeadBindingError,
         CrossBackendBindingError,
     ) as exc:
-        # EXPECTED, user-facing failures only (unknown deck, bad --field, malformed
+        # Expected, user-facing failures only (unknown deck, bad --field, malformed
         # YAML, bad user JSON, missing creds, Airtable schema/read-only errors, a
-        # read-only collection dir — r8-m3/F13): surface a clean one-line message
-        # instead of a raw traceback. A genuine bug (KeyError / RuntimeError /
-        # ValidationError / AttributeError) is NOT caught here — it tracebacks so the
-        # defect stays visible. SystemExit (argparse, guards) passes through untouched.
+        # read-only collection dir): surface a clean one-line message instead of a
+        # raw traceback. A genuine bug (KeyError / RuntimeError / ValidationError /
+        # AttributeError) is NOT caught here — it tracebacks so the defect stays
+        # visible. SystemExit (argparse, guards) passes through untouched.
         print(f'error: {exc}', file=sys.stderr)
         raise SystemExit(1) from exc
 

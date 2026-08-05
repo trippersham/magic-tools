@@ -6,7 +6,7 @@ dir (resolved off `StorePaths`). Thin persistence: only the non-derivable facts
 enrichment is HYDRATED on read via an injected `CardResolver` (unresolved cards
 read back name-only with null enrichment).
 
-Layout (design "Local data layout"):
+Layout:
 
     collection/
       decks/<slug>.yaml   # self-contained: name, strategy, airtable_record_id, cards[]
@@ -24,12 +24,13 @@ import os
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
+from uuid import uuid4
 
 import yaml
 
 from pipeline import store as _store
 from pipeline.collection.errors import CollectionError
-from pipeline.collection.guards import check_remove_allowed, shrink_check
+from pipeline.collection.guards import check_remove_allowed, shrink_check, shrink_refusal_message
 from pipeline.contracts import ChaseCard, Deck, DeckCard, OwnedCard, Trade
 
 if TYPE_CHECKING:
@@ -37,9 +38,9 @@ if TYPE_CHECKING:
 
 _SLUG_STRIP = re.compile(r'[^a-z0-9]+')
 
-#: The USER-DECIDED protective comment written ABOVE the in-file ``uuid`` (design
-#: §3). ``safe_dump`` cannot emit comments, so the header is injected manually and
-#: the ``uuid`` is dumped as the FIRST key so the comment sits directly above it.
+#: The protective comment written above the in-file ``uuid``. ``safe_dump`` cannot
+#: emit comments, so the header is injected manually and the ``uuid`` is dumped as
+#: the first key so the comment sits directly above it.
 _UUID_COMMENT = (
     "# This is the deck's permanent ID (used to keep copies in sync).\n"
     '# Please leave it as-is — renaming the FILE is fine, editing this is not.\n'
@@ -226,11 +227,10 @@ class LocalYamlStore:
     def remove_card(self, ref: str, *, force: bool = False) -> None:
         """Delete the Inventory row for ``ref`` from the local YAML store.
 
-        Local parity for the Airtable cascade guard (Phase 4): if ``ref`` is
-        LINKED to one or more decks and ``force`` is False, raise
-        ``CollectionError`` (enumerating the affected decks) BEFORE any write, so
-        the local and Airtable ports enforce the same defense-in-depth.
-        ``force=True`` (or an unlinked card) removes the row as before.
+        Local parity for the Airtable cascade guard: if ``ref`` is linked to one or
+        more decks and ``force`` is False, raise ``CollectionError`` (enumerating the
+        affected decks) before any write, so the local and Airtable ports enforce the
+        same defense-in-depth. ``force=True`` (or an unlinked card) removes the row.
         """
         check_remove_allowed(self, ref, force=force)
         path = self._inventory_path()
@@ -327,23 +327,23 @@ class LocalYamlStore:
     def _deck_save_path(self, deck: Deck, *, force_fresh: bool = False) -> Path:
         """Pick the file to save ``deck`` into without CLOBBERING an unrelated deck.
 
-        Two decks may now share a NAME (dup names are legal under uuid identity), so
-        they must NOT share a FILE (closes B1 for the local backend). The base slug
-        path is used ONLY when it is free OR already belongs to THIS deck's uuid;
-        otherwise the deck is written to a disambiguated ``<slug>-<short-uuid>.yaml``
-        so it never overwrites a file whose in-file uuid differs. ``find_deck_path_by_uuid``
-        already locates the row regardless of filename, so the disambiguated name is
-        transparent to every read.
+        Two decks may share a name (dup names are legal under uuid identity), so
+        they must not share a file. The base slug path is used only when it is free
+        or already belongs to this deck's uuid; otherwise the deck is written to a
+        disambiguated ``<slug>-<short-uuid>.yaml`` so it never overwrites a file
+        whose in-file uuid differs. ``find_deck_path_by_uuid`` already locates the
+        row regardless of filename, so the disambiguated name is transparent to
+        every read.
 
-        ``force_fresh`` (r9-B1 — the RECOVERY path): a fresh-identity recovery save must
-        never ADOPT an existing file. When set, the two "adopt an existing file" branches
-        are BYPASSED: the base slug is taken ONLY when genuinely FREE — never because a
-        same-named legacy (no-uuid) file sits there (a restored pre-P6 backup, the r9-B1
-        hazard) — and (defensively) never because a same-uuid file already exists (a
-        recovery payload always carries a fresh uuid, so this cannot legitimately match).
-        Any occupied base slug disambiguates to ``<slug>-<fresh-uuid>.yaml``. The genuine
-        first-save legacy-upgrade behaviour is unchanged for the NORMAL (non-recovery)
-        path.
+        ``force_fresh`` (the recovery path): a fresh-identity recovery save must
+        never adopt an existing file. When set, the two "adopt an existing file"
+        branches are bypassed: the base slug is taken only when genuinely free —
+        never because a same-named legacy (no-uuid) file sits there (a restored
+        legacy backup) — and (defensively) never because a same-uuid file already
+        exists (a recovery payload always carries a fresh uuid, so this cannot
+        legitimately match). Any occupied base slug disambiguates to
+        ``<slug>-<fresh-uuid>.yaml``. The first-save legacy-upgrade behaviour is
+        unchanged for the normal (non-recovery) path.
         """
         base = self._deck_path(deck.name)
         if force_fresh:
@@ -363,9 +363,9 @@ class LocalYamlStore:
         base_uuid = self._file_uuid(base)
         if base_uuid == deck.uuid:
             return base  # the base file is already OURS.
-        # A base file with NO in-file uuid (a legacy pre-P6 file) may be upgraded in
-        # place ONLY when it is the SAME deck by NAME — a legacy file is NEVER a free
-        # upgrade target for a DIFFERENT deck that merely shares the slug (F1). The
+        # A base file with no in-file uuid (a legacy file) may be upgraded in place
+        # only when it is the same deck by name — a legacy file is never a free
+        # upgrade target for a different deck that merely shares the slug. The
         # shrink ceremony in ``save_deck`` still guards a same-name upgrade.
         if base_uuid is None:
             try:
@@ -379,10 +379,10 @@ class LocalYamlStore:
         return self._decks_dir() / f'{_slugify(deck.name)}-{deck.uuid[:8]}.yaml'
 
     def _fresh_disambiguated_path(self, deck: Deck) -> Path:
-        """A NEVER-occupied ``<slug>-<uuid8>.yaml`` recovery target (r10-i1).
+        """A never-occupied ``<slug>-<uuid8>.yaml`` recovery target.
 
         ``force_fresh`` recovery must never adopt an existing file. The base slug is
-        taken, so we disambiguate by the fresh uuid's first 8 hex — but if THAT file is
+        taken, so we disambiguate by the fresh uuid's first 8 hex — but if that file is
         also occupied (a pre-existing ``<slug>-<uuid8>.yaml`` sibling whose name matches
         the fresh mint's first 8 hex — a 2^-32 collision, but free to close), re-check the
         occupant: widen the suffix until the filename is genuinely free. The filename is
@@ -441,10 +441,10 @@ class LocalYamlStore:
             fields = self._hydrate(name)
             fields.update(quantity=entry.get('qty', 1), role=entry.get('role'))
             cards.append(DeckCard.model_validate(fields))
-        # The in-file ``uuid`` is the AUTHORITATIVE identity (design §3): read it
-        # back into ``Deck.uuid`` so the store binds by it. A legacy file MISSING a
-        # uuid is not an error — the Deck model mints a fresh one (default_factory),
-        # which is written into the file on the next save (see ``save_deck``).
+        # The in-file ``uuid`` is the authoritative identity: read it back into
+        # ``Deck.uuid`` so the store binds by it. A legacy file missing a uuid is not
+        # an error — the Deck model mints a fresh one (default_factory), which is
+        # written into the file on the next save (see ``save_deck``).
         deck_kwargs: dict[str, Any] = {
             'name': data['name'],
             'strategy': data.get('strategy'),
@@ -469,11 +469,11 @@ class LocalYamlStore:
     def find_deck_path_by_uuid(self, uuid: str) -> Path | None:
         """Return the deck-file whose in-file ``uuid`` equals ``uuid`` (or None).
 
-        RENAME-TOLERANT binding (design §3): the filename is a human-friendly slug
-        and is NOT authoritative, so a user renaming a deck FILE must not break the
-        binding. Glob the (small-N) decks dir and read each file's ``uuid`` key —
-        the authoritative identity — returning the matching path. A file lacking a
-        uuid (legacy) simply never matches.
+        Rename-tolerant binding: the filename is a human-friendly slug and is not
+        authoritative, so a user renaming a deck file must not break the binding.
+        Glob the (small-N) decks dir and read each file's ``uuid`` key — the
+        authoritative identity — returning the matching path. A file lacking a uuid
+        (legacy) simply never matches.
         """
         decks_dir = self._decks_dir()
         if not decks_dir.exists():
@@ -489,9 +489,9 @@ class LocalYamlStore:
         if not matches:
             return None
         if len(matches) > 1:
-            # A user-duplicated deck FILE (same in-file uuid twice, e.g. a hand-made
+            # A user-duplicated deck file (same in-file uuid twice, e.g. a hand-made
             # backup) would otherwise split reads and writes across files and lose
-            # edits silently (F11). Refuse loudly, naming both offending paths.
+            # edits silently. Refuse loudly, naming both offending paths.
             names = ', '.join(p.name for p in matches)
             raise CollectionError(
                 f'duplicate deck file: {len(matches)} files share the in-file uuid {uuid!r} '
@@ -501,35 +501,29 @@ class LocalYamlStore:
         return matches[0]
 
     def backfill_deck_uuids(self) -> dict[str, str]:
-        """Inject an in-file ``uuid`` (+ the protective header) into every LEGACY deck file.
+        """Inject an in-file ``uuid`` (+ the protective header) into every legacy deck file.
 
-        The §7 migration backfill (F1/F12): a pre-P6 YAML deck carries NO in-file
-        uuid, so ``_deck_save_path`` used to treat it as an unclaimed upgrade target
-        and the slug-collision guard could not protect it. Walk ``collection/decks/
-        *.yaml`` and, for each file MISSING a uuid, mint one and rewrite the file
-        with the ``uuid`` first key + header — ADDITIVE (card content preserved) and
-        IDEMPOTENT (a file that already carries a uuid is left byte-identical, never
-        re-minted). LOCAL-only; no Airtable, no network.
+        A legacy YAML deck carries no in-file uuid, so ``_deck_save_path`` treats it
+        as an unclaimed upgrade target and the slug-collision guard cannot protect
+        it. Walk ``collection/decks/*.yaml`` and, for each file missing a uuid, mint
+        one and rewrite the file with the ``uuid`` first key + header — additive
+        (card content preserved) and idempotent (a file that already carries a uuid
+        is left byte-identical, never re-minted). Local-only; no Airtable, no network.
 
         Returns ``{name: uuid}`` for the files it touched (the newly-assigned uuids),
         so a caller can bind ``external_ids['local']`` to the file's real in-file uuid.
         """
-        from uuid import uuid4
-
         decks_dir = self._decks_dir()
         if not decks_dir.exists():
             return {}
-        # PERF gate (r6-m4): the full-dir YAML parse is O(files) and runs on EVERY
-        # store construction (twice per verb — a store + a deck-access). Once a pass
-        # finds NO legacy files, drop a marker keyed to the FILES' state; a later
-        # construction with unchanged files skips the whole parse.
+        # This full-dir YAML parse runs on every store construction (twice per CLI
+        # verb), so once a pass finds no legacy files, drop a marker keyed to the
+        # files' state and skip the parse while that state is unchanged.
         #
-        # r7-B1(a): the key is ``max(st_mtime_ns over *.yaml) + file count``, NOT the
-        # dir mtime. An IN-PLACE content overwrite (``cp backup.yaml decks/vault.yaml``
-        # — the July restore persona) does NOT bump the DIRECTORY mtime, so a dir-mtime
-        # key stayed "clean" and the backfill that heals the restored legacy file never
-        # ran (its row's binding stayed dead → the write path destroyed it). A per-file
-        # stat pass catches the in-place overwrite (the file's own mtime bumps).
+        # The key is max(st_mtime_ns over *.yaml) + file count — NOT the directory
+        # mtime, which does not change when a file's content is overwritten in
+        # place (e.g. `cp backup.yaml decks/vault.yaml`). A restored legacy backup
+        # must invalidate the marker so the backfill heals it on the next read.
         marker = decks_dir / '.uuid-backfill-clean'
         try:
             files_key = self._decks_dir_files_key(decks_dir)
@@ -546,10 +540,10 @@ class LocalYamlStore:
             if not isinstance(data, dict) or data.get('uuid'):
                 continue  # already carries a uuid — idempotent skip.
             new_uuid = uuid4().hex
-            # ``uuid`` MUST be the first key so the header sits directly above it.
-            # STRIP a falsy in-file ``uuid`` (``uuid:`` -> None / ``uuid: ''``) from
-            # ``data`` first (r6-m2): otherwise ``{**data}`` re-inserts the falsy value
-            # and OVERRIDES the mint, so the injection silently fails, the file is
+            # ``uuid`` must be the first key so the header sits directly above it.
+            # Strip a falsy in-file ``uuid`` (``uuid:`` -> None / ``uuid: ''``) from
+            # ``data`` first: otherwise ``{**data}`` re-inserts the falsy value and
+            # overrides the mint, so the injection silently fails, the file is
             # rewritten on every run, and a row would bind to a ghost uuid in no file.
             data = {k: v for k, v in data.items() if k != 'uuid'}
             reordered = {'uuid': new_uuid, **data}
@@ -558,9 +552,9 @@ class LocalYamlStore:
             if isinstance(name, str):
                 assigned[name] = new_uuid
         if not assigned:
-            # A clean pass: drop the marker keyed to the files' state AFTER writing it
+            # A clean pass: drop the marker keyed to the files' state after writing it
             # (any write bumps a file mtime, so recompute) so the next construction
-            # skips. Keyed on max file mtime + count (r7-B1a), never the dir mtime.
+            # skips. Keyed on max file mtime + count, never the dir mtime.
             import contextlib
 
             with contextlib.suppress(OSError):
@@ -569,13 +563,13 @@ class LocalYamlStore:
 
     @staticmethod
     def _decks_dir_files_key(decks_dir: Path) -> str:
-        """Marker key that changes on an IN-PLACE overwrite (r7-B1a): max mtime + count.
+        """Marker key that changes on an in-place overwrite: max mtime + count.
 
         Keyed on ``max(st_mtime_ns over *.yaml)`` and the file count — a per-file cheap
-        stat pass. Unlike the dir mtime, this bumps when a file's CONTENT is overwritten
-        in place (the restore persona), so a dropped-in legacy backup invalidates the
-        marker and the backfill heals the row on the next read. The marker file itself
-        is not a ``*.yaml`` so it never self-references.
+        stat pass. Unlike the dir mtime, this bumps when a file's content is overwritten
+        in place, so a dropped-in legacy backup invalidates the marker and the backfill
+        heals the row on the next read. The marker file itself is not a ``*.yaml`` so it
+        never self-references.
         """
         mtimes = [p.stat().st_mtime_ns for p in sorted(decks_dir.glob('*.yaml'))]
         return f'{max(mtimes) if mtimes else 0}:{len(mtimes)}'
@@ -591,29 +585,23 @@ class LocalYamlStore:
         return out
 
     def save_deck(self, deck: Deck, *, allow_shrink: bool = False, force_fresh: bool = False) -> None:
-        # Bind to THIS deck's file (by uuid, then a free/own slug) so a dup-named
-        # deck can never overwrite an unrelated file (slug-collision guard, B1).
-        # ``force_fresh`` (r9-B1 — recovery): never adopt an existing same-named file;
-        # an occupied base slug always disambiguates to a fresh ``<slug>-<uuid>.yaml``.
+        # Bind to this deck's file (by uuid, then a free/own slug) so a dup-named
+        # deck can never overwrite an unrelated file (the slug-collision guard).
+        # ``force_fresh`` (recovery): never adopt an existing same-named file; an
+        # occupied base slug always disambiguates to a fresh ``<slug>-<uuid>.yaml``.
         path = self._deck_save_path(deck, force_fresh=force_fresh)
         if not allow_shrink and path.exists():
-            # Defensive shrink guard (Phase 4 + F1): refuse a save that drops an
-            # at-target deck under target unless explicitly allowed. Compare against
-            # the file's CURRENT contents REGARDLESS of uuid match — a legacy (no
-            # in-file uuid) file must not be a free upgrade target that bypasses the
-            # ceremony (``_deck_save_path`` already routes a DIFFERENT deck to a
-            # disambiguated path, so a compared shrink here is a genuine same-file
-            # gutting write).
+            # Defensive shrink guard: refuse a save that drops an at-target deck
+            # under target unless explicitly allowed. Compare against the file's
+            # current contents regardless of uuid match — a legacy (no in-file uuid)
+            # file must not be a free upgrade target that bypasses the ceremony
+            # (``_deck_save_path`` already routes a different deck to a disambiguated
+            # path, so a compared shrink here is a genuine same-file gutting write).
             prior = self._load_deck_from_dict(yaml.safe_load(path.read_text()) or {}, path=path)
             if shrink_check(prior, deck):
-                raise CollectionError(
-                    f"save-deck '{deck.name}': this save shrinks the deck from "
-                    f'{sum(c.quantity for c in prior.cards)} to {sum(c.quantity for c in deck.cards)} '
-                    f'cards, below its target of {prior.target_size}. Pass allow_shrink=True '
-                    '(the CLI: `save-deck --confirm`) to proceed.'
-                )
-        # ``uuid`` is the FIRST key (design §3) so the protective comment header
-        # injected by ``_write_deck_yaml`` sits directly above it.
+                raise CollectionError(shrink_refusal_message(prior, deck))
+        # ``uuid`` is the first key so the protective comment header injected by
+        # ``_write_deck_yaml`` sits directly above it.
         data: dict[str, Any] = {
             'uuid': deck.uuid,
             'name': deck.name,
@@ -634,10 +622,10 @@ class LocalYamlStore:
     def get_deck_by_uuid(self, uuid: str) -> Deck:
         """Read the deck whose in-file ``uuid`` equals ``uuid`` (rename/slug-proof).
 
-        The uuid-bound read (design §3/§4): locate the deck FILE by its authoritative
-        in-file uuid regardless of filename, then hydrate it. Used by ``promote`` /
-        the sync layer to re-read a just-written source deck by the ONE identity that
-        can't collide with a same-named sibling. Raises ``FileNotFoundError`` on miss.
+        Locate the deck file by its authoritative in-file uuid regardless of
+        filename, then hydrate it. Used by ``promote`` / the sync layer to re-read a
+        just-written source deck by the one identity that can't collide with a
+        same-named sibling. Raises ``FileNotFoundError`` on miss.
         """
         path = self.find_deck_path_by_uuid(uuid)
         if path is None:
@@ -654,9 +642,9 @@ class LocalYamlStore:
         """
         path.parent.mkdir(parents=True, exist_ok=True)
         body = yaml.safe_dump(data, sort_keys=False, allow_unicode=True, default_flow_style=False)
-        # ATOMIC write (r6-m5): write a sibling tmp file then ``os.replace`` it into
-        # place, so a crash mid-write (e.g. the backfill mass-rewriting legacy files)
-        # can never truncate/destroy an intact deck file — the old file survives until
+        # Atomic write: write a sibling tmp file then ``os.replace`` it into place,
+        # so a crash mid-write (e.g. the backfill mass-rewriting legacy files) can
+        # never truncate/destroy an intact deck file — the old file survives until
         # the new one is complete. ``os.replace`` is atomic within a filesystem.
         tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp')
         try:
@@ -675,9 +663,7 @@ class LocalYamlStore:
         # Preserve (or add) the in-file uuid + its protective header. A legacy file
         # without a uuid gets one now (via a fresh mint) so the identity is stable.
         if not data.get('uuid'):
-            from uuid import uuid4
-
-            # Strip a falsy ``uuid`` first so it can't override the mint (r6-m2).
+            # Strip a falsy ``uuid`` first so it can't override the mint.
             data = {'uuid': uuid4().hex, **{k: v for k, v in data.items() if k != 'uuid'}}
         self._write_deck_yaml(path, data)
 
