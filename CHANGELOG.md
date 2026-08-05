@@ -12,6 +12,54 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-08-05
+
+A **non-breaking** deckbuilding rework (a *patch* under this project's `0.y.z`
+convention — no minor bump, no breaking changes). A deck being built is now a real,
+typed deck in a local store — the same model, guards, and ceremony as any persisted
+deck — instead of a bespoke parallel draft structure. Upgrading is safe: on first run
+each local `collection/decks/*.yaml` gains an additive, stable `uuid` field (atomic,
+non-destructive write); no cards, quantities, strategies, or Airtable records change,
+and there is no Airtable schema change.
+
+### Added
+
+- **Local decks store (DuckDB working-copy layer)** fronting the source of record.
+  **Ephemeral drafts** (local-only experiments) vs **synced decks** (backed by YAML or
+  Airtable): explore in a `new-draft --from` copy without touching the original, then
+  `promote-deck` to commit (the copy auto-retires).
+- **Deckbuilding skills** — `building-decks` reworked as a derived-phase orchestrator
+  (FRAME → ASSESS → REFINE → VALIDATE → COMMIT, staleness derived from provenance, one
+  hard gate at commit) delegating to three new skills: **`distilling-strategy`**,
+  **`assessing-decks`**, **`refining-decks`**.
+- **New `collection` verbs** — `new-draft`, `promote-deck`, `deck-swap`, `deck-add`,
+  `deck-remove`, `undo-deck` (rationale-logged), `deck-combos` (archetype-fidelity
+  signal), `stamp-sim`, `pull` / `push` / `sync`, `archive-deck` / `unarchive-deck`,
+  and `get-deck --provenance` / `--local` / `--id`.
+- **Provenance stamps** — assessment + sim freshness (`fresh` / `stale` / `absent`),
+  surfaced on `get-deck --provenance` and `list-decks --json`, so a build resumes
+  correctly across sessions.
+- **Stable-identity binding** — decks bind to an in-file `uuid` (YAML) or the record id
+  (Airtable), so renames and duplicate names never mis-target the source of record.
+
+### Changed
+
+- Deck reads/edits route through the local decks store (reads served from a cached
+  copy, pulled current on a short TTL; edits commit through to the source).
+- `list-decks` output carries status markers (`[synced]` / `[ephemeral]` /
+  `[synced,source-missing]`) — adjust any script that parsed its output.
+- `factsheet` now works on ephemeral drafts (routes through the store).
+- Deck edits are **guard-enforced**: operations that previously slipped through
+  silently (e.g. `deck-remove --qty -1`, cutting the sole commander, writing to a
+  deleted source) are now **refused with a clear message** — stricter, not lossy.
+
+### Fixed
+
+- The deck-drift / silent-clobber class (data loss to a shared source of record) is now
+  **impossible by construction** — the store enforces every deck invariant, source
+  reads bind by stable identity (never by name), and a dead/gone source is a refusal for
+  writes, with safe-by-construction recovery via a fresh-identity `save-deck`.
+
 ## [0.6.0] — 2026-08-02
 
 First tagged public release — a **major (pre-1.0) drop**. It adds fetch-at-runtime
