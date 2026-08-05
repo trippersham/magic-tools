@@ -369,6 +369,60 @@ def _commit_deck_edit(access: DeckAccess, name: str, deck_uuid: str) -> None:
         access.push(name)
 
 
+def _commit_deck_edit_transactional(access: DeckAccess, name: str, deck_uuid: str, pre_edit: Deck | None) -> None:
+    """Commit a just-applied edit; ROLL BACK the local edit if the commit is refused (M5 tail).
+
+    Transactional edit+commit: the typed edit already landed locally; this pushes it
+    to the source. If the push is REFUSED (shrink guard / :class:`SyncDriftError`),
+    the edit must not half-land — restore the local deck to ``pre_edit`` (popping the
+    poison ledger head) so a later verb is not poisoned, then re-raise the original
+    error so the user sees why the edit was rejected. An ephemeral draft (no source)
+    never pushes, so there is nothing to roll back.
+    """
+    from pipeline.decks import DecksStore
+
+    try:
+        _commit_deck_edit(access, name, deck_uuid)
+    except Exception:
+        if pre_edit is not None:
+            DecksStore().rollback_failed_edit(deck_uuid, pre_edit)
+        raise
+
+
+def _positive_qty(value: str) -> int:
+    """An argparse ``type=`` that accepts only a qty >= 1 (M5).
+
+    A ``--qty`` below 1 is a clean CLI error (argparse exit 2), NOT a traceback:
+    ``deck-remove --qty -1`` can no longer GROW the deck and ``deck-add --qty 0``
+    can no longer land a 0-qty entry (both mirror the ``DeckCard.quantity`` ge=1
+    model guard at the CLI boundary).
+    """
+    try:
+        qty = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f'{value!r} is not an integer') from None
+    if qty < 1:
+        raise argparse.ArgumentTypeError(f'must be at least 1 (got {qty})')
+    return qty
+
+
+def _resolve_card_name(name: str) -> str:
+    """Canonicalize a card ``name`` via the REAL resolver — canonical on a hit, raw on a miss (M3).
+
+    ``deck-add`` / ``deck-swap`` resolve the card name through the package resolver
+    BEFORE building the ``DeckCard`` so a local entry's name matches the source's
+    canonicalization: ``lightning bolt`` becomes canonical ``Lightning Bolt`` and
+    merges into the existing entry (never a duplicate singleton that a later pull
+    hydrates into two — the M3 fix). An UNRESOLVED name passes through VERBATIM
+    (honest — unreleased / spoiler cards are real but not yet on Scryfall, per the
+    resolving-card-names lesson), so a miss never drops or mangles the name.
+    """
+    from pipeline.collection import resolver as resolver_mod
+
+    card = resolver_mod.default_card_resolver().get_card(name)
+    return card.name if card is not None and card.name else name
+
+
 def _deck_swap(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog='collection deck-swap',
@@ -386,11 +440,13 @@ def _deck_swap(argv: list[str]) -> None:
 
     access = _deck_access(writes_enabled=True)
     deck_uuid, eff_name = _resolve_edit_target(access, args.deck, args.id_prefix)
-    DecksStore().swap(
-        deck_uuid, add=DeckCard(name=args.add, role=args.role), cut=args.cut, rationale=args.why
-    )
-    _commit_deck_edit(access, eff_name, deck_uuid)
-    print(f'deck-swap: {eff_name}  -{args.cut}  +{args.add}')
+    add_name = _resolve_card_name(args.add)
+    cut_name = _resolve_card_name(args.cut)
+    store_ = DecksStore()
+    pre_edit = store_.get(deck_uuid)
+    store_.swap(deck_uuid, add=DeckCard(name=add_name, role=args.role), cut=cut_name, rationale=args.why)
+    _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit)
+    print(f'deck-swap: {eff_name}  -{cut_name}  +{add_name}')
 
 
 def _deck_add(argv: list[str]) -> None:
@@ -399,7 +455,7 @@ def _deck_add(argv: list[str]) -> None:
     )
     parser.add_argument('deck', nargs='?')
     parser.add_argument('card')
-    parser.add_argument('--qty', type=int, default=1, help='Copies to add (default 1).')
+    parser.add_argument('--qty', type=_positive_qty, default=1, help='Copies to add (default 1; must be >= 1).')
     parser.add_argument('--role', default=None, help='Role for the added card (e.g. commander, sideboard).')
     parser.add_argument('--why', default=None, help='Rationale recorded in the deck ledger.')
     parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
@@ -409,11 +465,12 @@ def _deck_add(argv: list[str]) -> None:
 
     access = _deck_access(writes_enabled=True)
     deck_uuid, eff_name = _resolve_edit_target(access, args.deck, args.id_prefix)
-    DecksStore().add_card(
-        deck_uuid, DeckCard(name=args.card, quantity=args.qty, role=args.role), rationale=args.why
-    )
-    _commit_deck_edit(access, eff_name, deck_uuid)
-    print(f'deck-add: {eff_name}  +{args.qty}x {args.card}')
+    card_name = _resolve_card_name(args.card)
+    store_ = DecksStore()
+    pre_edit = store_.get(deck_uuid)
+    store_.add_card(deck_uuid, DeckCard(name=card_name, quantity=args.qty, role=args.role), rationale=args.why)
+    _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit)
+    print(f'deck-add: {eff_name}  +{args.qty}x {card_name}')
 
 
 def _deck_remove(argv: list[str]) -> None:
@@ -423,7 +480,7 @@ def _deck_remove(argv: list[str]) -> None:
     )
     parser.add_argument('deck', nargs='?')
     parser.add_argument('card')
-    parser.add_argument('--qty', type=int, default=1, help='Copies to remove (default 1).')
+    parser.add_argument('--qty', type=_positive_qty, default=1, help='Copies to remove (default 1; must be >= 1).')
     parser.add_argument('--why', default=None, help='Rationale recorded in the deck ledger.')
     parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     args = parser.parse_args(argv)
@@ -432,9 +489,12 @@ def _deck_remove(argv: list[str]) -> None:
 
     access = _deck_access(writes_enabled=True)
     deck_uuid, eff_name = _resolve_edit_target(access, args.deck, args.id_prefix)
-    DecksStore().remove_card(deck_uuid, args.card, qty=args.qty, rationale=args.why)
-    _commit_deck_edit(access, eff_name, deck_uuid)
-    print(f'deck-remove: {eff_name}  -{args.qty}x {args.card}')
+    card_name = _resolve_card_name(args.card)
+    store_ = DecksStore()
+    pre_edit = store_.get(deck_uuid)
+    store_.remove_card(deck_uuid, card_name, qty=args.qty, rationale=args.why)
+    _commit_deck_edit_transactional(access, eff_name, deck_uuid, pre_edit)
+    print(f'deck-remove: {eff_name}  -{args.qty}x {card_name}')
 
 
 def _new_draft(argv: list[str]) -> None:

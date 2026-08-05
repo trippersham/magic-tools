@@ -163,7 +163,11 @@ class DeckCard(Card):
     Supersedes `DeckLine` (now inherits `Card`, carries `role`).
     """
 
-    quantity: int = Field(default=1, description='Number of copies of this card in the deck.')
+    quantity: int = Field(
+        default=1,
+        ge=1,
+        description='Number of copies of this card in the deck (at least 1 — a 0/negative qty is invalid).',
+    )
     role: str | None = Field(
         default=None,
         description=(

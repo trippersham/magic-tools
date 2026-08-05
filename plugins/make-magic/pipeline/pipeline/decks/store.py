@@ -625,7 +625,9 @@ class DecksStore:
     #: this default note rather than a caller-supplied one).
     _DEFAULT_RATIONALE = 'edit'
 
-    def _write_edit(self, deck_uuid: str, deck: Deck, *, rationale: str | None) -> None:
+    def _write_edit(
+        self, deck_uuid: str, deck: Deck, *, rationale: str | None, is_undo: bool = False
+    ) -> None:
         """Persist an edited deck + APPEND a version to the ledger (edit-triggered).
 
         An edit changes only ``deck_json`` / ``name``; ``sync_status`` /
@@ -637,6 +639,12 @@ class DecksStore:
         generic note when omitted, so Phase-1 callers keep working unchanged (they
         still append, just with the default note). The deck write + the ledger
         append share ONE connection so they land together.
+
+        Undo cursor (M1): a NEW edit (``is_undo=False``) RESETS the persistent undo
+        cursor so the next undo re-anchors at head (a fresh edit branches the
+        timeline; the forward history is abandoned — no redo). An undo-triggered
+        write (``is_undo=True``) sets the cursor to the restored version's seq in
+        :meth:`undo` instead, so a consecutive undo continues walking backward.
         """
         deck = Deck.model_validate_json(deck.model_dump_json())
         with self._connect() as conn:
@@ -648,6 +656,8 @@ class DecksStore:
             history.append_deck_version(
                 conn, deck_uuid=deck_uuid, deck=deck, rationale=rationale or self._DEFAULT_RATIONALE
             )
+            if not is_undo:
+                history.reset_undo_cursor(conn, deck_uuid)
 
     def _apply_add(self, deck: Deck, card: DeckCard) -> Deck:
         """Return a NEW ``Deck`` with ``card`` added — INCREMENT the existing entry,
@@ -667,9 +677,39 @@ class DecksStore:
             new_cards.append(card)
         return deck.model_copy(update={'cards': new_cards})
 
+    def _guard_commander_singleton(self, deck: Deck, card: DeckCard) -> None:
+        """Refuse an ADD that would push a commander to qty >= 2 (m1 — singleton rule).
+
+        A commander is a SINGLETON: adding a card that is already a commander in the
+        deck would increment it to qty 2 (or adding a second, distinct commander).
+        Both are refused BEFORE any write, so the stored deck is untouched. A plain
+        (non-commander) increment of a normal card is fine — only the commander line
+        is protected here.
+        """
+        existing = next((c for c in deck.cards if c.name == card.name), None)
+        # Incrementing an existing commander -> would create a 2nd copy of it.
+        if existing is not None and existing.role == ROLE_COMMANDER:
+            raise DecksError(
+                f'refusing to increment commander {card.name!r} in deck {deck.name!r} '
+                '(a commander is a singleton — qty must stay 1)'
+            )
+        # Adding a distinct commander when one already exists -> a 2nd commander.
+        if card.role == ROLE_COMMANDER and existing is None:
+            others = [c.name for c in deck.commanders]
+            if others:
+                raise DecksError(
+                    f'refusing to add a second commander {card.name!r} '
+                    f'(deck already has: {others})'
+                )
+
     def add_card(self, deck_uuid: str, card: DeckCard, *, rationale: str | None = None) -> None:
-        """Add ``card`` to the deck — INCREMENT the existing entry, else append."""
+        """Add ``card`` to the deck — INCREMENT the existing entry, else append.
+
+        Commander-safe (m1): refuses an add that would push a commander to qty >= 2
+        (incrementing the existing commander) or introduce a SECOND commander.
+        """
         deck = self._require(deck_uuid)
+        self._guard_commander_singleton(deck, card)
         self._write_edit(deck_uuid, self._apply_add(deck, card), rationale=rationale)
 
     def _apply_remove(self, deck: Deck, name: str, qty: int) -> Deck:
@@ -700,6 +740,14 @@ class DecksStore:
         gut a legal deck.
         """
         deck = self._require(deck_uuid)
+        entry = next((c for c in deck.cards if c.name == name), None)
+        # m2: never cut the SOLE commander (that would leave a commander deck without
+        # one). Checked BEFORE any write, so the stored deck is untouched on refusal.
+        if entry is not None and entry.role == ROLE_COMMANDER and len(deck.commanders) <= 1:
+            raise DecksError(
+                f'refusing to remove the sole commander {name!r} from deck {deck_uuid!r} '
+                '(a commander deck must keep its commander)'
+            )
         new_deck = self._apply_remove(deck, name, qty)
         if shrink_check(deck, new_deck):
             raise DecksError(
@@ -707,6 +755,25 @@ class DecksStore:
                 f'({deck.target_size}); refusing (would shrink an at-target deck)'
             )
         self._write_edit(deck_uuid, new_deck, rationale=rationale)
+
+    def rollback_failed_edit(self, deck_uuid: str, pre_edit: Deck) -> None:
+        """Restore ``deck_uuid`` to ``pre_edit`` after a REFUSED commit (M5 tail).
+
+        Transactional edit+commit: when a just-applied edit's commit-push is refused
+        (shrink guard / sync drift), the edit must NOT half-land. This restores the
+        local ``deck_json`` to the pre-edit content AND pops the poison head ledger
+        version, so a later verb reads the un-poisoned deck and undo never steps onto
+        the reverted edit. Bookkeeping (sync_status / source_ref / baseline) survives.
+        The restore is a pure ROLLBACK — it does NOT append a new version.
+        """
+        pre_edit = Deck.model_validate_json(pre_edit.model_dump_json())
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            conn.execute(
+                f'UPDATE {_DECKS_TABLE} SET name = ?, deck_json = ? WHERE deck_uuid = ?',
+                [pre_edit.name, pre_edit.model_dump_json(), deck_uuid],
+            )
+            history.drop_deck_version_head(conn, deck_uuid)
 
     def set_strategy(self, deck_uuid: str, text: str | None, *, rationale: str | None = None) -> None:
         """Set the deck's free-text strategy."""
@@ -733,7 +800,10 @@ class DecksStore:
         - refuse if ``cut`` is not present;
         - never cut the SOLE commander (that would leave a commander deck without
           one);
-        - never let ``add.role == 'commander'`` create a SECOND commander.
+        - never let the add create a SECOND commander OR increment an EXISTING
+          commander to qty 2 (the m1 hole: the old exemption for
+          ``add.name in commanders`` let a swap re-add the existing commander and
+          push it to qty 2 — now closed by guarding against the POST-CUT deck).
 
         The commander invariants are checked BEFORE any write, so a violation
         leaves the stored deck untouched (the whole op is refused, not half-applied).
@@ -748,14 +818,11 @@ class DecksStore:
         if cutting_sole_commander:
             raise DecksError(f'refusing to cut the sole commander {cut!r} from deck {deck_uuid!r}')
 
-        adding_commander = add.role == ROLE_COMMANDER
-        # After the cut, how many commanders remain? (the cut may itself be a commander)
-        commanders_after_cut = len(commanders) - (1 if cut_entry.role == ROLE_COMMANDER else 0)
-        if adding_commander and add.name not in {c.name for c in commanders} and commanders_after_cut >= 1:
-            raise DecksError(
-                f'refusing to add a second commander {add.name!r} to deck {deck_uuid!r} '
-                f'(already has: {[c.name for c in commanders]})'
-            )
+        # Guard the ADD against the POST-CUT deck (the cut may itself remove the
+        # colliding commander): reuse the singleton guard so a swap can neither
+        # add a second commander NOR increment the existing one to qty 2 (m1).
+        post_cut = self._apply_remove(deck, cut, 1)
+        self._guard_commander_singleton(post_cut, add)
 
         # Apply remove(1) + add on the SAME deck in one pass: both are
         # quantity-aware / merge-by-name. Because the op removes exactly one copy
@@ -770,22 +837,33 @@ class DecksStore:
     # ----------------------------------------------------------------------- #
 
     def undo(self, deck_uuid: str) -> Deck | None:
-        """Restore the deck to its PRIOR ledger version; return it (or None).
+        """Restore the deck one step BACKWARD along the undo cursor; return it (or None).
 
-        Reads the version BEFORE the current head from the append-only ledger and
-        writes it back as the current ``deck_json`` — the sync bookkeeping is
-        PRESERVED (undo is a local edit, not a re-sync). Returns ``None`` (no
-        write) when there is no prior version to restore to.
+        The real undo walk (M1) — NOT the old OFFSET-1-from-head, which oscillated
+        (each undo appended the restore, so the next undo reverted THAT) and
+        deadlocked on identical-content versions. Instead:
 
-        The restore is itself an edit, so it APPENDS a new ledger row (the ledger
-        stays append-only — undo never mutates or deletes past rows). Undoing again
-        therefore reverts THAT restore's predecessor, which is the expected
-        step-back-through-history behavior.
+        - :func:`history.undo_target` walks strictly backward from the persisted
+          CURSOR anchor (or head when unset) to the newest version whose *content*
+          differs from the current deck, SKIPPING identical-content versions (no
+          oscillation, no deadlock);
+        - the restore is written back (bookkeeping preserved — undo is a local edit,
+          not a re-sync) as ``is_undo`` so it does NOT reset the cursor;
+        - the cursor is then advanced to the restored version's seq, so a
+          CONSECUTIVE undo continues from there (persisted across CLI invocations),
+          revealing N successively older states over N undos.
+
+        Returns ``None`` (no write, cursor untouched) at the undo floor — no
+        distinct-older content remains.
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
-            prior = history.previous_deck_version(conn, deck_uuid)
-        if prior is None:
+            target = history.undo_target(conn, deck_uuid)
+        if target is None:
             return None
-        self._write_edit(deck_uuid, prior, rationale='undo')
+        prior, prior_seq = target
+        self._write_edit(deck_uuid, prior, rationale='undo', is_undo=True)
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            history.set_undo_cursor(conn, deck_uuid, prior_seq)
         return prior
