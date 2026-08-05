@@ -110,7 +110,27 @@ def _backfill_local_deck_uuids(store: CollectionStore) -> None:
         current = _local_ref(row.external_ids)
         if current and (find_path is None or find_path(current) is not None):
             continue  # live binding to an existing file — leave it alone.
+        # r9-m2 (honor r7-m4): a row bound on ANOTHER backend (e.g. only
+        # ``{'airtable': rec}`` — a backend-switch / cross-machine row) has its source
+        # THERE, not as a same-named local file. Binding a dropped-in local backup to it
+        # would ADOPT an unrelated same-named file cross-backend. Skip — it is not an
+        # unbound legacy deck. (A row with NO airtable ref is a genuine local backfill.)
+        if _bound_on_other_local(row.external_ids):
+            continue
         decks.set_external_id(bound, 'local', file_uuid)
+
+
+def _bound_on_other_local(external_ids: str | None) -> bool:
+    """True iff the row carries an external ref for a backend OTHER than ``local`` (r7-m4)."""
+    if not external_ids:
+        return False
+    try:
+        ext = json.loads(external_ids)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    if not isinstance(ext, dict):
+        return False
+    return any(k != 'local' and v for k, v in ext.items())
 
 
 def _local_ref(external_ids: str | None) -> str | None:
@@ -249,11 +269,21 @@ def _list_decks(argv: list[str]) -> None:
     decks_store = DecksStore()
     rows: list[dict[str, object]] = []
     for deck in sorted(_store().list_decks(), key=lambda d: d.name):
-        rows.append({'name': deck.name, 'status': 'synced', 'archived': False,
+        rows.append({'name': deck.name, 'status': 'synced', 'archived': False, 'source_missing': False,
                      **_provenance_states(decks_store, decks_store.uuid_for_name(deck.name))})
+    # r9-M1 / r9-m3: a DEAD-bound synced deck's source is gone, so it drops out of the
+    # source ``list_decks`` above and would VANISH from the listing. Surface it, flagged
+    # ``source-missing``, so the agent can SEE + recover it rather than hunt a stranger.
+    listed_names = {r['name'] for r in rows}
+    for dead in sorted(_deck_access().dead_bound_rows(), key=lambda r: r.name):
+        if dead.name in listed_names:
+            continue  # a same-named LIVE deck is already listed; the dead row rides its flag.
+        rows.append({'name': dead.name, 'status': 'synced', 'archived': dead.archived,
+                     'source_missing': True, **_provenance_states(decks_store, dead.deck_uuid)})
     drafts = decks_store.list_rows(sync_status='ephemeral', include_archived=args.archived)
     for row in sorted(drafts, key=lambda r: r.name):
         rows.append({'name': row.name, 'status': 'ephemeral', 'archived': row.archived,
+                     'source_missing': False,
                      **_provenance_states(decks_store, row.deck_uuid)})
 
     if args.json:
@@ -263,6 +293,8 @@ def _list_decks(argv: list[str]) -> None:
         markers = [str(row['status'])]
         if row['archived']:
             markers.append('archived')
+        if row.get('source_missing'):
+            markers.append('source-missing')
         print(f'{row["name"]} [{",".join(markers)}]')
 
 
@@ -306,13 +338,28 @@ def _get_deck(argv: list[str]) -> None:
         action='store_true',
         help='Emit a {deck, provenance} envelope with the assessment/sim freshness stamps + tri-state.',
     )
+    parser.add_argument(
+        '--local',
+        action='store_true',
+        help="Serve the LOCAL copy directly (no pull) — reachable even under a dead binding "
+        "(the deck's source file/record is missing). Prints a 'source missing' note.",
+    )
     args = parser.parse_args(argv)
     if args.id_prefix is None and not args.name:
         raise CollectionError('get-deck: a deck name or --id prefix is required')
     # W1/W4: route the deck READ through the local decks store (pull-current per
     # the TTL policy, serve local thereafter). --id takes precedence over the name.
     access = _deck_access()
-    deck = access.read_deck(args.name or '', id_prefix=args.id_prefix)
+    if args.local:
+        # r9-M1: serve the local copy with NO pull (dead-binding-reachable). A loud
+        # note goes to STDERR so STDOUT stays parseable deck JSON.
+        deck = access.read_local(args.name or '', id_prefix=args.id_prefix)
+        print(f'note: source missing — showing local copy of {deck.name!r} (no pull).', file=sys.stderr)
+        if not args.field and not args.provenance:
+            print(deck.model_dump_json(indent=2))
+            return
+    else:
+        deck = access.read_deck(args.name or '', id_prefix=args.id_prefix)
     if args.provenance:
         # The M7 provenance view: a {deck, provenance} envelope. DEFAULT output
         # (no flag) stays byte-for-byte the deck JSON — existing parsers unaffected.
@@ -345,8 +392,20 @@ def _get_deck(argv: list[str]) -> None:
 
 
 def _save_deck(argv: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog='collection save-deck')
-    parser.add_argument('--from-json', required=True, help='Path to a JSON Deck (- for stdin).')
+    parser = argparse.ArgumentParser(
+        prog='collection save-deck',
+        description=(
+            'Save a deck. Authoring: `save-deck --from-json <file>` writes arbitrary deck JSON. '
+            'Recovery: `save-deck "<name>"` (or `--id <prefix>`) re-saves the deck from its LOCAL '
+            'copy to a FRESH source — the advised fix when a deck\'s source file/record is missing.'
+        ),
+    )
+    parser.add_argument('name', nargs='?', help='Deck name to RECOVER from its local copy (recovery mode).')
+    parser.add_argument('--from-json', help='Path to a JSON Deck (- for stdin) — authoring mode.')
+    parser.add_argument(
+        '--id', dest='id_prefix', default=None,
+        help='Address a dup-named deck by deck_uuid prefix (recovery mode).',
+    )
     parser.add_argument(
         '--confirm',
         action='store_true',
@@ -354,6 +413,21 @@ def _save_deck(argv: list[str]) -> None:
         'silently dropping a legal deck under size).',
     )
     args = parser.parse_args(argv)
+
+    # Recovery mode (r9-M1): a bare NAME (or --id) with no --from-json re-saves the deck
+    # from its own LOCAL copy to a fresh source — the executable form of the dead-binding
+    # advice. Forced-fresh + atomic (safe by construction: it can never adopt/overwrite a
+    # same-named stranger, even run blindly).
+    if args.from_json is None:
+        if not args.name and args.id_prefix is None:
+            parser.error('a deck NAME (recovery) or --from-json <file> (authoring) is required')
+        access = _deck_access(writes_enabled=True)
+        saved = access.save_local(args.name or '', id_prefix=args.id_prefix, allow_shrink=args.confirm)
+        print(f'save-deck: {saved}')
+        return
+
+    if args.name is not None:
+        parser.error('give a deck NAME (recovery) OR --from-json (authoring), not both')
     raw = sys.stdin.read() if args.from_json == '-' else Path(args.from_json).read_text()
     try:
         deck = Deck.model_validate_json(raw)

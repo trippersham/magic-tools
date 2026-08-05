@@ -129,27 +129,40 @@ def guard_write_binding(
     raise DeadBindingError(dead_binding_message(driver, source_ref))
 
 
-def dead_binding_message(driver: CollectionStore, source_ref: str) -> str:
-    """The backend-aware, honest, hallucination-free dead-binding refusal (P11).
+def dead_binding_message(
+    driver: CollectionStore, source_ref: str, *, dup_names: bool = False, id_prefix: str | None = None
+) -> str:
+    """The backend-aware, honest, hallucination-free, EXECUTABLE dead-binding refusal.
 
-    Names ONLY ``save-deck`` as recovery — the ONE action the code actually makes work
-    (a fresh-identity save recreates the source and rebinds the row). It must NOT tell
-    the user to ``pull`` (circular: a dead ref cannot be re-bound by pull — the read
-    chokepoint returns None by design) and must NOT mention ``--recreate`` (removed in
-    P11). This matters because a bot reads these messages: a hallucinated step could
-    break a contract. Each ends "Your local copy is intact." so the user knows nothing
-    was lost. Tailored to the active backend (the store knows which it is).
+    Names ONLY commands the code actually makes work — a bot reads these messages and
+    runs them LITERALLY, so every named command must be safe and real:
+
+    - Recovery: ``save-deck "X"`` (r9-M1) re-saves the deck from its LOCAL copy to a
+      FRESH source (forced-fresh + atomic — it can never adopt/overwrite a same-named
+      stranger). Under DUP names the recovery is pinned by ``--id <prefix>`` (r9-M1.3).
+    - Inspection: ``get-deck "X" --local`` serves the local copy (r9-M1.2) so the agent
+      can SEE its deck without a pull (a dead ref cannot be pulled).
+
+    It must NOT tell the user to ``pull`` (circular: a dead ref cannot be re-bound by
+    pull — the read chokepoint returns None by design) and must NOT mention
+    ``--recreate`` (removed in P11). Each ends "Your local copy is intact."
     """
+    save_cmd = f'collection save-deck "{source_ref}"'
+    if dup_names and id_prefix:
+        save_cmd = f'collection save-deck "{source_ref}" --id {id_prefix}'
+    view = f'collection get-deck "{source_ref}" --local'
     if getattr(driver, 'backend_name', None) == 'airtable':
         return (
             f"the Airtable record for {source_ref!r} was deleted. Re-save it with: "
-            f'collection save-deck "{source_ref}"  — this creates a new Decks record. '
+            f'{save_cmd}  — this creates a new Decks record from your local copy. '
+            f'(View the local copy first with: {view}.) '
             'Your local copy is intact.'
         )
     return (
         f"the deck file for {source_ref!r} is missing or its id changed (it was deleted, "
         "moved out of the collection, or its 'uuid:' line was changed). Re-save it with: "
-        f'collection save-deck "{source_ref}"  — this writes a fresh deck file. '
+        f'{save_cmd}  — this writes a fresh deck file from your local copy. '
+        f'(View the local copy first with: {view}.) '
         'Your local copy is intact.'
     )
 

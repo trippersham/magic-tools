@@ -324,7 +324,7 @@ class LocalYamlStore:
     def _deck_path(self, name: str) -> Path:
         return self._decks_dir() / f'{_slugify(name)}.yaml'
 
-    def _deck_save_path(self, deck: Deck) -> Path:
+    def _deck_save_path(self, deck: Deck, *, force_fresh: bool = False) -> Path:
         """Pick the file to save ``deck`` into without CLOBBERING an unrelated deck.
 
         Two decks may now share a NAME (dup names are legal under uuid identity), so
@@ -334,13 +334,30 @@ class LocalYamlStore:
         so it never overwrites a file whose in-file uuid differs. ``find_deck_path_by_uuid``
         already locates the row regardless of filename, so the disambiguated name is
         transparent to every read.
+
+        ``force_fresh`` (r9-B1 — the RECOVERY path): a fresh-identity recovery save must
+        never ADOPT an existing file. When set, the two "adopt an existing file" branches
+        are BYPASSED: the base slug is taken ONLY when genuinely FREE — never because a
+        same-named legacy (no-uuid) file sits there (a restored pre-P6 backup, the r9-B1
+        hazard) — and (defensively) never because a same-uuid file already exists (a
+        recovery payload always carries a fresh uuid, so this cannot legitimately match).
+        Any occupied base slug disambiguates to ``<slug>-<fresh-uuid>.yaml``. The genuine
+        first-save legacy-upgrade behaviour is unchanged for the NORMAL (non-recovery)
+        path.
         """
+        base = self._deck_path(deck.name)
+        if force_fresh:
+            # RECOVERY: never adopt an existing file. Take the base slug only when it is
+            # genuinely free; any occupant (legacy no-uuid backup, same-name stranger, or
+            # even a same-uuid file — impossible for a fresh recovery id) disambiguates.
+            if not base.exists():
+                return base
+            return self._decks_dir() / f'{_slugify(deck.name)}-{deck.uuid[:8]}.yaml'
         # A file already bound to THIS uuid (possibly a disambiguated one) wins — a
         # re-save must land on the same file, not spawn a new one.
         bound = self.find_deck_path_by_uuid(deck.uuid)
         if bound is not None:
             return bound
-        base = self._deck_path(deck.name)
         if not base.exists():
             return base  # the base slug is FREE.
         base_uuid = self._file_uuid(base)
@@ -548,10 +565,12 @@ class LocalYamlStore:
             out.append(self._load_deck_from_dict(data, path=path))
         return out
 
-    def save_deck(self, deck: Deck, *, allow_shrink: bool = False) -> None:
+    def save_deck(self, deck: Deck, *, allow_shrink: bool = False, force_fresh: bool = False) -> None:
         # Bind to THIS deck's file (by uuid, then a free/own slug) so a dup-named
         # deck can never overwrite an unrelated file (slug-collision guard, B1).
-        path = self._deck_save_path(deck)
+        # ``force_fresh`` (r9-B1 — recovery): never adopt an existing same-named file;
+        # an occupied base slug always disambiguates to a fresh ``<slug>-<uuid>.yaml``.
+        path = self._deck_save_path(deck, force_fresh=force_fresh)
         if not allow_shrink and path.exists():
             # Defensive shrink guard (Phase 4 + F1): refuse a save that drops an
             # at-target deck under target unless explicitly allowed. Compare against

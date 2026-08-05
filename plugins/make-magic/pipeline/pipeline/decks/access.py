@@ -113,6 +113,45 @@ class DeckAccess:
             lines.append(f'  --id {row.deck_uuid[:6]}   # {status} · {self._source_backend(row)}')
         return '\n'.join(lines)
 
+    def _dead_binding_message(self, name: str, deck_uuid: str) -> str:
+        """The dead-binding refusal, dup-aware (r9-M1): under dup names, name the ``--id``.
+
+        A single-row dead deck recovers via ``save-deck "X"``; a DUP-named dead deck must
+        be recovered by ``save-deck "X" --id <prefix>`` (a bare name would refuse with the
+        ambiguity list). Detect the dup and hand the executable ``--id`` form to the message.
+        """
+        siblings = self._decks.rows_for_name(name)
+        dup = len(siblings) > 1
+        return _sync.dead_binding_message(
+            self._driver, name, dup_names=dup, id_prefix=deck_uuid[:6] if dup else None
+        )
+
+    def _alias_dead_row(self, name: str) -> tuple[str, str] | None:
+        """A case-alias of ``name`` that binds a SINGLE dead row (r9-m1 anti-fork).
+
+        Returns ``(deck_uuid, canonical_name)`` when ``name`` is a case variant of exactly
+        one live synced row whose binding is DEAD — so a ``save-deck EMBER`` typo recovers
+        the dead ``Ember`` row instead of forking a new one. Returns None when there is no
+        such alias, an EXACT-name row already exists (handled by the normal path), or the
+        case match is ambiguous (>1 candidate — refuse to guess which to recover).
+        """
+        key = ' '.join(name.split()).casefold()
+        candidates: list[DeckRow] = []
+        for row in self._decks.list_rows(sync_status='synced', include_archived=True):
+            if row.source_ref is None:
+                continue
+            if row.name == name:
+                return None  # an exact-name row exists — not an alias case.
+            if ' '.join(row.name.split()).casefold() != key:
+                continue
+            if _sync.binding_is_dead(
+                self._decks, self._driver, deck_uuid=row.deck_uuid, source_ref=row.source_ref
+            ):
+                candidates.append(row)
+        if len(candidates) == 1:
+            return candidates[0].deck_uuid, candidates[0].name
+        return None
+
     @staticmethod
     def _source_backend(row: DeckRow) -> str:
         """The candidate's source backend label: ``airtable`` if bound there, else ``local``."""
@@ -127,6 +166,98 @@ class DeckAccess:
     def has_local_row(self, deck_uuid: str) -> bool:
         """True iff a local decks-store row exists for ``deck_uuid`` (edit-path guard)."""
         return self._decks.exists(deck_uuid)
+
+    # ----------------------------------------------------------------------- #
+    # Local-copy recovery + inspection (r9-M1 — give the local copy an exit)
+    # ----------------------------------------------------------------------- #
+
+    def save_local(self, name: str, *, id_prefix: str | None = None, allow_shrink: bool = False) -> str:
+        """RECOVER a deck from its LOCAL copy to a fresh source (r9-M1 — advised path).
+
+        The dead-binding message advises ``save-deck "X"`` (or ``--id <prefix>`` under
+        dup names). This makes that advice EXECUTABLE: read the deck's own local row's
+        ``deck_json`` and re-save it — which routes through the forced-fresh, atomic
+        recovery in :meth:`save_deck` (a dead binding recovers; a live binding is a
+        normal authoritative re-save). NO ``--from-json`` needed and NO pull: the local
+        copy IS the payload. Returns the deck name saved (for the CLI's echo).
+
+        Addressing:
+
+        - ``id_prefix`` set: address the ONE row by its ``deck_uuid`` prefix (the dup-name
+          escape hatch) — resolves to a single row or raises the clean --id error.
+        - ``name`` only: resolve the single row for ``name``; a dup-name refuses with the
+          candidate list (which now names ``save-deck "X" --id <prefix>`` as the fix).
+        """
+        deck_uuid = self._resolve_local_for_recovery(name, id_prefix)
+        local = self._decks.get(deck_uuid)
+        if local is None:
+            raise DecksError(f'no local copy to recover for {name!r} (nothing to save)')
+        # Re-save the local copy under its OWN name (the row's canonical name) so a
+        # case-alias payload can never fork the recovery to a new row (r9-m1). PIN the
+        # write to the resolved row (``target_uuid``) so a dup-named recovery lands on the
+        # row we resolved (by ``--id`` or by a unique name), never the oldest sibling.
+        row = self._decks.get_row(deck_uuid)
+        canonical = row.name if row is not None else name
+        self.save_deck(
+            local.model_copy(update={'name': canonical}),
+            allow_shrink=allow_shrink, commit=True, target_uuid=deck_uuid,
+        )
+        return canonical
+
+    def _resolve_local_for_recovery(self, name: str, id_prefix: str | None) -> str:
+        """Resolve a ``save-deck <name>``/``--id`` recovery target to a SINGLE local row.
+
+        Never MINTS on a miss (a bare ``resolve`` would): a recovery must address an
+        EXISTING local row (there is nothing to recover otherwise). A dup-name refuses
+        with the candidate list (naming ``--id`` — which ``save-deck`` now accepts).
+        """
+        if id_prefix is not None:
+            return self.resolve(id_prefix=id_prefix)
+        rows = self._decks.rows_for_name(name)
+        if len(rows) == 1:
+            return rows[0].deck_uuid
+        if len(rows) > 1:
+            raise DecksError(self._ambiguous_name_message(name, rows))
+        raise DecksError(f'no deck named {name!r} to recover')
+
+    def read_local(self, name: str, *, id_prefix: str | None = None) -> Deck:
+        """Serve the LOCAL copy directly — NO pull, NO source read (r9-M1 ``--local``).
+
+        The dead-binding read refuses (the source is gone); ``get-deck --local`` gives the
+        agent a way to SEE its deck under a dead binding without pulling (a dead ref cannot
+        be pulled) and without being forced to reconstruct the JSON from the same-named
+        stranger file at the slug. Addresses an EXISTING row only (name or ``--id``); a
+        miss is a clean error, never a mint/pull.
+        """
+        deck_uuid = self._resolve_local_for_recovery(name, id_prefix)
+        local = self._decks.get(deck_uuid)
+        if local is None:
+            raise DecksError(f'no local copy for {name!r}')
+        return local
+
+    def dead_bound_rows(self) -> list[DeckRow]:
+        """Return the synced local rows whose bound source is DEAD (r9-M1 — list-decks).
+
+        A dead-bound synced deck's source file/record is gone, so it drops out of the
+        source ``list_decks`` enumeration and would VANISH from ``list-decks`` entirely.
+        Surface it (flagged ``source-missing``) so the agent can see + recover it. Only
+        live (non-consumed, non-archived) synced rows are considered.
+        """
+        out: list[DeckRow] = []
+        for row in self._decks.list_rows(sync_status='synced'):
+            if row.source_ref is None:
+                continue
+            if _sync.binding_is_dead(
+                self._decks, self._driver, deck_uuid=row.deck_uuid, source_ref=row.source_ref
+            ):
+                out.append(row)
+        return out
+
+    def is_binding_dead(self, deck_uuid: str, source_ref: str) -> bool:
+        """True iff the row is bound for the active backend but its source read is dead."""
+        return _sync.binding_is_dead(
+            self._decks, self._driver, deck_uuid=deck_uuid, source_ref=source_ref
+        )
 
     # ----------------------------------------------------------------------- #
     # Read (pull policy)
@@ -352,7 +483,7 @@ class DeckAccess:
             # real recovery (P11): a fresh-identity ``save-deck`` (NOT "pull" — a dead
             # ref cannot be re-bound by pull; the chokepoint returns None by design).
             if _sync.binding_is_dead(self._decks, self._driver, deck_uuid=existing, source_ref=name):
-                raise DecksError(_sync.dead_binding_message(self._driver, name))
+                raise DecksError(self._dead_binding_message(name, existing))
             # r7-m4: the row is bound on ANOTHER backend (a backend switch); its source
             # lives there, not as a same-named file here. Do NOT report "no deck" (which
             # would invite a clobbering recreate) — say where it is bound.
@@ -376,7 +507,9 @@ class DeckAccess:
     # Write (local edits; push at the explicit commit boundary)
     # ----------------------------------------------------------------------- #
 
-    def save_deck(self, deck: Deck, *, allow_shrink: bool = False, commit: bool = True) -> None:
+    def save_deck(
+        self, deck: Deck, *, allow_shrink: bool = False, commit: bool = True, target_uuid: str | None = None
+    ) -> None:
         """Write ``deck`` to the local store; PUSH to the source at the commit boundary.
 
         ``save-deck`` is the user's AUTHORITATIVE write (arbitrary deck JSON), so it
@@ -384,16 +517,22 @@ class DeckAccess:
         our own authoritative write, not a drift (the shrink ceremony still guards
         it). Set ``commit=False`` to stage the local edit without touching the
         source.
+
+        ``target_uuid`` (r9-M1 — ``save-deck --id`` recovery) PINS the write to ONE
+        already-resolved row (a dup-named dead row addressed by ``--id``), bypassing the
+        NAME-based dup refusal (the caller already disambiguated by uuid). Only the pinned
+        row is touched — it can never fork or clobber a sibling.
         """
-        # r7-M1 + r8-M1: run the dup-name refusal at the TOP, BEFORE any put — and make
-        # it ALIAS-AWARE. The old order ``put`` the payload into the oldest row (silent
-        # ``uuid_for_name`` tie-break) and only refused later inside ``push``, staging
-        # refused content a later ``sync`` could land. And the EXACT-name check (r8-M1)
-        # missed a CASE alias: ``save-deck PRECIOUS`` under two ``Precious`` rows matched
-        # zero rows, slid past the wall, and full-overwrote the base-slug file at exit 0.
-        # Resolve the alias to its bound canonical row and refuse if THAT row is one of a
-        # dup set — the same wall the edit verbs use (``resolve_bound`` shape).
-        self._refuse_dupname_save(deck.name)
+        if target_uuid is None:
+            # r7-M1 + r8-M1: run the dup-name refusal at the TOP, BEFORE any put — and make
+            # it ALIAS-AWARE. The old order ``put`` the payload into the oldest row (silent
+            # ``uuid_for_name`` tie-break) and only refused later inside ``push``, staging
+            # refused content a later ``sync`` could land. And the EXACT-name check (r8-M1)
+            # missed a CASE alias: ``save-deck PRECIOUS`` under two ``Precious`` rows matched
+            # zero rows, slid past the wall, and full-overwrote the base-slug file at exit 0.
+            # Resolve the alias to its bound canonical row and refuse if THAT row is one of a
+            # dup set — the same wall the edit verbs use (``resolve_bound`` shape).
+            self._refuse_dupname_save(deck.name)
 
         # Key the local row by the source's external ref when the source already
         # exists (bind to the ONE row), else by the deck's OWN uuid so a later read
@@ -405,7 +544,19 @@ class DeckAccess:
         # deck derives its baseline from ITS OWN bound file/record, never the base
         # slug. Only a genuine first save (no row yet) name-reads the source to learn
         # whether one already exists on the backend.
-        existing_uuid = self._decks.uuid_for_name(deck.name)
+        existing_uuid = target_uuid if target_uuid is not None else self._decks.uuid_for_name(deck.name)
+        # r9-m1: a CASE-ALIAS payload name on a dead row must not FORK. ``save-deck EMBER``
+        # while row ``Ember`` is dead had no exact-name row, so it slid past recovery and
+        # created a NEW row+file, orphaning the dead zombie. Resolve a case alias to its
+        # canonical dead-bound row and route THROUGH recovery of that row (rename the
+        # payload to the canonical name) — a typo recovers, never forks.
+        if existing_uuid is None:
+            aliased = self._alias_dead_row(deck.name)
+            if aliased is not None:
+                canonical_uuid, canonical_name = aliased
+                existing_uuid = canonical_uuid
+                if deck.name != canonical_name:
+                    deck = deck.model_copy(update={'name': canonical_name})
         # P11 RECOVERY (replaces P10's --recreate): a save-deck onto a row whose bound
         # source is gone/re-identified RECOVERS by creating a BRAND-NEW source at a fresh
         # identity — it does NOT refuse (edit/sync verbs still refuse; save-deck is the
@@ -420,13 +571,13 @@ class DeckAccess:
         )
         if recovering:
             assert existing_uuid is not None
-            deck = self._prepare_recovery(deck, existing_uuid)
+            deck = self._prepare_recovery(deck)
         # During recovery the source is (by definition) gone; do NOT name-read it — a
         # re-identified base slug would be a same-named STRANGER, and adopting it is the
         # exact r8-M3 harm. A fresh-identity create writes its own source.
         source = None if recovering else self._source_for_save(deck.name, existing_uuid)
         baseline = version(source) if source is not None else None
-        deck_uuid = self._save_target_uuid(deck, source)
+        deck_uuid = self._save_target_uuid(deck, source, existing_uuid=existing_uuid)
         pre_edit = self._decks.get(deck_uuid) if commit else None
         self._decks.put(deck, deck_uuid=deck_uuid, sync_status='synced', source_ref=deck.name,
                         synced_baseline=baseline, rationale='save-deck')
@@ -503,37 +654,47 @@ class DeckAccess:
         if bound is not None:
             self._refuse_alias_under_dup_names(name, bound)
 
-    def _prepare_recovery(self, deck: Deck, existing_uuid: str) -> Deck:
-        """Strip the stale external identity for a fresh-identity recovery save (P11).
+    def _prepare_recovery(self, deck: Deck) -> Deck:
+        """Return a FRESH-identity payload for a recovery save (P11 + r9-B2).
 
         A ``save-deck`` onto a row whose bound source is gone/re-identified recovers by
-        creating a BRAND-NEW source. Drop the row's now-dead external ref (so no bound
-        read routes into the dead file/record), and return a payload at a FRESH identity:
+        creating a BRAND-NEW source at a fresh identity:
 
         - drop ``airtable_record_id`` so the Airtable adapter takes ``create_record``
           (not ``update_record`` on the deleted record → 422, the r8-M2 wedge);
-        - mint a FRESH in-file ``uuid`` so the local YAML adapter's slug guard writes a
-          NEW file (never adopting a re-identified same-named stranger, r8-M3).
+        - mint a FRESH in-file ``uuid`` so the local YAML adapter writes a NEW file.
+
+        r9-B2 — ATOMIC ref handling: this NO LONGER wipes the row's dead external ref
+        up front. The wipe/replace happens ONLY after the create succeeds (in
+        ``_commit_recovery``). A create that FAILS therefore leaves the OLD dead ref
+        intact, so ``binding_is_dead`` stays True and the honest refusal is restored —
+        a retry cannot fall into the never-bound name-read fallback and adopt a
+        same-named stranger. The create needs no wipe: this payload already carries a
+        fresh identity (no ``airtable_record_id``, a fresh in-file uuid), so
+        ``save_deck(force_fresh=True)`` creates rather than adopting the dead ref.
         """
         from uuid import uuid4
 
-        # Drop the dead external ref for the active backend (both, defensively) so the
-        # subsequent create is a clean first push, not a bound read of the dead source.
-        self._decks.replace_external_ids(existing_uuid, {})
         return deck.model_copy(update={'uuid': uuid4().hex, 'airtable_record_id': None})
 
     def _commit_recovery(self, deck: Deck, deck_uuid: str, *, allow_shrink: bool) -> None:
-        """Create a fresh source for a recovery save, then bind the row to it (P11).
+        """Create a fresh source for a recovery save, then bind the row to it (P11 + r9).
 
         Bypasses ``push``'s current-source name-read (which would adopt a same-named
-        STRANGER, r8-M3). The payload already carries a fresh identity, so ``save_deck``
-        creates a NEW record / mints a NEW disambiguated file. Then re-read by the fresh
-        identity (never a name read) to stamp the baseline and rebind the row.
+        STRANGER, r8-M3). The payload already carries a fresh identity, and ``force_fresh``
+        forbids the adapter from adopting ANY existing same-named file (r9-B1: the local
+        legacy-upgrade branch), so ``save_deck`` mints a NEW record / a NEW disambiguated
+        file. The create runs FIRST; only on SUCCESS is the row's ref REPLACED with the
+        fresh one — a failed create raises before any ref change, leaving the row
+        bound-and-dead (r9-B2). Then re-read by the fresh identity (never a name read) to
+        stamp the baseline.
         """
         from pipeline.decks.version import version as _version
 
         to_save = deck  # fresh identity already stamped by ``_prepare_recovery``.
-        self._driver.save_deck(to_save, allow_shrink=allow_shrink)  # create (may stamp recordId).
+        # r9-B1: FORCED-FRESH create — never adopt a same-named legacy backup in place.
+        # r9-B2: this runs BEFORE any ref change; a failure raises here, ref untouched.
+        self._driver.save_deck(to_save, allow_shrink=allow_shrink, force_fresh=True)
         expected = (
             to_save.airtable_record_id if self.backend == 'airtable' else to_save.uuid
         )
@@ -542,15 +703,19 @@ class DeckAccess:
             source_ref=deck.name, expected_ref=expected,
         )
         landed = written if written is not None else to_save
+        # Create SUCCEEDED — now (and only now) REPLACE the dead ref with the fresh one,
+        # atomically with adopting the new source. A ``set_external_id`` merge would leave
+        # the OLD dead ref alongside the new one, so replace the whole map with just the
+        # fresh identity's ref (r9-B2: the ref transitions dead → fresh in one step).
+        landed_ext = self._external_ref(landed)
         self._decks.put(
             landed, deck_uuid=deck_uuid, sync_status='synced', source_ref=deck.name,
             synced_baseline=_version(landed), rationale='save-deck (recover)',
         )
-        # BIND the row to the fresh identity HERE — never let the outer re-bind block
-        # name-read (an airtable name-read would adopt a same-named stranger, r8-M3).
-        landed_ext = self._external_ref(landed)
         if landed_ext is not None:
-            self._decks.set_external_id(deck_uuid, *landed_ext)
+            self._decks.replace_external_ids(deck_uuid, {landed_ext[0]: landed_ext[1]})
+        else:  # pragma: no cover - a landed source always carries an external ref.
+            self._decks.replace_external_ids(deck_uuid, {})
 
     def _rollback_save(self, deck_uuid: str, pre_edit: Deck | None) -> None:
         """Undo a refused ``save_deck`` put: restore the pre-edit deck, else drop the row.
@@ -577,14 +742,22 @@ class DeckAccess:
         except FileNotFoundError:
             return None
 
-    def _save_target_uuid(self, deck: Deck, source: Deck | None) -> str:
-        """Pick the local row uuid for a ``save_deck`` (bind to an existing ref if any)."""
+    def _save_target_uuid(self, deck: Deck, source: Deck | None, *, existing_uuid: str | None = None) -> str:
+        """Pick the local row uuid for a ``save_deck`` (bind to an existing ref if any).
+
+        ``existing_uuid`` (an already-resolved row — a recovery target, possibly ``--id``
+        pinned under dup names) takes precedence over the ambiguous ``uuid_for_name``
+        tie-break so a dup-named recovery lands on the ROW THE CALLER PINNED, never the
+        oldest same-named row (r9-M1).
+        """
         if source is not None:
             ext = self._external_ref(source)
             if ext is not None:
                 bound = self._decks.uuid_for_external_ref(*ext)
                 if bound is not None:
                     return bound
+        if existing_uuid is not None:
+            return existing_uuid
         existing = self._decks.uuid_for_name(deck.name)
         if existing is not None:
             return existing

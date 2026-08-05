@@ -182,7 +182,9 @@ class MockAirtableDecks:
             return self.records[record_id].model_copy(update={'airtable_record_id': record_id})
         raise FileNotFoundError(f'No Airtable Decks record with id {record_id!r}.')
 
-    def save_deck(self, deck: Deck, *, allow_shrink: bool = False) -> None:
+    def save_deck(self, deck: Deck, *, allow_shrink: bool = False, force_fresh: bool = False) -> None:
+        # ``force_fresh`` (r9-B1) is a no-op on Airtable (create/update is driven by
+        # ``airtable_record_id``); accepted for current-adapter contract parity.
         if deck.airtable_record_id:
             if deck.airtable_record_id not in self.records:
                 self.log.append(f'update_record({deck.airtable_record_id}) -> 422 DELETED')

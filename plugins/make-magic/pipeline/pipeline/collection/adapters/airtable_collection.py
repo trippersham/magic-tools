@@ -1087,8 +1087,14 @@ class AirtableCollectionStore:
         # Hydrating every card here is O(rows*cards) paced Scryfall lookups.
         return [self._row_to_deck(r, name_map, hydrate=False) for r in rows]
 
-    def save_deck(self, deck: Deck, *, allow_shrink: bool = False) -> None:
+    def save_deck(self, deck: Deck, *, allow_shrink: bool = False, force_fresh: bool = False) -> None:
         """Persist the WHOLE deck: metadata + full membership.
+
+        ``force_fresh`` (r9-B1 — recovery) is accepted for interface parity but is a
+        NO-OP here: create/update targeting is driven by ``deck.airtable_record_id``
+        (absent → ``create_record``), which the recovery caller has already stripped,
+        so a recovery save is already a fresh ``create_record`` — it never adopts a
+        same-named record.
 
         Membership maps to the live Decks schema as:
             - ``Commander`` link  <- DeckCards with ``role == 'commander'``
