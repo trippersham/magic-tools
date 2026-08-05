@@ -40,9 +40,11 @@ if TYPE_CHECKING:
     from pipeline.decks.store import DecksStore
 
 __all__ = (
+    'CrossBackendBindingError',
     'DeadBindingError',
     'SyncDriftError',
     'binding_is_dead',
+    'cross_backend_message',
     'dead_binding_message',
     'guard_write_binding',
     'promote',
@@ -60,6 +62,25 @@ class SyncDriftError(Exception):
     the source's new content is not already what we are about to write. The source
     of record is left untouched; the caller reconciles (re-pull, re-apply) before
     pushing again.
+    """
+
+
+class CrossBackendBindingError(Exception):
+    """The row is bound on a DIFFERENT backend than the active one — a WRITE refuses (r10-M1).
+
+    The write-side twin of the read chokepoint's r7-m4 clause (``read_source_bound`` ->
+    ``_bound_on_other_backend`` -> None, surfaced as "switch back to its source backend").
+    A row carrying an ``external_ids`` ref for ANOTHER backend but NONE for the active one
+    (a cross-machine / backend-switch row) is NOT a genuine first push: its source lives on
+    the other backend. Without this, ``binding_is_dead`` reads "no ref for the active backend
+    → never-created", ``guard_write_binding`` passes, and ``push`` falls through to a
+    first-save create that adopts a same-named legacy file IN PLACE (``local_yaml`` legacy-
+    upgrade branch) — exit-0, unledgered destruction of a marker-evading restored backup.
+
+    Distinct from :class:`DeadBindingError` (a ref exists FOR the active backend but its
+    source is gone) and from a genuine first push (NO ref at all → create, unchanged). The
+    message mirrors the read side exactly so an agent following it literally switches back
+    to the source backend rather than being told to recreate.
     """
 
 
@@ -124,9 +145,42 @@ def guard_write_binding(
     (that silently adopted a same-named stranger, r8-M3). The error names ONLY
     ``save-deck`` (:func:`dead_binding_message`).
     """
+    # r10-M1: write-side r7-m4 parity. A row bound on a DIFFERENT backend than the
+    # active one is NOT a genuine first push (it HAS a source, just elsewhere) — refuse
+    # with the same "switch back to its source backend" the READ already emits, BEFORE
+    # the dead-binding check (which would read "no ref for the active backend → never
+    # created" and let the create fall through to adopt a same-named file in place).
+    backend = getattr(driver, 'backend_name', None)
+    active = 'airtable' if backend == 'airtable' else 'local'
+    if _bound_on_other_backend(decks, deck_uuid, active) and not _external_ref_value(
+        decks, deck_uuid, active
+    ):
+        raise CrossBackendBindingError(cross_backend_message(source_ref, active))
     if not binding_is_dead(decks, driver, deck_uuid=deck_uuid, source_ref=source_ref):
         return
-    raise DeadBindingError(dead_binding_message(driver, source_ref))
+    # r10-m1: make the refusal DUP-AWARE (mirror the read-side ``_dead_binding_message``).
+    # Under dup names a bare ``save-deck "X"`` would only re-refuse on ambiguity, so name
+    # the executable ``save-deck "X" --id <prefix>`` that pins the dead row instead.
+    siblings = decks.rows_for_name(source_ref)
+    dup = len(siblings) > 1
+    raise DeadBindingError(
+        dead_binding_message(
+            driver, source_ref, dup_names=dup, id_prefix=deck_uuid[:6] if dup else None
+        )
+    )
+
+
+def cross_backend_message(source_ref: str, active_backend: str) -> str:
+    """The write-side cross-backend refusal — mirrors the read chokepoint's r7-m4 wording.
+
+    A row bound on another backend has its source THERE; the fix is to switch the active
+    backend back, not to recreate (which would clobber a same-named file here). An agent
+    reads this literally, so it names the safe corrective action, never a destructive one.
+    """
+    return (
+        f'{source_ref!r} is bound to a different backend than the active one ({active_backend}) — '
+        'switch back to its source backend to write to it. Your local copy is intact.'
+    )
 
 
 def dead_binding_message(

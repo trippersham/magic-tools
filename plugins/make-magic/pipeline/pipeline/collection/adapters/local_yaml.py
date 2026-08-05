@@ -352,7 +352,7 @@ class LocalYamlStore:
             # even a same-uuid file — impossible for a fresh recovery id) disambiguates.
             if not base.exists():
                 return base
-            return self._decks_dir() / f'{_slugify(deck.name)}-{deck.uuid[:8]}.yaml'
+            return self._fresh_disambiguated_path(deck)
         # A file already bound to THIS uuid (possibly a disambiguated one) wins — a
         # re-save must land on the same file, not spawn a new one.
         bound = self.find_deck_path_by_uuid(deck.uuid)
@@ -377,6 +377,31 @@ class LocalYamlStore:
         # Base file bound to a DIFFERENT uuid (or a legacy file for a DIFFERENT deck)
         # -> disambiguate so we never overwrite an unrelated file (the collision case).
         return self._decks_dir() / f'{_slugify(deck.name)}-{deck.uuid[:8]}.yaml'
+
+    def _fresh_disambiguated_path(self, deck: Deck) -> Path:
+        """A NEVER-occupied ``<slug>-<uuid8>.yaml`` recovery target (r10-i1).
+
+        ``force_fresh`` recovery must never adopt an existing file. The base slug is
+        taken, so we disambiguate by the fresh uuid's first 8 hex — but if THAT file is
+        also occupied (a pre-existing ``<slug>-<uuid8>.yaml`` sibling whose name matches
+        the fresh mint's first 8 hex — a 2^-32 collision, but free to close), re-check the
+        occupant: widen the suffix until the filename is genuinely free. The filename is
+        transparent to every read (``find_deck_path_by_uuid`` locates the row by its
+        in-file uuid regardless of filename), so a widened suffix is harmless.
+        """
+        slug = _slugify(deck.name)
+        decks_dir = self._decks_dir()
+        # Prefer the canonical 8-hex suffix; widen (more hex, then a counter) if occupied.
+        for width in range(8, len(deck.uuid) + 1):
+            candidate = decks_dir / f'{slug}-{deck.uuid[:width]}.yaml'
+            if not candidate.exists():
+                return candidate
+        counter = 1
+        while True:
+            candidate = decks_dir / f'{slug}-{deck.uuid}-{counter}.yaml'
+            if not candidate.exists():
+                return candidate
+            counter += 1
 
     @staticmethod
     def _file_uuid(path: Path) -> str | None:

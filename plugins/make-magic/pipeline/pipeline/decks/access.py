@@ -557,6 +557,19 @@ class DeckAccess:
                 existing_uuid = canonical_uuid
                 if deck.name != canonical_name:
                     deck = deck.model_copy(update={'name': canonical_name})
+        # r10-M1: an EXISTING row bound on a DIFFERENT backend than the active one is
+        # NOT a first-save create and NOT a same-backend recovery — its source lives on
+        # the other backend. A save here would fall through to a first-save create that
+        # adopts a same-named legacy file IN PLACE (the exit-0 destruction path). Refuse
+        # with the write-side cross-backend guard (mirrors the read's "switch back")
+        # BEFORE recovery/first-save. This is the cross-backend clause ONLY: a
+        # SAME-backend dead binding is still the one thing save-deck RECOVERS (below).
+        if existing_uuid is not None and _sync._bound_on_other_backend(
+            self._decks, existing_uuid, self.backend if self.backend == 'airtable' else 'local'
+        ) and not _sync._external_ref_value(
+            self._decks, existing_uuid, self.backend if self.backend == 'airtable' else 'local'
+        ):
+            raise DecksError(_sync.cross_backend_message(deck.name, self.backend))
         # P11 RECOVERY (replaces P10's --recreate): a save-deck onto a row whose bound
         # source is gone/re-identified RECOVERS by creating a BRAND-NEW source at a fresh
         # identity — it does NOT refuse (edit/sync verbs still refuse; save-deck is the
@@ -604,6 +617,12 @@ class DeckAccess:
                     # fresh in-file uuid), so ``driver.save_deck`` creates a NEW record /
                     # mints a NEW disambiguated file rather than updating a dead ref.
                     self._commit_recovery(deck, deck_uuid, allow_shrink=allow_shrink)
+                elif target_uuid is not None:
+                    # r10-m2: a PINNED save (``--id`` under dup names) must commit by the
+                    # RESOLVED uuid — ``push(deck.name)`` would re-refuse on NAME ambiguity,
+                    # telling the user to do what they just did. Thread the pinned id
+                    # through so ``--id`` composes end-to-end.
+                    self.push(deck.name, allow_shrink=allow_shrink, id_prefix=deck_uuid)
                 else:
                     self.push(deck.name, allow_shrink=allow_shrink)
             except Exception:

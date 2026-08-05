@@ -354,7 +354,30 @@ def _get_deck(argv: list[str]) -> None:
         # r9-M1: serve the local copy with NO pull (dead-binding-reachable). A loud
         # note goes to STDERR so STDOUT stays parseable deck JSON.
         deck = access.read_local(args.name or '', id_prefix=args.id_prefix)
-        print(f'note: source missing — showing local copy of {deck.name!r} (no pull).', file=sys.stderr)
+        # r10-m4: the note must be TRUE. ``--local`` serves the local copy with no pull
+        # on ANY deck (healthy or dead), so the unconditional "source missing" was false
+        # on a healthy deck. Only claim the source is gone when the binding is actually
+        # dead; otherwise state the accurate "no pull" fact.
+        from pipeline.decks import DecksStore
+
+        note = f'note: showing local copy of {deck.name!r} (no pull).'
+        try:
+            resolved = (
+                access.resolve(id_prefix=args.id_prefix)
+                if args.id_prefix is not None
+                else access.resolve(args.name or '')
+            )
+            row = DecksStore().get_row(resolved)
+            if row is not None and row.source_ref is not None and access.is_binding_dead(
+                resolved, row.source_ref
+            ):
+                note = (
+                    f'note: source missing — showing local copy of {deck.name!r} (no pull). '
+                    'Recover it with save-deck.'
+                )
+        except CollectionError:
+            pass
+        print(note, file=sys.stderr)
         if not args.field and not args.provenance:
             print(deck.model_dump_json(indent=2))
             return
@@ -396,8 +419,11 @@ def _save_deck(argv: list[str]) -> None:
         prog='collection save-deck',
         description=(
             'Save a deck. Authoring: `save-deck --from-json <file>` writes arbitrary deck JSON. '
-            'Recovery: `save-deck "<name>"` (or `--id <prefix>`) re-saves the deck from its LOCAL '
-            'copy to a FRESH source — the advised fix when a deck\'s source file/record is missing.'
+            "Recovery: `save-deck \"<name>\"` (or `--id <prefix>`) re-saves the deck from its LOCAL "
+            "copy — the advised fix when a deck's source file/record is missing (a DEAD binding). "
+            'For a dead binding this writes a FRESH source and rebinds the row; for a HEALTHY, '
+            'bound deck it is an authoritative push of the local copy to the EXISTING source '
+            '(equivalent to `--from-json` of that copy).'
         ),
     )
     parser.add_argument('name', nargs='?', help='Deck name to RECOVER from its local copy (recovery mode).')
@@ -428,6 +454,11 @@ def _save_deck(argv: list[str]) -> None:
 
     if args.name is not None:
         parser.error('give a deck NAME (recovery) OR --from-json (authoring), not both')
+    # r10-m3: --id is a RECOVERY addressing flag; authoring (--from-json) never reads it.
+    # Combining them silently ignored --id and then refused on dup ambiguity — refuse the
+    # combination up front (mutually exclusive) rather than loop the user.
+    if args.id_prefix is not None:
+        parser.error('--from-json (authoring) and --id (recovery addressing) are mutually exclusive')
     raw = sys.stdin.read() if args.from_json == '-' else Path(args.from_json).read_text()
     try:
         deck = Deck.model_validate_json(raw)
@@ -1784,7 +1815,7 @@ def main() -> None:
     # here so the local-only path never triggers the adapter import.
     from pipeline.collection.adapters.airtable_collection import ReadOnlyStoreError
     from pipeline.decks.store import DecksError
-    from pipeline.decks.sync import DeadBindingError, SyncDriftError
+    from pipeline.decks.sync import CrossBackendBindingError, DeadBindingError, SyncDriftError
 
     try:
         VERBS[verb](sys.argv[2:])
@@ -1797,6 +1828,7 @@ def main() -> None:
         DecksError,
         SyncDriftError,
         DeadBindingError,
+        CrossBackendBindingError,
     ) as exc:
         # EXPECTED, user-facing failures only (unknown deck, bad --field, malformed
         # YAML, bad user JSON, missing creds, Airtable schema/read-only errors, a
