@@ -56,7 +56,7 @@ You talk; make-magic does the work. The kinds of things it's actually good at:
 
 Claude picks the right skill, reasons about strategy fit (not raw power), and does the
 analysis — you never touch a command line. *(And yes, you can still ask whether Sol Ring
-belongs in your deck. It does. It always does.)*
+belongs in your deck. It does — and it always will, until the day they finally ban it.)*
 
 ---
 
