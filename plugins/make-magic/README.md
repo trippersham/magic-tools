@@ -150,9 +150,43 @@ while the sim plays the maindeck.
 - **Simulation** — your deck → Forge → a pool of headless game engines → a win-rate and
   play-style profile, cached so an unchanged matchup never re-runs.
 
-Building on top of make-magic, or want to script it? The skills are the interface for
-humans; the underlying `collection` / `simulate` CLIs and the agent-facing guidance live
-in **[AGENTS.md](AGENTS.md)**.
+---
+
+## Driving it directly (advanced)
+
+You don't need this — the skills are the interface, and they drive it for you. But make-magic
+is backed by two scriptable CLIs under `${CLAUDE_PLUGIN_ROOT}/scripts/` if you want to build
+on top or automate: **`collection`** (decks, inventory, chase, trades) and **`simulate`**
+(Forge games). They behave identically on local files or Airtable. Every verb takes `-h`.
+
+```bash
+C="${CLAUDE_PLUGIN_ROOT}/scripts/collection"
+S="${CLAUDE_PLUGIN_ROOT}/scripts/simulate"
+
+"$C" status                                     # backend + readiness (zero setup)
+"$C" get-deck "Krenko Goblins" [--provenance]   # deck JSON (+ assessment/sim freshness)
+"$C" list-decks                                 # decks + status: [synced] / [ephemeral]
+"$C" factsheet "Krenko Goblins"                 # neutral curve / ramp / interaction analysis
+
+# Guarded, quantity-aware edits (a bad edit is refused with a clear message, not applied)
+"$C" deck-swap "Krenko Goblins" --add "Goblin Recruiter" --cut "Lightning Bolt" --why "…"
+"$C" deck-add / deck-remove / set-strategy / set-assessment / undo-deck   # …see -h
+
+# Experiment safely: a local draft copy, promoted back when good (the copy auto-retires)
+"$C" new-draft "Krenko (explore)" --from "Krenko Goblins"
+"$C" promote-deck "Krenko (explore)" --to "Krenko Goblins"
+
+# Collection + simulation
+"$C" add-card "Sol Ring"                         # --foil is a COUNT, not true/false
+"$S" doctor [--provision]                        # Forge/Java status (or fetch the one-time ~350 MB)
+"$S" deck "Krenko Goblins" --gauntlet guilds --games 30    # --games is PER opponent
+```
+
+Notes worth knowing: decks are addressed **by name** (`--id <prefix>` disambiguates if a
+name repeats); the store **enforces every deck invariant** so a bad edit is refused rather
+than silently applied; error messages name the exact safe command to run next; and drafts
+stay local until you `promote-deck`. The commander is a `cards[]` entry with
+`"role": "commander"` — not a top-level field.
 
 ---
 
