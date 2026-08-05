@@ -1,4 +1,4 @@
-"""TDD tests for the sim matchup cache + telemetry feature store (Phase 5).
+"""TDD tests for the sim matchup cache + telemetry feature store.
 
 Everything here is OFFLINE: a tmp data dir (via the MAKE_MAGIC_DATA_DIR env
 override) backing a DuckDB file. No Forge, no network, no Airtable. We hand the

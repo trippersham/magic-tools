@@ -1,11 +1,11 @@
 """Sim core: cached matchup execution + ``simulate`` / ``compare`` over a gauntlet.
 
-This is the integrating layer that ties every prior phase together:
+This is the integrating layer that ties the sim modules together:
 
   * :mod:`pipeline.sim.gauntlet` resolves the opponent set;
   * :mod:`pipeline.sim.store` is the content-addressed cache (a matchup already
-    run is NEVER re-run unless ``force``);
-  * :mod:`pipeline.sim.governor` runs the cache MISSES across a bounded,
+    run is never re-run unless ``force``);
+  * :mod:`pipeline.sim.governor` runs the cache misses across a bounded,
     resource-safe pool of Forge JVMs;
   * :mod:`pipeline.sim.telemetry` turns each fresh verbose log into per-game
     :class:`~pipeline.sim.telemetry.GameFeatures`, which :func:`simulate`
@@ -18,12 +18,12 @@ Three entry points:
     flagged).
   * :func:`simulate` — resolve a gauntlet, build one matchup per opponent, run
     them cached, and aggregate into a :class:`SimResult` (overall win-rate +
-    **Wilson CI**, per-opponent breakdown, and an aggregate telemetry profile).
-  * :func:`compare` — ``simulate`` two variants over the SAME gauntlet and diff
+    Wilson CI, per-opponent breakdown, and an aggregate telemetry profile).
+  * :func:`compare` — ``simulate`` two variants over the same gauntlet and diff
     their profiles.
 
-**Variance is from sample size, not seed pairing.** Forge's ``-s`` is not a
-reliably reproducible seed, so this layer makes NO common-random-numbers claim:
+Variance is from sample size, not seed pairing. Forge's ``-s`` is not a
+reliably reproducible seed, so this layer makes no common-random-numbers claim:
 the Wilson CI on win-rate reflects the number of games, full stop.
 """
 
@@ -110,7 +110,7 @@ def wilson_ci(wins: int, n: int, *, z: float = _WILSON_Z) -> tuple[float, float]
 class MatchOutcome:
     """One matchup's result: the candidate's win tally + per-game telemetry.
 
-    ``wins`` / ``losses`` / ``draws`` are from the CANDIDATE's perspective (the
+    ``wins`` / ``losses`` / ``draws`` are from the candidate's perspective (the
     candidate is always ``deck_a`` / Ai(1) in the spec). ``cached`` is True when
     this outcome was served from the store (0 Forge games), False when freshly
     run. ``features`` is the per-game telemetry (parsed fresh, or rehydrated from
@@ -132,7 +132,7 @@ class MatchOutcome:
 
 @dataclass(frozen=True)
 class OpponentResult:
-    """The candidate's record vs ONE opponent — the per-opponent breakdown row."""
+    """The candidate's record vs one opponent — the per-opponent breakdown row."""
 
     opponent: str
     wins: int
@@ -167,7 +167,7 @@ class TelemetryProfile:
 class SimResult:
     """The aggregated outcome of simulating a candidate against a gauntlet.
 
-    Overall win-rate + **Wilson CI** over ALL games, the per-opponent breakdown,
+    Overall win-rate + Wilson CI over all games, the per-opponent breakdown,
     and a pooled telemetry :class:`TelemetryProfile`. ``cached_matchups`` /
     ``fresh_matchups`` count how many opponents were served from cache vs freshly
     run (0 fresh == a fully cached re-run).
@@ -191,13 +191,13 @@ class SimResult:
 
 @dataclass(frozen=True)
 class Comparison:
-    """A diff of two :class:`SimResult` over the SAME gauntlet (A vs B).
+    """A diff of two :class:`SimResult` over the same gauntlet (A vs B).
 
     ``win_rate_delta`` is ``A.win_rate - B.win_rate``; ``metric_deltas`` diffs the
     two profiles' scalar metrics (A minus B, ``None`` when either side is
     ``None``). ``stronger`` names the higher-win-rate variant (``None`` on a tie).
     Per the module note, the confidence in a delta comes from each side's Wilson
-    CI (sample size) — there is NO seed-paired CRN claim.
+    CI (sample size) — there is no seed-paired CRN claim.
     """
 
     a: SimResult
@@ -213,7 +213,7 @@ class Comparison:
 
 
 def _candidate_tally(result: MatchResult) -> tuple[int, int, int]:
-    """(wins, losses, draws) from the CANDIDATE (deck_a / Ai(1)) perspective."""
+    """(wins, losses, draws) from the candidate (deck_a / Ai(1)) perspective."""
     return result.wins_a, result.wins_b, result.draws
 
 
@@ -228,12 +228,12 @@ def run_cached_matchups(
     """Run ``specs`` through the content-addressed cache, returning one outcome each.
 
     For each spec a :func:`~pipeline.sim.store.matchup_key` is computed; unless
-    ``force``, a :func:`~pipeline.sim.store.get_cached` hit is served with ZERO
-    Forge games. The remaining MISSES are run together via
+    ``force``, a :func:`~pipeline.sim.store.get_cached` hit is served with zero
+    Forge games. The remaining misses are run together via
     :func:`~pipeline.sim.governor.run_matchups` (one bounded, resource-safe
     batch), each fresh log is parsed with
     :func:`~pipeline.sim.telemetry.extract_match_features` and persisted with
-    :func:`~pipeline.sim.store.store_matchup`. Returns the outcomes in the SAME
+    :func:`~pipeline.sim.store.store_matchup`. Returns the outcomes in the same
     order as ``specs`` (candidate-perspective tally + telemetry, cached flagged).
     """
     version = forge_version()
@@ -264,7 +264,7 @@ def run_cached_matchups(
         pool = run_matchups(install, miss_specs, pool_size=pool_size)  # type: ignore[arg-type]
 
         # The governor returns results out of order; ``pool.pairs`` binds each
-        # result to the EXACT spec that produced it (deck names are NOT unique —
+        # result to the exact spec that produced it (deck names are not unique —
         # e.g. a `both` gauntlet can repeat a name — so pairing by name could
         # attribute a result, and its cache row, to the wrong spec/key). A spec
         # with no paired result was a governor failure (deck-load/timeout) -> a
@@ -303,7 +303,7 @@ def run_cached_matchups(
 
 
 def _pop_matching_result(pairs: list[tuple[MatchSpec, MatchResult]], spec: MatchSpec) -> MatchResult | None:
-    """Pop the first paired result whose SPEC equals ``spec`` (order-independent).
+    """Pop the first paired result whose spec equals ``spec`` (order-independent).
 
     Pairing is by full spec equality (names + dck text + n + seed + fmt), never
     by deck name alone — duplicate names across specs would otherwise
@@ -377,7 +377,7 @@ def simulate(
     """Simulate ``deck`` against a resolved gauntlet and aggregate the results.
 
     Resolves the opponent set (:func:`~pipeline.sim.gauntlet.resolve_gauntlet`),
-    builds ONE :class:`~pipeline.sim.governor.MatchSpec` per opponent (the
+    builds one :class:`~pipeline.sim.governor.MatchSpec` per opponent (the
     candidate as ``deck_a`` vs the opponent, ``n=games``, a per-opponent seed
     offset so parallel workers don't replay identical games), runs them through
     :func:`run_cached_matchups`, and folds the outcomes into a :class:`SimResult`:
@@ -398,7 +398,7 @@ def simulate(
             deck_b=(opp.name, opp.dck_text),
             n=games,
             # Vary the seed per opponent so distinct matchups don't share a key
-            # AND parallel JVMs don't replay identical games.
+            # and parallel JVMs don't replay identical games.
             seed=seed + offset,
             fmt=fmt,
         )
@@ -481,14 +481,14 @@ def compare(
     data_dir: str | os.PathLike[str] | None = None,
     pool_size: int | None = None,
 ) -> Comparison:
-    """Simulate two variants over the SAME gauntlet and diff their profiles.
+    """Simulate two variants over the same gauntlet and diff their profiles.
 
     Calls :func:`simulate` for ``variant_a`` and ``variant_b`` with identical
     gauntlet / games / seed / format, then diffs: the win-rate delta (A minus B,
     each side carrying its own Wilson CI) and the per-metric profile deltas.
     ``stronger`` names the higher-win-rate variant (``None`` on a tie).
 
-    Variance comes from sample size (each side's Wilson CI), NOT from seed
+    Variance comes from sample size (each side's Wilson CI), not from seed
     pairing — Forge's ``-s`` is not reliably reproducible, so no common-random-
     numbers pairing is claimed.
     """

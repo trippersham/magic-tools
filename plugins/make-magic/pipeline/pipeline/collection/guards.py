@@ -25,7 +25,14 @@ if TYPE_CHECKING:
     from pipeline.collection.store import CollectionStore
     from pipeline.contracts import Deck
 
-__all__ = ('DeckImpact', 'check_remove_allowed', 'decks_linking', 'remove_impact', 'shrink_check')
+__all__ = (
+    'DeckImpact',
+    'check_remove_allowed',
+    'decks_linking',
+    'remove_impact',
+    'shrink_check',
+    'shrink_refusal_message',
+)
 
 
 class DeckImpact(BaseModel):
@@ -181,3 +188,19 @@ def shrink_check(prior_deck: Deck, new_deck: Deck) -> bool:
     if target is None:
         return False
     return _deck_size(prior_deck) >= target and _deck_size(new_deck) < target
+
+
+def shrink_refusal_message(prior: Deck, deck: Deck) -> str:
+    """The refusal text a shrinking ``save_deck`` raises (adapter shrink guard).
+
+    One construction shared by every source adapter so the sizes and the
+    ``allow_shrink`` advice never drift between backends.
+    """
+    prior_size = sum(c.quantity for c in prior.cards)
+    new_size = sum(c.quantity for c in deck.cards)
+    return (
+        f"save-deck '{deck.name}': this save shrinks the deck from "
+        f'{prior_size} to {new_size} '
+        f'cards, below its target of {prior.target_size}. Pass allow_shrink=True '
+        '(the CLI: `save-deck --confirm`) to proceed.'
+    )

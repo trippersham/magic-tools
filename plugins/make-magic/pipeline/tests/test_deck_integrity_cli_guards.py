@@ -1,4 +1,4 @@
-"""Phase 4 — PREVENTION: CLI-level guard enforcement (the naive-user surface).
+"""PREVENTION: CLI-level guard enforcement (the user-facing surface).
 
 OFFLINE + source-agnostic. Two harnesses:
     - a fake-backed Airtable store (reused ``FakeAirtable``) drives the CRITICAL
@@ -136,8 +136,8 @@ def test_remove_unlinked_card_deletes_without_flag(
 # --------------------------------------------------------------------------- #
 # Port-level (bypass the CLI): a DIRECT store.remove_card must ALSO guard.
 #
-# The CRITICAL defense-in-depth proof — Phase 4 guarded only the CLI; these hit
-# the adapter primitive directly (no argparse in the loop) to prove a programmatic
+# Defense-in-depth: the CLI guard is not the only barrier. These hit the adapter
+# primitive directly (no argparse in the loop) to prove a programmatic
 # get_store().remove_card can no longer silently cascade-strip decks.
 # --------------------------------------------------------------------------- #
 

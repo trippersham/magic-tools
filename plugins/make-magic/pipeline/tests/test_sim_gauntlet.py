@@ -1,4 +1,4 @@
-"""TDD tests for gauntlet opponent-set resolution (Phase 6, Deliverable A).
+"""TDD tests for gauntlet opponent-set resolution.
 
 Everything here is OFFLINE. The ``curated`` source loads the bundled ``.dck``
 files that ship as plugin data under ``pipeline/data/gauntlet/``; the ``mine``

@@ -1,4 +1,4 @@
-"""TDD tests for the DuckDB store layer (Phase 2 — infrastructure only).
+"""TDD tests for the DuckDB store layer.
 
 Everything here is OFFLINE: a tmp data dir (via the MAKE_MAGIC_DATA_DIR env
 override) plus the committed tiny sample fixture. No network, no real bulk
@@ -137,12 +137,11 @@ def test_join_across_two_parquet_tables(data_dir: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# V1 — write_parquet is ATOMIC (tmp file + os.replace).
+# write_parquet is atomic (tmp file + os.replace).
 #
-# The prior `COPY ... TO '{path}'` overwrote the Parquet IN PLACE: a mid-write
-# crash could truncate the whole bulk. write_parquet now COPYs to a temp path in
-# the same dir, then `os.replace()`s it into place (atomic rename) — a failed
-# write leaves the prior Parquet intact and never leaves a partial at the target.
+# write_parquet copies to a temp path in the same dir, then `os.replace()`s it
+# into place (atomic rename) — a failed write leaves the prior Parquet intact and
+# never leaves a partial at the target.
 # --------------------------------------------------------------------------- #
 
 

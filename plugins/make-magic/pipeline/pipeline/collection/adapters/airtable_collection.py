@@ -5,8 +5,8 @@ the bulk-ETL `sources/airtable.py` (whole-table pull) and `destinations/airtable
 (derived write-back), this adapter does RECORD-LEVEL CRUD: read one deck, add one
 inventory card, log one trade — the granular operations the skills drive.
 
-Delta D1 (authoritative): the whole Airtable layer is **httpx**, not pyairtable.
-This module mirrors that choice and reuses:
+The whole Airtable layer is httpx, not pyairtable. This module mirrors that
+choice and reuses:
     - `config.AirtableResolver` for name -> per-base `tbl…`/`fld…` id resolution
       (via a GET-only meta client), so writes/reads key on stable field ids
       (``returnFieldsByFieldId=true`` / ``use_field_ids`` semantics).
@@ -49,7 +49,7 @@ is schema-free, DOES retain them). ``add_chase`` returns a human-readable note
 listing any such dropped fields so a caller can surface the limitation. It DOES,
 however, carry the nine Scryfall-derived columns (Card Type … Price (TCGPlayer) …
 Color Identity) — verified on the live base — which the inline chase derived-write
-(5b-3) refreshes after each chase mutation.
+refreshes after each chase mutation.
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import httpx
 
 from pipeline.collection.errors import CollectionError
-from pipeline.collection.guards import check_remove_allowed, shrink_check
+from pipeline.collection.guards import check_remove_allowed, shrink_check, shrink_refusal_message
 from pipeline.config import AirtableConfigError, AirtableResolver, get_settings
 from pipeline.contracts import ROLE_COMMANDER, ROLE_SIDEBOARD, ChaseCard, Deck, DeckCard, OwnedCard, Trade
 
@@ -125,16 +125,16 @@ class _RecordClient:
         self.__auth = {'Authorization': f'Bearer {token}', **HEADERS_UA}
         self._base_id = base_id
         self._writes_enabled = writes_enabled
-        #: Retained so the inline derived-column write (#5, 5b-2) can build its
-        #: guarded ``AllowlistWriteClient`` REUSING this same httpx connection and
-        #: PAT — no per-mutation client/connection churn. Read-only handles.
+        #: Retained so the inline derived-column write can build its guarded
+        #: ``AllowlistWriteClient`` reusing this same httpx connection and PAT — no
+        #: per-mutation client/connection churn. Read-only handles.
         self._token = token
 
     @property
     def httpx_client(self) -> httpx.Client:
         """The underlying httpx client, exposed for connection REUSE only.
 
-        The inline derived-column write path (#5) constructs its own guarded
+        The inline derived-column write path constructs its own guarded
         ``AllowlistWriteClient`` over this same connection so a collection
         mutation does not open a second socket. The write guard is enforced by
         that client, not here; this is purely a connection handle.
@@ -324,28 +324,28 @@ class AirtableCollectionStore:
         # only carry names/record-ids, and the fact sheet needs oracle_id (otags)
         # + type/CMC/oracle_text. (Inventory rows carry enrichment but no
         # oracle_id, so a row-join alone can't feed the otag layer.) Tests inject
-        # a stub; #5 swaps the default for a pipeline-backed resolver.
+        # a stub; the default is a pipeline-backed resolver.
         if card_resolver is None:
             from pipeline.collection.resolver import default_card_resolver
 
             card_resolver = default_card_resolver()
         self._card_resolver = card_resolver
-        #: Lazily-built guarded derived-column writer (#5, 5b-2), reusing THIS
-        #: adapter's httpx connection + PAT. Built on the first inline write so a
-        #: read-only store never constructs it.
+        #: Lazily-built guarded derived-column writer, reusing this adapter's httpx
+        #: connection + PAT. Built on the first inline write so a read-only store
+        #: never constructs it.
         self._derived_writer: Any | None = None
         #: Card-dim resolver + live price fetcher for the inline derived write,
         #: injected LAZILY (defaults to the package card dim). Held so tests can
         #: substitute stubs without a real lake / network.
         self._derived_resolver: Any | None = None
         self._derived_price_fetcher: Any | None = None
-        #: Lazily-built CHASE-bound guarded derived-column writer (#5, 5b-3),
-        #: reusing THIS adapter's httpx connection + PAT. Distinct from the owned
-        #: writer above because it binds to a DIFFERENT table (Chase Cards) with a
-        #: DIFFERENT allowlist/denylist. Built on the first inline chase write.
+        #: Lazily-built chase-bound guarded derived-column writer, reusing this
+        #: adapter's httpx connection + PAT. Distinct from the owned writer above
+        #: because it binds to a different table (Chase Cards) with a different
+        #: allowlist/denylist. Built on the first inline chase write.
         self._chase_derived_writer: Any | None = None
 
-    # --- inline derived-column write (#5 / 5b-2) ----------------------------- #
+    # --- inline derived-column write ----------------------------------------- #
 
     def _write_derived_inline(self, name: str, record_id: str | None) -> None:
         """Persist the Scryfall-DERIVED columns for ONE card, INLINE, best-effort.
@@ -353,18 +353,18 @@ class AirtableCollectionStore:
         Called AFTER a collection MUTATION (owned/chase add or update) has
         persisted its human/owned facts. It writes the nine card-dim derived
         columns (Card Type, Mana Cost, CMC, Power / Toughness, Oracle Text, Card
-        Art, Scryfall URL, Price (TCGPlayer), Color Identity) for THAT card via
-        the 5b-1 primitive :func:`destinations.airtable.write_derived_fields`,
-        following the mutation's apply semantics (``apply=True``, NOT dry-run — a
+        Art, Scryfall URL, Price (TCGPlayer), Color Identity) for that card via
+        the primitive :func:`destinations.airtable.write_derived_fields`,
+        following the mutation's apply semantics (``apply=True``, not dry-run — a
         user-initiated mutation, not a bulk refresh).
 
         Safety properties:
-            - The 5b-1 primitive SELF-GUARDS on ``resolve_backend()``: in local
-              mode it is a strict NO-OP (zero Airtable calls). This adapter is the
-              airtable path, but the primitive's guard is the enforcement.
-            - It writes ONLY the allowlisted derived columns — NEVER any human /
-              owned field #6 wrote (the primitive's 5a guard enforces the
-              derived-vs-human partition on every payload + at the wire).
+            - The primitive self-guards on ``resolve_backend()``: in local mode it
+              is a strict no-op (zero Airtable calls). This adapter is the airtable
+              path, but the primitive's guard is the enforcement.
+            - It writes only the allowlisted derived columns — never any human /
+              owned field (the primitive's guard enforces the derived-vs-human
+              partition on every payload + at the wire).
             - FAIL-OPEN on the derived side: a resolve failure or transport error
               is loud-logged and SWALLOWED so it never breaks the collection
               mutation whose owned/chase facts already succeeded.
@@ -399,10 +399,10 @@ class AirtableCollectionStore:
     def _ensure_derived_writer(self) -> Any:
         """Build (once) the guarded derived-column writer over the SHARED httpx client.
 
-        Reuses THIS adapter's httpx connection + PAT so an inline write does not
-        open a second socket per mutation (5b-1 connection-churn concern). The
-        writer is an ``AllowlistWriteClient`` — the same structural allowlist +
-        wire guard the bulk refresh uses.
+        Reuses this adapter's httpx connection + PAT so an inline write does not
+        open a second socket per mutation. The writer is an
+        ``AllowlistWriteClient`` — the same structural allowlist + wire guard the
+        bulk refresh uses.
         """
         if self._derived_writer is None:
             from pipeline.destinations.airtable import AllowlistWriteClient
@@ -429,7 +429,7 @@ class AirtableCollectionStore:
             self._derived_price_fetcher = _live_price_fetcher()
         return self._derived_price_fetcher
 
-    # --- inline CHASE derived-column write (#5 / 5b-3) ----------------------- #
+    # --- inline chase derived-column write ----------------------------------- #
 
     def _write_chase_derived_inline(self, name: str, record_id: str | None) -> None:
         """Persist the ELEVEN Chase Cards DERIVED columns for ONE card, INLINE, best-effort.
@@ -449,10 +449,10 @@ class AirtableCollectionStore:
         Safety properties (mirroring the owned hook):
             - The primitive SELF-GUARDS on ``resolve_backend()``: in local mode it
               is a strict NO-OP (zero Airtable calls).
-            - It writes ONLY the eleven chase-allowlisted derived columns — NEVER any
-              chase human field (#6 wrote Card Name / Target Decks). The CHASE-bound
-              guard (:func:`assert_no_chase_human_fields` + the chase wire guard)
-              enforces the derived-vs-human partition on the Chase table.
+            - It writes only the eleven chase-allowlisted derived columns — never any
+              chase human field (Card Name / Target Decks). The chase-bound guard
+              (:func:`assert_no_chase_human_fields` + the chase wire guard) enforces
+              the derived-vs-human partition on the Chase table.
             - FAIL-OPEN on the derived side: a resolve failure or transport error is
               loud-logged and SWALLOWED so it never breaks the chase mutation whose
               chase facts already succeeded.
@@ -677,7 +677,7 @@ class AirtableCollectionStore:
             fields: dict[str, Any] = {self._fid(self._cards_table, self._INV_NAME): ref}
             self._set_owned_fields(fields, qty, condition, foil, sets, sources)
             created = self._client.create_record(table_id, fields)
-            # INLINE derived-column write (#5): follow the owned-facts mutation.
+            # Inline derived-column write: follow the owned-facts mutation.
             self._write_derived_inline(ref, created.get('id'))
             return
         cur_owned = int(self._get(self._cards_table, existing, self._INV_OWNED) or 0)
@@ -692,7 +692,7 @@ class AirtableCollectionStore:
         if sources:
             fields[self._fid(self._cards_table, self._INV_SOURCES)] = sources
         self._client.update_record(table_id, existing['id'], fields)
-        # INLINE derived-column refresh (#5): follow the owned-facts update.
+        # Inline derived-column refresh: follow the owned-facts update.
         self._write_derived_inline(ref, existing['id'])
 
     def _set_owned_fields(
@@ -731,12 +731,12 @@ class AirtableCollectionStore:
     def remove_card(self, ref: str, *, force: bool = False) -> None:
         """Hard-delete the Inventory row for ``ref``.
 
-        Port-level cascade guard (Phase 4, defense-in-depth with ``save_deck``'s
-        ``allow_shrink``): if ``ref`` is LINKED to one or more decks and ``force``
-        is False, raise ``CollectionError`` (enumerating the affected decks)
-        BEFORE any DELETE — a hard-delete of a shared Inventory row cascades the
-        card out of EVERY linked deck via Airtable's link cascade. ``force=True``
-        (or an unlinked card) deletes as before. Default is SAFE.
+        Port-level cascade guard (defense-in-depth with ``save_deck``'s
+        ``allow_shrink``): if ``ref`` is linked to one or more decks and ``force``
+        is False, raise ``CollectionError`` (enumerating the affected decks) before
+        any DELETE — a hard-delete of a shared Inventory row cascades the card out
+        of every linked deck via Airtable's link cascade. ``force=True`` (or an
+        unlinked card) deletes. Default is safe.
         """
         check_remove_allowed(self, ref, force=force)
         table_id = self._resolver.table_id(self._cards_table)
@@ -813,12 +813,12 @@ class AirtableCollectionStore:
                 merged = current + [rid for rid in target_ids if rid not in current]
                 self._client.update_record(table_id, existing['id'], {self._fid(t, self._CHASE_TARGET_DECKS): merged})
 
-        # INLINE CHASE derived-column write (#5): follow the chase-facts mutation.
-        # Writes the ELEVEN chase derived columns (nine Scryfall — Card Type, Mana
+        # Inline chase derived-column write: follow the chase-facts mutation.
+        # Writes the eleven chase derived columns (nine Scryfall — Card Type, Mana
         # Cost, CMC, Power / Toughness, Oracle Text, Card Art, Scryfall URL, Price
-        # (TCGPlayer), Color Identity — PLUS ⚙ Buckets / ⚙ Otags) for this card via
-        # the CHASE-bound guarded primitive — best-effort / fail-open, backend-
-        # guarded, never touching a chase human field. Chase has NO otag sync, so
+        # (TCGPlayer), Color Identity — plus ⚙ Buckets / ⚙ Otags) for this card via
+        # the chase-bound guarded primitive — best-effort / fail-open, backend-
+        # guarded, never touching a chase human field. Chase has no otag sync, so
         # this inline write is chase's only path to the two ⚙ fields.
         self._write_chase_derived_inline(ref, record_id)
 
@@ -1002,22 +1002,45 @@ class AirtableCollectionStore:
         rows = self._client.list_records(table_id, filter_by_formula=formula)
         return rows[0] if rows else None
 
+    def _get_deck_record_by_id(self, record_id: str) -> dict[str, Any] | None:
+        """GET one Decks record by its stable recordId (rename-safe binding read).
+
+        The recordId is globally unique and rename-proof, so a re-read keyed on it
+        survives a source-side deck rename that a name lookup would miss. A read-only
+        GET (the CRUD client supports GET) — no write, no delete. Returns None on a
+        404 so the caller can fall back to a name read.
+        """
+        table_id = self._resolver.table_id(self._decks_table)
+        formula = f"RECORD_ID() = '{_escape(record_id)}'"
+        rows = self._client.list_records(table_id, filter_by_formula=formula)
+        return rows[0] if rows else None
+
+    def get_deck_by_record_id(self, record_id: str) -> Deck:
+        """Read a deck by its stable Airtable recordId (rename-safe; hydrated)."""
+        rec = self._get_deck_record_by_id(record_id)
+        if rec is None:
+            raise FileNotFoundError(f'No Airtable Decks record with id {record_id!r}.')
+        deck = self._row_to_deck(rec, self._inventory_name_map(), hydrate=True)
+        self._warn_unresolved_cards(deck)
+        self._check_deck_size(deck, rec)
+        return deck
+
     def get_deck(self, name: str) -> Deck:
         rec = self._find_deck_record(name)
         if rec is None:
             raise FileNotFoundError(f'No Airtable Decks record named {name!r}.')
         deck = self._row_to_deck(rec, self._inventory_name_map(), hydrate=True)
         # Integrity surfaces (hydrated read only) — flag, never mutate/raise.
-        self._warn_unresolved_cards(deck)  # #16
-        self._check_deck_size(deck, rec)  # #17
+        self._warn_unresolved_cards(deck)
+        self._check_deck_size(deck, rec)
         return deck
 
     def _warn_unresolved_cards(self, deck: Deck) -> None:
-        """#16: surface deck cards the resolver could not hydrate (name-only).
+        """Warn about deck cards the resolver could not hydrate (name-only).
 
         A resolver miss yields a `DeckCard` with ``oracle_id is None`` and no
         enrichment; on the hydrated ``get_deck`` path that silent degradation is
-        logged as a WARNING naming the count + the unresolved card names. The
+        logged as a warning naming the count + the unresolved card names. The
         name-only ``list_decks`` path never calls this (nothing was hydrated).
 
         Basic lands are excluded: they are reconstructed directly from the count
@@ -1035,11 +1058,11 @@ class AirtableCollectionStore:
             )
 
     def _check_deck_size(self, deck: Deck, rec: dict[str, Any]) -> None:
-        """#17: compare reconstructed Σquantity against Airtable's ``Deck Size``.
+        """Compare reconstructed Σquantity against Airtable's ``Deck Size``.
 
         ``Deck Size`` is a Decks formula field = the intended total (Σ card
         quantities + basics). When present and it differs from the reconstructed
-        Σquantity, log a WARNING naming both numbers + the gap. Absent field ->
+        Σquantity, log a warning naming both numbers + the gap. Absent field ->
         no check. Never mutates the deck, never raises.
         """
         raw_size = self._get_optional(self._decks_table, rec, self._DECK_SIZE)
@@ -1064,8 +1087,14 @@ class AirtableCollectionStore:
         # Hydrating every card here is O(rows*cards) paced Scryfall lookups.
         return [self._row_to_deck(r, name_map, hydrate=False) for r in rows]
 
-    def save_deck(self, deck: Deck, *, allow_shrink: bool = False) -> None:
+    def save_deck(self, deck: Deck, *, allow_shrink: bool = False, force_fresh: bool = False) -> None:
         """Persist the WHOLE deck: metadata + full membership.
+
+        ``force_fresh`` (recovery) is accepted for interface parity but is a no-op
+        here: create/update targeting is driven by ``deck.airtable_record_id``
+        (absent → ``create_record``), which the recovery caller has already stripped,
+        so a recovery save is already a fresh ``create_record`` — it never adopts a
+        same-named record.
 
         Membership maps to the live Decks schema as:
             - ``Commander`` link  <- DeckCards with ``role == 'commander'``
@@ -1082,10 +1111,10 @@ class AirtableCollectionStore:
         ``Assessment`` / ``Focus Otags`` are written when set; on a base lacking
         those columns that raises the clear "field not on base" error (correct).
 
-        Defensive shrink guard (Phase 4): when this save would drop a deck that
-        currently MEETS its target below it, and ``allow_shrink`` is False, raise
-        BEFORE any write — so a programmatic caller (a skill bypassing the CLI's
-        ``--confirm``) cannot silently shrink a legal deck under target.
+        Defensive shrink guard: when this save would drop a deck that currently
+        meets its target below it, and ``allow_shrink`` is False, raise before any
+        write — so a programmatic caller (a skill bypassing the CLI's ``--confirm``)
+        cannot silently shrink a legal deck under target.
         """
         table_id = self._resolver.table_id(self._decks_table)
         t = self._decks_table
@@ -1096,12 +1125,7 @@ class AirtableCollectionStore:
             # deck under target unless explicitly allowed.
             prior = self._row_to_deck(existing_rec, self._inventory_name_map(), hydrate=False)
             if shrink_check(prior, deck):
-                raise CollectionError(
-                    f"save-deck '{deck.name}': this save shrinks the deck from "
-                    f'{sum(c.quantity for c in prior.cards)} to {sum(c.quantity for c in deck.cards)} '
-                    f'cards, below its target of {prior.target_size}. Pass allow_shrink=True '
-                    '(the CLI: `save-deck --confirm`) to proceed.'
-                )
+                raise CollectionError(shrink_refusal_message(prior, deck))
         fields: dict[str, Any] = {self._fid(t, self._DECK_NAME): deck.name}
         if deck.strategy is not None:
             fields[self._fid(t, self._DECK_STRATEGY)] = deck.strategy
@@ -1161,7 +1185,14 @@ class AirtableCollectionStore:
         if deck.airtable_record_id:
             self._client.update_record(table_id, deck.airtable_record_id, fields)
         else:
-            self._client.create_record(table_id, fields)
+            created = self._client.create_record(table_id, fields)
+            # Surface the created recordId back to the caller by stamping it onto the
+            # passed ``deck`` in place. The sync layer rereads a just-created record
+            # by this id (never by name — a dup name would reread an unrelated record
+            # and bind/update the wrong Decks row on the base).
+            new_id = created.get('id') if isinstance(created, dict) else None
+            if isinstance(new_id, str) and new_id:
+                deck.airtable_record_id = new_id
 
     def _set_deck_field(self, name: str, field: str, value: Any) -> None:
         rec = self._find_deck_record(name)

@@ -1,4 +1,4 @@
-"""Unit-test the repointed regression harness wiring (Phase 2.2).
+"""Unit-test the repointed regression harness wiring.
 
 The live ``check-cli`` gate against a real base is DEFERRED (no creds here). This
 test proves the WIRING two ways, both offline:

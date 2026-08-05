@@ -1,4 +1,4 @@
-"""Behavioral verification: the offline local-mode factsheet path (Phase 1.4).
+"""Behavioral verification: the offline local-mode factsheet path.
 
 Seeds a sample `collection/decks/gruul-aggro.yaml`, resolves it through the local
 YAML adapter (with a stub resolver — NO network), runs the offline factsheet
@@ -222,7 +222,7 @@ class _ManaCostResolver:
 
 def test_deck_path_pip_counts_nonzero_with_mana_cost(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """With a resolver that provides `mana_cost`, the deck-path factsheet computes
-    non-zero `pip_counts` for a colored deck (previously always zero)."""
+    non-zero `pip_counts` for a colored deck."""
     decks = data_dir / 'collection' / 'decks'
     decks.mkdir(parents=True, exist_ok=True)
     (decks / 'gruul.yaml').write_text(

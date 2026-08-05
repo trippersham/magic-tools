@@ -1,15 +1,15 @@
 """Resource-safety concurrency governor for parallel Forge sim JVMs.
 
-Runs MANY matchups across a bounded, resource-safe worker pool so a batch can
-never exhaust the machine. Ported from a live-tested prototype and hardened to
-STDLIB-only resource detection (no ``psutil`` dependency).
+Runs many matchups across a bounded, resource-safe worker pool so a batch can
+never exhaust the machine. Uses stdlib-only resource detection (no ``psutil``
+dependency).
 
 Guarantees (enforced, not hoped):
 
   * **Pool size is derived at runtime, never hardcoded** —
     ``max(1, min(hard_cap, cores - 2, free_mem // per_jvm_budget))`` via
     :func:`derive_pool_size`. Defaults ``hard_cap=6``, ``per_jvm_gib=2.0``.
-  * **Memory/disk-aware admission** — before spawning EACH worker, free RAM and
+  * **Memory/disk-aware admission** — before spawning each worker, free RAM and
     free disk are re-checked against floors; below a floor the governor backs off
     (sleeps) rather than spawn. Persistent starvation aborts with a partial
     :class:`PoolResult` instead of spinning forever.
@@ -24,7 +24,7 @@ Guarantees (enforced, not hoped):
     :class:`MatchFailure`, not a crash; on abort no new work is admitted and
     in-flight subprocesses finish (or are killed by their own external timeout).
 
-Resource detection is STDLIB only: ``os.cpu_count()`` for cores,
+Resource detection is stdlib only: ``os.cpu_count()`` for cores,
 ``shutil.disk_usage()`` for free disk, and platform calls for free RAM —
 ``vm_stat`` on macOS, ``/proc/meminfo`` on Linux, conservative fallback (assume
 tight) elsewhere.
@@ -58,7 +58,7 @@ __all__ = (
     'run_matchups',
 )
 
-#: META-SAFETY ceiling on concurrent JVMs for any batch (never exceeded, even on a
+#: Meta-safety ceiling on concurrent JVMs for any batch (never exceeded, even on a
 #: big machine). 6 is empirical: beyond ~6 simultaneous Forge card-DB loads the
 #: shared I/O + memory pressure thrash and per-JVM start time balloons (3.8s solo →
 #: ~13.7s at 6-up), erasing the parallelism gain. The runtime pool is
@@ -75,12 +75,12 @@ _PAGE = 16384
 
 
 # --------------------------------------------------------------------------- #
-# Resource detection — STDLIB only (no psutil).
+# Resource detection — stdlib only (no psutil).
 # --------------------------------------------------------------------------- #
 
 
 def free_ram_gib() -> float:
-    """Best-effort reclaimable free RAM in GiB, STDLIB only.
+    """Best-effort reclaimable free RAM in GiB, stdlib only.
 
     macOS: sums ``Pages free + inactive + speculative`` from ``vm_stat`` (these
     are reclaimable under pressure). Linux: ``MemAvailable`` from
@@ -109,7 +109,7 @@ def free_ram_gib() -> float:
 
 
 def free_disk_gib(path: Path | None = None) -> float:
-    """Free disk (GiB) on the volume holding ``path`` (cwd if ``None``); STDLIB.
+    """Free disk (GiB) on the volume holding ``path`` (cwd if ``None``); stdlib.
 
     Returns ``0.0`` if the path can't be stat'd so admission treats disk as tight.
     """
@@ -194,7 +194,7 @@ class PoolResult:
 
     ``results`` holds every :class:`~pipeline.sim.runner.MatchResult` that parsed;
     ``failures`` holds every :class:`MatchFailure`. ``pairs`` binds each result
-    to the EXACT :class:`MatchSpec` that produced it — deck names are NOT unique
+    to the exact :class:`MatchSpec` that produced it — deck names are not unique
     across specs, so callers that need to attribute results (e.g. to a cache
     key) must pair by spec, never by name. ``pool_size`` is the derived
     (or caller-pinned) concurrency ceiling; ``max_concurrent`` is the observed
@@ -312,7 +312,7 @@ class Governor:
                 # Wait for a free concurrency slot (blocks -> never over-admit).
                 slots.acquire()
 
-                # Memory/disk-aware admission: re-check floors before EACH spawn.
+                # Memory/disk-aware admission: re-check floors before each spawn.
                 backoffs = 0
                 while True:
                     ram, disk = _record_resources()
@@ -322,7 +322,7 @@ class Governor:
                     if backoffs >= self.max_admission_backoffs:
                         aborted = True
                         break
-                    time.sleep(1.0)  # back off; do NOT spawn while starved.
+                    time.sleep(1.0)  # back off; do not spawn while starved.
 
                 if aborted:
                     slots.release()  # hand the slot back; we're not admitting.

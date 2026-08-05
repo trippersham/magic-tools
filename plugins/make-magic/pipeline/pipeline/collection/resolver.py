@@ -1,30 +1,24 @@
 """Package-native default `CardResolver` — a Scryfall name -> `Card` lookup.
 
-This is the DEFAULT hydration source for the local `CollectionStore`, so
-`get_store()` returns a working store with **no injected resolver**: the CLI no
-longer wires one in from the `scripts/` edge, and the package still never imports
-`scripts/`. The `CardResolver` port stays the swap-point.
+This is the default hydration source for the local `CollectionStore`, so
+`get_store()` returns a working store with **no injected resolver**: the package
+never imports `scripts/`. The `CardResolver` port stays the swap-point.
 
-#5 (pipeline-backed card resolution) swapped this default's internals to a
-**DuckDB query over the `raw/oracle_cards` bulk** joined with the `card_otag`
-rollup — the lake is now the durable card dim. Resolution is OFFLINE-FIRST: a
-name present in the bulk resolves with zero network. A bulk MISS falls back to a
-single live Scryfall fetch (exact then fuzzy) whose result is **landed durably**
-into `raw/oracle_cards`, so the next lookup for that name is offline. Everything
-FAILS OPEN (invariant I5): a missing lake, a missing otag layer, or a network
+This default's internals are a **DuckDB query over the `raw/oracle_cards` bulk**
+joined with the `card_otag` rollup — the lake is the durable card dim. Resolution
+is offline-first: a name present in the bulk resolves with zero network. A bulk
+miss falls back to a single live Scryfall fetch (exact then fuzzy) whose result is
+**landed durably** into `raw/oracle_cards`, so the next lookup for that name is
+offline. Everything fails open: a missing lake, a missing otag layer, or a network
 error degrades — an unresolved name returns None and the adapter reads the card
 back name-only. It never crashes a consumer.
 
-The interim `scryfall_names.json` JSON cache is RETIRED — the lake is the durable
-store now.
-
-The LIVE-FALLBACK fetch carries the #6 robustness that used to live on the
-interim per-card resolver: it PACES requests to Scryfall's courtesy interval and
-retries a 429/503 throttle (honoring ``Retry-After``, capped) so a bulk MISS on a
+The live-fallback fetch paces requests to Scryfall's courtesy interval and
+retries a 429/503 throttle (honoring ``Retry-After``, capped) so a bulk miss on a
 brand-new set — where several cards fall through to live lookups in one run —
-doesn't trip a wall of throttles and leave the deck un-hydrated. A TRANSIENT
+doesn't trip a wall of throttles and leave the deck un-hydrated. A transient
 failure (network / timeout / non-404 HTTP) is distinguished from a definitive 404
-so a transient miss is NOT landed (it degrades to name-only for this run and the
+so a transient miss is not landed (it degrades to name-only for this run and the
 next lookup retries), while a definitive 404 simply resolves to None.
 """
 
@@ -73,7 +67,7 @@ _CARD_COLUMNS = (
     'set_name',
 )
 
-#: Scryfall asks for ~50-100ms between requests; pace the LIVE-FALLBACK fetch to
+#: Scryfall asks for ~50-100ms between requests; pace the live-fallback fetch to
 #: that so a bulk-miss burst (a brand-new set with several cards not yet landed)
 #: doesn't trip 429s (a wall of transient failures that leaves a deck
 #: un-hydrated). Lake hits issue zero network, so this only paces the fallback.
@@ -93,8 +87,8 @@ class _Transient(Enum):
     """Sentinel: a live fetch failed TRANSIENTLY (network / timeout / non-404 HTTP).
 
     Distinct from ``None`` (a definitive 404 = card not found): a transient result
-    must NOT be landed into the lake, so the next lookup RETRIES rather than
-    permanently stripping enrichment. Both degrade THIS run to a name-only card,
+    must not be landed into the lake, so the next lookup retries rather than
+    permanently stripping enrichment. Both degrade this run to a name-only card,
     but only a transient result is withheld from durable landing.
     """
 
@@ -107,7 +101,7 @@ _TRANSIENT = _Transient.RESULT
 def _card_from_scryfall(data: dict[str, Any]) -> Card:
     """Map a live Scryfall card dict -> `contracts.Card` (front face for DFCs).
 
-    Used ONLY on the live-fallback path (bulk miss); lake hits map from the
+    Used only on the live-fallback path (bulk miss); lake hits map from the
     projected row. The `otag_*` fields are left empty here — a freshly-landed
     card is not yet in the `card_otag` rollup, and the resolver fills otags only
     from the lake (fail-open empty otherwise).
@@ -138,9 +132,9 @@ def _card_from_scryfall(data: dict[str, Any]) -> Card:
 def _land_card(data: dict[str, Any]) -> None:
     """Durably append a live-fetched Scryfall card into `raw/oracle_cards`.
 
-    Projects the card to the SAME column set the bulk puller writes (widened
-    presentation fields included; price is NOT landed — served live), then
-    INSERTs it into the existing table, or creates the table from the row if the
+    Projects the card to the same column set the bulk puller writes (widened
+    presentation fields included; price is not landed — served live), then
+    inserts it into the existing table, or creates the table from the row if the
     bulk is absent. Fails open: a store/duckdb error is logged and swallowed so a
     landing failure never breaks resolution (the card is still returned live).
     """
@@ -156,7 +150,7 @@ def _land_card(data: dict[str, Any]) -> None:
                 cols = ', '.join(_CARD_COLUMNS)
                 if store.table_exists(*_ORACLE_CARDS):
                     path = store.StorePaths.resolve().parquet_path(*_ORACLE_CARDS, create=False)
-                    # Materialize existing rows into an in-memory table FIRST so the
+                    # Materialize existing rows into an in-memory table first so the
                     # later COPY can safely overwrite the same file (no read-while-write).
                     conn.execute(f"CREATE TEMP TABLE _land AS SELECT {cols} FROM read_parquet('{path}')")
                     oid = row.get('oracle_id')
@@ -217,8 +211,8 @@ class DuckDBCardResolver:
     Structurally satisfies `pipeline.collection.store.CardResolver`. Reads
     `raw/oracle_cards` (offline-first, exact case-insensitive name match) and
     joins the `card_otag` rollup by `oracle_id` for `otags` / `otag_buckets`. A
-    bulk MISS falls back to a single live Scryfall fetch (exact then fuzzy) that
-    is PACED + retries a 429/503 throttle (honoring ``Retry-After``, capped), and
+    bulk miss falls back to a single live Scryfall fetch (exact then fuzzy) that
+    is paced + retries a 429/503 throttle (honoring ``Retry-After``, capped), and
     on a hit is landed durably so the next lookup is offline. A name that resolves
     to nothing returns None (fail-open); a network or store error never crashes.
     """
@@ -279,7 +273,7 @@ class DuckDBCardResolver:
 
         Fail-open: a missing `card_otag` table (or any query error) yields an
         empty list — the card resolves without functional tags rather than
-        crashing (invariant I5).
+        crashing.
         """
         if oracle_id is None or not store.table_exists(*_CARD_OTAG):
             return []
@@ -311,9 +305,9 @@ class DuckDBCardResolver:
     def _fetch(self, name: str) -> dict[str, Any] | _Transient | None:
         """Return a card dict (found), ``None`` (definitive 404), or ``_TRANSIENT``.
 
-        Only a real card OR a confirmed 404 is a DEFINITIVE result; any network
+        Only a real card or a confirmed 404 is a definitive result; any network
         error / timeout / non-404 HTTP status (including a 429/503 that exhausts
-        the bounded retries) is transient and must NOT be landed.
+        the bounded retries) is transient and must not be landed.
         """
         try:
             resp = self._request({'exact': name})
@@ -324,10 +318,10 @@ class DuckDBCardResolver:
             resp.raise_for_status()  # non-404 4xx/5xx -> HTTPStatusError below
             return resp.json()
         except httpx.HTTPError:
-            return _TRANSIENT  # network/timeout/5xx: do NOT land, retry next run
+            return _TRANSIENT  # network/timeout/5xx: do not land, retry next run
 
     def _request(self, params: dict[str, str]) -> httpx.Response:
-        """GET the named endpoint, PACED + with bounded retry on 429/503.
+        """GET the named endpoint, paced + with bounded retry on 429/503.
 
         Paces to ``_min_interval`` between requests (Scryfall's courtesy ask) so a
         bulk-miss burst doesn't get throttled, and retries a throttle/unavailable
@@ -362,7 +356,7 @@ def _card_from_row(record: dict[str, Any], otags: Iterable[str]) -> Card:
     """Build the extended `Card` from a projected lake row + its otag slugs.
 
     power/toughness stay strings (never coerced). `otag_buckets` is the crosswalk
-    over the FULL slug closure; `otags` is the raw rolled-up slug list.
+    over the full slug closure; `otags` is the raw rolled-up slug list.
     """
     otag_list = list(otags)
     buckets = sorted(buckets_for(set(otag_list)))
@@ -402,15 +396,14 @@ def default_card_resolver() -> DuckDBCardResolver:
 
 
 def fetch_card_raw(name: str, *, client: httpx.Client | None = None) -> dict[str, Any] | None:
-    """Fetch the FULL raw Scryfall card dict for `name` and land it durably.
+    """Fetch the full raw Scryfall card dict for `name` and land it durably.
 
     The package façade for `scripts/scryfall_cache`: shares this layer's single
-    live-fetch (exact then fuzzy, paced + retried) + durable-landing path, so the
-    SQLite cache is retired and the lake is the one durable store. Returns the
-    UNPROJECTED Scryfall dict (the six consumers rely on the full shape —
-    `prices`, `card_faces`, `image_uris`, …), so the projection to `Card` is NOT
-    applied here. Fails open: a 404 (exact+fuzzy) or transient/network error
-    returns None.
+    live-fetch (exact then fuzzy, paced + retried) + durable-landing path, and the
+    lake is the one durable store. Returns the unprojected Scryfall dict (the six
+    consumers rely on the full shape — `prices`, `card_faces`, `image_uris`, …),
+    so the projection to `Card` is not applied here. Fails open: a 404
+    (exact+fuzzy) or transient/network error returns None.
 
     Note this is the live/durable path only; a lake HIT for a name already landed
     is served by `DuckDBCardResolver.get_card` (which returns the projected

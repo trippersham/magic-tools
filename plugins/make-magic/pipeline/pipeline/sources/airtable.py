@@ -1,24 +1,24 @@
 """Puller: Airtable human-edited tables -> ``raw/airtable_<table>`` (PULL-ONLY).
 
-THE GOVERNING SAFETY PROPERTY of this module: it issues **GET requests only**.
+The governing safety property of this module: it issues **GET requests only**.
 Airtable is the authoritative source of truth for human-edited data (Decks,
-Trades, Chase Cards, Cards); the local lake is a READ-ONLY mirror. This module
-must NEVER create/update/delete anything in Airtable.
+Trades, Chase Cards, Cards); the local lake is a read-only mirror. This module
+must never create/update/delete anything in Airtable.
 
-That property is enforced structurally, not by convention: EVERY outbound
-request goes through :meth:`GetOnlyClient.request`, which RAISES
+That property is enforced structurally, not by convention: every outbound
+request goes through :meth:`GetOnlyClient.request`, which raises
 ``NonGetMethodError`` on any method other than GET. There is no code path in
 this module that constructs a POST/PATCH/PUT/DELETE — and even if one were added
 by mistake, the wrapper would reject it at runtime. The wrapper is the single
 choke point; the httpx client is name-mangled (private), which deters accidental
 bypass — it is not a hard security boundary.
 
-Flow (data-architecture §Airtable pull):
+Flow:
     - Auth: ``AIRTABLE_API_KEY`` Bearer PAT (env).
-    - Base + table NAMES come from :mod:`pipeline.config` (env-driven; turnkey
+    - Base + table names come from :mod:`pipeline.config` (env-driven; turnkey
       defaults match the current base but every value is overridable, so the
-      pipeline is NOT locked to one Airtable instance). Table/field NAMES are
-      resolved to per-base ``tbl…``/``fld…`` ids AT RUNTIME via the meta API
+      pipeline is not locked to one Airtable instance). Table/field names are
+      resolved to per-base ``tbl…``/``fld…`` ids at runtime via the meta API
       (:class:`pipeline.config.AirtableResolver`), cached once per run.
     - Incremental: if the table has a ``Last Modified``-style field, cursor on
       its max value and filter to only newer records; else full-refresh-replace.
@@ -53,14 +53,14 @@ def _tables() -> dict[str, tuple[str, str | None]]:
     """The human-edited tables mirrored, keyed by our internal handle.
 
     Returns ``{handle: (airtable_table_name, last_modified_field_name | None)}``
-    where the NAMES come from env-driven :class:`~pipeline.config.Settings` (not
-    hard-coded ids). NAMES are resolved to per-base ids at pull time. A ``None``
+    where the names come from env-driven :class:`~pipeline.config.Settings` (not
+    hard-coded ids). Names are resolved to per-base ids at pull time. A ``None``
     last-modified field means full-refresh-replace.
     """
     s = get_settings()
     return {
-        # cards: NO whole-record lastModifiedTime exists — the two lastModifiedTime
-        # fields are field-SCOPED ("Price Last Updated" -> Price only; "Last
+        # cards: no whole-record lastModifiedTime exists — the two lastModifiedTime
+        # fields are field-scoped ("Price Last Updated" -> Price only; "Last
         # Acquired / Sold At" -> Number Owned only), so keying on either silently
         # misses edits to Condition/Sources/links/etc. Full-refresh (None) is
         # correct + safe for a read-only derived mirror of a modest table.
@@ -81,7 +81,7 @@ class NonGetMethodError(RuntimeError):
 
 
 class GetOnlyClient:
-    """A thin httpx wrapper that permits GET and ONLY GET.
+    """A thin httpx wrapper that permits GET and only GET.
 
     The wrapped ``httpx.Client`` is name-mangled (private), which deters
     accidental bypass (not a hard security boundary), so the intended way to
@@ -95,7 +95,7 @@ class GetOnlyClient:
         self.__auth = {'Authorization': f'Bearer {token}', **HEADERS_UA}
 
     def request(self, method: str, url: str, *, params: dict[str, Any] | None = None) -> httpx.Response:
-        """Issue a request — REJECTING any method other than GET."""
+        """Issue a request — rejecting any method other than GET."""
         if method.upper() != 'GET':
             raise NonGetMethodError(
                 f'Airtable mirror is PULL-ONLY; refused {method!r} to {url}. This module must never mutate Airtable.'
@@ -128,7 +128,7 @@ def _list_records(
 
     When ``since``/``since_field`` are given, adds a formula filter so only
     records newer than the cursor are pulled (incremental). Records come back
-    keyed by FIELD ID (``returnFieldsByFieldId=true``) for stable joins.
+    keyed by field id (``returnFieldsByFieldId=true``) for stable joins.
     """
     url = f'{API_ROOT}/{base_id}/{table_id}'
     params: dict[str, Any] = {'pageSize': 100, 'returnFieldsByFieldId': 'true'}
@@ -195,11 +195,10 @@ def run_table(
 ) -> Path:
     """Pull a single table into ``raw/airtable_<table>``; return the path.
 
-    The table's Airtable NAME (and, for chase, its Last-Modified field NAME) come
-    from env-driven :func:`_tables`; the NAMES are resolved to per-base ids at
-    runtime via ``resolver`` (built from ``client`` if not supplied). Preserves
-    behavior: cards/decks/trades full-refresh, chase incremental on its
-    Last-Modified field.
+    The table's Airtable name (and, for chase, its Last-Modified field name) come
+    from env-driven :func:`_tables`; the names are resolved to per-base ids at
+    runtime via ``resolver`` (built from ``client`` if not supplied). Cards, decks,
+    and trades full-refresh; chase is incremental on its Last-Modified field.
     """
     tables = _tables()
     if table not in tables:
@@ -234,7 +233,7 @@ def sync(*, force: bool = False, tables: list[str] | None = None) -> dict[str, P
     """Pull all (or ``tables``) human-edited tables; return ``{table: path}``.
 
     Requires ``AIRTABLE_API_KEY``. PULL-ONLY: all requests are GET (guarded).
-    Table/field NAMES are resolved to per-base ids once via a shared resolver.
+    Table/field names are resolved to per-base ids once via a shared resolver.
     """
     token = os.environ.get('AIRTABLE_API_KEY')
     if not token:

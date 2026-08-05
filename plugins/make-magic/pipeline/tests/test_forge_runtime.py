@@ -333,7 +333,7 @@ def test_download_verified_raises_on_mismatch(tmp_path: Path, monkeypatch: pytes
 
 
 def test_download_verified_fails_closed_when_no_checksum(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """B2: a missing checksum must FAIL CLOSED (the downloaded java is executed).
+    """A missing checksum must fail closed (the downloaded java is executed).
 
     An unverifiable download must not even be fetched — abort before any network
     or file I/O rather than run an integrity-unchecked binary.
@@ -359,7 +359,7 @@ def test_parse_temurin_asset_missing_checksum_is_none() -> None:
 
 
 def test_temurin_asset_fails_closed_when_api_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
-    """B2: metadata unreachable -> RAISE (no checksum-less fallback download)."""
+    """Metadata unreachable -> raise (no checksum-less fallback download)."""
 
     def _boom(_req: object, *, timeout: float | None = None) -> object:
         raise urllib.error.URLError('down')
@@ -370,7 +370,7 @@ def test_temurin_asset_fails_closed_when_api_unavailable(monkeypatch: pytest.Mon
 
 
 def test_temurin_asset_fails_closed_when_checksum_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    """B2: Adoptium returns an asset with NO checksum -> refuse it (fail closed)."""
+    """Adoptium returns an asset with no checksum -> refuse it (fail closed)."""
     payload = [{'binary': {'package': {'link': 'https://x/jre.tar.gz'}}}]
 
     def _fake_urlopen(_req: object, *, timeout: float | None = None) -> object:
@@ -452,7 +452,7 @@ def test_partial_fetch_does_not_publish_install(tmp_path: Path, monkeypatch: pyt
 
 
 # --------------------------------------------------------------------------- #
-# B1 — per-platform Forge profile / decks staging dir
+# Per-platform Forge profile / decks staging dir
 # --------------------------------------------------------------------------- #
 
 
@@ -461,21 +461,21 @@ def _install(tmp_path: Path) -> ForgeInstall:
 
 
 def test_decks_dir_macos_uses_application_support(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """B1: on macOS the staging dir is under ``~/Library/Application Support/Forge``."""
+    """On macOS the staging dir is under ``~/Library/Application Support/Forge``."""
     monkeypatch.setattr('pipeline.sim.forge_runtime.platform.system', lambda: 'Darwin')
     decks = _install(tmp_path).decks_dir
     assert decks == Path.home() / 'Library' / 'Application Support' / 'Forge' / 'decks'
 
 
 def test_decks_dir_linux_uses_dot_forge(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """B1: on Linux the staging dir is ``~/.forge/decks`` (where Forge actually looks)."""
+    """On Linux the staging dir is ``~/.forge/decks`` (where Forge actually looks)."""
     monkeypatch.setattr('pipeline.sim.forge_runtime.platform.system', lambda: 'Linux')
     decks = _install(tmp_path).decks_dir
     assert decks == Path.home() / '.forge' / 'decks'
 
 
 def test_temurin_os_maps_per_platform(monkeypatch: pytest.MonkeyPatch) -> None:
-    """B1: the Adoptium ``os`` slug is ``mac`` on Darwin, ``linux`` otherwise."""
+    """The Adoptium ``os`` slug is ``mac`` on Darwin, ``linux`` otherwise."""
     monkeypatch.setattr('pipeline.sim.forge_runtime.platform.system', lambda: 'Darwin')
     assert fr._temurin_os() == 'mac'
     monkeypatch.setattr('pipeline.sim.forge_runtime.platform.system', lambda: 'Linux')
@@ -483,12 +483,12 @@ def test_temurin_os_maps_per_platform(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# S3 — Windows fails cleanly (never downloads the wrong-OS JRE)
+# Windows fails cleanly (never downloads the wrong-OS JRE)
 # --------------------------------------------------------------------------- #
 
 
 def test_ensure_rejects_windows_before_download(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """S3: on Windows ``ensure`` raises a clean, actionable error and NEVER fetches."""
+    """On Windows ``ensure`` raises a clean, actionable error and never fetches."""
     monkeypatch.delenv(ENV_FORGE_HOME, raising=False)
     monkeypatch.delenv(ENV_JAVA, raising=False)
     monkeypatch.setattr('pipeline.sim.forge_runtime.shutil.which', lambda _cmd: None)
@@ -502,12 +502,12 @@ def test_ensure_rejects_windows_before_download(tmp_path: Path, monkeypatch: pyt
 
 
 # --------------------------------------------------------------------------- #
-# B2 — HTTPS-only redirect handler (reject https -> http downgrades)
+# HTTPS-only redirect handler (reject https -> http downgrades)
 # --------------------------------------------------------------------------- #
 
 
 def test_redirect_handler_rejects_non_https_target() -> None:
-    """B2: a redirect ``Location`` that is not HTTPS is refused (downgrade guard)."""
+    """A redirect ``Location`` that is not HTTPS is refused (downgrade guard)."""
     handler = fr._HTTPSOnlyRedirectHandler()
     req = urllib.request.Request('https://start/a')
     with pytest.raises(urllib.error.URLError, match='non-HTTPS redirect'):
@@ -515,7 +515,7 @@ def test_redirect_handler_rejects_non_https_target() -> None:
 
 
 def test_redirect_handler_allows_https_target() -> None:
-    """B2: an HTTPS redirect target is followed (does not raise, builds a request)."""
+    """An HTTPS redirect target is followed (does not raise, builds a request)."""
     handler = fr._HTTPSOnlyRedirectHandler()
     req = urllib.request.Request('https://start/a')
     out = handler.redirect_request(req, io.BytesIO(b''), 302, 'Found', {}, 'https://ok/b')

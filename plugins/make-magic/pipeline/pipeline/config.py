@@ -1,21 +1,20 @@
 """Env-driven Airtable identity + a runtime name->id resolver.
 
-WHY THIS EXISTS (PR review): the Airtable base id, table ids, and field ids were
-hard-coded (``appw7QPMoqktrgDc1`` / ``tbl…`` / ``fld…``), locking the pipeline to
-one Airtable instance. This module makes the identity **configuration**:
+The Airtable base id, table ids, and field ids are configuration, not hard-coded,
+so the pipeline is not locked to one Airtable instance:
 
     - :class:`Settings` (pydantic-settings) reads the base id and the human-facing
-      table NAMES from the environment, with turnkey defaults that match the
+      table names from the environment, with turnkey defaults that match the
       current base so nothing breaks out of the box but every value is overridable.
-      NAMES (not ids) are the config surface because names are stable across bases
+      Names (not ids) are the config surface because names are stable across bases
       whereas ``tbl…``/``fld…`` ids are per-base and cannot be shared between
       instances.
-    - :class:`AirtableResolver` turns those NAMES into the per-base ``tbl…``/
-      ``fld…`` ids AT RUNTIME via the Airtable meta API (``GET
+    - :class:`AirtableResolver` turns those names into the per-base ``tbl…``/
+      ``fld…`` ids at runtime via the Airtable meta API (``GET
       /v0/meta/bases/{base}/tables``), cached so it hits the endpoint once per base
-      per run. This is what removes the fragile hard-coded ids: a different
-      instance just sets ``AIRTABLE_BASE_ID`` (and, if its tables are named
-      differently, the ``AIRTABLE_*_TABLE`` overrides) and the ids are discovered.
+      per run. A different instance just sets ``AIRTABLE_BASE_ID`` (and, if its
+      tables are named differently, the ``AIRTABLE_*_TABLE`` overrides) and the ids
+      are discovered.
 
 The resolver is deliberately GET-only in spirit (it only ever reads schema),
 mirroring the pull-only ethos of the sources layer; the meta client it is handed
@@ -39,20 +38,20 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AirtableConfigError(RuntimeError):
-    """Raised when a configured table/field NAME cannot be resolved to an id.
+    """Raised when a configured table/field name cannot be resolved to an id.
 
-    This surfaces a misconfigured instance LOUDLY (e.g. a base whose Cards table
+    This surfaces a misconfigured instance loudly (e.g. a base whose Cards table
     is named differently and whose ``AIRTABLE_CARDS_TABLE`` override was not set),
     rather than silently pulling nothing.
     """
 
 
 class Settings(BaseSettings):
-    """Env-driven Airtable identity (base id + human-facing table NAMES).
+    """Env-driven Airtable identity (base id + human-facing table names).
 
     Every field is overridable via its ``AIRTABLE_``-prefixed env var; the
     defaults match the current turnkey base so an unconfigured checkout still
-    works. Table NAMES are the config surface (not ids) because names are stable
+    works. Table names are the config surface (not ids) because names are stable
     across bases while ``tbl…`` ids are per-base — see the module docstring.
     """
 
@@ -60,20 +59,20 @@ class Settings(BaseSettings):
 
     #: The Airtable base id. Env: ``AIRTABLE_BASE_ID``. Default = current base.
     airtable_base_id: str = Field(default='appw7QPMoqktrgDc1', alias='AIRTABLE_BASE_ID')
-    #: Human-edited inventory Cards table NAME. Env: ``AIRTABLE_CARDS_TABLE``.
+    #: Human-edited inventory Cards table name. Env: ``AIRTABLE_CARDS_TABLE``.
     #: Matches the live base (the table is named "Inventory Cards", not "Cards").
     cards_table: str = 'Inventory Cards'
-    #: Decks table NAME. Env: ``AIRTABLE_DECKS_TABLE``.
+    #: Decks table name. Env: ``AIRTABLE_DECKS_TABLE``.
     decks_table: str = 'Decks'
-    #: Trades table NAME. Env: ``AIRTABLE_TRADES_TABLE``.
+    #: Trades table name. Env: ``AIRTABLE_TRADES_TABLE``.
     trades_table: str = 'Trades'
-    #: Chase Cards table NAME. Env: ``AIRTABLE_CHASE_TABLE``.
+    #: Chase Cards table name. Env: ``AIRTABLE_CHASE_TABLE``.
     chase_table: str = 'Chase Cards'
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Return the process-wide :class:`Settings` singleton (env read ONCE).
+    """Return the process-wide :class:`Settings` singleton (env read once).
 
     Cached so the environment is read a single time per run. Tests that need to
     vary the environment call ``get_settings.cache_clear()`` between cases.
@@ -95,9 +94,9 @@ class SupportsMetaTables(Protocol):
 
 
 class AirtableResolver:
-    """Resolve table/field NAMES to per-base ``tbl…``/``fld…`` ids at runtime.
+    """Resolve table/field names to per-base ``tbl…``/``fld…`` ids at runtime.
 
-    Given a GET-only meta client and a base id, this fetches the base schema ONCE
+    Given a GET-only meta client and a base id, this fetches the base schema once
     (lazily, on first lookup) and answers every subsequent name->id query from the
     cached payload — so a whole run costs a single meta call per base. Unknown
     names raise :class:`AirtableConfigError` with the offending name and base, so a
@@ -129,7 +128,7 @@ class AirtableResolver:
         self._field_ids = field_ids
 
     def table_id(self, table_name: str) -> str:
-        """Resolve a table NAME to its per-base ``tbl…`` id (or raise clearly)."""
+        """Resolve a table name to its per-base ``tbl…`` id (or raise clearly)."""
         self._ensure_loaded()
         assert self._table_ids is not None
         try:
@@ -142,7 +141,7 @@ class AirtableResolver:
             ) from None
 
     def field_id(self, table_name: str, field_name: str) -> str:
-        """Resolve a field NAME within a table to its ``fld…`` id (or raise)."""
+        """Resolve a field name within a table to its ``fld…`` id (or raise)."""
         # table_id() both loads the schema and validates the table name.
         self.table_id(table_name)
         assert self._field_ids is not None

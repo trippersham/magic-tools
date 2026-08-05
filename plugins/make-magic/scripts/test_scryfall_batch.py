@@ -1,10 +1,10 @@
 """Tests for scryfall_batch — the resolver-consumer batch metadata fetcher.
 
-#5 Task 6b made ``scryfall_batch`` a CONSUMER of the package card resolver
-(enrichment) plus a separate live price lookup, dropping its own hand-rolled
-Scryfall projection. This test pins the OUTPUT JSON SHAPE the managing-inventory
-skill consumes — the ``scryfall`` metadata block keys must be byte-stable — and
-proves the resolver + price seams are the source (both mocked, zero network).
+``scryfall_batch`` is a consumer of the package card resolver (enrichment) plus a
+separate live price lookup. This test pins the output JSON shape the
+managing-inventory skill consumes — the ``scryfall`` metadata block keys must be
+byte-stable — and proves the resolver + price seams are the source (both mocked,
+zero network).
 
 Run:
     uv run --with pytest --with typer --with pydantic \

@@ -1,18 +1,18 @@
-"""OFFLINE tests for the INLINE derived-column write on collection mutations (#5, 5b-2).
+"""OFFLINE tests for the inline derived-column write on collection mutations.
 
-When a card is ADDED or UPDATED in the owned inventory in airtable mode, the
-adapter — AFTER persisting the owned facts — writes the nine Scryfall-DERIVED
-columns for THAT ONE card via the 5b-1 primitive, INLINE, following the
+When a card is added or updated in the owned inventory in airtable mode, the
+adapter — after persisting the owned facts — writes the nine Scryfall-derived
+columns for that one card via the guarded write primitive, inline, following the
 mutation's apply semantics (apply=True, not dry-run). The write reuses the
 adapter's existing httpx connection and is best-effort (fail-open) so it can
 never break the collection mutation.
 
 Safety proofs (task guardrails):
     (a) `add_card` (new + existing) in airtable-mode writes the derived cols;
-    (c) LOCAL-mode owned/chase add makes ZERO Airtable calls (LocalYamlStore has
+    (c) local-mode owned/chase add makes zero Airtable calls (LocalYamlStore has
         no such hook — structural + the primitive self-guards on the backend);
-    (d) a pure resolve / hydrate-on-read (list_inventory) makes NO derived write;
-    (e) a resolve-failure on the card does NOT break the owned mutation (facts
+    (d) a pure resolve / hydrate-on-read (list_inventory) makes no derived write;
+    (e) a resolve-failure on the card does not break the owned mutation (facts
         still persist);
     (f) disjointness — the inline write never touches a human/owned field.
 
@@ -299,10 +299,10 @@ def test_inline_derived_write_never_touches_a_human_field() -> None:
 
 def test_resolve_failure_fails_open_owned_facts_still_persist() -> None:
     fake = FakeAirtable(cards=[])
-    # The resolver does NOT know the card -> the derived write finds no card.
+    # The resolver does not know the card -> the derived write finds no card.
     resolver = StubResolver({})
     _store(fake, resolver=resolver).add_card('Mystery Card', 5)
-    # Owned facts STILL persisted (the POST happened, the mutation did not raise).
+    # Owned facts still persisted (the POST happened, the mutation did not raise).
     posts = [json.loads(r.content) for r in fake.requests if r.method == 'POST' and 'tblCards' in str(r.url)]
     assert len(posts) == 1
     assert posts[0]['fields'][_INV_FIELDS['Number Owned']] == 5

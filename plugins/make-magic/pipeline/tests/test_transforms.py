@@ -1,4 +1,4 @@
-"""OFFLINE tests for the Phase-4a transforms (pilot marts). No network.
+"""OFFLINE tests for the transforms (pilot marts). No network.
 
 Covers:
     - DAG rollup: a synthetic DAG with a multi-parent node and a would-be cycle

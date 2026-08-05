@@ -1,4 +1,4 @@
-"""TDD tests for the sim core: cached matchups, simulate, compare (Phase 6, B).
+"""TDD tests for the sim core: cached matchups, simulate, compare.
 
 Offline coverage MOCKS the governor (``run_matchups``) so NO real Forge JVM is
 spawned: ``simulate`` is handed a deterministic set of fake

@@ -1,4 +1,4 @@
-"""Phase 6 — behavioral END-TO-END verification of the deck-integrity feature.
+"""Behavioral end-to-end verification of the deck-integrity feature.
 
 Drives the REAL CLI (``pipeline.collection.run.main`` via ``sys.argv``) end-to-end
 against the LOCAL backend (``LocalYamlStore`` + the DuckDB history mirror) in a tmp
@@ -194,7 +194,7 @@ def test_e2e_prevent_detect_recover(
     # Row was hard-deleted, so it is tagged deleted-row (not merely unlinked).
     assert missing['Sol Ring'].startswith('deleted-row')
 
-    # --- 6a. RECOVERY (dry-run): proposes 100, writes NOTHING --------------- #
+    # --- RECOVERY (dry-run): proposes 100, writes nothing ------------------- #
     _run(monkeypatch, 'recover-decks', 'Alpha EDH')
     dry = capsys.readouterr().out
     assert 'Sol Ring' in dry

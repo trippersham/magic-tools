@@ -1,19 +1,18 @@
-"""OFFLINE tests for the per-CARD derived write-back adapter (Phase 5, retargeted).
+"""OFFLINE tests for the per-CARD derived write-back adapter.
 
-The engine now writes TWO fields onto the *Cards* table (``⚙ Buckets`` +
-``⚙ Otags``) — NOT the Decks table. The safety architecture is unchanged; only
-the target and the payload changed.
+The engine writes two fields onto the *Cards* table (``⚙ Buckets`` +
+``⚙ Otags``) — not the Decks table.
 
 The core safety proofs:
-    - The guard REFUSES any payload containing a human-edited CARD field
-      (parametrized over EVERY Cards human field enumerated in the golden
+    - The guard refuses any payload containing a human-edited card field
+      (parametrized over every Cards human field enumerated in the golden
       contract) and any non-allowlisted field.
-    - A dry-run issues ZERO write requests (the client is a spy; no
+    - A dry-run issues zero write requests (the client is a spy; no
       POST/PATCH/DELETE is recorded).
     - Payload maps a card's (buckets, otags) -> exactly the two allowlisted
       fields; buckets as a list, otags as multiline text.
     - Idempotency: the same input twice yields the same intended plan.
-    - Cards whose oracle_id does not robustly resolve are SKIPPED, not written.
+    - Cards whose oracle_id does not robustly resolve are skipped, not written.
 
 No network: the only "client" is an in-memory spy that records every method it is
 asked to perform. In dry-run the client is never even constructed.
@@ -151,8 +150,8 @@ def test_guard_allows_pure_allowlist() -> None:
     wb.assert_no_human_fields(wb.ALLOWLIST_NAMES)
 
 
-#: The full card-dim / engine-derived Scryfall field set (#5 reclassification):
-#: engine-writable presentation/rules columns PLUS the two ⚙ namespace fields.
+#: The full card-dim / engine-derived Scryfall field set:
+#: engine-writable presentation/rules columns plus the two ⚙ namespace fields.
 _DERIVED_SCRYFALL_FIELDS = frozenset(
     {
         'Card Type',
@@ -166,8 +165,8 @@ _DERIVED_SCRYFALL_FIELDS = frozenset(
         'Color Identity',
     }
 )
-#: The genuinely human/collection-authoritative Inventory Cards fields (#5): the
-#: write-back must NEVER touch these — even though skills READ some of them.
+#: The genuinely human/collection-authoritative Inventory Cards fields: the
+#: write-back must never touch these — even though skills read some of them.
 _HUMAN_CARD_FIELDS = frozenset(
     {
         'Card Name',
@@ -184,8 +183,8 @@ _HUMAN_CARD_FIELDS = frozenset(
 
 
 def test_allowlist_is_the_full_card_dim_derived_set() -> None:
-    """#5: the allowlist EXPANDS from the two ⚙ fields to the full card-dim set:
-    the engine-derived Scryfall columns PLUS ⚙ Buckets / ⚙ Otags."""
+    """The allowlist expands from the two ⚙ fields to the full card-dim set:
+    the engine-derived Scryfall columns plus ⚙ Buckets / ⚙ Otags."""
     expected = _DERIVED_SCRYFALL_FIELDS | {f'{wb.NS}Buckets', f'{wb.NS}Otags'}
     assert expected == wb.ALLOWLIST_NAMES
 
@@ -197,7 +196,7 @@ def test_gear_fields_still_in_allowlist() -> None:
 
 @pytest.mark.parametrize('derived_field', sorted(_DERIVED_SCRYFALL_FIELDS))
 def test_each_derived_scryfall_field_is_writable(derived_field: str) -> None:
-    """#5 (a): each newly-allowed derived Scryfall field passes the guard now."""
+    """Each newly-allowed derived Scryfall field passes the guard now."""
     wb.assert_no_human_fields([derived_field])
     assert derived_field in wb.ALLOWLIST_NAMES
     assert derived_field not in wb._human_denylist()
@@ -205,7 +204,7 @@ def test_each_derived_scryfall_field_is_writable(derived_field: str) -> None:
 
 @pytest.mark.parametrize('human_field', sorted(_HUMAN_CARD_FIELDS))
 def test_each_human_field_is_still_blocked(human_field: str) -> None:
-    """#5 (b): each genuinely human/collection field is STILL denied."""
+    """Each genuinely human/collection field is still denied."""
     with pytest.raises(wb.HumanFieldWriteError):
         wb.assert_no_human_fields([human_field])
     assert human_field in wb._human_denylist()
@@ -218,7 +217,7 @@ def test_allowlist_and_denylist_are_disjoint() -> None:
 
 
 def test_allowlist_and_denylist_partition_the_card_fields() -> None:
-    """#5: the derived allowlist and the human denylist PARTITION the classified
+    """The derived allowlist and the human denylist partition the classified
     Inventory Cards fields with no overlap and no unclassified derived field."""
     assert _DERIVED_SCRYFALL_FIELDS <= wb.ALLOWLIST_NAMES
     assert wb._human_denylist() == _HUMAN_CARD_FIELDS
@@ -226,13 +225,13 @@ def test_allowlist_and_denylist_partition_the_card_fields() -> None:
 
 
 def test_allowlist_disjoint_from_collection_owned_facts_writes() -> None:
-    """#5 (c): #5's card-dim allowlist must NOT overlap #6's owned-facts write
-    surface on the Inventory Cards table. If ANY field is written by both #5
-    (derived) and #6 (owned-facts), that is a design conflict — fail here.
+    """The card-dim derived allowlist must not overlap the owned-facts write
+    surface on the Inventory Cards table. If any field is written by both the
+    derived and the owned-facts paths, that is a design conflict — fail here.
 
-    #6's Inventory Cards write surface is the OwnedCard fact columns its adapter
-    creates/updates: Card Name (key), Number Owned, Foil Count, Condition, Sets,
-    Sources (see AirtableCollectionStore.add_card / set_quantity / _set_owned_fields)."""
+    The owned-facts Inventory Cards write surface is the OwnedCard fact columns its
+    adapter creates/updates: Card Name (key), Number Owned, Foil Count, Condition,
+    Sets, Sources (see AirtableCollectionStore.add_card / set_quantity / _set_owned_fields)."""
     from pipeline.collection.adapters.airtable_collection import AirtableCollectionStore as ACS
 
     sixs_inventory_writes = {
@@ -265,7 +264,7 @@ def test_denylist_loads_non_empty_with_card_name() -> None:
 
 def test_denylist_is_the_cards_human_fields_from_golden_contract() -> None:
     """The denylist really comes from the golden contract's CARDS human fields,
-    with the card-dim / engine-derived fields EXCLUDED (#5 reclassification)."""
+    with the card-dim / engine-derived fields excluded."""
     denylist = wb.load_human_denylist()
     # The genuinely human/collection Card fields the writer must never touch.
     for f in (
@@ -277,8 +276,8 @@ def test_denylist_is_the_cards_human_fields_from_golden_contract() -> None:
         'Decks',
     ):
         assert f in denylist
-    # #5: the Scryfall-derived columns are NO LONGER human-owned — they moved to
-    # the engine allowlist and must NOT appear in the denylist.
+    # The Scryfall-derived columns are no longer human-owned — they moved to
+    # the engine allowlist and must not appear in the denylist.
     for f in (
         'Card Type',
         'Mana Cost',
@@ -373,7 +372,7 @@ def test_resolve_cards_joins_by_oracle_id() -> None:
 
 
 def test_printing_annotation_name_normalizes_and_matches() -> None:
-    """R3: a card name carrying a TRAILING printing annotation (e.g.
+    """A card name carrying a trailing printing annotation (e.g.
     "Parallel Lives (Borderless)") normalizes to its oracle name and resolves,
     rather than dropping into `skipped`."""
     name_to_oid = {'Parallel Lives': 'oid-parallel-lives'}
@@ -389,7 +388,7 @@ def test_printing_annotation_name_normalizes_and_matches() -> None:
 
 
 def test_genuinely_unresolvable_name_still_skipped_after_normalization() -> None:
-    """R3: normalization is a fallback only — a name that matches nothing even
+    """Normalization is a fallback only — a name that matches nothing even
     after stripping the annotation keeps the loud-skip behavior."""
     cards = {'recX': 'Nonexistent Card (Borderless)'}
     resolved, skipped = wb.resolve_cards(cards, name_to_oracle_id=_NAME_TO_OID, card_otag=_CARD_OTAG)
@@ -643,8 +642,8 @@ def test_client_resolves_cards_table_by_name_and_env_base_id(
                     {
                         'id': 'tblINVENTORY',
                         'name': 'Inventory Cards',  # matches the env override
-                        # Carries the human Card fields so it structurally IS the
-                        # Cards table (FIX A binding), plus a derived field.
+                        # Carries the human Card fields so it structurally is the
+                        # Cards table, plus a derived field.
                         'fields': [{'name': f'{wb.NS}Buckets', 'id': 'fldB'}, *_cards_table_fields()[2:]],
                     },
                 ]
@@ -682,7 +681,7 @@ def _cards_table_fields() -> list[dict[str, str]]:
 
 
 def test_list_fields_accepts_real_cards_table() -> None:
-    """FIX A: a resolved table that CONTAINS the human Card fields (structurally
+    """A resolved table that contains the human Card fields (structurally
     the inventory Cards table) passes the wrong-table binding check."""
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -699,13 +698,13 @@ def test_list_fields_accepts_real_cards_table() -> None:
 
 
 def test_list_fields_rejects_wrong_table_missing_card_fields() -> None:
-    """FIX A: a misconfigured AIRTABLE_CARDS_TABLE that resolves the WRONG table
-    (e.g. Decks, which lacks the Card human fields) is REFUSED with a clear
+    """A misconfigured AIRTABLE_CARDS_TABLE that resolves the wrong table
+    (e.g. Decks, which lacks the Card human fields) is refused with a clear
     AirtableConfigError, before any create_field/PATCH can litter that table."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        # A 'Decks'-shaped table: it has NONE of the Cards human fields, so the
-        # denylist is NOT a subset -> the write target is not the Cards table.
+        # A 'Decks'-shaped table: it has none of the Cards human fields, so the
+        # denylist is not a subset -> the write target is not the Cards table.
         return httpx.Response(
             200,
             json={
@@ -733,10 +732,10 @@ def test_import_is_side_effect_free_when_contract_missing(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Any,
 ) -> None:
-    """FIX B: importing the module (already imported) must not depend on the
-    filesystem. Point the lazy loader at a MISSING path and prove:
+    """Importing the module (already imported) must not depend on the
+    filesystem. Point the lazy loader at a missing path and prove:
       - re-importing / accessing module attrs does not crash;
-      - the FIRST denylist access raises a clear runtime error (fail-closed)."""
+      - the first denylist access raises a clear runtime error (fail-closed)."""
     import importlib
 
     missing = tmp_path / 'nope' / 'golden_contract.json'
@@ -757,8 +756,8 @@ def test_import_is_side_effect_free_when_contract_missing(
 
 
 def test_lazy_loader_asserts_fire_at_first_use(monkeypatch: pytest.MonkeyPatch) -> None:
-    """FIX B: the non-empty + disjointness asserts moved into the lazy loader and
-    still fail-close on first use (not at import)."""
+    """The non-empty + disjointness asserts live in the lazy loader and
+    fail-close on first use (not at import)."""
     # Empty denylist -> the non-empty assert must fire.
     monkeypatch.setattr(wb, 'load_human_denylist', lambda: frozenset())
     wb._human_denylist.cache_clear()
@@ -776,10 +775,10 @@ def test_lazy_loader_asserts_fire_at_first_use(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_real_client_full_apply_does_not_crash_on_derived_field_ids() -> None:
-    """END-TO-END on the REAL client (mocked transport): a live apply resolves
-    the schema (name->id), re-keys the payload by FIELD ID, and PATCHes — the
-    wire guard must PASS its own derived ids. This is the exact --no-dry-run
-    --apply path that would previously CRASH with NonAllowlistFieldError."""
+    """End-to-end on the real client (mocked transport): a live apply resolves
+    the schema (name->id), re-keys the payload by field id, and PATCHes — the
+    wire guard must pass its own derived ids. This is the exact --no-dry-run
+    --apply path."""
     buckets_id = 'fldk4CO3LsxEi2dgH'  # realistic Airtable fld... ids
     otags_id = 'fldZa9Q0oQ0qkm2Ab'
     patched_bodies: list[dict[str, Any]] = []
@@ -796,8 +795,8 @@ def test_real_client_full_apply_does_not_crash_on_derived_field_ids() -> None:
                             'fields': [
                                 {'name': f'{wb.NS}Buckets', 'id': buckets_id},
                                 {'name': f'{wb.NS}Otags', 'id': otags_id},
-                                # ALL the human Card fields so the resolved table
-                                # structurally IS the Cards table (FIX A binding).
+                                # All the human Card fields so the resolved table
+                                # structurally is the Cards table.
                                 *[
                                     {'name': human, 'id': f'fldHUMAN{i}'}
                                     for i, human in enumerate(sorted(wb._human_denylist()))
@@ -978,9 +977,9 @@ def test_chunk_error_stops_and_reports_partial_progress() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# R1: the destination CLI dry-run plan must NOT be a vacuous safety preview.
+# The destination CLI dry-run plan must not be a vacuous safety preview.
 #
-# A dry-run WITH a credential must resolve the REAL card count (by reading the
+# A dry-run with a credential must resolve the real card count (by reading the
 # Card Name field-ID column keyed to the meta-resolved field id) and report only
 # the ⚙ fields that DON'T yet exist as "would create" — via a READ-ONLY meta
 # call, regardless of do_write. A dry-run with NO credential must report the plan
@@ -1021,9 +1020,9 @@ class MetaOnlyClient:
 def test_dry_run_with_credential_resolves_real_cards_and_only_missing_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """R1: `--dry-run` WITH AIRTABLE_API_KEY set does a READ-ONLY meta resolution
+    """`--dry-run` with AIRTABLE_API_KEY set does a read-only meta resolution
     (resolves the Card Name field id + reads the real schema), so the plan shows
-    the REAL resolved card count and reports as "would create" ONLY the ⚙ field
+    the real resolved card count and reports as "would create" only the ⚙ field
     that does not yet exist — never a card count of 0, never a bogus creation of
     fields that already exist. No writes fire."""
     monkeypatch.setenv('AIRTABLE_API_KEY', 'tok')
@@ -1064,7 +1063,7 @@ def test_dry_run_with_credential_resolves_real_cards_and_only_missing_fields(
 def test_dry_run_with_credential_reports_none_to_create_when_both_exist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """R1: when BOTH ⚙ fields already exist, a credentialed dry-run reports NO
+    """When both ⚙ fields already exist, a credentialed dry-run reports no
     fields would be created (not a bogus creation claim)."""
     monkeypatch.setenv('AIRTABLE_API_KEY', 'tok')
     schema = {
@@ -1090,9 +1089,9 @@ def test_dry_run_with_credential_reports_none_to_create_when_both_exist(
 def test_dry_run_without_credential_reports_unknown_not_vacuous_zero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """R1: an OFFLINE dry-run (no AIRTABLE_API_KEY) can't read the field-ID-keyed
-    lake or the schema, so it must NOT claim `cards resolved: 0` or that fields
-    "WOULD be created". It reports the plan is UNKNOWN pending API access."""
+    """An offline dry-run (no AIRTABLE_API_KEY) can't read the field-ID-keyed
+    lake or the schema, so it must not claim `cards resolved: 0` or that fields
+    "WOULD be created". It reports the plan is unknown pending API access."""
     monkeypatch.delenv('AIRTABLE_API_KEY', raising=False)
 
     # Even if the loader is called with no field id, it can't resolve names.

@@ -1,8 +1,8 @@
 """Append-only, time-series history mirror of deck + inventory state (DuckDB).
 
-The durable recovery ledger behind the Defensive Deck Integrity build (Pillar 1).
-It is NOT Parquet and NOT the offline-fixture kind of "snapshot" (that name is
-taken) — these are native DuckDB **history** tables in the existing
+The durable recovery ledger behind defensive deck integrity. It is not Parquet
+and not the offline-fixture kind of "snapshot" (that name is taken) — these are
+native DuckDB history tables in the existing
 ``make_magic.duckdb``, written through :func:`pipeline.store.connect` exactly as
 the ``app_state`` write path does (``CREATE TABLE IF NOT EXISTS`` + parameterized
 ``INSERT``).
@@ -20,8 +20,8 @@ Two facts shape the design:
 
 Capture is gated (TTL or churn) and best-effort: :func:`record_snapshot` swallows
 lake errors so a mirror write can never raise into a caller's read path. The
-capture is NOT yet wired into ``get_deck`` / ``list_*``; Phase 3 (``audit-decks``)
-calls :func:`record_snapshot` explicitly.
+capture is not wired into ``get_deck`` / ``list_*``; ``audit-decks`` calls
+:func:`record_snapshot` explicitly.
 """
 
 from __future__ import annotations
@@ -32,17 +32,25 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from pipeline import store as _store
+from pipeline.contracts import Deck
 
 if TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
 
     from pipeline.collection.store import CollectionStore
-    from pipeline.contracts import Deck, OwnedCard
+    from pipeline.contracts import OwnedCard
 
 __all__ = (
+    'append_deck_version',
+    'deck_version_rows',
+    'drop_deck_version_head',
+    'get_undo_cursor',
     'last_known_good_deck',
     'last_known_inventory_row',
     'record_snapshot',
+    'reset_undo_cursor',
+    'set_undo_cursor',
+    'undo_target',
 )
 
 log = logging.getLogger('make_magic.collection.history')
@@ -52,6 +60,24 @@ _DECK_HISTORY_TABLE = 'deck_history'
 
 #: The append-only inventory history table (one row per owned card per capture).
 _INVENTORY_HISTORY_TABLE = 'inventory_history'
+
+#: The append-only, per-edit deck-version ledger (companion to ``deck_history``).
+#: Keyed on the decks-store ``deck_uuid`` (not deck_name+backend like
+#: ``deck_history``) and holds the full typed ``Deck`` (``deck_json``) plus a
+#: rationale note per mutation. Un-gated: every edit appends. This is the decks
+#: (re-keyed from the old '<backend>:<name>' deck_id to deck_uuid) store's change
+#: log — the source of undo / rationale / version-provenance — kept separate from
+#: the recovery-schema ``deck_history`` so neither muddies the other's keying or
+#: gating.
+_DECK_VERSIONS_TABLE = 'deck_versions'
+
+#: The persistent UNDO CURSOR: one row per deck_uuid holding the ``seq`` the cursor
+#: currently rests at (the last-restored version's ledger seq). Undo walks strictly
+#: BACKWARD from this anchor; a NEW edit deletes the row so undo restarts from head
+#: (no redo). Persisted so the cursor survives across CLI invocations (each verb is
+#: a fresh process). Kept SEPARATE from the append-only ledger — it is a mutable
+#: bookmark, not history.
+_DECK_UNDO_CURSOR_TABLE = 'deck_undo_cursor'
 
 
 def _ensure_history_tables(conn: DuckDBPyConnection) -> None:
@@ -66,6 +92,20 @@ def _ensure_history_tables(conn: DuckDBPyConnection) -> None:
         'snapshot_ts TIMESTAMP, backend TEXT, card_id TEXT, card_name TEXT, '
         'oracle_id TEXT, fields JSON)'
     )
+    conn.execute(
+        f'CREATE TABLE IF NOT EXISTS {_DECK_VERSIONS_TABLE} ('
+        # A monotonic per-row sequence: BIGINT default from a sequence so append
+        # order is total + stable even within one timestamp (ts alone can tie).
+        'seq BIGINT, ts TIMESTAMP, deck_uuid TEXT, version TEXT, rationale TEXT, deck_json JSON)'
+    )
+    conn.execute(f'CREATE TABLE IF NOT EXISTS {_DECK_UNDO_CURSOR_TABLE} (deck_uuid TEXT PRIMARY KEY, seq BIGINT)')
+    # Migrate a pre-existing ledger (created before the deck_id -> deck_uuid re-key)
+    # in place: rename the key column so the ledger and the decks store agree. The
+    # ROW re-keying (old '<backend>:<name>' value -> the new uuid) is done by the
+    # decks-store migration, which owns the id map; here we only rename the column.
+    ledger_cols = {r[1] for r in conn.execute(f'PRAGMA table_info({_DECK_VERSIONS_TABLE})').fetchall()}
+    if 'deck_id' in ledger_cols and 'deck_uuid' not in ledger_cols:
+        conn.execute(f'ALTER TABLE {_DECK_VERSIONS_TABLE} RENAME COLUMN deck_id TO deck_uuid')
 
 
 # --------------------------------------------------------------------------- #
@@ -304,6 +344,172 @@ def record_snapshot(
     except Exception:  # best-effort mirror: never raise into a read path.
         log.warning('history: record_snapshot failed; skipping capture', exc_info=True)
         return False
+
+
+# --------------------------------------------------------------------------- #
+# Edit-triggered deck-version ledger (un-gated, append-only, per deck_uuid)
+# --------------------------------------------------------------------------- #
+
+
+def _next_deck_version_seq(conn: DuckDBPyConnection) -> int:
+    """The next monotonic append sequence (``MAX(seq) + 1``, 0 on an empty table).
+
+    A total order over appends that is stable even when two rows share a ``ts``
+    (undo must walk the ledger deterministically). Single-writer by construction
+    (one edit at a time through the store), so a read-then-insert is safe.
+    """
+    row = conn.execute(f'SELECT MAX(seq) FROM {_DECK_VERSIONS_TABLE}').fetchone()
+    return 0 if row is None or row[0] is None else int(row[0]) + 1
+
+
+def append_deck_version(
+    conn: DuckDBPyConnection,
+    *,
+    deck_uuid: str,
+    deck: Deck,
+    rationale: str,
+    now: datetime | None = None,
+) -> None:
+    """Append one version row for ``deck_uuid`` — un-gated (every edit lands a row).
+
+    The decks store's per-edit change log: records ``version(deck)``, the full
+    typed ``Deck`` (``deck_json``, so undo can restore it), the ``rationale`` note,
+    and a monotonic ``(seq, ts)`` order. Append-only — never UPDATEs or DELETEs, so
+    the head history (and undo target) is preserved.
+
+    Unlike :func:`record_snapshot`, this is not gated (no TTL/churn): a deck
+    version is meaningful per edit, and the ledger is the undo/rationale record.
+
+    Args:
+        conn: An open DuckDB connection (tables ensured on demand).
+        deck_uuid: The decks-store key this version belongs to.
+        deck: The typed ``Deck`` AFTER the edit (its ``version`` + json are stored).
+        rationale: The edit note (why this change was made).
+        now: The append timestamp; defaults to ``datetime.now(tz=UTC)``.
+    """
+    from pipeline.decks.version import version as _version
+
+    _ensure_history_tables(conn)
+    when = _as_naive_utc(now if now is not None else datetime.now(tz=UTC))
+    conn.execute(
+        f'INSERT INTO {_DECK_VERSIONS_TABLE} (seq, ts, deck_uuid, version, rationale, deck_json) '
+        'VALUES (?, ?, ?, ?, ?, ?)',
+        [_next_deck_version_seq(conn), when, deck_uuid, _version(deck), rationale, deck.model_dump_json()],
+    )
+
+
+def drop_deck_version_head(conn: DuckDBPyConnection, deck_uuid: str) -> None:
+    """Delete the NEWEST ledger row for ``deck_uuid`` (the transactional-rollback pop).
+
+    Used only by the edit+commit rollback: when a just-applied edit's commit-push
+    is refused, the local content is restored to pre-edit and the poison head
+    version is popped so the ledger reflects reality (the edit never landed) — no
+    ghost version for a later undo to step onto, and ``version(local)`` stays equal
+    to ``version(source)`` after a re-pull. This is the sole non-append mutation of
+    the ledger, reserved for the failed-edit path.
+    """
+    _ensure_history_tables(conn)
+    conn.execute(
+        f'DELETE FROM {_DECK_VERSIONS_TABLE} WHERE deck_uuid = ? AND seq = ('
+        f'SELECT MAX(seq) FROM {_DECK_VERSIONS_TABLE} WHERE deck_uuid = ?)',
+        [deck_uuid, deck_uuid],
+    )
+
+
+def delete_deck_versions(conn: DuckDBPyConnection, deck_uuid: str) -> None:
+    """Delete all ledger rows + the undo cursor for ``deck_uuid`` (row-delete rollback).
+
+    Used only when a first ``save_deck`` is refused at commit: the just-created row
+    (and every version it appended, which is only the one baseline put) is removed
+    wholesale so no refused content lingers for a later ``sync`` to land. Not for the
+    re-save path (that pops just the head via :func:`drop_deck_version_head`).
+    """
+    _ensure_history_tables(conn)
+    conn.execute(f'DELETE FROM {_DECK_VERSIONS_TABLE} WHERE deck_uuid = ?', [deck_uuid])
+    conn.execute(f'DELETE FROM {_DECK_UNDO_CURSOR_TABLE} WHERE deck_uuid = ?', [deck_uuid])
+
+
+def deck_version_rows(conn: DuckDBPyConnection, deck_uuid: str) -> list[dict[str, Any]]:
+    """Return every appended version row for ``deck_uuid`` in append order (oldest first).
+
+    Pure query over the append-only ledger. Each dict has ``seq, ts, version,
+    rationale, deck_json`` (``deck_json`` left as its stored JSON string).
+    """
+    _ensure_history_tables(conn)
+    rows = conn.execute(
+        f'SELECT seq, ts, version, rationale, deck_json FROM {_DECK_VERSIONS_TABLE} '
+        'WHERE deck_uuid = ? ORDER BY seq ASC',
+        [deck_uuid],
+    ).fetchall()
+    return [
+        {'seq': seq, 'ts': ts, 'version': ver, 'rationale': rationale, 'deck_json': deck_json}
+        for seq, ts, ver, rationale, deck_json in rows
+    ]
+
+
+# --------------------------------------------------------------------------- #
+# Undo cursor — a persistent backward-walking bookmark over the ledger
+# --------------------------------------------------------------------------- #
+
+
+def get_undo_cursor(conn: DuckDBPyConnection, deck_uuid: str) -> int | None:
+    """Return the persisted undo-cursor ``seq`` for ``deck_uuid`` (or ``None`` at head).
+
+    ``None`` means the cursor rests at head (no undo has walked back yet, or a new
+    edit reset it) — the next undo anchors at the newest ledger seq. A concrete int
+    is the seq of the last-restored version, so a consecutive undo continues walking
+    strictly backward from there rather than restarting at head.
+    """
+    _ensure_history_tables(conn)
+    row = conn.execute(f'SELECT seq FROM {_DECK_UNDO_CURSOR_TABLE} WHERE deck_uuid = ?', [deck_uuid]).fetchone()
+    return int(row[0]) if row is not None and row[0] is not None else None
+
+
+def set_undo_cursor(conn: DuckDBPyConnection, deck_uuid: str, seq: int) -> None:
+    """Persist the undo cursor at ``seq`` (upsert) so a later undo continues from here."""
+    _ensure_history_tables(conn)
+    conn.execute(
+        f'INSERT INTO {_DECK_UNDO_CURSOR_TABLE} (deck_uuid, seq) VALUES (?, ?) '
+        'ON CONFLICT (deck_uuid) DO UPDATE SET seq = excluded.seq',
+        [deck_uuid, seq],
+    )
+
+
+def reset_undo_cursor(conn: DuckDBPyConnection, deck_uuid: str) -> None:
+    """Drop the undo cursor for ``deck_uuid`` — the next undo restarts from head.
+
+    Called on every NEW (non-undo) edit: a fresh edit branches the timeline and the
+    forward history is abandoned (no redo, YAGNI), so undo must re-anchor at head.
+    """
+    _ensure_history_tables(conn)
+    conn.execute(f'DELETE FROM {_DECK_UNDO_CURSOR_TABLE} WHERE deck_uuid = ?', [deck_uuid])
+
+
+def undo_target(conn: DuckDBPyConnection, deck_uuid: str) -> tuple[Deck, int] | None:
+    """Return ``(deck, seq)`` the cursor should undo TO — or ``None`` at the floor.
+
+    The real undo walk: starting from the persisted cursor anchor (or head when
+    unset), scan the ledger strictly backward for the newest version whose content
+    (its ``version`` hash) differs from the current head's content, skipping any
+    identical-content versions so a re-applied identical edit can never deadlock the
+    walk. Returns that older ``Deck`` plus its ``seq`` (the new cursor anchor), or
+    ``None`` when no distinct-older content exists (the undo floor).
+    """
+    rows = deck_version_rows(conn, deck_uuid)
+    if not rows:
+        return None
+    current_version = rows[-1]['version']  # head = the deck's current content.
+    anchor = get_undo_cursor(conn, deck_uuid)
+    # Candidates are strictly OLDER than the anchor (or all rows below head when the
+    # cursor is unset — head itself is the current state, never an undo target).
+    limit_seq = anchor if anchor is not None else rows[-1]['seq']
+    for row in reversed(rows):
+        if row['seq'] >= limit_seq:
+            continue
+        if row['version'] == current_version:
+            continue  # identical content -> skip (no oscillation / deadlock).
+        return Deck.model_validate_json(row['deck_json']), int(row['seq'])
+    return None
 
 
 # --------------------------------------------------------------------------- #

@@ -1,4 +1,4 @@
-"""TDD tests for the append-only DuckDB history mirror (Phase 2).
+"""TDD tests for the append-only DuckDB history mirror.
 
 Everything here is OFFLINE: a tmp data dir (via the ``MAKE_MAGIC_DATA_DIR`` env
 override, mirroring ``tests/test_store.py``) plus a tiny in-memory fake store.

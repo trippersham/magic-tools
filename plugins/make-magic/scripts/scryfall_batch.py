@@ -25,14 +25,13 @@ Output: JSON array with Scryfall metadata merged in:
 The "id" field (Airtable record ID) is passed through unchanged.
 Cards not found on Scryfall get "scryfall": null with an "error" key.
 
-#5 Task 6b: this script is a CONSUMER of the package card resolver
+This script is a consumer of the package card resolver
 (`pipeline.collection.resolver`) — it resolves each name to an enriched `Card`
 (card_type / mana_cost / cmc / oracle_text / power / toughness / art_crop /
-scryfall_uri / set_name / color_identity) and gets the live price SEPARATELY
-(price is volatile and NOT on the `Card` contract — served live via the
-scryfall_cache façade). The hand-rolled Scryfall projection is retired; the OUTPUT
-JSON shape (the `scryfall` metadata block keys the managing-inventory skill
-consumes) is unchanged.
+scryfall_uri / set_name / color_identity) and gets the live price separately
+(price is volatile and not on the `Card` contract — served live via the
+scryfall_cache façade). The OUTPUT JSON shape (the `scryfall` metadata block the
+managing-inventory skill consumes) is unchanged.
 
 Package access (house convention, same as `scripts/collection`): this PEP-723
 script pins the local package via `[tool.uv.sources]` as an editable path dep, so

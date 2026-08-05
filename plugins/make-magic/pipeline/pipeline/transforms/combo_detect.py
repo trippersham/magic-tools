@@ -5,10 +5,10 @@ fields we need, and materializes a flat ``normalized/combo`` table:
 
     variant_id, card_names (list), card_oracle_ids (list), result (str)
 
-Detection is EXACT NAMED-CARD MATCHING ONLY. Per the design, template matching
+Detection is exact named-card matching only. Template matching
 (``requires[].template`` — "any permanent that can be cast using {C}") is
-explicitly OUT OF SCOPE: those variants require a Scryfall search to resolve and
-would produce speculative hits. We only report a combo when EVERY concrete
+out of scope: those variants require a Scryfall search to resolve and
+would produce speculative hits. We only report a combo when every concrete
 ``uses`` card is present in the deck (by oracle_id when available, else by
 normalized name).
 """
@@ -99,14 +99,14 @@ def combos_in_deck(
     oracle_ids_or_names: set[str],
     combos: list[Combo],
 ) -> list[Combo]:
-    """Return every combo whose cards are ALL present in the deck (exact match).
+    """Return every combo whose cards are all present in the deck (exact match).
 
     Args:
         oracle_ids_or_names: The deck's identity set — a mix of oracle_ids and/or
             card names is fine; names are matched case/space-insensitively.
         combos: Normalized combos (from ``normalize_variants`` / ``load_combos``).
 
-    A combo matches iff EVERY one of its concrete cards is in the deck, matched
+    A combo matches iff every one of its concrete cards is in the deck, matched
     by oracle_id when the combo knows one, otherwise by normalized name. Template
     (non-concrete) requirements are ignored by construction (they never became
     ``Combo`` cards), so a combo with a template piece can still match on its

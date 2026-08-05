@@ -1,22 +1,20 @@
 """Normalize + reconcile spoiler previews: ``raw/spoilers`` -> ``normalized/spoilers``.
 
-Migrated from ``scripts/spoiler_sync.py``'s SQLite reconciliation (the meta cursor
-+ seen-slug/seen-id sets + the ``confirmed_by_scryfall`` linking). This transform:
+This transform:
 
     1. Reads ``raw/spoilers`` (the current MythicSpoiler scrape).
     2. Reconciles each slug to a Scryfall identity via the card resolver
-       (``default_card_resolver().get_card`` — replacing the old
-       ``cache._fetch`` reach-in). A confirmed match carries ``oracle_id`` +
-       ``confirmed=True``; an unreconciled preview stays ``oracle_id=None,
-       confirmed=False``.
-    3. Detects "new since last sync" from the LAKE — slugs present now but ABSENT
-       from the PRIOR ``normalized/spoilers`` — not a SQLite ``meta`` table.
+       (``default_card_resolver().get_card``). A confirmed match carries
+       ``oracle_id`` + ``confirmed=True``; an unreconciled preview stays
+       ``oracle_id=None, confirmed=False``.
+    3. Detects "new since last sync" from the lake — slugs present now but absent
+       from the prior ``normalized/spoilers``.
     4. Materializes ``normalized/spoilers`` carrying the ``Spoiler`` contract,
        preserving ``first_seen_cursor`` for rows seen before and stamping the
        current cursor on the newly-seen ones.
 
-"New since last sync" mechanism (design Decision 6 open item):
-    A SNAPSHOT-DIFF against the prior ``normalized/spoilers`` table — the lake IS
+"New since last sync" mechanism:
+    A snapshot-diff against the prior ``normalized/spoilers`` table — the lake is
     the durable last-seen marker. A slug's ``first_seen_cursor`` is preserved from
     the prior row when it existed, so "new" == "no prior row for this slug". This
     keeps state entirely in the lake (no watermark table, no per-card meta rows),
@@ -55,8 +53,8 @@ _SPOILER_COLS = ('slug', 'set_code', 'name', 'oracle_id', 'source', 'first_seen_
 def slug_to_name_guess(slug: str) -> str:
     """Convert a MythicSpoiler slug to a rough card name for resolver lookup.
 
-    Splits camelCase and pads digits — the same heuristic ``spoiler_sync`` used
-    before handing the guess to fuzzy Scryfall matching.
+    Splits camelCase and pads digits before handing the guess to fuzzy Scryfall
+    matching.
     """
     spaced = re.sub(r'([a-z])([A-Z])', r'\1 \2', slug)
     spaced = re.sub(r'(\d+)', r' \1 ', spaced)
@@ -80,9 +78,9 @@ def _load_raw() -> list[dict[str, str]]:
 
 
 def _load_prior_normalized() -> dict[str, dict[str, object]]:
-    """Read the PRIOR ``normalized/spoilers`` keyed by slug (empty if absent).
+    """Read the prior ``normalized/spoilers`` keyed by slug (empty if absent).
 
-    This is the durable "last seen" marker: a slug present here is NOT new.
+    This is the durable "last seen" marker: a slug present here is not new.
     ``first_seen_cursor`` is carried forward from these rows.
     """
     if not store.table_exists('normalized', NORMALIZED_TABLE):
@@ -134,7 +132,7 @@ def reconcile(
 ) -> tuple[list[Spoiler], list[str]]:
     """Reconcile raw preview rows into ``Spoiler`` records + the new-slug list.
 
-    - A slug ABSENT from ``prior`` is NEW (stamped with ``cursor_token`` as
+    - A slug absent from ``prior`` is new (stamped with ``cursor_token`` as
       ``first_seen_cursor``); a slug already in ``prior`` carries its prior
       ``first_seen_cursor`` forward.
     - Each slug is reconciled to a Scryfall identity via ``resolver.get_card`` on
@@ -229,8 +227,7 @@ def load_spoilers(set_code: str | None = None, *, only_new: bool = False) -> lis
     """Read ``normalized/spoilers`` back as ``Spoiler`` records for the CLI façade.
 
     Optionally filter to a ``set_code`` (case-insensitive). ``only_new`` (the
-    ``--new`` verb) filters to UNCONFIRMED spoilers, mirroring today's
-    ``list --new`` (which surfaced ``confirmed_by_scryfall = 0`` rows). Fail-open:
+    ``--new`` verb) filters to unconfirmed spoilers. Fail-open:
     an absent table yields an empty list.
     """
     if not store.table_exists('normalized', NORMALIZED_TABLE):

@@ -1,20 +1,18 @@
-"""Pacing / retry / transient coverage for the resolver's LIVE-FALLBACK path.
+"""Pacing / retry / transient coverage for the resolver's live-fallback path.
 
-#6 hardened the interim per-card `ScryfallResolver` with pacing, bounded 429/503
-retry (honoring ``Retry-After``, capped), and a transient-vs-definitive
-distinction. #5 replaced that interim class with the lake-backed
-`DuckDBCardResolver`, folding the SAME robustness onto its live-fallback fetch
-(the on-miss lookup when a name is absent from the bulk). This module KEEPS that
-coverage meaningful by exercising it through `DuckDBCardResolver` with an EMPTY
+The lake-backed `DuckDBCardResolver` folds pacing, bounded 429/503 retry
+(honoring ``Retry-After``, capped), and a transient-vs-definitive distinction
+onto its live-fallback fetch (the on-miss lookup when a name is absent from the
+bulk). This module exercises that path through `DuckDBCardResolver` with an empty
 lake, so every `get_card` falls through to the paced/retried live fetch.
 
 OFFLINE: an `httpx.MockTransport` drives every branch (real card / 404 / 5xx /
 connect-error / 429 throttle) so no network is touched. Covers:
-    - a genuine 404 (exact + fuzzy) resolves to None and is NOT landed.
-    - a transient 5xx / connect-error resolves to None, is NOT landed, and a
-      subsequent lookup RETRIES (fresh network call).
-    - a 429 throttle is retried WITHIN a single lookup (honoring Retry-After).
-    - a hostile ``Retry-After: 3600`` is CAPPED (no hour-long mid-read hang).
+    - a genuine 404 (exact + fuzzy) resolves to None and is not landed.
+    - a transient 5xx / connect-error resolves to None, is not landed, and a
+      subsequent lookup retries (fresh network call).
+    - a 429 throttle is retried within a single lookup (honoring Retry-After).
+    - a hostile ``Retry-After: 3600`` is capped (no hour-long mid-read hang).
 """
 
 from __future__ import annotations

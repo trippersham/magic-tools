@@ -1,13 +1,12 @@
 """A membership oracle over Forge's real card set — the data-driven availability
 check that makes deck→Forge validation factual instead of a guess.
 
-Before this, nothing told us which of Forge's ~33k cards a name actually maps to,
-so a card absent from Forge silently produced a short/mis-loaded deck, and (worse)
-a human "is this loadable?" guess led to a wrong DFC substitution. :class:`ForgeCardIndex`
+A name maps to one of Forge's ~33k cards or it does not; a card absent from Forge
+otherwise silently produces a short/mis-loaded deck. :class:`ForgeCardIndex`
 answers :meth:`has` from the install's ``cardsfolder.zip`` — built once and cached
 to a per-install manifest. :meth:`forge_deck_name` goes one step further and
 returns the exact string Forge's ``.dck`` loader accepts (empirically: Forge
-REJECTS the combined ``A // B`` MDFC name and loads only the FRONT face), so the
+rejects the combined ``A // B`` MDFC name and loads only the front face), so the
 exporter emits a loadable line instead of one Forge silently drops.
 
 It implements the structural ``CardAvailability`` port the forge_dck card exporter
@@ -41,11 +40,11 @@ def _norm(name: str) -> str:
     apostrophes, then strip + lower.
 
     Forge's cardsfolder ``Name:`` lines and Scryfall names can differ in Unicode
-    normalization FORM (composed vs decomposed) for accented cards — Lim-Dûl's
+    normalization form (composed vs decomposed) for accented cards — Lim-Dûl's
     Vault, Jötun Grunt, Dandân, Márton Stromgald, Séance. Two forms of the same
-    name compare unequal as raw strings, so without a shared normal form a VALID
+    name compare unequal as raw strings, so without a shared normal form a valid
     card is misclassified ABSENT_FROM_TARGET and the sim hard-fails a good deck.
-    Applying ``NFC`` on BOTH the index build and every lookup makes the match
+    Applying ``NFC`` on both the index build and every lookup makes the match
     normalization-insensitive; the apostrophe fold does the same for smart-quote
     variants (``U+2019`` from macOS auto-substitution vs the ASCII ``'`` in both
     Forge and Scryfall data).
@@ -81,7 +80,7 @@ class ForgeCardIndex:
     def has(self, card_name: str) -> bool:
         """Whether Forge can load ``card_name`` (case-insensitive, DFC-normalized).
 
-        A combined ``A // B`` name matches when the FRONT face ``A`` is known —
+        A combined ``A // B`` name matches when the front face ``A`` is known —
         the way Forge itself resolves an MDFC in a deck line — so DFCs/MDFCs
         (``Akoum Warrior // Akoum Teeth``) validate as present, not absent.
         """
@@ -91,18 +90,18 @@ class ForgeCardIndex:
         """The name Forge's ``.dck`` loader accepts for ``card_name``, or ``None``
         if the card cannot be loaded (a typo, or a back-face-only name).
 
-        Forge matches a deck line against a card's FRONT-FACE ``Name:``.
-        Empirically (Forge 2.0.13) the combined ``A // B`` MDFC name is REJECTED —
+        Forge matches a deck line against a card's front-face ``Name:``.
+        Empirically (Forge 2.0.13) the combined ``A // B`` MDFC name is rejected —
         the card is silently dropped from the deck — while the front face ``A``
         loads and plays. So the loadable name is resolved as:
 
         - a name already known as-is (a normal card, or a card Forge stores under
           its combined name, e.g. a true split) → returned unchanged (it loads);
-        - otherwise a combined ``A // B`` whose FRONT face is known → the front
+        - otherwise a combined ``A // B`` whose front face is known → the front
           face (the MDFC repair);
         - anything else → ``None`` (unloadable).
 
-        Trying the input as-is BEFORE the front face is what stops a genuinely
+        Trying the input as-is before the front face is what stops a genuinely
         combined-named card from being wrongly truncated to its left half.
         """
         if _norm(card_name) in self._names:
@@ -129,8 +128,8 @@ class ForgeCardIndex:
         once and the result cached. Falls back to a fresh parse if the manifest
         is unreadable.
 
-        Note: the manifest is keyed only by ``forge_dir``, so an IN-PLACE
-        ``cardsfolder.zip`` update under the same dir will NOT trigger a rebuild.
+        Note: the manifest is keyed only by ``forge_dir``, so an in-place
+        ``cardsfolder.zip`` update under the same dir will not trigger a rebuild.
         That is acceptable because provisioned installs are version-specific dirs
         (a Forge upgrade lands in a new dir → a fresh manifest); delete the
         manifest to force a rebuild after an in-place swap.

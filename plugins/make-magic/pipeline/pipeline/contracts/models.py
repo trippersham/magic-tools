@@ -30,6 +30,7 @@ Design notes:
 from __future__ import annotations
 
 from typing import Final
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -134,8 +135,8 @@ class Card(BaseModel):
 class OwnedCard(Card):
     """A `Card` + your ownership facts — the "inventory item".
 
-    Supersedes the flat `InventoryRow`: enrichment is inherited from `Card`
-    (hydrated on read), and only the owned-facts below are persisted locally.
+    Enrichment is inherited from `Card` (hydrated on read); only the owned-facts
+    below are persisted locally.
     """
 
     owned: int = Field(default=0, description='Number of copies owned.')
@@ -157,12 +158,13 @@ class ChaseCard(Card):
 
 
 class DeckCard(Card):
-    """A `Card` as it sits in a deck — how it participates in this deck.
+    """A `Card` as it sits in a deck — how it participates in this deck."""
 
-    Supersedes `DeckLine` (now inherits `Card`, carries `role`).
-    """
-
-    quantity: int = Field(default=1, description='Number of copies of this card in the deck.')
+    quantity: int = Field(
+        default=1,
+        ge=1,
+        description='Number of copies of this card in the deck (at least 1 — a 0/negative qty is invalid).',
+    )
     role: str | None = Field(
         default=None,
         description=(
@@ -206,6 +208,14 @@ class Deck(BaseModel):
 
     model_config = ConfigDict(extra='forbid')
 
+    uuid: str = Field(
+        default_factory=lambda: uuid4().hex,
+        description=(
+            'Stable, globally-unique deck identity — minted once at creation and NEVER changed. '
+            'The decks-store PK and the name-independent key sync binds to. Deliberately EXCLUDED '
+            'from version(deck) (identity, not content); names are labels, this is the identity.'
+        ),
+    )
     name: str = Field(description='Deck name (Airtable Decks primary field).')
     strategy: str | None = Field(
         default=None,
@@ -462,8 +472,7 @@ class Trade(BaseModel):
     """A card movement event.
 
     Source/Destination are categories (Library/Deck/Store/Person); the *_deck
-    fields add specificity when the category is "Deck". (Formerly `TradeRow`;
-    the Airtable-ish `Row` suffix is dropped, fields unchanged.)
+    fields add specificity when the category is "Deck".
     """
 
     model_config = ConfigDict(extra='forbid')

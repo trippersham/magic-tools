@@ -13,7 +13,7 @@ pipeline package or its otag snapshot is unavailable.
 Governing invariants:
   - The output ALWAYS validates against ``contracts.FactSheet`` (same top-level
     shape, whether pipeline-backed or fallback).
-  - Graceful fallback (I5): pipeline unavailable -> still emit structured facts,
+  - Graceful fallback: pipeline unavailable -> still emit structured facts,
     ``otag_buckets == {}``, a clear "otag layer unavailable" signal, no crash.
   - No role/quadrant labels anywhere in the output.
 """
@@ -144,14 +144,14 @@ FOREST = card('Forest', type_line='Basic Land — Forest', produced_mana=['G'])
 
 
 def test_strip_printing_annotation():
-    """R3: a trailing printing annotation is stripped; a plain name is untouched."""
+    """A trailing printing annotation is stripped; a plain name is untouched."""
     assert _strip_printing_annotation('Parallel Lives (Borderless)') == 'Parallel Lives'
     assert _strip_printing_annotation('Sol Ring (Retro)') == 'Sol Ring'
     assert _strip_printing_annotation('Cultivate') == 'Cultivate'
 
 
 def test_resolve_card_falls_back_to_stripped_printing_annotation():
-    """R3: `_resolve_card` matches a name carrying a printing annotation to the
+    """`_resolve_card` matches a name carrying a printing annotation to the
     oracle-named card, rather than dropping it into `missing`. It tries the exact
     name first, then the stripped name."""
 
@@ -358,7 +358,7 @@ def test_load_card_otag_is_populated():
 #    snapshot internally); we read the loaded tags back and roll them up.
 # 2) Snapshot fallback: if the puller/store path raises, load the bundled
 #    snapshot directly.
-# 3) None: if even the snapshot cannot load -> structured-only fallback (I5).
+# 3) None: if even the snapshot cannot load -> structured-only fallback.
 # --------------------------------------------------------------------------- #
 
 # Synthetic 2-tag DAG: leaf `sweeper` rolls up to parent `removal`. One card
@@ -620,13 +620,13 @@ def test_parse_decklist_handles_counts_comments_and_annotations():
 
 
 # --------------------------------------------------------------------------- #
-# 6a — byte-identical fact sheet across the consolidation refactor.
+# Byte-identical fact sheet across the consolidation refactor.
 #
-# The GOLDEN captures the fact-sheet output BEFORE the in-script math was deleted
-# and routed through the shared ``transforms.deck_factsheet``. It exercises BOTH
-# entry points: ``build_factsheet`` (the text path) and ``factsheet_from_deck``
-# (the hydrated-Deck path), each in its pipeline-backed AND its degraded fallback
-# form. The refactor MUST keep every byte identical — this is the hard gate.
+# The golden captures the fact-sheet output routed through the shared
+# ``transforms.deck_factsheet``. It exercises both entry points:
+# ``build_factsheet`` (the text path) and ``factsheet_from_deck`` (the
+# hydrated-Deck path), each in its pipeline-backed and its degraded fallback
+# form. Every byte must stay identical — this is the hard gate.
 # --------------------------------------------------------------------------- #
 
 _GOLDEN = json.loads((Path(__file__).resolve().parent / 'fixtures' / 'golden' / 'factsheet_golden.json').read_text())

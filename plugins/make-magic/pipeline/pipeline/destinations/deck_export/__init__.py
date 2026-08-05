@@ -1,7 +1,7 @@
 """Deck-export destination — render a :class:`~pipeline.contracts.Deck` to a file.
 
-A GENERAL export surface behind a narrow ``typing.Protocol`` port
-(:class:`DeckExporter`): each concrete adapter renders a ``Deck`` into ONE
+A general export surface behind a narrow ``typing.Protocol`` port
+(:class:`DeckExporter`): each concrete adapter renders a ``Deck`` into one
 external deck-file format's text. The first adapter targets MTG Forge's ``.dck``
 INI (:class:`~pipeline.destinations.deck_export.forge_dck.ForgeDckExporter`) so a
 sim backend can consume our decks; more formats (e.g. ``.txt`` / MTGO / Arena)
@@ -53,7 +53,7 @@ class DeckExporter(Protocol):
 
     ``format`` is the adapter's registry key (a stable format slug, e.g.
     ``'forge_dck'``); :meth:`export` renders a :class:`~pipeline.contracts.Deck`
-    into that format's file text (LENIENT — always renders); :meth:`validate`
+    into that format's file text (lenient — always renders); :meth:`validate`
     reports per-card issues for that target. Pair with :func:`export_checked` for
     a fail-before-emit gate.
     """
@@ -70,7 +70,7 @@ class DeckExporter(Protocol):
 
 
 #: The registry of known exporters, keyed by format slug. Adding an adapter here
-#: (and to ``__all__`` if exported) is the ONLY way to make a new format
+#: (and to ``__all__`` if exported) is the only way to make a new format
 #: resolvable via :func:`get_exporter`.
 _EXPORTERS: dict[str, type[ForgeDckExporter]] = {
     ForgeDckExporter.format: ForgeDckExporter,
@@ -82,9 +82,9 @@ def get_exporter(format: str, *, availability: CardAvailability | None = None) -
 
     ``availability`` (optional) is a target card-availability oracle (e.g. a
     :class:`~pipeline.sim.forge_card_index.ForgeCardIndex`) injected into the
-    adapter so :meth:`DeckExporter.validate` can flag cards ABSENT from the
+    adapter so :meth:`DeckExporter.validate` can flag cards absent from the
     target; omit it for render-only or resolution-only validation. Raises
-    ``ValueError`` for an unknown format, naming the ones that ARE supported.
+    ``ValueError`` for an unknown format, naming the ones that are supported.
     """
     try:
         exporter_cls = _EXPORTERS[format]

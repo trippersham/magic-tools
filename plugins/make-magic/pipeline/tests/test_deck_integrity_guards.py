@@ -1,4 +1,4 @@
-"""Phase 4 — PREVENTION: unit tests for the backend-agnostic guard helpers.
+"""PREVENTION: unit tests for the backend-agnostic guard helpers.
 
 Covers :func:`decks_linking`, :func:`remove_impact` (size_after / goes_under_target
 math for multi- and single-copy refs), and :func:`shrink_check` (the precise
@@ -194,7 +194,9 @@ def test_local_save_deck_shrink_raises_without_allow_shrink(local_store: LocalYa
 
     full = _deck('EDH', [DeckCard(name=f'C{i}') for i in range(100)], fmt='Commander')
     local_store.save_deck(full)
-    shrunk = _deck('EDH', [DeckCard(name=f'C{i}') for i in range(98)], fmt='Commander')
+    # The SAME deck (same uuid) re-saved shrunk — a read-modify-write, not a new,
+    # coincidentally same-named deck (which would land on its own file).
+    shrunk = full.model_copy(update={'cards': [DeckCard(name=f'C{i}') for i in range(98)]})
     with pytest.raises(CollectionError, match='below its target of 100'):
         local_store.save_deck(shrunk)  # default is SAFE
     # allow_shrink=True proceeds.
@@ -209,11 +211,11 @@ def test_local_save_deck_build_does_not_raise(local_store: LocalYamlStore) -> No
 
 
 # --------------------------------------------------------------------------- #
-# Port-level remove_card cascade guard — the CRITICAL defense-in-depth.
+# Port-level remove_card cascade guard — defense-in-depth.
 #
-# Phase 4 only guarded the CLI's remove-card; a direct get_store().remove_card
-# was still a silent hard-DELETE. These prove the guard now lives AT THE ADAPTER
-# primitive (both backends), so a programmatic caller can't cascade-strip decks.
+# The CLI guard is not the only barrier: a direct get_store().remove_card must not
+# be a silent hard-DELETE. These prove the guard lives AT THE ADAPTER primitive
+# (both backends), so a programmatic caller can't cascade-strip decks.
 # --------------------------------------------------------------------------- #
 
 
@@ -249,9 +251,9 @@ def test_local_remove_card_unlinked_removes_with_default_force(local_store: Loca
 
 
 # --------------------------------------------------------------------------- #
-# S2: the shrink guard must count the MAINDECK, not sideboard cards. A save that
+# The shrink guard must count the MAINDECK, not sideboard cards. A save that
 # moves maindeck cards into the sideboard keeps the raw total but shrinks the
-# real deck — the guard must still trip (this is the July-incident protection).
+# real deck — the guard must still trip.
 # --------------------------------------------------------------------------- #
 
 

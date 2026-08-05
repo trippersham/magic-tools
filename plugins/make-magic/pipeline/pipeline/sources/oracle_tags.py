@@ -1,22 +1,22 @@
 """Puller: Scryfall oracle-tags -> ``raw/oracle_tags``.
 
-Flow (data-architecture §ingest, "bundled + self-refreshing dataset"):
+Flow:
     1. GET ``https://api.scryfall.com/bulk-data/oracle-tags`` for the metadata
        (``updated_at`` + ``jsonl_download_uri``).
     2. Cursor check: skip if ``updated_at`` is not newer than the last load.
     3. GET the ``jsonl_download_uri`` gzipped JSONL (~18 MB), load it to ``raw/oracle_tags``.
     4. FAIL-OPEN: any network/HTTP error falls back to the bundled compressed
        snapshot (``data/snapshots/oracle_tags.json.gz``) — the offline baseline —
-       so a caller ALWAYS gets tags. Logs, never crashes.
+       so a caller always gets tags. Logs, never crashes.
 
-Snapshot trim: the committed snapshot keeps the FULL 4,499-tag DAG (all
+Snapshot trim: the committed snapshot keeps the full 4,499-tag DAG (all
 parent/child edges — mandatory, since root tags carry 0 taggings and you must
 roll leaves up) but caps taggings at 8/tag (~24.5k of 229.9k) to stay under
 ~1 MB. The rollup needs the whole structure; a bounded tagging sample is enough
 for the offline baseline. The full daily file refreshes on demand.
 
-Scryfall conventions (mirroring scripts/scryfall_cache.py): a descriptive
-``User-Agent`` and a courteous rate-limit pause.
+Scryfall conventions: a descriptive ``User-Agent`` and a courteous rate-limit
+pause.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ log = logging.getLogger('make_magic.sources.oracle_tags')
 
 SOURCE = 'oracle_tags'
 BULK_META_URL = 'https://api.scryfall.com/bulk-data/oracle-tags'
-# Mirror scripts/scryfall_cache.py: descriptive UA + courteous pacing.
+# Descriptive UA + courteous pacing.
 HEADERS = {'User-Agent': 'make-magic-plugin/2.0'}
 RATE_LIMIT_MS = 100
 SNAPSHOT = Path(__file__).resolve().parents[2] / 'data' / 'snapshots' / 'oracle_tags.json.gz'
@@ -46,12 +46,11 @@ SNAPSHOT = Path(__file__).resolve().parents[2] / 'data' / 'snapshots' / 'oracle_
 def _fetch_meta(client: httpx.Client) -> tuple[str, str]:
     """GET the cheap bulk-meta JSON. Returns ``(jsonl_download_uri, updated_at)``.
 
-    This is the CURSOR probe: it fetches only the small metadata document (the
+    This is the cursor probe: it fetches only the small metadata document (the
     ``updated_at`` change token + the ``jsonl_download_uri`` of the big payload)
-    and does NOT download the ~18 MB file. ``sync`` gates on ``updated_at`` BEFORE
+    and does not download the ~18 MB file. ``sync`` gates on ``updated_at`` before
     calling :func:`_fetch_payload`, so a not-newer run never pays for the payload.
-    (Scryfall replaced the old ``download_uri`` JSON-array field with a gzipped
-    ``jsonl_download_uri`` in 2026.)
+    Scryfall serves the payload as a gzipped ``jsonl_download_uri``.
 
     Raises on any HTTP/network failure — the caller catches and falls back.
     """
@@ -66,8 +65,8 @@ def _fetch_meta(client: httpx.Client) -> tuple[str, str]:
 def _fetch_payload(client: httpx.Client, download_uri: str) -> list[dict[str, Any]]:
     """GET the gzipped-JSONL tags payload (~18 MB) and return the tag list.
 
-    Scryfall now serves this as gzipped JSONL (one tag object per line); we
-    download, gunzip, and parse line-by-line. Called ONLY after the cursor gate in
+    Scryfall serves this as gzipped JSONL (one tag object per line); we
+    download, gunzip, and parse line-by-line. Called only after the cursor gate in
     :func:`sync` passes (newer or forced), so the big download is skipped on a
     not-newer run. Raises on any HTTP/network failure — the caller catches and
     falls back to the bundled snapshot.
@@ -114,7 +113,7 @@ def sync(*, client: httpx.Client | None = None, force: bool = False) -> Path:
     owns_client = client is None
     client = client or httpx.Client()
     try:
-        # 1. Cheap cursor probe FIRST — small meta JSON only, no big download.
+        # 1. Cheap cursor probe first — small meta JSON only, no big download.
         download_uri, updated_at = _fetch_meta(client)
         # 2. Cursor gate: skip the ~18 MB payload GET entirely if not newer.
         if not force and not is_newer(prior, updated_at) and store.table_exists('raw', SOURCE):

@@ -4,9 +4,9 @@ A deck can be rendered to a target format's text, but a card in it may not be
 usable at that target: it may be UNRESOLVED (the pipeline never matched it to a
 Scryfall ``oracle_id`` — "name-only") or ABSENT_FROM_TARGET (the target — e.g.
 Forge's card DB — simply doesn't have it). The first is destination-agnostic; the
-second is destination-specific. Both were silent before this: a name-only or
-Forge-absent card was emitted verbatim and only "worked" when the target happened
-to have the name, otherwise producing a silently short/broken deck.
+second is destination-specific. Without this check a name-only or Forge-absent
+card is emitted verbatim and only "works" when the target happens to have the
+name, otherwise producing a silently short/broken deck.
 
 This module is the small, dependency-free core: the issue taxonomy, a per-deck
 :class:`ValidationReport`, a loud :class:`DeckExportError`, and the shared
@@ -44,7 +44,7 @@ class Severity(Enum):
 
     #: The deck can still be exported/run; surface it, don't block.
     WARNING = 'warning'
-    #: The deck WILL mis-load at the target; refuse to export (unless overridden).
+    #: The deck will mis-load at the target; refuse to export (unless overridden).
     BLOCKING = 'blocking'
 
 
@@ -78,7 +78,7 @@ class ValidationReport:
 
     @property
     def ok(self) -> bool:
-        """True when there are NO issues at all (not even warnings)."""
+        """True when there are no issues at all (not even warnings)."""
         return not self.issues
 
     @property
@@ -126,7 +126,7 @@ def export_checked(
     """Validate ``deck`` for ``exporter``'s target, then render — or refuse.
 
     Runs ``exporter.validate(deck)``; if ``strict`` and the report has BLOCKING
-    issues, raises :class:`DeckExportError` (naming the offending cards) BEFORE
+    issues, raises :class:`DeckExportError` (naming the offending cards) before
     rendering — so a downstream consumer (e.g. the sim) fails fast with an
     actionable message instead of spawning work on a deck that will mis-load.
     ``strict=False`` downgrades blocking to advisory (the ``--allow-missing``

@@ -80,16 +80,24 @@ class CollectionStore(Protocol):
     # --- Decks --------------------------------------------------------------- #
     def get_deck(self, name: str) -> Deck: ...
     def list_decks(self) -> list[Deck]: ...
-    def save_deck(self, deck: Deck, *, allow_shrink: bool = False) -> None:
+    def save_deck(self, deck: Deck, *, allow_shrink: bool = False, force_fresh: bool = False) -> None:
         """Persist the whole deck.
 
-        ``allow_shrink`` is the defensive integrity gate (Phase 4): when the save
-        drops a deck that currently MEETS its ``target_size`` below it, the store
-        raises :class:`~pipeline.collection.errors.CollectionError` UNLESS
-        ``allow_shrink`` is True. The CLI passes ``allow_shrink=True`` only after
-        the user confirms (`save-deck --confirm`), so a skill that calls
-        ``save_deck`` programmatically cannot silently shrink a legal deck under
-        target. The default is SAFE (guarded). Building a deck up never trips it.
+        ``allow_shrink`` is the defensive integrity gate: when the save drops a
+        deck that currently meets its ``target_size`` below it, the store raises
+        :class:`~pipeline.collection.errors.CollectionError` unless ``allow_shrink``
+        is True. The CLI passes ``allow_shrink=True`` only after the user confirms
+        (`save-deck --confirm`), so a skill that calls ``save_deck``
+        programmatically cannot silently shrink a legal deck under target. The
+        default is guarded. Building a deck up never trips it.
+
+        ``force_fresh`` (the recovery path) requires the save to create a brand-new
+        source deck, never adopting a same-named existing file/record. The local
+        YAML adapter disambiguates off an occupied base slug rather than upgrading a
+        same-named legacy backup in place; the Airtable adapter already
+        ``create_record``s a fresh-identity payload, so it is a no-op there. Even a
+        blind literal run of the advised recovery cannot overwrite/adopt a
+        same-named stranger.
         """
         ...
 

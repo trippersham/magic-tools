@@ -4,21 +4,21 @@ A gauntlet is just a list of :class:`GauntletDeck` — a ``(name, dck_text)`` pa
 per opponent — that :mod:`pipeline.sim.core` runs a candidate deck against.
 Several sources feed it:
 
-  * **curated** — a MODEST, ROBUST v1 set of ``.dck`` files that ship as plugin
+  * **curated** — a modest, robust v1 set of ``.dck`` files that ship as plugin
     data under ``pipeline/data/gauntlet/<constructed|commander>/``. Every deck is
     built from time-tested Forge staples (basics + classic commons) so it loads
     cleanly in Forge 2.0.13. Loaded straight off disk (no network, no creds).
-  * **named bundles** — an opt-in tier set shipped as a SUB-directory of the
+  * **named bundles** — an opt-in tier set shipped as a sub-directory of the
     format dir (e.g. ``.../constructed/guilds/`` — the 10-guild x weak/mid/strong
     40-card matrix). ``resolve_gauntlet('guilds', 'constructed')`` loads it; the
     default ``curated`` bundle (the flat ``.dck`` files at the format root) is
     unaffected, so bundles are strictly additive and runs opt in by name.
     :func:`gauntlet_sources` enumerates the valid ``source`` values for a format
     (the core sources + whatever bundle dirs ship).
-  * **mine** — the user's OWN decks, pulled from the collection
+  * **mine** — the user's own decks, pulled from the collection
     :class:`~pipeline.collection.CollectionStore` (``get_deck`` -> ``Deck``) and
-    rendered to ``.dck`` via the Forge exporter. This path is LIVE (Airtable
-    needs creds); it is structured here and unit-tested with a MOCKED store, and
+    rendered to ``.dck`` via the Forge exporter. This path is live (Airtable
+    needs creds); it is structured here and unit-tested with a mocked store, and
     only exercised against the real base under ``-m live`` / ``-m forge``.
 
 ``both`` merges curated + mine. :func:`resolve_gauntlet` is the single entry
@@ -81,7 +81,7 @@ def _gauntlet_root(fmt: str) -> Traversable:
 
 
 def _load_dck_dir(root: Traversable) -> list[GauntletDeck]:
-    """Load every ``.dck`` DIRECTLY under ``root`` into ``GauntletDeck``s (sorted).
+    """Load every ``.dck`` directly under ``root`` into ``GauntletDeck``s (sorted).
 
     Read via :mod:`importlib.resources` so it works from an installed wheel or an
     editable checkout. A non-existent ``root`` yields ``[]`` (never raises).
@@ -145,7 +145,7 @@ def _mine(fmt: str, store: CollectionStore) -> list[GauntletDeck]:
 
     Pulls every deck via ``store.list_decks`` (name-only) then ``get_deck`` (fully
     hydrated) and renders each to ``.dck`` with the Forge exporter. Filters to the
-    requested format: commander -> decks WITH commanders; anything else ->
+    requested format: commander -> decks with commanders; anything else ->
     non-commander decks. A deck whose format can't be matched is simply skipped.
     """
     exporter = get_exporter('forge_dck')
@@ -177,7 +177,7 @@ def resolve_gauntlet(
     packaged bundle for ``fmt`` (e.g. ``guilds``; see :func:`gauntlet_sources`).
     ``curated`` loads the default flat bundle; a named bundle loads its sub-dir
     (and is standalone — not merged with ``mine``); ``mine`` renders the user's
-    decks from ``store`` (which is REQUIRED for ``mine`` / ``both``); ``both``
+    decks from ``store`` (which is required for ``mine`` / ``both``); ``both``
     merges curated + mine (curated first). ``fmt`` selects the constructed vs
     commander pool. ``data_dir`` is accepted for symmetry with the rest of the
     sim API (the curated data ships with the package, so it is currently unused)

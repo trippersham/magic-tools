@@ -1,17 +1,17 @@
 """One-shot `copy_collection` — read every record from one backend, write to the
 other via the domain-typed `CollectionStore` port.
 
-This is the interop bridge behind the ``collection copy`` verb. It is a ONE-SHOT
-migration, NOT a live sync: it reads EVERY record (inventory, decks, chase,
+This is the interop bridge behind the ``collection copy`` verb. It is a one-shot
+migration, not a live sync: it reads every record (inventory, decks, chase,
 trades) through the source adapter and writes it through the destination
 adapter, so the copy is transport-agnostic (local YAML <-> Airtable records) and
-keys on the DOMAIN identity — card/deck NAMES and the ``oracle_id`` /
+keys on the domain identity — card/deck names and the ``oracle_id`` /
 ``airtable_record_id`` round-trip identity carried on the contracts — rather than
 any backend-specific row shape.
 
-Ordering matters because Airtable link fields are RECORD IDS: a deck's
+Ordering matters because Airtable link fields are record ids: a deck's
 Commander/Cards links, a chase card's Target Decks link, and a trade's card/deck
-links can only resolve to ids for rows that ALREADY EXIST. The copy therefore
+links can only resolve to ids for rows that already exist. The copy therefore
 runs inventory -> decks -> chase -> trades so every referenced row is present
 before a link that points at it is written.
 
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
 
 class CopyReport(BaseModel):
-    """How many records of each kind the copy WROTE to the destination."""
+    """How many records of each kind the copy wrote to the destination."""
 
     model_config = ConfigDict(extra='forbid')
 
@@ -70,7 +70,7 @@ def copy_collection(source: CollectionStore, dest: CollectionStore) -> CopyRepor
 
     # --- decks (must precede chase/trades — Target Decks / From/To (Deck)) ----- #
     for deck in source.list_decks():
-        # Drop the source record id so the destination CREATES a fresh row rather
+        # Drop the source record id so the destination creates a fresh row rather
         # than trying to PATCH an id that only exists in the source base.
         dest.save_deck(deck.model_copy(update={'airtable_record_id': None}))
         report.decks += 1

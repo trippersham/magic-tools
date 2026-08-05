@@ -1,4 +1,4 @@
-"""OFFLINE tests for deck-name sanitization (0.3) + validate-on-export (0.4/0.5).
+"""OFFLINE tests for deck-name sanitization + validate-on-export.
 
 No Forge, no network: card availability is a real
 :class:`~pipeline.sim.forge_card_index.ForgeCardIndex` built from a tiny hand-made
@@ -27,7 +27,7 @@ def _idx(*names: str) -> ForgeCardIndex:
 
 
 # --------------------------------------------------------------------------- #
-# 0.3 — safe_deck_stem
+# safe_deck_stem
 # --------------------------------------------------------------------------- #
 
 
@@ -51,7 +51,7 @@ def test_stem_preserves_readable_names() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# 0.4/0.5 — validate() severity + DFC/basics/absent
+# validate() severity + DFC/basics/absent
 # --------------------------------------------------------------------------- #
 
 

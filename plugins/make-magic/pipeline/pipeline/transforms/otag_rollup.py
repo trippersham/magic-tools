@@ -1,19 +1,19 @@
 """Roll each card's leaf oracle-tags up the tag DAG and materialize ``card_otag``.
 
-THE central rollup transform. Scryfall's oracle-tags form a DAG (IS-A /
-broader<->narrower) whose ROOT tags carry ~0 direct taggings — cards carry only
-LEAF tags. So to see anything you must roll each card's leaves up to ALL their
-ancestors (research §"CRITICAL gotcha").
+The central rollup transform. Scryfall's oracle-tags form a DAG (is-a /
+broader<->narrower) whose root tags carry ~0 direct taggings — cards carry only
+leaf tags. So to see anything you must roll each card's leaves up to all their
+ancestors.
 
-The graph rollup is done in PURE PYTHON (clean + unit-testable):
+The graph rollup is done in pure Python (clean + unit-testable):
 
     1. Read ``raw/oracle_tags`` (id, slug, parent_ids, taggings).
     2. Build ``parent_ids`` adjacency + a ``card -> {leaf tag id}`` map.
-    3. For each tag, compute its ANCESTOR CLOSURE with a cycle-safe visited-set
+    3. For each tag, compute its ancestor closure with a cycle-safe visited-set
        (multi-parent, so it's a set walk, not a tree walk; the DAG is acyclic
        but we defend against a would-be cycle anyway).
     4. Explode: for every ``(oracle_id, leaf)`` emit ``(oracle_id, slug)`` for
-       the leaf AND every ancestor.
+       the leaf and every ancestor.
 
 The exploded long-form ``(oracle_id, slug)`` table is materialized to
 ``normalized/card_otag`` via ``store`` (SQL/DuckDB owns the later joins;
@@ -69,7 +69,7 @@ def rollup_rows(
 
     Each ``tag`` dict has ``id``, ``slug``, ``parent_ids`` and ``taggings``
     (each tagging carries an ``oracle_id``). For every card that carries a leaf
-    tag, we emit a row for that leaf's slug AND every ancestor's slug — so a card
+    tag, we emit a row for that leaf's slug and every ancestor's slug — so a card
     tagged only ``sweeper`` shows up under ``sweeper``, ``removal``, etc.
 
     Returns a de-duplicated list of ``(oracle_id, slug)`` tuples. IDs/oracle_ids

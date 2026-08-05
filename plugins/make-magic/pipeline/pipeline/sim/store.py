@@ -1,15 +1,15 @@
 """Content-addressed cache for Forge matchups + a queryable telemetry feature store.
 
-Phases 2-3 run a Forge matchup (:class:`~pipeline.sim.runner.MatchResult`) and
-parse per-game telemetry (:class:`~pipeline.sim.telemetry.GameFeatures`). Re-running
-Forge is expensive and fully deterministic in its inputs, so this module caches a
-matchup by a CONTENT HASH of its inputs — the two ``.dck`` texts plus the run
-params (seed, game count, format, Forge version). Any change to a deck OR a Forge
-version bump changes the hash, so the cache self-invalidates: a stale entry can
-never be served for changed inputs (the classic content-addressed cache guarantee).
+A Forge matchup (:class:`~pipeline.sim.runner.MatchResult`) and its parsed per-game
+telemetry (:class:`~pipeline.sim.telemetry.GameFeatures`) are expensive to produce
+and fully deterministic in their inputs, so this module caches a matchup by a
+content hash of its inputs — the two ``.dck`` texts plus the run params (seed,
+game count, format, Forge version). Any change to a deck or a Forge version bump
+changes the hash, so the cache self-invalidates: a stale entry can never be served
+for changed inputs (the classic content-addressed cache guarantee).
 
-Everything lands in the SAME ``make_magic.duckdb`` as the rest of the lake, via
-:mod:`pipeline.store.io` (callers NEVER ``import duckdb`` themselves). Two tables:
+Everything lands in the same ``make_magic.duckdb`` as the rest of the lake, via
+:mod:`pipeline.store.io` (callers never ``import duckdb`` themselves). Two tables:
 
   * ``sim_matchups`` — one row per cached matchup: the content key, the per-deck
     hashes + params that produced it, and the win tally.
@@ -17,17 +17,17 @@ Everything lands in the SAME ``make_magic.duckdb`` as the rest of the lake, via
     so a batch aggregates in plain SQL (avg kill-turn, wincon counts, …). Land
     ramp curves are stored as native DuckDB ``INTEGER[]`` (list binding round-trips
     cleanly as Python ``list[int]`` — no JSON juggling needed).
-  * ``sim_game_logs`` — one row per game holding the FULL verbose Forge log for
-    that game, so any past game is forensically replayable WITHOUT re-running
+  * ``sim_game_logs`` — one row per game holding the full verbose Forge log for
+    that game, so any past game is forensically replayable without re-running
     Forge (whose ``-s`` seed is not reliably reproducible — a re-run is a
     different game, so the log must be retained at run time, not re-derived). The
     log is sliced from ``MatchResult.raw_log`` via
     :func:`~pipeline.sim.telemetry.split_games`, so its ``game_index`` lines up
     1:1 with ``sim_game_features`` (both derive from the same split). Read on
-    demand via :func:`get_game_logs` — NOT loaded on the hot cache path.
+    demand via :func:`get_game_logs` — not loaded on the hot cache path.
 
 The read-through hook is :func:`get_cached` (returns ``None`` on a miss); the
-``--force`` bypass is the CALLER'S concern (they simply skip :func:`get_cached`).
+``--force`` bypass is the caller's concern (they simply skip :func:`get_cached`).
 Tables are created idempotently on first write, honoring ``MAKE_MAGIC_DATA_DIR``
 so tests point at a tmp db.
 """
@@ -188,7 +188,7 @@ def matchup_key(
     Combines the two per-deck hashes with the run params (seed, game count,
     format, Forge version) into one sha256. Deterministic and order-sensitive on
     ``(deck_a, deck_b)`` — swapping the decks yields a different key (Ai(1) vs
-    Ai(2) is not symmetric). A deck edit OR a Forge-version bump changes the key,
+    Ai(2) is not symmetric). A deck edit or a Forge-version bump changes the key,
     guaranteeing a miss for changed inputs.
     """
     parts = (
@@ -218,7 +218,7 @@ def store_matchup(
     *,
     data_dir: str | os.PathLike[str] | None = None,
 ) -> None:
-    """Upsert the matchup row + REPLACE its feature and per-game log rows under ``key``.
+    """Upsert the matchup row + replace its feature and per-game log rows under ``key``.
 
     Idempotent by key: the matchup row is deleted-then-inserted and every prior
     ``sim_game_features`` / ``sim_game_logs`` row for ``key`` is cleared first, so
@@ -226,7 +226,7 @@ def store_matchup(
     ``features`` is persisted in order, one row per game (``game_index`` =
     position). The full verbose log is sliced from ``result.raw_log`` via
     :func:`~pipeline.sim.telemetry.split_games` and persisted one row per game
-    under the SAME ``game_index`` grain (a result-less log simply yields no log
+    under the same ``game_index`` grain (a result-less log simply yields no log
     rows — never an error).
     """
     db_path = _db_path(data_dir)
@@ -286,8 +286,8 @@ def store_matchup(
         conn.execute('DELETE FROM sim_game_logs WHERE matchup_key = ?', [key])
         game_logs = split_games(result.raw_log)
         # Invariant: log rows either line up 1:1 with feature rows (both derive from
-        # the SAME split_games) OR are absent — a result-less/elided log (e.g. tests
-        # that pass a placeholder raw_log) yields 0 segments. Any OTHER count means
+        # the same split_games) or are absent — a result-less/elided log (e.g. tests
+        # that pass a placeholder raw_log) yields 0 segments. Any other count means
         # `features` and `raw_log` came from different matchups and the two tables
         # would silently desync on `game_index`. A real raise (not `assert`, which
         # `python -O` strips) — this guards persisted data.
@@ -361,7 +361,7 @@ def get_game_logs(
 ) -> list[str]:
     """Return the retained per-game verbose logs for ``key``, ordered by game.
 
-    The forensic-replay reader (kept OFF the hot cache path so ``get_cached``
+    The forensic-replay reader (kept off the hot cache path so ``get_cached``
     stays lean). Pass ``game_index`` to fetch just that one game's log (a list of
     0 or 1). An unknown key, a fresh db, or a matchup stored with a result-less
     log all yield ``[]`` — never a raise. Each string is the full verbose Forge

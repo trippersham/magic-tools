@@ -1,4 +1,4 @@
-"""The io module that OWNS the DuckDB engine.
+"""The io module that owns the DuckDB engine.
 
 Callers never ``import duckdb`` or track the engine themselves — they hand a
 connection and a (layer, name) coordinate, and this module resolves paths,
@@ -69,10 +69,10 @@ def write_parquet(
     """
     path = StorePaths.resolve().parquet_path(layer, name)
     rel = conn.sql(relation_or_select) if isinstance(relation_or_select, str) else relation_or_select
-    # Atomic write: COPY to a temp file in the SAME dir, then os.replace() it into
+    # Atomic write: COPY to a temp file in the same dir, then os.replace() it into
     # place (an atomic rename on POSIX). A mid-write crash leaves the temp file
-    # (cleaned up here) and the prior Parquet at `path` fully intact — the old
-    # in-place COPY could truncate the whole bulk on a partial write.
+    # (cleaned up here) and the prior Parquet at `path` fully intact, rather than
+    # truncating the whole bulk on a partial write.
     tmp = path.with_name(f'{path.name}.{os.getpid()}.tmp')
     try:
         conn.sql(f"COPY ({rel.sql_query()}) TO '{tmp}' (FORMAT PARQUET)")

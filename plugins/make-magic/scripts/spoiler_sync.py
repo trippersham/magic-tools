@@ -15,9 +15,8 @@
 """
 Multi-source MTG spoiler sync: MythicSpoiler (fast) + Scryfall (authoritative).
 
-#5 migrated the spoiler tracker onto the pipeline lake — the bespoke
-``spoiler_cache.db`` SQLite state machine is RETIRED (it was the last SQLite in
-the plugin). This script is now a THIN FAÇADE over two pipeline components:
+The spoiler tracker is backed by the pipeline lake. This script is a thin façade
+over two pipeline components:
 
     - ``pipeline.sources.spoilers``   — scrape MythicSpoiler HTML -> ``raw/spoilers``.
     - ``pipeline.transforms.spoilers`` — reconcile slug <-> Scryfall oracle_id via
@@ -25,11 +24,11 @@ the plugin). This script is now a THIN FAÇADE over two pipeline components:
       contract). "New since last sync" derives from the lake (current snapshot vs.
       the prior normalized table), NOT a SQLite meta table.
 
-The ``sync`` / ``status`` / ``list`` verbs AND their output shape are PRESERVED so
+The ``sync`` / ``status`` / ``list`` verbs and their output shape are preserved so
 ``chasing-cards`` keeps working unchanged.
 
-Package access (house convention, same as ``scripts/collection`` / the P2
-``scryfall_cache`` rewrite): this PEP-723 script pins the local package via
+Package access (house convention, same as ``scripts/collection`` /
+``scryfall_cache``): this PEP-723 script pins the local package via
 ``[tool.uv.sources]`` as an editable path dep, so ``uv run`` resolves ``pipeline``
 on invocation — the package never imports ``scripts/`` (coupling stays
 one-directional).
