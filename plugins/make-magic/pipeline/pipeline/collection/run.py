@@ -48,6 +48,7 @@ from pipeline.contracts import Deck, DeckCard, Trade
 
 if TYPE_CHECKING:
     from pipeline.collection import CollectionStore
+    from pipeline.decks import DecksStore
     from pipeline.decks.access import DeckAccess
 
 #: The repo's ``scripts/`` dir (sibling of the pipeline package root). Only the
@@ -133,6 +134,48 @@ def _onboard(argv: list[str]) -> None:
 # --------------------------------------------------------------------------- #
 
 
+def _provenance_states(decks_store: DecksStore, deck_uuid: str | None) -> dict[str, str]:
+    """The per-row provenance tri-state (``fresh``/``stale``/``absent``) for a deck (M7).
+
+    Derived against the deck's CURRENT ``version()`` from the stored stamps. A deck
+    with no local row yet (``deck_uuid`` is None — a synced source deck never pulled
+    locally) has no stamps, so both states are ``absent``.
+    """
+    if deck_uuid is None:
+        return {'assessment': 'absent', 'sim': 'absent'}
+    return {
+        'assessment': decks_store.assessment_state(deck_uuid),
+        'sim': decks_store.sim_state(deck_uuid),
+    }
+
+
+def _provenance_block(decks_store: DecksStore, deck_uuid: str | None) -> dict[str, object]:
+    """The full ``get-deck --provenance`` block for a deck (design §6 / M7).
+
+    Emits ``{assessment: {version, at, state}, last_sim: {result, deck_version, at,
+    state}}`` — the stored stamps augmented with the derived tri-state. Missing
+    stamps surface as ``state: 'absent'`` with null fields (never validated). A deck
+    with no local row yet is uniformly ``absent``.
+    """
+    assessment: dict[str, object] = {'version': None, 'at': None, 'state': 'absent'}
+    last_sim: dict[str, object] = {'result': None, 'deck_version': None, 'at': None, 'state': 'absent'}
+    if deck_uuid is None:
+        return {'assessment': assessment, 'last_sim': last_sim}
+
+    row = decks_store.get_row(deck_uuid)
+    if row is not None and row.freshness:
+        stamp = json.loads(row.freshness).get('assessment')
+        if isinstance(stamp, dict):
+            assessment = {'version': stamp.get('version'), 'at': stamp.get('at'),
+                          'state': decks_store.assessment_state(deck_uuid)}
+    if row is not None and row.last_sim:
+        stamp = json.loads(row.last_sim)
+        if isinstance(stamp, dict):
+            last_sim = {'result': stamp.get('result'), 'deck_version': stamp.get('deck_version'),
+                        'at': stamp.get('at'), 'state': decks_store.sim_state(deck_uuid)}
+    return {'assessment': assessment, 'last_sim': last_sim}
+
+
 def _list_decks(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog='collection list-decks',
@@ -149,12 +192,15 @@ def _list_decks(argv: list[str]) -> None:
     # The UNION (design §8): source-backed decks are `synced`; purely-local drafts
     # (no source) are `ephemeral`. Ephemeral drafts have no source, so the two sets
     # never overlap — a synced deck's local row is enumerated only via the source.
+    decks_store = DecksStore()
     rows: list[dict[str, object]] = []
     for deck in sorted(_store().list_decks(), key=lambda d: d.name):
-        rows.append({'name': deck.name, 'status': 'synced', 'archived': False})
-    drafts = DecksStore().list_rows(sync_status='ephemeral', include_archived=args.archived)
+        rows.append({'name': deck.name, 'status': 'synced', 'archived': False,
+                     **_provenance_states(decks_store, decks_store.uuid_for_name(deck.name))})
+    drafts = decks_store.list_rows(sync_status='ephemeral', include_archived=args.archived)
     for row in sorted(drafts, key=lambda r: r.name):
-        rows.append({'name': row.name, 'status': 'ephemeral', 'archived': row.archived})
+        rows.append({'name': row.name, 'status': 'ephemeral', 'archived': row.archived,
+                     **_provenance_states(decks_store, row.deck_uuid)})
 
     if args.json:
         print(json.dumps(rows))
@@ -201,12 +247,31 @@ def _get_deck(argv: list[str]) -> None:
     parser.add_argument('name', nargs='?')
     parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
     parser.add_argument('--field', help='Print only this Deck field (e.g. strategy, assessment, focus_otags).')
+    parser.add_argument(
+        '--provenance',
+        action='store_true',
+        help='Emit a {deck, provenance} envelope with the assessment/sim freshness stamps + tri-state.',
+    )
     args = parser.parse_args(argv)
     if args.id_prefix is None and not args.name:
         raise CollectionError('get-deck: a deck name or --id prefix is required')
     # W1/W4: route the deck READ through the local decks store (pull-current per
     # the TTL policy, serve local thereafter). --id takes precedence over the name.
-    deck = _deck_access().read_deck(args.name or '', id_prefix=args.id_prefix)
+    access = _deck_access()
+    deck = access.read_deck(args.name or '', id_prefix=args.id_prefix)
+    if args.provenance:
+        # The M7 provenance view: a {deck, provenance} envelope. DEFAULT output
+        # (no flag) stays byte-for-byte the deck JSON — existing parsers unaffected.
+        from pipeline.decks import DecksStore
+
+        decks_store = DecksStore()
+        deck_uuid = access.resolve(id_prefix=args.id_prefix) if args.id_prefix else access.resolve(args.name or '')
+        envelope = {
+            'deck': deck.model_dump(mode='json'),
+            'provenance': _provenance_block(decks_store, deck_uuid),
+        }
+        print(json.dumps(envelope, indent=2))
+        return
     if args.field:
         allowed = sorted(set(Deck.model_fields) | {'commanders'})
         if args.field not in allowed:
@@ -291,6 +356,35 @@ def _set_focus_otags(argv: list[str]) -> None:
     args = parser.parse_args(argv)
     _deck_access(writes_enabled=True).set_focus_otags(args.name or '', list(args.otag), id_prefix=args.id_prefix)
     print(f'set-focus-otags: {args.name if args.id_prefix is None else args.id_prefix} -> {args.otag}')
+
+
+def _stamp_sim(argv: list[str]) -> None:
+    """The thin VALIDATE hook (M7 / preflight W-E): stamp ``last_sim`` on a deck row.
+
+    ``collection stamp-sim "<deck>" --result '<json>'`` (or ``--id <prefix>``) writes
+    ``last_sim = {result, deck_version, at}`` keyed on the deck's current ``version()``
+    so derived-phase staleness becomes REAL across sessions. The ``pipeline/sim/``
+    subsystem is UNTOUCHED — the simulating-games step calls this verb with its run
+    summary. ``--result`` accepts an arbitrary JSON blob (win-rate, games, ...) and
+    is stored VERBATIM; a non-JSON value is stored as the raw string.
+    """
+    parser = argparse.ArgumentParser(prog='collection stamp-sim')
+    parser.add_argument('name', nargs='?')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
+    parser.add_argument('--result', required=True, help='The sim summary — arbitrary JSON (or a raw string).')
+    args = parser.parse_args(argv)
+    from pipeline.decks import DecksStore
+
+    try:
+        result: object = json.loads(args.result)
+    except json.JSONDecodeError:
+        result = args.result  # a non-JSON summary line — stored verbatim.
+    access = _deck_access()
+    # Ensure a local row exists (pull-current a synced source deck) so there is a
+    # row to stamp, then resolve to its uuid.
+    deck_uuid, _ = _resolve_edit_target(access, args.name, args.id_prefix)
+    DecksStore().set_last_sim(deck_uuid, result=result)
+    print(f'stamp-sim: {args.name if args.id_prefix is None else args.id_prefix}')
 
 
 # --------------------------------------------------------------------------- #
@@ -1366,6 +1460,7 @@ VERBS = {
     'set-strategy': _set_strategy,
     'set-assessment': _set_assessment,
     'set-focus-otags': _set_focus_otags,
+    'stamp-sim': _stamp_sim,
     # deck edits (typed edits + ephemeral lifecycle — the guided-build surface)
     'deck-swap': _deck_swap,
     'deck-add': _deck_add,

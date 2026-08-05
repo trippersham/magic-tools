@@ -549,6 +549,10 @@ class DecksStore:
 
         Bookkeeping only — it does NOT change ``deck_json`` and therefore does NOT
         append a ledger version (freshness is not a deck-content edit).
+
+        NOTE: this REPLACES the whole freshness blob. To add/replace a single key
+        while preserving the others (e.g. stamp ``assessment`` without clobbering
+        the W4 ``pulled_at``), use :meth:`merge_freshness`.
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
@@ -556,6 +560,133 @@ class DecksStore:
                 f'UPDATE {_DECKS_TABLE} SET freshness = ? WHERE deck_uuid = ?',
                 [json.dumps(freshness), deck_uuid],
             )
+
+    def merge_freshness(self, deck_uuid: str, updates: dict[str, object]) -> None:
+        """MERGE ``updates`` into the row's ``freshness`` JSON (preserve the rest).
+
+        The provenance freshness blob (design §6 / M7) is a MAP of independent
+        stamps — the W4 ``pulled_at`` and the P5 ``assessment`` stamp coexist. A
+        naive :meth:`set_freshness` would clobber the siblings, so the assessment
+        stamp reads the current JSON, sets/replaces only the given keys, and writes
+        the merged result back. Bookkeeping only — no ``deck_json`` change, no
+        ledger append. A missing row is a silent no-op (the caller upserted first).
+        """
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            row = conn.execute(
+                f'SELECT freshness FROM {_DECKS_TABLE} WHERE deck_uuid = ?', [deck_uuid]
+            ).fetchone()
+            if row is None:
+                return
+            try:
+                current = json.loads(row[0]) if row[0] else {}
+            except (json.JSONDecodeError, TypeError):
+                current = {}
+            if not isinstance(current, dict):
+                current = {}
+            current.update(updates)
+            conn.execute(
+                f'UPDATE {_DECKS_TABLE} SET freshness = ? WHERE deck_uuid = ?',
+                [json.dumps(current), deck_uuid],
+            )
+
+    def set_last_sim(self, deck_uuid: str, *, result: object) -> None:
+        """Stamp ``last_sim = {result, deck_version, at}`` on a row (the M7 sim stamp).
+
+        The thin VALIDATE hook (preflight W-E): the ``pipeline/sim/`` subsystem is
+        UNTOUCHED — the simulate step calls this with its run summary. ``result`` is
+        stored VERBATIM (a parsed JSON blob — win-rate, games, etc. — or a raw
+        string). ``deck_version`` is stamped as the deck's CURRENT :func:`version`,
+        so a later content edit makes the stamp stale (:meth:`sim_state`).
+
+        Bookkeeping only — it does NOT change ``deck_json`` and therefore does NOT
+        append a ledger version (a sim result is not a deck-content edit). Raises
+        ``DecksError`` if the deck is absent (nothing to stamp against).
+        """
+        from datetime import UTC, datetime
+
+        from pipeline.decks.version import version as _version
+
+        deck = self.get(deck_uuid)
+        if deck is None:
+            raise DecksError(f'no deck with id {deck_uuid!r}')
+        blob = {
+            'result': result,
+            'deck_version': _version(deck),
+            'at': datetime.now(tz=UTC).isoformat(),
+        }
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            conn.execute(
+                f'UPDATE {_DECKS_TABLE} SET last_sim = ? WHERE deck_uuid = ?',
+                [json.dumps(blob), deck_uuid],
+            )
+
+    # ----------------------------------------------------------------------- #
+    # Derived staleness (tri-state: fresh | stale | absent) — design §6 / M7
+    # ----------------------------------------------------------------------- #
+
+    def assessment_state(self, deck_uuid: str) -> str:
+        """The tri-state freshness of the deck's ASSESSMENT stamp vs current ``version()``.
+
+        ``absent`` (never assessed — no stamp), ``fresh`` (stamped version ==
+        current), or ``stale`` (a content edit moved the version since the stamp).
+        Distinguishing ``absent`` from ``stale`` lets prose say "never validated"
+        honestly rather than conflating it with a drifted stamp. Derived, not
+        remembered — read purely from the stored ``freshness.assessment.version``.
+        """
+        row = self.get_row(deck_uuid)
+        deck = self.get(deck_uuid)
+        if row is None or deck is None:
+            return 'absent'
+        stamped = self._stamped_version(row.freshness, 'assessment', 'version')
+        return self._tri_state(stamped, deck)
+
+    def sim_state(self, deck_uuid: str) -> str:
+        """The tri-state freshness of the deck's ``last_sim`` stamp vs current ``version()``.
+
+        ``absent`` (never simmed), ``fresh`` (stamped ``deck_version`` == current),
+        or ``stale`` (an edit moved the version since the sim). Derived from the
+        stored ``last_sim.deck_version`` — the cross-session staleness M7 delivers.
+        """
+        row = self.get_row(deck_uuid)
+        deck = self.get(deck_uuid)
+        if row is None or deck is None:
+            return 'absent'
+        stamped = self._stamped_version(row.last_sim, None, 'deck_version')
+        return self._tri_state(stamped, deck)
+
+    @staticmethod
+    def _tri_state(stamped_version: str | None, deck: Deck) -> str:
+        """Map a stamped version (or None) against ``deck``'s current version to the tri-state."""
+        from pipeline.decks.version import version as _version
+
+        if stamped_version is None:
+            return 'absent'
+        return 'fresh' if stamped_version == _version(deck) else 'stale'
+
+    @staticmethod
+    def _stamped_version(raw: str | None, section: str | None, key: str) -> str | None:
+        """Pull a stamped version string out of a freshness / last_sim JSON blob.
+
+        ``section`` selects a nested object first (``freshness['assessment']``);
+        pass ``None`` to read ``key`` off the top level (``last_sim['deck_version']``).
+        Any malformed / missing stamp yields ``None`` (treated as absent).
+        """
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        if section is not None:
+            data = data.get(section)
+            if not isinstance(data, dict):
+                return None
+        value = data.get(key)
+        return value if isinstance(value, str) else None
 
     # ----------------------------------------------------------------------- #
     # Archive lifecycle — hide a draft from the default list without deleting it
@@ -781,9 +912,26 @@ class DecksStore:
         self._write_edit(deck_uuid, deck.model_copy(update={'strategy': text}), rationale=rationale)
 
     def set_assessment(self, deck_uuid: str, text: str | None, *, rationale: str | None = None) -> None:
-        """Set the deck's assessment (reality synthesis)."""
+        """Set the deck's assessment (reality synthesis) + STAMP its freshness (M7).
+
+        The assessment is a persisted deck fact (it feeds :func:`version`), so the
+        edit itself moves the version. AFTER the write we stamp
+        ``freshness.assessment = {version(deck_after), at}`` — MERGED into the
+        existing freshness blob so the W4 ``pulled_at`` (and any sibling stamp)
+        survives. The stamp records the POST-edit version, so a later content edit
+        makes :meth:`assessment_state` read ``stale``.
+        """
+        from datetime import UTC, datetime
+
+        from pipeline.decks.version import version as _version
+
         deck = self._require(deck_uuid)
-        self._write_edit(deck_uuid, deck.model_copy(update={'assessment': text}), rationale=rationale)
+        updated = deck.model_copy(update={'assessment': text})
+        self._write_edit(deck_uuid, updated, rationale=rationale)
+        self.merge_freshness(
+            deck_uuid,
+            {'assessment': {'version': _version(updated), 'at': datetime.now(tz=UTC).isoformat()}},
+        )
 
     def set_focus_otags(self, deck_uuid: str, otags: list[str], *, rationale: str | None = None) -> None:
         """Set the deck's declared focus otags."""
