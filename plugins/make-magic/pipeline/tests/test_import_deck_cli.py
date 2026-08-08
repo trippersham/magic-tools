@@ -232,6 +232,24 @@ def test_unknown_ref_translates_to_collection_error(
     assert DecksStore().list() == []
 
 
+def test_unknown_host_url_translates_to_collection_error(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    # An unrecognized-host URL is the domain of the host adapters but matches none
+    # of them; plaintext must NOT greedily parse it as a 1-line decklist. It must
+    # reach NO importer -> get_importer raises ValueError -> a clean CollectionError
+    # (exit 1, no traceback), and NO garbage draft is created.
+    with pytest.raises(SystemExit) as exc:
+        _run(monkeypatch, 'import-deck', 'https://example.com/not-a-deck')
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert err.startswith('error: ')
+    assert 'Traceback' not in err
+    # names the supported sources
+    assert 'archidekt' in err and 'edhrec' in err and 'moxfield' in err and 'plaintext' in err
+    assert DecksStore().list() == []
+
+
 def test_fetch_validationerror_is_not_masked_as_collection_error(
     data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -89,9 +89,41 @@ def test_matches_false_for_known_hosts(url: str) -> None:
     assert PlaintextImporter().matches(url) is False
 
 
+@pytest.mark.parametrize(
+    'url',
+    [
+        'https://example.com/not-a-deck',
+        'http://anything',
+        'HTTPS://Example.COM/Deck/1',
+        '  https://example.com/x  ',
+    ],
+)
+def test_matches_false_for_unknown_host_urls(url: str) -> None:
+    # An http(s) URL is the domain of the host adapters; an unrecognized-host URL
+    # must reach NO importer (it must NOT be greedily parsed as a 1-line decklist).
+    assert PlaintextImporter().matches(url) is False
+
+
+def test_matches_true_for_non_url_card_line_with_url_word() -> None:
+    # A URL only excludes when the WHOLE ref is the URL; a genuine decklist that
+    # merely contains a card mentioning http still matches (multi-line, real cards).
+    text = '1 Sol Ring\nsee https://example.com for details\n'
+    assert PlaintextImporter().matches(text) is True
+
+
 def test_matches_false_for_prose() -> None:
     # A prose blob with no card lines is not a decklist.
     assert PlaintextImporter().matches(FIXTURES.joinpath('malformed.txt').read_text(encoding='utf-8')) is False
+
+
+def test_registry_rejects_unknown_host_url() -> None:
+    # Against the REAL (fully-registered) registry: an unknown-host URL matches no
+    # adapter -> get_importer raises ValueError naming the supported sources. This
+    # is the bug's root: plaintext must NOT greedily claim a bare URL string.
+    from pipeline.sources.deck_import import get_importer
+
+    with pytest.raises(ValueError, match=r'no importer matches.*supported sources'):
+        get_importer('https://example.com/not-a-deck')
 
 
 # --------------------------------------------------------------------------- #
