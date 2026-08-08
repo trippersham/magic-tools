@@ -98,7 +98,9 @@ class PlaintextImporter:
     def matches(self, ref: str) -> bool:
         """True iff ``ref`` is a decklist we can read offline (not a known host URL).
 
-        False for the deck-host URLs later adapters own (:data:`_HOST_EXCLUSIONS`).
+        False for the deck-host URLs later adapters own (:data:`_HOST_EXCLUSIONS`)
+        and for a bare all-digits ref (Archidekt's numeric-id addressing form — a
+        card name is never purely numeric, so this can only be a deck id).
         Otherwise True for: the ``-`` stdin sentinel; an existing file path; a path
         ending ``.dck``; or a raw multi-line string that contains a card-line
         pattern (a quantity line or a bare, non-prose card name).
@@ -106,6 +108,8 @@ class PlaintextImporter:
         lowered = ref.lower()
         if any(host in lowered for host in _HOST_EXCLUSIONS):
             return False
+        if ref.strip().isdigit():
+            return False  # a bare numeric id is Archidekt's addressing form, never a decklist
         if ref == _STDIN_SENTINEL:
             return True
         if lowered.endswith('.dck'):

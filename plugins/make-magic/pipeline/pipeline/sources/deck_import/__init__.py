@@ -26,10 +26,20 @@ to make a source resolvable via :func:`get_importer`.
 
 from __future__ import annotations
 
+import logging
 from typing import Protocol, runtime_checkable
 
 from pipeline.contracts import Deck, DeckCard
 from pipeline.sources.deck_import.raw import RawDeck, RawEntry
+
+_log = logging.getLogger(__name__)
+
+#: Commander-format size tolerance band for the size-sanity warning. A canonical
+#: Commander deck is exactly 100 (99 maindeck + 1 commander); real lists carry a
+#: partner/companion or a stray extra, so the band is a little wide on purpose —
+#: it flags a deck that is *wildly* off (a mis-parse), not one off by a card.
+_COMMANDER_SIZE_MIN = 98
+_COMMANDER_SIZE_MAX = 101
 
 __all__ = (
     'DeckImporter',
@@ -38,6 +48,36 @@ __all__ = (
     'get_importer',
     'import_deck',
 )
+
+
+def _warn_if_off_size(deck: Deck) -> None:
+    """Log a WARNING when a commander-format ``deck`` is wildly off 100 cards.
+
+    The design's "surfaced, never silently shipped" size-sanity check: a source
+    parse that lands a maindeck far from 99 (a mis-applied category rule, a source
+    that dumped its maybeboard into the main list) is almost always a bug, so we
+    surface it — as a stderr log via the module logger, NOT a raise (the deck is
+    still returned; the CLI also reports size in P5, and a legitimately off-size
+    list must not be un-importable).
+
+    Only meaningful for a deck that HAS a commander (Commander format — the one
+    format with a fixed 100-card target here); a deck with no commander is left
+    alone (its target is format-dependent and not this helper's concern). Generic
+    on purpose so a later API adapter (P3) can reuse it.
+    """
+    commanders = deck.commanders
+    if not commanders:
+        return
+    total = sum(c.quantity for c in deck.maindeck) + sum(c.quantity for c in commanders)
+    if not (_COMMANDER_SIZE_MIN <= total <= _COMMANDER_SIZE_MAX):
+        _log.warning(
+            'imported deck %r has an off-size commander deck: %d cards '
+            '(expected %d-%d) — the source parse may be wrong; review before shipping.',
+            deck.name,
+            total,
+            _COMMANDER_SIZE_MIN,
+            _COMMANDER_SIZE_MAX,
+        )
 
 
 @runtime_checkable
@@ -150,6 +190,8 @@ def _register(importer: DeckImporter) -> None:
     _IMPORTERS[importer.source] = importer
 
 
+from pipeline.sources.deck_import.archidekt import ArchidektImporter  # noqa: E402
 from pipeline.sources.deck_import.plaintext import PlaintextImporter  # noqa: E402
 
 _register(PlaintextImporter())
+_register(ArchidektImporter())
