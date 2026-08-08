@@ -192,8 +192,10 @@ def _register(importer: DeckImporter) -> None:
 
 from pipeline.sources.deck_import.archidekt import ArchidektImporter  # noqa: E402
 from pipeline.sources.deck_import.edhrec import EdhrecImporter  # noqa: E402
+from pipeline.sources.deck_import.moxfield import MoxfieldImporter  # noqa: E402
 from pipeline.sources.deck_import.plaintext import PlaintextImporter  # noqa: E402
 
 _register(PlaintextImporter())
 _register(ArchidektImporter())
 _register(EdhrecImporter())
+_register(MoxfieldImporter())
