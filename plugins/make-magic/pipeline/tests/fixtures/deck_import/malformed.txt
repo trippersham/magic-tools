@@ -1,0 +1,7 @@
+This is just some prose describing a deck idea.
+
+I was thinking about a goblin tribal build, maybe with some
+aristocrats overlap, but I have not written down any actual card
+lines yet. Just musings.
+
+// still nothing parseable here

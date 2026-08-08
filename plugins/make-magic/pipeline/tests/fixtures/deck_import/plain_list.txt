@@ -1,0 +1,12 @@
+// A plain paste-style decklist with a Commander section.
+Commander:
+1 Krenko, Mob Boss
+
+Deck
+1 Sol Ring
+1x Arcane Signet
+4 Lightning Bolt
+Goblin Bushwhacker
+20 Mountain
+
+# a trailing comment

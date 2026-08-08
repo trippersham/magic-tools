@@ -17,8 +17,11 @@ a caller hands a ref (or an explicit ``source=``) and gets the matching adapter,
 or a loud ``ValueError`` naming the supported sources — the registry is the single
 source of truth for which sources are supported.
 
-No adapters are registered here in Phase 0 (``_IMPORTERS`` is empty); later phases
-append their adapter under its ``source`` key.
+Adapters register at import time by appending an instance under its ``source``
+key to ``_IMPORTERS`` (see the bottom of this module) — the single registration
+seam every phase follows: import the adapter class, instantiate it once, assign
+``_IMPORTERS[importer.source] = importer``. Adding an entry there is the only way
+to make a source resolvable via :func:`get_importer`.
 """
 
 from __future__ import annotations
@@ -69,9 +72,9 @@ class DeckImporter(Protocol):
 
 
 #: The registry of known importers, keyed by source slug. Adding an adapter here
-#: (and to ``__all__`` if exported) is the only way to make a new source
-#: resolvable via :func:`get_importer`. EMPTY in Phase 0 — adapters register in
-#: later phases.
+#: (via the registration block at the bottom of this module) is the only way to
+#: make a new source resolvable via :func:`get_importer`. Populated at import
+#: time; later phases append their adapter under its ``source`` key.
 _IMPORTERS: dict[str, DeckImporter] = {}
 
 
@@ -130,3 +133,23 @@ def _normalize_rawdeck(raw: RawDeck) -> Deck:
     """
     cards = [DeckCard(name=entry.name, quantity=entry.quantity, role=entry.role) for entry in raw.cards]
     return Deck(name=raw.name, cards=cards)
+
+
+# --------------------------------------------------------------------------- #
+# Adapter registration — the single seam every phase follows. Import the adapter,
+# instantiate it once, and register the instance under its ``source`` key. The
+# import is deferred to the bottom of the module so an adapter can safely import
+# ``_normalize_rawdeck`` from here without a circular-import hazard.
+# --------------------------------------------------------------------------- #
+
+
+def _register(importer: DeckImporter) -> None:
+    """Register ``importer`` under its ``source`` key (loud on a duplicate slug)."""
+    if importer.source in _IMPORTERS:
+        raise ValueError(f'duplicate importer source {importer.source!r}')
+    _IMPORTERS[importer.source] = importer
+
+
+from pipeline.sources.deck_import.plaintext import PlaintextImporter  # noqa: E402
+
+_register(PlaintextImporter())
