@@ -1,0 +1,132 @@
+"""Deck-import source — resolve an external deck reference to a canonical ``Deck``.
+
+The read-side inverse of :mod:`pipeline.destinations.deck_export` (``Deck`` -> a
+file's text): each concrete adapter turns one external deck source (an Archidekt
+/ EDHREC / Moxfield URL, a file path, ``-``/stdin, or pasted text) into our
+canonical :class:`~pipeline.contracts.Deck`, through a cached intermediate
+:class:`~pipeline.sources.deck_import.raw.RawDeck` stage (the read-side analog of
+the ``sources/`` "fetch -> cache into ``raw/``" convention).
+
+The narrow port is :class:`DeckImporter`: ``fetch`` is the I/O + WAF + paste
+boundary that produces the cached ``RawDeck``; ``normalize`` is PURE — it turns a
+source-shaped ``RawDeck`` into the one canonical ``Deck`` (assemble ``DeckCard``s,
+pass roles through the validator, set the name) and deliberately does **not**
+resolve card names against the lake (name-only ``DeckCard``s are correct — the
+read-path resolver enriches them). :func:`get_importer` is the registry/factory:
+a caller hands a ref (or an explicit ``source=``) and gets the matching adapter,
+or a loud ``ValueError`` naming the supported sources — the registry is the single
+source of truth for which sources are supported.
+
+No adapters are registered here in Phase 0 (``_IMPORTERS`` is empty); later phases
+append their adapter under its ``source`` key.
+"""
+
+from __future__ import annotations
+
+from typing import Protocol, runtime_checkable
+
+from pipeline.contracts import Deck, DeckCard
+from pipeline.sources.deck_import.raw import RawDeck, RawEntry
+
+__all__ = (
+    'DeckImporter',
+    'RawDeck',
+    'RawEntry',
+    'get_importer',
+    'import_deck',
+)
+
+
+@runtime_checkable
+class DeckImporter(Protocol):
+    """The narrow port every deck-import adapter satisfies.
+
+    ``source`` is the adapter's registry key (a stable source slug, e.g.
+    ``'archidekt'``); :meth:`matches` sniffs whether a ref belongs to this source
+    (URL host / file / ``-`` / raw text); :meth:`fetch` turns the ref into a
+    cached :class:`~pipeline.sources.deck_import.raw.RawDeck` (the I/O + WAF + paste
+    boundary); :meth:`normalize` turns that ``RawDeck`` into a canonical
+    :class:`~pipeline.contracts.Deck` (PURE — no I/O, no card resolution).
+    """
+
+    source: str
+
+    def matches(self, ref: str) -> bool:
+        """True iff ``ref`` belongs to this source (host sniff / file / '-' / text)."""
+        ...
+
+    def fetch(self, ref: str, *, refresh: bool = False) -> RawDeck:
+        """Resolve ``ref`` to a cached ``RawDeck`` (I/O + WAF boundary; caches).
+
+        ``refresh=True`` forces a re-fetch: the adapter threads it into
+        :func:`~pipeline.sources.deck_import.raw.load_or_fetch`.
+        """
+        ...
+
+    def normalize(self, raw: RawDeck) -> Deck:
+        """Turn a source-shaped ``RawDeck`` into the canonical ``Deck`` (pure)."""
+        ...
+
+
+#: The registry of known importers, keyed by source slug. Adding an adapter here
+#: (and to ``__all__`` if exported) is the only way to make a new source
+#: resolvable via :func:`get_importer`. EMPTY in Phase 0 — adapters register in
+#: later phases.
+_IMPORTERS: dict[str, DeckImporter] = {}
+
+
+def get_importer(ref: str, *, source: str | None = None) -> DeckImporter:
+    """Return the :class:`DeckImporter` for ``ref`` (or an explicit ``source``).
+
+    With ``source`` given, look that adapter up directly (an unknown source is a
+    loud ``ValueError`` naming the supported sources). Otherwise dispatch by
+    sniffing: the first registered adapter whose :meth:`DeckImporter.matches`
+    returns True wins; if none match, raise a ``ValueError`` naming the supported
+    sources. The registry is the single source of truth for what is supported.
+    """
+    supported = sorted(_IMPORTERS)
+    if source is not None:
+        try:
+            return _IMPORTERS[source]
+        except KeyError:
+            raise ValueError(f'unknown source {source!r}; supported sources: {supported}') from None
+    for importer in _IMPORTERS.values():
+        if importer.matches(ref):
+            return importer
+    raise ValueError(f'no importer matches {ref!r}; supported sources: {supported}')
+
+
+def import_deck(ref: str, *, source: str | None = None, refresh: bool = False) -> Deck:
+    """Resolve ``ref`` to a canonical :class:`~pipeline.contracts.Deck`.
+
+    Dispatches to the matching adapter (or the ``source=`` override), then
+    ``fetch`` -> ``normalize``. ``fetch`` caches internally, so a fresh re-import
+    performs no network call; ``refresh=True`` forces the adapter's cache to
+    re-fetch (adapters thread it into
+    :func:`~pipeline.sources.deck_import.raw.load_or_fetch`). ``normalize`` is
+    pure and does not resolve card names — name-only ``DeckCard``s land, and the
+    read-path resolver enriches them.
+    """
+    importer = get_importer(ref, source=source)
+    raw = importer.fetch(ref, refresh=refresh)
+    return importer.normalize(raw)
+
+
+def _normalize_rawdeck(raw: RawDeck) -> Deck:
+    """The shared ``RawDeck`` -> ``Deck`` body every adapter's ``normalize`` delegates to.
+
+    Assembles a name-only :class:`~pipeline.contracts.DeckCard` per
+    :class:`~pipeline.sources.deck_import.raw.RawEntry` (name, quantity, role) and
+    sets ``Deck.name`` from ``raw.name``. Roles must already be canonical
+    (``commander`` / ``sideboard`` / ``None``); they pass straight through the
+    ``DeckCard`` role validator, which is the loud gate for an unknown role.
+
+    It derives nothing else and — by contract — resolves NO card names against the
+    lake/resolver: name-only ``DeckCard``s are intended (the read-path resolver
+    enriches them), so this function keeps the "importer canonicalizes shape, not
+    card data" invariant. Duplicate names pass through un-merged (two
+    ``RawEntry(name='Forest')`` yield two ``DeckCard``s); qty aggregation is a
+    resolver/store concern, not this shape stage's.
+    """
+    cards = [DeckCard(name=entry.name, quantity=entry.quantity, role=entry.role) for entry in raw.cards]
+    return Deck(name=raw.name, cards=cards)
