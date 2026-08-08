@@ -1743,6 +1743,115 @@ def _factsheet(argv: list[str]) -> None:
     print(json.dumps(report, indent=2))
 
 
+#: The import sources exposed by the ``--source`` override (the registry keys). The
+#: registry itself remains the single source of truth (``get_importer`` raises a
+#: ``ValueError`` naming the supported sources on an unknown one); this list only
+#: constrains argparse's ``--source`` choices to the same vocabulary.
+_IMPORT_SOURCES = ('archidekt', 'edhrec', 'moxfield', 'plaintext')
+
+
+def _import_deck(argv: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog='collection import-deck',
+        description=(
+            'Import an external deck (Archidekt / EDHREC / Moxfield URL, a file '
+            'path, or - for a pasted list on stdin) as an EPHEMERAL local draft.'
+        ),
+    )
+    parser.add_argument('ref', help='A deck URL, a file path, or - to read a pasted list from stdin.')
+    parser.add_argument(
+        '--source',
+        choices=_IMPORT_SOURCES,
+        default=None,
+        help='Override host sniffing (e.g. a bare commander name with --source edhrec).',
+    )
+    parser.add_argument('--name', default=None, help='Override the imported deck name.')
+    parser.add_argument(
+        '--commander',
+        default=None,
+        help='Force a commander (canonicalized) — for a plaintext list with no Commander section.',
+    )
+    parser.add_argument('--refresh', action='store_true', help='Force a re-fetch, bypassing the import cache.')
+    args = parser.parse_args(argv)
+
+    from pipeline.decks import DecksStore
+    from pipeline.sources.deck_import import get_importer
+    from pipeline.sources.deck_import.edhrec import edhrec_slug
+
+    # For -, read the pasted deck TEXT from stdin here and hand the text itself to
+    # import_deck (the plaintext adapter treats raw text as the decklist); this
+    # keeps a single, explicit read path rather than routing '-' through the
+    # adapter's own stdin read.
+    ref = args.ref
+    if ref == '-':
+        ref = sys.stdin.read()
+
+    # --source edhrec with a bare name: the EDHREC adapter's fetch parses a URL, so
+    # convert a bare (non-URL) name to the canonical average-decks URL via
+    # edhrec_slug before dispatch. matches() stays explicit-source-only (a bare name
+    # never auto-routes to EDHREC); this only fires under the explicit override.
+    if args.source == 'edhrec' and 'edhrec.com' not in ref.lower():
+        ref = f'https://edhrec.com/average-decks/{edhrec_slug(ref)}'
+
+    # Resolve the deck in two steps so only the IMPORTER-SELECTION ValueError is
+    # translated. get_importer raises ValueError for an unknown source/ref; that is a
+    # clean user error, so translate it to a CollectionError and let main() print a
+    # one-liner (naming the supported sources) instead of a traceback. fetch/normalize
+    # must NOT be inside this except: their expected user errors (Moxfield WAF, empty
+    # plaintext, deck-not-found, unreachable) are already CollectionError and pass
+    # straight through, while a genuine adapter/model bug (e.g. a pydantic
+    # ValidationError, which subclasses ValueError) must traceback — not be masked as
+    # a clean "unknown source".
+    try:
+        importer = get_importer(ref, source=args.source)
+    except ValueError as exc:
+        raise CollectionError(str(exc)) from exc
+    deck = importer.normalize(importer.fetch(ref, refresh=args.refresh))
+
+    if args.name is not None:
+        deck = deck.model_copy(update={'name': args.name})
+    if args.commander is not None:
+        deck = _force_commander(deck, args.commander)
+
+    # Land it as a clean import — a fresh ephemeral draft, no lineage / source_ref.
+    deck_uuid = DecksStore().create_ephemeral(deck)
+
+    # Count true CARD counts (sum quantities), not distinct DeckCard entries — an
+    # EDHREC deck lands Swamp x28 as one entry but is 99 maindeck cards.
+    maindeck_n = sum(c.quantity for c in deck.maindeck)
+    commander_n = sum(c.quantity for c in deck.commanders)
+    parts = [f'{maindeck_n} maindeck', f'{commander_n} commander']
+    if deck.sideboard:
+        parts.append(f'{sum(c.quantity for c in deck.sideboard)} sideboard')
+    print(f'Imported [ephemeral]: {deck.name}  ({" + ".join(parts)})  ({deck_uuid})')
+
+
+def _force_commander(deck: Deck, commander: str) -> Deck:
+    """Return ``deck`` with exactly ``commander`` (canonicalized) as the commander.
+
+    Canonicalizes the name via the resolver (so a raw ``krenko, mob boss`` matches
+    the source's spelling), then ensures that card is the sole commander: an
+    existing maindeck entry of the same name is PROMOTED in place (role -> commander,
+    no duplicate); otherwise a fresh commander ``DeckCard`` is ADDED. Any other card
+    already flagged commander is demoted to maindeck so the forced commander is
+    exactly the one requested.
+    """
+    canonical = _resolve_card_name(commander)
+    cards: list[DeckCard] = []
+    promoted = False
+    for card in deck.cards:
+        if card.name == canonical:
+            cards.append(card.model_copy(update={'role': 'commander'}))
+            promoted = True
+        elif card.role == 'commander':
+            cards.append(card.model_copy(update={'role': None}))
+        else:
+            cards.append(card)
+    if not promoted:
+        cards.append(DeckCard(name=canonical, role='commander'))
+    return deck.model_copy(update={'cards': cards})
+
+
 VERBS = {
     'status': _status,
     'onboard': _onboard,
@@ -1760,6 +1869,7 @@ VERBS = {
     'deck-add': _deck_add,
     'deck-remove': _deck_remove,
     'new-draft': _new_draft,
+    'import-deck': _import_deck,
     'promote-deck': _promote_deck,
     'undo-deck': _undo_deck,
     'deck-combos': _deck_combos,
