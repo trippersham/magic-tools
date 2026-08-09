@@ -56,6 +56,9 @@ _STDIN_SENTINEL = '-'
 #: Default deck name when no source name is available (``.dck`` ``Name=`` wins).
 _DEFAULT_NAME = 'Imported deck'
 
+#: Any URI scheme prefix (``http://``, ``ftp://``, ``file://``, ``scp://``, ...).
+#: A scheme:// ref belongs to a host adapter, never to this offline importer.
+_URI_SCHEME = re.compile(r'^[a-z][a-z0-9+.-]*://', re.IGNORECASE)
 #: A quantity line: an optional leading ``N`` / ``Nx`` count, then the card name.
 _QTY_RE = re.compile(r'^(?P<qty>\d+)\s*x?\s+(?P<name>.+?)\s*$', re.IGNORECASE)
 #: A bracket section header, e.g. ``[Commander]`` / ``[Main]`` / ``[metadata]``.
@@ -96,14 +99,17 @@ class PlaintextImporter:
     source = 'plaintext'
 
     def matches(self, ref: str) -> bool:
-        """True iff ``ref`` is a decklist we can read offline (not a known host URL).
+        """True iff ``ref`` is a decklist we can read offline (not a scheme:// URL).
 
-        False for ANY http/https URL: URLs are the domain of the host adapters, so
-        an unrecognized-host URL must reach NO importer (→ ``get_importer`` raises →
-        the CLI translates to a clean ``CollectionError``) rather than be greedily
-        parsed here as a 1-line "decklist". (This URL guard subsumes the narrow
-        :data:`_HOST_EXCLUSIONS` list for the URL case; the substring exclusion is
-        kept as defense-in-depth for a host mention that is not a bare URL.)
+        False for ANY ``scheme://`` URI (http/https AND ftp/file/scp/...): a URI
+        belongs to the host adapters, so a scheme-prefixed ref must reach NO importer
+        (→ ``get_importer`` raises → the CLI translates to a clean ``CollectionError``)
+        rather than be greedily parsed here as a 1-line "decklist" (a non-http scheme
+        would otherwise land a garbage 1-card ephemeral draft). (This scheme guard
+        subsumes the narrow :data:`_HOST_EXCLUSIONS` list for the URL case; the
+        substring exclusion is kept as defense-in-depth for a host mention that is not
+        a bare URL.) A bare non-URL word (no ``scheme://``) is INTENTIONALLY still a
+        valid 1-card plaintext paste.
         Also False for a bare all-digits ref (Archidekt's numeric-id addressing form
         — a card name is never purely numeric, so this can only be a deck id).
         Otherwise True for: the ``-`` stdin sentinel; an existing file path; a path
@@ -111,8 +117,8 @@ class PlaintextImporter:
         pattern (a quantity line or a bare, non-prose card name).
         """
         lowered = ref.lower()
-        if ref.strip().lower().startswith(('http://', 'https://')):
-            return False  # any URL belongs to the host adapters, not plaintext
+        if _URI_SCHEME.match(ref.strip()):
+            return False  # any scheme:// ref belongs to the host adapters, not plaintext
         if any(host in lowered for host in _HOST_EXCLUSIONS):
             return False
         if ref.strip().isdigit():

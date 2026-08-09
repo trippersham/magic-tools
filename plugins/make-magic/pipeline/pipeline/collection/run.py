@@ -45,7 +45,7 @@ from pipeline.collection import (
     shrink_check,
 )
 from pipeline.config import AirtableConfigError
-from pipeline.contracts import Deck, DeckCard, Trade
+from pipeline.contracts import ROLE_COMMANDER, Deck, DeckCard, Trade
 
 if TYPE_CHECKING:
     from pipeline.collection import CollectionStore
@@ -1841,14 +1841,14 @@ def _force_commander(deck: Deck, commander: str) -> Deck:
     promoted = False
     for card in deck.cards:
         if card.name == canonical:
-            cards.append(card.model_copy(update={'role': 'commander'}))
+            cards.append(card.model_copy(update={'role': ROLE_COMMANDER}))
             promoted = True
-        elif card.role == 'commander':
+        elif card.role == ROLE_COMMANDER:
             cards.append(card.model_copy(update={'role': None}))
         else:
             cards.append(card)
     if not promoted:
-        cards.append(DeckCard(name=canonical, role='commander'))
+        cards.append(DeckCard(name=canonical, role=ROLE_COMMANDER))
     return deck.model_copy(update={'cards': cards})
 
 

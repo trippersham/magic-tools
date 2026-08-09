@@ -104,6 +104,21 @@ def test_matches_false_for_unknown_host_urls(url: str) -> None:
     assert PlaintextImporter().matches(url) is False
 
 
+@pytest.mark.parametrize(
+    'ref',
+    [
+        'ftp://x/y',
+        'file:///tmp/a.dck',
+        'scp://h/p',
+    ],
+)
+def test_matches_false_for_non_http_scheme_urls(ref: str) -> None:
+    # ANY scheme:// ref belongs to a host adapter, not plaintext — a non-http URL
+    # (ftp/file/scp) must NOT fall through and be parsed as a 1-card decklist. Note
+    # ``file:///tmp/a.dck`` is rejected as a scheme URL even though it ends '.dck'.
+    assert PlaintextImporter().matches(ref) is False
+
+
 def test_matches_true_for_non_url_card_line_with_url_word() -> None:
     # A URL only excludes when the WHOLE ref is the URL; a genuine decklist that
     # merely contains a card mentioning http still matches (multi-line, real cards).
