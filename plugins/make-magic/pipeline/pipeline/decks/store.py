@@ -63,6 +63,7 @@ class DeckRow(BaseModel):
     synced_baseline: str | None = None
     freshness: str | None = None
     last_sim: str | None = None
+    crispi: str | None = None
     archived: bool = False
     external_ids: str | None = None
     derived_from: str | None = None
@@ -89,6 +90,7 @@ _DECKS_DDL = (
     'synced_baseline TEXT, '  # version() of source at last sync | NULL
     'freshness TEXT, '  # JSON {assessment: <hash>, sim: <hash>} | NULL
     'last_sim TEXT, '  # JSON {result, deck_version} | NULL
+    'crispi TEXT, '  # JSON {result: <CrispiResult>, deck_version, at} | NULL (derived stamp)
     'archived BOOLEAN DEFAULT FALSE, '  # local lifecycle: hide from default list
     "external_ids TEXT DEFAULT '{}', "  # JSON {backend: native_ref} — the sync binding key
     'derived_from TEXT)'  # parent deck_uuid for --from drafts | NULL
@@ -131,6 +133,8 @@ def _ensure_decks_table(conn: DuckDBPyConnection) -> None:
         conn.execute(f"ALTER TABLE {_DECKS_TABLE} ADD COLUMN external_ids TEXT DEFAULT '{{}}'")
     if 'derived_from' not in cols:
         conn.execute(f'ALTER TABLE {_DECKS_TABLE} ADD COLUMN derived_from TEXT')
+    if 'crispi' not in cols:
+        conn.execute(f'ALTER TABLE {_DECKS_TABLE} ADD COLUMN crispi TEXT')
 
 
 def _migrate_deck_id_to_uuid(conn: DuckDBPyConnection) -> None:
@@ -175,8 +179,8 @@ def _migrate_deck_id_to_uuid(conn: DuckDBPyConnection) -> None:
         conn.execute(
             f'INSERT INTO {staging} '
             '(deck_uuid, name, deck_json, sync_status, source_ref, synced_baseline, '
-            'freshness, last_sim, archived, external_ids, derived_from) '
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)',
+            'freshness, last_sim, crispi, archived, external_ids, derived_from) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)',
             [
                 new_uuid,
                 name,
@@ -240,8 +244,8 @@ def _row_to_deckrow(row: Sequence[Any]) -> DeckRow:
     """Build a :class:`DeckRow` from a SELECT tuple.
 
     Column order (shared by ``get_row`` / ``list_rows``): deck_uuid, name,
-    sync_status, source_ref, synced_baseline, freshness, last_sim, archived,
-    external_ids, derived_from.
+    sync_status, source_ref, synced_baseline, freshness, last_sim, crispi,
+    archived, external_ids, derived_from.
     """
     return DeckRow(
         deck_uuid=row[0],
@@ -251,9 +255,10 @@ def _row_to_deckrow(row: Sequence[Any]) -> DeckRow:
         synced_baseline=row[4],
         freshness=row[5],
         last_sim=row[6],
-        archived=bool(row[7]),
-        external_ids=row[8],
-        derived_from=row[9],
+        crispi=row[7],
+        archived=bool(row[8]),
+        external_ids=row[9],
+        derived_from=row[10],
     )
 
 
@@ -281,7 +286,7 @@ class DecksStore:
     #: The column list every ``DeckRow`` SELECT reads, in ``_row_to_deckrow`` order.
     _ROW_COLUMNS = (
         'deck_uuid, name, sync_status, source_ref, synced_baseline, '
-        'freshness, last_sim, archived, external_ids, derived_from'
+        'freshness, last_sim, crispi, archived, external_ids, derived_from'
     )
 
     def get(self, deck_uuid: str) -> Deck | None:
@@ -459,8 +464,8 @@ class DecksStore:
 
         The typed view of the non-``deck_json`` columns — ``sync_status`` /
         ``source_ref`` / ``synced_baseline`` / ``freshness`` / ``last_sim`` /
-        ``external_ids`` / ``derived_from`` — used by the sync ops (drift guard)
-        and undo (bookkeeping preservation).
+        ``crispi`` / ``external_ids`` / ``derived_from`` — used by the sync ops
+        (drift guard) and undo (bookkeeping preservation).
         """
         with self._connect() as conn:
             _ensure_decks_table(conn)
@@ -537,8 +542,8 @@ class DecksStore:
             conn.execute(
                 f'INSERT INTO {_DECKS_TABLE} '
                 '(deck_uuid, name, deck_json, sync_status, source_ref, synced_baseline, '
-                'derived_from, freshness, last_sim) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL) '
+                'derived_from, freshness, last_sim, crispi) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL) '
                 'ON CONFLICT (deck_uuid) DO UPDATE SET '
                 'name = excluded.name, deck_json = excluded.deck_json, '
                 'sync_status = excluded.sync_status, source_ref = excluded.source_ref, '
@@ -686,6 +691,41 @@ class DecksStore:
                 [json.dumps(blob), deck_uuid],
             )
 
+    def set_crispi(self, deck_uuid: str, *, result: object) -> None:
+        """Stamp ``crispi = {result, deck_version, at}`` on a row (the CRISPI stamp).
+
+        The mirror of :meth:`set_last_sim` for the CRISPI derived output: the
+        assessing-decks skill calls this with a structured ``CrispiResult`` dict.
+        ``result`` is stored verbatim (a parsed JSON blob — the four axes, PI,
+        bracket, inputs — or a raw string). ``deck_version`` is stamped as the deck's
+        current :func:`version`, so a later content edit makes the stamp stale
+        (:meth:`crispi_state`).
+
+        CRISPI is a DERIVED output, not a deck-content fact — like ``last_sim`` and
+        unlike ``assessment``, it is **not** part of the content :func:`version`
+        hash. This write is bookkeeping only: it does **not** change ``deck_json``
+        and therefore does not append a ledger version. Raises ``DecksError`` if the
+        deck is absent (nothing to stamp against).
+        """
+        from datetime import UTC, datetime
+
+        from pipeline.decks.version import version as _version
+
+        deck = self.get(deck_uuid)
+        if deck is None:
+            raise DecksError(f'no deck with id {deck_uuid!r}')
+        blob = {
+            'result': result,
+            'deck_version': _version(deck),
+            'at': datetime.now(tz=UTC).isoformat(),
+        }
+        with self._connect() as conn:
+            _ensure_decks_table(conn)
+            conn.execute(
+                f'UPDATE {_DECKS_TABLE} SET crispi = ? WHERE deck_uuid = ?',
+                [json.dumps(blob), deck_uuid],
+            )
+
     # ----------------------------------------------------------------------- #
     # Derived staleness (tri-state: fresh | stale | absent)
     # ----------------------------------------------------------------------- #
@@ -718,6 +758,21 @@ class DecksStore:
         if row is None or deck is None:
             return 'absent'
         stamped = self._stamped_version(row.last_sim, None, 'deck_version')
+        return self._tri_state(stamped, deck)
+
+    def crispi_state(self, deck_uuid: str) -> str:
+        """The tri-state freshness of the deck's ``crispi`` stamp vs current ``version()``.
+
+        ``absent`` (never scored — no stamp), ``fresh`` (stamped ``deck_version`` ==
+        current), or ``stale`` (an edit moved the version since the CRISPI compute).
+        Derived from the stored ``crispi.deck_version`` — the same cross-session
+        staleness signal as :meth:`sim_state`, applied to the CRISPI derived output.
+        """
+        row = self.get_row(deck_uuid)
+        deck = self.get(deck_uuid)
+        if row is None or deck is None:
+            return 'absent'
+        stamped = self._stamped_version(row.crispi, None, 'deck_version')
         return self._tri_state(stamped, deck)
 
     @staticmethod

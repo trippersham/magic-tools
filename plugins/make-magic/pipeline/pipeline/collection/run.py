@@ -192,10 +192,11 @@ def _provenance_states(decks_store: DecksStore, deck_uuid: str | None) -> dict[s
     locally) has no stamps, so both states are ``absent``.
     """
     if deck_uuid is None:
-        return {'assessment': 'absent', 'sim': 'absent'}
+        return {'assessment': 'absent', 'sim': 'absent', 'crispi': 'absent'}
     return {
         'assessment': decks_store.assessment_state(deck_uuid),
         'sim': decks_store.sim_state(deck_uuid),
+        'crispi': decks_store.crispi_state(deck_uuid),
     }
 
 
@@ -203,14 +204,16 @@ def _provenance_block(decks_store: DecksStore, deck_uuid: str | None) -> dict[st
     """The full ``get-deck --provenance`` block for a deck.
 
     Emits ``{assessment: {version, at, state}, last_sim: {result, deck_version, at,
-    state}}`` — the stored stamps augmented with the derived tri-state. Missing
+    state}, crispi: {result, deck_version, at, state}}`` — the stored stamps
+    augmented with the derived tri-state. Missing
     stamps surface as ``state: 'absent'`` with null fields (never validated). A deck
     with no local row yet is uniformly ``absent``.
     """
     assessment: dict[str, object] = {'version': None, 'at': None, 'state': 'absent'}
     last_sim: dict[str, object] = {'result': None, 'deck_version': None, 'at': None, 'state': 'absent'}
+    crispi: dict[str, object] = {'result': None, 'deck_version': None, 'at': None, 'state': 'absent'}
     if deck_uuid is None:
-        return {'assessment': assessment, 'last_sim': last_sim}
+        return {'assessment': assessment, 'last_sim': last_sim, 'crispi': crispi}
 
     row = decks_store.get_row(deck_uuid)
     if row is not None and row.freshness:
@@ -230,7 +233,16 @@ def _provenance_block(decks_store: DecksStore, deck_uuid: str | None) -> dict[st
                 'at': stamp.get('at'),
                 'state': decks_store.sim_state(deck_uuid),
             }
-    return {'assessment': assessment, 'last_sim': last_sim}
+    if row is not None and row.crispi:
+        stamp = json.loads(row.crispi)
+        if isinstance(stamp, dict):
+            crispi = {
+                'result': stamp.get('result'),
+                'deck_version': stamp.get('deck_version'),
+                'at': stamp.get('at'),
+                'state': decks_store.crispi_state(deck_uuid),
+            }
+    return {'assessment': assessment, 'last_sim': last_sim, 'crispi': crispi}
 
 
 def _list_decks(argv: list[str]) -> None:
@@ -335,7 +347,10 @@ def _get_deck(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection get-deck')
     parser.add_argument('name', nargs='?')
     parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
-    parser.add_argument('--field', help='Print only this Deck field (e.g. strategy, assessment, focus_otags).')
+    parser.add_argument(
+        '--field',
+        help="Print only this Deck field (e.g. strategy, assessment, focus_otags) or the derived 'crispi' stamp.",
+    )
     parser.add_argument(
         '--provenance',
         action='store_true',
@@ -395,6 +410,16 @@ def _get_deck(argv: list[str]) -> None:
             'provenance': _provenance_block(decks_store, deck_uuid),
         }
         print(json.dumps(envelope, indent=2))
+        return
+    if args.field == 'crispi':
+        # `crispi` is a DERIVED stamp on the local row (like `last_sim`), NOT a Deck
+        # content field — read it off the row's stamp rather than the Deck model.
+        from pipeline.decks import DecksStore
+
+        decks_store = DecksStore()
+        deck_uuid = access.resolve(id_prefix=args.id_prefix) if args.id_prefix else access.resolve(args.name or '')
+        row = decks_store.get_row(deck_uuid)
+        print('' if row is None or not row.crispi else row.crispi)
         return
     if args.field:
         allowed = sorted(set(Deck.model_fields) | {'commanders'})
@@ -546,6 +571,37 @@ def _stamp_sim(argv: list[str]) -> None:
     deck_uuid, _ = _resolve_edit_target(access, args.name, args.id_prefix)
     DecksStore().set_last_sim(deck_uuid, result=result)
     print(f'stamp-sim: {args.name if args.id_prefix is None else args.id_prefix}')
+
+
+def _stamp_crispi(argv: list[str]) -> None:
+    """The thin persist hook: stamp the structured ``crispi`` result on a deck row.
+
+    ``collection stamp-crispi "<deck>" --result '<json>'`` (or ``--id <prefix>``)
+    writes ``crispi = {result, deck_version, at}`` keyed on the deck's current
+    ``version()`` so CRISPI staleness becomes real across sessions — the exact
+    mirror of ``stamp-sim``. The assessing-decks skill (Phase 8) calls this verb
+    with the structured ``CrispiResult`` dict; the one-line Assessment summary is
+    written separately via ``set-assessment``. ``--result`` accepts an arbitrary
+    JSON blob (the four axes, PI, bracket, inputs) and is stored verbatim; a
+    non-JSON value is stored as the raw string.
+
+    CRISPI is a DERIVED output — this is a bookkeeping stamp on the local row, NOT
+    a deck-content edit: it never moves the content ``version()`` and never pushes
+    to the source.
+    """
+    parser = argparse.ArgumentParser(prog='collection stamp-crispi')
+    parser.add_argument('name', nargs='?')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
+    parser.add_argument('--result', required=True, help='The CRISPI result — arbitrary JSON (or a raw string).')
+    args = parser.parse_args(argv)
+
+    try:
+        result: object = json.loads(args.result)
+    except json.JSONDecodeError:
+        result = args.result  # a non-JSON summary — stored verbatim.
+    access = _deck_access(writes_enabled=True)
+    access.set_crispi(args.name or '', result, id_prefix=args.id_prefix)
+    print(f'stamp-crispi: {args.name if args.id_prefix is None else args.id_prefix}')
 
 
 # --------------------------------------------------------------------------- #
@@ -1923,6 +1979,7 @@ VERBS = {
     'set-assessment': _set_assessment,
     'set-focus-otags': _set_focus_otags,
     'stamp-sim': _stamp_sim,
+    'stamp-crispi': _stamp_crispi,
     # deck edits (typed edits + ephemeral lifecycle — the guided-build surface)
     'deck-swap': _deck_swap,
     'deck-add': _deck_add,

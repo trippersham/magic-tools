@@ -787,6 +787,23 @@ class DeckAccess:
         if commit:
             self._commit_transactional(deck_uuid, eff_name, pre_edit)
 
+    def set_crispi(self, name: str, result: object, *, id_prefix: str | None = None) -> None:
+        """Stamp the deck's ``crispi`` derived output — the mirror of the sim stamp.
+
+        Resolves the (name | ``--id``) target through :meth:`_target` so a synced
+        source deck is pulled-current (there is a local row to stamp against),
+        exactly like the ``stamp-sim`` hook. ``result`` is the structured
+        ``CrispiResult`` dict (stored verbatim by :meth:`DecksStore.set_crispi`).
+
+        CRISPI is a DERIVED output, not deck content — the stamp is bookkeeping only
+        (no ``deck_json`` change, no ledger version, no source push). It lands on the
+        local row for a synced deck just as it does for an ephemeral draft; there is
+        nothing to commit through to the source (the source of record carries deck
+        content, not this local derived stamp).
+        """
+        deck_uuid, _eff_name = self._target(name, id_prefix)
+        self._decks.set_crispi(deck_uuid, result=result)
+
     def _commit_transactional(self, deck_uuid: str, name: str, pre_edit: Deck | None) -> None:
         """Push a just-applied set-* edit; roll back the local edit if the push refuses.
 
