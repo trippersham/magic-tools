@@ -68,15 +68,15 @@ import re
 import sys
 from pathlib import Path
 
-log = logging.getLogger('make_magic.deck_factsheet')
+log = logging.getLogger("make_magic.deck_factsheet")
 
 #: Prefix that marks the graceful-degradation signal in ``susceptibility`` when
 #: the otag layer is unavailable. Kept as a constant so callers/tests can key on
 #: it without matching prose.
 _OTAG_UNAVAILABLE = (
-    'otag layer unavailable: the oracle-tag buckets and susceptibility signals '
-    'could not be computed (pipeline package or its snapshot is missing); '
-    'reporting structured facts only.'
+    "otag layer unavailable: the oracle-tag buckets and susceptibility signals "
+    "could not be computed (pipeline package or its snapshot is missing); "
+    "reporting structured facts only."
 )
 
 
@@ -119,7 +119,7 @@ def is_land(type_line: str) -> bool:
 
 
 def _type_line(card: dict) -> str:
-    return card.get('type_line') or ''
+    return card.get("type_line") or ""
 
 
 def _is_instant_speed(card: dict) -> bool:
@@ -138,9 +138,9 @@ def ramp_and_fixing(cards: list[dict]) -> dict:
     ramp = sum(1 for c in cards if t.structured_ramp(c))
     fixing = sum(1 for c in cards if t._is_fixing_source(c))
     return {
-        'ramp_sources': ramp,
-        'fixing_sources': fixing,
-        'pip_counts': t._pip_counts(cards),
+        "ramp_sources": ramp,
+        "fixing_sources": fixing,
+        "pip_counts": t._pip_counts(cards),
     }
 
 
@@ -151,15 +151,15 @@ def keyword_census(cards: list[dict]) -> dict:
 
 def cmc_histogram(cards: list[dict]) -> dict:
     """CMC histogram over NONLAND cards, bucketed 0..6 and 7+ (from the shape mart)."""
-    return _facts()._shape(cards)['cmc_histogram']
+    return _facts()._shape(cards)["cmc_histogram"]
 
 
 def _avg_cmc(cards: list[dict]) -> float:
-    return _facts()._shape(cards)['avg_cmc']
+    return _facts()._shape(cards)["avg_cmc"]
 
 
 def _top_end_count(cards: list[dict]) -> int:
-    return _facts()._shape(cards)['top_end_count']
+    return _facts()._shape(cards)["top_end_count"]
 
 
 def _shape(cards: list[dict]) -> dict:
@@ -189,7 +189,7 @@ def _card_record(card: dict) -> dict:
 
 #: The pipeline package root (``plugins/make-magic/pipeline``) — the dir holding
 #: the importable ``pipeline`` package. Mirrors the scryfall_cache path shim.
-_PIPELINE_ROOT = Path(__file__).resolve().parents[1] / 'pipeline'
+_PIPELINE_ROOT = Path(__file__).resolve().parents[1] / "pipeline"
 
 
 def _ensure_pipeline_on_path() -> None:
@@ -268,7 +268,7 @@ def _load_card_otag() -> dict[str, set[str]] | None:
     try:
         _ensure_pipeline_on_path()
     except Exception as exc:
-        log.warning('otag layer: pipeline path setup failed (%s); degrading.', exc)
+        log.warning("otag layer: pipeline path setup failed (%s); degrading.", exc)
         return None
 
     # 1) Puller-backed: full dataset on first online use, cached thereafter.
@@ -276,7 +276,9 @@ def _load_card_otag() -> dict[str, set[str]] | None:
         tags = _load_tags_via_puller()
         return _rollup_to_card_otag(tags)
     except Exception as exc:
-        log.warning('otag layer: puller path failed (%s); trying bundled snapshot.', exc)
+        log.warning(
+            "otag layer: puller path failed (%s); trying bundled snapshot.", exc
+        )
 
     # 2) Snapshot fallback: bundled offline baseline (capped taggings).
     try:
@@ -284,7 +286,7 @@ def _load_card_otag() -> dict[str, set[str]] | None:
 
         return _rollup_to_card_otag(oracle_tags._load_snapshot())
     except Exception as exc:
-        log.warning('otag layer: snapshot load failed (%s); degrading.', exc)
+        log.warning("otag layer: snapshot load failed (%s); degrading.", exc)
         return None
 
 
@@ -309,9 +311,11 @@ def _pipeline_factsheet(
         _ensure_pipeline_on_path()
         from pipeline.transforms.deck_factsheet import factsheet_for
 
-        return factsheet_for(cards, card_otag=card_otag, deck=deck, missing=missing, focus=focus)
+        return factsheet_for(
+            cards, card_otag=card_otag, deck=deck, missing=missing, focus=focus
+        )
     except Exception as exc:
-        log.warning('otag layer: factsheet_for failed (%s); degrading.', exc)
+        log.warning("otag layer: factsheet_for failed (%s); degrading.", exc)
         return None
 
 
@@ -343,34 +347,34 @@ def _fallback_factsheet(
     """
     t = _facts()
     return {
-        'deck': deck,
-        'shape': _shape(cards),
-        'mana': ramp_and_fixing(cards),
-        'keywords': keyword_census(cards),
+        "deck": deck,
+        "shape": _shape(cards),
+        "mana": ramp_and_fixing(cards),
+        "keywords": keyword_census(cards),
         # The functional census is zeroed; instant_speed stays (structured).
-        'interaction': {
-            'board_wipes': 0,
-            'spot_removal': 0,
-            'counterspells': 0,
-            'protection': 0,
-            'instant_speed': sum(1 for c in cards if _is_instant_speed(c)),
+        "interaction": {
+            "board_wipes": 0,
+            "spot_removal": 0,
+            "counterspells": 0,
+            "protection": 0,
+            "instant_speed": sum(1 for c in cards if _is_instant_speed(c)),
         },
-        'card_advantage': {'repeatable_draw': 0, 'one_shot_draw': 0},
-        'structural': {'etb_creatures': 0, 'graveyard_recursion_present': False},
+        "card_advantage": {"repeatable_draw": 0, "one_shot_draw": 0},
+        "structural": {"etb_creatures": 0, "graveyard_recursion_present": False},
         # No otag data -> every nonland is uncategorized (transform's coverage over
         # an empty otag map: categorized 0%, all nonland names uncategorized).
-        'coverage': t._coverage(cards, {}),
-        'cards': [_card_record(c) for c in cards],
-        'missing': missing or [],
-        'otag_buckets': {},
-        'susceptibility': [_OTAG_UNAVAILABLE],
+        "coverage": t._coverage(cards, {}),
+        "cards": [_card_record(c) for c in cards],
+        "missing": missing or [],
+        "otag_buckets": {},
+        "susceptibility": [_OTAG_UNAVAILABLE],
         # Focus-relative signals need the otag layer to resolve; unavailable here.
         # The fields are still present (empty) so the contract holds.
-        'focus': [],
-        'focus_relative': {
-            'coverage_of_focus': {},
-            'thin_focus': [],
-            'off_focus': [],
+        "focus": [],
+        "focus_relative": {
+            "coverage_of_focus": {},
+            "thin_focus": [],
+            "off_focus": [],
         },
     }
 
@@ -432,20 +436,22 @@ def _deck_card_to_fields(card) -> dict:  # a contracts.DeckCard (duck-typed)
     census degrades honestly rather than crashing.
     """
     return {
-        'name': card.name,
-        'oracle_id': card.oracle_id,
-        'oracle_text': card.oracle_text or '',
-        'type_line': card.type_line or '',
-        'cmc': card.mana_value,
-        'keywords': list(card.keywords or []),
-        'produced_mana': card.produced_mana,
+        "name": card.name,
+        "oracle_id": card.oracle_id,
+        "oracle_text": card.oracle_text or "",
+        "type_line": card.type_line or "",
+        "cmc": card.mana_value,
+        "keywords": list(card.keywords or []),
+        "produced_mana": card.produced_mana,
         # Scryfall `mana_cost` (e.g. `{2}{G}{G}`) drives pip_counts; hydrated on
         # the Card contract. Unresolved cards have None -> '' (zero pips).
-        'mana_cost': getattr(card, 'mana_cost', None) or '',
+        "mana_cost": getattr(card, "mana_cost", None) or "",
     }
 
 
-def factsheet_from_deck(deck, focus: list[str] | None = None) -> dict:  # a contracts.Deck
+def factsheet_from_deck(
+    deck, focus: list[str] | None = None
+) -> dict:  # a contracts.Deck
     """Build a neutral fact sheet from a resolved ``contracts.Deck``.
 
     The offline entry point: the deck's ``DeckCard``s are already hydrated (via
@@ -456,7 +462,180 @@ def factsheet_from_deck(deck, focus: list[str] | None = None) -> dict:  # a cont
     """
     cards = [_deck_card_to_fields(c) for c in deck.cards]
     card_otag = _load_card_otag()  # None -> graceful fallback.
-    return build_factsheet(cards, deck=deck.name, missing=[], card_otag=card_otag, focus=focus or [])
+    return build_factsheet(
+        cards, deck=deck.name, missing=[], card_otag=card_otag, focus=focus or []
+    )
+
+
+# --------------------------------------------------------------------------- #
+# CRISPI bridge — build the scorer inputs from a resolved ``contracts.Deck`` and
+# delegate to ``pipeline.transforms.crispi.crispi_score``.
+#
+# Mirrors ``factsheet_from_deck``, but the CRISPI classifier needs MORE per-card
+# facts than the neutral factsheet: ``power`` / ``toughness`` seed the Resilience
+# threat base, and an ``is_commander`` flag lets the scorer classify the
+# commander's tiers. ``_deck_card_to_fields`` deliberately OMITS power/toughness
+# (the factsheet never reads them), so CRISPI uses its own ``_crispi_card_to_fields``
+# builder that adds them — without this, Resilience silently degrades (every threat
+# reads power 0). This is a HARD requirement.
+# --------------------------------------------------------------------------- #
+
+
+def _crispi_card_to_fields(card) -> dict:  # a contracts.DeckCard (duck-typed)
+    """Map a hydrated ``DeckCard`` to the CRISPI classifier's card dict.
+
+    A SUPERSET of ``_deck_card_to_fields``: adds ``power`` / ``toughness`` (the
+    classifier's threat base reads ``card.get('power')``; omitting them makes every
+    creature read power 0 and silently degrades Resilience) and an ``is_commander``
+    flag derived from the deck role. Missing enrichment stays null so the census
+    degrades honestly rather than crashing.
+    """
+    fields = _deck_card_to_fields(card)
+    from pipeline.contracts import ROLE_COMMANDER
+
+    fields["power"] = getattr(card, "power", None)
+    fields["toughness"] = getattr(card, "toughness", None)
+    fields["is_commander"] = getattr(card, "role", None) == ROLE_COMMANDER
+    # Carry the deck-row COPY count so the mana-reliability counting can count card
+    # copies, not deck rows (basics carry quantity 8-12). Without this a 40-land deck
+    # built from a handful of basic-land rows reads ~24 effective sources and trips a
+    # phantom -2 (rubric "Count effective sources (lands + 0.75 per rock or dork)").
+    fields["quantity"] = getattr(card, "quantity", 1) or 1
+    return fields
+
+
+def _crispi_mana_facts(
+    cards: list[dict], card_otag: dict[str, set[str]] | None
+) -> dict:
+    """Build the minimal ``mana_facts`` the Consistency axis consumes.
+
+    ``land_count`` (front-face lands), ``rock_count`` (mana artifacts), ``dork_count``
+    (mana creatures) — the latter two split the otag ``ramp`` bucket by type line,
+    falling back to structured ``produced_mana`` when the otag layer is absent.
+    ``avg_cmc`` and ``nonland_count`` come from the shared shape mart; ``pip_pressure``
+    is per-color ``(color, pip_share, producer_count)`` where a color carrying >=20%
+    of pips on <10 producers costs Consistency -1.
+
+    All source COUNTS are by card COPY (``quantity``), not deck ROW: basics carry a
+    quantity of 8-12, so a 40-land base built from a few basic-land rows must read ~40
+    lands, not ~24 (rubric "Count effective sources (lands + 0.75 per rock or dork)...
+    calibrated so only genuinely degenerate mana bases are touched"). Per-color
+    producers include LAND ``produced_mana`` too — fixing/basic lands ARE color
+    sources, so a color whose pips are carried by lands does not read <10 producers.
+    """
+    _ensure_pipeline_on_path()
+    from pipeline.transforms.crosswalk import buckets_for
+    from pipeline.transforms.deck_factsheet import _card_slugs, structured_ramp
+
+    def _qty(c: dict) -> int:
+        try:
+            return max(1, int(c.get("quantity") or 1))
+        except (TypeError, ValueError):
+            return 1
+
+    land_cards = [c for c in cards if is_land(_type_line(c))]
+    nonland = [c for c in cards if not is_land(_type_line(c))]
+    shape = _shape(cards)
+
+    # Lands by COPY count (basics carry quantity 8-12).
+    land_count = sum(_qty(c) for c in land_cards)
+
+    rock = dork = 0
+    for c in nonland:
+        slugs = _card_slugs(c, card_otag) if card_otag else set()
+        is_ramp = ("ramp" in buckets_for(slugs)) or structured_ramp(c)
+        if not is_ramp:
+            continue
+        tl = _type_line(c).lower()
+        if "creature" in tl:
+            dork += _qty(c)
+        elif "artifact" in tl:
+            rock += _qty(c)
+
+    # Pip pressure: per-color pip share (from nonland casting costs) + how many
+    # sources (LANDS + nonlands, by copy) produce that color. Lands are color sources.
+    pip_counts = _pip_counts(nonland)
+    colored = {
+        sym: n for sym, n in pip_counts.items() if sym in ("W", "U", "B", "R", "G")
+    }
+    total_pips = sum(colored.values())
+    producers: dict[str, int] = dict.fromkeys(colored, 0)
+    for c in cards:
+        for sym in set(c.get("produced_mana") or []):
+            if sym in producers:
+                producers[sym] += _qty(c)
+    pip_pressure = [
+        (color, (colored[color] / total_pips if total_pips else 0.0), producers[color])
+        for color in colored
+    ]
+
+    return {
+        "land_count": land_count,
+        "rock_count": rock,
+        "dork_count": dork,
+        "avg_cmc": shape["avg_cmc"],
+        "nonland_count": shape["nonland_count"],
+        "pip_pressure": pip_pressure,
+    }
+
+
+def _crispi_combos(names: set[str]) -> list:
+    """Best-effort combo match list for the deck (degrade gracefully on a sparse lake).
+
+    Loads the normalized combo table and matches the deck's card names. A sparse or
+    unavailable combo lake (``load_combos`` raises or returns empty) yields an empty
+    list so Resilience still scores via the combat path — never a crash.
+    """
+    _ensure_pipeline_on_path()
+    try:
+        from pipeline.transforms.combo_detect import combos_in_deck, load_combos
+
+        combos = load_combos()
+        return combos_in_deck(names, combos) if combos else []
+    except Exception as exc:
+        log.warning(
+            "crispi: combo lake unavailable (%s); scoring without combo lines.", exc
+        )
+        return []
+
+
+def crispi_from_deck(
+    deck,  # a contracts.Deck
+    *,
+    fundamental_turn: float,
+    commander_dependence: str,
+    computed_at: str = "",
+) -> dict:
+    """Score a resolved ``contracts.Deck`` on CRISPI — the bridge to ``crispi_score``.
+
+    Mirrors ``factsheet_from_deck``: the deck's ``DeckCard``s are already hydrated,
+    so no Scryfall fetch happens here. Builds the CRISPI card dicts (WITH power /
+    toughness / is_commander), loads the otag closure (self-refreshing / snapshot /
+    degrade), derives ``mana_facts``, runs the combo detector (graceful on an empty
+    lake), then delegates to ``crispi_score``. Returns ``result.model_dump()``.
+
+    Determinism: ``crispi_score`` is pure — ``computed_at`` is passed through (the
+    verb stamps a real timestamp; the default '' keeps the score deterministic).
+    """
+    _ensure_pipeline_on_path()
+    from pipeline.transforms.crispi import crispi_score
+
+    cards = [_crispi_card_to_fields(c) for c in deck.cards]
+    card_otag = _load_card_otag() or {}  # {} -> axes compute from structured facts.
+    mana_facts = _crispi_mana_facts(cards, card_otag)
+    names = {c.name for c in deck.cards}
+    combos = _crispi_combos(names)
+
+    result = crispi_score(
+        cards,
+        card_otag,
+        fundamental_turn=fundamental_turn,
+        commander_dependence=commander_dependence,
+        mana_facts=mana_facts,
+        combos=combos,
+        computed_at=computed_at,
+    )
+    return result.model_dump()
 
 
 # --------------------------------------------------------------------------- #
@@ -464,7 +643,7 @@ def factsheet_from_deck(deck, focus: list[str] | None = None) -> dict:  # a cont
 # comments / section headers).
 # --------------------------------------------------------------------------- #
 
-_DECK_LINE = re.compile(r'^\s*(?:(\d+)x?\s+)?(.+?)\s*$')
+_DECK_LINE = re.compile(r"^\s*(?:(\d+)x?\s+)?(.+?)\s*$")
 
 
 def _parse_decklist(raw: str) -> list[tuple[int, str]]:
@@ -473,11 +652,11 @@ def _parse_decklist(raw: str) -> list[tuple[int, str]]:
     out: list[tuple[int, str]] = []
     for line in raw.splitlines():
         s = line.strip()
-        if not s or s.startswith(('#', '//')):
+        if not s or s.startswith(("#", "//")):
             continue
         # Strip inline comments ("1 Sol Ring  # COMMANDER" -> "1 Sol Ring").
-        s = re.split(r'\s+(?:#|//)', s, maxsplit=1)[0].strip()
-        if not s or s.endswith(':'):
+        s = re.split(r"\s+(?:#|//)", s, maxsplit=1)[0].strip()
+        if not s or s.endswith(":"):
             continue
         m = _DECK_LINE.match(s)
         if not m:
@@ -485,7 +664,7 @@ def _parse_decklist(raw: str) -> list[tuple[int, str]]:
         count = int(m.group(1)) if m.group(1) else 1
         name = m.group(2).strip()
         # Drop trailing set/collector annotations like "(C21) 123".
-        name = re.sub(r'\s*\([0-9A-Za-z]{2,5}\)\s*[\d\-A-Za-z]*$', '', name).strip()
+        name = re.sub(r"\s*\([0-9A-Za-z]{2,5}\)\s*[\d\-A-Za-z]*$", "", name).strip()
         if name:
             out.append((count, name))
     return out
@@ -499,7 +678,7 @@ def _parse_decklist(raw: str) -> list[tuple[int, str]]:
 #: (Borderless)" or "(Retro)" in "Sol Ring (Retro)". Real cardlist names carry
 #: these cosmetic suffixes but Scryfall oracle names do not, so an exact name
 #: lookup misses. We strip a single trailing parenthetical as a fallback.
-_PRINTING_ANNOTATION = re.compile(r'\s*\([^()]*\)\s*$')
+_PRINTING_ANNOTATION = re.compile(r"\s*\([^()]*\)\s*$")
 
 
 def _strip_printing_annotation(name: str) -> str:
@@ -508,7 +687,7 @@ def _strip_printing_annotation(name: str) -> str:
     ``"Parallel Lives (Borderless)"`` -> ``"Parallel Lives"``. A name with no
     trailing parenthetical is returned unchanged.
     """
-    return _PRINTING_ANNOTATION.sub('', name).strip()
+    return _PRINTING_ANNOTATION.sub("", name).strip()
 
 
 def _resolve_card(cache, name: str) -> dict | None:
@@ -544,17 +723,17 @@ def _card_fields(card: dict) -> dict:
     Carries ``oracle_id`` through — it is the durable join key for the otag
     layer (Scryfall cards, incl. DFCs, carry a single top-level oracle_id)."""
     face = card
-    if card.get('oracle_text') is None and card.get('card_faces'):
-        face = card['card_faces'][0]
+    if card.get("oracle_text") is None and card.get("card_faces"):
+        face = card["card_faces"][0]
     return {
-        'name': card.get('name', ''),
-        'oracle_id': card.get('oracle_id'),
-        'oracle_text': face.get('oracle_text', '') or '',
-        'type_line': card.get('type_line') or face.get('type_line', '') or '',
-        'cmc': card.get('cmc'),
-        'keywords': card.get('keywords', []) or [],
-        'produced_mana': card.get('produced_mana'),
-        'mana_cost': face.get('mana_cost', card.get('mana_cost', '')) or '',
+        "name": card.get("name", ""),
+        "oracle_id": card.get("oracle_id"),
+        "oracle_text": face.get("oracle_text", "") or "",
+        "type_line": card.get("type_line") or face.get("type_line", "") or "",
+        "cmc": card.get("cmc"),
+        "keywords": card.get("keywords", []) or [],
+        "produced_mana": card.get("produced_mana"),
+        "mana_cost": face.get("mana_cost", card.get("mana_cost", "")) or "",
     }
 
 
@@ -570,7 +749,7 @@ def _parse_focus(focus: str | None) -> list[str]:
         return []
     out: list[str] = []
     seen: set[str] = set()
-    for part in focus.split(','):
+    for part in focus.split(","):
         entry = part.strip()
         if entry and entry not in seen:
             seen.add(entry)
@@ -582,8 +761,8 @@ def _deck_name_from_header(raw: str) -> str | None:
     """First non-empty comment line is treated as the deck name, if present."""
     for line in raw.splitlines():
         s = line.strip()
-        if s.startswith('#'):
-            return s.lstrip('#').strip() or None
+        if s.startswith("#"):
+            return s.lstrip("#").strip() or None
         if s:
             return None
     return None
@@ -604,22 +783,24 @@ def _run_cli() -> None:
     # expose it in module globals here so that resolution works — this only runs
     # under ``__main__`` (direct CLI use), so an importer of ``factsheet_from_deck``
     # never gains a module-level typer.
-    globals()['typer'] = typer
+    globals()["typer"] = typer
 
     app = typer.Typer()
 
     @app.command()
     def factsheet(
         path: str,
-        output: str = typer.Option(None, '--output', help='Write JSON here instead of stdout'),
+        output: str = typer.Option(
+            None, "--output", help="Write JSON here instead of stdout"
+        ),
         focus: str = typer.Option(
             None,
-            '--focus',
+            "--focus",
             help=(
-                'Optional comma-separated focus set (bucket names and/or otag slugs) '
+                "Optional comma-separated focus set (bucket names and/or otag slugs) "
                 "the deck CARES about, e.g. 'counters,typal,tokens'. READ-ONLY: the "
                 "fact sheet measures the deck's cards against it; nothing is written "
-                'back. Omit for no focus-relative analysis.'
+                "back. Omit for no focus-relative analysis."
             ),
         ),
     ) -> None:
@@ -640,14 +821,16 @@ def _run_cli() -> None:
         deck_name = _deck_name_from_header(raw)
         focus_set = _parse_focus(focus)
         card_otag = _load_card_otag()  # None -> graceful fallback.
-        report = build_factsheet(cards, deck=deck_name, missing=missing, card_otag=card_otag, focus=focus_set)
+        report = build_factsheet(
+            cards, deck=deck_name, missing=missing, card_otag=card_otag, focus=focus_set
+        )
         payload = json.dumps(report, indent=2)
         if output:
             Path(output).write_text(payload)
             typer.echo(
-                f'Wrote {output} — {report["shape"]["nonland_count"]} nonland, '
-                f'{report["shape"]["land_count"]} lands, {len(missing)} missing, '
-                f'{len(report["otag_buckets"])} otag buckets'
+                f"Wrote {output} — {report['shape']['nonland_count']} nonland, "
+                f"{report['shape']['land_count']} lands, {len(missing)} missing, "
+                f"{len(report['otag_buckets'])} otag buckets"
             )
         else:
             typer.echo(payload)
@@ -660,5 +843,5 @@ def _run_cli() -> None:
     app()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     _run_cli()

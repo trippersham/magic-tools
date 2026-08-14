@@ -464,6 +464,101 @@ class FactSheet(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# CRISPI — the deterministic four-axis deck score + Performance Index.
+#
+# CRISPI = Consistency · Resilience · Interaction · Speed · Performance Index
+# (DeckCheck's open-source rubric, reimplemented over our own neutral data). Each
+# axis is scored 1-10 in quarter-point steps; the PI is their average snapped to
+# the same grid. The engine (transforms/crispi.py, later phases) is deterministic
+# given the deck plus exactly two typed reasoning inputs — the fundamental turn
+# and the commander-dependence — carried on `inputs`.
+# --------------------------------------------------------------------------- #
+
+
+class CrispiAxis(BaseModel):
+    """One scored CRISPI axis — its 1-10 value plus the reasoning that produced it.
+
+    `value` is a quarter-point score on the rubric's 1-10 scale (the whole number
+    is the rubric row, the decimal is where the deck sits inside it). The range is
+    enforced (1.0 <= value <= 10.0); quarter-point snapping is the engine's job,
+    not a field constraint. `rationale` is the one-line "why" and `cited_cards`
+    the cards that drove the score, so the output reproduces the per-axis prose.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    value: float = Field(
+        ge=1.0,
+        le=10.0,
+        description='Axis score on the 1-10 rubric scale (quarter-point steps; range enforced).',
+    )
+    rationale: str = Field(description='One-line explanation of how the score was derived.')
+    cited_cards: list[str] = Field(
+        default_factory=list,
+        description='Card names that drove this axis (for the per-axis citation prose).',
+    )
+
+
+class CrispiBracket(BaseModel):
+    """The official WotC Commander Bracket (1-5) assigned on top of CRISPI.
+
+    Populated in a later phase (the Bracket classifier); until then a
+    `CrispiResult` carries `bracket=None`. Constructible now with just a bracket
+    number — `triggers` (the named signals that set the bracket, e.g. "bumped to
+    B4: Consistency 7.5 + Interaction 7.5") defaults empty.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    bracket: int = Field(
+        ge=1,
+        le=5,
+        description='Commander Bracket 1-5 (1 Exhibition … 5 cEDH); range enforced.',
+    )
+    triggers: list[str] = Field(
+        default_factory=list,
+        description='The rule/floor signals that set this bracket (named for transparency).',
+    )
+
+
+class CrispiResult(BaseModel):
+    """The full CRISPI score for one deck — four axes, the PI, and the bracket.
+
+    All four axis values are retained (never just the PI): 9/3/3/9 and 6/7/7/6
+    both average to 6.25 but are very different decks, so the shape is
+    load-bearing. `bracket` is nullable until the Bracket phase populates it.
+    `inputs` records the two typed reasoning inputs the engine consumed
+    (`fundamental_turn: float`, `commander_dependence: str`), so "same deck +
+    same inputs -> identical output" is auditable. `computed_at` is a freshness
+    stamp (ISO-8601 string).
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    consistency: CrispiAxis = Field(description='Consistency axis: how reliably the deck executes its plan.')
+    interaction: CrispiAxis = Field(description='Interaction axis: how well the deck disrupts and protects.')
+    speed: CrispiAxis = Field(description='Speed axis: how fast the deck realistically wins (fundamental turn).')
+    resilience: CrispiAxis = Field(description='Resilience axis: how well the deck forces a win through disruption.')
+    performance_index: float = Field(
+        ge=1.0,
+        le=10.0,
+        description='The CRISPI Score: mean of the four axes, snapped to the quarter-point grid.',
+    )
+    bracket: CrispiBracket | None = Field(
+        default=None,
+        description='Commander Bracket (1-5); None until the Bracket phase populates it.',
+    )
+    inputs: dict = Field(
+        description=(
+            'The two typed reasoning inputs the engine consumed: '
+            '`fundamental_turn` (float, half-steps allowed) and '
+            '`commander_dependence` (str: low / med / high).'
+        ),
+    )
+    computed_at: str = Field(description='Freshness stamp (ISO-8601) — when this score was computed.')
+
+
+# --------------------------------------------------------------------------- #
 # Trade — a movement event; stands alone (not a card). See airtable-schema.md.
 # --------------------------------------------------------------------------- #
 

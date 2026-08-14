@@ -1743,6 +1743,65 @@ def _factsheet(argv: list[str]) -> None:
     print(json.dumps(report, indent=2))
 
 
+#: The valid ``--commander-dependence`` values (the Resilience dependency penalty
+#: keys: low=None / med=Moderate / high=High). Constrained at the CLI boundary.
+_COMMANDER_DEPENDENCE = ('low', 'med', 'high')
+
+
+def _crispi(argv: list[str]) -> None:
+    """Score a deck on CRISPI — the four axes + Performance Index (deterministic).
+
+    ``collection crispi "<deck>" --fundamental-turn <float> --commander-dependence
+    <low|med|high> [--id <prefix>]``. Mirrors ``_factsheet``: reads the deck via the
+    local decks store (works on ephemeral drafts too), bridges to ``crispi_from_deck``
+    in ``scripts/deck_factsheet.py``, and prints the ``CrispiResult`` JSON. The two
+    reasoning inputs are the ONLY judgement the engine leaves to the caller; the verb
+    stamps ``computed_at`` here (a real timestamp is fine at the caller boundary — the
+    scorer itself stays pure).
+    """
+    parser = argparse.ArgumentParser(
+        prog='collection crispi',
+        description='Score a deck on the CRISPI rubric (Consistency/Resilience/Interaction/Speed + PI).',
+    )
+    parser.add_argument('name', nargs='?')
+    parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
+    parser.add_argument(
+        '--fundamental-turn',
+        dest='fundamental_turn',
+        type=float,
+        required=True,
+        help='The AI-judged fundamental turn (float; half-steps allowed) — drives Speed.',
+    )
+    parser.add_argument(
+        '--commander-dependence',
+        dest='commander_dependence',
+        required=True,
+        choices=_COMMANDER_DEPENDENCE,
+        help='How commander-dependent the deck is (low/med/high) — drives the Resilience penalty.',
+    )
+    args = parser.parse_args(argv)
+    if args.id_prefix is None and not args.name:
+        raise CollectionError('crispi: a deck name or --id prefix is required')
+
+    deck = _deck_access().read_deck(args.name or '', id_prefix=args.id_prefix)
+
+    from datetime import UTC, datetime
+
+    root = str(_SCRIPTS_DIR)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from deck_factsheet import crispi_from_deck  # pyright: ignore[reportMissingImports]
+
+    computed_at = datetime.now(UTC).isoformat()
+    result = crispi_from_deck(
+        deck,
+        fundamental_turn=args.fundamental_turn,
+        commander_dependence=args.commander_dependence,
+        computed_at=computed_at,
+    )
+    print(json.dumps(result, indent=2))
+
+
 #: The import sources exposed by the ``--source`` override (the registry keys). The
 #: registry itself remains the single source of truth (``get_importer`` raises a
 #: ``ValueError`` naming the supported sources on an unknown one); this list only
@@ -1894,6 +1953,7 @@ VERBS = {
     'log-trade': _log_trade,
     # behavioral
     'factsheet': _factsheet,
+    'crispi': _crispi,
 }
 
 __all__ = ('main',)
