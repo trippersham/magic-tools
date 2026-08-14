@@ -504,6 +504,37 @@ def _crispi_card_to_fields(card) -> dict:  # a contracts.DeckCard (duck-typed)
     return fields
 
 
+#: Basic-land subtype -> the color it taps for. Used to infer a basic's color when
+#: its ``produced_mana`` is empty in the store (basics are frequently resolved
+#: without the field populated, which otherwise makes a basic-heavy 2-color base
+#: read as ~2 sources per color and trip a spurious pip-reliability penalty).
+_BASIC_LAND_COLOR = {
+    "Plains": "W",
+    "Island": "U",
+    "Swamp": "B",
+    "Mountain": "R",
+    "Forest": "G",
+}
+
+
+def _produced_colors(card: dict) -> set[str]:
+    """The colors a card taps for — ``produced_mana`` if present, else a basic-land guess.
+
+    Scryfall populates ``produced_mana`` for basics (Plains -> ["W"]), but the store's
+    enrichment often leaves it empty. So when it is empty AND the card is a basic land,
+    infer the color from the land subtype in the type line (a Snow Basic Land — Plains
+    still taps W). Non-basic lands with a genuinely empty ``produced_mana`` contribute
+    nothing, as before.
+    """
+    pm = set(card.get("produced_mana") or [])
+    if pm:
+        return pm
+    tl = card.get("type_line") or ""
+    if "Basic" in tl and "Land" in tl:
+        return {color for sub, color in _BASIC_LAND_COLOR.items() if sub in tl}
+    return pm
+
+
 def _crispi_mana_facts(
     cards: list[dict], card_otag: dict[str, set[str]] | None
 ) -> dict:
@@ -561,7 +592,7 @@ def _crispi_mana_facts(
     total_pips = sum(colored.values())
     producers: dict[str, int] = dict.fromkeys(colored, 0)
     for c in cards:
-        for sym in set(c.get("produced_mana") or []):
+        for sym in _produced_colors(c):
             if sym in producers:
                 producers[sym] += _qty(c)
     pip_pressure = [
