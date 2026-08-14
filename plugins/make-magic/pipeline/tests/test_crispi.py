@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import pytest
 
+from pipeline.contracts import CrispiAxis, CrispiResult
 from pipeline.transforms.combo_detect import Combo
 from pipeline.transforms.crispi import (
     CardTiers,
+    bracket,
     classify_card,
     consistency_axis,
     consistency_totals,
@@ -1131,8 +1133,9 @@ def test_score_produces_valid_result_with_snapped_pi():
     # PI is the snapped mean of the four axis values.
     axes = [result.consistency.value, result.interaction.value, result.speed.value, result.resilience.value]
     assert result.performance_index == pytest.approx(round(snap_quarter(sum(axes) / 4.0), 2))
-    # Bracket is Phase 6 — None here. Inputs echo the two judgement inputs.
-    assert result.bracket is None
+    # Bracket is now populated (Phase 6). Inputs echo the two judgement inputs.
+    assert result.bracket is not None
+    assert 1 <= result.bracket.bracket <= 5
     assert result.inputs == {'fundamental_turn': 6.0, 'commander_dependence': 'med'}
     # Every axis in-range.
     for v in axes:
@@ -1317,3 +1320,281 @@ def test_engine_exposure_still_hits_artifact_engine_pile():
     exposure = _engine_exposure(cards, {}, nonland_count=40, counterspell_count=0)
     assert exposure is not None
     assert exposure < 0
+
+
+# =========================================================================== #
+# Phase 6 — Commander Bracket (1-5) classifier `bracket(...)`.
+#
+# Floor-only-upward: start from the official WotC rule ceiling, then apply the
+# CRISPI floors that can only BUMP UP. Final = max(rule-ceiling, highest floor).
+# Selected by `-k bracket`.
+# =========================================================================== #
+
+
+def _axis(value: float) -> CrispiAxis:
+    """A minimal CrispiAxis at ``value`` (rationale/cited unused by the bracketer)."""
+    return CrispiAxis(value=value, rationale='', cited_cards=[])
+
+
+def _result(
+    *,
+    consistency: float = 4.0,
+    interaction: float = 4.0,
+    speed: float = 4.0,
+    resilience: float = 4.0,
+    pi: float | None = None,
+    fundamental_turn: float = 9.0,
+    commander_dependence: str = 'med',
+) -> CrispiResult:
+    """Build a CrispiResult for bracket tests. ``pi`` defaults to the axis mean."""
+    if pi is None:
+        pi = round(snap_quarter((consistency + interaction + speed + resilience) / 4.0), 2)
+    return CrispiResult(
+        consistency=_axis(consistency),
+        interaction=_axis(interaction),
+        speed=_axis(speed),
+        resilience=_axis(resilience),
+        performance_index=pi,
+        bracket=None,
+        inputs={'fundamental_turn': float(fundamental_turn), 'commander_dependence': commander_dependence},
+        computed_at='',
+    )
+
+
+def _clean(**kw):
+    """No rule violations — a clean deck with no GC/combos/MLD/extra-turns.
+
+    Keyword args OVERRIDE the clean defaults (so ``_clean(game_changers=4)`` works).
+    """
+    signals = {
+        'game_changers': 0,
+        'two_card_combos': 0,
+        'mass_land_denial': 0,
+        'extra_turns': 0,
+        'tutor_count': 0,
+    }
+    signals.update(kw)
+    return signals
+
+
+# --- Floor-only-upward: a floor bumps UP, never DOWN. ------------------------
+
+
+def test_bracket_floor_only_upward_low_power_deck_is_b2_not_bumped_down():
+    # Clean low-power deck, CRISPI 4.0 / Speed 4 -> the B2 CRISPI-3.5+ floor bumps it
+    # to 2 (rule ceiling alone would be 1). It is NOT dragged below 2.
+    r = _result(consistency=4.0, interaction=4.0, speed=4.0, resilience=4.0, pi=4.0, fundamental_turn=9.0)
+    b = bracket(r, **_clean())
+    assert b.bracket == 2
+    assert any('3.5' in t for t in b.triggers)
+
+
+def test_bracket_truly_inert_deck_is_b1():
+    # A deck below every floor (CRISPI < 3.5, Speed < 5, min-turn 9+) with no rule
+    # violations sits at Bracket 1.
+    r = _result(consistency=2.0, interaction=2.0, speed=2.0, resilience=2.0, pi=2.0, fundamental_turn=10.0)
+    b = bracket(r, **_clean())
+    assert b.bracket == 1
+
+
+# --- CRISPI floor bumps. -----------------------------------------------------
+
+
+def test_bracket_speed_8_floor_forces_at_least_b4():
+    r = _result(speed=8.0, fundamental_turn=4.0)  # Speed 8 -> B4 floor
+    b = bracket(r, **_clean())
+    assert b.bracket >= 4
+    assert any('B4 floor' in t and 'Speed' in t for t in b.triggers)
+
+
+def test_bracket_crispi_86_floor_forces_b5():
+    r = _result(consistency=9.0, interaction=9.0, speed=8.0, resilience=9.0, pi=8.75)
+    b = bracket(r, **_clean())
+    assert b.bracket == 5
+    assert any('B5 floor' in t for t in b.triggers)
+
+
+def test_bracket_cons_and_int_75_pairing_forces_b4_even_if_pi_below_7():
+    # The B4 third input: Consistency 7.5+ AND Interaction 7.5+ -> B4 even when the
+    # overall CRISPI sits below 7.0 and Speed is unremarkable.
+    r = _result(consistency=7.5, interaction=7.5, speed=4.0, resilience=4.0, pi=5.75, fundamental_turn=8.0)
+    b = bracket(r, **_clean())
+    assert b.bracket >= 4
+    assert any('Consistency 7.5' in t and 'Interaction 7.5' in t for t in b.triggers)
+
+
+def test_bracket_cons_or_int_alone_below_75_does_not_trip_b4_pairing():
+    # Only ONE of the pairing is >=7.5 -> the pairing does NOT fire (needs BOTH).
+    r = _result(consistency=7.5, interaction=6.0, speed=4.0, resilience=4.0, pi=5.5, fundamental_turn=8.0)
+    b = bracket(r, **_clean())
+    assert b.bracket < 4
+
+
+# --- Half-step Speed gets the benefit of the doubt (slower turn counts). ------
+
+
+def test_bracket_speed_half_step_counts_slower_turn_for_floor():
+    # An 8.5 Speed rating counts as the SLOWER of turn 3/4 = a turn-4 win: it trips
+    # the B4 floor (Speed 8+) but NOT the B5 floor (needs Speed 9+ = a turn-3 win).
+    r = _result(speed=8.5, fundamental_turn=3.5, consistency=5.0, interaction=5.0, resilience=5.0)
+    b = bracket(r, **_clean())
+    assert b.bracket == 4
+
+
+# --- Rule ceilings. ----------------------------------------------------------
+
+
+def test_bracket_four_game_changers_forces_at_least_b4():
+    r = _result(consistency=3.0, interaction=3.0, speed=3.0, resilience=3.0, pi=3.0, fundamental_turn=10.0)
+    b = bracket(r, **_clean(game_changers=4))
+    assert b.bracket >= 4
+    assert any('Game Changer' in t for t in b.triggers)
+
+
+def test_bracket_two_game_changers_forces_at_least_b3():
+    r = _result(consistency=3.0, interaction=3.0, speed=3.0, resilience=3.0, pi=3.0, fundamental_turn=10.0)
+    b = bracket(r, **_clean(game_changers=2))
+    assert b.bracket >= 3
+    assert b.bracket == 3  # 1-3 GC ceiling is exactly B3 absent a higher floor
+    assert any('Game Changer' in t for t in b.triggers)
+
+
+def test_bracket_mass_land_denial_forces_at_least_b4():
+    r = _result(consistency=3.0, interaction=3.0, speed=3.0, resilience=3.0, pi=3.0, fundamental_turn=10.0)
+    b = bracket(r, **_clean(mass_land_denial=1))
+    assert b.bracket >= 4
+    assert any('mass land' in t.lower() for t in b.triggers)
+
+
+def test_bracket_extra_turns_forces_at_least_b3():
+    # A single extra-turn card is barred from B1/B2 -> ceiling >= B3.
+    r = _result(consistency=3.0, interaction=3.0, speed=3.0, resilience=3.0, pi=3.0, fundamental_turn=10.0)
+    b = bracket(r, **_clean(extra_turns=1))
+    assert b.bracket >= 3
+    assert any('extra turn' in t.lower() for t in b.triggers)
+
+
+def test_bracket_early_two_card_combo_before_turn_6_forces_at_least_b4():
+    # A 2-card combo that can land BEFORE turn ~6 is barred from B3 -> ceiling >= B4.
+    r = _result(consistency=5.0, interaction=5.0, speed=6.0, resilience=5.0, fundamental_turn=5.0)
+    b = bracket(r, **_clean(two_card_combos=1))
+    assert b.bracket >= 4
+    assert any('combo' in t.lower() for t in b.triggers)
+
+
+def test_bracket_late_two_card_combo_after_turn_6_caps_at_b3():
+    # A 2-card combo whose fundamental turn is >= 6 is permitted at B3 (not B4): the
+    # B3 rule allows 2-card combos from ~turn 6 on. Ceiling is B3 (barred from B1/B2).
+    r = _result(consistency=4.0, interaction=4.0, speed=6.0, resilience=4.0, fundamental_turn=6.0)
+    b = bracket(r, **_clean(two_card_combos=1))
+    assert b.bracket == 3
+    assert any('combo' in t.lower() for t in b.triggers)
+
+
+# --- max(rule, floor) wins; triggers name the deciding signal. ---------------
+
+
+def test_bracket_max_of_rule_and_floor_floor_wins():
+    # 2 Game Changers -> rule ceiling B3; but Speed 8 -> B4 floor. max -> B4.
+    r = _result(speed=8.0, consistency=5.0, interaction=5.0, resilience=5.0, fundamental_turn=4.0)
+    b = bracket(r, **_clean(game_changers=2))
+    assert b.bracket == 4
+    assert any('B4 floor' in t for t in b.triggers)
+
+
+def test_bracket_max_of_rule_and_floor_rule_wins():
+    # 4 Game Changers -> rule ceiling B4; CRISPI ~4 only trips the B2 floor. max -> B4.
+    r = _result(consistency=4.0, interaction=4.0, speed=4.0, resilience=4.0, pi=4.0, fundamental_turn=9.0)
+    b = bracket(r, **_clean(game_changers=4))
+    assert b.bracket == 4
+    assert any('Game Changer' in t for t in b.triggers)
+
+
+def test_bracket_low_power_deck_with_four_game_changers_is_still_b4():
+    # Rubric: "A low-power deck that contains four Game Changers is still Bracket 4
+    # because of the card restrictions." The floor never drags it DOWN.
+    r = _result(consistency=2.0, interaction=2.0, speed=2.0, resilience=2.0, pi=2.0, fundamental_turn=12.0)
+    b = bracket(r, **_clean(game_changers=4))
+    assert b.bracket == 4
+
+
+def test_bracket_returns_crispi_bracket_with_triggers():
+    r = _result(speed=8.0, fundamental_turn=4.0)
+    b = bracket(r, **_clean())
+    from pipeline.contracts import CrispiBracket
+
+    assert isinstance(b, CrispiBracket)
+    assert 1 <= b.bracket <= 5
+    assert b.triggers  # a non-clean/floored deck names its deciding signal
+
+
+# --- Wiring: crispi_score populates a non-null bracket. ----------------------
+
+
+def test_score_populates_non_null_bracket():
+    cards, card_otag = _score_cards()
+    result = crispi_score(cards, card_otag, fundamental_turn=6.0, commander_dependence='med')
+    assert result.bracket is not None
+    assert 1 <= result.bracket.bracket <= 5
+
+
+def test_bracket_band_sanity_on_golden_decks():
+    # Band sanity: score the golden decks (read-only from the canonical store, via
+    # the same lake-backed bridge the harness uses) and assert their brackets are
+    # SANE — a ~CRISPI-4-5 deck lands B2-B3, none is absurdly B5. Skips cleanly when
+    # the store isn't present (CI without the local data dir).
+    import os
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    db = _Path(os.environ.get('MAKE_MAGIC_DATA_DIR', _Path.home() / '.local' / 'share' / 'make-magic'))
+    db_path = db / 'make_magic.duckdb' if db.is_dir() else db
+    if not db_path.exists():
+        pytest.skip(f'canonical store not present: {db_path}')
+
+    scripts_dir = _Path(__file__).resolve().parents[2] / 'scripts'
+    if str(scripts_dir) not in _sys.path:
+        _sys.path.insert(0, str(scripts_dir))
+    try:
+        import crispi_golden  # type: ignore[import-not-found]
+    except Exception as e:  # pragma: no cover - env-dependent
+        pytest.skip(f'golden harness unavailable: {e}')
+
+    from deck_factsheet import crispi_from_deck  # type: ignore[import-not-found]
+
+    from pipeline.contracts import Deck
+
+    seen_any = False
+    for name, spec in crispi_golden.GOLDEN.items():
+        try:
+            deck_dict = crispi_golden._read_deck_json(db_path, name)
+        except SystemExit:
+            continue  # deck not in this store; skip it, still sanity-check the rest
+        seen_any = True
+        result = crispi_from_deck(
+            Deck.model_validate(deck_dict),
+            fundamental_turn=spec['fundamental_turn'],
+            commander_dependence=spec['commander_dependence'],
+        )
+        b = result['bracket']
+        pi = result['performance_index']
+        assert b is not None, f'{name}: bracket must be populated'
+        assert 1 <= b['bracket'] <= 5, f'{name}: bracket {b["bracket"]} out of range'
+        # No golden deck (all are casual-to-mid CRISPI ~4-7) should read cEDH.
+        assert b['bracket'] <= 4, f'{name}: absurd B5 on a CRISPI {pi} deck'
+        # A mid-CRISPI deck (PI <= 5.5) shouldn't land above B3 absent a rule forcer.
+        if pi <= 5.0:
+            assert b['bracket'] <= 3, f'{name}: CRISPI {pi} deck bumped past B3 ({b["bracket"]})'
+    if not seen_any:
+        pytest.skip('no golden decks found in this store')
+
+
+def test_score_game_changer_in_deck_forces_bracket_up():
+    # Adding four real Game Changers to the synthetic deck forces bracket >= 4 via
+    # the rule ceiling, even though the deck's axes are modest.
+    cards, card_otag = _score_cards()
+    for gc in ('Mana Vault', 'Rhystic Study', 'Demonic Tutor', 'Cyclonic Rift'):
+        cards.append(_card(gc, oracle_id=f'gc-{gc}', type_line='Artifact', cmc=1.0))
+    result = crispi_score(cards, card_otag, fundamental_turn=9.0, commander_dependence='med')
+    assert result.bracket is not None
+    assert result.bracket.bracket >= 4

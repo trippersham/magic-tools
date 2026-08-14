@@ -125,12 +125,15 @@ def _row(name: str, spec: dict, db_path: Path) -> dict:
     ours = {ax: round(result[ax]['value'], 2) for ax in AXES}
     target = spec['target']
     deltas = {ax: round(ours[ax] - target[ax], 2) for ax in AXES}
+    bracket = result.get('bracket') or {}
     return {
         'deck': name,
         'ours': ours,
         'deckcheck': target,
         'delta': deltas,
         'pi': result['performance_index'],
+        'bracket': bracket.get('bracket'),
+        'bracket_triggers': bracket.get('triggers', []),
         'max_abs_delta': max(abs(d) for d in deltas.values()),
         'rationale': {ax: result[ax]['rationale'] for ax in AXES},
     }
@@ -160,7 +163,10 @@ def main() -> None:
                 f'{r["deck"][:28]:<28}  {ax:<12}  {r["ours"][ax]:>5}  '
                 f'{r["deckcheck"][ax]:>5}  {r["delta"][ax]:>+6.2f}{flag}'
             )
-        print(f'{"":<28}  {"PI":<12}  {r["pi"]:>5}  {"":<5}  {"":>6}   max|Δ|={r["max_abs_delta"]}')
+        print(
+            f'{"":<28}  {"PI":<12}  {r["pi"]:>5}  {"":<5}  {"":>6}   '
+            f'max|Δ|={r["max_abs_delta"]}  Bracket={r["bracket"]}'
+        )
         print()
 
 

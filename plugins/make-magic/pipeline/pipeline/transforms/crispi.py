@@ -33,11 +33,15 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from pipeline.contracts.models import CrispiAxis, CrispiResult
+from pipeline.contracts.models import CrispiAxis, CrispiBracket, CrispiResult
 from pipeline.transforms.crispi_tiers import (
     DRAW_TIERS,
+    EXTRA_TURNS,
+    GAME_CHANGERS,
     INTERACTION_TIERS,
+    MASS_LAND_DENIAL,
     TUTOR_TIERS,
+    normalize_card_name,
     tier_for,
 )
 from pipeline.transforms.crosswalk import buckets_for
@@ -1798,6 +1802,240 @@ def _archetype_caps(classified: list[CardTiers], commander: CardTiers | None) ->
     return caps
 
 
+# =========================================================================== #
+# Phase 6 — Commander Bracket (1-5) classifier.
+#
+# The official WotC Commander Brackets (Exhibition / Core / Upgraded / Optimized
+# / cEDH) are a RULE ladder: each low bracket bars certain cards/plans (Game
+# Changers, mass land denial, extra turns, early 2-card combos). The CRISPI
+# deep-dive layers "guardrail floors" on top: two numbers (Speed and the overall
+# CRISPI score, plus one Consistency+Interaction pairing) that can only BUMP a
+# deck UP into its proper bracket, never down. The final bracket is
+# `max(rule-ceiling, highest CRISPI floor tripped)` — a deck is at least as high
+# as its cards force it, and at least as high as its speed/power betray it.
+#
+# `bracket(...)` is a PURE function of the already-scored `CrispiResult` plus the
+# five rule signals the caller counts from the deck + tiers. It names every
+# signal that fired in `triggers` for full transparency (rubric ~77: "if your
+# deck gets bumped you can see exactly why").
+# =========================================================================== #
+
+
+def _rule_ceiling(
+    *,
+    game_changers: int,
+    two_card_combos: int,
+    mass_land_denial: int,
+    extra_turns: int,
+    fundamental_turn: float,
+) -> tuple[int, list[str]]:
+    """The official WotC rule ceiling — the LOWEST bracket the deck's cards permit.
+
+    Rules (from ``research/commander-brackets.txt``), read as "which bracket's
+    restrictions does the deck still satisfy" pushed UP by every violation:
+
+      * Bracket 4 (Optimized) has NO card restrictions, so any of the following
+        forces the ceiling to at least 4:
+          - 4+ Game Changers (B3 allows 0-3),
+          - any mass land denial (barred B1-B3),
+          - a 2-card combo that can land BEFORE turn ~6 (B3 permits 2-card combos
+            only from ~turn 6 on; ``fundamental_turn < 6`` => early).
+      * Otherwise, any of the following bars B1/B2 and forces the ceiling to B3:
+          - 1-3 Game Changers (allowed at B3, barred at B1/B2),
+          - any extra-turn card (B1 bars all; B2 bars CHAINING — we conservatively
+            treat any extra-turn card as a B3 signal, since we can't prove a deck
+            never chains),
+          - a 2-card combo landing at/after turn ~6 (permitted at B3, barred B1/B2).
+      * A fully clean deck has a rule ceiling of B1 (the CRISPI floors then decide
+        how far up it really sits).
+
+    Returns ``(ceiling, triggers)`` — the numeric ceiling and the named rule signals.
+    """
+    triggers: list[str] = []
+    early_combo = two_card_combos > 0 and float(fundamental_turn) < 6.0
+    late_combo = two_card_combos > 0 and float(fundamental_turn) >= 6.0
+
+    ceiling = 1
+
+    # --- B4 forcers (Optimized: no restrictions). ----------------------------
+    if game_changers >= 4:
+        ceiling = max(ceiling, 4)
+        triggers.append(f'rule: {game_changers} Game Changers (4+ -> B4)')
+    if mass_land_denial > 0:
+        ceiling = max(ceiling, 4)
+        triggers.append(f'rule: {mass_land_denial} mass land denial (barred B1-B3 -> B4)')
+    if early_combo:
+        ceiling = max(ceiling, 4)
+        triggers.append(f'rule: 2-card combo lands before turn 6 (fundamental turn {float(fundamental_turn):g} -> B4)')
+
+    # --- B3 forcers (Upgraded: 0-3 GC, no MLD, combos only from ~turn 6). -----
+    if 1 <= game_changers <= 3:
+        ceiling = max(ceiling, 3)
+        triggers.append(f'rule: {game_changers} Game Changer(s) (1-3 -> B3)')
+    if extra_turns > 0:
+        ceiling = max(ceiling, 3)
+        triggers.append(f'rule: {extra_turns} extra turn card(s) (barred B1/B2 -> B3)')
+    if late_combo:
+        ceiling = max(ceiling, 3)
+        triggers.append(f'rule: 2-card combo (fundamental turn {float(fundamental_turn):g} >= 6 -> B3)')
+
+    return ceiling, triggers
+
+
+def _crispi_floor(result: CrispiResult) -> tuple[int, list[str]]:
+    """The highest CRISPI guardrail floor a deck's numbers trip (bump-UP only).
+
+    From ``research/crispi-deep-dive-full.txt`` ("CRISPI floors"):
+
+      * B5 floor: Speed 9+ OR CRISPI 8.5+.
+      * B4 floor: Speed 8+ OR CRISPI 7.0+ OR (Consistency 7.5+ AND Interaction 7.5+).
+      * B3 floor: Speed 6+ OR CRISPI 5.0+.
+      * B2 floor: Speed 5+ OR CRISPI 3.5+.
+
+    Half-step Speed "gets the benefit of the doubt": a rating like 8.5 counts as a
+    turn-4 win (the SLOWER of turns 3/4), so an 8.5 clears the B4 Speed floor but
+    NOT B5's (which wants a true Speed 9 = turn-3 win). We implement that by using
+    ``floor(speed)`` for the Speed-floor comparison — 8.5 -> 8, 7.5 -> 7 — exactly
+    the rubric's "count the slower turn" rule.
+
+    Returns ``(floor, triggers)`` — the highest floor bracket (1 if none trips) and
+    the named floor signals that fired.
+    """
+    speed = result.speed.value
+    pi = result.performance_index
+    cons = result.consistency.value
+    interaction = result.interaction.value
+    speed_floor = math.floor(speed)  # half-step benefit-of-the-doubt (8.5 -> 8).
+
+    floor = 1
+    triggers: list[str] = []
+
+    # B5 floor.
+    if speed_floor >= 9:
+        floor = max(floor, 5)
+        triggers.append(f'B5 floor: Speed {speed:g} (>=9)')
+    if pi >= 8.5:
+        floor = max(floor, 5)
+        triggers.append(f'B5 floor: CRISPI {pi:g} (>=8.5)')
+
+    # B4 floor.
+    if speed_floor >= 8:
+        floor = max(floor, 4)
+        triggers.append(f'B4 floor: Speed {speed:g} (>=8)')
+    if pi >= 7.0:
+        floor = max(floor, 4)
+        triggers.append(f'B4 floor: CRISPI {pi:g} (>=7.0)')
+    if cons >= 7.5 and interaction >= 7.5:
+        floor = max(floor, 4)
+        triggers.append(f'B4 floor: Consistency {cons:g} + Interaction {interaction:g} (both >=7.5)')
+
+    # B3 floor.
+    if speed_floor >= 6:
+        floor = max(floor, 3)
+        triggers.append(f'B3 floor: Speed {speed:g} (>=6)')
+    if pi >= 5.0:
+        floor = max(floor, 3)
+        triggers.append(f'B3 floor: CRISPI {pi:g} (>=5.0)')
+
+    # B2 floor.
+    if speed_floor >= 5:
+        floor = max(floor, 2)
+        triggers.append(f'B2 floor: Speed {speed:g} (>=5)')
+    if pi >= 3.5:
+        floor = max(floor, 2)
+        triggers.append(f'B2 floor: CRISPI {pi:g} (>=3.5)')
+
+    return floor, triggers
+
+
+def _name_list_count(cards: list[dict], names: frozenset[str]) -> int:
+    """Count deck cards whose (normalized) name is in a bracket rule name-list.
+
+    Counts by deck ROW (a single copy of a Game Changer / MLD / extra-turn card is
+    a violation regardless of quantity). Names are normalized with the same
+    :func:`normalize_card_name` the name-lists were built with, so punctuation/case
+    don't matter and a DFC front-face name matches its list entry.
+    """
+    return sum(1 for c in cards if normalize_card_name(c.get('name') or '') in names)
+
+
+def _two_card_combo_count(combos: list) -> int:
+    """Count DISTINCT 2-card combo lines in the deck (the bracket rule signal).
+
+    A bracket "2-card combo" is a registered combo whose concrete card set is
+    exactly two cards. Distinctness is by ``variant_id`` (matching the Resilience
+    combo-layering count). Larger combos (3+ cards) are NOT bracket 2-card combos —
+    the official rules restrict specifically the two-card variety.
+    """
+    seen: set[str] = set()
+    count = 0
+    for c in combos:
+        names = getattr(c, 'card_names', ()) or ()
+        vid = getattr(c, 'variant_id', None)
+        if len(names) == 2 and vid not in seen:
+            seen.add(vid)
+            count += 1
+    return count
+
+
+def bracket(
+    result: CrispiResult,
+    *,
+    game_changers: int,
+    two_card_combos: int,
+    mass_land_denial: int,
+    extra_turns: int,
+    tutor_count: int,
+) -> CrispiBracket:
+    """Classify a scored deck into the official WotC Commander Bracket (1-5).
+
+    Floor-only-upward: the final bracket is ``max(rule-ceiling, highest CRISPI
+    floor)``. The rule ceiling is the lowest bracket the deck's CARDS permit
+    (Game Changers, mass land denial, extra turns, early 2-card combos); the
+    CRISPI floors are the two-number guardrails that bump a compliant-but-strong
+    (or -fast) deck up into its true bracket. Both only ever push UP — a weak deck
+    with four Game Changers is still B4 (rubric ~77), and a strong deck is never
+    dragged below what its cards allow.
+
+    Args:
+        result: The scored :class:`CrispiResult` (its axis values + PI + the
+            ``inputs.fundamental_turn`` drive the floors and the B3 combo nuance).
+        game_changers: Count of deck cards on the official WotC Game Changers list.
+        two_card_combos: Count of detected 2-card combo lines in the deck (the
+            fundamental turn decides whether they land "before turn 6" -> B4, or
+            at/after -> B3).
+        mass_land_denial: Count of mass-land-denial cards (any -> B4 ceiling).
+        extra_turns: Count of extra-turn cards (any -> B3 ceiling).
+        tutor_count: The deck's total tutor count (reserved / informational — the
+            official ceilings key on Game Changers, not raw tutors; carried so the
+            signal is available to the caller and future rubric revisions).
+
+    Returns:
+        A :class:`CrispiBracket` with the 1-5 bracket and the named ``triggers``
+        (every rule + floor signal that fired, so a bump is always explainable).
+    """
+    fundamental_turn = float(result.inputs.get('fundamental_turn', 9.0))
+
+    ceiling, rule_triggers = _rule_ceiling(
+        game_changers=game_changers,
+        two_card_combos=two_card_combos,
+        mass_land_denial=mass_land_denial,
+        extra_turns=extra_turns,
+        fundamental_turn=fundamental_turn,
+    )
+    floor, floor_triggers = _crispi_floor(result)
+
+    value = max(ceiling, floor, 1)
+
+    # Name the deciding signal(s): the rule triggers at/above the final bracket and
+    # the floor triggers at/above it (the ones that actually SET the bracket).
+    triggers = list(rule_triggers) + list(floor_triggers)
+    if not triggers:
+        triggers = [f'no bump: clean deck, CRISPI {result.performance_index:g} / Speed {result.speed.value:g} -> B1']
+
+    return CrispiBracket(bracket=value, triggers=triggers)
+
+
 def crispi_score(
     cards: list[dict],
     card_otag: dict[str, set[str]],
@@ -1906,7 +2144,7 @@ def crispi_score(
     pi_raw = (consistency.value + interaction.value + speed.value + resilience.value) / 4.0
     performance_index = round(snap_quarter(pi_raw), 2)
 
-    return CrispiResult(
+    result = CrispiResult(
         consistency=consistency,
         interaction=interaction,
         speed=speed,
@@ -1917,10 +2155,33 @@ def crispi_score(
         computed_at=computed_at,
     )
 
+    # --- Commander Bracket (Phase 6): rule ceiling vs CRISPI floors. ----------
+    # Rule signals are counted over ALL deck cards (Game Changers / MLD / extra
+    # turns can be lands or nonlands); the tutor count reuses the Consistency
+    # tutor total already computed above (informational to the bracketer).
+    game_changers = _name_list_count(cards, GAME_CHANGERS)
+    mass_land_denial = _name_list_count(cards, MASS_LAND_DENIAL)
+    extra_turns = _name_list_count(cards, EXTRA_TURNS)
+    two_card_combos = _two_card_combo_count(combos)
+    result = result.model_copy(
+        update={
+            'bracket': bracket(
+                result,
+                game_changers=game_changers,
+                two_card_combos=two_card_combos,
+                mass_land_denial=mass_land_denial,
+                extra_turns=extra_turns,
+                tutor_count=int(totals.tutor_total),
+            )
+        }
+    )
+    return result
+
 
 __all__ = (
     'CardTiers',
     'ConsistencyTotals',
+    'bracket',
     'classify_card',
     'consistency_axis',
     'consistency_totals',

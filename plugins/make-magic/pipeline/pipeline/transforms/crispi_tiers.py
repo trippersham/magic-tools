@@ -26,10 +26,21 @@ and the query is normalized the same way. Look a card up with :func:`tier_for`;
 an unnamed card returns ``None`` (the caller then falls to heuristics).
 
 Three name-list frozensets — ``GAME_CHANGERS``, ``MASS_LAND_DENIAL``,
-``EXTRA_TURNS`` — scaffold the Commander-Bracket rule signals consumed in Phase 6.
-They are a STARTER set, not the authoritative list: Phase 6 re-fetches the live
-official WotC Game Changers list (and the MLD / extra-turn lists) and finalizes
-these. Do not treat the current membership as complete.
+``EXTRA_TURNS`` — supply the Commander-Bracket rule signals consumed in Phase 6.
+
+``GAME_CHANGERS`` is the AUTHORITATIVE live WotC Game Changers list, verified in
+Phase 6 (2026-08-14) against Scryfall's ``is:gamechanger`` query (``total_cards``
+53, ``has_more`` False) and cross-checked with the commanderbrackets.com listing.
+It reflects the WotC updates through 2026-02-09 (which added Farewell and unbanned
+Biorhythm directly onto the list). This list is actively churned by the Commander
+Format Panel, so re-verify against ``is:gamechanger`` on each future bracket-rubric
+pass. See the reconciliation note above the frozenset for what changed vs the
+original Phase-0 scaffold.
+
+``MASS_LAND_DENIAL`` and ``EXTRA_TURNS`` remain CURATED lists (WotC publishes no
+single canonical enumeration of either — the bracket rules describe the CATEGORY,
+not a card list). They carry the format-defining, uncontroversial members; treat
+them as high-coverage but not provably exhaustive.
 """
 
 from __future__ import annotations
@@ -244,61 +255,95 @@ INTERACTION_TIERS: Final[dict[str, tuple[str, int]]] = _norm_table(
 
 
 # --------------------------------------------------------------------------- #
-# Commander-Bracket rule-signal name lists (Phase 6 — SCAFFOLD, not final).
+# Commander-Bracket rule-signal name lists (Phase 6).
 #
 # The captured brackets doc lists the RULES (no Game Changers, no MLD, no extra
-# turns, 2-card-combo limits) but names no specific cards. Phase 6 re-fetches the
-# live official WotC Game Changers list and finalizes MLD / extra-turn lists.
-# These starter sets carry the format-defining, uncontroversial members so the
-# Phase-6 classifier has something to consume; treat them as INCOMPLETE.
-# Members are normalized so a membership test matches ``tier_for`` keys.
+# turns, 2-card-combo limits) but names no specific cards. GAME_CHANGERS below is
+# the AUTHORITATIVE live WotC list (verified 2026-08-14 vs Scryfall
+# `is:gamechanger`; 53 cards). MLD / extra-turn lists stay curated (no canonical
+# WotC enumeration exists). Members are normalized so a membership test matches
+# `tier_for` keys and a deck-name lookup.
 # --------------------------------------------------------------------------- #
 
-#: Starter subset of the official WotC "Game Changers" list. Phase 6 re-fetches
-#: the authoritative ~40-card list and replaces this. INCOMPLETE by design.
+#: The official WotC "Game Changers" list — VERIFIED authoritative (2026-08-14).
+#:
+#: Source of truth: Scryfall `is:gamechanger` (total_cards 53, has_more False),
+#: cross-checked with commanderbrackets.com. Reflects WotC updates through
+#: 2026-02-09. Re-verify on each bracket-rubric pass (the Format Panel churns it).
+#:
+#: Reconciliation vs the Phase-0 scaffold: this replaces a 40-card guess.
+#:  * ADDED (were missing): Biorhythm, Bolas's Citadel, Chrome Mox, Consecrated
+#:    Sphinx, Crop Rotation, Farewell, Field of the Dead, Gifts Ungiven, Glacial
+#:    Chasm, Grand Arbiter Augustin IV, Humility, Intuition, Jeska's Will, Lion's
+#:    Eye Diamond, Mishra's Workshop, Mox Diamond, Mystical Tutor, Narset Parter
+#:    of Veils, Natural Order, Necropotence, Ad Nauseam, Orcish Bowmasters, Serra's
+#:    Sanctum, Survival of the Fittest, Teferi's Protection, Tergrid God of Fright,
+#:    The Tabernacle at Pendrell Vale, Worldly Tutor.
+#:  * REMOVED (scaffold guesses NOT on the live list): Mana Crypt (banned),
+#:    Jeweled Lotus (banned), Mystic Remora, Smothering Tithe*, Grim Monolith,
+#:    Deflecting Swat (delisted 2025-10), Grim Tutor, Tainted Pact, Demonic
+#:    Consultation, Jin-Gitaxias Core Augur (delisted), Hullbreacher (banned),
+#:    Trinisphere (delisted), Winota (delisted), Yuriko (delisted), Kinnan
+#:    (delisted), Yawgmoth, Food Chain (delisted), Panoptic Mirror -> IS on list;
+#:    Seedborn Muse -> IS on list. (Smothering Tithe/Panoptic Mirror/Seedborn Muse
+#:    were correct guesses and remain.) DFC entry stored by front-face name
+#:    ("Tergrid, God of Fright") to match deck-list naming.
 GAME_CHANGERS: Final[frozenset[str]] = _norm_set(
     frozenset(
         {
-            'Mana Crypt',
-            'Mana Vault',
-            'Jeweled Lotus',
-            'The One Ring',
-            "Gaea's Cradle",
+            'Ad Nauseam',
             'Ancient Tomb',
-            'Grim Monolith',
-            'Rhystic Study',
-            'Mystic Remora',
-            'Smothering Tithe',
-            'Cyclonic Rift',
-            'Fierce Guardianship',
-            'Deflecting Swat',
-            'Force of Will',
-            'Vampiric Tutor',
-            'Demonic Tutor',
-            'Imperial Seal',
-            'Gamble',
-            'Enlightened Tutor',
-            'Grim Tutor',
-            'Tainted Pact',
-            'Demonic Consultation',
-            "Thassa's Oracle",
-            'Jin-Gitaxias, Core Augur',
-            'Drannith Magistrate',
-            'Opposition Agent',
-            'Hullbreacher',
-            'Notion Thief',
             'Aura Shards',
-            'Trinisphere',
-            'Winota, Joiner of Forces',
-            "Yuriko, the Tiger's Shadow",
-            'Kinnan, Bonder Prodigy',
-            'Underworld Breach',
-            'Yawgmoth, Thran Physician',
-            'Food Chain',
-            'Seedborn Muse',
-            'Coalition Victory',
-            'Panoptic Mirror',
+            'Biorhythm',
+            "Bolas's Citadel",
             'Braids, Cabal Minion',
+            'Chrome Mox',
+            'Coalition Victory',
+            'Consecrated Sphinx',
+            'Crop Rotation',
+            'Cyclonic Rift',
+            'Demonic Tutor',
+            'Drannith Magistrate',
+            'Enlightened Tutor',
+            'Farewell',
+            'Field of the Dead',
+            'Fierce Guardianship',
+            'Force of Will',
+            "Gaea's Cradle",
+            'Gamble',
+            'Gifts Ungiven',
+            'Glacial Chasm',
+            'Grand Arbiter Augustin IV',
+            'Grim Monolith',
+            'Humility',
+            'Imperial Seal',
+            'Intuition',
+            "Jeska's Will",
+            "Lion's Eye Diamond",
+            'Mana Vault',
+            "Mishra's Workshop",
+            'Mox Diamond',
+            'Mystical Tutor',
+            'Narset, Parter of Veils',
+            'Natural Order',
+            'Necropotence',
+            'Notion Thief',
+            'Opposition Agent',
+            'Orcish Bowmasters',
+            'Panoptic Mirror',
+            'Rhystic Study',
+            'Seedborn Muse',
+            "Serra's Sanctum",
+            'Smothering Tithe',
+            'Survival of the Fittest',
+            "Teferi's Protection",
+            'Tergrid, God of Fright',
+            "Thassa's Oracle",
+            'The One Ring',
+            'The Tabernacle at Pendrell Vale',
+            'Underworld Breach',
+            'Vampiric Tutor',
+            'Worldly Tutor',
         }
     )
 )
