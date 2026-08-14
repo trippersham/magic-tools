@@ -127,7 +127,16 @@ def sync(*, client: httpx.Client | None = None, force: bool = False) -> Path:
         log.info('oracle_tags: loaded %d tags (updated_at=%s).', len(tags), updated_at)
         return path
     except Exception as exc:
-        log.warning('oracle_tags: fetch failed (%s); falling back to bundled snapshot.', exc)
+        # Fail-open — but a transient fetch failure must NOT clobber a good cached
+        # pull with the ~20% bundled snapshot. If a raw table already exists (an
+        # earlier successful ~84-92% coverage load), REUSE it: stale-but-full beats
+        # fresh-but-thin, and every downstream score (factsheet, CRISPI) depends on
+        # coverage. Only when there is no cache at all (true first-run offline) do we
+        # fall back to the bundled baseline.
+        if store.table_exists('raw', SOURCE):
+            log.warning('oracle_tags: fetch failed (%s); reusing cached raw (no clobber).', exc)
+            return store.StorePaths.resolve().parquet_path('raw', SOURCE, create=False)
+        log.warning('oracle_tags: fetch failed (%s); no cache — loading bundled snapshot.', exc)
         tags = _load_snapshot()
         path = _load(tags)
         log.info('oracle_tags: loaded %d tags from snapshot.', len(tags))
