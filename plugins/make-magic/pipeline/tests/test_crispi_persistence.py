@@ -194,6 +194,25 @@ def test_stamp_crispi_verb_writes_crispi(
     assert crispi['deck_version'] == version(DecksStore().get(uuid))
 
 
+def test_stamp_crispi_verb_reads_result_from_stdin(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    # `--result -` reads the JSON from stdin — the robust skill path (a real
+    # CrispiResult carries apostrophes that break inline shell quoting).
+    import io
+
+    s = DecksStore()
+    s.create_ephemeral(_deck('Stdin Crispi'))
+    capsys.readouterr()
+
+    monkeypatch.setattr('sys.stdin', io.StringIO(json.dumps(_crispi_result())))
+    _run(monkeypatch, 'stamp-crispi', 'Stdin Crispi', '--result', '-')
+    capsys.readouterr()
+
+    uuid = s.uuid_for_name('Stdin Crispi')
+    assert json.loads(DecksStore().get_row(uuid).crispi)['result'] == _crispi_result()
+
+
 def test_stamp_crispi_verb_accepts_raw_string_result(
     data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:

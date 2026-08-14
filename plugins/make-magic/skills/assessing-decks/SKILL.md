@@ -304,8 +304,11 @@ and a 6/7/7/6 balanced deck share a PI but are different decks.
 
 **Present** the axes + PI + Bracket to the user alongside the Assessment. Then **persist both**:
 ```bash
-# structured result (a derived stamp, like sim — goes stale when the deck changes):
-${CLAUDE_PLUGIN_ROOT}/scripts/collection stamp-crispi "<deck>" --result '<the crispi JSON>'
+# structured result (a derived stamp, like sim — goes stale when the deck changes).
+# Pipe the crispi JSON via stdin (--result -): a real result carries apostrophes in
+# rationales/card names that break inline shell quoting.
+${CLAUDE_PLUGIN_ROOT}/scripts/collection crispi "<deck>" --fundamental-turn <N> --commander-dependence <t> \
+  | ${CLAUDE_PLUGIN_ROOT}/scripts/collection stamp-crispi "<deck>" --result -
 ```
 and fold a one-line summary into the Assessment prose you write in Step 8, e.g.
 `CRISPI 6.25 · S7/C6/I7/R5 · Bracket 3`. The structured stamp is what a later

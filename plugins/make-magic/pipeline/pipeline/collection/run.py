@@ -583,7 +583,10 @@ def _stamp_crispi(argv: list[str]) -> None:
     with the structured ``CrispiResult`` dict; the one-line Assessment summary is
     written separately via ``set-assessment``. ``--result`` accepts an arbitrary
     JSON blob (the four axes, PI, bracket, inputs) and is stored verbatim; a
-    non-JSON value is stored as the raw string.
+    non-JSON value is stored as the raw string. ``--result -`` reads the JSON from
+    STDIN — the robust path for the assessing-decks skill, since a real CrispiResult
+    carries apostrophes (rationales, card names like "Master's Guidance") that break
+    inline shell quoting. Pipe it: ``collection crispi … | collection stamp-crispi "<deck>" --result -``.
 
     CRISPI is a DERIVED output — this is a bookkeeping stamp on the local row, NOT
     a deck-content edit: it never moves the content ``version()`` and never pushes
@@ -592,13 +595,16 @@ def _stamp_crispi(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection stamp-crispi')
     parser.add_argument('name', nargs='?')
     parser.add_argument('--id', dest='id_prefix', default=None, help='Address by deck_uuid prefix (overrides name).')
-    parser.add_argument('--result', required=True, help='The CRISPI result — arbitrary JSON (or a raw string).')
+    parser.add_argument(
+        '--result', required=True, help='The CRISPI result — arbitrary JSON, or - to read JSON from stdin.'
+    )
     args = parser.parse_args(argv)
 
+    raw = sys.stdin.read() if args.result == '-' else args.result
     try:
-        result: object = json.loads(args.result)
+        result: object = json.loads(raw)
     except json.JSONDecodeError:
-        result = args.result  # a non-JSON summary — stored verbatim.
+        result = raw  # a non-JSON summary — stored verbatim.
     access = _deck_access(writes_enabled=True)
     access.set_crispi(args.name or '', result, id_prefix=args.id_prefix)
     print(f'stamp-crispi: {args.name if args.id_prefix is None else args.id_prefix}')
