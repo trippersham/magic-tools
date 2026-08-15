@@ -877,14 +877,34 @@ def consistency_totals(
     totals both :func:`consistency_axis` (which snaps them to rows) and Phase-4's
     :func:`resilience_axis` call (``tutor_points`` / ``draw_points``) consume. See
     :class:`ConsistencyTotals`.
+
+    The commander is EXCLUDED from the column counting (``pool`` below): the rubric
+    represents the command-zone card by the flat +5 tutor / +3 draw bonuses (a tutor
+    in the command zone is always accessible — priced as a bonus, not as a drawn
+    body), so counting its tier here too would double-count it and let one physical
+    card satisfy the rows-9/10 "2 premium tutors" gate twice (rubric: "a tutor
+    commander counts as one"). It stays in ``classified`` for Resilience/Interaction,
+    where the commander legitimately IS a body/threat.
     """
     cited: list[str] = []
+
+    # The 99 minus the command-zone card (drop one commander-named instance); its
+    # column contribution is the +5/+3 bonus + premium credit applied below.
+    pool = classified
+    if commander is not None:
+        pool = []
+        dropped = False
+        for c in classified:
+            if not dropped and c.name == commander.name:
+                dropped = True
+                continue
+            pool.append(c)
 
     # --- Draw column total (with rubric caps). -------------------------------
     draw_total = 0.0
     selection_total = 0.0
     refire_total = 0.0
-    for c in classified:
+    for c in pool:
         if c.draw is None:
             continue
         label, pts = c.draw
@@ -911,11 +931,11 @@ def consistency_totals(
     premium_tutor_count = 0
     # Signal for graveyard-tutor gating: recursion package (>=3 recursion cards OR a
     # recursion commander).
-    recursion_cards = sum(1 for c in classified if c.recursion_points > 0)
+    recursion_cards = sum(1 for c in pool if c.recursion_points > 0)
     recursion_commander = commander is not None and commander.recursion_points > 0
     has_recursion_package = recursion_cards >= 3 or recursion_commander
 
-    for c in classified:
+    for c in pool:
         if c.tutor is None:
             continue
         label, pts = c.tutor
@@ -935,7 +955,7 @@ def consistency_totals(
         tutor_total += 4.0
 
     # --- Tribal / redundancy bonus (graduated; folds into the tutor column). --
-    tribal_bonus, _tribal_notes = _tribal_bonus(classified)
+    tribal_bonus, _tribal_notes = _tribal_bonus(pool)
     tutor_total += tribal_bonus
 
     return ConsistencyTotals(
@@ -1664,6 +1684,11 @@ _ENCHANTMENT_ANSWER_SLUGS = frozenset(
 )
 #: Text tells for a SYMMETRIC board wipe (hits every creature / all players).
 _SYMMETRIC_WIPE_RE = re.compile(r'\ball creatures\b|each creature|destroy all|each player sacrifices')
+#: Tells for an EFFECTIVELY-ONE-SIDED wipe that must NOT feed the symmetric cap
+#: (rubric: "One-sided wipes never feed this cap ... edict-style effects that only
+#: ever touch your opponents' boards"). "you control" / "you don't control" scope it
+#: to one side; "each opponent" is an edict, not a symmetric sacrifice.
+_ONE_SIDED_WIPE_RE = re.compile(r"you don't control|you control|each opponent|opponents? control")
 
 
 def _scope_coverage(cards: list[dict], card_otag: dict[str, set[str]]) -> tuple[bool, bool, bool]:
@@ -1702,14 +1727,27 @@ def _symmetric_wipe_count(cards: list[dict], card_otag: dict[str, set[str]]) -> 
     text reads as hitting EVERYTHING (``all creatures`` / ``destroy all`` / ``each
     player sacrifices``). Symmetry-in-context isn't fully readable from one card, so
     this is the conservative text tell; >=3 caps Interaction at 7 (rubric).
+
+    EFFECTIVELY-ONE-SIDED wipes are excluded (rubric line 201): a named premium
+    hard-scope wipe (Toxic Deluge / Culling Ritual class — the rubric's own example
+    "Toxic Deluge for 2"), and one-sided sweepers scoped to a single side ("...you
+    don't control", "each opponent...") never feed the cap.
     """
     count = 0
     for c in cards:
         buckets = buckets_for(_card_slugs(c, card_otag))
         if 'removal' not in buckets:
             continue
-        if _SYMMETRIC_WIPE_RE.search((c.get('oracle_text') or '').lower()):
-            count += 1
+        text = (c.get('oracle_text') or '').lower()
+        if not _SYMMETRIC_WIPE_RE.search(text):
+            continue
+        # Effectively-one-sided → not symmetric; skip.
+        named = tier_for(c.get('name') or '', INTERACTION_TIERS)
+        if named is not None and named[0] == 'hard-scope-wipe':
+            continue
+        if _ONE_SIDED_WIPE_RE.search(text):
+            continue
+        count += 1
     return count
 
 

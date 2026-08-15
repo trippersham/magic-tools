@@ -522,6 +522,41 @@ def test_consistency_premium_gate_allows_9_with_two_premium():
     assert axis.value == pytest.approx(9.0)
 
 
+def test_consistency_excludes_commander_from_column_counting():
+    # REGRESSION (double-count): a tutor commander must be counted ONCE — via the +5
+    # bonus + one premium credit — not TWICE (its body-tier in the pool AND the bonus).
+    # The commander also lives in `classified` (crispi_score puts it there for the
+    # other axes), so consistency_totals drops one commander-named instance.
+    cmd = _tutor_card('Vampiric Tutor', 'premium', 6)
+    classified = [
+        _tutor_card('Vampiric Tutor', 'premium', 6),  # the commander's copy in the 99-pool
+        _tutor_card('Demonic Tutor', 'premium', 6),  # a genuine 99-card premium tutor
+    ]
+    t = consistency_totals(classified, cmd)
+    # Demonic(6) + commander bonus(5) = 11 — NOT 17 (the double-count).
+    assert t.tutor_total == pytest.approx(11.0)
+    # Demonic(1) + commander-counts-as-one(1) = 2 premium — NOT 3.
+    assert t.premium_tutor_count == 2
+
+
+def test_symmetric_wipe_excludes_hard_scope_and_one_sided():
+    # REGRESSION: effectively-one-sided wipes never feed the symmetric cap (rubric
+    # line 201) — a named hard-scope wipe (Toxic Deluge) and "...you don't control"
+    # sweepers are excluded; only a true symmetric wipe (Wrath) counts.
+    from pipeline.transforms.crispi import _symmetric_wipe_count
+
+    def c(name: str, text: str) -> dict:
+        return {'name': name, 'oracle_id': name, 'oracle_text': text}
+
+    cards = [
+        c('Wrath of God', 'destroy all creatures. they cannot be regenerated.'),
+        c('Toxic Deluge', 'all creatures get -x/-x until end of turn.'),
+        c('One-Sided Wrath', "destroy all creatures you don't control."),
+    ]
+    otag = {n: {'removal'} for n in ('Wrath of God', 'Toxic Deluge', 'One-Sided Wrath')}
+    assert _symmetric_wipe_count(cards, otag) == 1
+
+
 def test_consistency_graveyard_tutor_zeroed_without_recursion():
     # 3 graveyard-gated tutors + no recursion package -> they score 0 -> tutorless -> 3.5.
     gy = [_tutor_card(f'Entomb{i}', 'graveyard-tutor', 4, graveyard_gated=True) for i in range(3)]
