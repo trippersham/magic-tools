@@ -1,13 +1,12 @@
 """The Forge backend behind the :class:`~pipeline.sim.engine.SimEngine` seam.
 
-This is a PROVISIONAL adapter: it satisfies the engine Protocol by DELEGATING to
-today's stock-``sim`` path (:func:`pipeline.sim.forge_runtime.resolve` /
-:func:`~pipeline.sim.forge_runtime.ensure` and
-:func:`pipeline.sim.runner.run_matchup`) so behaviour stays byte-identical to the
-pre-seam CLI. It does NOT yet launch the sim-AI harness or expose
-hand-visibility / counter metrics — :meth:`ForgeEngine.capabilities` describes
-today's stock-heuristic reality, and a later task flips those flags when the
-harness lands.
+This adapter satisfies the engine Protocol by DELEGATING to
+:func:`pipeline.sim.forge_runtime.resolve` / :func:`~pipeline.sim.forge_runtime.ensure`
+and :func:`pipeline.sim.runner.run_matchup`. The runner now launches the committed
+sim-AI HARNESS (``SimAIMatch -sim 1`` — Forge's real simulation AI) rather than the
+stock heuristic ``sim`` verb, so :meth:`ForgeEngine.capabilities` reports sim-AI
+reality (hand-visibility + counter metrics observable via the HANDLOG stream). Wiring
+those HANDLOG piloting metrics into results is a later task; this exposes the flags.
 
 The module registers a singleton :class:`ForgeEngine` at import
 (:func:`~pipeline.sim.engine.register_engine`), so importing the sim package (which
@@ -39,16 +38,22 @@ __all__ = ('ForgeEngine',)
 #: :func:`pipeline.sim.runner.run_matchup` call.
 _DEFAULT_TIMEOUT_S = 30
 
-#: Provisional capabilities describing TODAY's stock-heuristic Forge sim (NOT the
-#: later sim-AI harness). Forge's stock AI has no observable hand info and
-#: effectively never counters; it names the kill source in its verbose log. A
-#: later task flips ``has_hand_visibility`` / ``has_counter_metrics`` when the
-#: harness + hand-visibility land.
+#: Capabilities describing the LIVE sim-AI harness reality (the runner now launches
+#: ``org.makemagic.simai.SimAIMatch -sim 1`` — Forge's depth-3 simulation AI with the
+#: real-time HANDLOG stream). The HANDLOG exposes player-1's hand + stack casts, so
+#: hand-visibility and counter (stack-interaction) metrics are observable; the sim AI
+#: is ~12% fragile (NPE / sim-timeout / clock-out → nondecisive). It still names the
+#: kill source in its verbose log. (The HANDLOG piloting-metric WIRING is task 1.6b;
+#: this only reflects the flags now that the sim AI actually runs.)
 _FORGE_CAPABILITIES = EngineCapabilities(
-    has_hand_visibility=False,
-    has_counter_metrics=False,
-    expected_nondecisive_rate=0.05,
-    reliability_note='stock heuristic AI; sim-AI harness + hand-visibility land in a later task',
+    has_hand_visibility=True,
+    has_counter_metrics=True,
+    expected_nondecisive_rate=0.12,
+    reliability_note=(
+        'Forge built-in simulation AI (AIOption.USE_SIMULATION, depth-3 lookahead) via the committed '
+        'SimAIMatch harness, with a real-time HANDLOG decision stream; ~12% of games end nondecisively '
+        '(sim-AI NPE / sim-timeout / draw-clock). Kill source is named in the verbose log.'
+    ),
     kill_attribution='named',
 )
 
@@ -66,7 +71,7 @@ class ForgeEngine:
     name = 'forge'
 
     def capabilities(self) -> EngineCapabilities:
-        """The provisional stock-heuristic Forge capabilities (see module note)."""
+        """The live sim-AI harness capabilities (see module note)."""
         return _FORGE_CAPABILITIES
 
     def resolve(self, *, provision: bool, data_dir: Path | None = None) -> EngineInstall:

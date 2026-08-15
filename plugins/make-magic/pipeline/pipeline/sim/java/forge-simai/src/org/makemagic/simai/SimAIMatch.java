@@ -60,8 +60,12 @@ import java.util.concurrent.TimeoutException;
  *
  * Usage:
  *   java -cp <patchclasses>:<forge-jar>:<this-dir> -Dapple.awt.UIElement=true SimAIMatch \
- *       -d /abs/deck1.dck /abs/deck2.dck [-n N] [-c clockSeconds] [-sim 0|1] [-q] [-simdebug]
+ *       -d /abs/deck1.dck /abs/deck2.dck [-n N] [-c clockSeconds] [-sim 0|1] \
+ *       [-f constructed|commander] [-q] [-simdebug]
  *
+ * -f       game format: `constructed` (default) or `commander`. Commander uses
+ *          RegisteredPlayer.forCommander(deck) so the .dck [Commander] section
+ *          populates the command zone (mirrors Forge's own SimulateMatch).
  * -sim 1   enable USE_SIMULATION for both AI players (default 1)
  * -simdebug  flip SimulationController.DEBUG via reflection to print per-node
  *            lookahead traces on stderr (proof the sim AI is active)
@@ -91,6 +95,7 @@ public class SimAIMatch {
         boolean useSim = true;
         boolean outputGamelog = true;
         boolean simDebug = false;
+        GameType format = GameType.Constructed;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -102,6 +107,18 @@ public class SimAIMatch {
                 case "-n": nGames = Integer.parseInt(args[++i]); break;
                 case "-c": clock = Integer.parseInt(args[++i]); break;
                 case "-sim": useSim = !"0".equals(args[++i]); break;
+                case "-f": {
+                    String f = args[++i];
+                    if ("commander".equalsIgnoreCase(f)) {
+                        format = GameType.Commander;
+                    } else if ("constructed".equalsIgnoreCase(f)) {
+                        format = GameType.Constructed;
+                    } else {
+                        System.err.println("Unknown -f format (expected constructed|commander): " + f);
+                        System.exit(2);
+                    }
+                    break;
+                }
                 case "-q": outputGamelog = false; break;
                 case "-simdebug": simDebug = true; break;
                 case "-nohandlog": handlog = false; break;
@@ -123,8 +140,12 @@ public class SimAIMatch {
             System.out.println("SimulationController.DEBUG enabled via reflection");
         }
 
-        GameRules rules = new GameRules(GameType.Constructed);
-        rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
+        // Mirror Forge's own SimulateMatch: GameRules(type) + applied variant, and
+        // RegisteredPlayer.forCommander(d) for the Commander game type (which reads
+        // the .dck [Commander] section and sets up the command zone). Constructed is
+        // the plain RegisteredPlayer(d) path.
+        GameRules rules = new GameRules(format);
+        rules.setAppliedVariants(EnumSet.of(format));
         rules.setSimTimeout(clock);
 
         Set<AIOption> opts = useSim ? EnumSet.of(AIOption.USE_SIMULATION) : null;
@@ -137,14 +158,17 @@ public class SimAIMatch {
                 System.exit(2);
             }
             String name = "Ai(" + idx + ")-" + d.getName();
-            RegisteredPlayer rp = new RegisteredPlayer(d);
+            RegisteredPlayer rp = format.equals(GameType.Commander)
+                    ? RegisteredPlayer.forCommander(d)
+                    : new RegisteredPlayer(d);
             rp.setPlayer(GamePlayerUtil.createAiPlayer(name, idx - 1, 0, opts));
             pp.add(rp);
             idx++;
         }
 
         System.out.println("SimAIMatch: " + decks.get(0) + " vs " + decks.get(1)
-                + " | games=" + nGames + " clock=" + clock + "s useSimulationAI=" + useSim);
+                + " | games=" + nGames + " clock=" + clock + "s format=" + format
+                + " useSimulationAI=" + useSim);
 
         Match mc = new Match(rules, pp, "SimAIMatch");
         for (int g = 0; g < nGames; g++) {

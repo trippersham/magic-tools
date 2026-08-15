@@ -1,2 +1,7 @@
-# Intermediate compiled classes (jar in dist/ is committed on purpose).
+# Intermediate compiled classes.
 build/
+
+# NOTE: the built jar lives in dist/, which the repo-root .gitignore ('**/dist/')
+# excludes. It ships as package data, so it is force-tracked (`git add -f`) — once
+# tracked, gitignore no longer applies to it. Task 1.6c finalizes packaging (hatch
+# artifacts) and may relocate the jar out of dist/ to avoid the force-add.

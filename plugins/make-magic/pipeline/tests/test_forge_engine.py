@@ -45,17 +45,17 @@ def test_forge_engine_is_a_sim_engine() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# capabilities — TODAY's provisional stock-heuristic reality.
+# capabilities — the LIVE sim-AI harness reality (SimAIMatch -sim 1).
 # --------------------------------------------------------------------------- #
 
 
-def test_capabilities_describe_stock_heuristic() -> None:
+def test_capabilities_describe_sim_ai() -> None:
     caps = ForgeEngine().capabilities()
-    assert caps.has_hand_visibility is False
-    assert caps.has_counter_metrics is False
+    assert caps.has_hand_visibility is True  # HANDLOG exposes player-1's hand
+    assert caps.has_counter_metrics is True  # HANDLOG exposes stack casts
     assert caps.kill_attribution == 'named'
-    assert 0.0 <= caps.expected_nondecisive_rate < 1.0
-    assert 'stock heuristic' in caps.reliability_note.lower()
+    assert caps.expected_nondecisive_rate == pytest.approx(0.12)  # ~12% sim-AI fragility
+    assert 'simulation ai' in caps.reliability_note.lower()
 
 
 # --------------------------------------------------------------------------- #

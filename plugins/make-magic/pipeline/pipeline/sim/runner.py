@@ -1,26 +1,28 @@
-"""Run one AI-vs-AI matchup through headless Forge and tally the result.
+"""Run ONE AI-vs-AI matchup through headless Forge and tally the result.
 
 :func:`run_matchup` stages two already-rendered ``.dck`` files into the Forge
-profile decks dir, launches a single ``sim`` JVM from the Forge home (so ``res/``
-resolves), enforces an external subprocess timeout + kill (Forge's own ``-c`` is
-only the in-game draw clock), and hands the captured log to :func:`parse_match_log`.
+profile decks dir, launches a single JVM running the committed sim-AI HARNESS
+(``org.makemagic.simai.SimAIMatch`` with ``-sim 1`` — Forge's real simulation AI,
+not the stock heuristic ``sim`` verb) from the Forge home (so ``res/`` resolves),
+enforces an EXTERNAL subprocess timeout + kill (Forge's own ``-c`` is only the
+in-game draw clock), and hands the captured log to :func:`parse_match_log`.
 
 Parsing is a pure function so it is unit-testable against real captured logs.
 Every gotcha below is empirically validated against Forge 2.0.13 + Temurin 21:
 
-  * Count only ``Game Result:`` lines. Each finished game also prints a
-    ``Game Outcome: … has won`` twin — tallying both double-counts every win.
-  * A missing/broken deck exits 0 and prints ``Could not load deck`` — success
+  * Count ONLY ``Game Result:`` lines. Each finished game ALSO prints a
+    ``Game Outcome: … has won`` twin — tallying both DOUBLE-counts every win.
+  * A missing/broken deck EXITS 0 and prints ``Could not load deck`` — success
     is judged by counting ``Game Result`` lines, never by exit code.
   * The winner maps by the ``Ai(1)``/``Ai(2)`` slot = the ``-d`` order, so
     ``deck_a`` is always ``Ai(1)`` and ``deck_b`` is ``Ai(2)``; deck names with
     spaces are safe.
   * Headless flags are platform-specific: macOS needs
     ``-Dapple.awt.UIElement=true``; a truly headless Linux host needs an
-    ``xvfb-run`` wrapper. Never ``-Djava.awt.headless=true`` (silent exit 1).
+    ``xvfb-run`` wrapper. NEVER ``-Djava.awt.headless=true`` (silent exit 1).
 
-Telemetry (kill-turn, per-turn parsing) is deliberately not extracted here — the
-verbose log is captured whole in ``MatchResult.raw_log`` for later.
+Telemetry (kill-turn, per-turn parsing) is deliberately NOT extracted here — the
+verbose log is captured whole in ``MatchResult.raw_log`` for a later phase.
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ import shutil
 import signal
 import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from pipeline.contracts import Deck
 from pipeline.destinations.deck_export import get_exporter, safe_deck_stem
@@ -46,12 +49,21 @@ __all__ = (
     'run_matchup',
 )
 
-#: The only line the tally counts: ``Game Result: Game N ended in <ms> ms. <tail>``.
+#: The committed sim-AI harness jar (shipped package data), resolved off this
+#: module's location — the SAME path the 1.5 presence guard uses
+#: (``pipeline/sim/java/forge-simai/dist/…``). It MUST precede the Forge jar on
+#: the classpath so its ``StaticAbilityContinuous`` shadow wins the class-load.
+_HARNESS_JAR = Path(__file__).parent / 'java' / 'forge-simai' / 'dist' / 'make-magic-forge-simai.jar'
+#: The harness Main-Class (launched via ``-cp`` so the classpath ordering holds;
+#: ``-jar`` would ignore the ``-cp`` and thus lose the shadow-first ordering).
+_HARNESS_MAIN_CLASS = 'org.makemagic.simai.SimAIMatch'
+
+#: The ONLY line the tally counts: ``Game Result: Game N ended in <ms> ms. <tail>``.
 _RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in (\d+) ms\. (.+)$')
 #: Winner tail: ``Ai(<slot>)-<name> has won!`` — slot 1 = deck_a, 2 = deck_b.
-#: The name is matched non-greedily (``.+?``, not ``\S+``) so deck names with
+#: The name is matched non-greedily (``.+?``, NOT ``\S+``) so deck names with
 #: spaces/parens (e.g. a real Airtable deck ``UR Izzet (Chaos Sealed)``) parse —
-#: only the slot drives attribution, so the name span is irrelevant otherwise.
+#: only the SLOT drives attribution, so the name span is irrelevant otherwise.
 _WINNER_RE = re.compile(r'Ai\((\d)\)-.+? has won!')
 #: exit-0 deck-load failures. Presence -> ForgeError regardless of exit code.
 _LOAD_FAILURE_MARKERS = ('Could not load deck', 'No deck found in')
@@ -89,8 +101,8 @@ class MatchResult:
     """The tallied outcome of one matchup + the raw verbose log.
 
     ``per_game`` preserves per-game order (winner + elapsed_ms). ``raw_log`` holds
-    the full verbose stdout+stderr so telemetry can re-parse it without re-running
-    the match.
+    the full verbose stdout+stderr so a later telemetry phase can re-parse it
+    without re-running the match.
     """
 
     deck_a: str
@@ -108,7 +120,7 @@ class MatchResult:
 
 
 def deck_to_dck(deck: Deck) -> str:
-    """Render a :class:`~pipeline.contracts.Deck` to ``.dck`` text via the Forge
+    """Render a :class:`~pipeline.contracts.Deck` to ``.dck`` text via the Phase-1
     exporter — a thin convenience so callers can produce the text
     :func:`run_matchup` consumes. ``run_matchup`` itself stays decoupled (it takes
     already-rendered text), so this helper is optional."""
@@ -118,9 +130,9 @@ def deck_to_dck(deck: Deck) -> str:
 def parse_match_log(output: str, *, deck_a: str, deck_b: str) -> MatchResult:
     """Tally a Forge ``sim`` log into a :class:`MatchResult` (pure function).
 
-    Counts only ``Game Result:`` lines (the ``Game Outcome:`` twin would
+    Counts ONLY ``Game Result:`` lines (the ``Game Outcome:`` twin would
     double-count), mapping the ``Ai(1)``/``Ai(2)`` slot to ``deck_a``/``deck_b``.
-    Raises :class:`ForgeError` on a deck-load failure marker (exit code is not
+    Raises :class:`ForgeError` on a deck-load failure marker (exit code is NOT
     reliable — a broken deck still exits 0) or when no ``Game Result`` line is
     present at all.
     """
@@ -171,7 +183,7 @@ def parse_match_log(output: str, *, deck_a: str, deck_b: str) -> MatchResult:
 def _jvm_args() -> tuple[str, ...]:
     """Base + platform headless JVM args.
 
-    macOS: ``-Dapple.awt.UIElement=true`` (background-agent AWT; the only reliable
+    macOS: ``-Dapple.awt.UIElement=true`` (background-agent AWT; the ONLY reliable
     headless flag — ``-Djava.awt.headless=true`` makes Forge exit 1 silently).
     Other platforms rely on an ``xvfb-run`` wrapper (see :func:`_launch_prefix`).
     """
@@ -201,7 +213,7 @@ def _launch_prefix() -> list[str]:
 def _kill_process_group(proc: subprocess.Popen[str]) -> None:
     """SIGKILL the JVM's whole process group, then reap it.
 
-    The child was started with ``start_new_session=True``, so its pid is its
+    The child was started with ``start_new_session=True``, so its pid IS its
     process-group id and ``killpg`` takes out every descendant (the JVM itself
     when a launch prefix like ``xvfb-run`` made it a grandchild). The final
     ``communicate`` reaps the child and drains the now-closed pipes — without
@@ -224,15 +236,15 @@ def run_matchup(
     fmt: str = 'constructed',
     timeout_s: int = 30,
 ) -> MatchResult:
-    """Run one matchup of ``n`` games: ``deck_a`` (Ai(1)) vs ``deck_b`` (Ai(2)).
+    """Run ONE matchup of ``n`` games: ``deck_a`` (Ai(1)) vs ``deck_b`` (Ai(2)).
 
     ``deck_a`` / ``deck_b`` are ``(name, dck_text)`` pairs — already-rendered
     ``.dck`` content (use :func:`deck_to_dck` to produce it from a
     :class:`~pipeline.contracts.Deck`). Each is written into
     ``install.decks_dir/<constructed|commander>/`` (Forge resolves ``-d`` against
     the profile dir, never absolute paths). The JVM runs from ``install.forge_dir``
-    so ``res/`` resolves, verbose (no ``-q``) so the log is captured for later
-    telemetry, with an external timeout + kill on top of Forge's in-game ``-c``
+    so ``res/`` resolves, VERBOSE (no ``-q``) so the log is captured for later
+    telemetry, with an EXTERNAL timeout + kill on top of Forge's in-game ``-c``
     clock.
 
     Raises :class:`ForgeError` on a deck-load failure or an unparseable/empty log,
@@ -241,11 +253,13 @@ def run_matchup(
     name_a, text_a = deck_a
     name_b, text_b = deck_b
 
-    # Stage under filesystem-safe stems (the human name may contain '/' etc. and
+    # Stage under FILESYSTEM-SAFE stems (the human name may contain '/' etc. and
     # is used only for display — it survives inside each .dck's `Name=`). Forge
-    # resolves `-d <stem>` against the profile dir, so the stem drives both the
-    # filename and the `-d` arg. Disambiguate the rare case where two distinct
-    # decks sanitize to the same stem (e.g. 'A/B' and 'A:B' -> 'A_B').
+    # is used only for display — it survives inside each .dck's `Name=`). The stem
+    # drives the staged filename; the harness resolves `-d` as a FILESYSTEM path
+    # (``DeckSerializer.fromFile``, unlike the stock `sim` verb's profile lookup),
+    # so we pass the ABSOLUTE staged path. Disambiguate the rare case where two
+    # distinct decks sanitize to the same stem (e.g. 'A/B' and 'A:B' -> 'A_B').
     stem_a = safe_deck_stem(name_a)
     stem_b = safe_deck_stem(name_b)
     if stem_a == stem_b and text_a != text_b:
@@ -254,34 +268,46 @@ def run_matchup(
     fmt_dir = 'commander' if fmt == 'commander' else 'constructed'
     decks_dir = install.decks_dir / fmt_dir
     decks_dir.mkdir(parents=True, exist_ok=True)
-    (decks_dir / f'{stem_a}.dck').write_text(text_a)
-    (decks_dir / f'{stem_b}.dck').write_text(text_b)
+    dck_a = decks_dir / f'{stem_a}.dck'
+    dck_b = decks_dir / f'{stem_b}.dck'
+    dck_a.write_text(text_a)
+    dck_b.write_text(text_b)
 
+    # Launch the sim-AI HARNESS (not the stock `sim` verb): its built-in Forge
+    # simulation AI (AIOption.USE_SIMULATION, `-sim 1`) is the real decision engine.
+    # Classpath ordering is load-bearing — the harness jar MUST come first so its
+    # `StaticAbilityContinuous` shadow shadows Forge's crash-prone original; hence
+    # `-cp <harness>:<forge>` + explicit Main-Class, NOT `-jar` (which ignores -cp).
+    # No `-s seed`: the harness takes no seed (Forge's seed is non-reproducible
+    # anyway); the seed lives in the matchup_key for cache identity / per-opponent
+    # offset only. `-d` takes ABSOLUTE staged paths (the harness reads the file
+    # directly rather than resolving a profile stem like the stock `sim` verb did).
+    classpath = os.pathsep.join((str(_HARNESS_JAR), str(install.jar)))
     cmd = [
         *_launch_prefix(),
         str(install.java),
         *_jvm_args(),
-        '-jar',
-        str(install.jar),
-        'sim',
+        '-cp',
+        classpath,
+        _HARNESS_MAIN_CLASS,
         '-d',
-        f'{stem_a}.dck',
-        f'{stem_b}.dck',
+        str(dck_a),
+        str(dck_b),
         '-n',
         str(n),
         '-c',
         str(timeout_s),
-        '-s',
-        str(seed),
+        '-sim',
+        '1',
     ]
     if fmt == 'commander':
         cmd += ['-f', 'commander']
 
-    # External kill-switch: Forge's -c is only the per-game draw clock, so bound
+    # EXTERNAL kill-switch: Forge's -c is only the per-game draw clock, so bound
     # the whole JVM at one-time-load headroom + per-game budget across n games.
-    # start_new_session puts the child in its own process group so the timeout
+    # start_new_session puts the child in its OWN process group so the timeout
     # kill can reap the whole tree — under an `xvfb-run` prefix the JVM is a
-    # grandchild, and killing only the direct child would leak it.
+    # GRANDCHILD, and killing only the direct child would leak it.
     external_timeout = _JVM_LOAD_HEADROOM_S + max(1, n) * timeout_s
     proc = subprocess.Popen(
         cmd,
