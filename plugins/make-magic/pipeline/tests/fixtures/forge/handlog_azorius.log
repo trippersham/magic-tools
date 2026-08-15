@@ -1,0 +1,1517 @@
+Language 'en-US' loaded successfully.
+(ThreadUtil first call): Running with priority 5
+Read cards: 33319 archived files in 0 ms (25 parts) using thread pool
+Read cards: 821 files in 0 ms (8 parts) using thread pool
+SimAIMatch: /tmp/ur_canonical.dck vs /Users/trippwickersham/.claude/plugins/marketplaces/magic-tools/plugins/make-magic/pipeline/pipeline/data/gauntlet/constructed/guilds/AzoriusMid.dck | games=3 clock=400s useSimulationAI=true
+HANDLOG turn=1 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Potioner's Trove;Innocent Bystander;Extinguisher Battleship;Eclipsed Flamekin;Island;Unsubtle Mockery;Spectacle Summit] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=2 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Potioner's Trove;Innocent Bystander;Extinguisher Battleship;Eclipsed Flamekin;Island;Unsubtle Mockery] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=3 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Potioner's Trove;Innocent Bystander;Extinguisher Battleship;Eclipsed Flamekin;Island;Unsubtle Mockery] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=3 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Innocent Bystander UR_hand=[Potioner's Trove;Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=4 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Potioner's Trove;Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=4 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Welkin Tern UR_hand=[Potioner's Trove;Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=5 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Potioner's Trove;Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Sear UR_hand=[Potioner's Trove;Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=6 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Potioner's Trove;Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=18
+HANDLOG turn=6 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Cloudkin Seer UR_hand=[Potioner's Trove;Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=18
+HANDLOG turn=6 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Cloudkin Seer UR_hand=[Potioner's Trove;Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=18
+HANDLOG turn=7 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Potioner's Trove;Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=18
+HANDLOG turn=7 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Potioner's Trove UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=18
+HANDLOG turn=8 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=18
+HANDLOG turn=8 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Faerie Seer UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=18
+HANDLOG turn=8 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Faerie Seer UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=2 UR_life=20 opp_life=18
+HANDLOG turn=8 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Pegasus Courser UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=2 UR_life=20 opp_life=18
+HANDLOG turn=9 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Unsubtle Mockery;Sudden Setback] UR_untapped_lands=0 opp_creatures=3 UR_life=18 opp_life=18
+HANDLOG turn=9 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Unsubtle Mockery UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Sudden Setback;Mountain] UR_untapped_lands=0 opp_creatures=3 UR_life=18 opp_life=18
+HANDLOG turn=9 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Potioner's Trove UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Sudden Setback;Mountain] UR_untapped_lands=0 opp_creatures=2 UR_life=18 opp_life=18
+HANDLOG turn=10 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Sudden Setback] UR_untapped_lands=1 opp_creatures=2 UR_life=20 opp_life=18
+HANDLOG turn=10 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Serra Angel UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Sudden Setback] UR_untapped_lands=1 opp_creatures=2 UR_life=20 opp_life=18
+HANDLOG turn=10 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Pegasus Courser UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Sudden Setback] UR_untapped_lands=1 opp_creatures=3 UR_life=20 opp_life=18
+HANDLOG turn=11 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Extinguisher Battleship;Eclipsed Flamekin;Sudden Setback] UR_untapped_lands=1 opp_creatures=3 UR_life=18 opp_life=18
+HANDLOG turn=11 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Eclipsed Flamekin UR_hand=[Extinguisher Battleship;Sudden Setback;Hagi Mob] UR_untapped_lands=1 opp_creatures=3 UR_life=18 opp_life=18
+HANDLOG turn=11 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Eclipsed Flamekin UR_hand=[Extinguisher Battleship;Sudden Setback;Hagi Mob] UR_untapped_lands=1 opp_creatures=3 UR_life=18 opp_life=18
+HANDLOG turn=12 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Extinguisher Battleship;Sudden Setback;Hagi Mob] UR_untapped_lands=2 opp_creatures=3 UR_life=18 opp_life=18
+HANDLOG turn=12 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Pegasus Courser UR_hand=[Extinguisher Battleship;Sudden Setback;Hagi Mob] UR_untapped_lands=2 opp_creatures=3 UR_life=18 opp_life=18
+HANDLOG turn=12 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Aerial Responder UR_hand=[Extinguisher Battleship;Sudden Setback;Hagi Mob] UR_untapped_lands=2 opp_creatures=3 UR_life=12 opp_life=18
+HANDLOG turn=12 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Kor Skyfisher UR_hand=[Extinguisher Battleship;Sudden Setback;Hagi Mob] UR_untapped_lands=2 opp_creatures=4 UR_life=12 opp_life=18
+HANDLOG turn=12 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Kor Skyfisher UR_hand=[Extinguisher Battleship;Sudden Setback;Hagi Mob] UR_untapped_lands=2 opp_creatures=5 UR_life=12 opp_life=18
+HANDLOG turn=12 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Faerie Seer UR_hand=[Extinguisher Battleship;Sudden Setback;Hagi Mob] UR_untapped_lands=2 opp_creatures=4 UR_life=12 opp_life=18
+HANDLOG turn=12 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Faerie Seer UR_hand=[Extinguisher Battleship;Sudden Setback;Hagi Mob] UR_untapped_lands=2 opp_creatures=5 UR_life=12 opp_life=18
+HANDLOG turn=13 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Extinguisher Battleship;Sudden Setback;Hagi Mob] UR_untapped_lands=2 opp_creatures=5 UR_life=12 opp_life=18
+HANDLOG turn=13 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Sudden Setback UR_hand=[Extinguisher Battleship;Hagi Mob;Mountain] UR_untapped_lands=1 opp_creatures=5 UR_life=12 opp_life=18
+HANDLOG turn=13 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Potioner's Trove UR_hand=[Extinguisher Battleship;Hagi Mob;Mountain] UR_untapped_lands=1 opp_creatures=4 UR_life=12 opp_life=18
+HANDLOG turn=14 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Extinguisher Battleship;Hagi Mob] UR_untapped_lands=2 opp_creatures=4 UR_life=14 opp_life=18
+HANDLOG turn=14 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Pegasus Courser UR_hand=[Extinguisher Battleship;Hagi Mob] UR_untapped_lands=2 opp_creatures=4 UR_life=14 opp_life=18
+HANDLOG turn=14 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Serra Angel UR_hand=[Extinguisher Battleship;Hagi Mob] UR_untapped_lands=2 opp_creatures=4 UR_life=8 opp_life=20
+HANDLOG turn=15 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Extinguisher Battleship;Hagi Mob] UR_untapped_lands=2 opp_creatures=5 UR_life=8 opp_life=20
+HANDLOG turn=15 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Hagi Mob UR_hand=[Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=1 opp_creatures=5 UR_life=8 opp_life=20
+HANDLOG turn=16 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=1 opp_creatures=5 UR_life=8 opp_life=20
+HANDLOG turn=16 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Pegasus Courser UR_hand=[Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=1 opp_creatures=5 UR_life=8 opp_life=20
+HANDLOG turn=16 event=gameend UR_hand=[Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=1 opp_creatures=5 UR_life=-2 opp_life=22
+Mulligan: Ai(1)-UR Izzet Chaos League has kept a hand of 7 cards
+Mulligan: Ai(2)-AzoriusMid has kept a hand of 7 cards
+Turn: Turn 1 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Replacement Effect: This land enters tapped.
+Land: Ai(1)-UR Izzet Chaos League played Spectacle Summit (34)
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 2 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Plains (52)
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 3 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Island (13)
+Mana: Spectacle Summit (34) - {T}: Add {U} or {R}.
+Mana: Island (13) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Innocent Bystander
+Resolve Stack: Innocent Bystander - Creature 2 / 1
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 4 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Island (64)
+Mana: Island (64) - {T}: Add {U}.
+Mana: Plains (52) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Welkin Tern
+Resolve Stack: Welkin Tern - Creature 2 / 1
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 5 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Combat: Ai(1)-UR Izzet Chaos League assigned Innocent Bystander (16) to attack Ai(2)-AzoriusMid.
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Combat: Ai(2)-AzoriusMid didn't block Innocent Bystander (16).
+Mana: Spectacle Summit (34) - {T}: Add {U} or {R}.
+Mana: Island (13) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Sear targeting [Welkin Tern (45)]
+Damage: Sear (19) deals 4 damage to Welkin Tern (45).
+Resolve Stack: Sear (19) - Sear (19) deals 4 damage to Welkin Tern (45).
+Zone Change: Welkin Tern (45) was put into Graveyard from Battlefield.
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Damage: Innocent Bystander (16) deals 2 combat damage to Ai(2)-AzoriusMid.
+Life: Life: Ai(2)-AzoriusMid 20 > 18
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 6 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Plains (54)
+Mana: Island (64) - {T}: Add {U}.
+Mana: Plains (52) - {T}: Add {W}.
+Mana: Plains (54) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Cloudkin Seer
+Resolve Stack: Cloudkin Seer - Creature 2 / 1
+Add To Stack: Ai(2)-AzoriusMid triggered Cloudkin Seer
+Resolve Stack: When Cloudkin Seer enters, draw a card. [Zone Changer: Cloudkin Seer (74)]
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 7 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Mountain (26)
+Mana: Mountain (26) - {T}: Add {R}.
+Mana: Island (13) - {T}: Add {U}.
+Mana: Spectacle Summit (34) - {T}: Add {U} or {R}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Potioner's Trove
+Resolve Stack: Potioner's Trove
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 8 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Plains (53)
+Mana: Island (64) - {T}: Add {U}.
+Add To Stack: Ai(2)-AzoriusMid cast Faerie Seer
+Resolve Stack: Faerie Seer - Creature 1 / 1
+Add To Stack: Ai(2)-AzoriusMid triggered Faerie Seer
+Resolve Stack: Ai(2)-AzoriusMid scried 2 card(s) to the top of the library
+Resolve Stack: When Faerie Seer enters, scry 2. [Zone Changer: Faerie Seer (43)]
+Mana: Plains (52) - {T}: Add {W}.
+Mana: Plains (54) - {T}: Add {W}.
+Mana: Plains (53) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Pegasus Courser
+Resolve Stack: Pegasus Courser - Creature 1 / 3
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Cloudkin Seer (74) to attack Ai(1)-UR Izzet Chaos League.
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Cloudkin Seer (74).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Cloudkin Seer (74) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(1)-UR Izzet Chaos League 20 > 18
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 9 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Mana: Mountain (26) - {T}: Add {R}.
+Mana: Island (13) - {T}: Add {U}.
+Mana: Spectacle Summit (34) - {T}: Add {U} or {R}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Unsubtle Mockery targeting [Cloudkin Seer (74)]
+Damage: Unsubtle Mockery (1) deals 4 damage to Cloudkin Seer (74).
+Resolve Stack: Ai(1)-UR Izzet Chaos League surveiled 1 card(s) to the top of the library
+Resolve Stack: Unsubtle Mockery (1) - Unsubtle Mockery (1) deals 4 damage to Cloudkin Seer (74). Ai(1)-UR Izzet Chaos League surveils (1).
+Zone Change: Cloudkin Seer (74) was put into Graveyard from Battlefield.
+Add To Stack: Ai(1)-UR Izzet Chaos League activated Potioner's Trove
+Life: Life: Ai(1)-UR Izzet Chaos League 18 > 20
+Resolve Stack: Potioner's Trove (8) - Ai(1)-UR Izzet Chaos League gains 2 life.
+Land: Ai(1)-UR Izzet Chaos League played Mountain (28)
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 10 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Plains (47)
+Mana: Plains (52) - {T}: Add {W}.
+Mana: Plains (54) - {T}: Add {W}.
+Mana: Plains (53) - {T}: Add {W}.
+Mana: Plains (47) - {T}: Add {W}.
+Mana: Island (64) - {T}: Add {U}.
+Add To Stack: Ai(2)-AzoriusMid cast Serra Angel
+Resolve Stack: Serra Angel - Creature 4 / 4
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Pegasus Courser (76) and Faerie Seer (43) to attack Ai(1)-UR Izzet Chaos League.
+Add To Stack: Ai(2)-AzoriusMid triggered Pegasus Courser targeting [Faerie Seer (43)]
+Resolve Stack: Whenever Pegasus Courser attacks, another target creature gains flying until end of turn. (Targeting: [[Faerie Seer (43)]]) [Attacker: Pegasus Courser (76)]
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Pegasus Courser (76).
+Ai(1)-UR Izzet Chaos League didn't block Faerie Seer (43).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Pegasus Courser (76) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Faerie Seer (43) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(1)-UR Izzet Chaos League 20 > 18
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 11 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Mana: Island (13) - {T}: Add {U}.
+Mana: Mountain (26) - {T}: Add {R}.
+Mana: Mountain (28) - {T}: Add {R}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Eclipsed Flamekin
+Resolve Stack: Eclipsed Flamekin - Creature 1 / 4
+Add To Stack: Ai(1)-UR Izzet Chaos League triggered Eclipsed Flamekin
+Resolve Stack: When this creature enters, look at the top four cards of your library. You may reveal an Elemental, Island, or Mountain card from among them and put it into your hand. Put the rest on the bottom of your library in a random order. [Zone Changer: Eclipsed Flamekin (35)]
+Land: Ai(1)-UR Izzet Chaos League played Island (14)
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 12 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Pegasus Courser (76), Faerie Seer (43) and Serra Angel (66) to attack Ai(1)-UR Izzet Chaos League.
+Add To Stack: Ai(2)-AzoriusMid triggered Pegasus Courser targeting [Serra Angel (66)]
+Resolve Stack: Whenever Pegasus Courser attacks, another target creature gains flying until end of turn. (Targeting: [[Serra Angel (66)]]) [Attacker: Pegasus Courser (76)]
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Pegasus Courser (76).
+Ai(1)-UR Izzet Chaos League didn't block Faerie Seer (43).
+Ai(1)-UR Izzet Chaos League didn't block Serra Angel (66).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Pegasus Courser (76) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Faerie Seer (43) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Serra Angel (66) deals 4 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(1)-UR Izzet Chaos League 18 > 12
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Land: Ai(2)-AzoriusMid played Plains (49)
+Mana: Plains (52) - {T}: Add {W}.
+Mana: Plains (54) - {T}: Add {W}.
+Mana: Plains (53) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Aerial Responder
+Resolve Stack: Aerial Responder - Creature 2 / 3
+Mana: Plains (47) - {T}: Add {W}.
+Mana: Plains (49) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Kor Skyfisher
+Resolve Stack: Kor Skyfisher - Creature 2 / 3
+Add To Stack: Ai(2)-AzoriusMid triggered Kor Skyfisher
+Resolve Stack: When Kor Skyfisher enters, return a permanent you control to its owner's hand. [Zone Changer: Kor Skyfisher (41)]
+Mana: Island (64) - {T}: Add {U}.
+Add To Stack: Ai(2)-AzoriusMid cast Faerie Seer
+Resolve Stack: Faerie Seer - Creature 1 / 1
+Add To Stack: Ai(2)-AzoriusMid triggered Faerie Seer
+Resolve Stack: Ai(2)-AzoriusMid scried 1 card(s) to the top of the library and 1 card(s) to the bottom of the library
+Resolve Stack: When Faerie Seer enters, scry 2. [Zone Changer: Faerie Seer (43)]
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 13 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Mana: Island (13) - {T}: Add {U}.
+Mana: Island (14) - {T}: Add {U}.
+Mana: Mountain (26) - {T}: Add {R}.
+Mana: Mountain (28) - {T}: Add {R}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Sudden Setback targeting [Serra Angel (66)]
+Resolve Stack: Sudden Setback (20) - Ai(2)-AzoriusMid puts Serra Angel (66) on the top or bottom of their library.
+Add To Stack: Ai(1)-UR Izzet Chaos League activated Potioner's Trove
+Life: Life: Ai(1)-UR Izzet Chaos League 12 > 14
+Resolve Stack: Potioner's Trove (8) - Ai(1)-UR Izzet Chaos League gains 2 life.
+Land: Ai(1)-UR Izzet Chaos League played Mountain (27)
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 14 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Pegasus Courser (76), Kor Skyfisher (41), Faerie Seer (43) and Aerial Responder (75) to attack Ai(1)-UR Izzet Chaos League.
+Add To Stack: Ai(2)-AzoriusMid triggered Pegasus Courser targeting [Aerial Responder (75)]
+Resolve Stack: Whenever Pegasus Courser attacks, another target creature gains flying until end of turn. (Targeting: [[Aerial Responder (75)]]) [Attacker: Pegasus Courser (76)]
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Pegasus Courser (76).
+Ai(1)-UR Izzet Chaos League didn't block Kor Skyfisher (41).
+Ai(1)-UR Izzet Chaos League didn't block Faerie Seer (43).
+Ai(1)-UR Izzet Chaos League didn't block Aerial Responder (75).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Pegasus Courser (76) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Kor Skyfisher (41) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Faerie Seer (43) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Aerial Responder (75) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(2)-AzoriusMid 18 > 20
+Life: Life: Ai(1)-UR Izzet Chaos League 14 > 8
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Mana: Plains (52) - {T}: Add {W}.
+Mana: Plains (54) - {T}: Add {W}.
+Mana: Plains (53) - {T}: Add {W}.
+Mana: Plains (47) - {T}: Add {W}.
+Mana: Plains (49) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Serra Angel
+Resolve Stack: Serra Angel - Creature 4 / 4
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 15 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Mana: Mountain (26) - {T}: Add {R}.
+Mana: Mountain (28) - {T}: Add {R}.
+Mana: Mountain (27) - {T}: Add {R}.
+Mana: Island (13) - {T}: Add {U}.
+Mana: Island (14) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Hagi Mob
+Resolve Stack: Hagi Mob - Creature 5 / 4
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 16 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Serra Angel (66), Aerial Responder (75), Kor Skyfisher (41), Pegasus Courser (76) and Faerie Seer (43) to attack Ai(1)-UR Izzet Chaos League.
+Add To Stack: Ai(2)-AzoriusMid triggered Pegasus Courser targeting [Serra Angel (66)]
+Resolve Stack: Whenever Pegasus Courser attacks, another target creature gains flying until end of turn. (Targeting: [[Serra Angel (66)]]) [Attacker: Pegasus Courser (76)]
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Serra Angel (66).
+Ai(1)-UR Izzet Chaos League didn't block Aerial Responder (75).
+Ai(1)-UR Izzet Chaos League didn't block Kor Skyfisher (41).
+Ai(1)-UR Izzet Chaos League didn't block Pegasus Courser (76).
+Ai(1)-UR Izzet Chaos League didn't block Faerie Seer (43).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Serra Angel (66) deals 4 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Aerial Responder (75) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(2)-AzoriusMid 20 > 22
+Damage: Kor Skyfisher (41) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Pegasus Courser (76) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Faerie Seer (43) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(1)-UR Izzet Chaos League 8 > -2
+Player Control: Ai(1)-UR Izzet Chaos League has restored control over themself
+Player Control: Ai(2)-AzoriusMid has restored control over themself
+Game Outcome: Turn 8
+Game Outcome: Ai(1)-UR Izzet Chaos League has lost because life total reached 0
+Game Outcome: Ai(2)-AzoriusMid has won because all opponents have lost
+Match Result: Ai(1)-UR Izzet Chaos League: 0 Ai(2)-AzoriusMid: 1 
+
+Game Result: Game 1 ended in 38541 ms. Ai(2)-AzoriusMid has won!
+
+SimAIMatch: game 1 wallclock 38545 ms
+HANDLOG turn=1 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Unsubtle Mockery;Island;Island;Mountain;Sear;Akoum Warrior;Potioner's Trove] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=2 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Unsubtle Mockery;Island;Mountain;Sear;Akoum Warrior;Potioner's Trove] UR_untapped_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=2 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Healer's Hawk UR_hand=[Unsubtle Mockery;Island;Mountain;Sear;Akoum Warrior;Potioner's Trove] UR_untapped_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=3 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Unsubtle Mockery;Island;Mountain;Sear;Akoum Warrior;Potioner's Trove] UR_untapped_lands=1 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=3 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Sear UR_hand=[Unsubtle Mockery;Island;Akoum Warrior;Potioner's Trove;Extinguisher Battleship] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=4 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Unsubtle Mockery;Island;Akoum Warrior;Potioner's Trove;Extinguisher Battleship] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=4 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Journey to Nowhere UR_hand=[Unsubtle Mockery;Island;Akoum Warrior;Potioner's Trove;Extinguisher Battleship] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=5 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Unsubtle Mockery;Island;Akoum Warrior;Potioner's Trove;Extinguisher Battleship] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Potioner's Trove UR_hand=[Unsubtle Mockery;Akoum Warrior;Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=6 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Unsubtle Mockery;Akoum Warrior;Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=6 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Skywinder Drake UR_hand=[Unsubtle Mockery;Akoum Warrior;Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=7 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Unsubtle Mockery;Akoum Warrior;Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=7 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Terrapact Intimidator UR_hand=[Unsubtle Mockery;Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=1 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=7 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Terrapact Intimidator UR_hand=[Unsubtle Mockery;Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=1 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=7 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Lander Token UR_hand=[Unsubtle Mockery;Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=8 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Unsubtle Mockery;Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=8 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Frost Lynx UR_hand=[Unsubtle Mockery;Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=8 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Frost Lynx UR_hand=[Unsubtle Mockery;Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=0 opp_creatures=2 UR_life=20 opp_life=20
+HANDLOG turn=9 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Unsubtle Mockery;Extinguisher Battleship;Abstract Paintmage] UR_untapped_lands=0 opp_creatures=2 UR_life=17 opp_life=20
+HANDLOG turn=9 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Unsubtle Mockery UR_hand=[Extinguisher Battleship;Abstract Paintmage;Mountain] UR_untapped_lands=2 opp_creatures=2 UR_life=17 opp_life=20
+HANDLOG turn=9 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Potioner's Trove UR_hand=[Extinguisher Battleship;Abstract Paintmage;Mountain] UR_untapped_lands=2 opp_creatures=1 UR_life=17 opp_life=20
+HANDLOG turn=9 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Abstract Paintmage UR_hand=[Extinguisher Battleship] UR_untapped_lands=0 opp_creatures=1 UR_life=19 opp_life=20
+HANDLOG turn=10 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Extinguisher Battleship] UR_untapped_lands=0 opp_creatures=1 UR_life=19 opp_life=20
+HANDLOG turn=10 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Wind Drake UR_hand=[Extinguisher Battleship] UR_untapped_lands=0 opp_creatures=1 UR_life=19 opp_life=20
+HANDLOG turn=10 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Mistral Charger UR_hand=[Extinguisher Battleship] UR_untapped_lands=0 opp_creatures=2 UR_life=19 opp_life=20
+HANDLOG turn=11 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Extinguisher Battleship] UR_untapped_lands=0 opp_creatures=3 UR_life=19 opp_life=20
+HANDLOG turn=11 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Abstract Paintmage UR_hand=[Extinguisher Battleship;Burst Lightning] UR_untapped_lands=6 opp_creatures=3 UR_life=19 opp_life=20
+HANDLOG turn=11 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Burst Lightning UR_hand=[Extinguisher Battleship] UR_untapped_lands=3 opp_creatures=3 UR_life=19 opp_life=20
+HANDLOG turn=11 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Potioner's Trove UR_hand=[Extinguisher Battleship] UR_untapped_lands=3 opp_creatures=2 UR_life=19 opp_life=20
+HANDLOG turn=11 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Lander Token UR_hand=[Extinguisher Battleship] UR_untapped_lands=1 opp_creatures=2 UR_life=21 opp_life=20
+HANDLOG turn=12 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Extinguisher Battleship] UR_untapped_lands=1 opp_creatures=2 UR_life=21 opp_life=18
+HANDLOG turn=12 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Welkin Tern UR_hand=[Extinguisher Battleship] UR_untapped_lands=1 opp_creatures=2 UR_life=21 opp_life=18
+HANDLOG turn=13 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Extinguisher Battleship] UR_untapped_lands=1 opp_creatures=3 UR_life=17 opp_life=18
+HANDLOG turn=13 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Abstract Paintmage UR_hand=[Extinguisher Battleship;Bombard] UR_untapped_lands=7 opp_creatures=3 UR_life=17 opp_life=18
+HANDLOG turn=13 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Extinguisher Battleship UR_hand=[Bombard] UR_untapped_lands=0 opp_creatures=3 UR_life=17 opp_life=18
+HANDLOG turn=13 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Extinguisher Battleship UR_hand=[Bombard] UR_untapped_lands=0 opp_creatures=3 UR_life=17 opp_life=18
+HANDLOG turn=13 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Journey to Nowhere UR_hand=[Bombard] UR_untapped_lands=0 opp_creatures=0 UR_life=17 opp_life=18
+HANDLOG turn=14 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Bombard] UR_untapped_lands=0 opp_creatures=0 UR_life=17 opp_life=18
+HANDLOG turn=15 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Bombard] UR_untapped_lands=0 opp_creatures=0 UR_life=17 opp_life=18
+HANDLOG turn=16 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Bombard] UR_untapped_lands=8 opp_creatures=0 UR_life=17 opp_life=18
+HANDLOG turn=16 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Aerial Responder UR_hand=[Bombard] UR_untapped_lands=8 opp_creatures=0 UR_life=17 opp_life=18
+HANDLOG turn=16 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Bombard UR_hand=[] UR_untapped_lands=5 opp_creatures=1 UR_life=17 opp_life=18
+HANDLOG turn=16 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Potioner's Trove UR_hand=[] UR_untapped_lands=5 opp_creatures=0 UR_life=17 opp_life=18
+HANDLOG turn=17 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[] UR_untapped_lands=5 opp_creatures=0 UR_life=19 opp_life=18
+HANDLOG turn=17 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Hagi Mob UR_hand=[] UR_untapped_lands=3 opp_creatures=0 UR_life=19 opp_life=18
+HANDLOG turn=17 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Extinguisher Battleship UR_hand=[] UR_untapped_lands=3 opp_creatures=0 UR_life=19 opp_life=18
+HANDLOG turn=18 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[] UR_untapped_lands=3 opp_creatures=0 UR_life=19 opp_life=8
+HANDLOG turn=19 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[] UR_untapped_lands=3 opp_creatures=0 UR_life=19 opp_life=8
+HANDLOG turn=19 event=gameend UR_hand=[Mountain] UR_untapped_lands=8 opp_creatures=0 UR_life=19 opp_life=0
+Mulligan: Ai(1)-UR Izzet Chaos League has kept a hand of 7 cards
+Mulligan: Ai(2)-AzoriusMid has kept a hand of 7 cards
+Turn: Turn 1 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Island (11)
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 2 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Plains (54)
+Mana: Plains (54) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Healer's Hawk
+Resolve Stack: Healer's Hawk - Creature 1 / 1
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 3 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Mountain (29)
+Mana: Mountain (29) - {T}: Add {R}.
+Mana: Island (11) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Sear targeting [Healer's Hawk (78)]
+Damage: Sear (19) deals 4 damage to Healer's Hawk (78).
+Resolve Stack: Sear (19) - Sear (19) deals 4 damage to Healer's Hawk (78).
+Zone Change: Healer's Hawk (78) was put into Graveyard from Battlefield.
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 4 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Island (57)
+Mana: Plains (54) - {T}: Add {W}.
+Mana: Island (57) - {T}: Add {U}.
+Add To Stack: Ai(2)-AzoriusMid cast Journey to Nowhere
+Resolve Stack: Journey to Nowhere
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 5 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Island (9)
+Mana: Mountain (29) - {T}: Add {R}.
+Mana: Island (11) - {T}: Add {U}.
+Mana: Island (9) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Potioner's Trove
+Resolve Stack: Potioner's Trove
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 6 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Plains (50)
+Mana: Island (57) - {T}: Add {U}.
+Mana: Plains (54) - {T}: Add {W}.
+Mana: Plains (50) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Skywinder Drake
+Resolve Stack: Skywinder Drake - Creature 3 / 1
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 7 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Replacement Effect: Akoum Teeth enters tapped.
+Land: Ai(1)-UR Izzet Chaos League played Akoum Teeth (32)
+Mana: Mountain (29) - {T}: Add {R}.
+Mana: Island (11) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Terrapact Intimidator
+Resolve Stack: Terrapact Intimidator - Creature 2 / 1
+Add To Stack: Ai(1)-UR Izzet Chaos League triggered Terrapact Intimidator targeting [Ai(2)-AzoriusMid]
+Resolve Stack: When this creature enters, target opponent may have you create two Lander tokens. If they don't, put two +1/+1 counters on this creature. (A Lander token is an artifact with "{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.") (Targeting: [[Ai(2)-AzoriusMid]]) [Zone Changer: Terrapact Intimidator (6)]
+Mana: Island (9) - {T}: Add {U}.
+Mana: Potioner's Trove (8) - {T}: Add one mana of any color.
+Zone Change: Lander Token (3492) was put into Graveyard from Battlefield.
+Add To Stack: Ai(1)-UR Izzet Chaos League activated Lander Token
+Resolve Stack: Lander Token (3492) - Ai(1)-UR Izzet Chaos League searches their library for a basic land card, puts it onto the battlefield tapped, then shuffles.
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 8 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Mana: Island (57) - {T}: Add {U}.
+Mana: Plains (54) - {T}: Add {W}.
+Mana: Plains (50) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Frost Lynx
+Resolve Stack: Frost Lynx - Creature 2 / 2
+Add To Stack: Ai(2)-AzoriusMid triggered Frost Lynx targeting [Terrapact Intimidator (6)]
+Resolve Stack: When Frost Lynx enters, tap target creature an opponent controls. That creature doesn't untap during its controller's next untap step. (Targeting: [[Terrapact Intimidator (6)]]) [Zone Changer: Frost Lynx (77)]
+Land: Ai(2)-AzoriusMid played Island (62)
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Skywinder Drake (72) to attack Ai(1)-UR Izzet Chaos League.
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Skywinder Drake (72).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Skywinder Drake (72) deals 3 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(1)-UR Izzet Chaos League 20 > 17
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 9 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Mana: Mountain (29) - {T}: Add {R}.
+Mana: Akoum Teeth (32) - {T}: Add {R}.
+Mana: Island (11) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Unsubtle Mockery targeting [Skywinder Drake (72)]
+Damage: Unsubtle Mockery (1) deals 4 damage to Skywinder Drake (72).
+Resolve Stack: Ai(1)-UR Izzet Chaos League surveiled 1 card(s) to the top of the library
+Resolve Stack: Unsubtle Mockery (1) - Unsubtle Mockery (1) deals 4 damage to Skywinder Drake (72). Ai(1)-UR Izzet Chaos League surveils (1).
+Zone Change: Skywinder Drake (72) was put into Graveyard from Battlefield.
+Add To Stack: Ai(1)-UR Izzet Chaos League activated Potioner's Trove
+Life: Life: Ai(1)-UR Izzet Chaos League 17 > 19
+Resolve Stack: Potioner's Trove (8) - Ai(1)-UR Izzet Chaos League gains 2 life.
+Land: Ai(1)-UR Izzet Chaos League played Mountain (31)
+Mana: Mountain (31) - {T}: Add {R}.
+Mana: Island (9) - {T}: Add {U}.
+Mana: Island (10) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Abstract Paintmage
+Resolve Stack: Abstract Paintmage - Creature 2 / 2
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 10 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Mana: Island (57) - {T}: Add {U}.
+Mana: Island (62) - {T}: Add {U}.
+Mana: Plains (54) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Wind Drake
+Resolve Stack: Wind Drake - Creature 2 / 2
+Land: Ai(2)-AzoriusMid played Plains (53)
+Mana: Plains (50) - {T}: Add {W}.
+Mana: Plains (53) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Mistral Charger
+Resolve Stack: Mistral Charger - Creature 2 / 1
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 11 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Add To Stack: Ai(1)-UR Izzet Chaos League triggered Abstract Paintmage
+Resolve Stack: At the beginning of your first main phase, add {U}{R}. Spend this mana only to cast instant and sorcery spells. [Phase: Ai(1)-UR Izzet Chaos League]
+Mana: Island (11) - {T}: Add {U}.
+Mana: Mountain (29) - {T}: Add {R}.
+Mana: Island (9) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Burst Lightning targeting [Wind Drake (46)]
+Damage: Burst Lightning (17) deals 4 damage to Wind Drake (46).
+Resolve Stack: Burst Lightning (17) - Burst Lightning (17) deals 4 damage to Wind Drake (46).
+Zone Change: Wind Drake (46) was put into Graveyard from Battlefield.
+Add To Stack: Ai(1)-UR Izzet Chaos League activated Potioner's Trove
+Life: Life: Ai(1)-UR Izzet Chaos League 19 > 21
+Resolve Stack: Potioner's Trove (8) - Ai(1)-UR Izzet Chaos League gains 2 life.
+Mana: Akoum Teeth (32) - {T}: Add {R}.
+Mana: Island (10) - {T}: Add {U}.
+Zone Change: Lander Token (3493) was put into Graveyard from Battlefield.
+Add To Stack: Ai(1)-UR Izzet Chaos League activated Lander Token
+Resolve Stack: Lander Token (3493) - Ai(1)-UR Izzet Chaos League searches their library for a basic land card, puts it onto the battlefield tapped, then shuffles.
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Combat: Ai(1)-UR Izzet Chaos League assigned Terrapact Intimidator (6) to attack Ai(2)-AzoriusMid.
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Combat: Ai(2)-AzoriusMid didn't block Terrapact Intimidator (6).
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Damage: Terrapact Intimidator (6) deals 2 combat damage to Ai(2)-AzoriusMid.
+Life: Life: Ai(2)-AzoriusMid 20 > 18
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 12 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Mana: Island (57) - {T}: Add {U}.
+Mana: Plains (54) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Welkin Tern
+Resolve Stack: Welkin Tern - Creature 2 / 1
+Land: Ai(2)-AzoriusMid played Plains (52)
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Frost Lynx (77) and Mistral Charger (67) to attack Ai(1)-UR Izzet Chaos League.
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Frost Lynx (77).
+Ai(1)-UR Izzet Chaos League didn't block Mistral Charger (67).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Frost Lynx (77) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Mistral Charger (67) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(1)-UR Izzet Chaos League 21 > 17
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 13 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Add To Stack: Ai(1)-UR Izzet Chaos League triggered Abstract Paintmage
+Resolve Stack: At the beginning of your first main phase, add {U}{R}. Spend this mana only to cast instant and sorcery spells. [Phase: Ai(1)-UR Izzet Chaos League]
+Mana: Island (11) - {T}: Add {U}.
+Mana: Island (9) - {T}: Add {U}.
+Mana: Island (10) - {T}: Add {U}.
+Mana: Island (12) - {T}: Add {U}.
+Mana: Mountain (29) - {T}: Add {R}.
+Mana: Akoum Teeth (32) - {T}: Add {R}.
+Mana: Mountain (31) - {T}: Add {R}.
+Mana: Potioner's Trove (8) - {T}: Add one mana of any color.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Extinguisher Battleship
+Resolve Stack: Extinguisher Battleship
+Add To Stack: Ai(1)-UR Izzet Chaos League triggered Extinguisher Battleship targeting [Journey to Nowhere (80)]
+Zone Change: Journey to Nowhere (80) was put into Graveyard from Battlefield.
+Damage: Extinguisher Battleship (4) deals 4 damage to Terrapact Intimidator (6).
+Damage: Extinguisher Battleship (4) deals 4 damage to Abstract Paintmage (39).
+Damage: Extinguisher Battleship (4) deals 4 damage to Frost Lynx (77).
+Damage: Extinguisher Battleship (4) deals 4 damage to Mistral Charger (67).
+Damage: Extinguisher Battleship (4) deals 4 damage to Welkin Tern (45).
+Resolve Stack: When this Spacecraft enters, destroy target noncreature permanent. Then this Spacecraft deals 4 damage to each creature. (Targeting: [[Journey to Nowhere (80)]]) [Zone Changer: Extinguisher Battleship (4)]
+Zone Change: Terrapact Intimidator (6) was put into Graveyard from Battlefield.
+Zone Change: Abstract Paintmage (39) was put into Graveyard from Battlefield.
+Zone Change: Frost Lynx (77) was put into Graveyard from Battlefield.
+Zone Change: Mistral Charger (67) was put into Graveyard from Battlefield.
+Zone Change: Welkin Tern (45) was put into Graveyard from Battlefield.
+Add To Stack: Ai(2)-AzoriusMid triggered Journey to Nowhere
+Resolve Stack: When Journey to Nowhere leaves the battlefield, return the exiled card to the battlefield under its owner's control. [Zone Changer: Journey to Nowhere (80)]
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 14 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Plains (48)
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 15 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Island (14)
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 16 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Mana: Plains (54) - {T}: Add {W}.
+Mana: Plains (50) - {T}: Add {W}.
+Mana: Island (57) - {T}: Add {U}.
+Add To Stack: Ai(2)-AzoriusMid cast Aerial Responder
+Resolve Stack: Aerial Responder - Creature 2 / 3
+Mana: Mountain (29) - {T}: Add {R}.
+Mana: Island (11) - {T}: Add {U}.
+Mana: Island (9) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Bombard targeting [Aerial Responder (75)]
+Damage: Bombard (24) deals 4 damage to Aerial Responder (75).
+Resolve Stack: Bombard (24) - Bombard (24) deals 4 damage to Aerial Responder (75).
+Zone Change: Aerial Responder (75) was put into Graveyard from Battlefield.
+Add To Stack: Ai(1)-UR Izzet Chaos League activated Potioner's Trove
+Life: Life: Ai(1)-UR Izzet Chaos League 17 > 19
+Resolve Stack: Potioner's Trove (8) - Ai(1)-UR Izzet Chaos League gains 2 life.
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 17 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Mana: Mountain (29) - {T}: Add {R}.
+Mana: Island (11) - {T}: Add {U}.
+Mana: Island (9) - {T}: Add {U}.
+Mana: Akoum Teeth (32) - {T}: Add {R}.
+Mana: Island (10) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Hagi Mob
+Resolve Stack: Hagi Mob - Creature 5 / 4
+Add To Stack: Ai(1)-UR Izzet Chaos League activated Extinguisher Battleship
+Resolve Stack: Extinguisher Battleship (4) - Ai(1)-UR Izzet Chaos League puts five charge counters on Extinguisher Battleship (4).
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Combat: Ai(1)-UR Izzet Chaos League assigned Extinguisher Battleship (4) to attack Ai(2)-AzoriusMid.
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Combat: Ai(2)-AzoriusMid didn't block Extinguisher Battleship (4).
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Damage: Extinguisher Battleship (4) deals 10 combat damage to Ai(2)-AzoriusMid.
+Life: Life: Ai(2)-AzoriusMid 18 > 8
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 18 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Plains (47)
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 19 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Combat: Ai(1)-UR Izzet Chaos League assigned Extinguisher Battleship (4) and Hagi Mob (22) to attack Ai(2)-AzoriusMid.
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Combat: Ai(2)-AzoriusMid didn't block Extinguisher Battleship (4).
+Ai(2)-AzoriusMid didn't block Hagi Mob (22).
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Damage: Extinguisher Battleship (4) deals 10 combat damage to Ai(2)-AzoriusMid.
+Damage: Hagi Mob (22) deals 5 combat damage to Ai(2)-AzoriusMid.
+Life: Life: Ai(2)-AzoriusMid 8 > -7
+Player Control: Ai(1)-UR Izzet Chaos League has restored control over themself
+Player Control: Ai(2)-AzoriusMid has restored control over themself
+Game Outcome: Turn 10
+Game Outcome: Ai(1)-UR Izzet Chaos League has won because all opponents have lost
+Game Outcome: Ai(2)-AzoriusMid has lost because life total reached 0
+Match Result: Ai(1)-UR Izzet Chaos League: 1 Ai(2)-AzoriusMid: 1 
+
+Game Result: Game 2 ended in 23730 ms. Ai(1)-UR Izzet Chaos League has won!
+
+SimAIMatch: game 2 wallclock 23734 ms
+HANDLOG turn=1 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Island;Island;Mountain;Stratosoarer;Burst Lightning;Reasonable Doubt;Hagi Mob] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=2 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Island;Island;Mountain;Stratosoarer;Burst Lightning;Reasonable Doubt;Hagi Mob] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=3 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Island;Mountain;Stratosoarer;Burst Lightning;Reasonable Doubt;Hagi Mob;Island] UR_untapped_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=3 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Topan Freeblade UR_hand=[Island;Mountain;Stratosoarer;Burst Lightning;Reasonable Doubt;Hagi Mob;Island] UR_untapped_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=4 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Island;Mountain;Stratosoarer;Burst Lightning;Reasonable Doubt;Hagi Mob;Island] UR_untapped_lands=1 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=4 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Burst Lightning UR_hand=[Island;Stratosoarer;Reasonable Doubt;Hagi Mob;Island;Mountain] UR_untapped_lands=1 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=5 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Island;Stratosoarer;Reasonable Doubt;Hagi Mob;Island;Mountain] UR_untapped_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=6 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Island;Stratosoarer;Reasonable Doubt;Hagi Mob;Island;Mountain] UR_untapped_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=7 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Stratosoarer;Reasonable Doubt;Hagi Mob;Island;Mountain;Island] UR_untapped_lands=3 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=7 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Aerial Responder UR_hand=[Stratosoarer;Reasonable Doubt;Hagi Mob;Island;Mountain;Island] UR_untapped_lands=3 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=8 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Stratosoarer;Reasonable Doubt;Hagi Mob;Island;Mountain;Island] UR_untapped_lands=3 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=8 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Stratosoarer UR_hand=[Reasonable Doubt;Hagi Mob;Island;Mountain;Island;Synchronized Spellcraft] UR_untapped_lands=1 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=9 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Reasonable Doubt;Hagi Mob;Island;Island;Synchronized Spellcraft;Island] UR_untapped_lands=2 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=9 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Sea Gate Oracle UR_hand=[Reasonable Doubt;Hagi Mob;Island;Island;Synchronized Spellcraft;Island] UR_untapped_lands=2 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=9 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Sea Gate Oracle UR_hand=[Reasonable Doubt;Hagi Mob;Island;Island;Synchronized Spellcraft;Island] UR_untapped_lands=2 opp_creatures=2 UR_life=20 opp_life=20
+HANDLOG turn=10 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Reasonable Doubt;Hagi Mob;Island;Island;Synchronized Spellcraft;Island] UR_untapped_lands=2 opp_creatures=2 UR_life=18 opp_life=22
+HANDLOG turn=10 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Hagi Mob UR_hand=[Reasonable Doubt;Island;Synchronized Spellcraft;Island;Fugitive Codebreaker] UR_untapped_lands=0 opp_creatures=2 UR_life=18 opp_life=22
+HANDLOG turn=11 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Reasonable Doubt;Island;Synchronized Spellcraft;Island;Fugitive Codebreaker] UR_untapped_lands=0 opp_creatures=2 UR_life=18 opp_life=22
+HANDLOG turn=11 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Frost Lynx UR_hand=[Reasonable Doubt;Island;Synchronized Spellcraft;Island;Fugitive Codebreaker] UR_untapped_lands=0 opp_creatures=2 UR_life=18 opp_life=22
+HANDLOG turn=11 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Frost Lynx UR_hand=[Reasonable Doubt;Island;Synchronized Spellcraft;Island;Fugitive Codebreaker] UR_untapped_lands=0 opp_creatures=3 UR_life=18 opp_life=22
+HANDLOG turn=12 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Reasonable Doubt;Island;Synchronized Spellcraft;Island;Fugitive Codebreaker] UR_untapped_lands=0 opp_creatures=3 UR_life=15 opp_life=24
+HANDLOG turn=12 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Fugitive Codebreaker UR_hand=[Reasonable Doubt;Synchronized Spellcraft;Island;Sudden Setback] UR_untapped_lands=4 opp_creatures=3 UR_life=15 opp_life=24
+HANDLOG turn=12 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Sudden Setback UR_hand=[Reasonable Doubt;Synchronized Spellcraft;Island] UR_untapped_lands=0 opp_creatures=3 UR_life=15 opp_life=24
+HANDLOG turn=12 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Fugitive Codebreaker UR_hand=[Reasonable Doubt;Synchronized Spellcraft;Island] UR_untapped_lands=0 opp_creatures=3 UR_life=15 opp_life=24
+HANDLOG turn=13 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Reasonable Doubt;Synchronized Spellcraft;Island] UR_untapped_lands=0 opp_creatures=2 UR_life=15 opp_life=24
+HANDLOG turn=13 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Aven Gagglemaster UR_hand=[Reasonable Doubt;Synchronized Spellcraft;Island] UR_untapped_lands=0 opp_creatures=2 UR_life=15 opp_life=24
+HANDLOG turn=13 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Aven Gagglemaster UR_hand=[Reasonable Doubt;Synchronized Spellcraft;Island] UR_untapped_lands=0 opp_creatures=3 UR_life=15 opp_life=24
+HANDLOG turn=14 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Reasonable Doubt;Synchronized Spellcraft;Island] UR_untapped_lands=0 opp_creatures=3 UR_life=12 opp_life=26
+HANDLOG turn=14 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Synchronized Spellcraft UR_hand=[Reasonable Doubt;Island;Island] UR_untapped_lands=1 opp_creatures=3 UR_life=12 opp_life=26
+HANDLOG turn=14 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Fugitive Codebreaker UR_hand=[Reasonable Doubt;Island;Island] UR_untapped_lands=1 opp_creatures=3 UR_life=12 opp_life=26
+HANDLOG turn=15 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Reasonable Doubt;Island] UR_untapped_lands=2 opp_creatures=2 UR_life=12 opp_life=17
+HANDLOG turn=15 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Aerial Responder UR_hand=[Reasonable Doubt;Island] UR_untapped_lands=2 opp_creatures=2 UR_life=12 opp_life=17
+HANDLOG turn=15 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Journey to Nowhere UR_hand=[Reasonable Doubt;Island] UR_untapped_lands=2 opp_creatures=3 UR_life=12 opp_life=17
+HANDLOG turn=15 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Journey to Nowhere UR_hand=[Reasonable Doubt;Island] UR_untapped_lands=2 opp_creatures=3 UR_life=12 opp_life=17
+HANDLOG turn=16 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Reasonable Doubt;Island] UR_untapped_lands=2 opp_creatures=3 UR_life=9 opp_life=17
+HANDLOG turn=16 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Bombard UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=3 UR_life=9 opp_life=17
+HANDLOG turn=16 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Fugitive Codebreaker UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=3 UR_life=9 opp_life=17
+HANDLOG turn=17 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=2 UR_life=9 opp_life=14
+HANDLOG turn=17 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Militia Bugler UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=2 UR_life=6 opp_life=14
+HANDLOG turn=17 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Militia Bugler UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=3 UR_life=6 opp_life=14
+HANDLOG turn=18 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=3 UR_life=6 opp_life=14
+HANDLOG turn=18 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Abstract Paintmage UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=3 UR_life=6 opp_life=14
+HANDLOG turn=19 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=3 UR_life=6 opp_life=14
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Cloudkin Seer UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=3 UR_life=6 opp_life=14
+HANDLOG turn=19 event=cast kind=ability castBy=Ai(2)-AzoriusMid source=Cloudkin Seer UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=4 UR_life=6 opp_life=14
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(2)-AzoriusMid source=Pacifism UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=4 UR_life=6 opp_life=14
+HANDLOG turn=20 event=turnstart active=Ai(1)-UR Izzet Chaos League UR_hand=[Reasonable Doubt] UR_untapped_lands=5 opp_creatures=3 UR_life=3 opp_life=14
+HANDLOG turn=20 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Abstract Paintmage UR_hand=[Reasonable Doubt;Terrapact Intimidator] UR_untapped_lands=8 opp_creatures=3 UR_life=3 opp_life=14
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(1)-UR Izzet Chaos League source=Terrapact Intimidator UR_hand=[Reasonable Doubt] UR_untapped_lands=6 opp_creatures=3 UR_life=3 opp_life=14
+HANDLOG turn=20 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Terrapact Intimidator UR_hand=[Reasonable Doubt] UR_untapped_lands=6 opp_creatures=3 UR_life=3 opp_life=14
+HANDLOG turn=20 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Lander Token UR_hand=[Reasonable Doubt] UR_untapped_lands=4 opp_creatures=3 UR_life=3 opp_life=14
+HANDLOG turn=20 event=cast kind=ability castBy=Ai(1)-UR Izzet Chaos League source=Lander Token UR_hand=[Reasonable Doubt] UR_untapped_lands=2 opp_creatures=3 UR_life=3 opp_life=14
+HANDLOG turn=21 event=turnstart active=Ai(2)-AzoriusMid UR_hand=[Reasonable Doubt] UR_untapped_lands=2 opp_creatures=3 UR_life=3 opp_life=14
+HANDLOG turn=21 event=gameend UR_hand=[Reasonable Doubt] UR_untapped_lands=2 opp_creatures=3 UR_life=0 opp_life=14
+Mulligan: Ai(2)-AzoriusMid has kept a hand of 7 cards
+Mulligan: Ai(1)-UR Izzet Chaos League has kept a hand of 7 cards
+Turn: Turn 1 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Island (63)
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 2 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Island (12)
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 3 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Plains (50)
+Mana: Plains (50) - {T}: Add {W}.
+Mana: Island (63) - {T}: Add {U}.
+Add To Stack: Ai(2)-AzoriusMid cast Topan Freeblade
+Resolve Stack: Topan Freeblade - Creature 2 / 2
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 4 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Mountain (26)
+Mana: Mountain (26) - {T}: Add {R}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Burst Lightning targeting [Topan Freeblade (42)]
+Damage: Burst Lightning (17) deals 2 damage to Topan Freeblade (42).
+Resolve Stack: Burst Lightning (17) - Burst Lightning (17) deals 2 damage to Topan Freeblade (42).
+Zone Change: Topan Freeblade (42) was put into Graveyard from Battlefield.
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 5 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 6 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Island (11)
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 7 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Land: Ai(2)-AzoriusMid played Plains (52)
+Mana: Plains (50) - {T}: Add {W}.
+Mana: Plains (52) - {T}: Add {W}.
+Mana: Island (63) - {T}: Add {U}.
+Add To Stack: Ai(2)-AzoriusMid cast Aerial Responder
+Resolve Stack: Aerial Responder - Creature 2 / 3
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 8 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Mana: Island (12) - {T}: Add {U}.
+Mana: Mountain (26) - {T}: Add {R}.
+Discard: Ai(1)-UR Izzet Chaos League discards Stratosoarer (21).
+Add To Stack: Ai(1)-UR Izzet Chaos League activated Stratosoarer
+Resolve Stack: Stratosoarer (21) - Ai(1)-UR Izzet Chaos League searches their library for a Basic card, reveals it, puts it into their hand, then shuffles.
+Land: Ai(1)-UR Izzet Chaos League played Mountain (28)
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 9 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Mana: Island (63) - {T}: Add {U}.
+Mana: Plains (50) - {T}: Add {W}.
+Mana: Plains (52) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Sea Gate Oracle
+Resolve Stack: Sea Gate Oracle - Creature 1 / 3
+Add To Stack: Ai(2)-AzoriusMid triggered Sea Gate Oracle
+Resolve Stack: When Sea Gate Oracle enters, look at the top two cards of your library. Put one of them into your hand and the other on the bottom of your library. [Zone Changer: Sea Gate Oracle (44)]
+Land: Ai(2)-AzoriusMid played Plains (51)
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Aerial Responder (75) to attack Ai(1)-UR Izzet Chaos League.
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Aerial Responder (75).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Aerial Responder (75) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(2)-AzoriusMid 20 > 22
+Life: Life: Ai(1)-UR Izzet Chaos League 20 > 18
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 10 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Island (14)
+Mana: Mountain (26) - {T}: Add {R}.
+Mana: Mountain (28) - {T}: Add {R}.
+Mana: Island (12) - {T}: Add {U}.
+Mana: Island (11) - {T}: Add {U}.
+Mana: Island (14) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Hagi Mob
+Resolve Stack: Hagi Mob - Creature 5 / 4
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 11 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Mana: Island (63) - {T}: Add {U}.
+Mana: Plains (50) - {T}: Add {W}.
+Mana: Plains (52) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Frost Lynx
+Resolve Stack: Frost Lynx - Creature 2 / 2
+Add To Stack: Ai(2)-AzoriusMid triggered Frost Lynx targeting [Hagi Mob (22)]
+Resolve Stack: When Frost Lynx enters, tap target creature an opponent controls. That creature doesn't untap during its controller's next untap step. (Targeting: [[Hagi Mob (22)]]) [Zone Changer: Frost Lynx (77)]
+Land: Ai(2)-AzoriusMid played Plains (53)
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Aerial Responder (75) and Sea Gate Oracle (44) to attack Ai(1)-UR Izzet Chaos League.
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Aerial Responder (75).
+Ai(1)-UR Izzet Chaos League didn't block Sea Gate Oracle (44).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Aerial Responder (75) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(2)-AzoriusMid 22 > 24
+Damage: Sea Gate Oracle (44) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(1)-UR Izzet Chaos League 18 > 15
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 12 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Island (10)
+Mana: Mountain (26) - {T}: Add {R}.
+Mana: Mountain (28) - {T}: Add {R}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Fugitive Codebreaker
+Resolve Stack: Fugitive Codebreaker - Creature 2 / 1
+Mana: Island (12) - {T}: Add {U}.
+Mana: Island (11) - {T}: Add {U}.
+Mana: Island (14) - {T}: Add {U}.
+Mana: Island (10) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Sudden Setback targeting [Aerial Responder (75)]
+Add To Stack: Ai(1)-UR Izzet Chaos League triggered Fugitive Codebreaker
+Resolve Stack: Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.) [Card: Sudden Setback (20), Activator: Ai(1)-UR Izzet Chaos League, SpellAbility: The owner of target spell or nonland permanent puts it on the top or bottom of their library.]
+Resolve Stack: Sudden Setback (20) - Ai(2)-AzoriusMid puts Aerial Responder (75) on the top or bottom of their library.
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 13 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Mana: Plains (50) - {T}: Add {W}.
+Mana: Plains (52) - {T}: Add {W}.
+Mana: Island (63) - {T}: Add {U}.
+Mana: Plains (51) - {T}: Add {W}.
+Mana: Plains (53) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Aven Gagglemaster
+Resolve Stack: Aven Gagglemaster - Creature 4 / 3
+Add To Stack: Ai(2)-AzoriusMid triggered Aven Gagglemaster
+Life: Life: Ai(2)-AzoriusMid 24 > 26
+Resolve Stack: When Aven Gagglemaster enters, you gain 2 life for each creature you control with flying. [Zone Changer: Aven Gagglemaster (79)]
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Frost Lynx (77) and Sea Gate Oracle (44) to attack Ai(1)-UR Izzet Chaos League.
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Frost Lynx (77).
+Ai(1)-UR Izzet Chaos League didn't block Sea Gate Oracle (44).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Frost Lynx (77) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Sea Gate Oracle (44) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(1)-UR Izzet Chaos League 15 > 12
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 14 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Mana: Mountain (26) - {T}: Add {R}.
+Mana: Mountain (28) - {T}: Add {R}.
+Mana: Island (12) - {T}: Add {U}.
+Mana: Island (11) - {T}: Add {U}.
+Mana: Island (14) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Synchronized Spellcraft targeting [Aven Gagglemaster (79)]
+Add To Stack: Ai(1)-UR Izzet Chaos League triggered Fugitive Codebreaker
+Resolve Stack: Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.) [Card: Synchronized Spellcraft (33), Activator: Ai(1)-UR Izzet Chaos League, SpellAbility: Synchronized Spellcraft deals 4 damage to target creature and X damage to that creature's controller, where X is the number of creatures in your party. (Your party consists of up to one each of Cleric, Rogue, Warrior, and Wizard.) ]
+Damage: Synchronized Spellcraft (33) deals 4 damage to Aven Gagglemaster (79).
+Damage: Synchronized Spellcraft (33) deals 1 non-combat damage to Ai(2)-AzoriusMid.
+Life: Life: Ai(2)-AzoriusMid 26 > 25
+Resolve Stack: Synchronized Spellcraft (33) - Synchronized Spellcraft (33) deals 4 damage to Aven Gagglemaster (79). Synchronized Spellcraft (33) deals 1 damage to Ai(2)-AzoriusMid.
+Zone Change: Aven Gagglemaster (79) was put into Graveyard from Battlefield.
+Land: Ai(1)-UR Izzet Chaos League played Island (13)
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Combat: Ai(1)-UR Izzet Chaos League assigned Hagi Mob (22) and Fugitive Codebreaker (38) to attack Ai(2)-AzoriusMid.
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Combat: Ai(2)-AzoriusMid didn't block Hagi Mob (22).
+Ai(2)-AzoriusMid didn't block Fugitive Codebreaker (38).
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Damage: Hagi Mob (22) deals 5 combat damage to Ai(2)-AzoriusMid.
+Damage: Fugitive Codebreaker (38) deals 3 combat damage to Ai(2)-AzoriusMid.
+Life: Life: Ai(2)-AzoriusMid 25 > 17
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 15 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Mana: Plains (50) - {T}: Add {W}.
+Mana: Plains (52) - {T}: Add {W}.
+Mana: Island (63) - {T}: Add {U}.
+Add To Stack: Ai(2)-AzoriusMid cast Aerial Responder
+Resolve Stack: Aerial Responder - Creature 2 / 3
+Mana: Plains (51) - {T}: Add {W}.
+Mana: Plains (53) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Journey to Nowhere
+Resolve Stack: Journey to Nowhere
+Add To Stack: Ai(2)-AzoriusMid triggered Journey to Nowhere targeting [Hagi Mob (22)]
+Zone Change: Hagi Mob (22) was put into Exile from Battlefield.
+Resolve Stack: When Journey to Nowhere enters, exile target creature. (Targeting: [[Hagi Mob (22)]]) [Zone Changer: Journey to Nowhere (80)]
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Frost Lynx (77) and Sea Gate Oracle (44) to attack Ai(1)-UR Izzet Chaos League.
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Frost Lynx (77).
+Ai(1)-UR Izzet Chaos League didn't block Sea Gate Oracle (44).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Frost Lynx (77) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Sea Gate Oracle (44) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(1)-UR Izzet Chaos League 12 > 9
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 16 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Land: Ai(1)-UR Izzet Chaos League played Island (9)
+Mana: Mountain (26) - {T}: Add {R}.
+Mana: Mountain (28) - {T}: Add {R}.
+Mana: Island (12) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Bombard targeting [Aerial Responder (75)]
+Add To Stack: Ai(1)-UR Izzet Chaos League triggered Fugitive Codebreaker
+Resolve Stack: Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.) [Card: Bombard (24), Activator: Ai(1)-UR Izzet Chaos League, SpellAbility: Bombard deals 4 damage to target creature.]
+Damage: Bombard (24) deals 4 damage to Aerial Responder (75).
+Resolve Stack: Bombard (24) - Bombard (24) deals 4 damage to Aerial Responder (75).
+Zone Change: Aerial Responder (75) was put into Graveyard from Battlefield.
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Combat: Ai(1)-UR Izzet Chaos League assigned Fugitive Codebreaker (38) to attack Ai(2)-AzoriusMid.
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Combat: Ai(2)-AzoriusMid didn't block Fugitive Codebreaker (38).
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Damage: Fugitive Codebreaker (38) deals 3 combat damage to Ai(2)-AzoriusMid.
+Life: Life: Ai(2)-AzoriusMid 17 > 14
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 17 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Frost Lynx (77) and Sea Gate Oracle (44) to attack Ai(1)-UR Izzet Chaos League.
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League didn't block Frost Lynx (77).
+Ai(1)-UR Izzet Chaos League didn't block Sea Gate Oracle (44).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Frost Lynx (77) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Sea Gate Oracle (44) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Life: Life: Ai(1)-UR Izzet Chaos League 9 > 6
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Mana: Plains (50) - {T}: Add {W}.
+Mana: Island (63) - {T}: Add {U}.
+Mana: Plains (52) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Militia Bugler
+Resolve Stack: Militia Bugler - Creature 2 / 3
+Add To Stack: Ai(2)-AzoriusMid triggered Militia Bugler
+Resolve Stack: When Militia Bugler enters, look at the top four cards of your library. You may reveal a creature card with power 2 or less from among them and put it into your hand. Put the rest on the bottom of your library in a random order. [Zone Changer: Militia Bugler (70)]
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 18 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Mana: Mountain (26) - {T}: Add {R}.
+Mana: Island (12) - {T}: Add {U}.
+Mana: Island (11) - {T}: Add {U}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Abstract Paintmage
+Resolve Stack: Abstract Paintmage - Creature 2 / 2
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 19 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Mana: Island (63) - {T}: Add {U}.
+Mana: Plains (50) - {T}: Add {W}.
+Mana: Plains (52) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Cloudkin Seer
+Resolve Stack: Cloudkin Seer - Creature 2 / 1
+Add To Stack: Ai(2)-AzoriusMid triggered Cloudkin Seer
+Resolve Stack: When Cloudkin Seer enters, draw a card. [Zone Changer: Cloudkin Seer (74)]
+Mana: Plains (51) - {T}: Add {W}.
+Mana: Plains (53) - {T}: Add {W}.
+Add To Stack: Ai(2)-AzoriusMid cast Pacifism targeting [Abstract Paintmage (39)]
+Resolve Stack: Pacifism (68) -  Attach to Abstract Paintmage (39)
+Land: Ai(2)-AzoriusMid played Plains (49)
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Frost Lynx (77), Sea Gate Oracle (44) and Militia Bugler (70) to attack Ai(1)-UR Izzet Chaos League.
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League assigned Fugitive Codebreaker (38) to block Frost Lynx (77).
+Ai(1)-UR Izzet Chaos League didn't block Sea Gate Oracle (44).
+Ai(1)-UR Izzet Chaos League didn't block Militia Bugler (70).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Frost Lynx (77) deals 2 damage to Fugitive Codebreaker (38).
+Damage: Sea Gate Oracle (44) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Militia Bugler (70) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Fugitive Codebreaker (38) deals 2 damage to Frost Lynx (77).
+Life: Life: Ai(1)-UR Izzet Chaos League 6 > 3
+Zone Change: Frost Lynx (77) was put into Graveyard from Battlefield.
+Zone Change: Fugitive Codebreaker (38) was put into Graveyard from Battlefield.
+Phase: Ai(2)-AzoriusMid's End of Combat Step
+Phase: Ai(2)-AzoriusMid's Main phase, postcombat
+Phase: Ai(2)-AzoriusMid's End step
+Phase: Ai(2)-AzoriusMid's Cleanup step
+Turn: Turn 20 (Ai(1)-UR Izzet Chaos League)
+Phase: Ai(1)-UR Izzet Chaos League's Untap step
+Phase: Ai(1)-UR Izzet Chaos League's Upkeep step
+Phase: Ai(1)-UR Izzet Chaos League's Draw step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, precombat
+Add To Stack: Ai(1)-UR Izzet Chaos League triggered Abstract Paintmage
+Resolve Stack: At the beginning of your first main phase, add {U}{R}. Spend this mana only to cast instant and sorcery spells. [Phase: Ai(1)-UR Izzet Chaos League]
+Mana: Mountain (26) - {T}: Add {R}.
+Mana: Mountain (28) - {T}: Add {R}.
+Add To Stack: Ai(1)-UR Izzet Chaos League cast Terrapact Intimidator
+Resolve Stack: Terrapact Intimidator - Creature 2 / 1
+Add To Stack: Ai(1)-UR Izzet Chaos League triggered Terrapact Intimidator targeting [Ai(2)-AzoriusMid]
+Resolve Stack: When this creature enters, target opponent may have you create two Lander tokens. If they don't, put two +1/+1 counters on this creature. (A Lander token is an artifact with "{2}, {T}, Sacrifice this token: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.") (Targeting: [[Ai(2)-AzoriusMid]]) [Zone Changer: Terrapact Intimidator (6)]
+Mana: Island (12) - {T}: Add {U}.
+Mana: Island (11) - {T}: Add {U}.
+Zone Change: Lander Token (7148) was put into Graveyard from Battlefield.
+Add To Stack: Ai(1)-UR Izzet Chaos League activated Lander Token
+Resolve Stack: Lander Token (7148) - Ai(1)-UR Izzet Chaos League searches their library for a basic land card, puts it onto the battlefield tapped, then shuffles.
+Mana: Island (14) - {T}: Add {U}.
+Mana: Island (10) - {T}: Add {U}.
+Zone Change: Lander Token (7149) was put into Graveyard from Battlefield.
+Add To Stack: Ai(1)-UR Izzet Chaos League activated Lander Token
+Resolve Stack: Lander Token (7149) - Ai(1)-UR Izzet Chaos League searches their library for a basic land card, puts it onto the battlefield tapped, then shuffles.
+Phase: Ai(1)-UR Izzet Chaos League's Beginning of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Attackers Step
+Phase: Ai(1)-UR Izzet Chaos League's Declare Blockers Step
+Phase: Ai(1)-UR Izzet Chaos League's First Strike Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's Combat Damage Step
+Phase: Ai(1)-UR Izzet Chaos League's End of Combat Step
+Phase: Ai(1)-UR Izzet Chaos League's Main phase, postcombat
+Phase: Ai(1)-UR Izzet Chaos League's End step
+Phase: Ai(1)-UR Izzet Chaos League's Cleanup step
+Turn: Turn 21 (Ai(2)-AzoriusMid)
+Phase: Ai(2)-AzoriusMid's Untap step
+Phase: Ai(2)-AzoriusMid's Upkeep step
+Phase: Ai(2)-AzoriusMid's Draw step
+Phase: Ai(2)-AzoriusMid's Main phase, precombat
+Phase: Ai(2)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(2)-AzoriusMid's Declare Attackers Step
+Combat: Ai(2)-AzoriusMid assigned Militia Bugler (70), Cloudkin Seer (74) and Sea Gate Oracle (44) to attack Ai(1)-UR Izzet Chaos League.
+Phase: Ai(2)-AzoriusMid's Declare Blockers Step
+Combat: Ai(1)-UR Izzet Chaos League assigned Terrapact Intimidator (6) to block Militia Bugler (70).
+Ai(1)-UR Izzet Chaos League didn't block Cloudkin Seer (74).
+Ai(1)-UR Izzet Chaos League didn't block Sea Gate Oracle (44).
+Phase: Ai(2)-AzoriusMid's First Strike Damage Step
+Phase: Ai(2)-AzoriusMid's Combat Damage Step
+Damage: Militia Bugler (70) deals 2 damage to Terrapact Intimidator (6).
+Damage: Cloudkin Seer (74) deals 2 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Sea Gate Oracle (44) deals 1 combat damage to Ai(1)-UR Izzet Chaos League.
+Damage: Terrapact Intimidator (6) deals 2 damage to Militia Bugler (70).
+Life: Life: Ai(1)-UR Izzet Chaos League 3 > 0
+Player Control: Ai(1)-UR Izzet Chaos League has restored control over themself
+Player Control: Ai(2)-AzoriusMid has restored control over themself
+Game Outcome: Turn 11
+Game Outcome: Ai(1)-UR Izzet Chaos League has lost because life total reached 0
+Game Outcome: Ai(2)-AzoriusMid has won because all opponents have lost
+Match Result: Ai(1)-UR Izzet Chaos League: 1 Ai(2)-AzoriusMid: 2 
+
+Game Result: Game 3 ended in 23075 ms. Ai(2)-AzoriusMid has won!
+
+SimAIMatch: game 3 wallclock 23077 ms

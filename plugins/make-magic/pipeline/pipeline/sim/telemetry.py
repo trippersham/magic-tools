@@ -31,11 +31,18 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from collections.abc import Set as AbstractSet
 
 __all__ = (
     'GameFeatures',
+    'PilotingProfile',
     'extract_game_features',
     'extract_match_features',
+    'extract_piloting',
     'split_games',
 )
 
@@ -273,3 +280,241 @@ def extract_match_features(match_log: str, *, deck_a: str, deck_b: str) -> list[
     return [
         extract_game_features(seg, deck_a=deck_a, deck_b=deck_b, commander=commander) for seg in split_games(match_log)
     ]
+
+
+# --------------------------------------------------------------------------- #
+# Piloting telemetry — HANDLOG opportunity-conditioning (the deck-vs-pilot metric)
+# --------------------------------------------------------------------------- #
+#
+# Ported faithfully from the lab reference
+# ``~/mtg-sim-lab/variant_gauntlet/analyze_forge_variant.py`` (``parse_game`` /
+# ``analyze_game`` / ``wilson``). That analyzer answers the question this feature
+# exists to answer: when a deck under-performs, is it the DECK or the AI failing
+# to PILOT it? It conditions on *opportunity* — a counter/removal spell only
+# "should" fire on a turn where the candidate actually holds an affordable answer
+# with a legal target — and reports the conversion rate over those turns.
+#
+# Divergences from the reference, all faithful to the model (see task 1.4 spec):
+#   * Classification (which cards are counters / removal / interaction / lands and
+#     each card's mv) is passed IN, not derived from a card-facts file. The engine
+#     supplies it from the deck's otag buckets (task 1.6); this module stays
+#     classification-agnostic. The affordability proxy is unchanged:
+#     ``untapped_lands >= card_mv`` (the reference's documented count-based model).
+#   * Self-target rate is NOT derivable from HANDLOG — ``cast`` lines carry
+#     ``source=`` but no target — so it is OMITTED here (the reference derived it
+#     from a different signal). We do not fabricate it.
+#   * ``wilson_ci`` is reused from :mod:`pipeline.sim.core` (imported lazily to
+#     avoid the core<->telemetry import cycle) instead of the reference's inline
+#     ``wilson``; the score formula is identical.
+
+#: ``Ai(1)`` is the candidate (slot ``'a'``); ``Ai(2)`` the opponent. HANDLOG's
+#: ``UR_*`` fields ALWAYS report the candidate's private state (hand / untapped
+#: lands / opp creature count), regardless of whose turn it is.
+_HANDLOG_RE = re.compile(
+    r'^HANDLOG turn=(\d+) event=(\w+)'
+    r'(?: kind=(\w+))?'
+    r'(?: active=(.*?))?(?: castBy=(.*?) source=(.*?))?'
+    r' UR_hand=\[(.*?)\] UR_untapped_lands=(\d+)'
+    r' opp_creatures=(\d+) UR_life=(-?\d+) opp_life=(-?\d+)$'
+)
+
+
+@dataclass(frozen=True)
+class _HandlogEvent:
+    """One parsed HANDLOG line (candidate-centric view)."""
+
+    turn: int
+    ev: str
+    kind: str | None
+    active: str | None
+    cast_by: str | None
+    source: str | None
+    hand: tuple[str, ...]
+    untapped: int
+    opp_creatures: int
+
+
+@dataclass(frozen=True)
+class PilotingProfile:
+    """Opportunity-conditioned piloting metrics pooled across a whole match.
+
+    Each ``*_opps`` is a count of decision points where the candidate (slot
+    ``'a'`` / ``Ai(1)``) *could* have interacted — held an affordable answer with
+    a legal target — and each ``*_casts`` is how often it actually did. The
+    ``*_fire`` rate and ``*_ci`` Wilson interval are ``None`` when there were no
+    opportunities (denominator 0): no opportunities, no information.
+
+    * **Counter**: an opportunity is an opponent (``Ai(2)``) casting a spell on a
+      turn the candidate holds an affordable counter; conversion = the candidate
+      casts a counter in *immediate* response (before the next ``turnstart``, and
+      as its first spell — the reference's "strict" rule).
+    * **Removal**: an opportunity is a turn the candidate holds an affordable
+      removal/burn card AND the opponent has >= 1 creature to target; conversion =
+      the candidate casts removal that turn. (Own-turn affordability gets the
+      reference's ``eff`` +1-land tweak when a land is in hand.)
+    * **Stranded interaction**: interaction cards still in the candidate's hand at
+      ``event=gameend``, averaged per game.
+    """
+
+    counter_opps: int
+    counter_casts: int
+    counter_fire: float | None
+    counter_ci: tuple[float, float] | None
+    removal_opps: int
+    removal_casts: int
+    removal_fire: float | None
+    removal_ci: tuple[float, float] | None
+    interaction_stranded_per_game: float
+    games: int
+
+
+def _split_handlog_games(match_log: str) -> list[list[_HandlogEvent]]:
+    """Split a HANDLOG stream into per-game event lists on the ``gameend`` marker.
+
+    Mirrors :func:`split_games`: each finished game ends with exactly one
+    ``event=gameend`` HANDLOG line, so a game is the run of parsed events up to
+    and including it. Non-HANDLOG and malformed lines are skipped. Trailing events
+    after the last ``gameend`` (an unterminated game) are dropped. Returns ``[]``
+    for empty / marker-less input (never raises).
+    """
+    games: list[list[_HandlogEvent]] = []
+    current: list[_HandlogEvent] = []
+    for raw in match_log.splitlines():
+        m = _HANDLOG_RE.match(raw.strip())
+        if m is None:
+            continue
+        turn, ev, kind, active, cast_by, source, hand, unt, oppc, _ulife, _olife = m.groups()
+        current.append(
+            _HandlogEvent(
+                turn=int(turn),
+                ev=ev,
+                kind=kind,
+                active=active,
+                cast_by=cast_by,
+                source=source,
+                hand=tuple(c for c in hand.split(';') if c),
+                untapped=int(unt),
+                opp_creatures=int(oppc),
+            )
+        )
+        if ev == 'gameend':
+            games.append(current)
+            current = []
+    return games
+
+
+def _candidate_prefix(slot: str) -> str:
+    """The ``Ai(k)`` prefix for a candidate slot (``'a'`` -> ``'Ai(1)'``)."""
+    return 'Ai(1)' if slot == 'a' else 'Ai(2)'
+
+
+def extract_piloting(
+    match_log: str,
+    *,
+    candidate_slot: str = 'a',
+    counters: AbstractSet[str],
+    removal: AbstractSet[str],
+    interaction: AbstractSet[str],
+    costs: Mapping[str, int],
+    lands: AbstractSet[str],
+) -> PilotingProfile:
+    """Opportunity-conditioned piloting profile from a HANDLOG stream (pure).
+
+    Ports ``analyze_game`` from the lab reference (cited above). The classification
+    is passed in and this function is classification-agnostic:
+
+    * ``counters`` / ``removal`` / ``interaction`` / ``lands`` are ``set[str]`` of
+      card names (``interaction`` is typically ``counters | removal``, but is taken
+      as given — stranded counts anything in it).
+    * ``costs`` maps a card name to its mana value for the affordability proxy
+      ``untapped_lands >= mv``. A card missing from ``costs`` is treated as
+      unaffordable (defensive; the reference used ``99``).
+    * ``candidate_slot`` is the piloted deck's slot (``'a'`` = ``Ai(1)``).
+
+    Robustness is a hard contract: empty / truncated / garbage input yields a
+    fully-zeroed profile and NEVER raises. The Wilson ``*_ci`` and ``*_fire`` rate
+    are ``None`` whenever the corresponding ``*_opps`` denominator is 0.
+    """
+    from pipeline.sim.core import wilson_ci  # lazy: avoid core<->telemetry cycle.
+
+    cand = _candidate_prefix(candidate_slot)
+
+    def affordable(card: str, untapped: int) -> bool:
+        return untapped >= costs.get(card, 99)
+
+    counter_opps = 0
+    counter_casts = 0
+    removal_opps = 0
+    removal_casts = 0
+    stranded_total = 0
+
+    games = _split_handlog_games(match_log)
+
+    for ev in games:
+        # --- Counter opportunities: opponent casts, candidate holds an answer. ---
+        for i, e in enumerate(ev):
+            if e.ev != 'cast' or e.kind != 'spell' or not e.cast_by:
+                continue
+            if e.cast_by.startswith(cand):
+                continue  # candidate's own cast, not a counter opportunity.
+            afford = [c for c in counters if c in e.hand and affordable(c, e.untapped)]
+            if not afford:
+                continue
+            counter_opps += 1
+            # Strict conversion: the candidate's FIRST spell before the next
+            # turnstart is a counter (the reference's `strict_open` rule).
+            converted = False
+            strict_open = True
+            for e2 in ev[i + 1 :]:
+                if e2.ev == 'turnstart':
+                    break
+                if e2.ev == 'cast' and e2.kind == 'spell' and e2.cast_by:
+                    is_counter = e2.cast_by.startswith(cand) and (e2.source in counters)
+                    if is_counter and strict_open:
+                        converted = True
+                    strict_open = False
+            counter_casts += converted
+
+        # --- Removal opportunities: per turn with an affordable answer + a target. ---
+        turns: dict[int, list[_HandlogEvent]] = {}
+        for e in ev:
+            turns.setdefault(e.turn, []).append(e)
+        for _t, tev in sorted(turns.items()):
+            ts = next((e for e in tev if e.ev == 'turnstart'), None)
+            if ts is None:
+                continue
+            a_active = bool(ts.active) and ts.active.startswith(cand)
+            # On the candidate's own turn it can still make a land drop for +1 mana.
+            eff = ts.untapped + (1 if a_active and any(c in lands for c in ts.hand) else 0)
+            afford = [c for c in removal if c in ts.hand and eff >= costs.get(c, 99)]
+            if afford and ts.opp_creatures >= 1:
+                removal_opps += 1
+                cast = any(
+                    e.ev == 'cast' and e.cast_by and e.cast_by.startswith(cand) and (e.source in removal) for e in tev
+                )
+                removal_casts += cast
+
+        # --- Stranded interaction: interaction cards left in hand at gameend. ---
+        end = next((e for e in reversed(ev) if e.ev == 'gameend'), None)
+        if end is not None:
+            stranded_total += sum(1 for c in end.hand if c in interaction)
+
+    n_games = len(games)
+    counter_fire = counter_casts / counter_opps if counter_opps else None
+    counter_ci = wilson_ci(counter_casts, counter_opps) if counter_opps else None
+    removal_fire = removal_casts / removal_opps if removal_opps else None
+    removal_ci = wilson_ci(removal_casts, removal_opps) if removal_opps else None
+    stranded_per_game = stranded_total / n_games if n_games else 0.0
+
+    return PilotingProfile(
+        counter_opps=counter_opps,
+        counter_casts=counter_casts,
+        counter_fire=counter_fire,
+        counter_ci=counter_ci,
+        removal_opps=removal_opps,
+        removal_casts=removal_casts,
+        removal_fire=removal_fire,
+        removal_ci=removal_ci,
+        interaction_stranded_per_game=stranded_per_game,
+        games=n_games,
+    )
