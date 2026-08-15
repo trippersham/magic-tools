@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import cast
 
 import pytest
 
@@ -31,7 +30,8 @@ from pipeline.sim.core import (
     simulate,
     wilson_ci,
 )
-from pipeline.sim.forge_runtime import ENV_FORGE_HOME, ENV_JAVA, ForgeInstall
+from pipeline.sim.engine import EngineCapabilities, EngineInstall
+from pipeline.sim.forge_runtime import ENV_FORGE_HOME, ENV_JAVA
 from pipeline.sim.governor import MatchSpec, PoolResult
 from pipeline.sim.runner import GameOutcome, MatchResult
 
@@ -121,13 +121,113 @@ def _pool_result_candidate_sweeps(specs: list[MatchSpec]) -> PoolResult:
     )
 
 
-def _install_probe() -> ForgeInstall:
-    """A sentinel 'install' — the mocked governor ignores it.
+def _engine_install() -> EngineInstall:
+    """A sentinel resolved install for the version+handle the core threads.
 
-    Cast to ``ForgeInstall`` so the type-checker is satisfied; the mocked
-    ``run_matchups`` never touches it, so its runtime shape is irrelevant.
+    ``version='test-forge'`` is what keys the cache (formerly ``forge_version()``);
+    the mocked ``run_matchups`` ignores the opaque ``handle``.
     """
-    return cast('ForgeInstall', object())
+    return EngineInstall(version='test-forge', handle=object())
+
+
+# --------------------------------------------------------------------------- #
+# FakeEngine: drives simulate() through the REAL governor with NO JVM, so the
+# behaviour-preserving refactor's aggregation is locked against a canned engine.
+# --------------------------------------------------------------------------- #
+
+_FAKE_CAPS = EngineCapabilities(
+    has_hand_visibility=False,
+    has_counter_metrics=False,
+    expected_nondecisive_rate=0.05,
+    reliability_note='fake engine — canned results only',
+    kill_attribution='named',
+)
+
+
+class _FakeEngine:
+    """A no-JVM :class:`~pipeline.sim.engine.SimEngine`: the candidate sweeps.
+
+    Its :meth:`run_matchup` returns the SAME canned per-game log
+    (:data:`_FAKE_LOG_A_WINS`) the governor-mock path uses, so an aggregation
+    driven through this engine (via the REAL governor) must match the mocked-
+    governor tests byte-for-byte — proving the engine seam preserved behaviour.
+    """
+
+    name = 'fake'
+
+    def capabilities(self) -> EngineCapabilities:
+        return _FAKE_CAPS
+
+    def resolve(self, *, provision: bool, data_dir: object = None) -> EngineInstall:
+        del provision, data_dir
+        return EngineInstall(version='test-forge', handle=object())
+
+    def run_matchup(
+        self,
+        deck_a: tuple[str, str],
+        deck_b: tuple[str, str],
+        *,
+        n: int,
+        seed: int,
+        fmt: str,
+        install: EngineInstall,
+        timeout_s: int | None = None,
+    ) -> MatchResult:
+        del seed, fmt, install, timeout_s
+        per_game = tuple(GameOutcome(winner='a', elapsed_ms=1000) for _ in range(n))
+        return MatchResult(
+            deck_a=deck_a[0],
+            deck_b=deck_b[0],
+            wins_a=n,
+            wins_b=0,
+            draws=0,
+            per_game=per_game,
+            raw_log=_FAKE_LOG_A_WINS * n,
+        )
+
+    def replay(self, matchup_key: str, game_idx: int) -> str:
+        return f'fake replay {matchup_key}#{game_idx}'
+
+
+def test_simulate_with_fake_engine_aggregates_identically(monkeypatch: pytest.MonkeyPatch, data_dir: Path) -> None:
+    """simulate() driven by a FakeEngine through the REAL governor aggregates
+    win-rate / Wilson CI / per-opponent / profile IDENTICALLY to the mocked path.
+
+    No JVM, no ``run_matchups`` mock: the FakeEngine's ``run_matchup`` IS the path
+    the governor now calls, so this proves the engine seam is byte-identical to
+    today's aggregation (the headline behaviour-preserving invariant). The pool is
+    pinned (size 1, no stagger) so the real governor stays fast + deterministic.
+    """
+    _patch_gauntlet(monkeypatch, [('Opp1', 'X'), ('Opp2', 'Y'), ('Opp3', 'Z')])
+    # Drop the ~5s per-spawn stagger so the REAL governor stays fast in-suite (a
+    # no-JVM FakeEngine has no disk thrash to space out).
+    from pipeline.sim.governor import Governor
+
+    monkeypatch.setattr(Governor, 'stagger_s', 0.0)
+
+    result = simulate(
+        _deck('Candidate'),
+        'curated',
+        games=4,
+        fmt='constructed',
+        seed=7,
+        engine=_FakeEngine(),
+        data_dir=str(data_dir),
+        pool_size=1,
+    )
+
+    assert isinstance(result, SimResult)
+    assert result.total_games == 12
+    assert result.wins == 12
+    assert result.win_rate == pytest.approx(1.0)
+    lo, hi = result.win_rate_ci
+    assert lo <= 1.0 and hi <= 1.0 and lo > 0.5
+    assert len(result.per_opponent) == 3
+    assert {o.opponent for o in result.per_opponent} == {'Opp1', 'Opp2', 'Opp3'}
+    assert all(o.wins == 4 and o.games == 4 for o in result.per_opponent)
+    assert result.profile.games == 12
+    assert result.profile.avg_kill_turn == pytest.approx(5.0)
+    assert result.profile.wincon_mix.get('combat', 0) == 12
 
 
 # --------------------------------------------------------------------------- #
@@ -139,25 +239,24 @@ def test_run_cached_matchups_miss_then_hit(monkeypatch: pytest.MonkeyPatch, data
     """First call runs the (mocked) games and stores; second hits the cache, 0 games."""
     calls: list[list[MatchSpec]] = []
 
-    def fake_run_matchups(install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
+    def fake_run_matchups(engine: object, install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
         calls.append(specs)
         return _pool_result_candidate_sweeps(specs)
 
     monkeypatch.setattr(core, 'run_matchups', fake_run_matchups)
-    monkeypatch.setattr(core, 'forge_version', lambda: 'test-forge')
 
     specs = [
         MatchSpec(deck_a=('Cand', 'A'), deck_b=('Opp', 'B'), n=4, seed=1, fmt='constructed'),
     ]
 
-    first = run_cached_matchups(_install_probe(), specs, data_dir=str(data_dir))
+    first = run_cached_matchups(_FakeEngine(), _engine_install(), specs, data_dir=str(data_dir))
     assert len(first) == 1
     assert first[0].wins == 4
     assert first[0].cached is False
     assert first[0].features  # telemetry parsed + returned
     assert len(calls) == 1  # one governor batch ran
 
-    second = run_cached_matchups(_install_probe(), specs, data_dir=str(data_dir))
+    second = run_cached_matchups(_FakeEngine(), _engine_install(), specs, data_dir=str(data_dir))
     assert second[0].wins == 4
     assert second[0].cached is True
     assert len(calls) == 1  # NO second governor batch — served from cache
@@ -167,17 +266,16 @@ def test_run_cached_matchups_force_bypasses_cache(monkeypatch: pytest.MonkeyPatc
     """``force=True`` re-runs even a cached matchup."""
     calls: list[list[MatchSpec]] = []
 
-    def fake_run_matchups(install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
+    def fake_run_matchups(engine: object, install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
         calls.append(specs)
         return _pool_result_candidate_sweeps(specs)
 
     monkeypatch.setattr(core, 'run_matchups', fake_run_matchups)
-    monkeypatch.setattr(core, 'forge_version', lambda: 'test-forge')
 
     specs = [MatchSpec(deck_a=('Cand', 'A'), deck_b=('Opp', 'B'), n=2, seed=1, fmt='constructed')]
 
-    run_cached_matchups(_install_probe(), specs, data_dir=str(data_dir))
-    run_cached_matchups(_install_probe(), specs, force=True, data_dir=str(data_dir))
+    run_cached_matchups(_FakeEngine(), _engine_install(), specs, data_dir=str(data_dir))
+    run_cached_matchups(_FakeEngine(), _engine_install(), specs, force=True, data_dir=str(data_dir))
     assert len(calls) == 2  # force re-ran the governor
 
 
@@ -195,7 +293,7 @@ def test_run_cached_matchups_duplicate_names_attributed_by_spec(
     spec_win = MatchSpec(deck_a=('Cand', 'A'), deck_b=('Opp', 'B'), n=1, seed=1)
     spec_lose = MatchSpec(deck_a=('Cand', 'A'), deck_b=('Opp', 'B'), n=1, seed=2)
 
-    def fake_run_matchups(install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
+    def fake_run_matchups(engine: object, install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
         pairs: list[tuple[MatchSpec, MatchResult]] = []
         for spec in specs:
             wins_a = 1 if spec.seed == 1 else 0
@@ -222,14 +320,13 @@ def test_run_cached_matchups_duplicate_names_attributed_by_spec(
         )
 
     monkeypatch.setattr(core, 'run_matchups', fake_run_matchups)
-    monkeypatch.setattr(core, 'forge_version', lambda: 'test-forge')
 
-    outcomes = run_cached_matchups(_install_probe(), [spec_win, spec_lose], data_dir=str(data_dir))
+    outcomes = run_cached_matchups(_FakeEngine(), _engine_install(), [spec_win, spec_lose], data_dir=str(data_dir))
     assert (outcomes[0].wins, outcomes[0].losses) == (1, 0)
     assert (outcomes[1].wins, outcomes[1].losses) == (0, 1)
 
     # And the cache is keyed right: a re-run serves each seed its OWN tally.
-    second = run_cached_matchups(_install_probe(), [spec_win, spec_lose], data_dir=str(data_dir))
+    second = run_cached_matchups(_FakeEngine(), _engine_install(), [spec_win, spec_lose], data_dir=str(data_dir))
     assert second[0].cached and (second[0].wins, second[0].losses) == (1, 0)
     assert second[1].cached and (second[1].wins, second[1].losses) == (0, 1)
 
@@ -251,8 +348,7 @@ def _patch_gauntlet(monkeypatch: pytest.MonkeyPatch, opponents: list[tuple[str, 
 def test_simulate_aggregates_winrate_ci_and_profile(monkeypatch: pytest.MonkeyPatch, data_dir: Path) -> None:
     """simulate over 3 opponents (candidate sweeps) -> 100% win-rate + profile."""
     _patch_gauntlet(monkeypatch, [('Opp1', 'X'), ('Opp2', 'Y'), ('Opp3', 'Z')])
-    monkeypatch.setattr(core, 'run_matchups', lambda i, specs, **k: _pool_result_candidate_sweeps(specs))
-    monkeypatch.setattr(core, 'forge_version', lambda: 'test-forge')
+    monkeypatch.setattr(core, 'run_matchups', lambda e, i, specs, **k: _pool_result_candidate_sweeps(specs))
 
     result = simulate(
         _deck('Candidate'),
@@ -260,7 +356,7 @@ def test_simulate_aggregates_winrate_ci_and_profile(monkeypatch: pytest.MonkeyPa
         games=4,
         fmt='constructed',
         seed=7,
-        install=_install_probe(),
+        engine=_FakeEngine(),
         data_dir=str(data_dir),
     )
 
@@ -285,18 +381,17 @@ def test_simulate_second_run_hits_cache(monkeypatch: pytest.MonkeyPatch, data_di
     _patch_gauntlet(monkeypatch, [('Opp1', 'X'), ('Opp2', 'Y')])
     batches = {'n': 0}
 
-    def fake_run_matchups(install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
+    def fake_run_matchups(engine: object, install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
         batches['n'] += 1
         return _pool_result_candidate_sweeps(specs)
 
     monkeypatch.setattr(core, 'run_matchups', fake_run_matchups)
-    monkeypatch.setattr(core, 'forge_version', lambda: 'test-forge')
 
     kwargs = {
         'games': 3,
         'fmt': 'constructed',
         'seed': 1,
-        'install': _install_probe(),
+        'engine': _FakeEngine(),
         'data_dir': str(data_dir),
     }
     first = simulate(_deck('Cand'), 'curated', **kwargs)  # type: ignore[arg-type]
@@ -312,8 +407,7 @@ def test_simulate_second_run_hits_cache(monkeypatch: pytest.MonkeyPatch, data_di
 def test_simulate_accepts_name_dck_tuple(monkeypatch: pytest.MonkeyPatch, data_dir: Path) -> None:
     """The candidate may be a ``(name, dck_text)`` pair, not just a Deck."""
     _patch_gauntlet(monkeypatch, [('Opp1', 'X')])
-    monkeypatch.setattr(core, 'run_matchups', lambda i, specs, **k: _pool_result_candidate_sweeps(specs))
-    monkeypatch.setattr(core, 'forge_version', lambda: 'test-forge')
+    monkeypatch.setattr(core, 'run_matchups', lambda e, i, specs, **k: _pool_result_candidate_sweeps(specs))
 
     result = simulate(
         ('MyCand', 'Name MyCand\n[Main]\n17 Mountain\n'),
@@ -321,7 +415,7 @@ def test_simulate_accepts_name_dck_tuple(monkeypatch: pytest.MonkeyPatch, data_d
         games=2,
         fmt='constructed',
         seed=1,
-        install=_install_probe(),
+        engine=_FakeEngine(),
         data_dir=str(data_dir),
     )
     assert result.candidate == 'MyCand'
@@ -341,7 +435,7 @@ def test_compare_diffs_two_variants(monkeypatch: pytest.MonkeyPatch, data_dir: P
     """
     _patch_gauntlet(monkeypatch, [('Opp1', 'X'), ('Opp2', 'Y')])
 
-    def fake_run_matchups(install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
+    def fake_run_matchups(engine: object, install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
         # deck_a name tells us which variant is candidate: 'A' sweeps, 'B' loses.
         results: list[MatchResult] = []
         for spec in specs:
@@ -370,7 +464,6 @@ def test_compare_diffs_two_variants(monkeypatch: pytest.MonkeyPatch, data_dir: P
         )
 
     monkeypatch.setattr(core, 'run_matchups', fake_run_matchups)
-    monkeypatch.setattr(core, 'forge_version', lambda: 'test-forge')
 
     cmp = compare(
         ('A', 'Name A\n[Main]\n17 Mountain\n'),
@@ -379,7 +472,7 @@ def test_compare_diffs_two_variants(monkeypatch: pytest.MonkeyPatch, data_dir: P
         games=4,
         fmt='constructed',
         seed=1,
-        install=_install_probe(),
+        engine=_FakeEngine(),
         data_dir=str(data_dir),
     )
 

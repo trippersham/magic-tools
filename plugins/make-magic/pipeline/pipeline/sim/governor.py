@@ -41,9 +41,12 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from pipeline.sim.forge_runtime import ForgeInstall
-from pipeline.sim.runner import MatchResult, run_matchup
+from pipeline.sim.runner import MatchResult
+
+if TYPE_CHECKING:
+    from pipeline.sim.engine import EngineInstall, SimEngine
 
 __all__ = (
     'DEFAULT_HARD_CAP',
@@ -240,13 +243,14 @@ class Governor:
     #: (returns a partial result) instead of spinning forever.
     max_admission_backoffs: int = 240
 
-    def run(self, install: ForgeInstall, specs: list[MatchSpec]) -> PoolResult:
+    def run(self, engine: SimEngine, install: EngineInstall, specs: list[MatchSpec]) -> PoolResult:
         """Execute ``specs`` and return a :class:`PoolResult`.
 
         Derives the pool size (unless pinned), then admits work one spec at a
         time: each admission re-checks the RAM/disk floors (backing off while
         below), honors the ~5 s stagger, and hands the spec to a bounded
-        :class:`~concurrent.futures.ThreadPoolExecutor`. A per-worker
+        :class:`~concurrent.futures.ThreadPoolExecutor` that dispatches each spec
+        to ``engine.run_matchup`` with the resolved ``install``. A per-worker
         semaphore + the executor size together cap concurrent JVMs at
         ``pool_size``.
         """
@@ -284,13 +288,13 @@ class Governor:
                 in_flight += 1
                 max_concurrent = max(max_concurrent, in_flight)
             try:
-                result = run_matchup(
-                    install,
+                result = engine.run_matchup(
                     spec.deck_a,
                     spec.deck_b,
                     n=spec.n,
                     seed=spec.seed + self.seed_offset,
                     fmt=spec.fmt,
+                    install=install,
                 )
                 with lock:
                     results.append(result)
@@ -357,7 +361,8 @@ class Governor:
 
 
 def run_matchups(
-    install: ForgeInstall,
+    engine: SimEngine,
+    install: EngineInstall,
     specs: list[MatchSpec],
     *,
     pool_size: int | None = None,
@@ -372,10 +377,11 @@ def run_matchups(
 ) -> PoolResult:
     """Run ``specs`` across a bounded, resource-safe pool (convenience wrapper).
 
-    Constructs a :class:`Governor` with the given knobs and runs it. ``pool_size``
-    ``None`` derives the size at runtime; pinning it (e.g. the gated Forge test)
-    caps concurrency exactly. See :class:`Governor.run` for the admission and
-    concurrency guarantees.
+    Constructs a :class:`Governor` with the given knobs and runs it, dispatching
+    each spec to ``engine.run_matchup`` with the resolved ``install``.
+    ``pool_size`` ``None`` derives the size at runtime; pinning it (e.g. the gated
+    Forge test) caps concurrency exactly. See :class:`Governor.run` for the
+    admission and concurrency guarantees.
     """
     governor = Governor(
         pool_size=pool_size,
@@ -388,4 +394,4 @@ def run_matchups(
         disk_path=disk_path,
         max_admission_backoffs=max_admission_backoffs,
     )
-    return governor.run(install, specs)
+    return governor.run(engine, install, specs)

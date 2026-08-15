@@ -1,4 +1,4 @@
-"""TDD tests for the ``simulate`` CLI dispatcher.
+"""TDD tests for the ``simulate`` CLI dispatcher (Phase 7).
 
 Every verb that would spawn Forge is exercised with the sim CORE mocked
 (``core.simulate`` / ``core.compare`` / ``runner.run_matchup`` /
@@ -18,9 +18,11 @@ from pathlib import Path
 
 import pytest
 
+from pipeline.sim import forge_runtime
 from pipeline.sim import run as sim_run
 from pipeline.sim.core import Comparison, OpponentResult, SimResult, TelemetryProfile
-from pipeline.sim.forge_runtime import ForgeInstall, ForgeUnavailableError
+from pipeline.sim.engine import EngineInstall
+from pipeline.sim.forge_runtime import FORGE_VERSION, ForgeInstall, ForgeUnavailableError
 from pipeline.sim.runner import GameOutcome, MatchResult
 
 # --------------------------------------------------------------------------- #
@@ -77,14 +79,15 @@ def install() -> ForgeInstall:
 
 @pytest.fixture()
 def mock_resolve(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> ForgeInstall:
-    """Patch ``run.resolve`` AND ``run.ensure`` to return a dummy install.
+    """Patch the Forge runtime's ``resolve``/``ensure`` to return a dummy install.
 
-    Game verbs auto-provision via ``_ensure_forge`` -> ``ensure`` (fetch-on-miss);
-    ``doctor`` (read-only) uses ``resolve``. Patch both so no real fetch/locate
-    runs in the CLI suite.
+    The engine seam (``_ensure_forge`` -> ``ForgeEngine.resolve``) delegates to
+    :func:`pipeline.sim.forge_runtime.resolve` (read-only) / ``ensure``
+    (fetch-on-miss); patching those keeps the CLI suite off any real fetch/locate
+    while exercising the real engine wrapper.
     """
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: install)
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
     return install
 
 
@@ -138,6 +141,7 @@ def test_match_dispatches_run_matchup(
         n: int,
         seed: int,
         fmt: str = 'constructed',
+        timeout_s: int = 30,
     ) -> MatchResult:
         seen.update(deck_a=deck_a, deck_b=deck_b, n=n, seed=seed, fmt=fmt)
         return MatchResult(
@@ -150,7 +154,9 @@ def test_match_dispatches_run_matchup(
             raw_log='',
         )
 
-    monkeypatch.setattr(sim_run, 'run_matchup', _fake_run_matchup)
+    # `match` now calls the engine, which delegates to runner.run_matchup — patch
+    # the runner so the real ForgeEngine wrapper is exercised end-to-end.
+    monkeypatch.setattr('pipeline.sim.runner.run_matchup', _fake_run_matchup)
 
     sim_run.main(['match', str(dck_a), str(dck_b), '-n', '10', '-s', '99', '--format', 'commander'])
 
@@ -328,8 +334,7 @@ def test_doctor_available(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """doctor with a resolvable Forge prints version + pool size + paths, exit 0."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: install)
-    monkeypatch.setattr(sim_run, 'forge_version', lambda: '2.0.13')
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)
     monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
     monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
     monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
@@ -337,7 +342,7 @@ def test_doctor_available(
     sim_run.main(['doctor'])  # no SystemExit -> exit 0.
 
     out = capsys.readouterr().out
-    assert '2.0.13' in out
+    assert FORGE_VERSION in out  # engine install version (the pinned Forge version)
     assert '4' in out  # pool size.
     assert str(install.jar) in out
     assert str(install.java) in out
@@ -353,7 +358,7 @@ def test_doctor_unavailable_graceful(
     def _raise(**_: object) -> ForgeInstall:
         raise ForgeUnavailableError('No Forge install found. Set MAKE_MAGIC_FORGE_HOME ...')
 
-    monkeypatch.setattr(sim_run, 'resolve', _raise)
+    monkeypatch.setattr(forge_runtime, 'resolve', _raise)
     # Still report the runtime snapshot even when Forge is absent.
     monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
     monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
@@ -386,9 +391,8 @@ def test_doctor_provision_fetches_via_ensure(
         called['ensure'] = True
         return install
 
-    monkeypatch.setattr(sim_run, 'resolve', _resolve_raises)  # read-only path would fail…
-    monkeypatch.setattr(sim_run, 'ensure', _ensure)  # …but --provision fetches.
-    monkeypatch.setattr(sim_run, 'forge_version', lambda: '2.0.13')
+    monkeypatch.setattr(forge_runtime, 'resolve', _resolve_raises)  # read-only path would fail…
+    monkeypatch.setattr(forge_runtime, 'ensure', _ensure)  # …but --provision fetches (via the engine).
     monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
     monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
     monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
@@ -415,12 +419,13 @@ def test_match_auto_provisions_via_ensure(
     def _resolve_miss(**_: object) -> ForgeInstall:
         raise ForgeUnavailableError('no cached install')
 
-    # resolve() misses -> _ensure_forge falls through to ensure() (which provisions).
-    monkeypatch.setattr(sim_run, 'resolve', _resolve_miss)
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
+    # read-only resolve misses -> _ensure_forge falls through to the engine's
+    # provisioning resolve (forge_runtime.ensure).
+    monkeypatch.setattr(forge_runtime, 'resolve', _resolve_miss)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
 
     def _fake_run_matchup(inst: ForgeInstall, a: tuple[str, str], b: tuple[str, str], **_: object) -> MatchResult:
-        assert inst is install  # the ensure()-provided install is threaded through.
+        assert inst is install  # the provisioned install's handle is threaded through.
         return MatchResult(
             deck_a=a[0],
             deck_b=b[0],
@@ -431,7 +436,7 @@ def test_match_auto_provisions_via_ensure(
             raw_log='(elided)',
         )
 
-    monkeypatch.setattr(sim_run, 'run_matchup', _fake_run_matchup)
+    monkeypatch.setattr('pipeline.sim.runner.run_matchup', _fake_run_matchup)
 
     sim_run.main(['match', str(dck_a), str(dck_b), '-n', '1'])
 
@@ -440,31 +445,39 @@ def test_match_auto_provisions_via_ensure(
 
 
 # --------------------------------------------------------------------------- #
-# First-run ~350MB download consent gate
+# S2 — first-run ~350MB download consent gate
 # --------------------------------------------------------------------------- #
 
 
+def _miss(**_: object) -> ForgeInstall:
+    """A read-only ``forge_runtime.resolve`` that misses (raises ForgeUnavailableError)."""
+    raise ForgeUnavailableError('miss')
+
+
 def test_ensure_forge_returns_cached_without_prompt(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
-    """When Forge already resolves, no prompt and no fetch."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: install)
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: pytest.fail('must not fetch when cached'))
+    """When Forge already resolves, no prompt and no fetch — and the EngineInstall wraps it."""
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: pytest.fail('must not fetch when cached'))
     monkeypatch.setattr('builtins.input', lambda _p: pytest.fail('must not prompt when cached'))
-    assert sim_run._ensure_forge() is install
+    result = sim_run._ensure_forge()
+    assert isinstance(result, EngineInstall)
+    assert result.handle is install
+    assert result.version == FORGE_VERSION
 
 
 def test_ensure_forge_non_interactive_auto_proceeds(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
-    """Non-interactive stdin (agent/CI) fetches without prompting."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
+    """S2: non-interactive stdin (agent/CI) fetches WITHOUT prompting."""
+    monkeypatch.setattr(forge_runtime, 'resolve', _miss)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: False)
     monkeypatch.setattr('builtins.input', lambda _p: pytest.fail('non-interactive must not prompt'))
-    assert sim_run._ensure_forge() is install
+    assert sim_run._ensure_forge().handle is install
 
 
 def test_ensure_forge_tty_decline_aborts(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An interactive user answering 'n' aborts with a clean ForgeUnavailableError."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: pytest.fail('declined download must not fetch'))
+    """S2: an interactive user answering 'n' aborts with a clean ForgeUnavailableError."""
+    monkeypatch.setattr(forge_runtime, 'resolve', _miss)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: pytest.fail('declined download must not fetch'))
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
     monkeypatch.setattr('builtins.input', lambda _p: 'n')
     with pytest.raises(ForgeUnavailableError, match='declined'):
@@ -472,21 +485,21 @@ def test_ensure_forge_tty_decline_aborts(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_ensure_forge_tty_accept_fetches(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
-    """An interactive user answering 'y' proceeds with the fetch."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
+    """S2: an interactive user answering 'y' proceeds with the fetch."""
+    monkeypatch.setattr(forge_runtime, 'resolve', _miss)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
     monkeypatch.setattr('builtins.input', lambda _p: 'y')
-    assert sim_run._ensure_forge() is install
+    assert sim_run._ensure_forge().handle is install
 
 
 def test_ensure_forge_yes_flag_skips_prompt(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
-    """--yes fetches without prompting even on an interactive TTY."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
+    """S2: --yes fetches without prompting even on an interactive TTY."""
+    monkeypatch.setattr(forge_runtime, 'resolve', _miss)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
     monkeypatch.setattr('builtins.input', lambda _p: pytest.fail('--yes must not prompt'))
-    assert sim_run._ensure_forge(assume_yes=True) is install
+    assert sim_run._ensure_forge(assume_yes=True).handle is install
 
 
 # --------------------------------------------------------------------------- #

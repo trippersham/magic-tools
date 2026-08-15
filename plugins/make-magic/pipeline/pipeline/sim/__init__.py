@@ -23,6 +23,16 @@ from pipeline.sim.core import (
     simulate,
     wilson_ci,
 )
+from pipeline.sim.engine import (
+    EngineCapabilities,
+    EngineInstall,
+    EngineUnavailableError,
+    SimEngine,
+    available_engines,
+    get_engine,
+    register_engine,
+)
+from pipeline.sim.engines import ForgeEngine  # noqa: F401 — import registers the forge engine
 from pipeline.sim.forge_runtime import (
     ForgeInstall,
     ForgeUnavailableError,
@@ -55,6 +65,9 @@ from pipeline.sim.telemetry import (
 
 __all__ = (
     'Comparison',
+    'EngineCapabilities',
+    'EngineInstall',
+    'EngineUnavailableError',
     'ForgeError',
     'ForgeInstall',
     'ForgeUnavailableError',
@@ -68,15 +81,19 @@ __all__ = (
     'MatchSpec',
     'OpponentResult',
     'PoolResult',
+    'SimEngine',
     'SimResult',
     'TelemetryProfile',
+    'available_engines',
     'compare',
     'deck_to_dck',
     'derive_pool_size',
     'ensure',
     'extract_game_features',
     'extract_match_features',
+    'get_engine',
     'parse_match_log',
+    'register_engine',
     'resolve',
     'resolve_gauntlet',
     'run_cached_matchups',

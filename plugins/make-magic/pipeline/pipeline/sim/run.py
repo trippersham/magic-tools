@@ -1,9 +1,9 @@
 """Sim dispatcher: ``python -m pipeline.sim.run <verb> [args...]``.
 
-A plain ``sys.argv`` dispatcher routing ``argv[0]`` to a per-verb ``argparse``
-handler (``_verb(argv[1:])``), each building its own
-``ArgumentParser(prog='simulate <verb>')`` — no Typer, no new dep. This is the
-human-facing surface over the sim core
+Mirrors ``collection/run.py`` exactly: a plain ``sys.argv`` dispatcher routing
+``argv[0]`` to a per-verb ``argparse`` handler (``_verb(argv[1:])``), each
+building its own ``ArgumentParser(prog='simulate <verb>')`` — no Typer, no new
+dep. This is the human-facing surface over the Phase-6 sim core
 (:mod:`pipeline.sim.core`), gauntlet (:mod:`pipeline.sim.gauntlet`), runner
 (:mod:`pipeline.sim.runner`), Forge runtime (:mod:`pipeline.sim.forge_runtime`),
 and governor (:mod:`pipeline.sim.governor`).
@@ -12,7 +12,7 @@ Verbs:
   * ``match <A> <B>`` — one head-to-head via ``run_matchup`` (win tally).
   * ``deck <name>`` — ``simulate`` a candidate over a gauntlet (win-rate ± CI,
     per-opponent breakdown, telemetry profile).
-  * ``ab <A> <B>`` — ``compare`` two variants over the same gauntlet.
+  * ``ab <A> <B>`` — ``compare`` two variants over the SAME gauntlet.
   * ``gauntlet show [--source <curated|bundle>]`` — list a packaged gauntlet's
     decks (offline, no Forge); defaults to ``curated``.
   * ``log <A> <B> [--game N]`` — retrieve a stored per-game verbose Forge log for
@@ -21,16 +21,16 @@ Verbs:
     size + a free-RAM/disk snapshot; graceful whether or not Forge is present.
     ``--provision`` downloads + caches Forge on a miss (one-time ~350MB).
 
-``match`` / ``deck`` / ``ab`` auto-provision Forge on first use (fetch-at-runtime,
+``match`` / ``deck`` / ``ab`` AUTO-PROVISION Forge on first use (fetch-at-runtime,
 one-time notice), so a fresh box needs no manual install; ``doctor`` stays
 read-only unless ``--provision`` is passed.
 
 Deck references (``<A>`` / ``<B>`` / ``<name>``) resolve as a ``.dck`` file path
-(arg ends in ``.dck`` or is an existing file) or an Airtable deck name (via
+(arg ends in ``.dck`` or is an existing file) OR an Airtable deck name (via
 ``get_store().get_deck`` -> ``ForgeDckExporter``). Domain errors
 (``ForgeUnavailableError``, ``ForgeError``, ``CollectionError``, bad gauntlet
 source) surface as a clean one-line ``error:`` + non-zero exit — never a raw
-traceback.
+traceback (mirrors ``collection/run.py``'s handling).
 """
 
 from __future__ import annotations
@@ -47,21 +47,19 @@ from pipeline.sim.core import (
     Comparison,
     SimResult,
     compare,
-    forge_version,
     simulate,
 )
+from pipeline.sim.engine import EngineInstall, EngineUnavailableError, SimEngine, get_engine
 from pipeline.sim.forge_runtime import (
     ENV_FORGE_HOME,
     ENV_JAVA,
     FORGE_VERSION,
     ForgeInstall,
     ForgeUnavailableError,
-    ensure,
-    resolve,
 )
 from pipeline.sim.gauntlet import gauntlet_sources, resolve_gauntlet
 from pipeline.sim.governor import derive_pool_size, free_disk_gib, free_ram_gib
-from pipeline.sim.runner import ForgeError, MatchResult, run_matchup
+from pipeline.sim.runner import ForgeError, MatchResult
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -79,7 +77,7 @@ _FORMAT_CHOICES = ('constructed', 'commander')
 #: Gauntlet sources exposed on the CLI: the core sources + every named bundle
 #: shipped for any format (union), so ``--gauntlet <bundle>`` is accepted
 #: regardless of ``--format`` arg order. The (source, format) pairing is validated
-#: early by :func:`_validate_gauntlet` (before any Forge download) — a bundle only
+#: EARLY by :func:`_validate_gauntlet` (before any Forge download) — a bundle only
 #: shipped for constructed is rejected under ``--format commander`` up front.
 _GAUNTLET_CHOICES = tuple(dict.fromkeys(src for fmt in _FORMAT_CHOICES for src in gauntlet_sources(fmt)))
 #: ``--gauntlet`` help — names the core sources and the shipped bundles so
@@ -96,12 +94,13 @@ _YES_HELP = 'Auto-confirm the one-time ~350MB Forge download on first use (skip 
 
 
 def _validate_gauntlet(source: str, fmt: str) -> None:
-    """Reject a (gauntlet, format) mismatch up front, before Forge is provisioned.
+    """Reject a (gauntlet, format) mismatch UP FRONT, before Forge is provisioned.
 
     ``_GAUNTLET_CHOICES`` is the union across formats, so argparse alone would let
     e.g. ``--gauntlet guilds --format commander`` through and only fail deep inside
     :func:`~pipeline.sim.core.simulate` — after a possible ~350 MB Forge download.
-    Validate here so the error is immediate and actionable."""
+    Validate here so the error is immediate and actionable (mirrors
+    :func:`~pipeline.sim.gauntlet.resolve_gauntlet`'s own check)."""
     valid = gauntlet_sources(fmt)
     if source not in valid:
         raise CollectionError(
@@ -142,7 +141,7 @@ def _resolve_deck_arg(arg: str) -> _ResolvedDeck:
 
     A ``.dck`` path (arg ends in ``.dck`` or is an existing file) is read straight
     off disk — its stem is the deck name, ``deck`` is ``None``. Anything else is an
-    Airtable deck name: resolved via ``get_store().get_deck`` and rendered with the
+    Airtable deck NAME: resolved via ``get_store().get_deck`` and rendered with the
     Forge ``.dck`` exporter, keeping the hydrated ``Deck`` for validation. The
     single resolver both the deck-ref verbs (``match`` / ``deck`` / ``ab``) and the
     ``log`` verb route through.
@@ -164,25 +163,16 @@ def _resolve_deck_arg(arg: str) -> _ResolvedDeck:
 # --------------------------------------------------------------------------- #
 
 
-def _forge_fetch_notice() -> None:
-    """One-time 'downloading Forge' notice (stderr) so a first run isn't a silent hang."""
-    print(
-        f'Forge not found locally — downloading Forge {FORGE_VERSION} + a JRE '
-        '(~350MB, one-time; reused after). This may take a few minutes…',
-        file=sys.stderr,
-    )
-
-
 def _confirm_forge_download(*, assume_yes: bool) -> None:
     """Gate the ~350 MB first-run download on consent when stdin is a TTY.
 
     A stranger typing ``simulate deck …`` to explore should not silently pull
     ~350 MB on a possibly-metered connection. So on the fetch path:
 
-      * ``--yes`` (``assume_yes``) or a non-interactive stdin (agent / CI / pipe)
+      * ``--yes`` (``assume_yes``) or a NON-interactive stdin (agent / CI / pipe)
         proceeds without a prompt — the auto-provision promise is kept for
         automation.
-      * an interactive stdin (a TTY) is asked to confirm; a non-``y`` answer
+      * an INTERACTIVE stdin (a TTY) is asked to confirm; a non-``y`` answer
         aborts with a clean :class:`ForgeUnavailableError` naming the escape
         hatches (``--yes`` / ``doctor --provision``).
     """
@@ -200,24 +190,37 @@ def _confirm_forge_download(*, assume_yes: bool) -> None:
         )
 
 
-def _ensure_forge(*, assume_yes: bool = False) -> ForgeInstall:
-    """Resolve Forge for a game verb, auto-provisioning (fetch) on first use.
+def _forge_engine() -> SimEngine:
+    """The Forge :class:`~pipeline.sim.engine.SimEngine` (the only backend this phase).
 
-    Game verbs (``match`` / ``deck`` / ``ab``) call this instead of the read-only
-    :func:`~pipeline.sim.forge_runtime.resolve` so a fresh box provisions Forge
-    itself on the first run (the fetch-at-runtime promise), surfacing a
-    one-time notice before the download. When the fetch path is reached and stdin
-    is a TTY, the ~350 MB pull is gated on confirmation (:func:`_confirm_forge_download`)
-    unless ``--yes`` was passed; agent/CI (non-interactive stdin) proceed silently.
-    An impossible fetch (offline) still raises ``ForgeUnavailableError`` → the
-    ``main`` handler prints a clean error.
+    A ``--engine`` flag + registry-driven selection is a later task; for now Forge
+    is the implicit default, resolved from the registry the sim package populates
+    on import.
     """
+    return get_engine('forge')
+
+
+def _ensure_forge(*, assume_yes: bool = False) -> EngineInstall:
+    """Resolve the Forge engine for a game verb, AUTO-PROVISIONING on first use.
+
+    Game verbs (``match`` / ``deck`` / ``ab``) call this so a fresh box provisions
+    Forge itself on the first run (the fetch-at-runtime promise): the engine's
+    read-only :meth:`~pipeline.sim.engine.SimEngine.resolve` is tried first, and on
+    an :class:`~pipeline.sim.engine.EngineUnavailableError` the ~350 MB pull is
+    gated on confirmation (:func:`_confirm_forge_download`) when stdin is a TTY
+    (unless ``--yes``; agent/CI proceed silently) before a provisioning resolve,
+    which surfaces the one-time download notice. An impossible fetch (offline)
+    still raises ``EngineUnavailableError`` → the ``main`` handler prints a clean
+    error. Returns the :class:`~pipeline.sim.engine.EngineInstall` the engine's
+    ``run_matchup`` / ``simulate`` consume.
+    """
+    engine = _forge_engine()
     try:
-        return resolve()
-    except ForgeUnavailableError:
+        return engine.resolve(provision=False)
+    except EngineUnavailableError:
         pass
     _confirm_forge_download(assume_yes=assume_yes)
-    return ensure(on_fetch=_forge_fetch_notice)
+    return engine.resolve(provision=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -283,10 +286,10 @@ def _dck_card_names(dck_text: str) -> list[str]:
 
     Parses ``<qty> <name>`` lines under the card sections, skipping headers and
     metadata — so the availability guard can check exactly the names Forge will
-    try to load. The sideboard is included: a Forge-unloadable sideboard card
+    try to load. The sideboard IS included: a Forge-unloadable sideboard card
     would otherwise reach Forge unvalidated (the silent-drop class the guard
     exists to kill) via the ``.dck`` path, which the Airtable-hydrated path
-    already validates. Accepts real Forge ``.dck`` files, not just our exporter's
+    already validates. Accepts REAL Forge ``.dck`` files, not just our exporter's
     output: section headers are matched case-insensitively (Forge writes
     ``[main]``) and a pinned printing (``<name>|SET`` or ``<name>|SET|art``) is
     stripped to the bare name (the index knows names, not printings).
@@ -312,7 +315,7 @@ def _dck_card_names(dck_text: str) -> list[str]:
 def _deck_from_dck(name: str, dck_text: str) -> Deck:
     """Reconstruct a minimal :class:`Deck` from rendered ``.dck`` text (for a path arg).
 
-    Only the card names are recoverable from a raw ``.dck`` (no ``oracle_id``s), so
+    Only the card NAMES are recoverable from a raw ``.dck`` (no ``oracle_id``s), so
     every card is name-only — that is exactly why the guard suppresses the
     resulting ``UNRESOLVED`` warnings for path decks and acts only on the
     (real) ``ABSENT_FROM_TARGET`` findings.
@@ -327,17 +330,17 @@ def _guard_forge_availability(
     *,
     allow_missing: bool,
 ) -> None:
-    """Fail before spawning a JVM if a deck references a card Forge cannot load.
+    """Fail BEFORE spawning a JVM if a deck references a card Forge cannot load.
 
-    Routes through the destination's own validation — ``ForgeDckExporter.validate``
+    Routes through the DESTINATION's own validation — ``ForgeDckExporter.validate``
     backed by a :class:`~pipeline.sim.forge_card_index.ForgeCardIndex` — so the
-    card-availability classification lives in one place (the forge_dck card
+    card-availability classification lives in ONE place (the forge_dck card
     exporter), not re-implemented here. For an Airtable deck the hydrated
     :class:`Deck` is validated directly; for a ``.dck`` path it is reconstructed
-    from the rendered names (:func:`_deck_from_dck`). A card absent from Forge's DB
-    is a blocking :class:`DeckExportError` (naming the offenders) — unless
+    from the rendered names (:func:`_deck_from_dck`). A card ABSENT from Forge's DB
+    is a BLOCKING :class:`DeckExportError` (naming the offenders) — unless
     ``allow_missing``, which downgrades it to a stderr warning. ``UNRESOLVED``
-    (name-only) cards are surfaced as warnings only for store-resolved decks (a raw
+    (name-only) cards are surfaced as warnings ONLY for store-resolved decks (a raw
     ``.dck`` legitimately carries no ``oracle_id``s). If the index can't be built
     (a minimal install without ``cardsfolder.zip``), the guard is skipped — Forge's
     own loader remains the backstop.
@@ -384,9 +387,12 @@ def _match(argv: list[str]) -> None:
 
     deck_a = _resolve_deck_arg(args.deck_a)
     deck_b = _resolve_deck_arg(args.deck_b)
+    engine = _forge_engine()
     install = _ensure_forge(assume_yes=args.yes)
-    _guard_forge_availability(install, [deck_a, deck_b], allow_missing=args.allow_missing)
-    result: MatchResult = run_matchup(install, deck_a.ref, deck_b.ref, n=args.n, seed=args.seed, fmt=args.fmt)
+    _guard_forge_availability(install.handle, [deck_a, deck_b], allow_missing=args.allow_missing)
+    result: MatchResult = engine.run_matchup(
+        deck_a.ref, deck_b.ref, n=args.n, seed=args.seed, fmt=args.fmt, install=install
+    )
     print(f'{deck_a.name} vs {deck_b.name}  ({args.fmt}, n={args.n}, seed={args.seed})')
     print(f'{deck_a.name}: {result.wins_a} wins   {deck_b.name}: {result.wins_b} wins   draws: {result.draws}')
 
@@ -417,15 +423,16 @@ def _deck(argv: list[str]) -> None:
     candidate = _resolve_deck_arg(args.name)
     # `mine`/`both` need the collection store; `curated` never touches it.
     store = get_store() if args.gauntlet in ('mine', 'both') else None
+    engine = _forge_engine()
     install = _ensure_forge(assume_yes=args.yes)
-    _guard_forge_availability(install, [candidate], allow_missing=args.allow_missing)
+    _guard_forge_availability(install.handle, [candidate], allow_missing=args.allow_missing)
     result = simulate(
         candidate.ref,
         args.gauntlet,
         games=args.games,
         fmt=args.fmt,
         seed=args.seed,
-        install=install,
+        engine=engine,
         force=args.force,
         store=store,
     )
@@ -459,8 +466,9 @@ def _ab(argv: list[str]) -> None:
     variant_a = _resolve_deck_arg(args.deck_a)
     variant_b = _resolve_deck_arg(args.deck_b)
     store = get_store() if args.gauntlet in ('mine', 'both') else None
+    engine = _forge_engine()
     install = _ensure_forge(assume_yes=args.yes)
-    _guard_forge_availability(install, [variant_a, variant_b], allow_missing=args.allow_missing)
+    _guard_forge_availability(install.handle, [variant_a, variant_b], allow_missing=args.allow_missing)
     comparison: Comparison = compare(
         variant_a.ref,
         variant_b.ref,
@@ -468,7 +476,7 @@ def _ab(argv: list[str]) -> None:
         games=args.games,
         fmt=args.fmt,
         seed=args.seed,
-        install=install,
+        engine=engine,
         force=args.force,
         store=store,
     )
@@ -511,7 +519,7 @@ def _gauntlet(argv: list[str]) -> None:
         '(they need a live store). Default curated.',
     )
     args = parser.parse_args(argv)
-    # `show` lists packaged opponents only (no store, no Forge, no network), so
+    # `show` lists PACKAGED opponents only (no store, no Forge, no network), so
     # `mine`/`both` (which need a live store) are rejected here.
     if args.source in ('mine', 'both'):
         raise CollectionError(f'`gauntlet show` lists packaged decks only; {args.source!r} needs a live store.')
@@ -527,7 +535,7 @@ def _doctor(argv: list[str]) -> None:
     Always prints the runtime-derived safe pool size + a free-RAM/disk snapshot
     (these need no Forge). Then attempts :func:`resolve`; on success prints the
     resolved paths + Forge version and exits 0. On :class:`ForgeUnavailableError`
-    it prints an actionable "not available / how to enable" message and exits
+    it prints an ACTIONABLE "not available / how to enable" message and exits
     non-zero — never a traceback.
     """
     parser = argparse.ArgumentParser(
@@ -550,12 +558,13 @@ def _doctor(argv: list[str]) -> None:
     print(f'  free RAM:  {ram:.1f} GiB')
     print(f'  free disk: {disk:.1f} GiB')
 
+    engine = _forge_engine()
     try:
         # `--provision` fetches on a miss (the one-time download); otherwise the
-        # check is read-only (`resolve`), so `doctor` never surprises with a pull.
-        install: ForgeInstall = _ensure_forge() if args.provision else resolve()
-    except ForgeUnavailableError as exc:
-        # Graceful: name why + how to enable, exit non-zero, no traceback.
+        # check is read-only, so `doctor` never surprises with a pull.
+        install: EngineInstall = _ensure_forge() if args.provision else engine.resolve(provision=False)
+    except EngineUnavailableError as exc:
+        # Graceful: name WHY + HOW to enable, exit non-zero, no traceback.
         print('  forge: NOT AVAILABLE')
         print(f'    {exc}')
         print(
@@ -566,11 +575,12 @@ def _doctor(argv: list[str]) -> None:
         )
         raise SystemExit(1) from exc
 
+    forge: ForgeInstall = install.handle
     print('  forge: available' + ('  (provisioned)' if args.provision else ''))
-    print(f'    version:   {forge_version()}')
-    print(f'    forge dir: {install.forge_dir}')
-    print(f'    jar:       {install.jar}')
-    print(f'    java:      {install.java}')
+    print(f'    version:   {install.version}')
+    print(f'    forge dir: {forge.forge_dir}')
+    print(f'    jar:       {forge.jar}')
+    print(f'    java:      {forge.java}')
 
 
 def _log(argv: list[str]) -> None:
@@ -579,12 +589,12 @@ def _log(argv: list[str]) -> None:
     Reads the retained logs straight from DuckDB, keyed by the content hash of the
     deck ``.dck`` text. Without ``--game`` it lists the matching matchups (and,
     when a single matchup matches, its per-game index + outcome); with ``--game N``
-    it prints that one game's full log. Re-running is not an option — Forge's seed
+    it prints that one game's full log. Re-running is NOT an option — Forge's seed
     is not reproducible — so this reads what was captured at run time.
 
-    Offline vs live, by deck arg: a ``.dck`` path is read off disk (fully offline,
+    Offline vs live, by deck arg: a ``.dck`` PATH is read off disk (fully offline,
     and the exact text that was simulated). A bareword is treated as an Airtable
-    name and resolved via a live store lookup to the deck's current text — so if
+    NAME and resolved via a LIVE store lookup to the deck's CURRENT text — so if
     the deck was edited since the run, its hash no longer matches and the logs
     won't be found. For reliable forensics prefer the ``.dck`` path that was
     simulated.
@@ -665,7 +675,7 @@ def _print_matchup_rows(rows: list[MatchupRow]) -> None:
     """One line per matchup (key prefix / seed / games / format / version / record / when).
 
     The 8-char ``matchup_key`` prefix is the last-resort disambiguator: two runs
-    of the same pair differing only by Forge version share seed/games/format, so
+    of the same pair differing ONLY by Forge version share seed/games/format, so
     the key prefix (and ``--forge``) are what tell them apart.
     """
     for r in rows:
@@ -709,7 +719,7 @@ def main(argv: list[str] | None = None) -> None:
     No verb or an unknown verb -> usage on stderr + ``SystemExit(2)``. Expected,
     user-facing failures (Forge unavailable/failed, unknown deck, bad gauntlet
     source, missing creds) surface as a clean one-line ``error:`` + exit 1 — a
-    genuine defect still tracebacks. ``SystemExit``
+    genuine defect still tracebacks (mirrors ``collection/run.py``). ``SystemExit``
     (argparse, the doctor guard) passes through untouched.
     """
     args = list(sys.argv[1:] if argv is None else argv)
@@ -722,7 +732,14 @@ def main(argv: list[str] | None = None) -> None:
     verb = args[0]
     try:
         VERBS[verb](args[1:])
-    except (ForgeUnavailableError, ForgeError, CollectionError, FileNotFoundError, ValueError) as exc:
+    except (
+        EngineUnavailableError,
+        ForgeUnavailableError,
+        ForgeError,
+        CollectionError,
+        FileNotFoundError,
+        ValueError,
+    ) as exc:
         print(f'error: {exc}', file=sys.stderr)
         raise SystemExit(1) from exc
 

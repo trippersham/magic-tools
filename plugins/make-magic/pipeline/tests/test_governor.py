@@ -14,11 +14,13 @@ from __future__ import annotations
 import os
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from pipeline.sim import governor as gov
+from pipeline.sim.engine import EngineInstall, get_engine
 from pipeline.sim.forge_runtime import ENV_FORGE_HOME, ENV_JAVA, ForgeInstall, resolve
 from pipeline.sim.governor import (
     MatchSpec,
@@ -40,6 +42,55 @@ def _spec(seed: int, *, n: int = 1) -> MatchSpec:
         n=n,
         seed=seed,
     )
+
+
+#: A sentinel EngineInstall the mock engine hands to its inner run-matchup mock —
+#: the governor now dispatches through ``engine.run_matchup(install=...)``.
+_INSTALL = EngineInstall(version='test-forge', handle=object())
+
+
+class _MockEngine:
+    """A :class:`~pipeline.sim.engine.SimEngine` that forwards to a plain callable.
+
+    The governor's offline tests mock the per-matchup Forge call with a
+    concurrency tracker / seed echo / flaky fn whose signature mirrors the old
+    ``runner.run_matchup`` (``(install, deck_a, deck_b, *, n, seed, fmt, timeout_s)``).
+    Since the governor now calls ``engine.run_matchup``, this thin adapter lets
+    those unchanged mocks drive the engine seam — proving the governor dispatches
+    through the engine while preserving each test's recording intent.
+    """
+
+    name = 'mock'
+
+    def __init__(self, fn: Callable[..., MatchResult]) -> None:
+        self._fn = fn
+
+    def capabilities(self):  # pragma: no cover - unused by the governor path
+        raise NotImplementedError
+
+    def resolve(self, *, provision: bool, data_dir: object = None):  # pragma: no cover - unused
+        raise NotImplementedError
+
+    def run_matchup(
+        self,
+        deck_a: tuple[str, str],
+        deck_b: tuple[str, str],
+        *,
+        n: int,
+        seed: int,
+        fmt: str,
+        install: EngineInstall,
+        timeout_s: int | None = None,
+    ) -> MatchResult:
+        return self._fn(install, deck_a, deck_b, n=n, seed=seed, fmt=fmt)
+
+    def replay(self, matchup_key: str, game_idx: int) -> str:  # pragma: no cover - unused
+        raise NotImplementedError
+
+
+def _run(fn: Callable[..., MatchResult], specs: list[MatchSpec], **kw: object) -> PoolResult:
+    """Run ``specs`` through the governor with a mock engine wrapping ``fn``."""
+    return run_matchups(_MockEngine(fn), _INSTALL, specs, **kw)  # type: ignore[arg-type]
 
 
 # --------------------------------------------------------------------------- #
@@ -127,14 +178,13 @@ class _ConcurrencyTracker:
         )
 
 
-def test_governor_never_exceeds_pool_size(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_governor_never_exceeds_pool_size() -> None:
     tracker = _ConcurrencyTracker(hold_s=0.05)
-    monkeypatch.setattr(gov, 'run_matchup', tracker)
 
     specs = [_spec(1000 + i) for i in range(12)]
-    result = run_matchups(
-        install=None,  # type: ignore[arg-type]  # unused by the mock
-        specs=specs,
+    result = _run(
+        tracker,
+        specs,
         pool_size=3,
         stagger_s=0.0,  # no stagger delay in the unit test
     )
@@ -147,19 +197,18 @@ def test_governor_never_exceeds_pool_size(monkeypatch: pytest.MonkeyPatch) -> No
     assert not result.failures
 
 
-def test_governor_returns_all_results_and_derived_pool(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_governor_returns_all_results_and_derived_pool() -> None:
     tracker = _ConcurrencyTracker(hold_s=0.0)
-    monkeypatch.setattr(gov, 'run_matchup', tracker)
 
     specs = [_spec(2000 + i) for i in range(5)]
     # pool_size omitted -> derived from live resources; must be a sane int.
-    result = run_matchups(install=None, specs=specs, stagger_s=0.0)  # type: ignore[arg-type]
+    result = _run(tracker, specs, stagger_s=0.0)
     assert result.pool_size >= 1
     assert len(result.results) == 5
     assert sorted(r.deck_a for r in result.results) == ['RedTest'] * 5
 
 
-def test_governor_pairs_every_result_to_its_spec(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_governor_pairs_every_result_to_its_spec() -> None:
     """``PoolResult.pairs`` binds each result to the EXACT spec that produced it.
 
     Deck NAMES are not unique across specs (e.g. a `both` gauntlet where a user
@@ -188,11 +237,9 @@ def test_governor_pairs_every_result_to_its_spec(monkeypatch: pytest.MonkeyPatch
             raw_log='',
         )
 
-    monkeypatch.setattr(gov, 'run_matchup', echo_seed)
-
     # Identical names/text across all specs — ONLY the seed distinguishes them.
     specs = [_spec(3000 + i) for i in range(4)]
-    result = run_matchups(install=None, specs=specs, pool_size=2, stagger_s=0.0)  # type: ignore[arg-type]
+    result = _run(echo_seed, specs, pool_size=2, stagger_s=0.0)
 
     assert len(result.pairs) == 4
     for spec, match in result.pairs:
@@ -204,7 +251,7 @@ def test_governor_pairs_every_result_to_its_spec(monkeypatch: pytest.MonkeyPatch
 # --------------------------------------------------------------------------- #
 
 
-def test_governor_records_failures_without_crashing(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_governor_records_failures_without_crashing() -> None:
     def flaky(install, deck_a, deck_b, *, n, seed, fmt='constructed', timeout_s=30):
         if seed % 2 == 0:
             raise ForgeError(f'boom seed={seed}')
@@ -218,9 +265,8 @@ def test_governor_records_failures_without_crashing(monkeypatch: pytest.MonkeyPa
             raw_log='',
         )
 
-    monkeypatch.setattr(gov, 'run_matchup', flaky)
     specs = [_spec(seed) for seed in (10, 11, 12, 13)]  # 10,12 fail; 11,13 pass
-    result = run_matchups(install=None, specs=specs, pool_size=2, stagger_s=0.0)  # type: ignore[arg-type]
+    result = _run(flaky, specs, pool_size=2, stagger_s=0.0)
 
     assert len(result.results) == 2
     assert len(result.failures) == 2
@@ -239,7 +285,6 @@ def test_admission_waits_when_below_ram_floor(monkeypatch: pytest.MonkeyPatch) -
     check sees RAM recovered and admits. Proves the governor re-checks per spawn
     and does not spawn while starved."""
     tracker = _ConcurrencyTracker(hold_s=0.0)
-    monkeypatch.setattr(gov, 'run_matchup', tracker)
 
     # RAM readings: first two below floor (back off), then ample forever.
     readings = iter([1.0, 1.0])
@@ -250,9 +295,9 @@ def test_admission_waits_when_below_ram_floor(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(gov.time, 'sleep', lambda s: sleeps.append(s))
 
     specs = [_spec(3000 + i) for i in range(2)]
-    result = run_matchups(
-        install=None,  # type: ignore[arg-type]
-        specs=specs,
+    result = _run(
+        tracker,
+        specs,
         pool_size=2,
         ram_floor_gib=2.0,
         disk_floor_gib=1.0,
@@ -269,15 +314,14 @@ def test_admission_aborts_when_disk_floor_breached_persistently(
     """Persistent below-floor disk -> stop admitting and return a partial result
     with an aborted status rather than spinning forever."""
     tracker = _ConcurrencyTracker(hold_s=0.0)
-    monkeypatch.setattr(gov, 'run_matchup', tracker)
     monkeypatch.setattr(gov, 'free_ram_gib', lambda: 64.0)
     monkeypatch.setattr(gov, 'free_disk_gib', lambda _p=None: 0.1)  # always below floor
     monkeypatch.setattr(gov.time, 'sleep', lambda _s: None)
 
     specs = [_spec(4000 + i) for i in range(3)]
-    result = run_matchups(
-        install=None,  # type: ignore[arg-type]
-        specs=specs,
+    result = _run(
+        tracker,
+        specs,
         pool_size=2,
         disk_floor_gib=1.0,
         stagger_s=0.0,
@@ -295,7 +339,6 @@ def test_admission_aborts_when_disk_floor_breached_persistently(
 
 def test_stagger_is_honored_between_spawns(monkeypatch: pytest.MonkeyPatch) -> None:
     tracker = _ConcurrencyTracker(hold_s=0.0)
-    monkeypatch.setattr(gov, 'run_matchup', tracker)
     monkeypatch.setattr(gov, 'free_ram_gib', lambda: 64.0)
     monkeypatch.setattr(gov, 'free_disk_gib', lambda _p=None: 500.0)
 
@@ -303,7 +346,7 @@ def test_stagger_is_honored_between_spawns(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(gov.time, 'sleep', lambda s: sleeps.append(s))
 
     specs = [_spec(5000 + i) for i in range(3)]
-    run_matchups(install=None, specs=specs, pool_size=3, stagger_s=5.0)  # type: ignore[arg-type]
+    _run(tracker, specs, pool_size=3, stagger_s=5.0)
 
     # At least the two admissions after the first waited ~5 s each.
     stagger_sleeps = [s for s in sleeps if s == pytest.approx(5.0)]
@@ -345,7 +388,9 @@ def test_run_small_real_batch_bounded_concurrency() -> None:
     if gov.free_disk_gib() < 2.0:
         pytest.skip(f'free disk {gov.free_disk_gib():.1f} GiB < 2 GiB; skipping the real batch')
 
-    install: ForgeInstall = resolve()
+    forge: ForgeInstall = resolve()
+    engine = get_engine('forge')
+    install = EngineInstall(version='forge', handle=forge)
     profile_decks = Path.home() / 'Library' / 'Application Support' / 'Forge' / 'decks' / 'constructed'
     text_a = (profile_decks / 'RedTest.dck').read_text()
     text_b = (profile_decks / 'WhiteTest.dck').read_text()
@@ -353,6 +398,7 @@ def test_run_small_real_batch_bounded_concurrency() -> None:
     specs = [MatchSpec(deck_a=('RedTest', text_a), deck_b=('WhiteTest', text_b), n=1, seed=42 + i) for i in range(4)]
 
     result = run_matchups(
+        engine,
         install,
         specs,
         pool_size=2,  # HARD CAP — never raise this in the gated test.
