@@ -160,3 +160,34 @@ def test_colliding_stems_are_disambiguated(tmp_path: Path, monkeypatch: pytest.M
     cdir = decks_root / 'constructed'
     staged = sorted(p.name for p in cdir.glob('*.dck'))
     assert len(staged) == 2  # two distinct files, no overwrite
+
+
+# --------------------------------------------------------------------------- #
+# existence guard (Task 1.6c / adversary M1): a broken install (wheel that
+# dropped the harness jar) must fail LOUDLY with an actionable error BEFORE the
+# JVM is launched — never into the silent 0-0-0 table.
+# --------------------------------------------------------------------------- #
+
+
+def test_missing_harness_jar_fails_loudly_without_spawning_jvm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from pipeline.sim.runner import ForgeError
+
+    # Point _HARNESS_JAR at a path that does not exist (a jar-less install).
+    missing = tmp_path / 'nope' / 'make-magic-forge-simai.jar'
+    assert not missing.exists()
+    monkeypatch.setattr(runner_mod, '_HARNESS_JAR', missing)
+
+    # If the guard fails to fire, this raises AssertionError instead of ForgeError.
+    def _no_spawn(*args: object, **kwargs: object) -> object:
+        raise AssertionError('JVM must NOT be spawned when the harness jar is missing')
+
+    monkeypatch.setattr(runner_mod.subprocess, 'Popen', _no_spawn)
+    monkeypatch.setattr(ForgeInstall, 'decks_dir', property(lambda self: tmp_path / 'decks'))
+
+    install = ForgeInstall(forge_dir=tmp_path, jar=tmp_path / 'forge.jar', java=tmp_path / 'java')
+    with pytest.raises(ForgeError) as excinfo:
+        run_matchup(install, ('A', '[Main]\n1 Lightning Bolt\n'), ('B', '[Main]\n1 Grizzly Bears\n'), n=1, seed=1)
+
+    msg = str(excinfo.value)
+    assert 'make-magic-forge-simai.jar' in msg  # names the missing jar
+    assert 'build.sh' in msg  # tells the user how to rebuild it

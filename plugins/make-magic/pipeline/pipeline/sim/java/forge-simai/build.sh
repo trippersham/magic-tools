@@ -2,7 +2,7 @@
 #
 # Reproducibly build the make-magic Forge sim-AI harness jar.
 #
-# Produces dist/make-magic-forge-simai.jar containing BOTH:
+# Produces make-magic-forge-simai.jar (alongside this script) containing BOTH:
 #   - org.makemagic.simai.SimAIMatch            (the harness; Main-Class)
 #   - forge.game.staticability.StaticAbilityContinuous  (the NPE-guard shadow)
 #
@@ -84,8 +84,12 @@ echo "java home: ${JAVA_HOME:-<unset>}"
 echo "javac    : $JAVAC"
 echo "forge jar: $FORGE_JAR"
 
-rm -rf build dist
-mkdir -p build dist
+# Intermediate `.class` files go under build/ (gitignored); the final jar lands
+# alongside this script (make-magic-forge-simai.jar) so it tracks NORMALLY and is
+# NOT swept up by the repo-root `**/dist/` ignore (Task 1.6c relocated it here).
+JAR_OUT="make-magic-forge-simai.jar"
+rm -rf build "$JAR_OUT"
+mkdir -p build
 
 # Collect all sources (harness + shadow patch).
 SOURCES=()
@@ -95,7 +99,7 @@ printf '  %s\n' "${SOURCES[@]}"
 
 "$JAVAC" --release 17 -cp "$FORGE_JAR" -d build "${SOURCES[@]}"
 
-"$JAR_BIN" cfe dist/make-magic-forge-simai.jar org.makemagic.simai.SimAIMatch -C build .
+"$JAR_BIN" cfe "$JAR_OUT" org.makemagic.simai.SimAIMatch -C build .
 
-echo "built    : dist/make-magic-forge-simai.jar"
-"$JAR_BIN" tf dist/make-magic-forge-simai.jar | grep -E 'SimAIMatch|StaticAbilityContinuous' || true
+echo "built    : $JAR_OUT"
+"$JAR_BIN" tf "$JAR_OUT" | grep -E 'SimAIMatch|StaticAbilityContinuous' || true

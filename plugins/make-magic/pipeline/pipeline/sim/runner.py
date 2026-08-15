@@ -52,9 +52,11 @@ __all__ = (
 
 #: The committed sim-AI harness jar (shipped package data), resolved off this
 #: module's location — the SAME path the 1.5 presence guard uses
-#: (``pipeline/sim/java/forge-simai/dist/…``). It MUST precede the Forge jar on
-#: the classpath so its ``StaticAbilityContinuous`` shadow wins the class-load.
-_HARNESS_JAR = Path(__file__).parent / 'java' / 'forge-simai' / 'dist' / 'make-magic-forge-simai.jar'
+#: (``pipeline/sim/java/forge-simai/make-magic-forge-simai.jar``). It MUST precede
+#: the Forge jar on the classpath so its ``StaticAbilityContinuous`` shadow wins
+#: the class-load. Task 1.6c relocated it OUT of ``dist/`` (which the repo-root
+#: ``**/dist/`` ignore was excluding from the wheel) so it ships normally.
+_HARNESS_JAR = Path(__file__).parent / 'java' / 'forge-simai' / 'make-magic-forge-simai.jar'
 #: The harness Main-Class (launched via ``-cp`` so the classpath ordering holds;
 #: ``-jar`` would ignore the ``-cp`` and thus lose the shadow-first ordering).
 _HARNESS_MAIN_CLASS = 'org.makemagic.simai.SimAIMatch'
@@ -339,6 +341,18 @@ def run_matchup(
     # anyway); the seed lives in the matchup_key for cache identity / per-opponent
     # offset only. `-d` takes ABSOLUTE staged paths (the harness reads the file
     # directly rather than resolving a profile stem like the stock `sim` verb did).
+    # Fail LOUDLY (not into the silent 0-0-0 table) if the shipped harness jar is
+    # missing — a broken install (wheel that dropped the jar) would otherwise launch
+    # the JVM against a phantom classpath entry, hit `Could not find or load main
+    # class`, and zero out to a spurious ForgeError with no actionable cause (M1).
+    if not _HARNESS_JAR.is_file():
+        raise ForgeError(
+            f'sim-AI harness jar not found: {_HARNESS_JAR}\n'
+            'The Forge sim engine cannot run without it. If this is an installed '
+            'package the wheel is broken (the jar was not shipped); reinstall a '
+            'complete build. To rebuild it from source run:\n'
+            '  pipeline/sim/java/forge-simai/build.sh'
+        )
     classpath = os.pathsep.join((str(_HARNESS_JAR), str(install.jar)))
     cmd = [
         *_launch_prefix(),

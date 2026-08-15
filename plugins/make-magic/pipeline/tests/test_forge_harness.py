@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pipeline.sim
 
-_JAR = Path(pipeline.sim.__file__).parent / 'java' / 'forge-simai' / 'dist' / 'make-magic-forge-simai.jar'
+_JAR = Path(pipeline.sim.__file__).parent / 'java' / 'forge-simai' / 'make-magic-forge-simai.jar'
 
 _HARNESS_CLASS = 'org/makemagic/simai/SimAIMatch.class'
 _SHADOW_CLASS = 'forge/game/staticability/StaticAbilityContinuous.class'

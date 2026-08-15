@@ -48,6 +48,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pipeline"]
+# Belt-and-suspenders (Task 1.6c / adversary M1): explicitly ship the committed
+# Forge sim-AI harness jar so wheel inclusion never depends on git-tracking alone
+# (a jar-less install launches the JVM against a missing classpath entry and fails
+# into a silent 0-0-0 table — the runner also guards its existence at runtime).
+[tool.hatch.build.targets.wheel.force-include]
+"pipeline/sim/java/forge-simai/make-magic-forge-simai.jar" = "pipeline/sim/java/forge-simai/make-magic-forge-simai.jar"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

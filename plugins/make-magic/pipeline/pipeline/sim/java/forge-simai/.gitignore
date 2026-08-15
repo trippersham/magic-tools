@@ -1,7 +1,7 @@
-# Intermediate compiled classes.
+# Intermediate compiled classes (build.sh output dir).
 build/
 
-# NOTE: the built jar lives in dist/, which the repo-root .gitignore ('**/dist/')
-# excludes. It ships as package data, so it is force-tracked (`git add -f`) — once
-# tracked, gitignore no longer applies to it. Task 1.6c finalizes packaging (hatch
-# artifacts) and may relocate the jar out of dist/ to avoid the force-add.
+# NOTE: the built jar (make-magic-forge-simai.jar) now lives alongside this
+# script — OUT of dist/, so the repo-root `**/dist/` ignore no longer applies and
+# it is tracked NORMALLY (no `git add -f` hack). Task 1.6c relocated it here and
+# added a hatch force-include so wheel inclusion no longer relies on git-tracking.
