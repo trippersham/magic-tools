@@ -74,6 +74,13 @@ _DEFAULT_GAMES = 4
 _DEFAULT_SEED = 42
 #: Format choices exposed on the CLI.
 _FORMAT_CHOICES = ('constructed', 'commander')
+#: Minimum total card count (sum of quantities, basics included) a deck must have
+#: to be a VALID sim in each format. A below-floor deck (e.g. an empty ``[Main]``
+#: from a decklist that failed to render) is a STRUCTURAL error the availability
+#: guard rejects before the JVM — Forge would otherwise happily play a 0-card deck
+#: to a plausible-looking 0-10-0 (R3-1). ``constructed`` uses the 40-card
+#: minimum-deck rule; ``commander`` the 100-card singleton rule.
+_FORMAT_SIZE_FLOOR = {'constructed': 40, 'commander': 100}
 #: Gauntlet sources exposed on the CLI: the core sources + every named bundle
 #: shipped for any format (union), so ``--gauntlet <bundle>`` is accepted
 #: regardless of ``--format`` arg order. The (source, format) pairing is validated
@@ -354,6 +361,44 @@ def _dck_card_names(dck_text: str) -> list[str]:
     return names
 
 
+def _dck_total_cards(dck_text: str) -> int:
+    """Sum the quantities of every card in a rendered ``.dck`` ([Main]+[Commander]+[Sideboard]).
+
+    Mirrors :func:`_dck_card_names`'s section walk but SUMS the ``<qty>`` prefixes
+    (a name-only reconstruction would collapse ``40 Mountain`` to one card and
+    defeat the size floor). Case-insensitive headers + pinned-printing tolerant,
+    for the same reasons documented on :func:`_dck_card_names`.
+    """
+    total = 0
+    in_cards = False
+    for line in dck_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith('['):
+            in_cards = stripped.lower() in ('[main]', '[commander]', '[sideboard]')
+            continue
+        if not in_cards:
+            continue
+        qty, _, name = stripped.partition(' ')
+        name = name.split('|', 1)[0].strip()
+        if qty.isdigit() and name:
+            total += int(qty)
+    return total
+
+
+def _total_cards(resolved: _ResolvedDeck) -> int:
+    """Total cards (summed quantities) in a resolved deck, for the size floor.
+
+    A store-hydrated deck sums its :attr:`DeckCard.quantity` values; a ``.dck``
+    path is counted from its rendered text (:func:`_dck_total_cards`), since the
+    name-only reconstruction loses per-card quantities.
+    """
+    if resolved.deck is not None:
+        return sum(card.quantity for card in resolved.deck.cards)
+    return _dck_total_cards(resolved.text)
+
+
 def _deck_from_dck(name: str, dck_text: str) -> Deck:
     """Reconstruct a minimal :class:`Deck` from rendered ``.dck`` text (for a path arg).
 
@@ -366,28 +411,65 @@ def _deck_from_dck(name: str, dck_text: str) -> Deck:
     return Deck(name=name, cards=cards)
 
 
+def _guard_deck_size(decks: list[_ResolvedDeck], fmt: str) -> None:
+    """Reject a hollow / below-minimum deck BEFORE the JVM (R3-1, structural).
+
+    An empty ``[Main]`` (a decklist that failed to render) references no absent
+    cards, so the availability guard passes it — and Forge then plays it to a
+    plausible-looking 0-10-0. That is never a valid sim, so a deck whose total card
+    count (summed quantities, basics included) is below the format floor
+    (:data:`_FORMAT_SIZE_FLOOR`: constructed 40, commander 100) is a BLOCKING
+    :class:`DeckExportError` naming the deficiency. This is a STRUCTURAL error: it
+    is NOT downgraded by ``--allow-missing`` (that flag only softens card
+    AVAILABILITY) and needs no card DB, so it is checked independently of whether
+    the availability index can be built.
+    """
+    floor = _FORMAT_SIZE_FLOOR.get(fmt, _FORMAT_SIZE_FLOOR['constructed'])
+    for resolved in decks:
+        total = _total_cards(resolved)
+        if total < floor:
+            # A plain ValueError (not a card-level DeckExportError, which carries a
+            # ValidationReport): this is a WHOLE-DECK structural defect, not a set of
+            # unusable cards. The CLI's top-level handler catches ValueError → a clean
+            # `error:` line + non-zero exit, never a traceback.
+            raise ValueError(
+                f'deck {resolved.name!r} has {total} card(s); {fmt} requires >= {floor} '
+                '— did the decklist fail to render (empty/near-empty deck)?'
+            )
+
+
 def _guard_forge_availability(
     install: ForgeInstall,
     decks: list[_ResolvedDeck],
     *,
     allow_missing: bool,
+    fmt: str = 'constructed',
 ) -> None:
-    """Fail BEFORE spawning a JVM if a deck references a card Forge cannot load.
+    """Fail BEFORE spawning a JVM if a deck is hollow or references an unloadable card.
 
-    Routes through the DESTINATION's own validation — ``ForgeDckExporter.validate``
-    backed by a :class:`~pipeline.sim.forge_card_index.ForgeCardIndex` — so the
-    card-availability classification lives in ONE place (the forge_dck card
-    exporter), not re-implemented here. For an Airtable deck the hydrated
-    :class:`Deck` is validated directly; for a ``.dck`` path it is reconstructed
-    from the rendered names (:func:`_deck_from_dck`). A card ABSENT from Forge's DB
-    is a BLOCKING :class:`DeckExportError` (naming the offenders) — unless
-    ``allow_missing``, which downgrades it to a stderr warning. ``UNRESOLVED``
-    (name-only) cards are surfaced as warnings ONLY for store-resolved decks (a raw
-    ``.dck`` legitimately carries no ``oracle_id``s). If the index can't be built
-    (a minimal install without ``cardsfolder.zip``), the guard is skipped — Forge's
-    own loader remains the backstop.
+    Two independent pre-JVM checks:
+
+    * A DECK-SIZE FLOOR (:func:`_guard_deck_size`) rejects a below-minimum deck for
+      ``fmt`` (constructed >= 40, commander >= 100) — a STRUCTURAL error that
+      ``--allow-missing`` does NOT bypass and that runs even when the card index
+      can't be built (R3-1). Checked FIRST.
+    * Card AVAILABILITY routes through the DESTINATION's own validation —
+      ``ForgeDckExporter.validate`` backed by a
+      :class:`~pipeline.sim.forge_card_index.ForgeCardIndex` — so the classification
+      lives in ONE place (the forge_dck card exporter), not re-implemented here. For
+      an Airtable deck the hydrated :class:`Deck` is validated directly; for a
+      ``.dck`` path it is reconstructed from the rendered names
+      (:func:`_deck_from_dck`). A card ABSENT from Forge's DB is a BLOCKING
+      :class:`DeckExportError` (naming the offenders) — unless ``allow_missing``,
+      which downgrades it to a stderr warning. ``UNRESOLVED`` (name-only) cards are
+      surfaced as warnings ONLY for store-resolved decks (a raw ``.dck`` legitimately
+      carries no ``oracle_id``s). If the index can't be built (a minimal install
+      without ``cardsfolder.zip``), the AVAILABILITY check is skipped — Forge's own
+      loader remains the backstop — but the size floor above still applies.
     """
     from pipeline.sim.forge_card_index import ForgeCardIndex
+
+    _guard_deck_size(decks, fmt)
 
     try:
         index = ForgeCardIndex.from_install(install)
@@ -431,7 +513,7 @@ def _match(argv: list[str]) -> None:
     deck_b = _resolve_deck_arg(args.deck_b)
     engine = _forge_engine()
     install = _ensure_forge(assume_yes=args.yes)
-    _guard_forge_availability(install.handle, [deck_a, deck_b], allow_missing=args.allow_missing)
+    _guard_forge_availability(install.handle, [deck_a, deck_b], allow_missing=args.allow_missing, fmt=args.fmt)
     result: MatchResult = engine.run_matchup(
         deck_a.ref, deck_b.ref, n=args.n, seed=args.seed, fmt=args.fmt, install=install
     )
@@ -467,7 +549,7 @@ def _deck(argv: list[str]) -> None:
     store = get_store() if args.gauntlet in ('mine', 'both') else None
     engine = _forge_engine()
     install = _ensure_forge(assume_yes=args.yes)
-    _guard_forge_availability(install.handle, [candidate], allow_missing=args.allow_missing)
+    _guard_forge_availability(install.handle, [candidate], allow_missing=args.allow_missing, fmt=args.fmt)
     result = simulate(
         candidate.ref,
         args.gauntlet,
@@ -514,7 +596,7 @@ def _ab(argv: list[str]) -> None:
     store = get_store() if args.gauntlet in ('mine', 'both') else None
     engine = _forge_engine()
     install = _ensure_forge(assume_yes=args.yes)
-    _guard_forge_availability(install.handle, [variant_a, variant_b], allow_missing=args.allow_missing)
+    _guard_forge_availability(install.handle, [variant_a, variant_b], allow_missing=args.allow_missing, fmt=args.fmt)
     comparison: Comparison = compare(
         variant_a.ref,
         variant_b.ref,
@@ -697,7 +779,15 @@ def _log(argv: list[str]) -> None:
 
     logs = get_game_logs(rows[0].matchup_key, game_index=args.game)
     if not logs:
-        raise CollectionError(f'no log for game {args.game} (matchup has {rows[0].n_games} game(s), 0-based)')
+        # Only DECISIVE games have retained logs — clockout games are discarded at
+        # store time (store.py), so ``n_games`` (the TOTAL) overstates what's
+        # retrievable. Report the STORED count so the valid index range is honest.
+        stored = len(get_game_logs(rows[0].matchup_key))
+        raise CollectionError(
+            f'no log for game {args.game} '
+            f'({stored} retrievable game log(s) stored for this matchup, 0-based; '
+            f'{rows[0].n_games} game(s) ran — clockout/non-decisive game logs are not retained)'
+        )
     print(logs[0])
 
 
@@ -720,7 +810,11 @@ def _print_matchup_index(
     print(f'  record: {row.wins_a}-{row.wins_b}-{row.draws}   ran: {row.created_at}')
     cached = get_cached(row.matchup_key)
     features = cached.features if cached is not None else []
-    print('  games (pass --game <index> for the full log):')
+    # Only DECISIVE games have RETAINED logs (clockout logs are discarded at store
+    # time), so the retrievable count — ``len(features)`` — is what ``--game N``
+    # can address, NOT ``n_games`` (the total that RAN). Name it so a forensic
+    # index into a run with clockouts doesn't invite out-of-range indices.
+    print(f'  {len(features)} of {row.n_games} game(s) retrievable (clockout/non-decisive logs not retained):')
     for i, feat in enumerate(features):
         kt = '-' if feat.kill_turn is None else feat.kill_turn
         wc = feat.wincon or '-'

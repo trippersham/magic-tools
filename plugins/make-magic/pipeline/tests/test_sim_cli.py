@@ -25,6 +25,14 @@ from pipeline.sim.engine import EngineInstall
 from pipeline.sim.forge_runtime import FORGE_VERSION, ForgeInstall, ForgeUnavailableError
 from pipeline.sim.runner import GameOutcome, MatchResult
 
+# A minimal but FLOOR-VALID deck body (>= 40 cards, all basics so they're always
+# Forge-loadable) — used by the dispatch tests that mock the engine but still pass
+# through the pre-JVM guard, whose R3-1 size floor rejects a below-minimum deck.
+_VALID_CONSTRUCTED = '[Main]\n40 Mountain\n'
+#: A floor-valid commander body (>= 100 cards).
+_VALID_COMMANDER = '[Main]\n100 Mountain\n'
+
+
 # --------------------------------------------------------------------------- #
 # Fixtures / builders.
 # --------------------------------------------------------------------------- #
@@ -137,8 +145,9 @@ def test_match_dispatches_run_matchup(
     """``match`` parses -n/-s/--format and calls run_matchup with a win tally."""
     dck_a = tmp_path / 'A.dck'
     dck_b = tmp_path / 'B.dck'
-    dck_a.write_text('[metadata]\nName=A\n')
-    dck_b.write_text('[metadata]\nName=B\n')
+    # commander invocation below → >= 100-card floor-valid bodies.
+    dck_a.write_text('[metadata]\nName=A\n' + _VALID_COMMANDER)
+    dck_b.write_text('[metadata]\nName=B\n' + _VALID_COMMANDER)
 
     seen: dict[str, object] = {}
 
@@ -189,7 +198,8 @@ def test_deck_dispatches_simulate(
 ) -> None:
     """``deck`` parses --gauntlet/--games/--format/--force and calls simulate."""
     dck = tmp_path / 'MyDeck.dck'
-    dck.write_text('[metadata]\nName=MyDeck\n')
+    # commander invocation below → >= 100-card floor-valid body.
+    dck.write_text('[metadata]\nName=MyDeck\n' + _VALID_COMMANDER)
 
     seen: dict[str, object] = {}
 
@@ -218,7 +228,7 @@ def test_deck_gauntlet_defaults(
 ) -> None:
     """Default gauntlet is curated, default force is False."""
     dck = tmp_path / 'D.dck'
-    dck.write_text('x')
+    dck.write_text(_VALID_CONSTRUCTED)
     seen: dict[str, object] = {}
 
     def _fake_simulate(deck: object, gauntlet_source: str, **kwargs: object) -> SimResult:
@@ -240,7 +250,7 @@ def test_deck_surfaces_matchup_failures_on_stderr(
     """A FAILED matchup prints a distinct failure line to stderr (B2) — NOT a
     silent 0-0-0 row indistinguishable from 'lost every game'."""
     dck = tmp_path / 'D.dck'
-    dck.write_text('x')
+    dck.write_text(_VALID_CONSTRUCTED)
 
     def _fake_simulate(deck: object, gauntlet_source: str, **kwargs: object) -> SimResult:
         return _sim_result(failures=(('BorosStrong', 'Forge could not load a deck'),))
@@ -264,7 +274,7 @@ def test_deck_surfaces_aborted_run_on_stderr(
 ) -> None:
     """A partial (aborted) run prints a prominent notice to stderr (B2)."""
     dck = tmp_path / 'D.dck'
-    dck.write_text('x')
+    dck.write_text(_VALID_CONSTRUCTED)
     monkeypatch.setattr(sim_run, 'simulate', lambda *a, **k: _sim_result(aborted=True))
     with pytest.raises(SystemExit) as exc:
         sim_run.main(['deck', str(dck)])
@@ -288,7 +298,7 @@ def test_deck_all_matchups_failed_exits_nonzero(
     """A run where EVERY matchup failed (zero usable games) exits non-zero so a
     cron/agent consumer can't read success on a dead run (R2-3)."""
     dck = tmp_path / 'D.dck'
-    dck.write_text('x')
+    dck.write_text(_VALID_CONSTRUCTED)
     monkeypatch.setattr(
         sim_run,
         'simulate',
@@ -309,7 +319,7 @@ def test_deck_legit_zero_winrate_with_real_games_exits_zero(
     """A legitimate 0% win-rate WITH real games played (lost every game) is NOT a
     failure — it exits 0. Only a run with no usable games is a failure (R2-3)."""
     dck = tmp_path / 'D.dck'
-    dck.write_text('x')
+    dck.write_text(_VALID_CONSTRUCTED)
     # total_games > 0, no failures, no abort -> a real (losing) run.
     monkeypatch.setattr(sim_run, 'simulate', lambda *a, **k: _sim_result(total_games=4))
     sim_run.main(['deck', str(dck)])  # no SystemExit -> exit 0.
@@ -323,7 +333,7 @@ def test_deck_aborted_run_exits_nonzero(
     """An aborted run (even with some games) exits non-zero — results are partial
     and a consumer must not treat them as a clean success (R2-3)."""
     dck = tmp_path / 'D.dck'
-    dck.write_text('x')
+    dck.write_text(_VALID_CONSTRUCTED)
     monkeypatch.setattr(sim_run, 'simulate', lambda *a, **k: _sim_result(total_games=4, aborted=True))
     with pytest.raises(SystemExit) as exc:
         sim_run.main(['deck', str(dck)])
@@ -339,8 +349,8 @@ def test_ab_all_failed_side_exits_nonzero(
     """``ab`` exits non-zero when EITHER side produced zero usable games (R2-3)."""
     a = tmp_path / 'A.dck'
     b = tmp_path / 'B.dck'
-    a.write_text('a')
-    b.write_text('b')
+    a.write_text(_VALID_CONSTRUCTED)
+    b.write_text(_VALID_CONSTRUCTED)
 
     def _fake_compare(variant_a: object, variant_b: object, gauntlet_source: str, **kwargs: object) -> Comparison:
         return Comparison(
@@ -365,8 +375,8 @@ def test_ab_both_sides_have_games_exits_zero(
     """``ab`` with real games on both sides exits 0 even at a lopsided win-rate."""
     a = tmp_path / 'A.dck'
     b = tmp_path / 'B.dck'
-    a.write_text('a')
-    b.write_text('b')
+    a.write_text(_VALID_CONSTRUCTED)
+    b.write_text(_VALID_CONSTRUCTED)
 
     def _fake_compare(variant_a: object, variant_b: object, gauntlet_source: str, **kwargs: object) -> Comparison:
         return Comparison(
@@ -395,8 +405,8 @@ def test_ab_dispatches_compare(
     """``ab`` calls compare with both variants + parsed args."""
     a = tmp_path / 'A.dck'
     b = tmp_path / 'B.dck'
-    a.write_text('a')
-    b.write_text('b')
+    a.write_text(_VALID_CONSTRUCTED)
+    b.write_text(_VALID_CONSTRUCTED)
 
     seen: dict[str, object] = {}
 
@@ -870,6 +880,95 @@ def test_log_game_index_out_of_range_errors(
         sim_run.main(['log', str(a), str(b), '--game', '5'])  # only games 0,1 exist
     assert exc.value.code == 1
     assert 'no log for game 5' in capsys.readouterr().err
+
+
+def _seed_matchup_with_clockout(data_root: Path, dck_a_text: str, dck_b_text: str, *, seed: int) -> str:
+    """Store a 2-game run where ONE game clocked out (its log is NOT retained).
+
+    ``n_games`` (total that ran) is 2 but only the ONE decisive game has a stored
+    feature row + retained log — mirrors store.py discarding clockout logs. Used to
+    prove the ``log`` index UX reports the RETRIEVABLE count, not the total (R3-3).
+    """
+    from pipeline.sim import store as sim_store
+    from pipeline.sim.runner import GameOutcome, MatchResult
+    from pipeline.sim.telemetry import GameFeatures
+
+    key = sim_store.matchup_key(
+        dck_a_text, dck_b_text, seed=seed, n_games=2, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
+    meta = sim_store.MatchupMeta(
+        deck_a_hash=sim_store.deck_hash(dck_a_text),
+        deck_b_hash=sim_store.deck_hash(dck_b_text),
+        seed=seed,
+        n_games=2,
+        format='constructed',
+        engine='forge',
+        engine_version='2.0.13',
+    )
+    # Game 1 clocks out (marker present) → non-decisive, no retained log; game 2 decides.
+    log = '\n'.join(
+        [
+            'Simulation mode',
+            'Stopping slow match as draw',
+            'Game Result: Game 1 ended in 90000 ms. Ai(1)-A has won!',
+            'Turn: Turn 1 (Ai(1)-A)  [game 2 marker]',
+            'Game Result: Game 2 ended in 2000 ms. Ai(1)-A has won!',
+        ]
+    )
+    result = MatchResult(
+        deck_a='A',
+        deck_b='B',
+        wins_a=1,
+        wins_b=0,
+        draws=1,
+        per_game=(GameOutcome(winner='draw', elapsed_ms=90000), GameOutcome(winner='a', elapsed_ms=2000)),
+        raw_log=log,
+    )
+    # ONE feature row (the decisive game) — 1:1 with the ONE retained (non-clockout) log.
+    feats = [
+        GameFeatures(
+            winner='a',
+            kill_turn=5,
+            win_margin_life=10,
+            wincon='combat',
+            mulligans_a=0,
+            mulligans_b=0,
+            game_length_ms=2000,
+            lands_by_turn_a=[],
+            lands_by_turn_b=[],
+        )
+    ]
+    sim_store.store_matchup(key, meta, result, feats)
+    return key
+
+
+def test_log_index_reports_retrievable_not_total_count(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The index header + out-of-range error reflect the STORED (retrievable) game
+    count, not the TOTAL that ran — clockout logs are discarded, so ``n_games``
+    overstates what ``--game N`` can address (R3-3)."""
+    from pipeline import store
+
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(tmp_path / 'data'))
+    a, b = tmp_path / 'A.dck', tmp_path / 'B.dck'
+    a.write_text('Name=A\n[Main]\n4 Forest\n')
+    b.write_text('Name=B\n[Main]\n4 Plains\n')
+    _seed_matchup_with_clockout(tmp_path, a.read_text(), b.read_text(), seed=42)
+
+    # Index header: 1 of 2 retrievable (one game clocked out).
+    sim_run.main(['log', str(a), str(b)])
+    out = capsys.readouterr().out
+    assert '1 of 2 game(s) retrievable' in out
+
+    # Out-of-range --game 1 (only index 0 is retrievable) names the STORED count.
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['log', str(a), str(b), '--game', '1'])
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'no log for game 1' in err
+    assert '1 retrievable game log(s)' in err
+    assert '2 game(s) ran' in err  # the total is still surfaced for context
 
 
 def test_log_forge_filter_disambiguates(

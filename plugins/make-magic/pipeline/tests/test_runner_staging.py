@@ -1,9 +1,13 @@
-"""OFFLINE test that ``run_matchup`` stages decks under filesystem-safe stems (0.3).
+"""OFFLINE test that ``run_matchup`` stages decks in ISOLATION (R3-2).
 
 Forge is never launched: ``subprocess.Popen`` is mocked to return a one-game log,
-and ``decks_dir`` is redirected to a tmp dir. The assertion is that a deck named
-with ``/`` and ``:`` writes real files (not a spurious sub-directory) and still
-parses its winner (slot-keyed, so the spaced/slashed name is fine).
+and ``runner._staging_root`` is redirected to a tmp dir. The assertions:
+
+  * the ``-d`` paths are ABSOLUTE, ISOLATED (under the staged root, NOT the real
+    Forge profile decks dir), and CONTENT-ADDRESSED;
+  * two decks whose names sanitize to the SAME stem but carry DIFFERENT text do
+    NOT collide (distinct staged paths);
+  * the staged files are cleaned up after the run.
 """
 
 from __future__ import annotations
@@ -45,15 +49,21 @@ class _CapturingProc(_Proc):
         type(self).last_cmd = list(cmd)
 
 
+def _isolate_staging(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Redirect the runner's staging root to a tmp dir; return it."""
+    staging_root = tmp_path / 'staging'
+    monkeypatch.setattr(runner_mod, '_staging_root', lambda: staging_root)
+    return staging_root
+
+
 def _capture_cmd(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     *,
     fmt: str = 'constructed',
 ) -> tuple[list[str], Path]:
-    """Run a mocked matchup and return ``(argv, decks_root)``."""
-    decks_root = tmp_path / 'decks'
-    monkeypatch.setattr(ForgeInstall, 'decks_dir', property(lambda self: decks_root))
+    """Run a mocked matchup and return ``(argv, staging_root)``."""
+    staging_root = _isolate_staging(tmp_path, monkeypatch)
     monkeypatch.setattr(runner_mod.subprocess, 'Popen', _CapturingProc)
     _CapturingProc.last_cmd = []
     install = ForgeInstall(forge_dir=tmp_path, jar=tmp_path / 'forge.jar', java=tmp_path / 'java')
@@ -68,7 +78,7 @@ def _capture_cmd(
         fmt=fmt,
         timeout_s=25,
     )
-    return _CapturingProc.last_cmd, decks_root
+    return _CapturingProc.last_cmd, staging_root
 
 
 # --------------------------------------------------------------------------- #
@@ -95,15 +105,19 @@ def test_runner_launches_harness_via_classpath(tmp_path: Path, monkeypatch: pyte
     assert cmd[cmd.index('-cp') + 2] == runner_mod._HARNESS_MAIN_CLASS
 
 
-def test_runner_passes_decks_n_clock_and_sim_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cmd, decks_root = _capture_cmd(tmp_path, monkeypatch)
+def test_runner_passes_isolated_absolute_deck_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cmd, staging_root = _capture_cmd(tmp_path, monkeypatch)
 
-    # The harness reads `-d` as a filesystem path, so ABSOLUTE staged paths (not
-    # bare profile stems) are passed — pointing at the two files it wrote.
+    # The harness reads `-d` as a filesystem path, so ABSOLUTE staged paths are
+    # passed — pointing at the two files it wrote, UNDER the isolated staging root
+    # (never the real Forge profile decks dir).
     d = cmd.index('-d')
-    cdir = decks_root / 'constructed'
-    assert cmd[d + 1] == str(cdir / 'A.dck') and cmd[d + 2] == str(cdir / 'B.dck'), cmd
-    assert Path(cmd[d + 1]).is_absolute() and Path(cmd[d + 1]).is_file()
+    path_a, path_b = Path(cmd[d + 1]), Path(cmd[d + 2])
+    assert path_a.is_absolute() and path_b.is_absolute(), cmd
+    assert staging_root in path_a.parents and staging_root in path_b.parents, cmd
+    # Content-addressed filenames (a 16-hex sha256 prefix + .dck), NOT the deck name.
+    assert path_a.suffix == '.dck' and len(path_a.stem) == 16
+    assert 'A.dck' not in cmd and 'B.dck' not in cmd  # human name never becomes the filename
     assert cmd[cmd.index('-n') + 1] == '1'  # n threaded through
     assert cmd[cmd.index('-c') + 1] == '25'  # timeout_s becomes Forge's -c draw clock
     assert cmd[cmd.index('-sim') + 1] == '1'  # sim AI ON
@@ -127,9 +141,8 @@ def test_runner_commander_passes_format_flag(tmp_path: Path, monkeypatch: pytest
     assert cmd[f + 1] == 'commander', cmd
 
 
-def test_run_matchup_stages_under_sanitized_stem(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    decks_root = tmp_path / 'decks'
-    monkeypatch.setattr(ForgeInstall, 'decks_dir', property(lambda self: decks_root))
+def test_run_matchup_stages_under_isolated_root_and_cleans_up(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    staging_root = _isolate_staging(tmp_path, monkeypatch)
     monkeypatch.setattr(runner_mod.subprocess, 'Popen', _Proc)
 
     install = ForgeInstall(forge_dir=tmp_path, jar=tmp_path / 'forge.jar', java=tmp_path / 'java')
@@ -141,25 +154,55 @@ def test_run_matchup_stages_under_sanitized_stem(tmp_path: Path, monkeypatch: py
         seed=1,
     )
 
-    cdir = decks_root / 'constructed'
-    assert (cdir / 'U_R Izzet.dck').is_file()  # '/' sanitized, real file
-    assert (cdir / 'Foe_ Two.dck').is_file()  # ':' sanitized
-    assert not (cdir / 'U').exists()  # the '/' did NOT create a subdir (the bug)
     assert result.wins_a == 1  # slot-1 winner parsed despite the slashed/spaced name
+    # Nothing was written under the real Forge profile (we staged under the tmp root).
+    assert not (Path.home() / 'Library' / 'Application Support' / 'Forge' / 'decks' / 'U').exists()
+    # Best-effort cleanup removed the per-run dir (no staged .dck lingers).
+    assert list(staging_root.rglob('*.dck')) == []
 
 
-def test_colliding_stems_are_disambiguated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    decks_root = tmp_path / 'decks'
-    monkeypatch.setattr(ForgeInstall, 'decks_dir', property(lambda self: decks_root))
-    monkeypatch.setattr(runner_mod.subprocess, 'Popen', _Proc)
+def test_colliding_stems_do_not_collide(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    staging_root = _isolate_staging(tmp_path, monkeypatch)
 
+    staged_paths: list[str] = []
+
+    class _RecordingProc(_Proc):
+        def __init__(self, cmd: list[str], *args: object, **kwargs: object) -> None:
+            super().__init__(cmd, *args, **kwargs)
+            d = cmd.index('-d')
+            staged_paths.extend([cmd[d + 1], cmd[d + 2]])
+
+    monkeypatch.setattr(runner_mod.subprocess, 'Popen', _RecordingProc)
     install = ForgeInstall(forge_dir=tmp_path, jar=tmp_path / 'forge.jar', java=tmp_path / 'java')
-    # 'A/B' and 'A:B' both sanitize to 'A_B' — distinct texts must not clobber.
+    # 'A/B' and 'A:B' both sanitize to 'A_B' — distinct texts must map to distinct,
+    # content-addressed staged paths (never the same file).
     run_matchup(install, ('A/B', '[Main]\n1 Lightning Bolt\n'), ('A:B', '[Main]\n1 Grizzly Bears\n'), n=1, seed=1)
 
-    cdir = decks_root / 'constructed'
-    staged = sorted(p.name for p in cdir.glob('*.dck'))
-    assert len(staged) == 2  # two distinct files, no overwrite
+    assert len(staged_paths) == 2
+    assert staged_paths[0] != staged_paths[1], f'distinct decks collided: {staged_paths}'
+    for p in staged_paths:
+        assert staging_root in Path(p).parents
+
+
+def test_identical_decks_share_one_staged_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A mirror match (identical text both sides) content-addresses to the SAME
+    file — harmless (same bytes), and Forge reads the same path for both slots."""
+    _isolate_staging(tmp_path, monkeypatch)
+
+    staged_paths: list[str] = []
+
+    class _RecordingProc(_Proc):
+        def __init__(self, cmd: list[str], *args: object, **kwargs: object) -> None:
+            super().__init__(cmd, *args, **kwargs)
+            d = cmd.index('-d')
+            staged_paths.extend([cmd[d + 1], cmd[d + 2]])
+
+    monkeypatch.setattr(runner_mod.subprocess, 'Popen', _RecordingProc)
+    install = ForgeInstall(forge_dir=tmp_path, jar=tmp_path / 'forge.jar', java=tmp_path / 'java')
+    same = '[Main]\n1 Lightning Bolt\n'
+    run_matchup(install, ('Mirror A', same), ('Mirror B', same), n=1, seed=1)
+
+    assert staged_paths[0] == staged_paths[1]  # same content -> same content-addressed path
 
 
 # --------------------------------------------------------------------------- #
@@ -176,13 +219,13 @@ def test_missing_harness_jar_fails_loudly_without_spawning_jvm(tmp_path: Path, m
     missing = tmp_path / 'nope' / 'make-magic-forge-simai.jar'
     assert not missing.exists()
     monkeypatch.setattr(runner_mod, '_HARNESS_JAR', missing)
+    _isolate_staging(tmp_path, monkeypatch)
 
     # If the guard fails to fire, this raises AssertionError instead of ForgeError.
     def _no_spawn(*args: object, **kwargs: object) -> object:
         raise AssertionError('JVM must NOT be spawned when the harness jar is missing')
 
     monkeypatch.setattr(runner_mod.subprocess, 'Popen', _no_spawn)
-    monkeypatch.setattr(ForgeInstall, 'decks_dir', property(lambda self: tmp_path / 'decks'))
 
     install = ForgeInstall(forge_dir=tmp_path, jar=tmp_path / 'forge.jar', java=tmp_path / 'java')
     with pytest.raises(ForgeError) as excinfo:

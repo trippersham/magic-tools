@@ -28,17 +28,20 @@ verbose log is captured whole in ``MatchResult.raw_log`` for a later phase.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import os
-import re
 import shutil
 import signal
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from pipeline.contracts import Deck
-from pipeline.destinations.deck_export import get_exporter, safe_deck_stem
+from pipeline.destinations.deck_export import get_exporter
+from pipeline.sim._log_patterns import DRAW_RESULT_RE, RESULT_RE, WINNER_RE
 from pipeline.sim.forge_runtime import ForgeInstall
+from pipeline.store.paths import StorePaths
 
 __all__ = (
     'ForgeError',
@@ -61,18 +64,14 @@ _HARNESS_JAR = Path(__file__).parent / 'java' / 'forge-simai' / 'make-magic-forg
 #: ``-jar`` would ignore the ``-cp`` and thus lose the shadow-first ordering).
 _HARNESS_MAIN_CLASS = 'org.makemagic.simai.SimAIMatch'
 
-#: The ONLY line the tally counts: ``Game Result: Game N ended in <ms> ms. <tail>``.
-_RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in (\d+) ms\. (.+)$')
-#: A GENUINE draw terminator emitted by the harness (``SimAIMatch.java:219``):
-#: ``Game Result: Game N ended in a Draw! Took <ms> ms.`` — a real (non-clockout)
-#: draw. This is ALSO a game terminator (counts toward ``result.games``), so it
-#: must be recognised here or the match zeros to a spurious ``ForgeError`` (M4).
-_DRAW_RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in a Draw! Took (\d+) ms\.$')
-#: Winner tail: ``Ai(<slot>)-<name> has won!`` — slot 1 = deck_a, 2 = deck_b.
-#: The name is matched non-greedily (``.+?``, NOT ``\S+``) so deck names with
-#: spaces/parens (e.g. a real Airtable deck ``UR Izzet (Chaos Sealed)``) parse —
-#: only the SLOT drives attribution, so the name span is irrelevant otherwise.
-_WINNER_RE = re.compile(r'Ai\((\d)\)-.+? has won!')
+#: The game-terminator + winner regex triplet is SHARED with
+#: :mod:`pipeline.sim.telemetry` via :mod:`pipeline.sim._log_patterns` (one
+#: definition, imported by both) so the tally and the telemetry segmentation can
+#: never silently desync (R2-1 / R3-3). The module-local ``_``-prefixed aliases
+#: keep the parse body below unchanged.
+_RESULT_RE = RESULT_RE
+_DRAW_RESULT_RE = DRAW_RESULT_RE
+_WINNER_RE = WINNER_RE
 #: exit-0 deck-load failures. Presence -> ForgeError regardless of exit code.
 _LOAD_FAILURE_MARKERS = ('Could not load deck', 'No deck found in')
 #: CLOCKOUT marker (``SimAIMatch.java:199``): a game that hit Forge's in-game draw
@@ -290,6 +289,37 @@ def _kill_process_group(proc: subprocess.Popen[str]) -> None:
     proc.communicate()
 
 
+def _staging_root() -> Path:
+    """The isolated root under which each run's ``.dck`` files are staged.
+
+    Lives UNDER the data dir (``<data_dir>/sim/staging/``, honoring
+    ``MAKE_MAGIC_DATA_DIR``) so staged decks never touch the real per-platform
+    Forge profile dir (``~/Library/Application Support/Forge/decks/``) — the
+    isolation leak R3-2 closes. Falls back to the OS temp dir if the data-dir
+    lookup fails for any reason (staging must never be the thing that breaks a run).
+    """
+    try:
+        return StorePaths.resolve().data_dir / 'sim' / 'staging'
+    except Exception:
+        # Staging location must degrade, never crash a run — fall back to OS temp.
+        return Path(tempfile.gettempdir()) / 'make-magic-sim-staging'
+
+
+def _stage_dck(run_dir: Path, text: str) -> Path:
+    """Write ``text`` to a COLLISION-PROOF file under ``run_dir``; return its abs path.
+
+    The filename is CONTENT-ADDRESSED — a short sha256 of the ``.dck`` text — so two
+    decks that would otherwise sanitize to the same stem (the concurrent
+    cross-contamination hazard R3-2 closes) land on DISTINCT paths, while identical
+    text (a mirror match) harmlessly resolves to the same file. The path is absolute
+    (the harness reads ``-d`` as a filesystem path, not a Forge-profile stem).
+    """
+    digest = hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]
+    path = run_dir / f'{digest}.dck'
+    path.write_text(text)
+    return path
+
+
 def run_matchup(
     install: ForgeInstall,
     deck_a: tuple[str, str],
@@ -304,12 +334,15 @@ def run_matchup(
 
     ``deck_a`` / ``deck_b`` are ``(name, dck_text)`` pairs — already-rendered
     ``.dck`` content (use :func:`deck_to_dck` to produce it from a
-    :class:`~pipeline.contracts.Deck`). Each is written into
-    ``install.decks_dir/<constructed|commander>/`` (Forge resolves ``-d`` against
-    the profile dir, never absolute paths). The JVM runs from ``install.forge_dir``
-    so ``res/`` resolves, VERBOSE (no ``-q``) so the log is captured for later
-    telemetry, with an EXTERNAL timeout + kill on top of Forge's in-game ``-c``
-    clock.
+    :class:`~pipeline.contracts.Deck`). Each is staged into a PER-RUN ISOLATED dir
+    under the data dir (``<data_dir>/sim/staging/<run>/``) with a CONTENT-ADDRESSED
+    filename, NOT into the real Forge profile decks dir — so concurrent runs never
+    cross-contaminate and no artifacts accumulate in Forge's own tree (R3-2). The
+    harness reads ``-d`` as a filesystem path (``DeckSerializer.fromFile``), so the
+    ABSOLUTE staged paths are passed. The staged dir is cleaned up best-effort after
+    the run. The JVM runs from ``install.forge_dir`` so ``res/`` resolves, VERBOSE
+    (no ``-q``) so the log is captured for later telemetry, with an EXTERNAL timeout
+    + kill on top of Forge's in-game ``-c`` clock.
 
     Raises :class:`ForgeError` on a deck-load failure or an unparseable/empty log,
     and re-raises the external timeout as :class:`ForgeError` (the JVM is killed).
@@ -317,95 +350,90 @@ def run_matchup(
     name_a, text_a = deck_a
     name_b, text_b = deck_b
 
-    # Stage under FILESYSTEM-SAFE stems (the human name may contain '/' etc. and
-    # is used only for display — it survives inside each .dck's `Name=`). Forge
-    # is used only for display — it survives inside each .dck's `Name=`). The stem
-    # drives the staged filename; the harness resolves `-d` as a FILESYSTEM path
-    # (``DeckSerializer.fromFile``, unlike the stock `sim` verb's profile lookup),
-    # so we pass the ABSOLUTE staged path. Disambiguate the rare case where two
-    # distinct decks sanitize to the same stem (e.g. 'A/B' and 'A:B' -> 'A_B').
-    stem_a = safe_deck_stem(name_a)
-    stem_b = safe_deck_stem(name_b)
-    if stem_a == stem_b and text_a != text_b:
-        stem_a, stem_b = f'{stem_a}__a', f'{stem_b}__b'
-
-    fmt_dir = 'commander' if fmt == 'commander' else 'constructed'
-    decks_dir = install.decks_dir / fmt_dir
-    decks_dir.mkdir(parents=True, exist_ok=True)
-    dck_a = decks_dir / f'{stem_a}.dck'
-    dck_b = decks_dir / f'{stem_b}.dck'
-    dck_a.write_text(text_a)
-    dck_b.write_text(text_b)
-
-    # Launch the sim-AI HARNESS (not the stock `sim` verb): its built-in Forge
-    # simulation AI (AIOption.USE_SIMULATION, `-sim 1`) is the real decision engine.
-    # Classpath ordering is load-bearing — the harness jar MUST come first so its
-    # `StaticAbilityContinuous` shadow shadows Forge's crash-prone original; hence
-    # `-cp <harness>:<forge>` + explicit Main-Class, NOT `-jar` (which ignores -cp).
-    # No `-s seed`: the harness takes no seed (Forge's seed is non-reproducible
-    # anyway); the seed lives in the matchup_key for cache identity / per-opponent
-    # offset only. `-d` takes ABSOLUTE staged paths (the harness reads the file
-    # directly rather than resolving a profile stem like the stock `sim` verb did).
-    # Fail LOUDLY (not into the silent 0-0-0 table) if the shipped harness jar is
-    # missing — a broken install (wheel that dropped the jar) would otherwise launch
-    # the JVM against a phantom classpath entry, hit `Could not find or load main
-    # class`, and zero out to a spurious ForgeError with no actionable cause (M1).
-    if not _HARNESS_JAR.is_file():
-        raise ForgeError(
-            f'sim-AI harness jar not found: {_HARNESS_JAR}\n'
-            'The Forge sim engine cannot run without it. If this is an installed '
-            'package the wheel is broken (the jar was not shipped); reinstall a '
-            'complete build. To rebuild it from source run:\n'
-            '  pipeline/sim/java/forge-simai/build.sh'
-        )
-    classpath = os.pathsep.join((str(_HARNESS_JAR), str(install.jar)))
-    cmd = [
-        *_launch_prefix(),
-        str(install.java),
-        *_jvm_args(),
-        '-cp',
-        classpath,
-        _HARNESS_MAIN_CLASS,
-        '-d',
-        str(dck_a),
-        str(dck_b),
-        '-n',
-        str(n),
-        '-c',
-        str(timeout_s),
-        '-sim',
-        '1',
-    ]
-    if fmt == 'commander':
-        cmd += ['-f', 'commander']
-
-    # EXTERNAL kill-switch: Forge's -c is only the per-game draw clock, so bound
-    # the whole JVM at one-time-load headroom + per-game budget across n games.
-    # start_new_session puts the child in its OWN process group so the timeout
-    # kill can reap the whole tree — under an `xvfb-run` prefix the JVM is a
-    # GRANDCHILD, and killing only the direct child would leak it.
-    external_timeout = _JVM_LOAD_HEADROOM_S + max(1, n) * timeout_s
-    proc = subprocess.Popen(
-        cmd,
-        cwd=install.forge_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
+    # ISOLATED per-run staging: a fresh mkdtemp under the data dir keeps concurrent
+    # runs from sharing a filename namespace, and CONTENT-ADDRESSED names within it
+    # keep two distinct decks that sanitize to the same stem from clobbering each
+    # other (both R3-2 hazards). The whole dir is removed in the `finally` below.
+    staging_root = _staging_root()
+    staging_root.mkdir(parents=True, exist_ok=True)
+    run_dir = Path(tempfile.mkdtemp(prefix='run-', dir=staging_root))
     try:
-        stdout, stderr = proc.communicate(timeout=external_timeout)
-    except subprocess.TimeoutExpired as exc:
-        _kill_process_group(proc)
-        raise ForgeError(
-            f'Forge sim exceeded the external {external_timeout}s timeout and was killed ({name_a} vs {name_b}, n={n}).'
-        ) from exc
+        dck_a = _stage_dck(run_dir, text_a)
+        dck_b = _stage_dck(run_dir, text_b)
 
-    output = (stdout or '') + (stderr or '')
-    result = parse_match_log(output, deck_a=name_a, deck_b=name_b)
-    if result.games != n:
-        raise ForgeError(
-            f'expected {n} Game Result lines, got {result.games} '
-            f'(exit {proc.returncode}). Output tail:\n{output[-1000:]}'
+        # Launch the sim-AI HARNESS (not the stock `sim` verb): its built-in Forge
+        # simulation AI (AIOption.USE_SIMULATION, `-sim 1`) is the real decision engine.
+        # Classpath ordering is load-bearing — the harness jar MUST come first so its
+        # `StaticAbilityContinuous` shadow shadows Forge's crash-prone original; hence
+        # `-cp <harness>:<forge>` + explicit Main-Class, NOT `-jar` (which ignores -cp).
+        # No `-s seed`: the harness takes no seed (Forge's seed is non-reproducible
+        # anyway); the seed lives in the matchup_key for cache identity / per-opponent
+        # offset only. `-d` takes ABSOLUTE staged paths (the harness reads the file
+        # directly rather than resolving a profile stem like the stock `sim` verb did).
+        # Fail LOUDLY (not into the silent 0-0-0 table) if the shipped harness jar is
+        # missing — a broken install (wheel that dropped the jar) would otherwise launch
+        # the JVM against a phantom classpath entry, hit `Could not find or load main
+        # class`, and zero out to a spurious ForgeError with no actionable cause (M1).
+        if not _HARNESS_JAR.is_file():
+            raise ForgeError(
+                f'sim-AI harness jar not found: {_HARNESS_JAR}\n'
+                'The Forge sim engine cannot run without it. If this is an installed '
+                'package the wheel is broken (the jar was not shipped); reinstall a '
+                'complete build. To rebuild it from source run:\n'
+                '  pipeline/sim/java/forge-simai/build.sh'
+            )
+        classpath = os.pathsep.join((str(_HARNESS_JAR), str(install.jar)))
+        cmd = [
+            *_launch_prefix(),
+            str(install.java),
+            *_jvm_args(),
+            '-cp',
+            classpath,
+            _HARNESS_MAIN_CLASS,
+            '-d',
+            str(dck_a),
+            str(dck_b),
+            '-n',
+            str(n),
+            '-c',
+            str(timeout_s),
+            '-sim',
+            '1',
+        ]
+        if fmt == 'commander':
+            cmd += ['-f', 'commander']
+
+        # EXTERNAL kill-switch: Forge's -c is only the per-game draw clock, so bound
+        # the whole JVM at one-time-load headroom + per-game budget across n games.
+        # start_new_session puts the child in its OWN process group so the timeout
+        # kill can reap the whole tree — under an `xvfb-run` prefix the JVM is a
+        # GRANDCHILD, and killing only the direct child would leak it.
+        external_timeout = _JVM_LOAD_HEADROOM_S + max(1, n) * timeout_s
+        proc = subprocess.Popen(
+            cmd,
+            cwd=install.forge_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
         )
-    return result
+        try:
+            stdout, stderr = proc.communicate(timeout=external_timeout)
+        except subprocess.TimeoutExpired as exc:
+            _kill_process_group(proc)
+            raise ForgeError(
+                f'Forge sim exceeded the external {external_timeout}s timeout and was killed '
+                f'({name_a} vs {name_b}, n={n}).'
+            ) from exc
+
+        output = (stdout or '') + (stderr or '')
+        result = parse_match_log(output, deck_a=name_a, deck_b=name_b)
+        if result.games != n:
+            raise ForgeError(
+                f'expected {n} Game Result lines, got {result.games} '
+                f'(exit {proc.returncode}). Output tail:\n{output[-1000:]}'
+            )
+        return result
+    finally:
+        # Best-effort cleanup — a leftover staged dir must never fail a completed run.
+        shutil.rmtree(run_dir, ignore_errors=True)

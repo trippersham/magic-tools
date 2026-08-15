@@ -31,8 +31,8 @@ def _alive(pid: int) -> bool:
 
 
 def test_external_timeout_kills_grandchild_processes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    decks_root = tmp_path / 'decks'
-    monkeypatch.setattr(ForgeInstall, 'decks_dir', property(lambda self: decks_root))
+    # Isolate staging under the tmp dir (never the real Forge profile / data dir).
+    monkeypatch.setattr(runner_mod, '_staging_root', lambda: tmp_path / 'staging')
     # Shrink the one-time-load headroom so the external timeout fires in ~1s.
     monkeypatch.setattr(runner_mod, '_JVM_LOAD_HEADROOM_S', 0)
 

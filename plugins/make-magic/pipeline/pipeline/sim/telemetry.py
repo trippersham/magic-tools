@@ -33,6 +33,8 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from pipeline.sim._log_patterns import DRAW_RESULT_RE, RESULT_RE, WINNER_RE
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from collections.abc import Set as AbstractSet
@@ -60,19 +62,14 @@ _LAND_RE = re.compile(r'^Land: Ai\((\d)\)-\S.*? played ')
 _LIFE_RE = re.compile(r'^Life: Life: Ai\((\d)\)-\S.*? (\d+) > (-?\d+)')
 #: ``Damage: <source> deals N [combat ]damage to Ai(k)-Deck.`` — combat flag + slot.
 _DAMAGE_RE = re.compile(r'^Damage: .*? deals \d+ (combat )?damage to Ai\((\d)\)-')
-#: ``Game Result: Game N ended in <ms> ms. <tail>`` — elapsed + winner tail.
-_RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in (\d+) ms\. (.+)$')
-#: A GENUINE draw terminator (``SimAIMatch.java:219``):
-#: ``Game Result: Game N ended in a Draw! Took <ms> ms.`` — a real (non-clockout)
-#: draw. It does NOT match ``_RESULT_RE`` (different wording), yet it IS a game
-#: terminator: :func:`runner.parse_match_log` already counts it, so :func:`split_games`
-#: MUST treat it as a boundary too or a draw game's lines merge into the NEXT
-#: segment (fewer feature rows than games + a stored log with two ``Game Result``
-#: lines). Every sim-AI NPE game emits a draw line, so this is not a rare edge (R2-1).
-_DRAW_RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in a Draw! Took (\d+) ms\.$')
-#: Winner tail within a Game Result line: ``Ai(k)-Deck has won!``. Name matched
-#: non-greedily (``.+?``) so spaced/paren deck names parse (only the slot matters).
-_WINNER_RE = re.compile(r'Ai\((\d)\)-.+? has won!')
+#: The game-terminator + winner regex triplet is SHARED with
+#: :mod:`pipeline.sim.runner` via :mod:`pipeline.sim._log_patterns` (one
+#: definition, imported by both) so this module's :func:`split_games` segmentation
+#: and the runner's tally can never silently desync (R2-1 / R3-3). The
+#: ``_``-prefixed aliases keep the parse bodies below unchanged.
+_RESULT_RE = RESULT_RE
+_DRAW_RESULT_RE = DRAW_RESULT_RE
+_WINNER_RE = WINNER_RE
 #: The empty-library (mill) loss on a Game Outcome line — slot of the milled loser.
 _MILL_OUTCOME_RE = re.compile(r'^Game Outcome: Ai\((\d)\)-\S.*? has lost trying to draw cards from empty library')
 
