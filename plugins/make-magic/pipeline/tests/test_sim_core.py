@@ -31,7 +31,7 @@ from pipeline.sim.core import (
     wilson_ci,
 )
 from pipeline.sim.engine import EngineCapabilities, EngineInstall
-from pipeline.sim.forge_runtime import ENV_FORGE_HOME, ENV_JAVA
+from pipeline.sim.forge_runtime import ENV_FORGE_HOME, ENV_JAVA, FORGE_VERSION
 from pipeline.sim.governor import MatchFailure, MatchSpec, PoolResult
 from pipeline.sim.runner import GameOutcome, MatchResult
 
@@ -546,16 +546,21 @@ def test_simulate_real_curated_gauntlet() -> None:
     downloads). Skips if the resource floors aren't met. Requires
     MAKE_MAGIC_FORGE_HOME + MAKE_MAGIC_JAVA.
     """
-    from pipeline.sim.forge_runtime import resolve
+    from pipeline.sim.engine import get_engine
     from pipeline.sim.gauntlet import resolve_gauntlet
     from pipeline.sim.governor import free_disk_gib, free_ram_gib
+    from pipeline.sim.store import find_matchups, get_game_logs
 
     if not (os.getenv(ENV_FORGE_HOME) and os.getenv(ENV_JAVA)):
         pytest.skip(f'set {ENV_FORGE_HOME} + {ENV_JAVA} to run the gated Forge simulate')
     if free_ram_gib() < 5.0 or free_disk_gib() < 5.0:
         pytest.skip('insufficient free RAM/disk for a capped 2-JVM Forge simulate')
 
-    install = resolve()
+    # Drive the full cached-gauntlet path through the CURRENT engine seam (not the
+    # pre-seam ``install=`` arg): simulate resolves the forge engine's install
+    # read-only for the cache-key version and launches the sim-AI harness for any
+    # fresh matchup.
+    engine = get_engine('forge')
     # Use two curated decks: the first is our candidate, the next two are the gauntlet.
     curated = resolve_gauntlet('curated', 'constructed')
     assert len(curated) >= 3
@@ -576,7 +581,8 @@ def test_simulate_real_curated_gauntlet() -> None:
             games=1,
             fmt='constructed',
             seed=42,
-            install=install,
+            engine=engine,
+            force=True,  # force fresh Forge games so the sim-AI assertion has a log
             pool_size=2,
         )
     finally:
@@ -588,7 +594,26 @@ def test_simulate_real_curated_gauntlet() -> None:
     assert result.total_games == 2
     assert 0.0 <= result.win_rate <= 1.0
     assert len(result.per_opponent) == 2
-    assert result.profile.games == 2
+    # The pooled profile aggregates only DECISIVE games; the sim AI is ~5%
+    # nondecisive (NPE / clocked-out draw), so 1 of the 2 games can drop out of
+    # the profile without being a failure. Require the telemetry path to be
+    # exercised (>=1) and never exceed the games actually run.
+    assert 1 <= result.profile.games <= result.total_games
+
+    # STRENGTHEN: prove the run actually used the sim AI, not the stock ``sim``
+    # heuristic. The engine reports a sim-AI version (``<FORGE_VERSION>+simai-``),
+    # and the stored verbose log for a fresh matchup carries the harness's own
+    # ``useSimulationAI=true`` banner + its ``HANDLOG`` decision stream — a
+    # regression to stock ``sim`` would drop both and fail here.
+    install = engine.resolve(provision=False)
+    assert install.version.startswith(f'{FORGE_VERSION}+simai-')
+    rows = find_matchups(fmt='constructed')
+    assert rows, 'expected at least one stored matchup from the fresh run'
+    combined = '\n'.join(log for row in rows for log in get_game_logs(row.matchup_key))
+    assert combined, 'expected a retained verbose log for the fresh run'
+    assert 'useSimulationAI=true' in combined  # the harness banner — stock `sim` lacks it
+    assert 'HANDLOG' in combined  # the sim-AI decision stream — stock `sim` lacks it
+
     print(
         f'\n[forge] simulate {result.candidate} vs {len(result.per_opponent)} curated opponents: '
         f'win_rate={result.win_rate:.2f} CI={result.win_rate_ci} '

@@ -17,9 +17,11 @@ import pytest
 
 from pipeline.sim import forge_runtime
 from pipeline.sim.engine import EngineInstall, EngineUnavailableError, SimEngine, get_engine
-from pipeline.sim.engines.forge import _DEFAULT_TIMEOUT_S, ForgeEngine
+from pipeline.sim.engines import forge as forge_engine_mod
+from pipeline.sim.engines.forge import _DEFAULT_TIMEOUT_S, ForgeEngine, _engine_version, _harness_jarhash
 from pipeline.sim.forge_runtime import FORGE_VERSION, ForgeInstall, ForgeUnavailableError
 from pipeline.sim.runner import GameOutcome, MatchResult
+from pipeline.sim.store import matchup_key
 
 
 def _install() -> ForgeInstall:
@@ -66,12 +68,17 @@ def test_capabilities_describe_sim_ai() -> None:
 
 
 def test_resolve_wraps_forge_install(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Read-only ``resolve`` wraps the runtime's ForgeInstall in an EngineInstall."""
+    """Read-only ``resolve`` wraps the runtime's ForgeInstall in an EngineInstall.
+
+    The reported version now folds the sim-AI harness identity in
+    (``<FORGE_VERSION>+simai-<jarhash>``) so a stock-heuristic cache row can't
+    collide with a sim-AI row — see the ``engine_version`` M3 tests below.
+    """
     forge = _install()
     monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: forge)
     install = ForgeEngine().resolve(provision=False)
     assert isinstance(install, EngineInstall)
-    assert install.version == FORGE_VERSION
+    assert install.version.startswith(f'{FORGE_VERSION}+simai-')
     assert install.handle is forge
 
 
@@ -101,6 +108,79 @@ def test_resolve_unavailable_raises_engine_unavailable_error(monkeypatch: pytest
     monkeypatch.setattr(forge_runtime, 'resolve', _raise)
     with pytest.raises(EngineUnavailableError, match='MAKE_MAGIC_FORGE_HOME'):
         ForgeEngine().resolve(provision=False)
+
+
+# --------------------------------------------------------------------------- #
+# M3 — engine_version folds the sim-AI harness identity in so a stock-heuristic
+# cache row can't collide with a sim-AI row on the same matchup_key. Offline.
+# --------------------------------------------------------------------------- #
+
+
+def test_engine_version_is_forge_version_plus_simai_jarhash(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The reported version is ``<FORGE_VERSION>+simai-<10 hex>`` off the real jar."""
+    _harness_jarhash.cache_clear()
+    version = _engine_version()
+    assert version.startswith(f'{FORGE_VERSION}+simai-')
+    jarhash = version.removeprefix(f'{FORGE_VERSION}+simai-')
+    # A stable short sha256: exactly 10 lowercase hex chars (not the fallback).
+    assert jarhash != 'unknown'
+    assert len(jarhash) == 10
+    assert all(c in '0123456789abcdef' for c in jarhash)
+
+
+def test_engine_version_matches_sha256_of_harness_jar() -> None:
+    """The jarhash is the first 10 hex of sha256(jar bytes) — stable & reproducible."""
+    import hashlib
+
+    from pipeline.sim.runner import _HARNESS_JAR
+
+    _harness_jarhash.cache_clear()
+    expected = hashlib.sha256(_HARNESS_JAR.read_bytes()).hexdigest()[:10]
+    assert _harness_jarhash() == expected
+    # Stable across calls (same jar -> same hash, cached once).
+    assert _harness_jarhash() == expected
+
+
+def test_resolve_version_carries_the_jarhash(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``ForgeEngine().resolve(...).version`` embeds the harness jarhash."""
+    _harness_jarhash.cache_clear()
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: _install())
+    version = ForgeEngine().resolve(provision=False).version
+    assert version == _engine_version()
+    assert _harness_jarhash() in version
+
+
+def test_missing_jar_falls_back_to_unknown_without_crashing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A missing harness jar -> ``+simai-unknown`` (don't crash — that's 1.6c)."""
+    from pathlib import Path
+
+    _harness_jarhash.cache_clear()
+    monkeypatch.setattr(forge_engine_mod, '_HARNESS_JAR', Path('/no/such/harness.jar'))
+    try:
+        assert _harness_jarhash() == 'unknown'
+        assert _engine_version() == f'{FORGE_VERSION}+simai-unknown'
+    finally:
+        _harness_jarhash.cache_clear()
+
+
+def test_different_jarhash_yields_a_different_matchup_key() -> None:
+    """A harness rebuild (new jarhash) -> a different key, so no cross-serving.
+
+    Drives the version -> matchup_key path with two synthetic version strings
+    (a stock ``'2.0.13'`` vs a sim-AI ``'2.0.13+simai-...'``, and two distinct
+    sim-AI hashes) to prove the ``engine_version`` bump busts the content cache.
+    """
+    common = {
+        'seed': 42,
+        'n_games': 1,
+        'fmt': 'constructed',
+        'engine': 'forge',
+    }
+    key_stock = matchup_key('DECK_A', 'DECK_B', engine_version='2.0.13', **common)
+    key_sim_v1 = matchup_key('DECK_A', 'DECK_B', engine_version='2.0.13+simai-1a2b3c4d5e', **common)
+    key_sim_v2 = matchup_key('DECK_A', 'DECK_B', engine_version='2.0.13+simai-ffffffffff', **common)
+    assert key_stock != key_sim_v1  # stock row can't be served as a sim-AI row
+    assert key_sim_v1 != key_sim_v2  # a harness rebuild (new hash) busts the cache
 
 
 # --------------------------------------------------------------------------- #

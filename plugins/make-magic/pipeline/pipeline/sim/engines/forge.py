@@ -15,6 +15,8 @@ imports :mod:`pipeline.sim.engines`) makes ``get_engine('forge')`` resolve.
 
 from __future__ import annotations
 
+import hashlib
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from pipeline.sim import forge_runtime, runner
@@ -25,6 +27,7 @@ from pipeline.sim.engine import (
     register_engine,
 )
 from pipeline.sim.forge_runtime import FORGE_VERSION, ForgeInstall, ForgeUnavailableError
+from pipeline.sim.runner import _HARNESS_JAR
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -67,6 +70,38 @@ _FORGE_CAPABILITIES = EngineCapabilities(
 )
 
 
+@lru_cache(maxsize=1)
+def _harness_jarhash() -> str:
+    """A stable short sha256 (first 10 hex) of the committed sim-AI harness jar.
+
+    This binds the reported engine version to the ACTUAL harness build so any
+    harness/AI change busts the content cache (a stock-heuristic row and a sim-AI
+    row hash to different ``matchup_key``\\ s instead of colliding). Computed ONCE
+    (:func:`~functools.lru_cache`) — the jar is small (~25 KB) and its bytes never
+    change within a process. If the jar is missing at compute time (the separate
+    1.6c packaging case), fall back to ``'unknown'`` rather than crashing the
+    version lookup — a missing jar is a resolve/run problem surfaced elsewhere,
+    not a reason to blow up the cache-key derivation.
+    """
+    try:
+        digest = hashlib.sha256(_HARNESS_JAR.read_bytes()).hexdigest()
+    except OSError:
+        return 'unknown'
+    return digest[:10]
+
+
+def _engine_version() -> str:
+    """The reported backend version: ``<FORGE_VERSION>+simai-<jarhash>``.
+
+    Folds the sim-AI harness identity into :attr:`EngineInstall.version`, which
+    flows unchanged through :mod:`pipeline.sim.core` into
+    :func:`pipeline.sim.store.matchup_key` (already keyed on ``engine_version``) —
+    so rebuilding the harness (new jar bytes → new hash) self-invalidates the
+    cache. Missing jar → ``<FORGE_VERSION>+simai-unknown``.
+    """
+    return f'{FORGE_VERSION}+simai-{_harness_jarhash()}'
+
+
 class ForgeEngine:
     """A :class:`~pipeline.sim.engine.SimEngine` that delegates to the Forge runner.
 
@@ -102,7 +137,7 @@ class ForgeEngine:
             )
         except ForgeUnavailableError as exc:
             raise EngineUnavailableError(str(exc)) from exc
-        return EngineInstall(version=FORGE_VERSION, handle=handle)
+        return EngineInstall(version=_engine_version(), handle=handle)
 
     def run_matchup(
         self,

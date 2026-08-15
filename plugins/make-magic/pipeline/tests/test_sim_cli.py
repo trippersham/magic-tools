@@ -511,7 +511,8 @@ def test_ensure_forge_returns_cached_without_prompt(monkeypatch: pytest.MonkeyPa
     result = sim_run._ensure_forge()
     assert isinstance(result, EngineInstall)
     assert result.handle is install
-    assert result.version == FORGE_VERSION
+    # M3: the version now folds the sim-AI harness identity in.
+    assert result.version.startswith(f'{FORGE_VERSION}+simai-')
 
 
 def test_ensure_forge_non_interactive_auto_proceeds(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
