@@ -8,8 +8,13 @@ what Phases 2-3 produce) and assert the round-trip + aggregate queries.
 Coverage:
     - miss -> store -> hit: get_cached round-trips the win tally + every
       GameFeatures field (incl. the INTEGER[] land curves).
-    - invalidation: a changed .dck text OR a bumped forge_version yields a
+    - invalidation: a changed .dck text OR a bumped engine_version yields a
       different matchup_key -> a cache miss.
+    - cross-engine: the SAME decks/seed/n/fmt under engine='forge' vs
+      engine='xmage' hash to DIFFERENT keys -> no cache collision.
+    - old-schema migration: a DB carved with the OLD sim_matchups schema
+      (forge_version column, no engine columns) opens without a crash and its
+      old rows come back forge-tagged.
     - feature_stats: several games aggregate to the correct avg kill_turn +
       wincon counts, filterable by format.
     - idempotent tables + re-store: storing the same key twice replaces the
@@ -84,7 +89,8 @@ def _meta() -> sim_store.MatchupMeta:
         seed=42,
         n_games=3,
         format='constructed',
-        forge_version='2.0.13',
+        engine='forge',
+        engine_version='2.0.13',
     )
 
 
@@ -94,7 +100,7 @@ def _meta() -> sim_store.MatchupMeta:
 
 
 def test_matchup_key_is_stable_and_order_sensitive() -> None:
-    kwargs = {'seed': 42, 'n_games': 3, 'fmt': 'constructed', 'forge_version': '2.0.13'}
+    kwargs = {'seed': 42, 'n_games': 3, 'fmt': 'constructed', 'engine': 'forge', 'engine_version': '2.0.13'}
     k1 = sim_store.matchup_key(DCK_A, DCK_B, **kwargs)
     k2 = sim_store.matchup_key(DCK_A, DCK_B, **kwargs)
     assert k1 == k2  # deterministic
@@ -104,13 +110,38 @@ def test_matchup_key_is_stable_and_order_sensitive() -> None:
     assert swapped != k1  # order-sensitive on (a, b)
 
 
+def test_matchup_key_differs_by_engine() -> None:
+    """Same decks/seed/n/fmt/version under different ENGINES => different keys.
+
+    The whole point of folding ``engine`` into the hash: a Forge run and an XMage
+    run of the identical inputs must NOT collide in the content cache.
+    """
+    kwargs = {'seed': 42, 'n_games': 3, 'fmt': 'constructed', 'engine_version': '2.0.13'}
+    forge_key = sim_store.matchup_key(DCK_A, DCK_B, engine='forge', **kwargs)
+    xmage_key = sim_store.matchup_key(DCK_A, DCK_B, engine='xmage', **kwargs)
+    assert forge_key != xmage_key
+
+
+def test_matchup_key_differs_by_engine_version() -> None:
+    """A bumped engine_version (was: forge_version) still changes the key."""
+    base = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
+    bumped = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', engine='forge', engine_version='2.0.14'
+    )
+    assert bumped != base
+
+
 # --------------------------------------------------------------------------- #
 # miss -> store -> hit round-trip
 # --------------------------------------------------------------------------- #
 
 
 def test_miss_then_store_then_hit_roundtrips(data_dir: Path) -> None:
-    key = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.13')
+    key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
     assert sim_store.get_cached(key) is None  # miss on a fresh db
 
     result = _match_result(wins_a=2, wins_b=1)
@@ -139,7 +170,9 @@ def test_miss_then_store_then_hit_roundtrips(data_dir: Path) -> None:
 
 
 def test_none_scalars_and_empty_curves_roundtrip(data_dir: Path) -> None:
-    key = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13')
+    key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
     result = _match_result(wins_a=0, wins_b=0, draws=1)
     features = [
         GameFeatures(
@@ -173,7 +206,7 @@ def test_none_scalars_and_empty_curves_roundtrip(data_dir: Path) -> None:
 
 
 def test_changed_deck_text_changes_key(data_dir: Path) -> None:
-    kwargs = {'seed': 42, 'n_games': 3, 'fmt': 'constructed', 'forge_version': '2.0.13'}
+    kwargs = {'seed': 42, 'n_games': 3, 'fmt': 'constructed', 'engine': 'forge', 'engine_version': '2.0.13'}
     base = sim_store.matchup_key(DCK_A, DCK_B, **kwargs)
 
     edited_a = DCK_A + '4 Shock\n'  # a single card change
@@ -186,14 +219,31 @@ def test_changed_deck_text_changes_key(data_dir: Path) -> None:
     assert sim_store.get_cached(edited_key) is None
 
 
-def test_bumped_forge_version_changes_key(data_dir: Path) -> None:
-    base = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.13')
-    bumped = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.14')
+def test_bumped_engine_version_is_a_cache_miss(data_dir: Path) -> None:
+    base = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
+    bumped = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', engine='forge', engine_version='2.0.14'
+    )
     assert bumped != base
 
     sim_store.store_matchup(base, _meta(), _match_result(), [_features()])
     assert sim_store.get_cached(base) is not None
     assert sim_store.get_cached(bumped) is None
+
+
+def test_other_engine_is_a_cache_miss(data_dir: Path) -> None:
+    """A Forge-cached matchup does NOT serve an XMage lookup of the same inputs."""
+    forge_key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
+    xmage_key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', engine='xmage', engine_version='2.0.13'
+    )
+    sim_store.store_matchup(forge_key, _meta(), _match_result(), [_features()])
+    assert sim_store.get_cached(forge_key) is not None
+    assert sim_store.get_cached(xmage_key) is None  # no cross-engine collision
 
 
 # --------------------------------------------------------------------------- #
@@ -202,7 +252,9 @@ def test_bumped_forge_version_changes_key(data_dir: Path) -> None:
 
 
 def test_feature_stats_aggregates(data_dir: Path) -> None:
-    key = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=4, fmt='constructed', forge_version='2.0.13')
+    key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=4, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
     result = _match_result(wins_a=3, wins_b=1)
     features = [
         _features(winner='a', kill_turn=4, wincon='combat'),
@@ -220,15 +272,20 @@ def test_feature_stats_aggregates(data_dir: Path) -> None:
 
 
 def test_feature_stats_filters_by_format(data_dir: Path) -> None:
-    con_key = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13')
-    cmd_key = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=1, fmt='commander', forge_version='2.0.13')
+    con_key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
+    cmd_key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=1, n_games=1, fmt='commander', engine='forge', engine_version='2.0.13'
+    )
     con_meta = sim_store.MatchupMeta(
         deck_a_hash='x',
         deck_b_hash='y',
         seed=1,
         n_games=1,
         format='constructed',
-        forge_version='2.0.13',
+        engine='forge',
+        engine_version='2.0.13',
     )
     cmd_meta = sim_store.MatchupMeta(
         deck_a_hash='x',
@@ -236,7 +293,8 @@ def test_feature_stats_filters_by_format(data_dir: Path) -> None:
         seed=1,
         n_games=1,
         format='commander',
-        forge_version='2.0.13',
+        engine='forge',
+        engine_version='2.0.13',
     )
     sim_store.store_matchup(
         con_key,
@@ -266,7 +324,9 @@ def test_feature_stats_filters_by_format(data_dir: Path) -> None:
 
 
 def test_restore_replaces_no_duplicate_feature_rows(data_dir: Path) -> None:
-    key = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.13')
+    key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
     sim_store.store_matchup(key, _meta(), _match_result(wins_a=2, wins_b=1), [_features()] * 3)
 
     # Re-store the SAME key with a different tally + a single feature row.
@@ -285,8 +345,12 @@ def test_restore_replaces_no_duplicate_feature_rows(data_dir: Path) -> None:
 
 def test_tables_created_idempotently(data_dir: Path) -> None:
     """Two independent store operations against a fresh db do not clash on DDL."""
-    key1 = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13')
-    key2 = sim_store.matchup_key(DCK_A, DCK_B, seed=2, n_games=1, fmt='constructed', forge_version='2.0.13')
+    key1 = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
+    key2 = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=2, n_games=1, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
     sim_store.store_matchup(key1, _meta(), _match_result(), [_features()])
     sim_store.store_matchup(key2, _meta(), _match_result(), [_features()])
     assert sim_store.get_cached(key1) is not None
@@ -316,7 +380,9 @@ def _multigame_log(n: int) -> str:
 
 def test_per_game_logs_persist_and_slice(data_dir: Path) -> None:
     """store_matchup slices raw_log per game; get_game_logs returns them in order."""
-    key = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=2, fmt='constructed', forge_version='2.0.13')
+    key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=2, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
     result = MatchResult(
         deck_a='Aggro',
         deck_b='Control',
@@ -343,7 +409,9 @@ def test_per_game_logs_persist_and_slice(data_dir: Path) -> None:
 
 def test_get_game_logs_single_index(data_dir: Path) -> None:
     """A game_index filter returns just that game's log."""
-    key = sim_store.matchup_key(DCK_A, DCK_B, seed=7, n_games=3, fmt='constructed', forge_version='2.0.13')
+    key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=7, n_games=3, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
     result = MatchResult(
         deck_a='Aggro',
         deck_b='Control',
@@ -362,7 +430,9 @@ def test_get_game_logs_single_index(data_dir: Path) -> None:
 
 def test_game_logs_align_with_feature_index(data_dir: Path) -> None:
     """Log game_index lines up 1:1 with feature game_index (shared split_games)."""
-    key = sim_store.matchup_key(DCK_A, DCK_B, seed=9, n_games=3, fmt='constructed', forge_version='2.0.13')
+    key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=9, n_games=3, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
     result = MatchResult(
         deck_a='Aggro',
         deck_b='Control',
@@ -384,7 +454,9 @@ def test_game_logs_align_with_feature_index(data_dir: Path) -> None:
 
 def test_restore_replaces_game_logs(data_dir: Path) -> None:
     """Re-storing a key REPLACES its log rows (no append), like the feature rows."""
-    key = sim_store.matchup_key(DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', forge_version='2.0.13')
+    key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
     first = MatchResult(
         deck_a='Aggro',
         deck_b='Control',
@@ -422,13 +494,29 @@ def test_get_game_logs_miss_returns_empty(data_dir: Path) -> None:
 def test_find_matchups_by_deck_pair(data_dir: Path) -> None:
     """find_matchups locates stored runs of a deck pair (offline, by hash)."""
     a_hash, b_hash = sim_store.deck_hash(DCK_A), sim_store.deck_hash(DCK_B)
-    k1 = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=2, fmt='constructed', forge_version='2.0.13')
-    k2 = sim_store.matchup_key(DCK_A, DCK_B, seed=2, n_games=2, fmt='constructed', forge_version='2.0.13')
+    k1 = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=1, n_games=2, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
+    k2 = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=2, n_games=2, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
     m1 = sim_store.MatchupMeta(
-        deck_a_hash=a_hash, deck_b_hash=b_hash, seed=1, n_games=2, format='constructed', forge_version='2.0.13'
+        deck_a_hash=a_hash,
+        deck_b_hash=b_hash,
+        seed=1,
+        n_games=2,
+        format='constructed',
+        engine='forge',
+        engine_version='2.0.13',
     )
     m2 = sim_store.MatchupMeta(
-        deck_a_hash=a_hash, deck_b_hash=b_hash, seed=2, n_games=2, format='constructed', forge_version='2.0.13'
+        deck_a_hash=a_hash,
+        deck_b_hash=b_hash,
+        seed=2,
+        n_games=2,
+        format='constructed',
+        engine='forge',
+        engine_version='2.0.13',
     )
     sim_store.store_matchup(k1, m1, _match_result(), [_features()])
     sim_store.store_matchup(k2, m2, _match_result(), [_features()])
@@ -436,9 +524,34 @@ def test_find_matchups_by_deck_pair(data_dir: Path) -> None:
     found = sim_store.find_matchups(deck_a_hash=a_hash, deck_b_hash=b_hash)
     assert {m.matchup_key for m in found} == {k1, k2}
     assert {m.seed for m in found} == {1, 2}
+    # engine / engine_version round-trip through the store and stay queryable.
+    assert {m.engine for m in found} == {'forge'}
+    assert {m.engine_version for m in found} == {'2.0.13'}
 
     # A different deck pair returns nothing.
     assert sim_store.find_matchups(deck_a_hash='nope', deck_b_hash=b_hash) == []
+
+
+def test_store_read_roundtrips_xmage_engine(data_dir: Path) -> None:
+    """A non-Forge engine tag survives store -> find_matchups round-trip."""
+    a_hash, b_hash = sim_store.deck_hash(DCK_A), sim_store.deck_hash(DCK_B)
+    key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=3, n_games=2, fmt='commander', engine='xmage', engine_version='1.4.55'
+    )
+    meta = sim_store.MatchupMeta(
+        deck_a_hash=a_hash,
+        deck_b_hash=b_hash,
+        seed=3,
+        n_games=2,
+        format='commander',
+        engine='xmage',
+        engine_version='1.4.55',
+    )
+    sim_store.store_matchup(key, meta, _match_result(), [_features()])
+
+    (found,) = sim_store.find_matchups(deck_a_hash=a_hash, deck_b_hash=b_hash)
+    assert found.engine == 'xmage'
+    assert found.engine_version == '1.4.55'
 
 
 def test_find_matchups_empty_store(data_dir: Path) -> None:
@@ -448,7 +561,9 @@ def test_find_matchups_empty_store(data_dir: Path) -> None:
 
 def test_elided_log_stores_no_game_logs(data_dir: Path) -> None:
     """A result-less raw_log (no Game Result lines) persists zero log rows, no crash."""
-    key = sim_store.matchup_key(DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', forge_version='2.0.13')
+    key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=1, n_games=1, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
     sim_store.store_matchup(key, _meta(), _match_result(), [_features()])  # raw_log='(elided)'
     assert sim_store.get_game_logs(key) == []
 
@@ -471,3 +586,74 @@ def test_store_matchup_rejects_log_feature_desync(data_dir: Path) -> None:
     two_features = [_features(), _features(winner='b')]  # ...but TWO feature rows
     with pytest.raises(ValueError, match='desync'):
         sim_store.store_matchup('k-desync', _meta(), result, two_features)
+
+
+# --------------------------------------------------------------------------- #
+# old-schema forward migration — a pre-engine cache must open without crashing
+# --------------------------------------------------------------------------- #
+
+
+#: The pre-1.3 sim_matchups schema: a ``forge_version`` column, NO engine columns.
+_OLD_MATCHUPS_DDL = """
+CREATE TABLE sim_matchups (
+    matchup_key   TEXT PRIMARY KEY,
+    deck_a_hash   TEXT,
+    deck_b_hash   TEXT,
+    seed          INT,
+    n_games       INT,
+    format        TEXT,
+    forge_version TEXT,
+    wins_a        INT,
+    wins_b        INT,
+    draws         INT,
+    created_at    TIMESTAMP
+)
+"""
+
+
+def _carve_old_schema_db(data_dir: Path) -> str:
+    """Create a DB with the OLD sim_matchups schema + one row; return its deck_a_hash."""
+    from datetime import UTC, datetime
+
+    a_hash, b_hash = sim_store.deck_hash(DCK_A), sim_store.deck_hash(DCK_B)
+    with store.connect() as conn:
+        conn.execute(_OLD_MATCHUPS_DDL)
+        conn.execute(
+            """
+            INSERT INTO sim_matchups
+                (matchup_key, deck_a_hash, deck_b_hash, seed, n_games, format,
+                 forge_version, wins_a, wins_b, draws, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ['old-key', a_hash, b_hash, 42, 3, 'constructed', '2.0.13', 2, 1, 0, datetime.now(UTC)],
+        )
+    return a_hash
+
+
+def test_old_schema_db_opens_and_migrates_forward(data_dir: Path) -> None:
+    """An old cache (forge_version col, no engine cols) opens WITHOUT crashing.
+
+    Chosen migration strategy: ALTER TABLE ADD COLUMN engine/engine_version and
+    backfill existing rows to engine='forge', engine_version=<old forge_version>.
+    The row survives and reads back forge-tagged (not a crash, not a silent drop).
+    """
+    a_hash = _carve_old_schema_db(data_dir)
+
+    # First touch through the new code path triggers the forward migration.
+    (found,) = sim_store.find_matchups(deck_a_hash=a_hash)
+    assert found.matchup_key == 'old-key'
+    assert found.engine == 'forge'  # backfilled tag
+    assert found.engine_version == '2.0.13'  # carried from the old forge_version
+
+
+def test_old_schema_db_get_cached_does_not_crash(data_dir: Path) -> None:
+    """The read-through hook opens an old-schema DB without raising (clean access)."""
+    _carve_old_schema_db(data_dir)
+    # Unknown/new-format key: a clean miss (the old row's key was computed without
+    # engine folded in, so a fresh lookup never resolves to it) — never a crash.
+    new_key = sim_store.matchup_key(
+        DCK_A, DCK_B, seed=42, n_games=3, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
+    assert sim_store.get_cached(new_key) is None
+    # And the migrated old row is still directly fetchable by its stored key.
+    assert sim_store.get_cached('old-key') is not None

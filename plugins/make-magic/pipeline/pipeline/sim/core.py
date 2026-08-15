@@ -231,7 +231,16 @@ def run_cached_matchups(
     version = install.version
 
     keys = [
-        matchup_key(s.deck_a[1], s.deck_b[1], seed=s.seed, n_games=s.n, fmt=s.fmt, forge_version=version) for s in specs
+        matchup_key(
+            s.deck_a[1],
+            s.deck_b[1],
+            seed=s.seed,
+            n_games=s.n,
+            fmt=s.fmt,
+            engine=engine.name,
+            engine_version=version,
+        )
+        for s in specs
     ]
 
     outcomes: dict[int, MatchOutcome] = {}
@@ -278,7 +287,8 @@ def run_cached_matchups(
                 seed=spec.seed,
                 n_games=spec.n,
                 format=spec.fmt,
-                forge_version=version,
+                engine=engine.name,
+                engine_version=version,
             )
             store_matchup(key, meta, match, features, data_dir=data_dir)
             wins, losses, draws = _candidate_tally(match)

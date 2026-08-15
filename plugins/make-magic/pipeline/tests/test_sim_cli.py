@@ -567,7 +567,13 @@ def _seed_matchup(
     from pipeline.sim.telemetry import GameFeatures
 
     key = sim_store.matchup_key(
-        dck_a_text, dck_b_text, seed=seed, n_games=n_games, fmt='constructed', forge_version=forge_version
+        dck_a_text,
+        dck_b_text,
+        seed=seed,
+        n_games=n_games,
+        fmt='constructed',
+        engine='forge',
+        engine_version=forge_version,
     )
     meta = sim_store.MatchupMeta(
         deck_a_hash=sim_store.deck_hash(dck_a_text),
@@ -575,7 +581,8 @@ def _seed_matchup(
         seed=seed,
         n_games=n_games,
         format='constructed',
-        forge_version=forge_version,
+        engine='forge',
+        engine_version=forge_version,
     )
     log = '\n'.join(
         ['Simulation mode']
