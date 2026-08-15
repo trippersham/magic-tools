@@ -279,6 +279,24 @@ def _print_failures(result: SimResult) -> None:
             print(f'  vs {opponent}: {error}', file=sys.stderr)
 
 
+def _exit_nonzero_if_no_usable_games(*results: SimResult) -> None:
+    """Exit non-zero when a run produced ZERO usable games or was aborted (R2-3).
+
+    ``simulate deck`` / ``ab`` print failures to stderr but otherwise exit 0 — so a
+    run where EVERY matchup failed (a garbage deck, a jar-less install) or the
+    governor ABORTED (persistent RAM/disk starvation) would read as SUCCESS to a
+    cron/agent consumer. Raise :class:`SystemExit(1)` when any given result has no
+    usable games (``total_games == 0`` — all matchups failed) or is ``aborted``.
+
+    A legitimate low/zero win-rate WITH real games played (lost every game) still
+    exits 0 — only a run that produced no usable games (or a partial aborted run)
+    is a failure. ``_print_failures`` has already surfaced the WHY on stderr.
+    """
+    for result in results:
+        if result.aborted or result.total_games == 0:
+            raise SystemExit(1)
+
+
 def _print_profile(profile: object) -> None:
     """Print the telemetry :class:`~pipeline.sim.core.TelemetryProfile` block."""
     from pipeline.sim.core import TelemetryProfile
@@ -461,6 +479,10 @@ def _deck(argv: list[str]) -> None:
         store=store,
     )
     _print_sim_result(result)
+    # After surfacing failures on stderr, fail the process if the run yielded no
+    # usable games (all matchups failed) or was aborted — so automation can't read
+    # success on a dead run (R2-3). A real low/zero win-rate still exits 0.
+    _exit_nonzero_if_no_usable_games(result)
 
 
 def _ab(argv: list[str]) -> None:
@@ -505,6 +527,10 @@ def _ab(argv: list[str]) -> None:
         store=store,
     )
     _print_comparison(comparison)
+    # Fail the process if EITHER variant produced no usable games or was aborted
+    # (R2-3) — an A/B where one side never ran is not a comparison a consumer can
+    # trust as a clean success.
+    _exit_nonzero_if_no_usable_games(comparison.a, comparison.b)
 
 
 def _print_comparison(comparison: Comparison) -> None:

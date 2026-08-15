@@ -156,8 +156,13 @@ def is_clockout_segment(segment: str) -> bool:
     """
     if _CLOCKOUT_MARKER in segment:
         return True
-    # Fallback: the DUAL win — both slots "has won because all opponents have
-    # lost" — is the structural signature of a forced draw-clock stop.
+    # LOAD-BEARING (not a mere truncation backstop): the DUAL win — both slots
+    # "has won because all opponents have lost" — is the ONLY signal for a fast
+    # MARKER-LESS forced draw (Forge's `startGame` returns without a game-over →
+    # the reverse-printed Game Outcome block awards BOTH players a win, but NO
+    # "Stopping slow match as draw" marker line is emitted). Those games would
+    # otherwise be mis-tallied as fabricated wins. This class is a real fraction
+    # of the ~30% non-decisive rate (see forge.py `_FORGE_CAPABILITIES`, R2-2).
     return segment.count('has won because all opponents have lost') >= 2
 
 

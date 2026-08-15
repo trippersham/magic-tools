@@ -18,7 +18,13 @@ import pytest
 from pipeline.sim import forge_runtime
 from pipeline.sim.engine import EngineInstall, EngineUnavailableError, SimEngine, get_engine
 from pipeline.sim.engines import forge as forge_engine_mod
-from pipeline.sim.engines.forge import _DEFAULT_TIMEOUT_S, ForgeEngine, _engine_version, _harness_jarhash
+from pipeline.sim.engines.forge import (
+    _COMMANDER_TIMEOUT_S,
+    _DEFAULT_TIMEOUT_S,
+    ForgeEngine,
+    _engine_version,
+    _harness_jarhash,
+)
 from pipeline.sim.forge_runtime import FORGE_VERSION, ForgeInstall, ForgeUnavailableError
 from pipeline.sim.runner import GameOutcome, MatchResult
 from pipeline.sim.store import matchup_key
@@ -56,10 +62,24 @@ def test_capabilities_describe_sim_ai() -> None:
     assert caps.has_hand_visibility is True  # HANDLOG exposes player-1's hand
     assert caps.has_counter_metrics is True  # HANDLOG exposes stack casts
     assert caps.kill_attribution == 'named'
-    # At the 90s draw clock, clockouts are rare — ~5% nondecisive (NPE / genuinely
-    # stalled board), down from the pre-fix 0.12 that a 30s clock was masking.
-    assert caps.expected_nondecisive_rate == pytest.approx(0.05)
+    # R2-2: the honest non-decisive rate — real sim-AI constructed runs are ~32.5%
+    # non-decisive (true clockouts + marker-less fast forced draws + occasional
+    # NPEs), NOT the false 0.05 the earlier note contradicted with its own "~12%".
+    assert caps.expected_nondecisive_rate == pytest.approx(0.30, abs=0.05)
     assert 'simulation ai' in caps.reliability_note.lower()
+
+
+def test_capabilities_note_is_self_consistent_with_rate() -> None:
+    """R2-2: the reliability note must NOT contradict the numeric rate (the old
+    note claimed ~5% AND ~12% while the field said 0.05). It must acknowledge the
+    frequent non-decisive class and name commander as longer / lower-signal."""
+    caps = ForgeEngine().capabilities()
+    note = caps.reliability_note.lower()
+    # No stale under-claims that contradict the ~30% rate.
+    assert '~5%' not in note and '~12%' not in note
+    # Names the real drivers of the non-decisive class.
+    assert 'forced draw' in note or 'forced-draw' in note
+    assert 'commander' in note
 
 
 # --------------------------------------------------------------------------- #
@@ -217,12 +237,13 @@ def test_run_matchup_delegates_to_runner(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr('pipeline.sim.runner.run_matchup', _fake_run_matchup)
     engine = ForgeEngine()
     install = EngineInstall(version=FORGE_VERSION, handle=forge)
-    result = engine.run_matchup(('A', 'DA'), ('B', 'DB'), n=2, seed=7, fmt='commander', install=install)
+    result = engine.run_matchup(('A', 'DA'), ('B', 'DB'), n=2, seed=7, fmt='constructed', install=install)
 
     assert seen['handle'] is forge  # the ForgeInstall handle is unwrapped and passed through
-    assert seen['n'] == 2 and seen['seed'] == 7 and seen['fmt'] == 'commander'
-    # timeout_s=None -> the engine's sim-appropriate default draw clock (B1a: 90s,
-    # raised from 30s to stop clocked-out games becoming fabricated wins).
+    assert seen['n'] == 2 and seen['seed'] == 7 and seen['fmt'] == 'constructed'
+    # timeout_s=None (constructed) -> the engine's sim-appropriate default draw
+    # clock (B1a: 90s, raised from 30s to stop clocked-out games becoming
+    # fabricated wins).
     assert seen['timeout_s'] == _DEFAULT_TIMEOUT_S
     assert result.wins_a == 2
 
@@ -247,6 +268,59 @@ def test_run_matchup_forwards_explicit_timeout(monkeypatch: pytest.MonkeyPatch) 
     install = EngineInstall(version=FORGE_VERSION, handle=_install())
     ForgeEngine().run_matchup(('A', 'DA'), ('B', 'DB'), n=1, seed=1, fmt='constructed', install=install, timeout_s=90)
     assert seen['timeout_s'] == 90
+
+
+# --------------------------------------------------------------------------- #
+# R2-4 — format-aware clock: commander gets a HIGHER default draw clock.
+# --------------------------------------------------------------------------- #
+
+
+def _capture_timeout(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+    seen: dict[str, object] = {}
+
+    def _fake_run_matchup(handle: object, a: tuple[str, str], b: tuple[str, str], **kw: object) -> MatchResult:
+        seen.update(kw)
+        return MatchResult(
+            deck_a=a[0],
+            deck_b=b[0],
+            wins_a=1,
+            wins_b=0,
+            draws=0,
+            per_game=(GameOutcome(winner='a', elapsed_ms=1),),
+            raw_log='',
+        )
+
+    monkeypatch.setattr('pipeline.sim.runner.run_matchup', _fake_run_matchup)
+    return seen
+
+
+def test_commander_none_timeout_uses_higher_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """R2-4: ``fmt='commander'`` with no explicit ``timeout_s`` uses the higher
+    commander default (EDH games are long; 90s is 100% non-decisive)."""
+    seen = _capture_timeout(monkeypatch)
+    install = EngineInstall(version=FORGE_VERSION, handle=_install())
+    ForgeEngine().run_matchup(('A', 'DA'), ('B', 'DB'), n=1, seed=1, fmt='commander', install=install)
+    assert seen['timeout_s'] == _COMMANDER_TIMEOUT_S
+    assert _COMMANDER_TIMEOUT_S > _DEFAULT_TIMEOUT_S
+
+
+def test_commander_explicit_timeout_still_wins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicit ``timeout_s`` overrides the commander default — it is only the
+    None-default that is format-aware."""
+    seen = _capture_timeout(monkeypatch)
+    install = EngineInstall(version=FORGE_VERSION, handle=_install())
+    ForgeEngine().run_matchup(('A', 'DA'), ('B', 'DB'), n=1, seed=1, fmt='commander', install=install, timeout_s=45)
+    assert seen['timeout_s'] == 45
+
+
+def test_commander_external_kill_budget_stays_sane() -> None:
+    """R2-4 sanity: the external-kill budget at the commander clock
+    (``_JVM_LOAD_HEADROOM_S + n*_COMMANDER_TIMEOUT_S``) stays within a real batch
+    wall-time (well under an hour for a modest n)."""
+    from pipeline.sim.runner import _JVM_LOAD_HEADROOM_S
+
+    budget = _JVM_LOAD_HEADROOM_S + 4 * _COMMANDER_TIMEOUT_S
+    assert budget <= 1800  # <= 30 min for a 4-game commander matchup
 
 
 # --------------------------------------------------------------------------- #

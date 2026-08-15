@@ -48,23 +48,39 @@ __all__ = ('ForgeEngine',)
 #: (e.g. n=2 → 120 + 180 = 300s wall, well inside a real batch).
 _DEFAULT_TIMEOUT_S = 90
 
+#: The commander (1v1 EDH) per-game draw clock. EDH games are LONG — at the 90s
+#: constructed clock commander is ~100% non-decisive (every game clocks out), so a
+#: commander run at the default learns nothing. Raised to 300s so games can actually
+#: DECIDE (R2-4). Only the None-default is format-aware — an explicit ``timeout_s``
+#: still wins. The external-kill budget stays sane: even at n=4 the wall bound is
+#: ``_JVM_LOAD_HEADROOM_S + 4*300 = 1320s`` (~22 min), well inside a real batch.
+_COMMANDER_TIMEOUT_S = 300
+
 #: Capabilities describing the LIVE sim-AI harness reality (the runner now launches
 #: ``org.makemagic.simai.SimAIMatch -sim 1`` — Forge's depth-3 simulation AI with the
 #: real-time HANDLOG stream). The HANDLOG exposes player-1's hand + stack casts, so
-#: hand-visibility and counter (stack-interaction) metrics are observable; the sim AI
-#: is ~12% fragile (NPE / sim-timeout / clock-out → nondecisive). It still names the
-#: kill source in its verbose log. (The HANDLOG piloting-metric WIRING is task 1.6b;
-#: this only reflects the flags now that the sim AI actually runs.)
+#: hand-visibility and counter (stack-interaction) metrics are observable. It still
+#: names the kill source in its verbose log. (The HANDLOG piloting-metric WIRING is
+#: task 1.6b; this only reflects the flags now that the sim AI actually runs.)
+#:
+#: ``expected_nondecisive_rate`` is the EMPIRICAL constructed value (~0.30), not a
+#: hopeful floor: real sim-AI runs are non-decisive roughly a third of the time (R2-2),
+#: a mix of true clock-outs, marker-less fast forced-draws, and occasional NPEs — all
+#: counted as draws, never fabricated wins. Commander runs much longer and is
+#: lower-signal at any clock (see ``_COMMANDER_TIMEOUT_S`` / R2-4).
 _FORGE_CAPABILITIES = EngineCapabilities(
     has_hand_visibility=True,
     has_counter_metrics=True,
-    expected_nondecisive_rate=0.05,
+    expected_nondecisive_rate=0.30,
     reliability_note=(
         'Forge built-in simulation AI (AIOption.USE_SIMULATION, depth-3 lookahead) via the committed '
-        'SimAIMatch harness, with a real-time HANDLOG decision stream. At the 90s per-game draw clock a '
-        'small fraction of games (~5%) still end nondecisively — a sim-AI NPE, or a genuinely stalled '
-        'board that runs out the clock (counted as a draw, never a fabricated win). Kill source is named '
-        'in the verbose log.'
+        'SimAIMatch harness, with a real-time HANDLOG decision stream. Sim-AI games are frequently '
+        'non-decisive — empirically ~30% at the 90s constructed draw clock: a MIX of true clock-outs '
+        '(a stalled board runs out the clock), fast marker-less "forced draws" (Forge startGame returns '
+        'without a game-over, printing a dual-win Game Outcome block with NO "Stopping slow match" '
+        'marker), and occasional sim-AI NPEs. All are counted as draws, never fabricated wins. Kill '
+        'source is named in the verbose log. Commander runs MUCH longer and is lower-signal even at the '
+        'raised 300s clock (EDH games are long).'
     ),
     kill_attribution='named',
 )
@@ -150,13 +166,18 @@ class ForgeEngine:
         install: EngineInstall,
         timeout_s: int | None = None,
     ) -> MatchResult:
-        """Delegate to :func:`pipeline.sim.runner.run_matchup` (byte-identical).
+        """Delegate to :func:`pipeline.sim.runner.run_matchup`.
 
         Unwraps ``install.handle`` (a :class:`~pipeline.sim.forge_runtime.ForgeInstall`)
-        and calls the unchanged runner; ``timeout_s=None`` uses the runner's own
-        default so the call matches the pre-seam behaviour exactly.
+        and calls the runner. When ``timeout_s`` is ``None`` the per-game draw clock
+        is FORMAT-AWARE: commander (long EDH games) uses ``_COMMANDER_TIMEOUT_S``
+        (300s) so games can decide rather than 100% clock out at 90s (R2-4); every
+        other format uses ``_DEFAULT_TIMEOUT_S`` (90s). An explicit ``timeout_s``
+        overrides both.
         """
         handle: ForgeInstall = install.handle
+        if timeout_s is None:
+            timeout_s = _COMMANDER_TIMEOUT_S if fmt == 'commander' else _DEFAULT_TIMEOUT_S
         return runner.run_matchup(
             handle,
             deck_a,
@@ -164,7 +185,7 @@ class ForgeEngine:
             n=n,
             seed=seed,
             fmt=fmt,
-            timeout_s=_DEFAULT_TIMEOUT_S if timeout_s is None else timeout_s,
+            timeout_s=timeout_s,
         )
 
     def replay(self, matchup_key: str, game_idx: int) -> str:

@@ -36,6 +36,7 @@ def _sim_result(
     *,
     failures: tuple[tuple[str, str], ...] = (),
     aborted: bool = False,
+    total_games: int = 4,
 ) -> SimResult:
     """A populated ``SimResult`` a mocked ``core.simulate`` can return."""
     profile = TelemetryProfile(
@@ -64,7 +65,7 @@ def _sim_result(
         gauntlet_source='curated',
         fmt=fmt,
         games_per_opponent=4,
-        total_games=4,
+        total_games=total_games,
         wins=3,
         losses=1,
         draws=0,
@@ -265,10 +266,119 @@ def test_deck_surfaces_aborted_run_on_stderr(
     dck = tmp_path / 'D.dck'
     dck.write_text('x')
     monkeypatch.setattr(sim_run, 'simulate', lambda *a, **k: _sim_result(aborted=True))
-    sim_run.main(['deck', str(dck)])
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck)])
+    assert exc.value.code == 1
     err = capsys.readouterr().err
     assert 'ABORTED' in err
     assert 'PARTIAL' in err
+
+
+# --------------------------------------------------------------------------- #
+# R2-3 — non-zero exit when a run produced ZERO usable games (all-failed / aborted)
+# --------------------------------------------------------------------------- #
+
+
+def test_deck_all_matchups_failed_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A run where EVERY matchup failed (zero usable games) exits non-zero so a
+    cron/agent consumer can't read success on a dead run (R2-3)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('x')
+    monkeypatch.setattr(
+        sim_run,
+        'simulate',
+        lambda *a, **k: _sim_result(total_games=0, failures=(('BorosStrong', 'Could not load a deck'),)),
+    )
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck)])
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'FAILED' in err  # the failure is still surfaced before the exit.
+
+
+def test_deck_legit_zero_winrate_with_real_games_exits_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """A legitimate 0% win-rate WITH real games played (lost every game) is NOT a
+    failure — it exits 0. Only a run with no usable games is a failure (R2-3)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('x')
+    # total_games > 0, no failures, no abort -> a real (losing) run.
+    monkeypatch.setattr(sim_run, 'simulate', lambda *a, **k: _sim_result(total_games=4))
+    sim_run.main(['deck', str(dck)])  # no SystemExit -> exit 0.
+
+
+def test_deck_aborted_run_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """An aborted run (even with some games) exits non-zero — results are partial
+    and a consumer must not treat them as a clean success (R2-3)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('x')
+    monkeypatch.setattr(sim_run, 'simulate', lambda *a, **k: _sim_result(total_games=4, aborted=True))
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck)])
+    assert exc.value.code == 1
+
+
+def test_ab_all_failed_side_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``ab`` exits non-zero when EITHER side produced zero usable games (R2-3)."""
+    a = tmp_path / 'A.dck'
+    b = tmp_path / 'B.dck'
+    a.write_text('a')
+    b.write_text('b')
+
+    def _fake_compare(variant_a: object, variant_b: object, gauntlet_source: str, **kwargs: object) -> Comparison:
+        return Comparison(
+            a=_sim_result('A', total_games=4),
+            b=_sim_result('B', total_games=0, failures=(('X', 'crash'),)),
+            win_rate_delta=0.0,
+            metric_deltas={},
+            stronger=None,
+        )
+
+    monkeypatch.setattr(sim_run, 'compare', _fake_compare)
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['ab', str(a), str(b)])
+    assert exc.value.code == 1
+
+
+def test_ab_both_sides_have_games_exits_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """``ab`` with real games on both sides exits 0 even at a lopsided win-rate."""
+    a = tmp_path / 'A.dck'
+    b = tmp_path / 'B.dck'
+    a.write_text('a')
+    b.write_text('b')
+
+    def _fake_compare(variant_a: object, variant_b: object, gauntlet_source: str, **kwargs: object) -> Comparison:
+        return Comparison(
+            a=_sim_result('A', total_games=4),
+            b=_sim_result('B', total_games=4),
+            win_rate_delta=0.1,
+            metric_deltas={},
+            stronger='A',
+        )
+
+    monkeypatch.setattr(sim_run, 'compare', _fake_compare)
+    sim_run.main(['ab', str(a), str(b)])  # no SystemExit -> exit 0.
 
 
 # --------------------------------------------------------------------------- #

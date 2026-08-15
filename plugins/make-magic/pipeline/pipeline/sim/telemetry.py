@@ -62,6 +62,14 @@ _LIFE_RE = re.compile(r'^Life: Life: Ai\((\d)\)-\S.*? (\d+) > (-?\d+)')
 _DAMAGE_RE = re.compile(r'^Damage: .*? deals \d+ (combat )?damage to Ai\((\d)\)-')
 #: ``Game Result: Game N ended in <ms> ms. <tail>`` — elapsed + winner tail.
 _RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in (\d+) ms\. (.+)$')
+#: A GENUINE draw terminator (``SimAIMatch.java:219``):
+#: ``Game Result: Game N ended in a Draw! Took <ms> ms.`` — a real (non-clockout)
+#: draw. It does NOT match ``_RESULT_RE`` (different wording), yet it IS a game
+#: terminator: :func:`runner.parse_match_log` already counts it, so :func:`split_games`
+#: MUST treat it as a boundary too or a draw game's lines merge into the NEXT
+#: segment (fewer feature rows than games + a stored log with two ``Game Result``
+#: lines). Every sim-AI NPE game emits a draw line, so this is not a rare edge (R2-1).
+_DRAW_RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in a Draw! Took (\d+) ms\.$')
 #: Winner tail within a Game Result line: ``Ai(k)-Deck has won!``. Name matched
 #: non-greedily (``.+?``) so spaced/paren deck names parse (only the slot matters).
 _WINNER_RE = re.compile(r'Ai\((\d)\)-.+? has won!')
@@ -99,11 +107,17 @@ class GameFeatures:
 def split_games(match_log: str) -> list[str]:
     """Split a multi-game verbose log into one text segment per game.
 
-    Each finished game prints exactly one ``Game Result: Game N ended …`` line as
-    its terminator, so every segment is the run of lines up to and including its
-    ``Game Result``. Preamble before the first result (card-DB load, headers) is
-    folded into game 1. Trailing text after the last ``Game Result`` (no
-    terminator) is dropped — an unfinished game has no result to attribute.
+    Each finished game prints exactly one terminator line as its boundary — either
+    the normal ``Game Result: Game N ended in <ms> ms. <tail>`` OR the GENUINE-draw
+    ``Game Result: Game N ended in a Draw! Took <ms> ms.`` (``SimAIMatch.java:219``)
+    — so every segment is the run of lines up to and including that terminator.
+    BOTH must be recognised: the draw wording does not match ``_RESULT_RE``, so
+    matching only the normal form would MERGE a draw game's lines into the next
+    segment (fewer segments than games, and a stored log with two ``Game Result``
+    lines) — and every sim-AI NPE game ends in a draw line (R2-1). Preamble before
+    the first result (card-DB load, headers) is folded into game 1. Trailing text
+    after the last terminator (no boundary) is dropped — an unfinished game has no
+    result to attribute.
 
     Returns ``[]`` for empty / result-less input (never raises).
     """
@@ -114,7 +128,8 @@ def split_games(match_log: str) -> list[str]:
     current: list[str] = []
     for line in match_log.splitlines():
         current.append(line)
-        if _RESULT_RE.match(line.strip()):
+        stripped = line.strip()
+        if _RESULT_RE.match(stripped) or _DRAW_RESULT_RE.match(stripped):
             segments.append('\n'.join(current))
             current = []
     return segments

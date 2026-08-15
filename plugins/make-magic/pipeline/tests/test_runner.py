@@ -143,6 +143,22 @@ def test_is_clockout_segment_detects_marker_and_dual_win() -> None:
     assert not is_clockout_segment(normal)
 
 
+def test_is_clockout_segment_dual_win_without_marker_is_nondecisive() -> None:
+    """LOAD-BEARING (R2-2): a marker-LESS forced draw — a fast game where Forge's
+    ``startGame`` returns without a game-over and the reverse-printed ``Game
+    Outcome`` block awards BOTH players ``has won because all opponents have
+    lost`` — carries NO ``Stopping slow match as draw`` marker, yet is still
+    non-decisive. The dual-win fallback (not a mere truncation backstop) is the
+    ONLY thing that catches this class; assert it explicitly."""
+    forced_draw_no_marker = (
+        'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Y has won because all opponents have lost\n'
+        'Game Result: Game 1 ended in 40 ms. Ai(1)-X has won!'
+    )
+    assert 'Stopping slow match as draw' not in forced_draw_no_marker
+    assert is_clockout_segment(forced_draw_no_marker)
+
+
 def test_mixed_clockout_and_real_win_only_counts_the_real_game() -> None:
     """One clocked-out game + one genuine win -> 1 win, 1 draw (the clockout)."""
     log = (
