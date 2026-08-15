@@ -45,6 +45,7 @@ __all__ = (
     'GameOutcome',
     'MatchResult',
     'deck_to_dck',
+    'is_clockout_segment',
     'parse_match_log',
     'run_matchup',
 )
@@ -60,6 +61,11 @@ _HARNESS_MAIN_CLASS = 'org.makemagic.simai.SimAIMatch'
 
 #: The ONLY line the tally counts: ``Game Result: Game N ended in <ms> ms. <tail>``.
 _RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in (\d+) ms\. (.+)$')
+#: A GENUINE draw terminator emitted by the harness (``SimAIMatch.java:219``):
+#: ``Game Result: Game N ended in a Draw! Took <ms> ms.`` — a real (non-clockout)
+#: draw. This is ALSO a game terminator (counts toward ``result.games``), so it
+#: must be recognised here or the match zeros to a spurious ``ForgeError`` (M4).
+_DRAW_RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in a Draw! Took (\d+) ms\.$')
 #: Winner tail: ``Ai(<slot>)-<name> has won!`` — slot 1 = deck_a, 2 = deck_b.
 #: The name is matched non-greedily (``.+?``, NOT ``\S+``) so deck names with
 #: spaces/parens (e.g. a real Airtable deck ``UR Izzet (Chaos Sealed)``) parse —
@@ -67,6 +73,13 @@ _RESULT_RE = re.compile(r'^Game Result: Game \d+ ended in (\d+) ms\. (.+)$')
 _WINNER_RE = re.compile(r'Ai\((\d)\)-.+? has won!')
 #: exit-0 deck-load failures. Presence -> ForgeError regardless of exit code.
 _LOAD_FAILURE_MARKERS = ('Could not load deck', 'No deck found in')
+#: CLOCKOUT marker (``SimAIMatch.java:199``): a game that hit Forge's in-game draw
+#: clock prints this, then forces ``GameEndReason.Draw`` — but the log's
+#: reverse-printed ``Game Outcome`` block awards a DUAL ``has won because all
+#: opponents have lost`` to BOTH players and the terminator still reads
+#: ``… has won!``. That "win" is FABRICATED; a segment carrying this marker is
+#: NON-DECISIVE (0W/0L/1 draw) and must be excluded from tally AND telemetry (B1b).
+_CLOCKOUT_MARKER = 'Stopping slow match as draw'
 
 #: One-time card-DB load was 15-25s empirically; headroom for the external kill
 #: on top of the caller's per-game timeout budget.
@@ -127,14 +140,38 @@ def deck_to_dck(deck: Deck) -> str:
     return get_exporter('forge_dck').export(deck)
 
 
+def is_clockout_segment(segment: str) -> bool:
+    """True when a single game's log ``segment`` is a CLOCKOUT (non-decisive).
+
+    A game that hit Forge's in-game draw clock prints ``Stopping slow match as
+    draw`` (``SimAIMatch.java:199``) before its terminator; the harness then
+    forces a draw yet the reverse-printed ``Game Outcome`` block awards a DUAL
+    ``has won because all opponents have lost`` to BOTH players and the
+    ``Game Result`` terminator still reads ``… has won!``. That decisive "win" is
+    fabricated — the game is really a timeout non-decision. Detected by the
+    unambiguous marker (equivalently the dual-win pair, used as a fallback in case
+    the marker line is ever dropped from a truncated capture).
+    """
+    if _CLOCKOUT_MARKER in segment:
+        return True
+    # Fallback: the DUAL win — both slots "has won because all opponents have
+    # lost" — is the structural signature of a forced draw-clock stop.
+    return segment.count('has won because all opponents have lost') >= 2
+
+
 def parse_match_log(output: str, *, deck_a: str, deck_b: str) -> MatchResult:
     """Tally a Forge ``sim`` log into a :class:`MatchResult` (pure function).
 
     Counts ONLY ``Game Result:`` lines (the ``Game Outcome:`` twin would
     double-count), mapping the ``Ai(1)``/``Ai(2)`` slot to ``deck_a``/``deck_b``.
-    Raises :class:`ForgeError` on a deck-load failure marker (exit code is NOT
-    reliable — a broken deck still exits 0) or when no ``Game Result`` line is
-    present at all.
+    The tally is GAME-SEGMENT-AWARE: a game whose segment carries the CLOCKOUT
+    marker (:func:`is_clockout_segment`) is NON-DECISIVE — its fabricated
+    ``… has won!`` terminator is NOT counted as a win; it is tallied as a draw
+    (0W/0L, +1 draw) so a clocked-out game can never masquerade as a real result
+    (B1b). A GENUINE draw terminator (``… ended in a Draw! Took <ms> ms.``,
+    ``SimAIMatch.java:219``) is likewise a draw (M4). Raises :class:`ForgeError`
+    on a deck-load failure marker (exit code is NOT reliable — a broken deck still
+    exits 0) or when no ``Game Result`` line is present at all.
     """
     for marker in _LOAD_FAILURE_MARKERS:
         if marker in output:
@@ -145,26 +182,46 @@ def parse_match_log(output: str, *, deck_a: str, deck_b: str) -> MatchResult:
 
     wins_a = wins_b = draws = 0
     per_game: list[GameOutcome] = []
+    # Accumulate each game's lines up to (and including) its ``Game Result``
+    # terminator, so the clockout marker earlier in the same segment is visible
+    # when the terminator is tallied (the marker precedes the reverse-printed
+    # ``Game Outcome`` block and the terminator).
+    segment: list[str] = []
     for raw_line in output.splitlines():
-        m = _RESULT_RE.match(raw_line.strip())
+        segment.append(raw_line)
+        stripped = raw_line.strip()
+        draw_m = _DRAW_RESULT_RE.match(stripped)
+        if draw_m:
+            # A genuine harness-emitted draw terminator (M4).
+            draws += 1
+            per_game.append(GameOutcome(winner='draw', elapsed_ms=int(draw_m.group(1))))
+            segment = []
+            continue
+        m = _RESULT_RE.match(stripped)
         if not m:
             continue
         elapsed_ms = int(m.group(1))
         tail = m.group(2)
-        winner_match = _WINNER_RE.search(tail)
-        if winner_match:
-            if winner_match.group(1) == '1':
-                wins_a += 1
-                winner = 'a'
-            else:
-                wins_b += 1
-                winner = 'b'
-        elif 'Draw' in tail:
+        if is_clockout_segment('\n'.join(segment)):
+            # CLOCKOUT: discard the fabricated ``has won!`` — count as a draw (B1b).
             draws += 1
             winner = 'draw'
         else:
-            raise ForgeError(f'unparseable Game Result line: {raw_line!r}')
+            winner_match = _WINNER_RE.search(tail)
+            if winner_match:
+                if winner_match.group(1) == '1':
+                    wins_a += 1
+                    winner = 'a'
+                else:
+                    wins_b += 1
+                    winner = 'b'
+            elif 'Draw' in tail:
+                draws += 1
+                winner = 'draw'
+            else:
+                raise ForgeError(f'unparseable Game Result line: {raw_line!r}')
         per_game.append(GameOutcome(winner=winner, elapsed_ms=elapsed_ms))
+        segment = []
 
     if not per_game:
         raise ForgeError(f'Forge produced no Game Result lines (no games played). Output tail:\n{output[-1000:]}')

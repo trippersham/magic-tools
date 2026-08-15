@@ -30,7 +30,13 @@ from pipeline.sim.runner import GameOutcome, MatchResult
 # --------------------------------------------------------------------------- #
 
 
-def _sim_result(candidate: str = 'Cand', fmt: str = 'constructed') -> SimResult:
+def _sim_result(
+    candidate: str = 'Cand',
+    fmt: str = 'constructed',
+    *,
+    failures: tuple[tuple[str, str], ...] = (),
+    aborted: bool = False,
+) -> SimResult:
     """A populated ``SimResult`` a mocked ``core.simulate`` can return."""
     profile = TelemetryProfile(
         games=4,
@@ -68,6 +74,8 @@ def _sim_result(candidate: str = 'Cand', fmt: str = 'constructed') -> SimResult:
         profile=profile,
         cached_matchups=0,
         fresh_matchups=1,
+        failures=failures,
+        aborted=aborted,
     )
 
 
@@ -220,6 +228,47 @@ def test_deck_gauntlet_defaults(
     sim_run.main(['deck', str(dck)])
     assert seen['gauntlet_source'] == 'curated'
     assert seen['force'] is False
+
+
+def test_deck_surfaces_matchup_failures_on_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A FAILED matchup prints a distinct failure line to stderr (B2) — NOT a
+    silent 0-0-0 row indistinguishable from 'lost every game'."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('x')
+
+    def _fake_simulate(deck: object, gauntlet_source: str, **kwargs: object) -> SimResult:
+        return _sim_result(failures=(('BorosStrong', 'Forge could not load a deck'),))
+
+    monkeypatch.setattr(sim_run, 'simulate', _fake_simulate)
+    sim_run.main(['deck', str(dck)])
+
+    captured = capsys.readouterr()
+    assert 'FAILED' in captured.err
+    assert 'BorosStrong' in captured.err
+    assert 'could not load a deck' in captured.err.lower()
+    # The failure is on STDERR, keeping stdout the clean result table.
+    assert 'FAILED' not in captured.out
+
+
+def test_deck_surfaces_aborted_run_on_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A partial (aborted) run prints a prominent notice to stderr (B2)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('x')
+    monkeypatch.setattr(sim_run, 'simulate', lambda *a, **k: _sim_result(aborted=True))
+    sim_run.main(['deck', str(dck)])
+    err = capsys.readouterr().err
+    assert 'ABORTED' in err
+    assert 'PARTIAL' in err
 
 
 # --------------------------------------------------------------------------- #

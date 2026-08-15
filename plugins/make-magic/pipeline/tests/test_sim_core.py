@@ -32,7 +32,7 @@ from pipeline.sim.core import (
 )
 from pipeline.sim.engine import EngineCapabilities, EngineInstall
 from pipeline.sim.forge_runtime import ENV_FORGE_HOME, ENV_JAVA
-from pipeline.sim.governor import MatchSpec, PoolResult
+from pipeline.sim.governor import MatchFailure, MatchSpec, PoolResult
 from pipeline.sim.runner import GameOutcome, MatchResult
 
 
@@ -249,14 +249,14 @@ def test_run_cached_matchups_miss_then_hit(monkeypatch: pytest.MonkeyPatch, data
         MatchSpec(deck_a=('Cand', 'A'), deck_b=('Opp', 'B'), n=4, seed=1, fmt='constructed'),
     ]
 
-    first = run_cached_matchups(_FakeEngine(), _engine_install(), specs, data_dir=str(data_dir))
+    first = run_cached_matchups(_FakeEngine(), _engine_install(), specs, data_dir=str(data_dir)).outcomes
     assert len(first) == 1
     assert first[0].wins == 4
     assert first[0].cached is False
     assert first[0].features  # telemetry parsed + returned
     assert len(calls) == 1  # one governor batch ran
 
-    second = run_cached_matchups(_FakeEngine(), _engine_install(), specs, data_dir=str(data_dir))
+    second = run_cached_matchups(_FakeEngine(), _engine_install(), specs, data_dir=str(data_dir)).outcomes
     assert second[0].wins == 4
     assert second[0].cached is True
     assert len(calls) == 1  # NO second governor batch — served from cache
@@ -321,14 +321,65 @@ def test_run_cached_matchups_duplicate_names_attributed_by_spec(
 
     monkeypatch.setattr(core, 'run_matchups', fake_run_matchups)
 
-    outcomes = run_cached_matchups(_FakeEngine(), _engine_install(), [spec_win, spec_lose], data_dir=str(data_dir))
+    outcomes = run_cached_matchups(
+        _FakeEngine(), _engine_install(), [spec_win, spec_lose], data_dir=str(data_dir)
+    ).outcomes
     assert (outcomes[0].wins, outcomes[0].losses) == (1, 0)
     assert (outcomes[1].wins, outcomes[1].losses) == (0, 1)
 
     # And the cache is keyed right: a re-run serves each seed its OWN tally.
-    second = run_cached_matchups(_FakeEngine(), _engine_install(), [spec_win, spec_lose], data_dir=str(data_dir))
+    second = run_cached_matchups(
+        _FakeEngine(), _engine_install(), [spec_win, spec_lose], data_dir=str(data_dir)
+    ).outcomes
     assert second[0].cached and (second[0].wins, second[0].losses) == (1, 0)
     assert second[1].cached and (second[1].wins, second[1].losses) == (0, 1)
+
+
+def test_run_cached_matchups_surfaces_failures(monkeypatch: pytest.MonkeyPatch, data_dir: Path) -> None:
+    """A governor failure (no paired result) surfaces on ``MatchupBatch.failures``
+    AND records a zeroed placeholder outcome — the two are DISTINCT (B2)."""
+    spec = MatchSpec(deck_a=('Cand', 'A'), deck_b=('BadOpp', 'B'), n=2, seed=1, fmt='constructed')
+
+    def fake_run_matchups(engine: object, install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
+        return PoolResult(
+            pool_size=1,
+            results=[],
+            failures=[MatchFailure(spec=spec, error='Forge could not load a deck')],
+            max_concurrent=1,
+            aborted=False,
+            min_free_ram_gib=8.0,
+            min_free_disk_gib=50.0,
+            pairs=[],  # no result -> the spec is a failure, not a 0-0-0 game.
+        )
+
+    monkeypatch.setattr(core, 'run_matchups', fake_run_matchups)
+    batch = run_cached_matchups(_FakeEngine(), _engine_install(), [spec], data_dir=str(data_dir))
+    assert batch.failures == (('BadOpp', 'Forge could not load a deck'),)
+    assert batch.aborted is False
+    # A zeroed placeholder outcome still fills the row (so the aggregate has one).
+    assert (batch.outcomes[0].wins, batch.outcomes[0].losses, batch.outcomes[0].draws) == (0, 0, 0)
+
+
+def test_run_cached_matchups_propagates_aborted(monkeypatch: pytest.MonkeyPatch, data_dir: Path) -> None:
+    """The governor's ``aborted`` flag threads onto the batch (B2)."""
+    specs = [MatchSpec(deck_a=('Cand', 'A'), deck_b=('Opp', 'B'), n=1, seed=1)]
+
+    def fake_run_matchups(engine: object, install: object, ss: list[MatchSpec], **kw: object) -> PoolResult:
+        pr = _pool_result_candidate_sweeps(ss)
+        return PoolResult(
+            pool_size=pr.pool_size,
+            results=pr.results,
+            failures=[],
+            max_concurrent=pr.max_concurrent,
+            aborted=True,
+            min_free_ram_gib=pr.min_free_ram_gib,
+            min_free_disk_gib=pr.min_free_disk_gib,
+            pairs=pr.pairs,
+        )
+
+    monkeypatch.setattr(core, 'run_matchups', fake_run_matchups)
+    batch = run_cached_matchups(_FakeEngine(), _engine_install(), specs, data_dir=str(data_dir))
+    assert batch.aborted is True
 
 
 # --------------------------------------------------------------------------- #

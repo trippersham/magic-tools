@@ -176,6 +176,36 @@ def test_match_features_commander_run_ten_games() -> None:
     assert winners[7] == 'b'
 
 
+def test_match_features_excludes_clockout_games() -> None:
+    """Clockout games are EXCLUDED from the telemetry profile — a fabricated
+    kill_turn / wincon must not fold into the aggregate (B1b).
+
+    The captured clockout fixture is TWO clocked-out games (both non-decisive);
+    every segment is a clockout, so no features are extracted.
+    """
+    feats = extract_match_features(_read('clockout.log'), deck_a='AzoriusMid', deck_b='IzzetMid')
+    assert feats == []
+
+
+def test_match_features_mixed_clockout_and_real_game() -> None:
+    """A real decisive game + a clockout -> only the real game contributes."""
+    real = (
+        'Turn: Turn 5 (Ai(1)-X)\n'
+        'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Y has lost because life total reached 0\n'
+        'Game Result: Game 1 ended in 24000 ms. Ai(1)-X has won!\n'
+    )
+    clockout = (
+        'Stopping slow match as draw\n'
+        'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Y has won because all opponents have lost\n'
+        'Game Result: Game 2 ended in 2000 ms. Ai(2)-Y has won!\n'
+    )
+    feats = extract_match_features(real + clockout, deck_a='X', deck_b='Y')
+    assert len(feats) == 1
+    assert feats[0].winner == 'a'
+
+
 # --------------------------------------------------------------------------- #
 # graceful degradation — never raise on malformed / partial / empty input
 # --------------------------------------------------------------------------- #

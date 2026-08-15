@@ -15,6 +15,7 @@ from __future__ import annotations
 from pipeline.sim.core import (
     Comparison,
     MatchOutcome,
+    MatchupBatch,
     OpponentResult,
     SimResult,
     TelemetryProfile,
@@ -79,6 +80,7 @@ __all__ = (
     'MatchOutcome',
     'MatchResult',
     'MatchSpec',
+    'MatchupBatch',
     'OpponentResult',
     'PoolResult',
     'SimEngine',

@@ -588,6 +588,46 @@ def test_store_matchup_rejects_log_feature_desync(data_dir: Path) -> None:
         sim_store.store_matchup('k-desync', _meta(), result, two_features)
 
 
+def test_store_matchup_clockout_log_stays_aligned(data_dir: Path) -> None:
+    """A raw_log with a CLOCKOUT game persists WITHOUT desync (B1b integration).
+
+    ``extract_match_features`` excludes the clockout game, so ``features`` has one
+    fewer row than ``split_games(raw_log)``; the store must exclude the SAME game
+    from the persisted per-game logs (keeping ``game_index`` 1:1) rather than
+    raising a false desync. The stored log is the DECIDED game only.
+    """
+    real_game = (
+        'Turn: Turn 5 (Ai(1)-Aggro)  [real game]\n'
+        'Game Outcome: Ai(1)-Aggro has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Control has lost because life total reached 0\n'
+        'Game Result: Game 1 ended in 24000 ms. Ai(1)-Aggro has won!\n'
+    )
+    clockout_game = (
+        'Stopping slow match as draw  [clockout game]\n'
+        'Game Outcome: Ai(1)-Aggro has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Control has won because all opponents have lost\n'
+        'Game Result: Game 2 ended in 2000 ms. Ai(2)-Control has won!\n'
+    )
+    raw_log = real_game + clockout_game
+    # The tally (from parse_match_log) is 1 win / 1 draw; the clockout is excluded
+    # from features, so exactly ONE feature row corresponds to the real game.
+    result = MatchResult(
+        deck_a='Aggro',
+        deck_b='Control',
+        wins_a=1,
+        wins_b=0,
+        draws=1,
+        per_game=(GameOutcome(winner='a', elapsed_ms=24000), GameOutcome(winner='draw', elapsed_ms=2000)),
+        raw_log=raw_log,
+    )
+    sim_store.store_matchup('k-clockout', _meta(), result, [_features(winner='a')])
+
+    logs = sim_store.get_game_logs('k-clockout')
+    assert len(logs) == 1  # only the decided game's log is retained
+    assert '[real game]' in logs[0]
+    assert '[clockout game]' not in logs[0]
+
+
 # --------------------------------------------------------------------------- #
 # old-schema forward migration — a pre-engine cache must open without crashing
 # --------------------------------------------------------------------------- #

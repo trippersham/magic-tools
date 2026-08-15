@@ -253,6 +253,30 @@ def _print_sim_result(result: SimResult) -> None:
             f'({opp.wins}-{opp.losses}-{opp.draws}){cached}'
         )
     _print_profile(result.profile)
+    _print_failures(result)
+
+
+def _print_failures(result: SimResult) -> None:
+    """Surface any matchup FAILURES + a partial-run notice to stderr (B2).
+
+    A failed matchup (deck-load / timeout / crash) produced NO usable games — it is
+    visibly DISTINCT from a real 0-0-0 "lost every game" row, which the
+    per-opponent table shows. Printing to stderr keeps stdout the clean result
+    table while making a silent all-zeros run impossible.
+    """
+    if result.aborted:
+        print(
+            'WARNING: the run was ABORTED before every matchup ran (persistent RAM/disk '
+            'starvation) — results are PARTIAL.',
+            file=sys.stderr,
+        )
+    if result.failures:
+        print(
+            f'WARNING: {len(result.failures)} matchup(s) FAILED (no games produced — NOT a 0-0-0 loss):',
+            file=sys.stderr,
+        )
+        for opponent, error in result.failures:
+            print(f'  vs {opponent}: {error}', file=sys.stderr)
 
 
 def _print_profile(profile: object) -> None:
@@ -496,6 +520,12 @@ def _print_comparison(comparison: Comparison) -> None:
     print('per-metric deltas (A - B):')
     for metric, delta in comparison.metric_deltas.items():
         print(f'  {metric:<24} {_fmt_signed(delta)}')
+    # Surface either variant's matchup failures / abort (B2) — labelled by side so
+    # a failed A vs a failed B are distinguishable.
+    for label, side in (('A', a), ('B', b)):
+        if side.aborted or side.failures:
+            print(f'[variant {label}: {side.candidate}]', file=sys.stderr)
+            _print_failures(side)
 
 
 def _fmt_signed(value: float | None) -> str:

@@ -22,8 +22,9 @@ Everything lands in the SAME ``make_magic.duckdb`` as the rest of the lake, via
     Forge (whose ``-s`` seed is not reliably reproducible — a re-run is a
     different game, so the log must be retained at run time, not re-derived). The
     log is sliced from ``MatchResult.raw_log`` via
-    :func:`~pipeline.sim.telemetry.split_games`, so its ``game_index`` lines up
-    1:1 with ``sim_game_features`` (both derive from the same split). Read on
+    :func:`~pipeline.sim.telemetry.split_games` with CLOCKOUT segments excluded
+    (:func:`~pipeline.sim.runner.is_clockout_segment`), so its ``game_index`` lines
+    up 1:1 with ``sim_game_features`` (which excludes the same games). Read on
     demand via :func:`get_game_logs` — NOT loaded on the hot cache path.
 
 The read-through hook is :func:`get_cached` (returns ``None`` on a miss); the
@@ -40,7 +41,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from pipeline import store
-from pipeline.sim.runner import MatchResult
+from pipeline.sim.runner import MatchResult, is_clockout_segment
 from pipeline.sim.telemetry import GameFeatures, split_games
 
 if TYPE_CHECKING:
@@ -344,13 +345,17 @@ def store_matchup(
 
         # Replace the per-game log rows wholesale (sliced from the full verbose log).
         conn.execute('DELETE FROM sim_game_logs WHERE matchup_key = ?', [key])
-        game_logs = split_games(result.raw_log)
+        # EXCLUDE clockout segments to stay 1:1 with `features` (which
+        # `extract_match_features` already filters the same way) — a clocked-out
+        # game has a fabricated result and no forensic value, so dropping its log
+        # keeps `game_index` aligned across the two tables (B1b).
+        game_logs = [seg for seg in split_games(result.raw_log) if not is_clockout_segment(seg)]
         # Invariant: log rows either line up 1:1 with feature rows (both derive from
-        # the SAME split_games) OR are absent — a result-less/elided log (e.g. tests
-        # that pass a placeholder raw_log) yields 0 segments. Any OTHER count means
-        # `features` and `raw_log` came from different matchups and the two tables
-        # would silently desync on `game_index`. A real raise (not `assert`, which
-        # `python -O` strips) — this guards persisted data.
+        # the SAME clockout-excluded split) OR are absent — a result-less/elided log
+        # (e.g. tests that pass a placeholder raw_log) yields 0 segments. Any OTHER
+        # count means `features` and `raw_log` came from different matchups and the
+        # two tables would silently desync on `game_index`. A real raise (not
+        # `assert`, which `python -O` strips) — this guards persisted data.
         if len(game_logs) not in (0, len(features)):
             raise ValueError(
                 f'log/feature game_index desync: {len(game_logs)} log segments vs '

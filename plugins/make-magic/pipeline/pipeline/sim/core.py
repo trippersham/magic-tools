@@ -56,6 +56,7 @@ if TYPE_CHECKING:
 __all__ = (
     'Comparison',
     'MatchOutcome',
+    'MatchupBatch',
     'OpponentResult',
     'SimResult',
     'TelemetryProfile',
@@ -176,6 +177,16 @@ class SimResult:
     profile: TelemetryProfile
     cached_matchups: int
     fresh_matchups: int
+    #: Per-opponent matchup FAILURES (deck-load / timeout / crash) surfaced from the
+    #: governor — each is ``(opponent_name, error)``. A failed matchup is DISTINCT
+    #: from a 0-0-0 "lost every game" row: it produced no usable games at all. The
+    #: CLI prints these to stderr so a garbage deck / jar-less install can't hide
+    #: behind a silent all-zeros table (B2). Empty on a clean run.
+    failures: tuple[tuple[str, str], ...] = ()
+    #: True when the governor stopped admitting work before every matchup ran
+    #: (persistent RAM/disk starvation) — the results are then PARTIAL. Surfaced
+    #: prominently by the CLI (B2).
+    aborted: bool = False
 
 
 @dataclass(frozen=True)
@@ -206,6 +217,23 @@ def _candidate_tally(result: MatchResult) -> tuple[int, int, int]:
     return result.wins_a, result.wins_b, result.draws
 
 
+@dataclass(frozen=True)
+class MatchupBatch:
+    """The result of a cached-matchup batch: the per-spec outcomes + any failures.
+
+    ``outcomes`` is one :class:`MatchOutcome` per input spec, in spec order (a
+    FAILED matchup still gets a zeroed placeholder outcome so the aggregate keeps a
+    row). ``failures`` surfaces every matchup the governor could NOT produce a
+    usable result for — ``(opponent_name, error)`` — so a deck-load / timeout /
+    crash is visibly distinct from a real 0-0-0 loss (B2). ``aborted`` propagates
+    the governor's partial-run flag (resource starvation).
+    """
+
+    outcomes: list[MatchOutcome]
+    failures: tuple[tuple[str, str], ...] = ()
+    aborted: bool = False
+
+
 def run_cached_matchups(
     engine: SimEngine,
     install: EngineInstall,
@@ -214,7 +242,7 @@ def run_cached_matchups(
     force: bool = False,
     data_dir: str | os.PathLike[str] | None = None,
     pool_size: int | None = None,
-) -> list[MatchOutcome]:
+) -> MatchupBatch:
     """Run ``specs`` through the content-addressed cache, returning one outcome each.
 
     For each spec a :func:`~pipeline.sim.store.matchup_key` is computed; unless
@@ -225,8 +253,10 @@ def run_cached_matchups(
     with :func:`~pipeline.sim.telemetry.extract_match_features` and persisted with
     :func:`~pipeline.sim.store.store_matchup`. The backend ``install.version`` is
     folded into every cache key so a backend/version change self-invalidates.
-    Returns the outcomes in the SAME order as ``specs`` (candidate-perspective
-    tally + telemetry, cached flagged).
+    Returns a :class:`MatchupBatch`: the outcomes in the SAME order as ``specs``
+    (candidate-perspective tally + telemetry, cached flagged) PLUS any matchup
+    ``failures`` and the governor ``aborted`` flag so the caller can surface them
+    (B2).
     """
     version = install.version
 
@@ -245,6 +275,8 @@ def run_cached_matchups(
 
     outcomes: dict[int, MatchOutcome] = {}
     misses: list[tuple[int, MatchSpec, str]] = []
+    failures: list[tuple[str, str]] = []
+    aborted = False
 
     for idx, (spec, key) in enumerate(zip(specs, keys, strict=True)):
         cached = None if force else get_cached(key, data_dir=data_dir)
@@ -263,6 +295,11 @@ def run_cached_matchups(
     if misses:
         miss_specs = [spec for _, spec, _ in misses]
         pool = run_matchups(engine, install, miss_specs, pool_size=pool_size)
+        aborted = pool.aborted
+        # Surface every governor failure as ``(opponent, error)`` so a deck-load /
+        # timeout / crash is DISTINCT from a real 0-0-0 loss (B2). ``deck_b`` is
+        # the opponent (the candidate is always ``deck_a``).
+        failures = [(f.spec.deck_b[0], f.error) for f in pool.failures]
 
         # The governor returns results out of order; ``pool.pairs`` binds each
         # result to the EXACT spec that produced it (deck names are NOT unique —
@@ -301,7 +338,11 @@ def run_cached_matchups(
                 features=features,
             )
 
-    return [outcomes[i] for i in range(len(specs))]
+    return MatchupBatch(
+        outcomes=[outcomes[i] for i in range(len(specs))],
+        failures=tuple(failures),
+        aborted=aborted,
+    )
 
 
 def _pop_matching_result(pairs: list[tuple[MatchSpec, MatchResult]], spec: MatchSpec) -> MatchResult | None:
@@ -417,7 +458,8 @@ def simulate(
         for offset, opp in enumerate(opponents)
     ]
 
-    outcomes = run_cached_matchups(engine, install, specs, force=force, data_dir=data_dir, pool_size=pool_size)
+    batch = run_cached_matchups(engine, install, specs, force=force, data_dir=data_dir, pool_size=pool_size)
+    outcomes = batch.outcomes
 
     per_opponent: list[OpponentResult] = []
     all_features: list[GameFeatures] = []
@@ -463,6 +505,8 @@ def simulate(
         profile=_aggregate_profile(all_features),
         cached_matchups=cached_n,
         fresh_matchups=fresh_n,
+        failures=batch.failures,
+        aborted=batch.aborted,
     )
 
 

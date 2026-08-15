@@ -33,10 +33,17 @@ if TYPE_CHECKING:
 
 __all__ = ('ForgeEngine',)
 
-#: The runner's own default external per-game kill budget (seconds); used when a
-#: caller passes ``timeout_s=None`` so delegation stays byte-identical to a bare
-#: :func:`pipeline.sim.runner.run_matchup` call.
-_DEFAULT_TIMEOUT_S = 30
+#: The per-game in-game draw-clock budget (``-c``, seconds) the engine passes to
+#: :func:`pipeline.sim.runner.run_matchup`. This is NOT a subprocess timeout — it
+#: is Forge's own clock that ENDS a running game as a draw when it fires, and a
+#: clocked-out game is a fabricated-win landmine (see B1b in the runner). Real
+#: sim-AI games take 23-38s+ empirically (the repo fixture ``handlog_azorius.log``:
+#: 38541/23730/23075 ms), so 30 guaranteed clockouts in bulk (~40-60% of a run).
+#: Raised to 90s — comfortably past the observed tail while staying under the
+#: harness's own 120 default; the external kill budget
+#: (``_JVM_LOAD_HEADROOM_S + n*timeout_s``) scales with it and stays sane
+#: (e.g. n=2 → 120 + 180 = 300s wall, well inside a real batch).
+_DEFAULT_TIMEOUT_S = 90
 
 #: Capabilities describing the LIVE sim-AI harness reality (the runner now launches
 #: ``org.makemagic.simai.SimAIMatch -sim 1`` — Forge's depth-3 simulation AI with the
@@ -48,11 +55,13 @@ _DEFAULT_TIMEOUT_S = 30
 _FORGE_CAPABILITIES = EngineCapabilities(
     has_hand_visibility=True,
     has_counter_metrics=True,
-    expected_nondecisive_rate=0.12,
+    expected_nondecisive_rate=0.05,
     reliability_note=(
         'Forge built-in simulation AI (AIOption.USE_SIMULATION, depth-3 lookahead) via the committed '
-        'SimAIMatch harness, with a real-time HANDLOG decision stream; ~12% of games end nondecisively '
-        '(sim-AI NPE / sim-timeout / draw-clock). Kill source is named in the verbose log.'
+        'SimAIMatch harness, with a real-time HANDLOG decision stream. At the 90s per-game draw clock a '
+        'small fraction of games (~5%) still end nondecisively — a sim-AI NPE, or a genuinely stalled '
+        'board that runs out the clock (counted as a draw, never a fabricated win). Kill source is named '
+        'in the verbose log.'
     ),
     kill_attribution='named',
 )

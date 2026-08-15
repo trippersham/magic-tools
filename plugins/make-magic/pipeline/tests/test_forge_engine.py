@@ -17,7 +17,7 @@ import pytest
 
 from pipeline.sim import forge_runtime
 from pipeline.sim.engine import EngineInstall, EngineUnavailableError, SimEngine, get_engine
-from pipeline.sim.engines.forge import ForgeEngine
+from pipeline.sim.engines.forge import _DEFAULT_TIMEOUT_S, ForgeEngine
 from pipeline.sim.forge_runtime import FORGE_VERSION, ForgeInstall, ForgeUnavailableError
 from pipeline.sim.runner import GameOutcome, MatchResult
 
@@ -54,7 +54,9 @@ def test_capabilities_describe_sim_ai() -> None:
     assert caps.has_hand_visibility is True  # HANDLOG exposes player-1's hand
     assert caps.has_counter_metrics is True  # HANDLOG exposes stack casts
     assert caps.kill_attribution == 'named'
-    assert caps.expected_nondecisive_rate == pytest.approx(0.12)  # ~12% sim-AI fragility
+    # At the 90s draw clock, clockouts are rare — ~5% nondecisive (NPE / genuinely
+    # stalled board), down from the pre-fix 0.12 that a 30s clock was masking.
+    assert caps.expected_nondecisive_rate == pytest.approx(0.05)
     assert 'simulation ai' in caps.reliability_note.lower()
 
 
@@ -139,7 +141,9 @@ def test_run_matchup_delegates_to_runner(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert seen['handle'] is forge  # the ForgeInstall handle is unwrapped and passed through
     assert seen['n'] == 2 and seen['seed'] == 7 and seen['fmt'] == 'commander'
-    assert seen['timeout_s'] == 30  # timeout_s=None -> the runner's own default
+    # timeout_s=None -> the engine's sim-appropriate default draw clock (B1a: 90s,
+    # raised from 30s to stop clocked-out games becoming fabricated wins).
+    assert seen['timeout_s'] == _DEFAULT_TIMEOUT_S
     assert result.wins_a == 2
 
 
