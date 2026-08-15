@@ -557,6 +557,19 @@ def test_symmetric_wipe_excludes_hard_scope_and_one_sided():
     assert _symmetric_wipe_count(cards, otag) == 1
 
 
+def test_normalize_dependence_maps_aliases_and_defaults():
+    # REGRESSION: the rubric's own tier labels map correctly (a caller passing "None"
+    # used to be silently penalized -1); an unknown value defaults to the rubric's
+    # format default (Moderate), never a stray penalty.
+    from pipeline.transforms.crispi import _normalize_dependence
+
+    assert _normalize_dependence('low') == 'low'
+    assert _normalize_dependence('None') == 'low'  # rubric label -> no penalty
+    assert _normalize_dependence('Moderate') == 'med'
+    assert _normalize_dependence('HIGH') == 'high'
+    assert _normalize_dependence('nonsense') == 'med'  # rubric default (Moderate)
+
+
 def test_consistency_graveyard_tutor_zeroed_without_recursion():
     # 3 graveyard-gated tutors + no recursion package -> they score 0 -> tutorless -> 3.5.
     gy = [_tutor_card(f'Entomb{i}', 'graveyard-tutor', 4, graveyard_gated=True) for i in range(3)]
@@ -1171,7 +1184,7 @@ def test_score_produces_valid_result_with_snapped_pi():
     # Bracket is now populated (Phase 6). Inputs echo the two judgement inputs.
     assert result.bracket is not None
     assert 1 <= result.bracket.bracket <= 5
-    assert result.inputs == {'fundamental_turn': 6.0, 'commander_dependence': 'med'}
+    assert result.inputs.model_dump() == {'fundamental_turn': 6.0, 'commander_dependence': 'med'}
     # Every axis in-range.
     for v in axes:
         assert 1.0 <= v <= 10.0

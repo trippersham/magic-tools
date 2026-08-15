@@ -29,7 +29,7 @@ Design notes:
 
 from __future__ import annotations
 
-from typing import Final
+from typing import Final, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -521,6 +521,25 @@ class CrispiBracket(BaseModel):
     )
 
 
+class CrispiInputs(BaseModel):
+    """The two AI-judged reasoning inputs the CRISPI engine consumes.
+
+    Everything else in the score is deterministic; these two are the only judgement
+    calls (the rubric leaves them to the AI). A typed model — not a bare dict — so the
+    boundary schema (`model_json_schema()` for MCP/TS) carries both fields, and
+    `commander_dependence` is a closed vocabulary.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    fundamental_turn: float = Field(
+        description='The AI-judged fundamental turn (half-steps allowed) — drives Speed.',
+    )
+    commander_dependence: Literal['low', 'med', 'high'] = Field(
+        description='How the deck plays commander-less: low (0) / med (-1) / high (-2) Resilience penalty.',
+    )
+
+
 class CrispiResult(BaseModel):
     """The full CRISPI score for one deck — four axes, the PI, and the bracket.
 
@@ -548,12 +567,8 @@ class CrispiResult(BaseModel):
         default=None,
         description='Commander Bracket (1-5); None until the Bracket phase populates it.',
     )
-    inputs: dict = Field(
-        description=(
-            'The two typed reasoning inputs the engine consumed: '
-            '`fundamental_turn` (float, half-steps allowed) and '
-            '`commander_dependence` (str: low / med / high).'
-        ),
+    inputs: CrispiInputs = Field(
+        description='The two AI-judged reasoning inputs the engine consumed (fundamental_turn + commander_dependence).',
     )
     computed_at: str = Field(description='Freshness stamp (ISO-8601) — when this score was computed.')
 

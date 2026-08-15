@@ -127,8 +127,8 @@ def test_crispi_result_good() -> None:
     assert r.resilience.value == 5.0
     assert r.performance_index == 6.25
     assert r.bracket is None
-    assert r.inputs['fundamental_turn'] == 8.5
-    assert r.inputs['commander_dependence'] == 'med'
+    assert r.inputs.fundamental_turn == 8.5
+    assert r.inputs.commander_dependence == 'med'
     assert r.computed_at == '2026-08-10T00:00:00+00:00'
 
 

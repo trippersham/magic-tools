@@ -32,8 +32,9 @@ import itertools
 import math
 import re
 from dataclasses import dataclass, field
+from typing import Literal
 
-from pipeline.contracts.models import CrispiAxis, CrispiBracket, CrispiResult
+from pipeline.contracts.models import CrispiAxis, CrispiBracket, CrispiInputs, CrispiResult
 from pipeline.transforms.crispi_tiers import (
     DRAW_TIERS,
     EXTRA_TURNS,
@@ -1548,6 +1549,22 @@ _COMMANDER_DEPENDENCE_PENALTY: dict[str, float] = {
     'med': -1.0,  # Moderate (format default)
     'high': -2.0,  # High
 }
+#: Aliases accepted for the AI-judged input, incl. the rubric's own tier LABELS, so a
+#: caller passing "None"/"Moderate"/"High" is mapped correctly rather than silently
+#: defaulting. An unrecognized value falls to the rubric's format default (Moderate).
+_DEPENDENCE_ALIASES: dict[str, str] = {'none': 'low', 'moderate': 'med', 'medium': 'med'}
+
+
+def _normalize_dependence(value: str) -> Literal['low', 'med', 'high']:
+    """Normalize a commander-dependence input to the canonical low/med/high vocab.
+
+    Case-insensitive; maps the rubric's tier labels (None/Moderate/High) to the CLI
+    vocab; an unknown value defaults to ``'med'`` (Moderate — the rubric's stated
+    format default), never a silent stray penalty.
+    """
+    v = (value or '').strip().lower()
+    v = _DEPENDENCE_ALIASES.get(v, v)
+    return v if v in _COMMANDER_DEPENDENCE_PENALTY else 'med'
 
 
 def resilience_axis(
@@ -1630,9 +1647,10 @@ def resilience_axis(
             parts.append(f'engine-exposure penalty {exposure:g} (concentrated behind one hoser class)')
 
     # --- Commander-dependence penalty (rubric: applied LAST). ----------------
-    dep_penalty = _COMMANDER_DEPENDENCE_PENALTY.get(commander_dependence.lower(), -1.0)
+    dep = _normalize_dependence(commander_dependence)
+    dep_penalty = _COMMANDER_DEPENDENCE_PENALTY[dep]
     if dep_penalty < 0:
-        label = {'med': 'Moderate', 'high': 'High'}.get(commander_dependence.lower(), commander_dependence)
+        label = {'med': 'Moderate', 'high': 'High'}[dep]
         parts.append(f'commander-dependence {label} -> {dep_penalty:g}')
 
     value = snap_quarter(base + exposure + dep_penalty)
@@ -2052,7 +2070,7 @@ def bracket(
         A :class:`CrispiBracket` with the 1-5 bracket and the named ``triggers``
         (every rule + floor signal that fired, so a bump is always explainable).
     """
-    fundamental_turn = float(result.inputs.get('fundamental_turn', 9.0))
+    fundamental_turn = float(result.inputs.fundamental_turn)
 
     ceiling, rule_triggers = _rule_ceiling(
         game_changers=game_changers,
@@ -2189,7 +2207,10 @@ def crispi_score(
         resilience=resilience,
         performance_index=performance_index,
         bracket=None,
-        inputs={'fundamental_turn': float(fundamental_turn), 'commander_dependence': commander_dependence},
+        inputs=CrispiInputs(
+            fundamental_turn=float(fundamental_turn),
+            commander_dependence=_normalize_dependence(commander_dependence),
+        ),
         computed_at=computed_at,
     )
 
