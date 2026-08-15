@@ -1,0 +1,2 @@
+# Intermediate compiled classes (jar in dist/ is committed on purpose).
+build/
