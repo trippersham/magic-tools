@@ -70,8 +70,14 @@ def _sim_result(
     total_games: int = 4,
     win_rate: float = 0.75,
     piloting: PilotingProfile | None = None,
+    n_matchups: int = 1,
 ) -> SimResult:
-    """A populated ``SimResult`` a mocked ``core.simulate`` can return."""
+    """A populated ``SimResult`` a mocked ``core.simulate`` can return.
+
+    ``n_matchups`` sets how many per-opponent rows the result carries (one row per
+    matchup, failures included) — the denominator the mostly-failed exit guard reads
+    against ``failures``.
+    """
     profile = TelemetryProfile(
         games=4,
         avg_kill_turn=7.5,
@@ -83,7 +89,7 @@ def _sim_result(
     )
     per_opp = [
         OpponentResult(
-            opponent='MonoRedAggro',
+            opponent='MonoRedAggro' if i == 0 else f'Opp{i}',
             wins=3,
             losses=1,
             draws=0,
@@ -91,7 +97,8 @@ def _sim_result(
             win_rate=0.75,
             win_rate_ci=(0.3, 0.95),
             cached=False,
-        ),
+        )
+        for i in range(n_matchups)
     ]
     return SimResult(
         candidate=candidate,
@@ -279,7 +286,9 @@ def test_deck_surfaces_matchup_failures_on_stderr(
     dck.write_text(_VALID_CONSTRUCTED)
 
     def _fake_simulate(deck: object, gauntlet_source: str, **kwargs: object) -> SimResult:
-        return _sim_result(failures=(('BorosStrong', 'Forge could not load a deck'),))
+        # One failure in a 4-matchup field (a MINORITY) — surfaced on stderr, but the
+        # field read still stands so the run exits 0.
+        return _sim_result(failures=(('BorosStrong', 'Forge could not load a deck'),), n_matchups=4)
 
     monkeypatch.setattr(sim_run, 'simulate', _fake_simulate)
     sim_run.main(['deck', str(dck)])
@@ -364,6 +373,47 @@ def test_deck_aborted_run_exits_nonzero(
     with pytest.raises(SystemExit) as exc:
         sim_run.main(['deck', str(dck)])
     assert exc.value.code == 1
+
+
+def test_deck_majority_matchups_failed_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A run where a MAJORITY of matchups failed exits non-zero even with SOME usable
+    games — the exit code scales with the failure rate, not just all-or-nothing (R2-3)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text(_VALID_CONSTRUCTED)
+    # 6 of 10 matchups failed (>50%), but the surviving 4 produced games.
+    failures = tuple((f'Opp{i}', 'Forge could not load a deck') for i in range(6))
+    monkeypatch.setattr(
+        sim_run,
+        'simulate',
+        lambda *a, **k: _sim_result(total_games=16, failures=failures, n_matchups=10),
+    )
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck)])
+    assert exc.value.code == 1
+    assert 'FAILED' in capsys.readouterr().err  # the carnage is surfaced before the exit.
+
+
+def test_deck_minority_matchups_failed_exits_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """A MINORITY of intermittent matchup failures (e.g. 3/30, the XMage cold-start
+    race) still leaves a usable field read — the run exits 0, failures on stderr."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text(_VALID_CONSTRUCTED)
+    failures = tuple((f'Opp{i}', 'transient H2 race') for i in range(3))
+    monkeypatch.setattr(
+        sim_run,
+        'simulate',
+        lambda *a, **k: _sim_result(total_games=108, failures=failures, n_matchups=30),
+    )
+    sim_run.main(['deck', str(dck)])  # no SystemExit -> exit 0.
 
 
 def test_ab_all_failed_side_exits_nonzero(

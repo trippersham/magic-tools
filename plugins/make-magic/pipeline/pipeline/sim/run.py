@@ -324,21 +324,39 @@ def _print_failures(result: SimResult) -> None:
             print(f'  vs {opponent}: {error}', file=sys.stderr)
 
 
-def _exit_nonzero_if_no_usable_games(*results: SimResult) -> None:
-    """Exit non-zero when a run produced ZERO usable games or was aborted (R2-3).
+#: A run is UNTRUSTWORTHY when MORE THAN this fraction of its matchups FAILED
+#: (produced no usable games) — even if a surviving matchup kept ``total_games > 0``.
+#: Half is the line: a few intermittent failures (e.g. an XMage cold-start race on
+#: 3/30) still leave a usable field read, but a MAJORITY-failed run must fail the
+#: exit code so a cron/agent can't read success off a mostly-dead run (R2-3).
+_MAX_MATCHUP_FAILURE_FRACTION = 0.5
+
+
+def _exit_nonzero_on_unusable_run(*results: SimResult) -> None:
+    """Exit non-zero when a run is UNUSABLE: no games, aborted, or MOSTLY failed (R2-3).
 
     ``simulate deck`` / ``ab`` print failures to stderr but otherwise exit 0 — so a
-    run where EVERY matchup failed (a garbage deck, a jar-less install) or the
-    governor ABORTED (persistent RAM/disk starvation) would read as SUCCESS to a
-    cron/agent consumer. Raise :class:`SystemExit(1)` when any given result has no
-    usable games (``total_games == 0`` — all matchups failed) or is ``aborted``.
+    run that is dead or mostly-dead would read as SUCCESS to a cron/agent consumer.
+    Raise :class:`SystemExit(1)` when any given result is unusable, on three grounds:
 
-    A legitimate low/zero win-rate WITH real games played (lost every game) still
-    exits 0 — only a run that produced no usable games (or a partial aborted run)
-    is a failure. ``_print_failures`` has already surfaced the WHY on stderr.
+    * ``total_games == 0`` — EVERY matchup failed (a garbage deck, a jar-less install)
+      so no game was ever played; or
+    * ``aborted`` — the governor stopped admitting work (persistent RAM/disk
+      starvation), so the field is only partially run; or
+    * MORE THAN :data:`_MAX_MATCHUP_FAILURE_FRACTION` of the matchups FAILED — a
+      surviving matchup kept ``total_games > 0``, but a majority of the field never
+      produced a game, so the aggregate is not a trustworthy read (the exit code
+      must scale with the failure rate, not just flip at all-or-nothing).
+
+    A legitimate low/zero win-rate with real games played (lost every game), or a
+    MINORITY of intermittent matchup failures (the field read still stands), still
+    exits 0. ``_print_failures`` has already surfaced the WHY on stderr in every case.
     """
     for result in results:
         if result.aborted or result.total_games == 0:
+            raise SystemExit(1)
+        matchups = len(result.per_opponent)
+        if matchups and len(result.failures) > _MAX_MATCHUP_FAILURE_FRACTION * matchups:
             raise SystemExit(1)
 
 
@@ -681,7 +699,7 @@ def _deck(argv: list[str]) -> None:
     # After surfacing failures on stderr, fail the process if the run yielded no
     # usable games (all matchups failed) or was aborted — so automation can't read
     # success on a dead run (R2-3). A real low/zero win-rate still exits 0.
-    _exit_nonzero_if_no_usable_games(result)
+    _exit_nonzero_on_unusable_run(result)
 
 
 def _evaluate_engine(
@@ -741,7 +759,7 @@ def _deck_both(args: argparse.Namespace, candidate: _ResolvedDeck, store: object
         raise EngineUnavailableError(f'no sim engine is available for --engine both ({detail}).')
 
     _print_engine_comparison(candidate.name, args.gauntlet, args.fmt, results, skips)
-    _exit_nonzero_if_no_usable_games(*results.values())
+    _exit_nonzero_on_unusable_run(*results.values())
 
 
 def _ab(argv: list[str]) -> None:
@@ -792,7 +810,7 @@ def _ab(argv: list[str]) -> None:
     # Fail the process if EITHER variant produced no usable games or was aborted
     # (R2-3) — an A/B where one side never ran is not a comparison a consumer can
     # trust as a clean success.
-    _exit_nonzero_if_no_usable_games(comparison.a, comparison.b)
+    _exit_nonzero_on_unusable_run(comparison.a, comparison.b)
 
 
 def _print_comparison(comparison: Comparison) -> None:
