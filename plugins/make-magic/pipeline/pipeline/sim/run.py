@@ -532,6 +532,7 @@ def _guard_forge_availability(
     *,
     allow_missing: bool,
     fmt: str = 'constructed',
+    engine: str = 'forge',
 ) -> None:
     """Fail BEFORE spawning a JVM if a deck is hollow or references an unloadable card.
 
@@ -558,6 +559,14 @@ def _guard_forge_availability(
     from pipeline.sim.forge_card_index import ForgeCardIndex
 
     _guard_deck_size(decks, fmt)
+
+    # The deck-size floor above is engine-agnostic; the CARD-availability check
+    # below is Forge-specific (a ForgeCardIndex over the Forge DB). A non-Forge
+    # engine (e.g. XMage) has its own card DB + loader as the backstop (the shipped
+    # decks are verified to load there), so skip the Forge check for it. The size
+    # floor still applies to every engine.
+    if engine != 'forge':
+        return
 
     try:
         index = ForgeCardIndex.from_install(install)
@@ -602,7 +611,9 @@ def _match(argv: list[str]) -> None:
     deck_b = _resolve_deck_arg(args.deck_b)
     engine = get_engine(args.engine)
     install = _ensure_engine(engine, assume_yes=args.yes)
-    _guard_forge_availability(install.handle, [deck_a, deck_b], allow_missing=args.allow_missing, fmt=args.fmt)
+    _guard_forge_availability(
+        install.handle, [deck_a, deck_b], allow_missing=args.allow_missing, fmt=args.fmt, engine=engine.name
+    )
     result: MatchResult = engine.run_matchup(
         deck_a.ref, deck_b.ref, n=args.n, seed=args.seed, fmt=args.fmt, install=install
     )
@@ -639,7 +650,9 @@ def _deck(argv: list[str]) -> None:
     store = get_store() if args.gauntlet in ('mine', 'both') else None
     engine = get_engine(args.engine)
     install = _ensure_engine(engine, assume_yes=args.yes)
-    _guard_forge_availability(install.handle, [candidate], allow_missing=args.allow_missing, fmt=args.fmt)
+    _guard_forge_availability(
+        install.handle, [candidate], allow_missing=args.allow_missing, fmt=args.fmt, engine=engine.name
+    )
     result = simulate(
         candidate.ref,
         args.gauntlet,
@@ -687,7 +700,9 @@ def _ab(argv: list[str]) -> None:
     store = get_store() if args.gauntlet in ('mine', 'both') else None
     engine = get_engine(args.engine)
     install = _ensure_engine(engine, assume_yes=args.yes)
-    _guard_forge_availability(install.handle, [variant_a, variant_b], allow_missing=args.allow_missing, fmt=args.fmt)
+    _guard_forge_availability(
+        install.handle, [variant_a, variant_b], allow_missing=args.allow_missing, fmt=args.fmt, engine=engine.name
+    )
     comparison: Comparison = compare(
         variant_a.ref,
         variant_b.ref,
@@ -759,13 +774,14 @@ def _gauntlet(argv: list[str]) -> None:
 
 
 def _doctor(argv: list[str]) -> None:
-    """Report Forge/Java resolvability + runtime pool sizing + resource snapshot.
+    """Report every registered engine's resolvability + runtime pool + resource snapshot.
 
     Always prints the runtime-derived safe pool size + a free-RAM/disk snapshot
-    (these need no Forge). Then attempts :func:`resolve`; on success prints the
-    resolved paths + Forge version and exits 0. On :class:`ForgeUnavailableError`
-    it prints an ACTIONABLE "not available / how to enable" message and exits
-    non-zero — never a traceback.
+    (these need no engine). Then loops the registry: each engine reports available
+    (version + capabilities + Forge install paths) or an ACTIONABLE "NOT AVAILABLE
+    / how to enable" line — never a traceback. Exits non-zero ONLY when the DEFAULT
+    engine is unavailable (the "is my sim usable?" signal); an opt-in engine like
+    XMage being absent is informational. ``--provision`` fetches Forge on a miss.
     """
     parser = argparse.ArgumentParser(
         prog='simulate doctor',
@@ -788,11 +804,11 @@ def _doctor(argv: list[str]) -> None:
     print(f'  free disk: {disk:.1f} GiB')
 
     # Registry-driven: report EVERY registered engine's availability + version +
-    # capabilities. Exit non-zero if ANY engine is unavailable (so automation reads
-    # a clean box as green and a broken one as red). Forge is the only provisionable
-    # backend this phase — `--provision` fetches it on a miss; every other engine is
-    # probed read-only.
-    any_unavailable = False
+    # capabilities. Exit non-zero only when the DEFAULT engine is unavailable — that
+    # is the "is my sim usable?" signal (the default is what runs without --engine,
+    # and it auto-provisions). An OPT-IN engine like XMage (a manual local reactor)
+    # being absent is INFORMATIONAL, not a failure, so it never fails the exit code.
+    default_unavailable = False
     for name in available_engines():
         engine = get_engine(name)
         caps = engine.capabilities()
@@ -800,12 +816,12 @@ def _doctor(argv: list[str]) -> None:
             provisionable = name == _DEFAULT_ENGINE and args.provision
             install: EngineInstall = _ensure_engine(engine) if provisionable else engine.resolve(provision=False)
         except EngineUnavailableError as exc:
-            # Graceful: name WHY + HOW to enable, no traceback; mark for exit 1.
-            # The exception message ({exc}) is per-engine and self-explaining; only
-            # Forge gets the extra provision/env how-to (it is the sole
-            # auto-provisionable backend this phase — a hardcoded Forge block under
-            # every engine would misdirect a future unavailable XMage).
-            any_unavailable = True
+            # Graceful: name WHY + HOW to enable, no traceback. Only the DEFAULT
+            # engine's absence fails the exit code + gets the extra provision/env
+            # how-to (it is the sole auto-provisionable backend this phase — a
+            # hardcoded Forge block under every engine would misdirect XMage).
+            if name == _DEFAULT_ENGINE:
+                default_unavailable = True
             print(f'  {name}: NOT AVAILABLE')
             print(f'    {exc}', file=sys.stderr)
             if name == _DEFAULT_ENGINE:
@@ -831,7 +847,7 @@ def _doctor(argv: list[str]) -> None:
             print(f'    jar:          {forge_handle.jar}')
             print(f'    java:         {forge_handle.java}')
 
-    if any_unavailable:
+    if default_unavailable:
         raise SystemExit(1)
 
 

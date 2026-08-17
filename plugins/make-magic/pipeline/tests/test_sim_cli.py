@@ -636,14 +636,15 @@ def test_doctor_provision_fetches_via_ensure(
     assert 'provisioned' in out.lower()
 
 
-def test_doctor_multi_engine_reports_all_and_exits_nonzero(
+def test_doctor_optin_engine_absent_is_informational_exit_zero(
     monkeypatch: pytest.MonkeyPatch,
     install: ForgeInstall,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """doctor loops EVERY registered engine: an available Forge + an unavailable
-    second engine → both reported, exit 1, and the non-Forge engine does NOT get
-    Forge's ~350MB/MAKE_MAGIC_FORGE_HOME how-to (only its own message)."""
+    """doctor loops EVERY registered engine: an available Forge (the DEFAULT) + an
+    unavailable OPT-IN engine → both reported, but exit 0 (only a DEFAULT-engine
+    failure fails the exit code). The opt-in engine gets its OWN message, NOT
+    Forge's ~350MB/MAKE_MAGIC_FORGE_HOME how-to."""
     import types
 
     from pipeline.sim import engine as engine_mod
@@ -662,20 +663,20 @@ def test_doctor_multi_engine_reports_all_and_exits_nonzero(
 
     fake = types.SimpleNamespace(name='zzfake', capabilities=lambda: caps, resolve=_resolve_raises)
     monkeypatch.setitem(engine_mod._REGISTRY, 'zzfake', fake)  # type: ignore[arg-type]
-    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)  # forge available.
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)  # forge (default) available.
     monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
     monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
     monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
 
-    with pytest.raises(SystemExit) as exc:
-        sim_run.main(['doctor'])
-    assert exc.value.code == 1  # any unavailable engine → non-zero.
+    sim_run.main(['doctor'])  # default forge available -> no SystemExit (exit 0).
 
     captured = capsys.readouterr()
     combined = captured.out + captured.err
-    assert 'forge: available' in captured.out  # the available engine reported.
-    assert 'zzfake: NOT AVAILABLE' in combined  # the unavailable engine reported.
+    assert 'forge: available' in captured.out  # the default engine reported.
+    assert 'zzfake: NOT AVAILABLE' in combined  # the opt-in engine reported (informational).
     assert 'this is the fake how-to' in combined  # its own message surfaced.
+    # MINOR-2: the Forge-specific provision advice must NOT be printed for zzfake.
+    assert '350MB' not in combined and 'MAKE_MAGIC_FORGE_HOME' not in combined
     # MINOR-2: the Forge-specific provision advice must NOT be printed for zzfake.
     assert '350MB' not in combined and 'MAKE_MAGIC_FORGE_HOME' not in combined
 
