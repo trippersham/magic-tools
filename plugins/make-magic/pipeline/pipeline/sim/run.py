@@ -71,6 +71,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from pipeline.sim.store import CachedMatchup, MatchupRow
+    from pipeline.sim.telemetry import PilotingProfile
 
 __all__ = ('main',)
 
@@ -206,18 +207,34 @@ def _confirm_forge_download(*, assume_yes: bool) -> None:
 #: Default engine when ``--engine`` is omitted (Forge is the only backend this
 #: phase; the choices are the registry contents so a future engine auto-appears).
 _DEFAULT_ENGINE = 'forge'
+#: The ``deck`` verb's pseudo-engine that runs EVERY registered engine and prints a
+#: side-by-side comparison (task 3.1). Not a registered backend — a CLI-level fan-out.
+_BOTH_ENGINE = 'both'
 _ENGINE_HELP = 'Sim engine to use (default forge). Registry-driven — additional engines appear as they register.'
+_ENGINE_HELP_BOTH = (
+    "Sim engine to use (default forge), or 'both' to run every registered engine and print a "
+    'side-by-side win-rate + piloting comparison. Registry-driven; one engine unavailable is reported + skipped.'
+)
 
 
-def _add_engine_arg(parser: argparse.ArgumentParser) -> None:
+def _add_engine_arg(parser: argparse.ArgumentParser, *, include_both: bool = False) -> None:
     """Add the ``--engine`` selector, its choices drawn from the live registry.
 
     Choices are :func:`~pipeline.sim.engine.available_engines` at parse time so a
     newly-registered engine (or a test's ``FakeEngine``) is selectable without
     touching this code, and an unknown name is rejected by argparse with a clean
-    ``error:`` + exit 2 (no traceback).
+    ``error:`` + exit 2 (no traceback). ``include_both`` adds the ``both``
+    pseudo-engine (the two-engine compare fan-out) — offered only on the ``deck``
+    evaluation verb, where a per-engine win-rate + piloting divergence is meaningful
+    (``match``/``ab``/``log`` stay single-engine).
     """
-    parser.add_argument('--engine', choices=available_engines(), default=_DEFAULT_ENGINE, help=_ENGINE_HELP)
+    choices = [*available_engines(), _BOTH_ENGINE] if include_both else available_engines()
+    parser.add_argument(
+        '--engine',
+        choices=choices,
+        default=_DEFAULT_ENGINE,
+        help=_ENGINE_HELP_BOTH if include_both else _ENGINE_HELP,
+    )
 
 
 def _ensure_engine(engine: SimEngine, *, assume_yes: bool = False) -> EngineInstall:
@@ -234,14 +251,18 @@ def _ensure_engine(engine: SimEngine, *, assume_yes: bool = False) -> EngineInst
     error. Returns the :class:`~pipeline.sim.engine.EngineInstall` the engine's
     ``run_matchup`` / ``simulate`` consume.
 
-    The download-confirmation copy is Forge-specific; Forge is the only
-    provisionable backend this phase, so a non-Forge engine that needs provisioning
-    would simply resolve-or-raise (it never reaches the Forge prompt in practice).
+    The download-confirmation copy is Forge-specific, and Forge (the DEFAULT) is the
+    only provisionable backend this phase: an opt-in engine (XMage) that resolves
+    unavailable re-raises its own how-to-enable :class:`EngineUnavailableError`
+    immediately — it is NOT sent through the Forge download prompt (which would
+    misdirect) and is NOT auto-fetched (there is no upstream fat jar). This is also
+    what lets ``--engine both`` treat an absent opt-in engine as a clean SKIP.
     """
     try:
         return engine.resolve(provision=False)
     except EngineUnavailableError:
-        pass
+        if engine.name != _DEFAULT_ENGINE:
+            raise
     _confirm_forge_download(assume_yes=assume_yes)
     return engine.resolve(provision=True)
 
@@ -641,19 +662,44 @@ def _deck(argv: list[str]) -> None:
         help='Proceed even if the candidate references a card absent from Forge (else a hard error).',
     )
     parser.add_argument('-y', '--yes', action='store_true', help=_YES_HELP)
-    _add_engine_arg(parser)
+    _add_engine_arg(parser, include_both=True)
     args = parser.parse_args(argv)
 
     _validate_gauntlet(args.gauntlet, args.fmt)
     candidate = _resolve_deck_arg(args.name)
-    # `mine`/`both` need the collection store; `curated` never touches it.
+    # `mine`/`both` GAUNTLET sources need the collection store; `curated` never
+    # touches it. (Distinct from the `both` ENGINE selector below.)
     store = get_store() if args.gauntlet in ('mine', 'both') else None
+
+    if args.engine == _BOTH_ENGINE:
+        _deck_both(args, candidate, store)
+        return
+
     engine = get_engine(args.engine)
+    result = _evaluate_engine(engine, candidate, store, args)
+    _print_sim_result(result)
+    # After surfacing failures on stderr, fail the process if the run yielded no
+    # usable games (all matchups failed) or was aborted — so automation can't read
+    # success on a dead run (R2-3). A real low/zero win-rate still exits 0.
+    _exit_nonzero_if_no_usable_games(result)
+
+
+def _evaluate_engine(
+    engine: SimEngine, candidate: _ResolvedDeck, store: object | None, args: argparse.Namespace
+) -> SimResult:
+    """Resolve + guard + simulate ONE engine for the ``deck`` verb.
+
+    The shared body of the single-engine and ``--engine both`` paths: provision the
+    backend (:func:`_ensure_engine`), run the pre-JVM availability/size guard, and
+    ``simulate`` the candidate over the gauntlet. An :class:`EngineUnavailableError`
+    (backend not installed) propagates so ``both`` can catch it as a SKIP; a deck
+    defect (size floor / Forge-absent card) is a hard error for the whole command.
+    """
     install = _ensure_engine(engine, assume_yes=args.yes)
     _guard_forge_availability(
         install.handle, [candidate], allow_missing=args.allow_missing, fmt=args.fmt, engine=engine.name
     )
-    result = simulate(
+    return simulate(
         candidate.ref,
         args.gauntlet,
         games=args.games,
@@ -663,11 +709,39 @@ def _deck(argv: list[str]) -> None:
         force=args.force,
         store=store,
     )
-    _print_sim_result(result)
-    # After surfacing failures on stderr, fail the process if the run yielded no
-    # usable games (all matchups failed) or was aborted — so automation can't read
-    # success on a dead run (R2-3). A real low/zero win-rate still exits 0.
-    _exit_nonzero_if_no_usable_games(result)
+
+
+def _deck_both(args: argparse.Namespace, candidate: _ResolvedDeck, store: object | None) -> None:
+    """Run the gauntlet on EVERY registered engine and print a side-by-side read (task 3.1).
+
+    For each engine in :func:`~pipeline.sim.engine.available_engines` (sorted → a
+    stable Forge-then-XMage order), evaluate the candidate; an engine that is not
+    installed (:class:`EngineUnavailableError`) is recorded as a SKIP and the others
+    still run (design §8 — resilient degradation). The comparison surfaces each
+    engine's win-rate ± CI, the Δ, and the PILOTING divergence — the "false read"
+    check: an engine that under-pilots the deck's interaction (low counter/removal
+    fire-rate) gives a weaker win-rate read where the engines disagree.
+
+    Exits non-zero only if NO engine could run (all unavailable → nothing to
+    compare), or — matching the single-engine contract — if an engine that DID run
+    produced no usable games / was aborted (a broken half can't hide behind the
+    other's numbers).
+    """
+    results: dict[str, SimResult] = {}
+    skips: dict[str, str] = {}
+    for name in available_engines():
+        engine = get_engine(name)
+        try:
+            results[name] = _evaluate_engine(engine, candidate, store, args)
+        except EngineUnavailableError as exc:
+            skips[name] = str(exc)
+
+    if not results:
+        detail = '; '.join(f'{name}: {reason}' for name, reason in skips.items())
+        raise EngineUnavailableError(f'no sim engine is available for --engine both ({detail}).')
+
+    _print_engine_comparison(candidate.name, args.gauntlet, args.fmt, results, skips)
+    _exit_nonzero_if_no_usable_games(*results.values())
 
 
 def _ab(argv: list[str]) -> None:
@@ -745,6 +819,122 @@ def _print_comparison(comparison: Comparison) -> None:
 def _fmt_signed(value: float | None) -> str:
     """Format a signed metric delta ('-' when None)."""
     return '-' if value is None else f'{value:+.2f}'
+
+
+# --------------------------------------------------------------------------- #
+# --engine both — side-by-side engine comparison (task 3.1).
+# --------------------------------------------------------------------------- #
+
+#: A counter/removal fire-rate gap (in rate units) below which the two engines'
+#: interaction piloting is "comparable" — no false-read is flagged.
+_FALSE_READ_FIRE_GAP = 0.15
+#: A win-rate gap below which the engines "agree" — a false-read needs BOTH a
+#: piloting divergence AND a win-rate divergence to be worth warning about.
+_FALSE_READ_WR_GAP = 0.05
+
+
+def _print_engine_comparison(
+    candidate: str,
+    gauntlet: str,
+    fmt: str,
+    results: dict[str, SimResult],
+    skips: dict[str, str],
+) -> None:
+    """Print the ``--engine both`` side-by-side: per-engine win-rate + piloting, Δ, false-read.
+
+    One row per engine that RAN (win-rate ± CI, decided record, counter/removal
+    fire-rate); then the pairwise Δ and the computed false-read note when exactly two
+    engines ran. SKIPPED engines (unavailable) and any per-engine matchup
+    failures/aborts go to stderr so stdout stays the clean comparison table.
+    """
+    print(f'candidate: {candidate}   gauntlet: {gauntlet} ({fmt})')
+    print('engine comparison — per-engine win-rate + interaction piloting (the "false read" check):')
+    print(f'  {"engine":<8} {"win-rate":<22} {"record":<12} {"counter-fire":<14} {"removal-fire":<14}')
+    for name, result in results.items():
+        lo, hi = result.win_rate_ci
+        win_rate = f'{_pct(result.win_rate)} [{_pct(lo)}-{_pct(hi)}]'
+        record = f'{result.wins}-{result.losses}-{result.draws}'
+        counter = _fire_cell(result.piloting, 'counter_fire')
+        removal = _fire_cell(result.piloting, 'removal_fire')
+        print(f'  {name:<8} {win_rate:<22} {record:<12} {counter:<14} {removal:<14}')
+
+    _print_engine_deltas(results)
+    _print_false_read_note(results)
+
+    for name, reason in skips.items():
+        print(f'  {name}: SKIPPED (not available) — {reason}', file=sys.stderr)
+    for name, result in results.items():
+        if result.aborted or result.failures:
+            print(f'[engine {name}: {result.candidate}]', file=sys.stderr)
+            _print_failures(result)
+
+
+def _fire_rate(piloting: PilotingProfile | None, attr: str) -> float | None:
+    """The counter/removal fire-rate off a piloting profile, or ``None`` when there
+    is no honest number: the engine lacks hand visibility (``piloting is None``), the
+    deck's interaction couldn't be classified (``not available``), or there were no
+    opportunities (the fire-rate itself is ``None``)."""
+    if piloting is None or not piloting.available:
+        return None
+    return getattr(piloting, attr)
+
+
+def _fire_cell(piloting: PilotingProfile | None, attr: str) -> str:
+    """Render a fire-rate table cell: a percent, ``-`` (no opportunities), or ``n/a``
+    (no piloting signal — engine blind or deck unclassified)."""
+    if piloting is None or not piloting.available:
+        return 'n/a'
+    rate = getattr(piloting, attr)
+    return '-' if rate is None else _pct(rate)
+
+
+def _print_engine_deltas(results: dict[str, SimResult]) -> None:
+    """Print the pairwise Δ (win-rate + fire-rates) when exactly two engines ran.
+
+    Δ is ``first - second`` in the sorted engine order (Forge - XMage). A fire-rate
+    Δ is shown only when BOTH engines produced an honest fire-rate (else the
+    subtraction would be meaningless)."""
+    if len(results) != 2:
+        return
+    (name_a, a), (name_b, b) = results.items()
+    parts = [f'win-rate {(a.win_rate - b.win_rate) * 100:+.1f} pts']
+    for label, attr in (('counter-fire', 'counter_fire'), ('removal-fire', 'removal_fire')):
+        fa, fb = _fire_rate(a.piloting, attr), _fire_rate(b.piloting, attr)
+        if fa is not None and fb is not None:
+            parts.append(f'{label} {(fa - fb) * 100:+.1f} pts')
+    print(f'  Δ ({name_a} - {name_b}): ' + '   '.join(parts))
+
+
+def _print_false_read_note(results: dict[str, SimResult]) -> None:
+    """Print the computed false-read note when two engines ran with comparable piloting.
+
+    The engine with the materially LOWER counter fire-rate under-pilots the deck's
+    interaction, so — where the engines' win-rates also diverge — its win-rate is the
+    weaker read. Only warns when BOTH a piloting gap (:data:`_FALSE_READ_FIRE_GAP`)
+    AND a win-rate gap (:data:`_FALSE_READ_WR_GAP`) are present; otherwise a neutral
+    "comparable" line. Silent when either engine's counter piloting is unavailable
+    (nothing honest to compare)."""
+    if len(results) != 2:
+        return
+    (name_a, a), (name_b, b) = results.items()
+    fire_a, fire_b = _fire_rate(a.piloting, 'counter_fire'), _fire_rate(b.piloting, 'counter_fire')
+    if fire_a is None or fire_b is None:
+        return
+    (low_name, low_fire, low_wr), (high_name, high_fire, _) = sorted(
+        ((name_a, fire_a, a.win_rate), (name_b, fire_b, b.win_rate)),
+        key=lambda t: t[1],
+    )
+    fire_gap = high_fire - low_fire
+    win_rate_gap = abs(a.win_rate - b.win_rate)
+    if fire_gap >= _FALSE_READ_FIRE_GAP and win_rate_gap >= _FALSE_READ_WR_GAP:
+        print(
+            f'  false-read: {low_name} casts counters {_pct(low_fire)} of the time vs {high_name} '
+            f"{_pct(high_fire)} — {low_name} likely UNDER-PILOTS this deck's interaction, so its "
+            f'{_pct(low_wr)} win-rate is the weaker read where the engines diverge ({_pct(win_rate_gap)} '
+            f"apart). Prefer {high_name}'s read for interactive decks."
+        )
+    else:
+        print("  false-read: engines' interaction piloting is comparable — the win-rates are consistent reads.")
 
 
 def _gauntlet(argv: list[str]) -> None:

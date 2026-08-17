@@ -21,9 +21,10 @@ import pytest
 from pipeline.sim import forge_runtime
 from pipeline.sim import run as sim_run
 from pipeline.sim.core import Comparison, OpponentResult, SimResult, TelemetryProfile
-from pipeline.sim.engine import EngineInstall
+from pipeline.sim.engine import EngineInstall, EngineUnavailableError
 from pipeline.sim.forge_runtime import FORGE_VERSION, ForgeInstall, ForgeUnavailableError
 from pipeline.sim.runner import GameOutcome, MatchResult
+from pipeline.sim.telemetry import PilotingProfile, unavailable_piloting
 
 # A minimal but FLOOR-VALID deck body (>= 40 cards, all basics so they're always
 # Forge-loadable) — used by the dispatch tests that mock the engine but still pass
@@ -38,6 +39,28 @@ _VALID_COMMANDER = '[Main]\n100 Mountain\n'
 # --------------------------------------------------------------------------- #
 
 
+def _piloting(counter_fire: float, removal_fire: float = 0.7, *, available: bool = True) -> PilotingProfile:
+    """A populated ``PilotingProfile`` (or an unavailable marker) for the compare tests.
+
+    The ``both`` renderer reads ``counter_fire`` / ``removal_fire`` — the false-read
+    signal — so those are the params; the opportunity counts are plausible fillers.
+    """
+    if not available:
+        return unavailable_piloting('otag lake could not classify the deck')
+    return PilotingProfile(
+        counter_opps=10,
+        counter_casts=round(counter_fire * 10),
+        counter_fire=counter_fire,
+        counter_ci=(max(0.0, counter_fire - 0.1), min(1.0, counter_fire + 0.1)),
+        removal_opps=10,
+        removal_casts=round(removal_fire * 10),
+        removal_fire=removal_fire,
+        removal_ci=(max(0.0, removal_fire - 0.1), min(1.0, removal_fire + 0.1)),
+        interaction_stranded_per_game=0.5,
+        games=4,
+    )
+
+
 def _sim_result(
     candidate: str = 'Cand',
     fmt: str = 'constructed',
@@ -45,6 +68,8 @@ def _sim_result(
     failures: tuple[tuple[str, str], ...] = (),
     aborted: bool = False,
     total_games: int = 4,
+    win_rate: float = 0.75,
+    piloting: PilotingProfile | None = None,
 ) -> SimResult:
     """A populated ``SimResult`` a mocked ``core.simulate`` can return."""
     profile = TelemetryProfile(
@@ -77,14 +102,15 @@ def _sim_result(
         wins=3,
         losses=1,
         draws=0,
-        win_rate=0.75,
-        win_rate_ci=(0.3, 0.95),
+        win_rate=win_rate,
+        win_rate_ci=(max(0.0, win_rate - 0.2), min(1.0, win_rate + 0.2)),
         per_opponent=per_opp,
         profile=profile,
         cached_matchups=0,
         fresh_matchups=1,
         failures=failures,
         aborted=aborted,
+        piloting=piloting,
     )
 
 
@@ -552,6 +578,148 @@ def test_engine_bogus_choice_errors_cleanly(
     err = capsys.readouterr().err
     assert 'invalid choice' in err and 'bogus' in err
     assert 'Traceback' not in err
+
+
+# --------------------------------------------------------------------------- #
+# --engine both — side-by-side compare mode (task 3.1)
+# --------------------------------------------------------------------------- #
+
+
+def _mock_both_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    per_engine: dict[str, SimResult],
+    unavailable: dict[str, str] | None = None,
+) -> None:
+    """Wire the ``deck --engine both`` seam: per-engine ``simulate`` results + which
+    engines are unavailable. Bypasses the real resolve/provision/guard so no JVM runs.
+    """
+    unavailable = unavailable or {}
+
+    def _ensure(engine: object, **_: object) -> EngineInstall:
+        name = engine.name  # type: ignore[attr-defined]
+        if name in unavailable:
+            raise EngineUnavailableError(unavailable[name])
+        return EngineInstall(version=f'{name}-x', handle=object())
+
+    monkeypatch.setattr(sim_run, '_ensure_engine', _ensure)
+    monkeypatch.setattr(sim_run, '_guard_forge_availability', lambda *a, **k: None)
+    monkeypatch.setattr(sim_run, 'simulate', lambda deck, src, **kw: per_engine[kw['engine'].name])
+
+
+def test_deck_engine_both_renders_side_by_side_and_false_read(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`--engine both` prints a per-engine row, the Δ, and a computed false-read note.
+
+    Forge under-pilots counters (low fire-rate) vs XMage → its win-rate is flagged as
+    the weaker read where the two diverge.
+    """
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    _mock_both_paths(
+        monkeypatch,
+        per_engine={
+            'forge': _sim_result('D', win_rate=0.42, piloting=_piloting(counter_fire=0.03)),
+            'xmage': _sim_result('D', win_rate=0.30, piloting=_piloting(counter_fire=0.31)),
+        },
+    )
+
+    sim_run.main(['deck', str(dck), '--engine', 'both'])  # no SystemExit -> exit 0.
+
+    out = capsys.readouterr().out
+    assert 'forge' in out and 'xmage' in out  # both rows.
+    assert 'Δ' in out  # the delta line.
+    assert 'false-read' in out and 'UNDER-PILOTS' in out
+    # Forge (0.03 counter-fire) is the under-piloting engine named in the note.
+    note = next(line for line in out.splitlines() if 'UNDER-PILOTS' in line)
+    assert 'forge' in note and 'forge' in note.split('UNDER-PILOTS')[0]
+
+
+def test_deck_engine_both_comparable_piloting_is_neutral(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When the engines' counter fire-rates are comparable, the note is neutral (no false-read)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    _mock_both_paths(
+        monkeypatch,
+        per_engine={
+            'forge': _sim_result('D', win_rate=0.50, piloting=_piloting(counter_fire=0.30)),
+            'xmage': _sim_result('D', win_rate=0.52, piloting=_piloting(counter_fire=0.32)),
+        },
+    )
+
+    sim_run.main(['deck', str(dck), '--engine', 'both'])
+
+    out = capsys.readouterr().out
+    assert 'comparable' in out
+    assert 'UNDER-PILOTS' not in out
+
+
+def test_deck_engine_both_one_unavailable_runs_other_and_reports_skip(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One engine unavailable → run the other, print its row, report the skip on stderr, exit 0."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    _mock_both_paths(
+        monkeypatch,
+        per_engine={'forge': _sim_result('D', win_rate=0.42, piloting=_piloting(counter_fire=0.03))},
+        unavailable={'xmage': 'set MAKE_MAGIC_XMAGE_HOME to a built reactor'},
+    )
+
+    sim_run.main(['deck', str(dck), '--engine', 'both'])  # forge produced games -> exit 0.
+
+    captured = capsys.readouterr()
+    assert 'forge' in captured.out  # the available side ran.
+    assert 'xmage' in captured.err and 'SKIPPED' in captured.err
+    assert 'MAKE_MAGIC_XMAGE_HOME' in captured.err  # actionable how-to-enable.
+
+
+def test_deck_engine_both_all_unavailable_errors_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Every engine unavailable → a clean error naming the miss, non-zero exit (nothing to compare)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    _mock_both_paths(
+        monkeypatch,
+        per_engine={},
+        unavailable={'forge': 'no Forge install', 'xmage': 'no XMage reactor'},
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck), '--engine', 'both'])
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'no sim engine is available' in err
+    assert 'Traceback' not in err
+
+
+@pytest.mark.parametrize('verb', ['match', 'ab'])
+def test_engine_both_rejected_on_non_deck_verbs(
+    verb: str,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`both` is a `deck`-only pseudo-engine — `match`/`ab` reject it (argparse, exit 2)."""
+    a = tmp_path / 'A.dck'
+    b = tmp_path / 'B.dck'
+    a.write_text('[metadata]\nName=A\n' + _VALID_CONSTRUCTED)
+    b.write_text('[metadata]\nName=B\n' + _VALID_CONSTRUCTED)
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main([verb, str(a), str(b), '--engine', 'both'])
+    assert exc.value.code == 2
+    assert 'invalid choice' in capsys.readouterr().err
 
 
 # --------------------------------------------------------------------------- #
