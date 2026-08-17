@@ -248,6 +248,60 @@ def test_resolves_dfc_full_name_offline(lake: Path) -> None:
     assert card.oracle_id == 'fable-oid'
 
 
+def _empty_list_card(name: str, oid: str) -> dict[str, Any]:
+    """An oracle_cards row whose list columns are all empty (the JSON[] trigger)."""
+    return {
+        'oracle_id': oid,
+        'name': name,
+        'cmc': 1.0,
+        'mana_cost': '{1}',
+        'type_line': 'Artifact',
+        'colors': [],
+        'color_identity': [],
+        'produced_mana': [],
+        'keywords': [],
+        'oracle_text': 'x',
+        'power': None,
+        'toughness': None,
+        'art_crop': 'https://img/x.jpg',
+        'scryfall_uri': 'https://scryfall.com/x',
+        'set_name': 'Test',
+    }
+
+
+def test_land_card_into_json_list_typed_bulk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A bulk whose list columns are empty in EVERY row makes read_json infer them as
+    # JSON[] (not VARCHAR[]). Landing a live card with real colors/keywords used to
+    # fail on that type mismatch ('Malformed JSON ... Input: "W"') and the card was
+    # never landed (#50). It must now land, with CLEAN (unquoted) list values.
+    root = tmp_path / 'data'
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(root))
+    _write_layer([_empty_list_card('Alpha', 'a'), _empty_list_card('Beta', 'b')], 'raw', 'oracle_cards')
+
+    resolver_mod._land_card(
+        {
+            'oracle_id': 'live-oid',
+            'name': 'Live Keyworded',
+            'cmc': 2.0,
+            'mana_cost': '{1}{W}',
+            'type_line': 'Creature',
+            'colors': ['W'],
+            'color_identity': ['W'],
+            'produced_mana': [],
+            'keywords': ['Flying', 'Lifelink'],
+            'oracle_text': 'z',
+            'prices': {},
+        }
+    )
+
+    card = DuckDBCardResolver(client=_BoomClient()).get_card('Live Keyworded')
+    assert card is not None  # landed durably (offline hit, no network)
+    assert card.color_identity == ['W']  # clean value, NOT '"W"'
+    assert card.keywords == ['Flying', 'Lifelink']
+    # The pre-existing all-empty rows still read as clean empty lists.
+    assert DuckDBCardResolver(client=_BoomClient()).get_card('Alpha').colors == []
+
+
 def test_resolves_dfc_front_face_name_with_otags(lake: Path) -> None:
     # #49: a decklist lists the FRONT face; it must resolve to the full card AND
     # pick up its otags (keyed by the full-name oid) — offline, no live fetch.

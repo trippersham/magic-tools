@@ -129,6 +129,28 @@ def _card_from_scryfall(data: dict[str, Any]) -> Card:
     )
 
 
+#: List-valued oracle_cards columns whose `read_json` type inference is UNSTABLE:
+#: a column that is empty (`[]`) in every row infers as `JSON[]`, not `VARCHAR[]`.
+#: A later live-land then does `INSERT INTO _land (from read_parquet) SELECT (from
+#: read_json)` where the two sides disagree on the element type — inserting a
+#: `VARCHAR[]` value like `['W']` into a `JSON[]` column raises
+#: `Conversion Error: Malformed JSON ... Input: "W"`, so the card fails to land and
+#: the resolver falls back to "serving live only" forever (#50). Casting BOTH sides
+#: to `VARCHAR[]` makes the types always agree. It is SAFE: `read_json` only infers
+#: `JSON[]` when EVERY array is empty (no elements to type), so the cast never has a
+#: real JSON string to unwrap — an all-empty `JSON[]` casts to an empty `VARCHAR[]`.
+_LIST_COLUMNS = ('colors', 'color_identity', 'produced_mana', 'keywords')
+
+
+def _land_projection() -> str:
+    """The `_CARD_COLUMNS` projection with list columns pinned to ``VARCHAR[]``.
+
+    Used on both sides of the landing (the read_parquet target table and the
+    read_json insert source) so their list-column types can never disagree.
+    """
+    return ', '.join(f'CAST({c} AS VARCHAR[]) AS {c}' if c in _LIST_COLUMNS else c for c in _CARD_COLUMNS)
+
+
 def _land_card(data: dict[str, Any]) -> None:
     """Durably append a live-fetched Scryfall card into `raw/oracle_cards`.
 
@@ -147,12 +169,14 @@ def _land_card(data: dict[str, Any]) -> None:
         tmp.write_text(json.dumps([row]), encoding='utf-8')
         try:
             with store.connect() as conn:
-                cols = ', '.join(_CARD_COLUMNS)
+                # List columns pinned to VARCHAR[] on BOTH sides so the read_parquet
+                # target and the read_json source can't disagree on element type (#50).
+                sel = _land_projection()
                 if store.table_exists(*_ORACLE_CARDS):
                     path = store.StorePaths.resolve().parquet_path(*_ORACLE_CARDS, create=False)
                     # Materialize existing rows into an in-memory table first so the
                     # later COPY can safely overwrite the same file (no read-while-write).
-                    conn.execute(f"CREATE TEMP TABLE _land AS SELECT {cols} FROM read_parquet('{path}')")
+                    conn.execute(f"CREATE TEMP TABLE _land AS SELECT {sel} FROM read_parquet('{path}')")
                     oid = row.get('oracle_id')
                     if oid is not None:
                         dup = conn.execute(
@@ -160,10 +184,10 @@ def _land_card(data: dict[str, Any]) -> None:
                         ).fetchone()
                         if dup is not None:
                             return
-                    conn.execute(f"INSERT INTO _land SELECT {cols} FROM read_json('{tmp}')")
+                    conn.execute(f"INSERT INTO _land SELECT {sel} FROM read_json('{tmp}')")
                     store.write_parquet(conn, conn.table('_land'), *_ORACLE_CARDS)
                 else:
-                    new_rel = conn.read_json(str(tmp)).select(cols)
+                    new_rel = conn.read_json(str(tmp)).select(sel)
                     store.write_parquet(conn, new_rel, *_ORACLE_CARDS)
         finally:
             tmp.unlink(missing_ok=True)
