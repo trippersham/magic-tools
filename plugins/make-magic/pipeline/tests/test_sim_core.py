@@ -549,7 +549,7 @@ def test_simulate_real_curated_gauntlet() -> None:
     from pipeline.sim.engine import get_engine
     from pipeline.sim.gauntlet import resolve_gauntlet
     from pipeline.sim.governor import free_disk_gib, free_ram_gib
-    from pipeline.sim.store import find_matchups, get_game_logs
+    from pipeline.sim.store import deck_hash, find_matchups, get_game_logs
 
     if not (os.getenv(ENV_FORGE_HOME) and os.getenv(ENV_JAVA)):
         pytest.skip(f'set {ENV_FORGE_HOME} + {ENV_JAVA} to run the gated Forge simulate')
@@ -594,25 +594,36 @@ def test_simulate_real_curated_gauntlet() -> None:
     assert result.total_games == 2
     assert 0.0 <= result.win_rate <= 1.0
     assert len(result.per_opponent) == 2
-    # The pooled profile aggregates only DECISIVE games; the sim AI is ~5%
-    # nondecisive (NPE / clocked-out draw), so 1 of the 2 games can drop out of
-    # the profile without being a failure. Require the telemetry path to be
-    # exercised (>=1) and never exceed the games actually run.
-    assert 1 <= result.profile.games <= result.total_games
+    assert not result.aborted
+    # The pooled profile aggregates only DECISIVE games. The sim AI is ~30%
+    # non-decisive (NPE / clocked-out draw, see forge.py `_FORGE_CAPABILITIES`), so
+    # with only 2 games BOTH can occasionally clock out -> 0 decisive games. That is
+    # a VALID outcome, not a failure (the old `1 <= profile.games` assertion flaked
+    # ~9% of runs on it). Assert it stays within range either way.
+    assert 0 <= result.profile.games <= result.total_games
 
-    # STRENGTHEN: prove the run actually used the sim AI, not the stock ``sim``
-    # heuristic. The engine reports a sim-AI version (``<FORGE_VERSION>+simai-``),
-    # and the stored verbose log for a fresh matchup carries the harness's own
-    # ``useSimulationAI=true`` banner + its ``HANDLOG`` decision stream — a
-    # regression to stock ``sim`` would drop both and fail here.
+    # STRENGTHEN: prove the run used the sim AI, not the stock ``sim`` heuristic.
+    # The engine version (``<FORGE_VERSION>+simai-``) proves the harness is wired
+    # REGARDLESS of the game outcome — the robust, always-checkable proof.
     install = engine.resolve(provision=False)
     assert install.version.startswith(f'{FORGE_VERSION}+simai-')
-    rows = find_matchups(fmt='constructed')
-    assert rows, 'expected at least one stored matchup from the fresh run'
+
+    # The stronger RUNTIME proof (the harness ``useSimulationAI=true`` banner + its
+    # ``HANDLOG`` decision stream) lives in the retained verbose log — but only
+    # DECISIVE games are stored (clockout logs are discarded), so it's only
+    # available when >=1 game decided. Scope the lookup to THIS run's matchups
+    # (the candidate is deck_a) so the proof is about our games, not any unrelated
+    # stored run. If both games clocked out (rare), the version check above already
+    # proves the harness; assert the non-decisive path is coherent and flag it.
+    rows = find_matchups(deck_a_hash=deck_hash(candidate[1]), fmt='constructed')
     combined = '\n'.join(log for row in rows for log in get_game_logs(row.matchup_key))
-    assert combined, 'expected a retained verbose log for the fresh run'
-    assert 'useSimulationAI=true' in combined  # the harness banner — stock `sim` lacks it
-    assert 'HANDLOG' in combined  # the sim-AI decision stream — stock `sim` lacks it
+    if combined:
+        assert result.profile.games >= 1  # a decisive game was retained
+        assert 'useSimulationAI=true' in combined  # the harness banner — stock `sim` lacks it
+        assert 'HANDLOG' in combined  # the sim-AI decision stream — stock `sim` lacks it
+    else:
+        assert result.profile.games == 0  # both games non-decisive -> nothing retained
+        print('[forge] both games non-decisive (clocked out) — sim-AI proven via engine version only')
 
     print(
         f'\n[forge] simulate {result.candidate} vs {len(result.per_opponent)} curated opponents: '
