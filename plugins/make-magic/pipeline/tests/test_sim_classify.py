@@ -97,9 +97,10 @@ def test_deck_with_no_interaction_is_available_with_real_zeros() -> None:
     assert c.removal == frozenset()
 
 
-def test_empty_lake_is_unavailable_not_zero() -> None:
-    # Every card resolves but with EMPTY otag_buckets (the "serving live only" env):
-    # the classification is UNKNOWN, available=False with a reason — NOT a 0/0.
+def test_cards_resolve_but_no_otags_is_unavailable_with_otag_reason() -> None:
+    # Every card RESOLVES but with EMPTY otag_buckets (the "serving live only" env
+    # or an unbuilt rollup): UNKNOWN, available=False — NOT a 0/0. The reason names
+    # the otag-build cause (cards resolved, just no otags), not a bare "empty lake".
     empty = _MockResolver(
         {
             'Reasonable Doubt': _card('Reasonable Doubt', buckets=[], mv=2),
@@ -109,13 +110,17 @@ def test_empty_lake_is_unavailable_not_zero() -> None:
     c = classify_deck(['Reasonable Doubt', 'Burst Lightning'], empty)
     assert c.available is False
     assert c.reason is not None
-    assert 'otag lake' in c.reason
+    assert 'otag build' in c.reason
     assert c.counters == frozenset()
     assert c.removal == frozenset()
 
 
-def test_unresolved_names_do_not_crash() -> None:
-    # A name the resolver can't hydrate (None) is skipped; basics still count as
-    # lands. With no bucket resolved at all -> unavailable.
+def test_no_cards_resolve_gives_the_unresolved_reason() -> None:
+    # NONE of the names hydrate (all resolve to None) -> a DISTINCT reason that
+    # points at unresolved names (e.g. DFC/split/adventure face-names), NOT the
+    # otag-build message, so the surfaced line is honest even on a hydrated lake.
     c = classify_deck(['Totally Fake Card', 'Island'], _MockResolver({}))
     assert c.available is False
+    assert c.reason is not None
+    assert 'face-name' in c.reason
+    assert 'otag build' not in c.reason

@@ -53,8 +53,22 @@ __all__ = ('Classification', 'classify_deck')
 #: them (a name-only card carries no ``type_line``).
 _BASICS = frozenset({'Plains', 'Island', 'Swamp', 'Mountain', 'Forest'})
 
-#: The reason attached to an UNAVAILABLE classification (empty otag lake).
-_EMPTY_LAKE_REASON = 'otag lake not populated — run the otag build to enable piloting metrics'
+#: UNAVAILABLE reasons. Two causes are distinguished so the surfaced line is
+#: honest (the old single "lake not populated" message misread on a HYDRATED lake
+#: when a specific deck's cards simply carried no interaction otags):
+#:  * NO card resolved against the card dim at all — names unresolved (e.g. DFC /
+#:    split / adventure FACE-names the lake keys under the full "A // B" name) or
+#:    the bulk is absent.
+#:  * cards resolved but NONE carried any otag — the otag rollup is missing for
+#:    them (run the otag build), or they are genuinely untagged.
+_UNRESOLVED_REASON = (
+    'no deck cards resolved against the card dim — names may be unresolved '
+    '(DFC/split/adventure face-names are keyed under the full "A // B" name) or the card bulk is absent'
+)
+_NO_OTAGS_REASON = (
+    'otag data unavailable for this deck (cards resolved but carry no otags) — '
+    'run the otag build to enable piloting metrics'
+)
 
 
 @dataclass(frozen=True)
@@ -92,7 +106,7 @@ class Classification:
         }
 
 
-def _unavailable() -> Classification:
+def _unavailable(reason: str) -> Classification:
     return Classification(
         counters=frozenset(),
         removal=frozenset(),
@@ -100,7 +114,7 @@ def _unavailable() -> Classification:
         costs={},
         lands=frozenset(),
         available=False,
-        reason=_EMPTY_LAKE_REASON,
+        reason=reason,
     )
 
 
@@ -133,11 +147,13 @@ def classify_deck(card_names: Iterable[str], resolver: CardResolver | None = Non
     lands: set[str] = {name for name in names if name in _BASICS}
 
     any_bucket_resolved = False
+    any_card_resolved = False
 
     for name in names:
         card = resolver.get_card(name)
         if card is None:
             continue
+        any_card_resolved = True
         buckets = set(card.otag_buckets or ())
         if buckets:
             any_bucket_resolved = True
@@ -164,9 +180,11 @@ def classify_deck(card_names: Iterable[str], resolver: CardResolver | None = Non
             costs[name] = int(card.mana_value)
 
     if not any_bucket_resolved:
-        # UNKNOWN: the lake resolved no functional buckets for any card. Do NOT emit
-        # a 0/0 profile — mark it unavailable so the caller prints an honest line.
-        return _unavailable()
+        # UNKNOWN: no card resolved any functional bucket. Do NOT emit a 0/0 profile
+        # — mark it unavailable with the reason that fits the cause (cards not
+        # resolving at all vs resolving but carrying no otags) so the surfaced line
+        # is honest even on a HYDRATED lake.
+        return _unavailable(_NO_OTAGS_REASON if any_card_resolved else _UNRESOLVED_REASON)
 
     interaction = counters | removal
     return Classification(

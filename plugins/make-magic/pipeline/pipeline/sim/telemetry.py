@@ -518,6 +518,11 @@ def extract_piloting(
     cand = _candidate_prefix(candidate_slot)
 
     def affordable(card: str, untapped: int) -> bool:
+        # KNOWN LIMITATION (count-based proxy, faithful to the lab reference): an
+        # X-cost card carries only its PRINTED mana value in ``costs`` (Fireball =
+        # 1, the {X}{R} base), so it reads as affordable at X=0 — the proxy tracks
+        # "can it be cast at all", not "can it be cast big enough to kill the
+        # target". Refining this needs the target's toughness (not in HANDLOG).
         return untapped >= costs.get(card, 99)
 
     counter_opps = 0
@@ -530,6 +535,15 @@ def extract_piloting(
 
     for ev in games:
         # --- Counter opportunities: opponent casts, candidate holds an answer. ---
+        # KNOWN LIMITATION: an opportunity is "opp cast ANY spell while the
+        # candidate holds an affordable card in the counterspells bucket" — it does
+        # NOT check counter-subtype legality. So an Essence Scatter (creature spells
+        # only) counts an opportunity against a noncreature cast, and a card the
+        # tagger buckets as a counter but that can't actually counter a spell
+        # (Nimble Obstructionist counters abilities) inflates the denominator. A
+        # faithful fix needs the cast spell's type (resolvable) AND each counter's
+        # restriction (not in the otag buckets — an oracle-text classifier). Tracked
+        # separately; today's counter-fire is a lower bound on true conversion.
         for i, e in enumerate(ev):
             if e.ev != 'cast' or e.kind != 'spell' or not e.cast_by:
                 continue
@@ -582,8 +596,22 @@ def extract_piloting(
             afford = [c for c in removal if c in ts.hand and eff >= costs.get(c, 99)]
             if afford and ts.opp_creatures >= 1:
                 removal_opps += 1
+                # Conversion requires kind='spell', SYMMETRIC with the counter path
+                # above: the opportunity is a removal card held IN HAND, and a card
+                # is played from hand by being CAST (a spell). A kind='ability' cast
+                # is an activated/triggered ability from a permanent already in play
+                # (not in hand) — counting it would double-count the removal creature
+                # whose ETB fires as an ability (Man-o'-War emits both a spell cast
+                # and an ability cast the same turn) and could credit an in-play
+                # source that was never the held card. The creature-removal spell
+                # cast itself is kind='spell', so real conversions are still caught.
                 cast = any(
-                    e.ev == 'cast' and e.cast_by and e.cast_by.startswith(cand) and (e.source in removal) for e in tev
+                    e.ev == 'cast'
+                    and e.kind == 'spell'
+                    and e.cast_by
+                    and e.cast_by.startswith(cand)
+                    and (e.source in removal)
+                    for e in tev
                 )
                 removal_casts += cast
 
