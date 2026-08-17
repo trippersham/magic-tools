@@ -4,7 +4,9 @@ A MOCK resolver returns known ``otag_buckets`` / ``mana_value`` / ``type_line``
 per card so the classification is asserted exactly, with NO lake dependency:
 
   * ``counterspells`` -> counters (NOT ``counters``, which is +1/+1 counters).
-  * ``removal`` / ``burn`` -> removal.
+  * ``removal`` bucket -> removal. The ``burn`` bucket alone does NOT (it folds in
+    life-loss / drain — Sign in Blood, Exsanguinate — that can't kill a creature);
+    real burn removal carries ``removal`` too, so it still lands in the set (M2).
   * interaction = counters | removal; costs = int(mv) for interaction cards; lands
     from ``type_line`` containing 'Land' + the five basics.
   * an ALL-EMPTY-bucket resolver (the sparse lake) -> UNKNOWN / ``available=False``
@@ -38,11 +40,13 @@ def _ur_resolver() -> _MockResolver:
             'Reasonable Doubt': _card('Reasonable Doubt', buckets=['counterspells'], mv=2),
             # +1/+1-counters card: 'counters' bucket must NOT be read as countermagic.
             'Hardened Scales': _card('Hardened Scales', buckets=['counters'], mv=1, type_line='Enchantment'),
-            # Removal + burn.
+            # Damage-based burn removal carries BOTH burn + removal buckets.
             'Burst Lightning': _card('Burst Lightning', buckets=['burn', 'removal'], mv=1),
             'Bombard': _card('Bombard', buckets=['removal'], mv=3),
-            # A pure burn card (removal via the burn alias).
-            'Lightning Bolt': _card('Lightning Bolt', buckets=['burn'], mv=1),
+            'Lightning Bolt': _card('Lightning Bolt', buckets=['burn', 'removal'], mv=1),
+            # A burn-BUCKET-only life-loss card (drain/draw, no removal bucket): it
+            # can't kill a creature, so it must NOT be classed as removal (M2).
+            'Sign in Blood': _card('Sign in Blood', buckets=['burn', 'draw'], mv=2, type_line='Sorcery'),
             # A land (by type_line).
             'Spectacle Summit': _card('Spectacle Summit', buckets=[], type_line='Land'),
             # A vanilla creature (resolves a bucket so the lake reads as populated).
@@ -59,9 +63,12 @@ def test_counters_are_counterspells_not_plus_one_counters() -> None:
     assert 'Hardened Scales' not in c.counters
 
 
-def test_removal_from_removal_or_burn() -> None:
-    c = classify_deck(['Burst Lightning', 'Bombard', 'Lightning Bolt'], _ur_resolver())
+def test_removal_is_removal_bucket_not_burn_only() -> None:
+    # Damage-based burn removal (removal bucket present) IS removal; a burn-only
+    # life-loss card (Sign in Blood — burn+draw, no removal bucket) is NOT (M2).
+    c = classify_deck(['Burst Lightning', 'Bombard', 'Lightning Bolt', 'Sign in Blood'], _ur_resolver())
     assert c.removal == frozenset({'Burst Lightning', 'Bombard', 'Lightning Bolt'})
+    assert 'Sign in Blood' not in c.removal
 
 
 def test_interaction_is_counters_union_removal() -> None:

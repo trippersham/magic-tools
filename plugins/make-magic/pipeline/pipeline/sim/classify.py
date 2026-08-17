@@ -21,7 +21,12 @@ The bucket mapping (crosswalk slugs, see :mod:`pipeline.transforms.crosswalk`):
   * **counters** — buckets include ``'counterspells'``. NOT ``'counters'`` — that
     bucket is +1/+1 counters, an unrelated mechanic; conflating them would count
     every counter-matters creature as countermagic.
-  * **removal** — buckets include ``'removal'`` OR ``'burn'``.
+  * **removal** — buckets include ``'removal'``. NOT ``'burn'``: the crosswalk's
+    ``burn`` bucket folds direct damage together with life-loss / drain
+    (``opponent-loses-life`` / ``drain-life``) for deck-balance counting, so it
+    mis-classes life-loss cards that can't kill a creature (Sign in Blood,
+    Exsanguinate) as removal. Real damage-based removal also carries ``'removal'``,
+    so keying on it alone keeps burn removal while dropping the life-loss leak (M2).
   * **interaction** — ``counters | removal``.
   * **costs** — ``{name: int(mana_value)}`` for the interaction cards (the
     ``untapped_lands >= mv`` affordability proxy; a card with no ``mana_value`` is
@@ -141,7 +146,16 @@ def classify_deck(card_names: Iterable[str], resolver: CardResolver | None = Non
             lands.add(name)
 
         is_counter = 'counterspells' in buckets  # NOT 'counters' (+1/+1 counters).
-        is_removal = 'removal' in buckets or 'burn' in buckets
+        # Removal = the `removal` bucket ONLY. NOT the `burn` bucket: that bucket
+        # deliberately folds direct damage together with life-loss / drain
+        # (`opponent-loses-life`, `drain-life`) for deck-balance counting, so
+        # keying on it mis-classes life-loss cards that can't kill a creature —
+        # Sign in Blood (buckets `burn`+`draw`), Exsanguinate (`burn`) — as
+        # removal, inflating the piloting denominator (M2). Genuine damage-based
+        # removal (Lightning Bolt, Sear, Bombard, sweepers) ALSO carries the
+        # `removal` bucket, so `removal` alone keeps real burn removal while
+        # dropping the life-loss leak.
+        is_removal = 'removal' in buckets
         if is_counter:
             counters.add(name)
         if is_removal:
