@@ -435,6 +435,15 @@ class PilotingProfile:
     available: bool = True
     #: Human-readable reason the profile is UNAVAILABLE (``None`` when available).
     reason: str | None = None
+    #: Classification COVERAGE, filled by the engine layer (``core._piloting_profile``)
+    #: from the deck's :class:`~pipeline.sim.classify.Classification` — NOT by
+    #: :func:`extract_piloting`, which is deck-agnostic. Of the deck's distinct
+    #: non-land cards, how many resolved a non-empty otag bucket
+    #: (``cards_classified`` / ``cards_total``); ``uncategorized`` names the blind
+    #: spots. Defaults keep the pure-parse tests and the UNAVAILABLE marker at 0/∅.
+    cards_total: int = 0
+    cards_classified: int = 0
+    uncategorized: tuple[str, ...] = ()
 
 
 def unavailable_piloting(reason: str) -> PilotingProfile:

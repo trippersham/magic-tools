@@ -32,7 +32,7 @@ from __future__ import annotations
 import math
 import statistics
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Union
 
 from pipeline.sim.classify import classify_deck
@@ -513,7 +513,15 @@ def _piloting_profile(
     if not classification.available:
         return unavailable_piloting(classification.reason or 'piloting classification unavailable')
     pooled = _pool_candidate_logs(outcomes, data_dir=data_dir)
-    return extract_piloting(pooled, candidate_slot='a', **classification.as_kwargs())  # type: ignore[arg-type]
+    profile = extract_piloting(pooled, candidate_slot='a', **classification.as_kwargs())  # type: ignore[arg-type]
+    # Attach the deck-classification COVERAGE (extract_piloting is deck-agnostic, so
+    # it can't know this) — how much of the deck the metric could actually "see".
+    return replace(
+        profile,
+        cards_total=classification.cards_total,
+        cards_classified=classification.cards_classified,
+        uncategorized=tuple(sorted(classification.uncategorized)),
+    )
 
 
 def simulate(

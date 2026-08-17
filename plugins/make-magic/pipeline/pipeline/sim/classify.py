@@ -89,6 +89,16 @@ class Classification:
     lands: frozenset[str]
     available: bool
     reason: str | None = None
+    #: Classification COVERAGE, over the deck's distinct NON-LAND cards: how many
+    #: resolved a non-empty otag bucket (``cards_classified``) out of the total
+    #: (``cards_total``), and the names that did NOT (``uncategorized`` — a card
+    #: with no otags is a blind spot: unresolved, untagged, or an otag-rollup gap).
+    #: Surfaced next to the fire-rates so a partial view isn't over-trusted and a
+    #: silently-dropped interaction card is visible (defaults keep the mock tests
+    #: and the unavailable marker at 0/0/∅).
+    cards_total: int = 0
+    cards_classified: int = 0
+    uncategorized: frozenset[str] = frozenset()
 
     def as_kwargs(self) -> dict[str, object]:
         """The keyword args :func:`~pipeline.sim.telemetry.extract_piloting` takes.
@@ -148,6 +158,7 @@ def classify_deck(card_names: Iterable[str], resolver: CardResolver | None = Non
 
     any_bucket_resolved = False
     any_card_resolved = False
+    classified: set[str] = set()  # names that resolved a non-empty otag bucket.
 
     for name in names:
         card = resolver.get_card(name)
@@ -157,6 +168,7 @@ def classify_deck(card_names: Iterable[str], resolver: CardResolver | None = Non
         buckets = set(card.otag_buckets or ())
         if buckets:
             any_bucket_resolved = True
+            classified.add(name)
         type_line = card.type_line or ''
         if 'Land' in type_line:
             lands.add(name)
@@ -186,6 +198,12 @@ def classify_deck(card_names: Iterable[str], resolver: CardResolver | None = Non
         # is honest even on a HYDRATED lake.
         return _unavailable(_NO_OTAGS_REASON if any_card_resolved else _UNRESOLVED_REASON)
 
+    # Coverage over NON-LAND cards (lands legitimately carry no interaction otags,
+    # so counting them would understate coverage). `uncategorized` = the non-land
+    # names with no otags — the piloting blind spots (unresolved / untagged / an
+    # otag-rollup gap; e.g. the tagger-drift MINOR-1 class shows up here).
+    nonland = [name for name in names if name not in lands]
+    uncategorized = frozenset(name for name in nonland if name not in classified)
     interaction = counters | removal
     return Classification(
         counters=frozenset(counters),
@@ -194,4 +212,7 @@ def classify_deck(card_names: Iterable[str], resolver: CardResolver | None = Non
         costs=costs,
         lands=frozenset(lands),
         available=True,
+        cards_total=len(nonland),
+        cards_classified=len(nonland) - len(uncategorized),
+        uncategorized=uncategorized,
     )

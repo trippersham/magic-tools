@@ -97,6 +97,17 @@ def test_deck_with_no_interaction_is_available_with_real_zeros() -> None:
     assert c.removal == frozenset()
 
 
+def test_coverage_counts_nonland_cards_and_names_blind_spots() -> None:
+    # Coverage is over NON-LAND cards: Spectacle Summit (land) is excluded; a name
+    # that resolves a bucket (incl. the non-interaction Goblin Piker 'creatures'
+    # bucket) is classified; an unresolved name is an uncategorized blind spot.
+    c = classify_deck(['Reasonable Doubt', 'Goblin Piker', 'Spectacle Summit', 'Totally Fake Card'], _ur_resolver())
+    assert c.available is True
+    assert c.cards_total == 3  # 3 non-land names (Spectacle Summit excluded)
+    assert c.cards_classified == 2  # Reasonable Doubt + Goblin Piker carry otags
+    assert c.uncategorized == frozenset({'Totally Fake Card'})
+
+
 def test_cards_resolve_but_no_otags_is_unavailable_with_otag_reason() -> None:
     # Every card RESOLVES but with EMPTY otag_buckets (the "serving live only" env
     # or an unbuilt rollup): UNKNOWN, available=False — NOT a 0/0. The reason names

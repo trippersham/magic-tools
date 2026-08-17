@@ -1142,6 +1142,33 @@ def test_print_piloting_available_block(capsys: pytest.CaptureFixture[str]) -> N
     assert 'removal fire-rate' in out
     assert 'stranded/game' in out
     assert 'how often the AI cast it' in out  # the one-line frame
+    # cards_total defaults to 0 here -> no coverage line (unpopulated).
+    assert 'classification coverage' not in out
+
+
+def test_print_piloting_coverage_line_names_blind_spots(capsys: pytest.CaptureFixture[str]) -> None:
+    """A populated coverage surfaces how much of the deck was classified + names the blind spots."""
+    from pipeline.sim.telemetry import PilotingProfile
+
+    prof = PilotingProfile(
+        counter_opps=0,
+        counter_casts=0,
+        counter_fire=None,
+        counter_ci=None,
+        removal_opps=2,
+        removal_casts=1,
+        removal_fire=0.5,
+        removal_ci=(0.1, 0.9),
+        interaction_stranded_per_game=0.0,
+        games=4,
+        cards_total=37,
+        cards_classified=35,
+        uncategorized=('Spoiler Card A', 'Spoiler Card B'),
+    )
+    sim_run._print_sim_result(_sim_result_with_piloting(prof))
+    out = capsys.readouterr().out
+    assert 'classification coverage: 35/37 non-land cards carry otags' in out
+    assert 'Spoiler Card A' in out and 'Spoiler Card B' in out  # blind spots named
 
 
 def test_print_piloting_unavailable_is_one_honest_line(capsys: pytest.CaptureFixture[str]) -> None:

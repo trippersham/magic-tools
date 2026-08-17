@@ -372,6 +372,35 @@ def _print_piloting(piloting: object) -> None:
         f'({piloting.removal_casts}/{piloting.removal_opps} opps)'
     )
     print(f'  interaction stranded/game: {piloting.interaction_stranded_per_game:.2f}  (over {piloting.games} game(s))')
+    _print_coverage(piloting)
+
+
+def _print_coverage(piloting: object) -> None:
+    """Print the classification COVERAGE line under the piloting block.
+
+    How much of the deck the metric could actually "see": of the distinct non-land
+    cards, how many carried otags. Low coverage means the fire-rates rest on a
+    partial view (a card with no otags is invisible to the opportunity model). When
+    a FEW cards are uncategorized they are named (so a silently-dropped interaction
+    card is spottable); a larger set is summarized. Skipped when coverage wasn't
+    populated (older cached results / non-Forge paths → ``cards_total == 0``).
+    """
+    from pipeline.sim.core import PilotingProfile
+
+    assert isinstance(piloting, PilotingProfile)
+    if piloting.cards_total <= 0:
+        return
+    line = f'  classification coverage: {piloting.cards_classified}/{piloting.cards_total} non-land cards carry otags'
+    unc = piloting.uncategorized
+    if unc:
+        shown = ', '.join(unc[:_COVERAGE_NAME_CAP])
+        more = f', +{len(unc) - _COVERAGE_NAME_CAP} more' if len(unc) > _COVERAGE_NAME_CAP else ''
+        line += f'  (uncategorized: {shown}{more})'
+    print(line)
+
+
+#: How many uncategorized card names to list inline before summarizing the rest.
+_COVERAGE_NAME_CAP = 8
 
 
 def _fmt_fire(fire: float | None, ci: tuple[float, float] | None) -> str:
