@@ -20,6 +20,7 @@ import hashlib
 import shutil
 import subprocess
 import tempfile
+import threading
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -38,6 +39,19 @@ _CP7_SKILL = 6
 #: Forge's ``-c``), and a control grind can run long — so the bound is the external
 #: kill only. Generous; a stalled game (rare) is killed and surfaced as a failure.
 _DEFAULT_TIMEOUT_S = 240
+#: ``XMageBatch --warm`` argument: build/verify the H2 card DB in ONE process.
+_WARM_ARG = '--warm'
+#: Bound on the one-time cold H2 build (a from-scratch CardScanner.scan can take a
+#: while); a hung warm is killed + surfaced rather than wedging the pool forever.
+_WARM_TIMEOUT_S = 420
+
+#: Serializes the ONE-TIME card-DB warm-up across the governor's parent-process
+#: :class:`~concurrent.futures.ThreadPoolExecutor` workers: the first ``run_matchup``
+#: builds the H2 db (holding the lock) while the others block, then all proceed
+#: read-only in parallel. Keyed by the reactor's ``Mage.Tests`` dir (the db lives
+#: under it), so distinct installs warm independently and a warmed db is a no-op.
+_WARM_LOCK = threading.Lock()
+_WARMED_DIRS: set[str] = set()
 
 _XMAGE_CAPABILITIES = EngineCapabilities(
     has_hand_visibility=True,
@@ -157,12 +171,25 @@ class XMageEngine:
                 'Rebuild it with pipeline/sim/java/xmage/build.sh.'
             )
 
+        # Build the CANONICAL H2 card DB ONCE, single-process, before any game JVM
+        # touches it — the cold CardScanner.scan() is not concurrency-safe.
+        _ensure_card_db_warm(handle)
+
         staging = runner._staging_root()
         staging.mkdir(parents=True, exist_ok=True)
         run_dir = Path(tempfile.mkdtemp(prefix='xmage-', dir=staging))
         try:
             txt_a = _stage_txt(run_dir, 'deckA', _forge_dck_to_xmage_txt(text_a))
             txt_b = _stage_txt(run_dir, 'deckB', _forge_dck_to_xmage_txt(text_b))
+            # Give THIS JVM a PRIVATE copy of the warm card DB and launch it from
+            # ``run_dir`` (the H2 url is ``./db/cards.h2`` relative to cwd). XMage's
+            # db opens ``AUTO_SERVER=TRUE`` and runs a ``createTableIfNotExists``
+            # health-check on EVERY open — so parallel JVMs sharing one db/ file race
+            # the server-handshake + table-check (intermittent ``expansionDao null`` /
+            # a corrupted db), which a single warm-up alone does NOT prevent. A private
+            # per-run db (the game JVM needs only ``db/`` in its cwd — verified) gives
+            # total isolation: zero cross-JVM contention.
+            _stage_private_db(handle, run_dir)
             cmd = [
                 *runner._launch_prefix(),
                 str(handle.java),
@@ -181,7 +208,7 @@ class XMageEngine:
             external_timeout = runner._JVM_LOAD_HEADROOM_S + max(1, n) * timeout_s
             proc = subprocess.Popen(
                 cmd,
-                cwd=handle.mage_tests_dir,
+                cwd=run_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -220,6 +247,84 @@ def _stage_txt(run_dir: Path, name: str, text: str) -> Path:
     path = run_dir / f'{name}.txt'
     path.write_text(text, encoding='utf-8')
     return path
+
+
+def _ensure_card_db_warm(handle: XMageInstall) -> None:
+    """Build the reactor's CANONICAL H2 card DB ONCE, before any per-run copy is made.
+
+    XMage's ``CardScanner.scan()`` runs in every ``XMageBatch`` JVM, but a COLD
+    (from-scratch) build is not concurrency-safe. This runs a single ``XMageBatch
+    --warm`` process to complete the build once, so :func:`_stage_private_db` has a
+    complete db to copy per run (a cold rebuild per matchup would otherwise be needed
+    — and would race). Isolation from the concurrent-OPEN race is provided by the per-run
+    private copy; this step just makes that copy cheap + guarantees it is complete.
+
+    Serialized + memoized by :data:`_WARM_LOCK` / :data:`_WARMED_DIRS` (keyed by the
+    ``Mage.Tests`` dir): the FIRST ``run_matchup`` across the pool warms while the
+    siblings block on the lock, then every later call is a near-free set lookup. A
+    warm FAILURE does not poison the cache — it propagates as the caller's matchup
+    failure and the next matchup retries (a transient race self-heals; a persistent
+    break surfaces per-matchup and the run's exit code reflects the failure rate).
+    """
+    key = str(handle.mage_tests_dir)
+    with _WARM_LOCK:
+        if key in _WARMED_DIRS:
+            return
+        _run_warm_scan(handle)
+        _WARMED_DIRS.add(key)
+
+
+def _stage_private_db(handle: XMageInstall, run_dir: Path) -> None:
+    """Copy the canonical warm card DB into ``run_dir/db`` for this JVM's exclusive use.
+
+    XMage's H2 url is ``./db/cards.h2`` (relative to cwd) opened ``AUTO_SERVER=TRUE``
+    with a ``createTableIfNotExists`` health-check on every open — so pool JVMs that
+    share one ``db/`` race the server handshake + table check (the ``expansionDao
+    null`` / corrupted-db failures). Launching each JVM from ``run_dir`` with its OWN
+    ``db/`` copy removes the shared state entirely. Only ``db/`` is needed in the cwd
+    (verified: a game JVM plays a full duel from a bare cwd + db copy).
+    """
+    src = handle.mage_tests_dir / 'db'
+    if not src.is_dir():
+        raise XMageError(
+            f'XMage card DB not found at {src} after warm-up — the reactor db was not built. '
+            'Rebuild the reactor / re-run pipeline/sim/java/xmage/build.sh.'
+        )
+    shutil.copytree(src, run_dir / 'db')
+
+
+def _run_warm_scan(handle: XMageInstall) -> None:
+    """Run one ``XMageBatch --warm`` JVM (cwd = Mage.Tests) to build the H2 card DB.
+
+    Bounded by an external timeout + process-group kill (mirrors ``run_matchup``); a
+    non-zero exit or timeout raises :class:`XMageError` so the caller's matchup fails
+    loudly rather than proceeding into the cold-scan race.
+    """
+    cmd = [
+        *runner._launch_prefix(),
+        str(handle.java),
+        *runner._jvm_args(),
+        '-cp',
+        handle.classpath,
+        _XMAGE_MAIN_CLASS,
+        _WARM_ARG,
+    ]
+    proc = subprocess.Popen(
+        cmd,
+        cwd=handle.mage_tests_dir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=_WARM_TIMEOUT_S)
+    except subprocess.TimeoutExpired as exc:
+        runner._kill_process_group(proc)
+        raise XMageError(f'XMage card-DB warm-up exceeded {_WARM_TIMEOUT_S}s and was killed.') from exc
+    if proc.returncode != 0:
+        output = (stdout or '') + (stderr or '')
+        raise XMageError(f'XMage card-DB warm-up failed (exit {proc.returncode}). Output tail:\n{output[-1000:]}')
 
 
 register_engine(XMageEngine())

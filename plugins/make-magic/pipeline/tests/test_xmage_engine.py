@@ -8,10 +8,32 @@ behavioral evidence) + the telemetry drop-in in ``test_telemetry_xmage.py``.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from pipeline.sim.engine import EngineUnavailableError, SimEngine, get_engine
-from pipeline.sim.engines.xmage import XMageEngine, _forge_dck_to_xmage_txt
+from pipeline.sim.engines import xmage as xmage_engine
+from pipeline.sim.engines.xmage import (
+    XMageEngine,
+    XMageError,
+    _ensure_card_db_warm,
+    _forge_dck_to_xmage_txt,
+    _run_warm_scan,
+    _stage_private_db,
+)
+from pipeline.sim.xmage_runtime import XMageInstall
+
+
+@pytest.fixture(autouse=True)
+def _reset_warm_state() -> None:
+    """Each test starts with an un-warmed card-DB memo (the set is module-global)."""
+    xmage_engine._WARMED_DIRS.clear()
+
+
+def _install(tmp_path: Path) -> XMageInstall:
+    """A dummy resolved install (paths never launched — the JVM is mocked)."""
+    return XMageInstall(mage_tests_dir=tmp_path, classpath='cp.jar', java=Path('/tmp/java'))
 
 
 def test_registered_and_is_sim_engine() -> None:
@@ -74,3 +96,125 @@ def test_commander_is_rejected_constructed_only() -> None:
             fmt='commander',
             install=EngineInstall(version='x', handle=_Stub()),
         )
+
+
+# --------------------------------------------------------------------------- #
+# Card-DB warm-up: serialize the cold H2 build so parallel game JVMs don't race it.
+# --------------------------------------------------------------------------- #
+
+
+def test_warm_runs_once_then_memoized(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The first call warms (one scan JVM); subsequent calls for the same reactor are
+    a free memo hit — the game JVMs never re-scan a cold db."""
+    calls = 0
+
+    def _fake_scan(handle: XMageInstall) -> None:
+        nonlocal calls
+        calls += 1
+
+    monkeypatch.setattr(xmage_engine, '_run_warm_scan', _fake_scan)
+    handle = _install(tmp_path)
+    _ensure_card_db_warm(handle)
+    _ensure_card_db_warm(handle)
+    _ensure_card_db_warm(handle)
+    assert calls == 1
+
+
+def test_warm_is_per_reactor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Distinct reactors (distinct Mage.Tests dirs) warm independently."""
+    seen: list[Path] = []
+    monkeypatch.setattr(xmage_engine, '_run_warm_scan', lambda h: seen.append(h.mage_tests_dir))
+    a, b = tmp_path / 'a', tmp_path / 'b'
+    _ensure_card_db_warm(_install(a))
+    _ensure_card_db_warm(_install(b))
+    _ensure_card_db_warm(_install(a))  # a already warm.
+    assert seen == [a, b]
+
+
+def test_warm_concurrent_calls_scan_once(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Under the governor's parallel pool, N concurrent first-calls warm exactly ONCE
+    (the lock serializes; the slow scan runs once while siblings block)."""
+    import threading
+    import time
+
+    calls = 0
+
+    def _slow_scan(handle: XMageInstall) -> None:
+        nonlocal calls
+        calls += 1
+        time.sleep(0.05)  # hold the lock long enough that the others pile up behind it.
+
+    monkeypatch.setattr(xmage_engine, '_run_warm_scan', _slow_scan)
+    handle = _install(tmp_path)
+    threads = [threading.Thread(target=_ensure_card_db_warm, args=(handle,)) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert calls == 1
+
+
+def test_warm_failure_propagates_and_does_not_memoize(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A failed warm is NOT cached — it raises to the caller (→ that matchup fails)
+    and the NEXT matchup retries (a transient race self-heals)."""
+    attempts = 0
+
+    def _flaky_scan(handle: XMageInstall) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise XMageError('cold build raced')
+
+    monkeypatch.setattr(xmage_engine, '_run_warm_scan', _flaky_scan)
+    handle = _install(tmp_path)
+    with pytest.raises(XMageError):
+        _ensure_card_db_warm(handle)  # first attempt fails, not memoized.
+    _ensure_card_db_warm(handle)  # retry succeeds and memoizes.
+    assert attempts == 2
+
+
+def test_run_warm_scan_builds_warm_cmd_and_raises_on_nonzero(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """``_run_warm_scan`` launches ``XMageBatch --warm`` from Mage.Tests and raises
+    :class:`XMageError` on a non-zero exit (never proceeds into the cold-scan race)."""
+    captured: dict[str, object] = {}
+
+    class _FakeProc:
+        returncode = 3
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            return ('', 'boom')
+
+    def _fake_popen(cmd: list[str], **kwargs: object) -> _FakeProc:
+        captured['cmd'] = cmd
+        captured['cwd'] = kwargs.get('cwd')
+        return _FakeProc()
+
+    monkeypatch.setattr(xmage_engine.subprocess, 'Popen', _fake_popen)
+    with pytest.raises(XMageError, match='warm-up failed'):
+        _run_warm_scan(_install(tmp_path))
+    assert captured['cmd'][-1] == '--warm'  # the scan-only argument.
+    assert 'org.makemagic.xmage.XMageBatch' in captured['cmd']
+    assert captured['cwd'] == tmp_path  # launched from the reactor's Mage.Tests dir.
+
+
+def test_stage_private_db_copies_db_into_run_dir(tmp_path: Path) -> None:
+    """Each run gets its OWN copy of the warm ``db/`` (no shared H2 file to race)."""
+    reactor = tmp_path / 'reactor'
+    (reactor / 'db').mkdir(parents=True)
+    (reactor / 'db' / 'cards.h2.mv.db').write_bytes(b'CARD DB BYTES')
+    run_dir = tmp_path / 'run'
+    run_dir.mkdir()
+    _stage_private_db(_install(reactor), run_dir)
+    copied = run_dir / 'db' / 'cards.h2.mv.db'
+    assert copied.is_file()
+    assert copied.read_bytes() == b'CARD DB BYTES'  # a real, independent copy.
+
+
+def test_stage_private_db_missing_source_raises(tmp_path: Path) -> None:
+    """A missing canonical db (warm-up never built it) fails loudly, not silently."""
+    reactor = tmp_path / 'reactor'
+    reactor.mkdir()  # no db/ under it.
+    run_dir = tmp_path / 'run'
+    run_dir.mkdir()
+    with pytest.raises(XMageError, match='card DB not found'):
+        _stage_private_db(_install(reactor), run_dir)

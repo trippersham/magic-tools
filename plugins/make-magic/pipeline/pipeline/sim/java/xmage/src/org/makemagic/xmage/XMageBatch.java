@@ -37,8 +37,22 @@ import java.util.UUID;
 public class XMageBatch {
 
     public static void main(String[] args) throws Exception {
+        // Warm-up mode: build/verify the H2 card DB in a SINGLE process and exit.
+        // The caller runs this ONCE, serialized, before launching the parallel game
+        // JVMs — CardScanner.scan() is not concurrency-safe on a COLD build (parallel
+        // cold scans race ExpansionRepository init → NPE / a corrupted 'BAD' db /
+        // partial deck loads). After this returns the db is complete; concurrent
+        // read-only scans in the game JVMs are then safe.
+        if (args.length == 1 && "--warm".equals(args[0])) {
+            MakeMagicHooks.install();
+            System.out.println("XMAGEBATCH warming card database (single-process build)...");
+            CardScanner.scan();
+            System.out.println("XMAGEBATCH WARM card db ready.");
+            System.out.flush();
+            System.exit(0);
+        }
         if (args.length < 2) {
-            System.err.println("usage: XMageBatch <deckA> <deckB> [games] [skill]");
+            System.err.println("usage: XMageBatch <deckA> <deckB> [games] [skill]  |  XMageBatch --warm");
             System.exit(2);
         }
         String deckAPath = args[0];
