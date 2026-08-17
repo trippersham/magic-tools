@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 __all__ = (
     'GameFeatures',
     'PilotingProfile',
+    'decided_game_segments',
     'extract_game_features',
     'extract_match_features',
     'extract_piloting',
@@ -281,6 +282,25 @@ def extract_game_features(game_log: str, *, deck_a: str, deck_b: str, commander:
     )
 
 
+def decided_game_segments(match_log: str) -> list[str]:
+    """Per-game segments of a match log with CLOCKOUT games EXCLUDED.
+
+    The SINGLE source of truth for "which games count". Three call sites slice a
+    match log exactly this way and MUST agree: the store's per-game log persistence
+    (``store.py``), the per-game feature extraction (:func:`extract_match_features`),
+    and the fresh piloting pool (:func:`pipeline.sim.core._pool_candidate_logs`). A
+    ``--force`` fresh run pools the whole ``raw_log`` while a cached rerun reads the
+    store's persisted segments, so both must derive from the IDENTICAL filter or the
+    piloting metric silently diverges (fresh != cached — the M1 bug). Keeping ONE
+    definition makes that invariant hold by construction rather than by three copies
+    happening to match. A clockout game has a fabricated ``has won!`` terminator and
+    no forensic value, so its segment is dropped. Never raises (``[]`` on empty).
+    """
+    from pipeline.sim.runner import is_clockout_segment
+
+    return [seg for seg in split_games(match_log) if not is_clockout_segment(seg)]
+
+
 def extract_match_features(match_log: str, *, deck_a: str, deck_b: str) -> list[GameFeatures]:
     """Extract per-game :class:`GameFeatures` for every game in a multi-game log.
 
@@ -293,13 +313,10 @@ def extract_match_features(match_log: str, *, deck_a: str, deck_b: str) -> list[
     prints only in the preamble, which lands in game 1's segment) and applied to
     every game. Returns ``[]`` for empty / result-less input (never raises).
     """
-    from pipeline.sim.runner import is_clockout_segment
-
     commander = re.search(r'of Commander\b', match_log) is not None
     return [
         extract_game_features(seg, deck_a=deck_a, deck_b=deck_b, commander=commander)
-        for seg in split_games(match_log)
-        if not is_clockout_segment(seg)
+        for seg in decided_game_segments(match_log)
     ]
 
 

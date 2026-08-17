@@ -41,8 +41,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from pipeline import store
-from pipeline.sim.runner import MatchResult, is_clockout_segment
-from pipeline.sim.telemetry import GameFeatures, split_games
+from pipeline.sim.runner import MatchResult
+from pipeline.sim.telemetry import GameFeatures, decided_game_segments
 
 if TYPE_CHECKING:
     import os
@@ -346,10 +346,12 @@ def store_matchup(
         # Replace the per-game log rows wholesale (sliced from the full verbose log).
         conn.execute('DELETE FROM sim_game_logs WHERE matchup_key = ?', [key])
         # EXCLUDE clockout segments to stay 1:1 with `features` (which
-        # `extract_match_features` already filters the same way) — a clocked-out
+        # `extract_match_features` derives from the SAME helper) — a clocked-out
         # game has a fabricated result and no forensic value, so dropping its log
-        # keeps `game_index` aligned across the two tables (B1b).
-        game_logs = [seg for seg in split_games(result.raw_log) if not is_clockout_segment(seg)]
+        # keeps `game_index` aligned across the two tables (B1b). Using the shared
+        # `decided_game_segments` is what makes the fresh piloting pool and this
+        # persisted cache measure the identical games (fresh == cached, M1).
+        game_logs = decided_game_segments(result.raw_log)
         # Invariant: log rows either line up 1:1 with feature rows (both derive from
         # the SAME clockout-excluded split) OR are absent — a result-less/elided log
         # (e.g. tests that pass a placeholder raw_log) yields 0 segments. Any OTHER

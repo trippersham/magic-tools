@@ -636,6 +636,50 @@ def test_doctor_provision_fetches_via_ensure(
     assert 'provisioned' in out.lower()
 
 
+def test_doctor_multi_engine_reports_all_and_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    install: ForgeInstall,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """doctor loops EVERY registered engine: an available Forge + an unavailable
+    second engine → both reported, exit 1, and the non-Forge engine does NOT get
+    Forge's ~350MB/MAKE_MAGIC_FORGE_HOME how-to (only its own message)."""
+    import types
+
+    from pipeline.sim import engine as engine_mod
+    from pipeline.sim.engine import EngineCapabilities, EngineUnavailableError
+
+    caps = EngineCapabilities(
+        has_hand_visibility=False,
+        has_counter_metrics=True,
+        expected_nondecisive_rate=0.1,
+        reliability_note='fake',
+        kill_attribution='combat_generic',
+    )
+
+    def _resolve_raises(*, provision: bool, data_dir: object = None) -> object:
+        raise EngineUnavailableError('zzfake needs its own bootstrap (this is the fake how-to).')
+
+    fake = types.SimpleNamespace(name='zzfake', capabilities=lambda: caps, resolve=_resolve_raises)
+    monkeypatch.setitem(engine_mod._REGISTRY, 'zzfake', fake)  # type: ignore[arg-type]
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)  # forge available.
+    monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
+    monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
+    monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
+
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['doctor'])
+    assert exc.value.code == 1  # any unavailable engine → non-zero.
+
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert 'forge: available' in captured.out  # the available engine reported.
+    assert 'zzfake: NOT AVAILABLE' in combined  # the unavailable engine reported.
+    assert 'this is the fake how-to' in combined  # its own message surfaced.
+    # MINOR-2: the Forge-specific provision advice must NOT be printed for zzfake.
+    assert '350MB' not in combined and 'MAKE_MAGIC_FORGE_HOME' not in combined
+
+
 def test_match_auto_provisions_via_ensure(
     monkeypatch: pytest.MonkeyPatch,
     install: ForgeInstall,

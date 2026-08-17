@@ -772,15 +772,20 @@ def _doctor(argv: list[str]) -> None:
             install: EngineInstall = _ensure_engine(engine) if provisionable else engine.resolve(provision=False)
         except EngineUnavailableError as exc:
             # Graceful: name WHY + HOW to enable, no traceback; mark for exit 1.
+            # The exception message ({exc}) is per-engine and self-explaining; only
+            # Forge gets the extra provision/env how-to (it is the sole
+            # auto-provisionable backend this phase — a hardcoded Forge block under
+            # every engine would misdirect a future unavailable XMage).
             any_unavailable = True
             print(f'  {name}: NOT AVAILABLE')
             print(f'    {exc}', file=sys.stderr)
-            print(
-                f'    To enable: run `simulate doctor --provision` to auto-download Forge (~350MB, '
-                f'one-time), or set {ENV_FORGE_HOME} (+ {ENV_JAVA}) to reuse an existing install. '
-                f'(A `match`/`deck`/`ab` run also auto-provisions on first use.)',
-                file=sys.stderr,
-            )
+            if name == _DEFAULT_ENGINE:
+                print(
+                    f'    To enable: run `simulate doctor --provision` to auto-download Forge (~350MB, '
+                    f'one-time), or set {ENV_FORGE_HOME} (+ {ENV_JAVA}) to reuse an existing install. '
+                    f'(A `match`/`deck`/`ab` run also auto-provisions on first use.)',
+                    file=sys.stderr,
+                )
             continue
 
         print(f'  {name}: available' + ('  (provisioned)' if provisionable else ''))

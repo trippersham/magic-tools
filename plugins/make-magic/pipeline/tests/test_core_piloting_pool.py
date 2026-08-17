@@ -8,13 +8,15 @@ denominator. So a ``--force`` run and a cached rerun of the same matchup reporte
 DIFFERENT piloting numbers. The fix applies the identical decided-games filter on
 the fresh path.
 
-Pure parse of synthetic logs (no JVM, no store).
+Synthetic logs, no JVM. Most tests are a pure parse; one round-trips through the
+real DuckDB store (``store_matchup`` -> ``get_game_logs``) to prove fresh == cached
+end-to-end, not just at the shared-helper level.
 """
 
 from __future__ import annotations
 
-from pipeline.sim.core import MatchOutcome, _decided_game_segments, _pool_candidate_logs
-from pipeline.sim.telemetry import extract_piloting
+from pipeline.sim.core import MatchOutcome, _pool_candidate_logs
+from pipeline.sim.telemetry import decided_game_segments, extract_piloting
 
 _REMOVAL = {'Doom Blade'}
 _KW = {
@@ -83,18 +85,55 @@ def test_fresh_path_excludes_clockout() -> None:
 
 
 def test_fresh_pool_equals_cached_decided_segments() -> None:
-    # The store persists exactly `_decided_game_segments(raw_log)` for the cache,
-    # so a cached rerun pools those. The fresh path must produce the SAME games.
+    # The store persists exactly `decided_game_segments(raw_log)` for the cache (the
+    # SAME shared helper the fresh pool routes through), so a cached rerun pools
+    # those. The fresh path must produce the SAME games.
     fresh = _pool_candidate_logs(
         [MatchOutcome(opponent='Foe', wins=1, losses=0, draws=0, cached=False, features=[], raw_log=_RAW)],
         data_dir=None,
     )
-    cached_like = '\n'.join(_decided_game_segments(_RAW))  # what get_game_logs returns
+    cached_like = '\n'.join(decided_game_segments(_RAW))  # what get_game_logs returns
     assert extract_piloting(fresh, **_KW) == extract_piloting(cached_like, **_KW)
 
 
+def test_fresh_pool_equals_real_store_roundtrip(tmp_path: object) -> None:
+    # Stronger than the helper-level check: persist the matchup through the REAL
+    # store (store_matchup) and pool the cached side via a matchup_key (which reads
+    # get_game_logs) — the fresh --force path and the actual cached read must land
+    # the identical piloting profile (fresh == cached end-to-end, M1).
+    from pipeline.sim.runner import GameOutcome, MatchResult
+    from pipeline.sim.store import MatchupMeta, store_matchup
+    from pipeline.sim.telemetry import extract_match_features
+
+    key = 'm1-roundtrip-key'
+    meta = MatchupMeta(
+        deck_a_hash='a', deck_b_hash='b', seed=1, n_games=2, format='constructed', engine='forge', engine_version='x'
+    )
+    features = extract_match_features(_RAW, deck_a='A', deck_b='B')  # 1 decided game (clockout excluded)
+    result = MatchResult(
+        deck_a='A',
+        deck_b='B',
+        wins_a=1,
+        wins_b=0,
+        draws=0,
+        per_game=(GameOutcome(winner='a', elapsed_ms=1),),
+        raw_log=_RAW,
+    )
+    store_matchup(key, meta, result, features, data_dir=str(tmp_path))
+
+    cached = _pool_candidate_logs(
+        [MatchOutcome(opponent='Foe', wins=1, losses=0, draws=0, cached=True, features=[], matchup_key=key)],
+        data_dir=str(tmp_path),
+    )
+    fresh = _pool_candidate_logs(
+        [MatchOutcome(opponent='Foe', wins=1, losses=0, draws=0, cached=False, features=[], raw_log=_RAW)],
+        data_dir=None,
+    )
+    assert extract_piloting(cached, **_KW) == extract_piloting(fresh, **_KW)
+
+
 def test_decided_segments_drops_only_the_clockout() -> None:
-    segs = _decided_game_segments(_RAW)
+    segs = decided_game_segments(_RAW)
     assert len(segs) == 1
     assert 'Game 1 ended' in segs[0]
     assert 'Stopping slow match' not in segs[0]

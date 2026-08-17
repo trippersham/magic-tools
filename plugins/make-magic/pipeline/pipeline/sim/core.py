@@ -470,38 +470,25 @@ def _pool_candidate_logs(
     matchups re-read theirs from the store by ``matchup_key`` via
     :func:`~pipeline.sim.store.get_game_logs`. Both paths must feed the SAME set of
     games so piloting is stable across a ``--force`` fresh run and a cached rerun.
-    The store persists per-game logs as ``split_games(raw_log)`` with CLOCKOUT
-    segments excluded (``store.py``); the fresh ``raw_log`` here is the WHOLE match
-    log INCLUDING clockout games (each of which still emits a ``gameend`` HANDLOG
-    marker → an extra, fabricated game in the piloting denominator). So the fresh
-    path applies the identical decided-games filter (:func:`_decided_game_segments`)
-    before pooling — otherwise fresh != cached (M1). The pooled text is handed to
-    :func:`~pipeline.sim.telemetry.extract_piloting`, which splits games internally
-    on the ``gameend`` HANDLOG marker.
+    The store persists per-game logs via :func:`~pipeline.sim.telemetry.decided_game_segments`
+    (``split_games`` with CLOCKOUT segments excluded); the fresh ``raw_log`` here is
+    the WHOLE match log INCLUDING clockout games (each of which still emits a
+    ``gameend`` HANDLOG marker → an extra, fabricated game in the piloting
+    denominator). So the fresh path routes through the SAME shared helper before
+    pooling — one definition, so fresh == cached by construction (M1). The pooled
+    text is handed to :func:`~pipeline.sim.telemetry.extract_piloting`, which splits
+    games internally on the ``gameend`` HANDLOG marker.
     """
     from pipeline.sim.store import get_game_logs
+    from pipeline.sim.telemetry import decided_game_segments
 
     blobs: list[str] = []
     for outcome in outcomes:
         if outcome.raw_log is not None:
-            blobs.extend(_decided_game_segments(outcome.raw_log))
+            blobs.extend(decided_game_segments(outcome.raw_log))
         elif outcome.matchup_key:
             blobs.extend(get_game_logs(outcome.matchup_key, data_dir=data_dir))
     return '\n'.join(b for b in blobs if b)
-
-
-def _decided_game_segments(raw_log: str) -> list[str]:
-    """Split a fresh match log into per-game segments, dropping clockout games.
-
-    Byte-identical to how :mod:`pipeline.sim.store` slices per-game logs for the
-    cache (``split_games`` with :func:`~pipeline.sim.runner.is_clockout_segment`
-    excluded), so pooling a fresh ``raw_log`` through this yields the SAME games the
-    cached path returns — the invariant the M1 fix restores (fresh == cached).
-    """
-    from pipeline.sim.runner import is_clockout_segment
-    from pipeline.sim.telemetry import split_games
-
-    return [seg for seg in split_games(raw_log) if not is_clockout_segment(seg)]
 
 
 def _piloting_profile(

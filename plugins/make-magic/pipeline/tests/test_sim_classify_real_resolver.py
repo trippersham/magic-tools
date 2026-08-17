@@ -151,7 +151,10 @@ def test_costs_and_interaction_and_lands(lake: Path) -> None:
 
 def test_deck_with_only_tagless_cards_is_unavailable(lake: Path) -> None:
     # Grizzly Bears is in the bulk but has NO otag rows -> no bucket resolves ->
-    # UNKNOWN classification (available=False), NOT a fabricated 0/0.
+    # UNKNOWN classification (available=False), NOT a fabricated 0/0. Because the
+    # card DID resolve (just carries no otags), the reason is the otag-build cause,
+    # not the unresolved-names one — pinned through the REAL resolver, not a mock.
     c = _classify(['Grizzly Bears'])
     assert c.available is False
     assert c.reason is not None
+    assert 'otag build' in c.reason  # _NO_OTAGS_REASON (cards resolved, no otags)
