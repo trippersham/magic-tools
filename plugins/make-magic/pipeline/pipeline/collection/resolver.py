@@ -246,7 +246,17 @@ class DuckDBCardResolver:
     # -- lake read (offline-first) ---------------------------------------- #
 
     def _resolve_from_lake(self, name: str) -> Card | None:
-        """Exact (case-insensitive) name lookup over `raw/oracle_cards`.
+        """Name lookup over `raw/oracle_cards` — exact, else a DFC/split/adventure FACE match.
+
+        An exact (case-insensitive) match wins. On a miss, a BARE face name (one
+        with no ``' // '``) is matched against the lake's full ``Front // Back``
+        name — the FRONT face preferred over the back — so a decklist entry like
+        ``'Brazen Borrower'`` resolves to ``'Brazen Borrower // Petty Theft'`` AND
+        picks up its otags. Without this, a face name misses the exact lake lookup,
+        falls through to the live fetch (which does NOT join `card_otag`), and comes
+        back with empty `otag_buckets` — silently UNDER-COUNTING the card in the
+        piloting/deck classification. Both faces map to the SAME full card, so a
+        back-face entry resolves identically.
 
         Returns the enriched `Card` (presentation + otags) or None on a miss /
         absent lake. Fails open: any store error degrades to None (-> live).
@@ -258,7 +268,17 @@ class DuckDBCardResolver:
                 path = store.StorePaths.resolve().parquet_path(*_ORACLE_CARDS, create=False)
                 rel = conn.read_parquet(str(path))
                 cols = ', '.join(_CARD_COLUMNS)
-                row = rel.filter(f"lower(name) = lower('{_sql_escape(name)}')").select(cols).limit(1).fetchone()
+                esc = _sql_escape(name)
+                # Priority: exact > front face ('name // …') > back face ('… // name').
+                # Each step short-circuits, so the common exact hit is ONE query. Face
+                # matching runs ONLY for a bare name — a full 'A // B' query is
+                # exact-or-miss (it cannot be a face of another card). Card names carry
+                # no LIKE wildcards (`%`/`_`), so no wildcard escaping is needed.
+                row = rel.filter(f"lower(name) = lower('{esc}')").select(cols).limit(1).fetchone()
+                if row is None and ' // ' not in name:
+                    row = rel.filter(f"lower(name) LIKE lower('{esc}') || ' // %'").select(cols).limit(1).fetchone()
+                    if row is None:
+                        row = rel.filter(f"lower(name) LIKE '% // ' || lower('{esc}')").select(cols).limit(1).fetchone()
                 if row is None:
                     return None
                 record: dict[str, Any] = dict(zip(_CARD_COLUMNS, row, strict=True))

@@ -58,6 +58,9 @@ _ORACLE_CARDS: list[dict[str, Any]] = [
     _oracle('Sign in Blood', oid='sign-in-blood-oid', cmc=2.0, type_line='Sorcery'),
     _oracle('Command Tower', oid='command-tower-oid', cmc=0.0, type_line='Land'),
     _oracle('Grizzly Bears', oid='grizzly-bears-oid', cmc=2.0, type_line='Creature — Bear'),
+    # An adventure/DFC creature whose back half is removal — the lake keys it under
+    # the FULL name, but a decklist lists the FRONT face ('Bruiser Giant').
+    _oracle('Bruiser Giant // Smash', oid='bruiser-oid', cmc=3.0, type_line='Creature — Giant // Sorcery'),
 ]
 
 # Raw rolled-up slugs (the shape card_otag stores). Each row drives a crosswalk
@@ -75,6 +78,7 @@ _CARD_OTAG: list[dict[str, str]] = [
     {'oracle_id': 'lightning-bolt-oid', 'slug': 'removal'},
     {'oracle_id': 'sign-in-blood-oid', 'slug': 'burn'},
     {'oracle_id': 'sign-in-blood-oid', 'slug': 'card-advantage'},
+    {'oracle_id': 'bruiser-oid', 'slug': 'removal'},  # keyed by the FULL-name oid
     # Grizzly Bears: present in the bulk, absent from card_otag -> empty buckets.
 ]
 
@@ -147,6 +151,15 @@ def test_costs_and_interaction_and_lands(lake: Path) -> None:
     assert c.interaction == frozenset({'Counterspell', 'Doom Blade', 'Lightning Bolt'})
     assert c.costs == {'Counterspell': 2, 'Doom Blade': 2, 'Lightning Bolt': 1}
     assert c.lands == frozenset({'Command Tower'})
+
+
+def test_face_name_interaction_classifies_via_full_card(lake: Path) -> None:
+    # #49 end-to-end: a decklist lists the FRONT face 'Bruiser Giant', whose full
+    # card carries the `removal` otag. Face resolution must classify it as removal
+    # (before the fix it live-fetched with no otags and was silently dropped).
+    c = _classify(['Bruiser Giant'])
+    assert c.available is True
+    assert 'Bruiser Giant' in c.removal
 
 
 def test_deck_with_only_tagless_cards_is_unavailable(lake: Path) -> None:
