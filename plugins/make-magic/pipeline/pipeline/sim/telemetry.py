@@ -319,8 +319,13 @@ def extract_match_features(match_log: str, *, deck_a: str, deck_b: str) -> list[
 #   * Classification (which cards are counters / removal / interaction / lands and
 #     each card's mv) is passed IN, not derived from a card-facts file. The engine
 #     supplies it from the deck's otag buckets (task 1.6); this module stays
-#     classification-agnostic. The affordability proxy is unchanged:
-#     ``untapped_lands >= card_mv`` (the reference's documented count-based model).
+#     classification-agnostic. The affordability proxy is the reference's
+#     count-based ``available_lands >= card_mv`` model, refined to be whose-turn
+#     aware: the candidate's own-turn available mana is its post-untap TOTAL land
+#     count (``UR_total_lands``), not the pre-untap ``untapped`` count the
+#     turnstart snapshot reports (M3 — the pre-untap count read 0 for whole games
+#     and hid every own-turn removal opportunity); opponent-turn instant-speed
+#     interaction still pays only from currently-untapped mana.
 #   * Self-target rate is NOT derivable from HANDLOG — ``cast`` lines carry
 #     ``source=`` but no target — so it is OMITTED here (the reference derived it
 #     from a different signal). We do not fabricate it.
@@ -330,12 +335,17 @@ def extract_match_features(match_log: str, *, deck_a: str, deck_b: str) -> list[
 
 #: ``Ai(1)`` is the candidate (slot ``'a'``); ``Ai(2)`` the opponent. HANDLOG's
 #: ``UR_*`` fields ALWAYS report the candidate's private state (hand / untapped
-#: lands / opp creature count), regardless of whose turn it is.
+#: lands / total lands / opp creature count), regardless of whose turn it is.
+#: ``UR_total_lands`` is OPTIONAL: harness builds predating the own-turn
+#: affordability fix (M3) omit it, and those legacy logs fall back to the
+#: pre-untap ``untapped`` estimate (see :func:`extract_piloting`). Every current
+#: harness build emits it on every line.
 _HANDLOG_RE = re.compile(
     r'^HANDLOG turn=(\d+) event=(\w+)'
     r'(?: kind=(\w+))?'
     r'(?: active=(.*?))?(?: castBy=(.*?) source=(.*?))?'
     r' UR_hand=\[(.*?)\] UR_untapped_lands=(\d+)'
+    r'(?: UR_total_lands=(\d+))?'
     r' opp_creatures=(\d+) UR_life=(-?\d+) opp_life=(-?\d+)$'
 )
 
@@ -352,6 +362,11 @@ class _HandlogEvent:
     source: str | None
     hand: tuple[str, ...]
     untapped: int
+    #: The candidate's TOTAL lands in play (tapped + untapped). ``None`` only for
+    #: legacy logs that predate the ``UR_total_lands`` field. Post-untap available
+    #: mana on the candidate's own turn is this count (every land untaps), which
+    #: :func:`extract_piloting` uses instead of the pre-untap ``untapped`` count.
+    total_lands: int | None
     opp_creatures: int
 
 
@@ -371,8 +386,11 @@ class PilotingProfile:
       as its first spell — the reference's "strict" rule).
     * **Removal**: an opportunity is a turn the candidate holds an affordable
       removal/burn card AND the opponent has >= 1 creature to target; conversion =
-      the candidate casts removal that turn. (Own-turn affordability gets the
-      reference's ``eff`` +1-land tweak when a land is in hand.)
+      the candidate casts removal that turn. Affordability is whose-turn aware: on
+      the candidate's OWN turn the mana it can spend is its post-untap total land
+      count (+ a land drop) — read from ``UR_total_lands``, since the turnstart
+      snapshot's ``untapped`` count is taken pre-untap and undercounts (M3); on the
+      OPPONENT's turn only currently-untapped mana pays for instant-speed removal.
     * **Stranded interaction**: interaction cards still in the candidate's hand at
       ``event=gameend``, averaged per game.
 
@@ -442,7 +460,7 @@ def _split_handlog_games(match_log: str) -> list[list[_HandlogEvent]]:
         m = _HANDLOG_RE.match(raw.strip())
         if m is None:
             continue
-        turn, ev, kind, active, cast_by, source, hand, unt, oppc, _ulife, _olife = m.groups()
+        turn, ev, kind, active, cast_by, source, hand, unt, total, oppc, _ulife, _olife = m.groups()
         current.append(
             _HandlogEvent(
                 turn=int(turn),
@@ -453,6 +471,7 @@ def _split_handlog_games(match_log: str) -> list[list[_HandlogEvent]]:
                 source=source,
                 hand=tuple(c for c in hand.split(';') if c),
                 untapped=int(unt),
+                total_lands=int(total) if total is not None else None,
                 opp_creatures=int(oppc),
             )
         )
@@ -543,8 +562,23 @@ def extract_piloting(
             if ts is None:
                 continue
             a_active = bool(ts.active) and ts.active.startswith(cand)
-            # On the candidate's own turn it can still make a land drop for +1 mana.
-            eff = ts.untapped + (1 if a_active and any(c in lands for c in ts.hand) else 0)
+            if a_active:
+                # OWN turn: every land untaps at the untap step, so the mana the
+                # candidate can actually spend this turn is its TOTAL land count
+                # (+ a land drop), NOT the pre-untap `untapped` count the
+                # turnstart snapshot reports. GameEventTurnBegan fires BEFORE the
+                # untap step (M3), so `untapped` there is the leftover-tapped
+                # count from prior turns — a systematic undercount that hid
+                # own-turn removal opportunities entirely. `total_lands` is
+                # untap-invariant and is the correct post-untap base. Legacy logs
+                # without the field fall back to the old pre-untap estimate.
+                base = ts.total_lands if ts.total_lands is not None else ts.untapped
+                eff = base + (1 if any(c in lands for c in ts.hand) else 0)
+            else:
+                # OPPONENT's turn: only instant-speed interaction is possible, paid
+                # from mana up right now — the candidate's currently-untapped lands
+                # (it did not untap this turn, so `untapped` is accurate).
+                eff = ts.untapped
             afford = [c for c in removal if c in ts.hand and eff >= costs.get(c, 99)]
             if afford and ts.opp_creatures >= 1:
                 removal_opps += 1

@@ -35,6 +35,7 @@ import forge.game.Match;
 import forge.game.card.Card;
 import forge.game.event.GameEventSpellAbilityCast;
 import forge.game.event.GameEventTurnBegan;
+import forge.game.event.GameEventTurnEnded;
 import forge.game.player.Player;
 import forge.game.player.RegisteredPlayer;
 import forge.game.zone.ZoneType;
@@ -71,12 +72,26 @@ import java.util.concurrent.TimeoutException;
  *            lookahead traces on stderr (proof the sim AI is active)
  *
  * HANDLOG instrumentation: the real (non-copied) Game gets an event-bus
- * subscriber that prints, in real time, a "HANDLOG" line at every turn start
- * and at every spell/ability put on the stack (by either player), each with a
- * snapshot of player 1's (deckA's) hand, untapped-land count, and the
+ * subscriber that prints, in real time, a "HANDLOG" line at every turn start,
+ * at every turn END (for EVERY player's turn, incl. opponents'), and at every
+ * spell/ability put on the stack (by either player), each with a snapshot of
+ * player 1's (deckA's) hand, untapped-land count, TOTAL-land count, and the
  * opponent's creature count. The stock game log is only flushed after the
  * game ends, so the HANDLOG stream is deliberately self-sufficient for
  * decision-point analysis. Disable with -nohandlog.
+ *
+ * Why both untapped AND total lands, and why an end-of-turn snapshot:
+ * GameEventTurnBegan fires PRE-untap, so the turnstart `UR_untapped_lands`
+ * count reflects the leftover-tapped state from prior turns, NOT the mana the
+ * candidate will actually have this turn (all its lands untap moments later).
+ * Reading affordability off that count SYSTEMATICALLY UNDERCOUNTS the
+ * candidate's own-turn mana (it read 0 for whole games). `UR_total_lands` is
+ * untap-invariant — every land untaps at the candidate's untap step, so the
+ * post-untap available mana on its own turn is `UR_total_lands` (+ a land
+ * drop), which the parser uses instead of the pre-untap untapped count. The
+ * `event=turnend` snapshot captures the tapped state at the END of each turn
+ * (tapped = total - untapped = the mana the active player SPENT that turn), so
+ * "did the candidate leave mana up rather than interact?" is derivable.
  *
  * Must run with cwd = the Forge install dir (so res/ resolves), and with
  * -Dapple.awt.UIElement=true (NOT java.awt.headless) on macOS.
@@ -246,14 +261,16 @@ public class SimAIMatch {
         private String snapshot() {
             Player p = p1();
             if (p == null) {
-                return "UR_hand=[] UR_untapped_lands=0 opp_creatures=0 UR_life=0 opp_life=0";
+                return "UR_hand=[] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=0 opp_life=0";
             }
             List<String> hand = new ArrayList<>();
             for (Card c : p.getCardsIn(ZoneType.Hand)) {
                 hand.add(c.getName());
             }
             int untapped = 0;
+            int totalLands = 0;
             for (Card c : p.getLandsInPlay()) {
+                totalLands++;
                 if (!c.isTapped()) {
                     untapped++;
                 }
@@ -267,12 +284,27 @@ public class SimAIMatch {
                 }
             }
             return "UR_hand=[" + String.join(";", hand) + "] UR_untapped_lands=" + untapped
+                    + " UR_total_lands=" + totalLands
                     + " opp_creatures=" + oppCreatures + " UR_life=" + p.getLife() + " opp_life=" + oppLife;
         }
 
         @Subscribe
         public void onTurn(GameEventTurnBegan ev) {
             System.out.println("HANDLOG turn=" + ev.turnNumber() + " event=turnstart active=" + ev.turnOwner()
+                    + " " + snapshot());
+        }
+
+        // GameEventTurnEnded is a no-arg record (carries no turn/owner), so the
+        // ending turn's number and active player are read from the phase handler,
+        // which still points at the turn being closed out. Emitted for EVERY
+        // player's turn (incl. opponents') per the spent-mana design: the snapshot
+        // taken here is post-spend, so tapped = total - untapped = mana SPENT this
+        // turn by the active player (all lands were untapped at its untap step).
+        @Subscribe
+        public void onTurnEnd(GameEventTurnEnded ev) {
+            Player active = game.getPhaseHandler().getPlayerTurn();
+            String owner = active != null ? active.getName() : "?";
+            System.out.println("HANDLOG turn=" + game.getPhaseHandler().getTurn() + " event=turnend active=" + owner
                     + " " + snapshot());
         }
 
