@@ -17,6 +17,7 @@ from pipeline.sim.engines import xmage as xmage_engine
 from pipeline.sim.engines.xmage import (
     XMageEngine,
     XMageError,
+    _clone_tree_cow,
     _ensure_card_db_warm,
     _forge_dck_to_xmage_txt,
     _run_warm_scan,
@@ -218,3 +219,39 @@ def test_stage_private_db_missing_source_raises(tmp_path: Path) -> None:
     run_dir.mkdir()
     with pytest.raises(XMageError, match='card DB not found'):
         _stage_private_db(_install(reactor), run_dir)
+
+
+def test_stage_private_db_falls_back_to_full_copy_when_cow_unavailable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """On a filesystem that can't reflink, staging still produces a real private db
+    (a full copy) — the fast path is an optimization, never a correctness dependency."""
+    reactor = tmp_path / 'reactor'
+    (reactor / 'db').mkdir(parents=True)
+    (reactor / 'db' / 'cards.h2.mv.db').write_bytes(b'DB')
+    run_dir = tmp_path / 'run'
+    run_dir.mkdir()
+    monkeypatch.setattr(xmage_engine, '_clone_tree_cow', lambda src, dst: False)  # force fallback.
+    _stage_private_db(_install(reactor), run_dir)
+    assert (run_dir / 'db' / 'cards.h2.mv.db').read_bytes() == b'DB'
+
+
+def test_clone_tree_cow_uses_platform_reflink_and_never_raises(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """``_clone_tree_cow`` shells the platform reflink ``cp`` and reports success/failure
+    as a bool (never raises) — so the caller's fallback is always reachable."""
+    seen: dict[str, object] = {}
+
+    class _Res:
+        returncode = 0
+
+    monkeypatch.setattr(xmage_engine.sys, 'platform', 'darwin')
+    monkeypatch.setattr(xmage_engine.subprocess, 'run', lambda cmd, **kw: seen.update(cmd=cmd) or _Res())
+    assert _clone_tree_cow(tmp_path / 'a', tmp_path / 'b') is True
+    assert seen['cmd'][:2] == ['cp', '-Rc']  # clonefile flag on macOS.
+
+    # An OSError from cp (missing binary / odd platform) is swallowed → False (fallback).
+    def _boom(cmd: list[str], **kw: object) -> object:
+        raise OSError('no cp')
+
+    monkeypatch.setattr(xmage_engine.subprocess, 'run', _boom)
+    assert _clone_tree_cow(tmp_path / 'a', tmp_path / 'b') is False

@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 from functools import lru_cache
@@ -290,7 +291,34 @@ def _stage_private_db(handle: XMageInstall, run_dir: Path) -> None:
             f'XMage card DB not found at {src} after warm-up — the reactor db was not built. '
             'Rebuild the reactor / re-run pipeline/sim/java/xmage/build.sh.'
         )
-    shutil.copytree(src, run_dir / 'db')
+    dst = run_dir / 'db'
+    # The card db is large (a cold CardScanner.scan builds a multi-hundred-MB H2
+    # store), so a full copy per matchup is wasteful. Prefer a copy-on-write clone
+    # (near-instant, shares blocks until written — APFS / btrfs / xfs); each JVM only
+    # writes a little (the open-time table check + trace), so the clone stays mostly
+    # shared. Fall back to a full copy on any FS that can't reflink.
+    if _clone_tree_cow(src, dst):
+        return
+    shutil.rmtree(dst, ignore_errors=True)  # clear any partial clone before the copy.
+    shutil.copytree(src, dst)
+
+
+def _clone_tree_cow(src: Path, dst: Path) -> bool:
+    """Best-effort copy-on-write clone of ``src`` → ``dst`` (``dst`` must not exist).
+
+    Uses the platform ``cp`` reflink path — ``cp -Rc`` (clonefile) on macOS/APFS,
+    ``cp -a --reflink=auto`` on Linux (COW where the FS supports it, a plain copy
+    otherwise). Returns ``True`` on success; ``False`` (→ caller falls back to a full
+    :func:`shutil.copytree`) on a non-COW filesystem or any error — never raises.
+    """
+    if sys.platform == 'darwin':
+        cmd = ['cp', '-Rc', str(src), str(dst)]  # clonefile(2) on APFS.
+    else:
+        cmd = ['cp', '-a', '--reflink=auto', str(src), str(dst)]  # GNU coreutils COW-or-copy.
+    try:
+        return subprocess.run(cmd, capture_output=True, check=False).returncode == 0
+    except OSError:
+        return False
 
 
 def _run_warm_scan(handle: XMageInstall) -> None:
