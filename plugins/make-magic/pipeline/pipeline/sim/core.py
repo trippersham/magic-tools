@@ -38,7 +38,8 @@ from typing import TYPE_CHECKING, Union
 from pipeline.sim.classify import classify_deck
 from pipeline.sim.gauntlet import resolve_gauntlet
 from pipeline.sim.governor import MatchSpec, run_matchups
-from pipeline.sim.runner import MatchResult, deck_to_dck
+from pipeline.sim.runner import MatchResult, deck_to_dck, reap_stale_staging
+from pipeline.sim.runner import _staging_root as _sim_staging_root
 from pipeline.sim.store import (
     MatchupMeta,
     deck_hash,
@@ -321,7 +322,13 @@ def run_cached_matchups(
 
     if misses:
         miss_specs = [spec for _, spec, _ in misses]
-        pool = run_matchups(engine, install, miss_specs, pool_size=pool_size)
+        # Sweep orphaned staging from any prior crash/kill BEFORE staging fresh runs
+        # (a SIGKILL bypasses the per-run cleanup — see reap_stale_staging), and point
+        # the governor's disk floor at the STAGING volume (where the big per-run card
+        # DBs land), not merely cwd — otherwise the floor guards the wrong volume when
+        # the data dir is on a separate mount.
+        reap_stale_staging()
+        pool = run_matchups(engine, install, miss_specs, pool_size=pool_size, disk_path=_sim_staging_root())
         aborted = pool.aborted
         # Surface every governor failure as ``(opponent, error)`` so a deck-load /
         # timeout / crash is DISTINCT from a real 0-0-0 loss (B2). ``deck_b`` is

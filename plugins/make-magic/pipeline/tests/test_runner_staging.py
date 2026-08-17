@@ -234,3 +234,49 @@ def test_missing_harness_jar_fails_loudly_without_spawning_jvm(tmp_path: Path, m
     msg = str(excinfo.value)
     assert 'make-magic-forge-simai.jar' in msg  # names the missing jar
     assert 'build.sh' in msg  # tells the user how to rebuild it
+
+
+# --------------------------------------------------------------------------- #
+# Stale-staging reaper: sweep orphans a SIGKILL bypassed (the finally cleanup)
+# --------------------------------------------------------------------------- #
+
+
+def test_reap_stale_staging_sweeps_only_old_run_dirs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Orphaned ``run-*`` / ``xmage-*`` dirs past the age cutoff are reaped; fresh
+    dirs and unrelated entries are left untouched (so a concurrent sim is safe)."""
+    import os
+    import time
+
+    from pipeline.sim.runner import reap_stale_staging
+
+    root = tmp_path / 'staging'
+    root.mkdir()
+    monkeypatch.setattr(runner_mod, '_staging_root', lambda: root)
+
+    old_run = root / 'run-oldcrash'
+    old_xmage = root / 'xmage-oldcrash'
+    fresh_run = root / 'run-active'
+    unrelated = root / 'keepme'
+    for d in (old_run, old_xmage, fresh_run, unrelated):
+        d.mkdir()
+        (d / 'marker').write_text('x')
+    # Age the two orphans well past the cutoff; leave fresh + unrelated new.
+    old_time = time.time() - 7200  # 2h ago
+    for d in (old_run, old_xmage):
+        os.utime(d, (old_time, old_time))
+
+    reaped = reap_stale_staging(max_age_s=3600)
+
+    assert reaped == 2
+    assert not old_run.exists() and not old_xmage.exists()  # orphans swept.
+    assert fresh_run.exists()  # a concurrent run's fresh dir is untouched.
+    assert unrelated.exists()  # non-staging entries are never touched.
+
+
+def test_reap_stale_staging_never_raises_on_missing_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A missing staging root is a no-op (0 reaped), never an error — reaping must
+    not be the thing that breaks a run."""
+    from pipeline.sim.runner import reap_stale_staging
+
+    monkeypatch.setattr(runner_mod, '_staging_root', lambda: tmp_path / 'does-not-exist')
+    assert reap_stale_staging() == 0

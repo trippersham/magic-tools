@@ -365,6 +365,17 @@ def test_resource_readers_return_non_negative() -> None:
     assert derive_pool_size(hard_cap=6) >= 1
 
 
+def test_free_disk_gib_walks_up_to_existing_ancestor(tmp_path: Path) -> None:
+    """A not-yet-created target (a lazily-made staging dir) reads the volume's REAL
+    free space via its nearest existing ancestor — NOT 0.0, which would wrongly trip
+    the admission floor before any run has staged anything (regression)."""
+    missing = tmp_path / 'sim' / 'staging' / 'not-created-yet'
+    assert not missing.exists()
+    disk = gov.free_disk_gib(missing)
+    assert disk > 0.0  # resolved via tmp_path's volume, not the missing leaf.
+    assert disk == pytest.approx(gov.free_disk_gib(tmp_path), rel=0.01)
+
+
 # --------------------------------------------------------------------------- #
 # GATED: SMALL real batch — pool_size=2, <=4 JVMs total. Deselected by default.
 # --------------------------------------------------------------------------- #

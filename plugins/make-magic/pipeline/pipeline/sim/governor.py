@@ -114,9 +114,16 @@ def free_ram_gib() -> float:
 def free_disk_gib(path: Path | None = None) -> float:
     """Free disk (GiB) on the volume holding ``path`` (cwd if ``None``); stdlib.
 
-    Returns ``0.0`` if the path can't be stat'd so admission treats disk as tight.
+    A not-yet-created target (e.g. a staging dir made lazily on first run) still
+    lives on a real volume, so walk up to the nearest EXISTING ancestor before
+    stat'ing — otherwise ``disk_usage`` raises on the missing path and we'd read
+    ``0.0``, wrongly tripping the admission floor before any run has staged anything.
+    Returns ``0.0`` only if even that can't be stat'd, so admission treats a truly
+    unreadable volume as tight.
     """
     target = path if path is not None else Path.cwd()
+    while not target.exists() and target != target.parent:
+        target = target.parent
     try:
         return shutil.disk_usage(target).free / _GIB
     except Exception:

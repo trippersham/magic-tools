@@ -34,6 +34,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -303,6 +304,45 @@ def _staging_root() -> Path:
     except Exception:
         # Staging location must degrade, never crash a run — fall back to OS temp.
         return Path(tempfile.gettempdir()) / 'make-magic-sim-staging'
+
+
+#: A per-run staging dir older than this is presumed ORPHANED — its process died
+#: before the in-run ``finally`` cleanup (a SIGKILL / OOM-killer / power loss /
+#: crash), so it is swept on the next batch's start. Comfortably longer than any
+#: real matchup batch, so a concurrently-running sim's fresh dirs are never touched.
+_STAGING_MAX_AGE_S = 3600.0
+
+
+def reap_stale_staging(max_age_s: float = _STAGING_MAX_AGE_S) -> int:
+    """Sweep orphaned per-run staging dirs older than ``max_age_s``; return the count.
+
+    The per-run ``finally`` rmtree is bypassed by a SIGKILL (a resource watchdog, the
+    OOM-killer, power loss, a crash), so a killed run leaves its staging dir behind.
+    On a NON-COW filesystem those orphans are FULL card-DB copies that accumulate
+    across crashed runs and compound disk pressure — the very failure the per-run
+    private-db staging exists to prevent. Called at batch start; best-effort and
+    NEVER raises (reaping must not break a run). Touches only this module's own
+    ``run-*`` / ``xmage-*`` staging dirs, and only those past the age cutoff (so a
+    concurrent sim's in-flight dirs are safe).
+    """
+    root = _staging_root()
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return 0
+    now = time.time()
+    reaped = 0
+    for entry in entries:
+        if not (entry.name.startswith('run-') or entry.name.startswith('xmage-')):
+            continue
+        try:
+            if now - entry.stat().st_mtime < max_age_s:
+                continue
+        except OSError:
+            continue
+        shutil.rmtree(entry, ignore_errors=True)
+        reaped += 1
+    return reaped
 
 
 def _stage_dck(run_dir: Path, text: str) -> Path:
