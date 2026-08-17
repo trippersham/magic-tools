@@ -632,10 +632,12 @@ def test_deck_engine_both_renders_side_by_side_and_false_read(
     out = capsys.readouterr().out
     assert 'forge' in out and 'xmage' in out  # both rows.
     assert 'Δ' in out  # the delta line.
-    assert 'false-read' in out and 'UNDER-PILOTS' in out
-    # Forge (0.03 counter-fire) is the under-piloting engine named in the note.
-    note = next(line for line in out.splitlines() if 'UNDER-PILOTS' in line)
-    assert 'forge' in note and 'forge' in note.split('UNDER-PILOTS')[0]
+    assert 'false-read' in out and 'UNDER-CASTS' in out
+    # Forge (0.03 counter-fire) is the under-casting engine named in the note, and the
+    # note is COUNTER-specific (not generalized to "interaction").
+    note = next(line for line in out.splitlines() if 'UNDER-CASTS' in line)
+    assert 'forge' in note and 'forge' in note.split('UNDER-CASTS')[0]
+    assert 'COUNTERS' in note and 'interaction' not in note.lower()
 
 
 def test_deck_engine_both_comparable_piloting_is_neutral(
@@ -658,7 +660,7 @@ def test_deck_engine_both_comparable_piloting_is_neutral(
 
     out = capsys.readouterr().out
     assert 'comparable' in out
-    assert 'UNDER-PILOTS' not in out
+    assert 'UNDER-CASTS' not in out
 
 
 def test_deck_engine_both_one_unavailable_runs_other_and_reports_skip(

@@ -908,12 +908,16 @@ def _print_engine_deltas(results: dict[str, SimResult]) -> None:
 def _print_false_read_note(results: dict[str, SimResult]) -> None:
     """Print the computed false-read note when two engines ran with comparable piloting.
 
-    The engine with the materially LOWER counter fire-rate under-pilots the deck's
-    interaction, so — where the engines' win-rates also diverge — its win-rate is the
-    weaker read. Only warns when BOTH a piloting gap (:data:`_FALSE_READ_FIRE_GAP`)
-    AND a win-rate gap (:data:`_FALSE_READ_WR_GAP`) are present; otherwise a neutral
-    "comparable" line. Silent when either engine's counter piloting is unavailable
-    (nothing honest to compare)."""
+    The note is COUNTER-SPECIFIC on purpose: it is computed from the counter
+    fire-rate only, so it claims exactly that — the engine with the materially LOWER
+    counter fire-rate under-casts THIS DECK'S COUNTERS (not "interaction" broadly; an
+    engine can under-cast counters while casting removal fine, so the removal column
+    is left to speak for itself). Where the win-rates ALSO diverge, that under-casting
+    engine's win-rate is the weaker read for a counter-reliant deck. Only warns when
+    BOTH a counter-fire gap (:data:`_FALSE_READ_FIRE_GAP`) AND a win-rate gap
+    (:data:`_FALSE_READ_WR_GAP`) are present; otherwise a neutral "comparable" line.
+    Silent when either engine's counter piloting is unavailable (nothing to compare).
+    """
     if len(results) != 2:
         return
     (name_a, a), (name_b, b) = results.items()
@@ -928,13 +932,13 @@ def _print_false_read_note(results: dict[str, SimResult]) -> None:
     win_rate_gap = abs(a.win_rate - b.win_rate)
     if fire_gap >= _FALSE_READ_FIRE_GAP and win_rate_gap >= _FALSE_READ_WR_GAP:
         print(
-            f'  false-read: {low_name} casts counters {_pct(low_fire)} of the time vs {high_name} '
-            f"{_pct(high_fire)} — {low_name} likely UNDER-PILOTS this deck's interaction, so its "
-            f'{_pct(low_wr)} win-rate is the weaker read where the engines diverge ({_pct(win_rate_gap)} '
-            f"apart). Prefer {high_name}'s read for interactive decks."
+            f"  false-read: {low_name} casts this deck's counters {_pct(low_fire)} of the time vs "
+            f'{high_name} {_pct(high_fire)} — {low_name} likely UNDER-CASTS its COUNTERS (its removal '
+            f'fire-rate above may be fine), so its {_pct(low_wr)} win-rate is the weaker read where the '
+            f"engines diverge ({_pct(win_rate_gap)} apart). Prefer {high_name}'s read for counter-reliant decks."
         )
     else:
-        print("  false-read: engines' interaction piloting is comparable — the win-rates are consistent reads.")
+        print("  false-read: engines' COUNTER piloting is comparable — the win-rates are consistent reads.")
 
 
 def _gauntlet(argv: list[str]) -> None:
