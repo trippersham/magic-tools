@@ -996,3 +996,65 @@ def test_log_forge_filter_disambiguates(
     sim_run.main(['log', str(a), str(b), '--forge', '2.0.14', '--game', '1'])
     out = capsys.readouterr().out
     assert '[game 2 marker]' in out
+
+
+# --------------------------------------------------------------------------- #
+# Piloting block in the deck printer (_print_sim_result / _print_piloting).
+# --------------------------------------------------------------------------- #
+
+
+def _sim_result_with_piloting(piloting: object) -> SimResult:
+    """A ``SimResult`` carrying a piloting profile (or None) for printer tests."""
+    base = _sim_result()
+    from dataclasses import replace
+
+    return replace(base, piloting=piloting)  # type: ignore[type-var]
+
+
+def test_print_piloting_available_block(capsys: pytest.CaptureFixture[str]) -> None:
+    """An AVAILABLE piloting profile prints the fire-rate block + the one-line frame."""
+    from pipeline.sim.telemetry import PilotingProfile
+
+    prof = PilotingProfile(
+        counter_opps=7,
+        counter_casts=0,
+        counter_fire=0.0,
+        counter_ci=(0.0, 0.35),
+        removal_opps=2,
+        removal_casts=2,
+        removal_fire=1.0,
+        removal_ci=(0.34, 1.0),
+        interaction_stranded_per_game=0.33,
+        games=3,
+    )
+    sim_run._print_sim_result(_sim_result_with_piloting(prof))
+    out = capsys.readouterr().out
+    assert 'piloting:' in out
+    assert 'counter fire-rate' in out
+    assert '0.0%' in out  # 0/7 sim-AI signature
+    assert '(0/7 opps)' in out
+    assert 'removal fire-rate' in out
+    assert 'stranded/game' in out
+    assert 'how often the AI cast it' in out  # the one-line frame
+
+
+def test_print_piloting_unavailable_is_one_honest_line(capsys: pytest.CaptureFixture[str]) -> None:
+    """An UNAVAILABLE profile prints ONE honest line naming the reason — no 0/0."""
+    from pipeline.sim.telemetry import unavailable_piloting
+
+    prof = unavailable_piloting('otag lake not populated — run the otag build to enable piloting metrics')
+    sim_run._print_sim_result(_sim_result_with_piloting(prof))
+    out = capsys.readouterr().out
+    assert 'piloting:' in out
+    assert 'unavailable' in out
+    assert 'otag lake not populated' in out
+    # The honest line must NOT masquerade as a real zero fire-rate.
+    assert 'fire-rate' not in out
+    assert 'opps)' not in out
+
+
+def test_print_piloting_none_prints_nothing(capsys: pytest.CaptureFixture[str]) -> None:
+    """No piloting profile (engine lacks hand visibility) -> no piloting block."""
+    sim_run._print_sim_result(_sim_result_with_piloting(None))
+    out = capsys.readouterr().out
+    assert 'piloting:' not in out

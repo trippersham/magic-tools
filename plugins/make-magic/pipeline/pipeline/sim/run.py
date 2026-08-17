@@ -260,6 +260,7 @@ def _print_sim_result(result: SimResult) -> None:
             f'({opp.wins}-{opp.losses}-{opp.draws}){cached}'
         )
     _print_profile(result.profile)
+    _print_piloting(result.piloting)
     _print_failures(result)
 
 
@@ -323,6 +324,48 @@ def _print_profile(profile: object) -> None:
 def _fmt_opt(value: float | None) -> str:
     """Format an optional float metric ('-' when None)."""
     return '-' if value is None else f'{value:.2f}'
+
+
+def _print_piloting(piloting: object) -> None:
+    """Print the PILOTING block — "is a low win-rate the DECK or the AI piloting it?".
+
+    Gated on the engine's hand visibility: ``piloting`` is ``None`` for a backend
+    that can't see hidden zones (nothing printed). When present but UNAVAILABLE (the
+    otag lake could not classify the deck's interaction), print ONE honest line
+    naming the reason — NEVER a fabricated 0/0. When available, a compact block:
+    opportunity-conditioned counter fire-rate (+ Wilson CI), removal fire-rate, and
+    interaction stranded/game, under a one-line frame.
+    """
+    if piloting is None:
+        return  # engine lacks hand visibility — no piloting signal to show.
+    from pipeline.sim.core import PilotingProfile
+
+    assert isinstance(piloting, PilotingProfile)
+    print('piloting:')
+    if not piloting.available:
+        # Honest single line — the deck's interaction could not be classified.
+        print(f'  unavailable ({piloting.reason})')
+        return
+    print('  (of moments the deck HELD the card + a legal target + the mana, how often the AI cast it)')
+    print(
+        f'  counter fire-rate: {_fmt_fire(piloting.counter_fire, piloting.counter_ci)}  '
+        f'({piloting.counter_casts}/{piloting.counter_opps} opps)'
+    )
+    print(
+        f'  removal fire-rate: {_fmt_fire(piloting.removal_fire, piloting.removal_ci)}  '
+        f'({piloting.removal_casts}/{piloting.removal_opps} opps)'
+    )
+    print(f'  interaction stranded/game: {piloting.interaction_stranded_per_game:.2f}  (over {piloting.games} game(s))')
+
+
+def _fmt_fire(fire: float | None, ci: tuple[float, float] | None) -> str:
+    """Format a fire-rate + its Wilson CI ('-' when there were no opportunities)."""
+    if fire is None:
+        return '-  (no opportunities)'
+    if ci is None:
+        return _pct(fire)
+    lo, hi = ci
+    return f'{_pct(fire)}  [95% CI {_pct(lo)}-{_pct(hi)}]'
 
 
 # --------------------------------------------------------------------------- #

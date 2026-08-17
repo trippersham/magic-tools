@@ -46,6 +46,7 @@ __all__ = (
     'extract_match_features',
     'extract_piloting',
     'split_games',
+    'unavailable_piloting',
 )
 
 #: Constructed starting life; Commander is 40 (detected from the match header).
@@ -374,6 +375,13 @@ class PilotingProfile:
       reference's ``eff`` +1-land tweak when a land is in hand.)
     * **Stranded interaction**: interaction cards still in the candidate's hand at
       ``event=gameend``, averaged per game.
+
+    ``available`` is False on the UNAVAILABLE marker (:func:`unavailable_piloting`):
+    the deck's interaction could not be CLASSIFIED (an empty otag lake), so every
+    metric here is a placeholder ``0`` that MUST NOT be read as a real "no
+    counters / AI fine" — the caller shows ``reason`` instead. When ``available``
+    is True the metrics are real (and an all-zero ``counter_opps`` genuinely means
+    the deck never held an affordable counter, not missing data).
     """
 
     counter_opps: int
@@ -386,6 +394,37 @@ class PilotingProfile:
     removal_ci: tuple[float, float] | None
     interaction_stranded_per_game: float
     games: int
+    #: False on the UNAVAILABLE marker (classification unknown — empty otag lake);
+    #: the numeric fields are then meaningless placeholders and ``reason`` explains
+    #: why. True on a real computed profile.
+    available: bool = True
+    #: Human-readable reason the profile is UNAVAILABLE (``None`` when available).
+    reason: str | None = None
+
+
+def unavailable_piloting(reason: str) -> PilotingProfile:
+    """A zeroed :class:`PilotingProfile` flagged UNAVAILABLE with ``reason``.
+
+    Used when the deck's interaction cannot be classified (an empty otag lake): the
+    honest alternative to emitting a real-looking ``0/0`` profile that would falsely
+    read as "the deck runs no interaction / the AI piloted it fine" (the
+    building-decks m8 lesson). ``available`` is False and every metric is a
+    placeholder; the caller surfaces ``reason`` instead of the numbers.
+    """
+    return PilotingProfile(
+        counter_opps=0,
+        counter_casts=0,
+        counter_fire=None,
+        counter_ci=None,
+        removal_opps=0,
+        removal_casts=0,
+        removal_fire=None,
+        removal_ci=None,
+        interaction_stranded_per_game=0.0,
+        games=0,
+        available=False,
+        reason=reason,
+    )
 
 
 def _split_handlog_games(match_log: str) -> list[list[_HandlogEvent]]:

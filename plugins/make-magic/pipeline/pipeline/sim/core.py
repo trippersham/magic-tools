@@ -32,9 +32,10 @@ from __future__ import annotations
 import math
 import statistics
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Union
 
+from pipeline.sim.classify import classify_deck
 from pipeline.sim.gauntlet import resolve_gauntlet
 from pipeline.sim.governor import MatchSpec, run_matchups
 from pipeline.sim.runner import MatchResult, deck_to_dck
@@ -45,7 +46,13 @@ from pipeline.sim.store import (
     matchup_key,
     store_matchup,
 )
-from pipeline.sim.telemetry import GameFeatures, extract_match_features
+from pipeline.sim.telemetry import (
+    GameFeatures,
+    PilotingProfile,
+    extract_match_features,
+    extract_piloting,
+    unavailable_piloting,
+)
 
 if TYPE_CHECKING:
     import os
@@ -58,6 +65,7 @@ __all__ = (
     'MatchOutcome',
     'MatchupBatch',
     'OpponentResult',
+    'PilotingProfile',
     'SimResult',
     'TelemetryProfile',
     'compare',
@@ -113,6 +121,14 @@ class MatchOutcome:
     draws: int
     cached: bool
     features: list[GameFeatures]
+    #: The content key this matchup is stored under — the address a CACHED outcome's
+    #: per-game logs are re-read from via :func:`~pipeline.sim.store.get_game_logs`
+    #: (the piloting metric pools them without re-running Forge).
+    matchup_key: str = ''
+    #: The FRESH verbose log for this matchup (``None`` for a cached outcome, whose
+    #: log lives in the store under ``matchup_key``). Excluded from ``repr`` — it is
+    #: a multi-MB blob the piloting metric pools, not a display field.
+    raw_log: str | None = field(default=None, repr=False)
 
     @property
     def games(self) -> int:
@@ -187,6 +203,15 @@ class SimResult:
     #: (persistent RAM/disk starvation) — the results are then PARTIAL. Surfaced
     #: prominently by the CLI (B2).
     aborted: bool = False
+    #: The opportunity-conditioned PILOTING profile for the candidate — "is a low
+    #: win-rate the DECK or the AI failing to pilot it?". Present only when the
+    #: engine has hand visibility (:attr:`~pipeline.sim.engine.EngineCapabilities.has_hand_visibility`);
+    #: ``None`` otherwise (a future engine that can't see hidden zones — never
+    #: fabricated). When present it may itself be UNAVAILABLE
+    #: (:attr:`~pipeline.sim.telemetry.PilotingProfile.available` is False) if the
+    #: otag lake could not classify the deck's interaction — an honest "unavailable"
+    #: marker, NOT a fabricated 0/0.
+    piloting: PilotingProfile | None = None
 
 
 @dataclass(frozen=True)
@@ -288,6 +313,8 @@ def run_cached_matchups(
                 draws=cached.draws,
                 cached=True,
                 features=cached.features,
+                matchup_key=key,
+                raw_log=None,  # cached: the per-game log is in the store under `key`.
             )
         else:
             misses.append((idx, spec, key))
@@ -314,7 +341,7 @@ def run_cached_matchups(
                 # A failed matchup (deck-load/timeout): record a zeroed outcome so
                 # the aggregate still has a row rather than silently dropping it.
                 outcomes[miss_idx] = MatchOutcome(
-                    opponent=spec.deck_b[0], wins=0, losses=0, draws=0, cached=False, features=[]
+                    opponent=spec.deck_b[0], wins=0, losses=0, draws=0, cached=False, features=[], matchup_key=key
                 )
                 continue
             features = extract_match_features(match.raw_log, deck_a=spec.deck_a[0], deck_b=spec.deck_b[0])
@@ -336,6 +363,8 @@ def run_cached_matchups(
                 draws=draws,
                 cached=False,
                 features=features,
+                matchup_key=key,
+                raw_log=match.raw_log,  # fresh: pooled directly for the piloting metric.
             )
 
     return MatchupBatch(
@@ -402,6 +431,82 @@ def _aggregate_profile(features: list[GameFeatures]) -> TelemetryProfile:
         wincon_mix=dict(wincon_mix),
         mean_ramp_curve=mean_ramp,
     )
+
+
+def _dck_card_names(dck_text: str) -> list[str]:
+    """Card names referenced by a rendered ``.dck`` ([Main]+[Commander]+[Sideboard]).
+
+    A minimal section walk (mirrors ``run._dck_card_names``, kept local to avoid a
+    core<->run import cycle): reads ``<qty> <name>`` lines under the card sections,
+    strips a pinned printing (``<name>|SET``), and de-dupes — enough to hand the
+    candidate's names to :func:`~pipeline.sim.classify.classify_deck`.
+    """
+    names: list[str] = []
+    in_cards = False
+    for line in dck_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith('['):
+            in_cards = stripped.lower() in ('[main]', '[commander]', '[sideboard]')
+            continue
+        if not in_cards:
+            continue
+        qty, _, name = stripped.partition(' ')
+        name = name.split('|', 1)[0].strip()
+        if qty.isdigit() and name:
+            names.append(name)
+    return list(dict.fromkeys(names))
+
+
+def _pool_candidate_logs(
+    outcomes: list[MatchOutcome],
+    *,
+    data_dir: str | os.PathLike[str] | None,
+) -> str:
+    """Concatenate the candidate's per-game logs across every matchup into one blob.
+
+    FRESH matchups carry their verbose log inline (``MatchOutcome.raw_log``); CACHED
+    matchups re-read theirs from the store by ``matchup_key`` via
+    :func:`~pipeline.sim.store.get_game_logs` (whose logs already exclude clockouts
+    per the honest-results fix — piloting is measured on decided games). The pooled
+    text is handed to :func:`~pipeline.sim.telemetry.extract_piloting`, which splits
+    games internally on the ``gameend`` HANDLOG marker.
+    """
+    from pipeline.sim.store import get_game_logs
+
+    blobs: list[str] = []
+    for outcome in outcomes:
+        if outcome.raw_log is not None:
+            blobs.append(outcome.raw_log)
+        elif outcome.matchup_key:
+            blobs.extend(get_game_logs(outcome.matchup_key, data_dir=data_dir))
+    return '\n'.join(b for b in blobs if b)
+
+
+def _piloting_profile(
+    outcomes: list[MatchOutcome],
+    cand_dck: str,
+    *,
+    engine: SimEngine,
+    data_dir: str | os.PathLike[str] | None,
+) -> PilotingProfile | None:
+    """Build the candidate's piloting profile, gated on engine hand visibility.
+
+    Returns ``None`` when the engine can't see hidden zones (no HANDLOG to read —
+    never fabricated). Otherwise classifies the candidate deck from its otag
+    buckets; an UNKNOWN classification (empty otag lake) yields the honest
+    UNAVAILABLE marker (:func:`~pipeline.sim.telemetry.unavailable_piloting`), NOT a
+    0/0 profile. A real classification pools the candidate's per-game logs and
+    conditions the metric on opportunity.
+    """
+    if not engine.capabilities().has_hand_visibility:
+        return None
+    classification = classify_deck(_dck_card_names(cand_dck))
+    if not classification.available:
+        return unavailable_piloting(classification.reason or 'piloting classification unavailable')
+    pooled = _pool_candidate_logs(outcomes, data_dir=data_dir)
+    return extract_piloting(pooled, candidate_slot='a', **classification.as_kwargs())  # type: ignore[arg-type]
 
 
 def simulate(
@@ -490,6 +595,10 @@ def simulate(
     decided_total = total_wins + total_losses
     win_rate = total_wins / decided_total if decided_total else 0.0
 
+    # Piloting profile (deck-vs-AI): gated on the engine's hand visibility, pooled
+    # from the candidate's per-game logs (fresh inline + cached from the store).
+    piloting = _piloting_profile(outcomes, cand_dck, engine=engine, data_dir=data_dir)
+
     return SimResult(
         candidate=cand_name,
         gauntlet_source=gauntlet_source,
@@ -507,6 +616,7 @@ def simulate(
         fresh_matchups=fresh_n,
         failures=batch.failures,
         aborted=batch.aborted,
+        piloting=piloting,
     )
 
 
