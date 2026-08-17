@@ -98,7 +98,7 @@ def install() -> ForgeInstall:
 def mock_resolve(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> ForgeInstall:
     """Patch the Forge runtime's ``resolve``/``ensure`` to return a dummy install.
 
-    The engine seam (``_ensure_forge`` -> ``ForgeEngine.resolve``) delegates to
+    The engine seam (``_ensure_engine`` -> ``ForgeEngine.resolve``) delegates to
     :func:`pipeline.sim.forge_runtime.resolve` (read-only) / ``ensure``
     (fetch-on-miss); patching those keeps the CLI suite off any real fetch/locate
     while exercising the real engine wrapper.
@@ -493,6 +493,68 @@ def test_top_level_help_lists_verbs(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# --engine selection (task 1.7)
+# --------------------------------------------------------------------------- #
+
+
+def test_deck_defaults_to_forge_engine(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """With no --engine, the deck verb routes to the Forge engine."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(sim_run, 'simulate', lambda deck, src, **kw: seen.update(kw) or _sim_result())
+
+    sim_run.main(['deck', str(dck)])
+
+    assert seen['engine'].name == 'forge'  # type: ignore[union-attr]
+
+
+def test_deck_engine_flag_routes_to_selected_engine(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """`--engine <name>` selects that registered engine (registry-driven routing)."""
+    import types
+
+    from pipeline.sim import engine as engine_mod
+
+    fake = types.SimpleNamespace(name='fake')
+    # Register the fake so argparse's choices (available_engines) accept it and
+    # get_engine resolves it; setitem auto-reverts after the test.
+    monkeypatch.setitem(engine_mod._REGISTRY, 'fake', fake)  # type: ignore[arg-type]
+    # Bypass the Forge-specific provision/guard — routing is what's under test.
+    monkeypatch.setattr(sim_run, '_ensure_engine', lambda eng, **_: EngineInstall(version='x', handle=object()))
+    monkeypatch.setattr(sim_run, '_guard_forge_availability', lambda *a, **k: None)
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(sim_run, 'simulate', lambda deck, src, **kw: seen.update(kw) or _sim_result())
+
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    sim_run.main(['deck', str(dck), '--engine', 'fake'])
+
+    assert seen['engine'] is fake
+
+
+def test_engine_bogus_choice_errors_cleanly(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unregistered --engine is rejected by argparse (exit 2, no traceback)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck), '--engine', 'bogus'])
+    assert exc.value.code == 2  # argparse usage error.
+    err = capsys.readouterr().err
+    assert 'invalid choice' in err and 'bogus' in err
+    assert 'Traceback' not in err
+
+
+# --------------------------------------------------------------------------- #
 # doctor
 # --------------------------------------------------------------------------- #
 
@@ -628,7 +690,7 @@ def test_ensure_forge_returns_cached_without_prompt(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)
     monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: pytest.fail('must not fetch when cached'))
     monkeypatch.setattr('builtins.input', lambda _p: pytest.fail('must not prompt when cached'))
-    result = sim_run._ensure_forge()
+    result = sim_run._ensure_engine(sim_run.get_engine('forge'))
     assert isinstance(result, EngineInstall)
     assert result.handle is install
     # M3: the version now folds the sim-AI harness identity in.
@@ -641,7 +703,7 @@ def test_ensure_forge_non_interactive_auto_proceeds(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: False)
     monkeypatch.setattr('builtins.input', lambda _p: pytest.fail('non-interactive must not prompt'))
-    assert sim_run._ensure_forge().handle is install
+    assert sim_run._ensure_engine(sim_run.get_engine('forge')).handle is install
 
 
 def test_ensure_forge_tty_decline_aborts(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -651,7 +713,7 @@ def test_ensure_forge_tty_decline_aborts(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
     monkeypatch.setattr('builtins.input', lambda _p: 'n')
     with pytest.raises(ForgeUnavailableError, match='declined'):
-        sim_run._ensure_forge()
+        sim_run._ensure_engine(sim_run.get_engine('forge'))
 
 
 def test_ensure_forge_tty_accept_fetches(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
@@ -660,7 +722,7 @@ def test_ensure_forge_tty_accept_fetches(monkeypatch: pytest.MonkeyPatch, instal
     monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
     monkeypatch.setattr('builtins.input', lambda _p: 'y')
-    assert sim_run._ensure_forge().handle is install
+    assert sim_run._ensure_engine(sim_run.get_engine('forge')).handle is install
 
 
 def test_ensure_forge_yes_flag_skips_prompt(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
@@ -669,7 +731,7 @@ def test_ensure_forge_yes_flag_skips_prompt(monkeypatch: pytest.MonkeyPatch, ins
     monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
     monkeypatch.setattr('builtins.input', lambda _p: pytest.fail('--yes must not prompt'))
-    assert sim_run._ensure_forge(assume_yes=True).handle is install
+    assert sim_run._ensure_engine(sim_run.get_engine('forge'), assume_yes=True).handle is install
 
 
 # --------------------------------------------------------------------------- #

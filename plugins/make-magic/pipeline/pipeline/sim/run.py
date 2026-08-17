@@ -49,7 +49,13 @@ from pipeline.sim.core import (
     compare,
     simulate,
 )
-from pipeline.sim.engine import EngineInstall, EngineUnavailableError, SimEngine, get_engine
+from pipeline.sim.engine import (
+    EngineInstall,
+    EngineUnavailableError,
+    SimEngine,
+    available_engines,
+    get_engine,
+)
 from pipeline.sim.forge_runtime import (
     ENV_FORGE_HOME,
     ENV_JAVA,
@@ -197,21 +203,28 @@ def _confirm_forge_download(*, assume_yes: bool) -> None:
         )
 
 
-def _forge_engine() -> SimEngine:
-    """The Forge :class:`~pipeline.sim.engine.SimEngine` (the only backend this phase).
+#: Default engine when ``--engine`` is omitted (Forge is the only backend this
+#: phase; the choices are the registry contents so a future engine auto-appears).
+_DEFAULT_ENGINE = 'forge'
+_ENGINE_HELP = 'Sim engine to use (default forge). Registry-driven — additional engines appear as they register.'
 
-    A ``--engine`` flag + registry-driven selection is a later task; for now Forge
-    is the implicit default, resolved from the registry the sim package populates
-    on import.
+
+def _add_engine_arg(parser: argparse.ArgumentParser) -> None:
+    """Add the ``--engine`` selector, its choices drawn from the live registry.
+
+    Choices are :func:`~pipeline.sim.engine.available_engines` at parse time so a
+    newly-registered engine (or a test's ``FakeEngine``) is selectable without
+    touching this code, and an unknown name is rejected by argparse with a clean
+    ``error:`` + exit 2 (no traceback).
     """
-    return get_engine('forge')
+    parser.add_argument('--engine', choices=available_engines(), default=_DEFAULT_ENGINE, help=_ENGINE_HELP)
 
 
-def _ensure_forge(*, assume_yes: bool = False) -> EngineInstall:
-    """Resolve the Forge engine for a game verb, AUTO-PROVISIONING on first use.
+def _ensure_engine(engine: SimEngine, *, assume_yes: bool = False) -> EngineInstall:
+    """Resolve ``engine`` for a game verb, AUTO-PROVISIONING on first use.
 
     Game verbs (``match`` / ``deck`` / ``ab``) call this so a fresh box provisions
-    Forge itself on the first run (the fetch-at-runtime promise): the engine's
+    the backend itself on the first run (the fetch-at-runtime promise): the engine's
     read-only :meth:`~pipeline.sim.engine.SimEngine.resolve` is tried first, and on
     an :class:`~pipeline.sim.engine.EngineUnavailableError` the ~350 MB pull is
     gated on confirmation (:func:`_confirm_forge_download`) when stdin is a TTY
@@ -220,8 +233,11 @@ def _ensure_forge(*, assume_yes: bool = False) -> EngineInstall:
     still raises ``EngineUnavailableError`` → the ``main`` handler prints a clean
     error. Returns the :class:`~pipeline.sim.engine.EngineInstall` the engine's
     ``run_matchup`` / ``simulate`` consume.
+
+    The download-confirmation copy is Forge-specific; Forge is the only
+    provisionable backend this phase, so a non-Forge engine that needs provisioning
+    would simply resolve-or-raise (it never reaches the Forge prompt in practice).
     """
-    engine = _forge_engine()
     try:
         return engine.resolve(provision=False)
     except EngineUnavailableError:
@@ -550,12 +566,13 @@ def _match(argv: list[str]) -> None:
         help='Proceed even if a deck references a card absent from Forge (else a hard error).',
     )
     parser.add_argument('-y', '--yes', action='store_true', help=_YES_HELP)
+    _add_engine_arg(parser)
     args = parser.parse_args(argv)
 
     deck_a = _resolve_deck_arg(args.deck_a)
     deck_b = _resolve_deck_arg(args.deck_b)
-    engine = _forge_engine()
-    install = _ensure_forge(assume_yes=args.yes)
+    engine = get_engine(args.engine)
+    install = _ensure_engine(engine, assume_yes=args.yes)
     _guard_forge_availability(install.handle, [deck_a, deck_b], allow_missing=args.allow_missing, fmt=args.fmt)
     result: MatchResult = engine.run_matchup(
         deck_a.ref, deck_b.ref, n=args.n, seed=args.seed, fmt=args.fmt, install=install
@@ -584,14 +601,15 @@ def _deck(argv: list[str]) -> None:
         help='Proceed even if the candidate references a card absent from Forge (else a hard error).',
     )
     parser.add_argument('-y', '--yes', action='store_true', help=_YES_HELP)
+    _add_engine_arg(parser)
     args = parser.parse_args(argv)
 
     _validate_gauntlet(args.gauntlet, args.fmt)
     candidate = _resolve_deck_arg(args.name)
     # `mine`/`both` need the collection store; `curated` never touches it.
     store = get_store() if args.gauntlet in ('mine', 'both') else None
-    engine = _forge_engine()
-    install = _ensure_forge(assume_yes=args.yes)
+    engine = get_engine(args.engine)
+    install = _ensure_engine(engine, assume_yes=args.yes)
     _guard_forge_availability(install.handle, [candidate], allow_missing=args.allow_missing, fmt=args.fmt)
     result = simulate(
         candidate.ref,
@@ -631,14 +649,15 @@ def _ab(argv: list[str]) -> None:
         help='Proceed even if a variant references a card absent from Forge (else a hard error).',
     )
     parser.add_argument('-y', '--yes', action='store_true', help=_YES_HELP)
+    _add_engine_arg(parser)
     args = parser.parse_args(argv)
 
     _validate_gauntlet(args.gauntlet, args.fmt)
     variant_a = _resolve_deck_arg(args.deck_a)
     variant_b = _resolve_deck_arg(args.deck_b)
     store = get_store() if args.gauntlet in ('mine', 'both') else None
-    engine = _forge_engine()
-    install = _ensure_forge(assume_yes=args.yes)
+    engine = get_engine(args.engine)
+    install = _ensure_engine(engine, assume_yes=args.yes)
     _guard_forge_availability(install.handle, [variant_a, variant_b], allow_missing=args.allow_missing, fmt=args.fmt)
     comparison: Comparison = compare(
         variant_a.ref,
@@ -739,29 +758,47 @@ def _doctor(argv: list[str]) -> None:
     print(f'  free RAM:  {ram:.1f} GiB')
     print(f'  free disk: {disk:.1f} GiB')
 
-    engine = _forge_engine()
-    try:
-        # `--provision` fetches on a miss (the one-time download); otherwise the
-        # check is read-only, so `doctor` never surprises with a pull.
-        install: EngineInstall = _ensure_forge() if args.provision else engine.resolve(provision=False)
-    except EngineUnavailableError as exc:
-        # Graceful: name WHY + HOW to enable, exit non-zero, no traceback.
-        print('  forge: NOT AVAILABLE')
-        print(f'    {exc}')
-        print(
-            f'    To enable: run `simulate doctor --provision` to auto-download Forge (~350MB, '
-            f'one-time), or set {ENV_FORGE_HOME} (+ {ENV_JAVA}) to reuse an existing install. '
-            f'(A `match`/`deck`/`ab` run also auto-provisions on first use.)',
-            file=sys.stderr,
-        )
-        raise SystemExit(1) from exc
+    # Registry-driven: report EVERY registered engine's availability + version +
+    # capabilities. Exit non-zero if ANY engine is unavailable (so automation reads
+    # a clean box as green and a broken one as red). Forge is the only provisionable
+    # backend this phase — `--provision` fetches it on a miss; every other engine is
+    # probed read-only.
+    any_unavailable = False
+    for name in available_engines():
+        engine = get_engine(name)
+        caps = engine.capabilities()
+        try:
+            provisionable = name == _DEFAULT_ENGINE and args.provision
+            install: EngineInstall = _ensure_engine(engine) if provisionable else engine.resolve(provision=False)
+        except EngineUnavailableError as exc:
+            # Graceful: name WHY + HOW to enable, no traceback; mark for exit 1.
+            any_unavailable = True
+            print(f'  {name}: NOT AVAILABLE')
+            print(f'    {exc}', file=sys.stderr)
+            print(
+                f'    To enable: run `simulate doctor --provision` to auto-download Forge (~350MB, '
+                f'one-time), or set {ENV_FORGE_HOME} (+ {ENV_JAVA}) to reuse an existing install. '
+                f'(A `match`/`deck`/`ab` run also auto-provisions on first use.)',
+                file=sys.stderr,
+            )
+            continue
 
-    forge: ForgeInstall = install.handle
-    print('  forge: available' + ('  (provisioned)' if args.provision else ''))
-    print(f'    version:   {install.version}')
-    print(f'    forge dir: {forge.forge_dir}')
-    print(f'    jar:       {forge.jar}')
-    print(f'    java:      {forge.java}')
+        print(f'  {name}: available' + ('  (provisioned)' if provisionable else ''))
+        print(f'    version:      {install.version}')
+        print(
+            f'    capabilities: hand_visibility={caps.has_hand_visibility} '
+            f'counter_metrics={caps.has_counter_metrics} '
+            f'expected_nondecisive={caps.expected_nondecisive_rate:.0%}'
+        )
+        # Forge exposes its install paths (forge dir / jar / java) on the handle.
+        forge_handle = install.handle
+        if isinstance(forge_handle, ForgeInstall):
+            print(f'    forge dir:    {forge_handle.forge_dir}')
+            print(f'    jar:          {forge_handle.jar}')
+            print(f'    java:         {forge_handle.java}')
+
+    if any_unavailable:
+        raise SystemExit(1)
 
 
 def _log(argv: list[str]) -> None:
@@ -794,17 +831,21 @@ def _log(argv: list[str]) -> None:
     parser.add_argument('--games', type=int, default=None, dest='n_games', help='Narrow to a specific game count.')
     parser.add_argument('--forge', default=None, help='Narrow to a specific Forge version.')
     parser.add_argument('--game', type=int, default=None, help='Print this game index (0-based) full log.')
+    parser.add_argument('--engine', choices=available_engines(), default=None, help='Narrow to a specific sim engine.')
     args = parser.parse_args(argv)
 
     dck_a = _resolve_deck_arg(args.deck_a).text
     dck_b = _resolve_deck_arg(args.deck_b).text
     rows = find_matchups(deck_a_hash=deck_hash(dck_a), deck_b_hash=deck_hash(dck_b), fmt=args.fmt)
-    # Optional narrowing (seed / game-count / forge-version) beyond the store-level
-    # format filter — the levers a user pulls to disambiguate repeat runs of a pair.
+    # Optional narrowing (engine / seed / game-count / engine-version) beyond the
+    # store-level format filter — the levers a user pulls to disambiguate repeat
+    # runs of a pair. ``--engine`` selects the backend that produced the run;
+    # ``--forge`` narrows to a specific engine VERSION (its legacy name is kept).
     rows = [
         r
         for r in rows
-        if (args.seed is None or r.seed == args.seed)
+        if (args.engine is None or r.engine == args.engine)
+        and (args.seed is None or r.seed == args.seed)
         and (args.n_games is None or r.n_games == args.n_games)
         and (args.forge is None or r.forge_version == args.forge)
     ]
