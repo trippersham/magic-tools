@@ -1,0 +1,501 @@
+XMAGEBATCH scanning card database (first run builds it)...
+XMAGEBATCH card db ready; deckA=UW Control.dck deckB=UW Control.dck games=4 skill=6
+Turn: Turn 1 (Ai(2)-?)
+HANDLOG turn=1 event=turnstart active=Ai(2)-? UR_hand=[] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=0 opp_life=0
+XMAGEBATCH opening_hand PlayerA (7): [Plains;Plains;Deprive;Mind Spring;Spreading Seas;Path to Exile;Wall of Omens]
+XMAGEBATCH opening_hand PlayerB (7): [Glacial Fortress;Island;Day of Judgment;Negate;Spreading Seas;Path to Exile;Wall of Omens]
+Life: Life: Ai(1)-PlayerA 0 > 20
+Life: Life: Ai(2)-PlayerB 0 > 20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 2 (Ai(2)-PlayerB)
+HANDLOG turn=2 event=turnstart active=Ai(2)-PlayerB UR_hand=[Plains;Deprive;Mind Spring;Spreading Seas;Path to Exile;Wall of Omens] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 3 (Ai(1)-PlayerA)
+HANDLOG turn=3 event=turnstart active=Ai(1)-PlayerA UR_hand=[Plains;Deprive;Mind Spring;Spreading Seas;Path to Exile;Wall of Omens] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=3 event=cast kind=spell castBy=Ai(1)-PlayerA source=Everflowing Chalice UR_hand=[Plains;Deprive;Mind Spring;Spreading Seas;Path to Exile;Wall of Omens] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=3 event=cast kind=spell castBy=Ai(1)-PlayerA source=Wall of Omens UR_hand=[Deprive;Mind Spring;Spreading Seas;Path to Exile] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 4 (Ai(2)-PlayerB)
+HANDLOG turn=4 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Mind Spring;Spreading Seas;Path to Exile;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=4 event=cast kind=spell castBy=Ai(2)-PlayerB source=Wall of Omens UR_hand=[Deprive;Mind Spring;Spreading Seas;Path to Exile;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 5 (Ai(1)-PlayerA)
+HANDLOG turn=5 event=turnstart active=Ai(1)-PlayerA UR_hand=[Deprive;Mind Spring;Spreading Seas;Path to Exile;Celestial Colonnade] UR_untapped_lands=3 UR_total_lands=3 opp_creatures=1 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(1)-PlayerA source=Spreading Seas UR_hand=[Deprive;Mind Spring;Path to Exile;Celestial Colonnade] UR_untapped_lands=1 UR_total_lands=3 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(1)-PlayerA source=Path to Exile UR_hand=[Deprive;Mind Spring;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=3 opp_creatures=1 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 6 (Ai(2)-PlayerB)
+HANDLOG turn=6 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Mind Spring;Celestial Colonnade;Wall of Omens] UR_untapped_lands=0 UR_total_lands=3 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=6 event=cast kind=spell castBy=Ai(2)-PlayerB source=Path to Exile UR_hand=[Deprive;Mind Spring;Celestial Colonnade;Wall of Omens] UR_untapped_lands=0 UR_total_lands=3 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=6 event=cast kind=spell castBy=Ai(2)-PlayerB source=Spreading Seas UR_hand=[Deprive;Mind Spring;Celestial Colonnade;Wall of Omens] UR_untapped_lands=0 UR_total_lands=4 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 7 (Ai(1)-PlayerA)
+HANDLOG turn=7 event=turnstart active=Ai(1)-PlayerA UR_hand=[Deprive;Mind Spring;Wall of Omens;Spreading Seas] UR_untapped_lands=4 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=7 event=cast kind=spell castBy=Ai(1)-PlayerA source=Spreading Seas UR_hand=[Deprive;Mind Spring;Wall of Omens] UR_untapped_lands=2 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=7 event=cast kind=spell castBy=Ai(1)-PlayerA source=Wall of Omens UR_hand=[Deprive;Mind Spring;Island] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=7 event=cast kind=spell castBy=Ai(2)-PlayerB source=Path to Exile UR_hand=[Deprive;Mind Spring;Island] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 8 (Ai(2)-PlayerB)
+HANDLOG turn=8 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Mind Spring;Island;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=6 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=8 event=cast kind=spell castBy=Ai(2)-PlayerB source=Mind Spring UR_hand=[Deprive;Mind Spring;Island;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=6 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=8 event=cast kind=spell castBy=Ai(2)-PlayerB source=Everflowing Chalice UR_hand=[Deprive;Mind Spring;Island;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=6 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 9 (Ai(1)-PlayerA)
+HANDLOG turn=9 event=turnstart active=Ai(1)-PlayerA UR_hand=[Deprive;Mind Spring;Island;Celestial Colonnade;Misty Rainforest] UR_untapped_lands=1 UR_total_lands=6 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Damage: Celestial Colonnade [df5] deals 4 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 20 > 16
+Turn: Turn 10 (Ai(2)-PlayerB)
+HANDLOG turn=10 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Mind Spring;Island;Celestial Colonnade] UR_untapped_lands=2 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=16
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=10 event=cast kind=spell castBy=Ai(2)-PlayerB source=Elspeth, Knight-Errant UR_hand=[Deprive;Mind Spring;Island;Celestial Colonnade] UR_untapped_lands=2 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=16
+Damage: Misty Rainforest [0a9] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 20 > 19
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 11 (Ai(1)-PlayerA)
+HANDLOG turn=11 event=turnstart active=Ai(1)-PlayerA UR_hand=[Deprive;Mind Spring;Island;Negate] UR_untapped_lands=6 UR_total_lands=7 opp_creatures=1 UR_life=19 opp_life=16
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 12 (Ai(2)-PlayerB)
+HANDLOG turn=12 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Mind Spring;Island;Negate] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=1 UR_life=19 opp_life=16
+Land: Ai(2)-PlayerB played a land
+Damage: Soldier Token [030] deals 4 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 19 > 15
+Turn: Turn 13 (Ai(1)-PlayerA)
+HANDLOG turn=13 event=turnstart active=Ai(1)-PlayerA UR_hand=[Deprive;Mind Spring;Island;Negate;Day of Judgment] UR_untapped_lands=2 UR_total_lands=7 opp_creatures=1 UR_life=15 opp_life=16
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 14 (Ai(2)-PlayerB)
+HANDLOG turn=14 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment] UR_untapped_lands=3 UR_total_lands=8 opp_creatures=1 UR_life=15 opp_life=16
+Land: Ai(2)-PlayerB played a land
+Damage: Soldier Token [030] deals 4 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 15 > 11
+Damage: Celestial Colonnade [ccb] deals 4 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 11 > 7
+Turn: Turn 15 (Ai(1)-PlayerA)
+HANDLOG turn=15 event=turnstart active=Ai(1)-PlayerA UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment;Celestial Colonnade] UR_untapped_lands=3 UR_total_lands=8 opp_creatures=1 UR_life=7 opp_life=16
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 16 (Ai(2)-PlayerB)
+HANDLOG turn=16 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment] UR_untapped_lands=3 UR_total_lands=9 opp_creatures=1 UR_life=7 opp_life=16
+Land: Ai(2)-PlayerB played a land
+Life: Life: Ai(2)-PlayerB 16 > 18
+Damage: Soldier Token [030] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 7 > 6
+Damage: Celestial Colonnade [ccb] deals 4 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 6 > 2
+Turn: Turn 17 (Ai(1)-PlayerA)
+HANDLOG turn=17 event=turnstart active=Ai(1)-PlayerA UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment;Wall of Omens] UR_untapped_lands=4 UR_total_lands=9 opp_creatures=1 UR_life=2 opp_life=18
+HANDLOG turn=17 event=cast kind=spell castBy=Ai(1)-PlayerA source=Wall of Omens UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment] UR_untapped_lands=2 UR_total_lands=9 opp_creatures=1 UR_life=2 opp_life=18
+HANDLOG turn=17 event=cast kind=spell castBy=Ai(1)-PlayerA source=Spreading Seas UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment] UR_untapped_lands=0 UR_total_lands=9 opp_creatures=1 UR_life=2 opp_life=18
+Turn: Turn 18 (Ai(2)-PlayerB)
+HANDLOG turn=18 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment;Jace, the Mind Sculptor] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=1 UR_life=2 opp_life=18
+HANDLOG turn=18 event=cast kind=spell castBy=Ai(2)-PlayerB source=Jace, the Mind Sculptor UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment;Jace, the Mind Sculptor] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=1 UR_life=2 opp_life=18
+Land: Ai(2)-PlayerB played a land
+Damage: Soldier Token [030] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 2 > 1
+Turn: Turn 19 (Ai(1)-PlayerA)
+HANDLOG turn=19 event=turnstart active=Ai(1)-PlayerA UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment;Jace, the Mind Sculptor;Wall of Omens;Jace, the Mind Sculptor] UR_untapped_lands=3 UR_total_lands=8 opp_creatures=1 UR_life=1 opp_life=18
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Wall of Omens UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment;Jace, the Mind Sculptor;Jace, the Mind Sculptor] UR_untapped_lands=1 UR_total_lands=8 opp_creatures=1 UR_life=1 opp_life=18
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 20 (Ai(2)-PlayerB)
+HANDLOG turn=20 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment;Jace, the Mind Sculptor;Jace, the Mind Sculptor] UR_untapped_lands=2 UR_total_lands=9 opp_creatures=1 UR_life=1 opp_life=18
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(2)-PlayerB source=Jace, the Mind Sculptor UR_hand=[Deprive;Mind Spring;Negate;Day of Judgment;Jace, the Mind Sculptor;Jace, the Mind Sculptor] UR_untapped_lands=2 UR_total_lands=9 opp_creatures=1 UR_life=1 opp_life=18
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(1)-PlayerA source=Deprive UR_hand=[Mind Spring;Negate;Day of Judgment;Jace, the Mind Sculptor;Jace, the Mind Sculptor;Island] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=1 UR_life=1 opp_life=18
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(2)-PlayerB source=Negate UR_hand=[Mind Spring;Negate;Day of Judgment;Jace, the Mind Sculptor;Jace, the Mind Sculptor;Island] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=1 UR_life=1 opp_life=18
+Land: Ai(2)-PlayerB played a land
+Damage: Soldier Token [030] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 1 > 0
+HANDLOG turn=20 event=gameend UR_hand=[] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=1 UR_life=0 opp_life=18
+XMAGEBATCH RESULT game=1/4 winner=PlayerB endTurn=20 ended=true lifeA=0 lifeB=18 ms=17588 :: Player PlayerB is the winner
+
+Game Result: Game 1 ended in 17588 ms. Ai(2)-PlayerB has won!
+
+Turn: Turn 1 (Ai(2)-?)
+HANDLOG turn=1 event=turnstart active=Ai(2)-? UR_hand=[] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=0 opp_life=0
+XMAGEBATCH opening_hand PlayerA (7): [Island;Plains;Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Path to Exile]
+XMAGEBATCH opening_hand PlayerB (7): [Celestial Colonnade;Island;Kabira Crossroads;Gideon Jura;Mind Spring;Spreading Seas;Wall of Omens]
+Life: Life: Ai(1)-PlayerA 0 > 20
+Life: Life: Ai(2)-PlayerB 0 > 20
+Land: Ai(2)-PlayerB played a land
+Life: Life: Ai(2)-PlayerB 20 > 22
+Turn: Turn 2 (Ai(1)-PlayerA)
+HANDLOG turn=2 event=turnstart active=Ai(1)-PlayerA UR_hand=[Plains;Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Path to Exile;Negate] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=22
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 3 (Ai(2)-PlayerB)
+HANDLOG turn=3 event=turnstart active=Ai(2)-PlayerB UR_hand=[Plains;Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Path to Exile;Negate] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=22
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=3 event=cast kind=spell castBy=Ai(2)-PlayerB source=Wall of Omens UR_hand=[Plains;Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Path to Exile;Negate] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=22
+Turn: Turn 4 (Ai(1)-PlayerA)
+HANDLOG turn=4 event=turnstart active=Ai(1)-PlayerA UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Path to Exile;Negate;Wall of Omens] UR_untapped_lands=2 UR_total_lands=2 opp_creatures=1 UR_life=20 opp_life=22
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=4 event=cast kind=spell castBy=Ai(1)-PlayerA source=Wall of Omens UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Path to Exile;Negate] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=1 UR_life=20 opp_life=22
+Turn: Turn 5 (Ai(2)-PlayerB)
+HANDLOG turn=5 event=turnstart active=Ai(2)-PlayerB UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Path to Exile;Negate;Glacial Fortress] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=1 UR_life=20 opp_life=22
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(2)-PlayerB source=Wall of Omens UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Path to Exile;Negate;Glacial Fortress] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=1 UR_life=20 opp_life=22
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 6 (Ai(1)-PlayerA)
+HANDLOG turn=6 event=turnstart active=Ai(1)-PlayerA UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Negate;Glacial Fortress;Celestial Colonnade] UR_untapped_lands=1 UR_total_lands=2 opp_creatures=2 UR_life=20 opp_life=22
+HANDLOG turn=6 event=cast kind=spell castBy=Ai(1)-PlayerA source=Path to Exile UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Negate;Glacial Fortress;Celestial Colonnade] UR_untapped_lands=1 UR_total_lands=2 opp_creatures=2 UR_life=20 opp_life=22
+Land: Ai(2)-PlayerB played a land
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 7 (Ai(2)-PlayerB)
+HANDLOG turn=7 event=turnstart active=Ai(2)-PlayerB UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Negate;Celestial Colonnade] UR_untapped_lands=2 UR_total_lands=3 opp_creatures=1 UR_life=20 opp_life=22
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=7 event=cast kind=spell castBy=Ai(2)-PlayerB source=Gideon Jura UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Negate;Celestial Colonnade] UR_untapped_lands=2 UR_total_lands=3 opp_creatures=1 UR_life=20 opp_life=22
+HANDLOG turn=7 event=cast kind=spell castBy=Ai(1)-PlayerA source=Negate UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=3 opp_creatures=1 UR_life=20 opp_life=22
+Turn: Turn 8 (Ai(1)-PlayerA)
+HANDLOG turn=8 event=turnstart active=Ai(1)-PlayerA UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor;Celestial Colonnade] UR_untapped_lands=4 UR_total_lands=4 opp_creatures=1 UR_life=20 opp_life=22
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=8 event=cast kind=spell castBy=Ai(1)-PlayerA source=Jace, the Mind Sculptor UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=4 opp_creatures=1 UR_life=20 opp_life=22
+Turn: Turn 9 (Ai(2)-PlayerB)
+HANDLOG turn=9 event=turnstart active=Ai(2)-PlayerB UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=4 opp_creatures=0 UR_life=20 opp_life=22
+HANDLOG turn=9 event=cast kind=spell castBy=Ai(2)-PlayerB source=Wall of Omens UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=4 opp_creatures=0 UR_life=20 opp_life=22
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=9 event=cast kind=spell castBy=Ai(2)-PlayerB source=Elspeth, Knight-Errant UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=4 opp_creatures=1 UR_life=20 opp_life=22
+Turn: Turn 10 (Ai(1)-PlayerA)
+HANDLOG turn=10 event=turnstart active=Ai(1)-PlayerA UR_hand=[Gideon Jura;Gideon Jura;Day of Judgment;Celestial Colonnade;Island] UR_untapped_lands=4 UR_total_lands=4 opp_creatures=1 UR_life=20 opp_life=22
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=10 event=cast kind=spell castBy=Ai(1)-PlayerA source=Gideon Jura UR_hand=[Gideon Jura;Day of Judgment;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=22
+Turn: Turn 11 (Ai(2)-PlayerB)
+HANDLOG turn=11 event=turnstart active=Ai(2)-PlayerB UR_hand=[Gideon Jura;Day of Judgment;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=22
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=11 event=cast kind=spell castBy=Ai(2)-PlayerB source=Jace, the Mind Sculptor UR_hand=[Gideon Jura;Day of Judgment;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=22
+HANDLOG turn=11 event=cast kind=spell castBy=Ai(2)-PlayerB source=Wall of Omens UR_hand=[Gideon Jura;Day of Judgment;Celestial Colonnade;Wall of Omens] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=20 opp_life=22
+Turn: Turn 12 (Ai(1)-PlayerA)
+HANDLOG turn=12 event=turnstart active=Ai(1)-PlayerA UR_hand=[Gideon Jura;Day of Judgment;Celestial Colonnade;Wall of Omens;Deprive] UR_untapped_lands=5 UR_total_lands=5 opp_creatures=2 UR_life=20 opp_life=22
+HANDLOG turn=12 event=cast kind=spell castBy=Ai(1)-PlayerA source=Gideon Jura UR_hand=[Day of Judgment;Wall of Omens;Deprive;Plains;Misty Rainforest] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=2 UR_life=20 opp_life=22
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 13 (Ai(2)-PlayerB)
+HANDLOG turn=13 event=turnstart active=Ai(2)-PlayerB UR_hand=[Day of Judgment;Wall of Omens;Deprive;Misty Rainforest] UR_untapped_lands=1 UR_total_lands=6 opp_creatures=2 UR_life=20 opp_life=22
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=13 event=cast kind=spell castBy=Ai(2)-PlayerB source=Wall of Omens UR_hand=[Day of Judgment;Wall of Omens;Deprive;Misty Rainforest] UR_untapped_lands=1 UR_total_lands=6 opp_creatures=2 UR_life=20 opp_life=22
+Turn: Turn 14 (Ai(1)-PlayerA)
+HANDLOG turn=14 event=turnstart active=Ai(1)-PlayerA UR_hand=[Day of Judgment;Wall of Omens;Deprive;Misty Rainforest;Celestial Colonnade] UR_untapped_lands=6 UR_total_lands=6 opp_creatures=3 UR_life=20 opp_life=22
+HANDLOG turn=14 event=cast kind=spell castBy=Ai(1)-PlayerA source=Day of Judgment UR_hand=[Wall of Omens;Deprive;Misty Rainforest;Celestial Colonnade] UR_untapped_lands=2 UR_total_lands=6 opp_creatures=2 UR_life=20 opp_life=22
+HANDLOG turn=14 event=cast kind=spell castBy=Ai(1)-PlayerA source=Wall of Omens UR_hand=[Deprive;Misty Rainforest;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=6 opp_creatures=0 UR_life=20 opp_life=22
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 15 (Ai(2)-PlayerB)
+HANDLOG turn=15 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Misty Rainforest;Arid Mesa] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=22
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=15 event=cast kind=spell castBy=Ai(2)-PlayerB source=Gideon Jura UR_hand=[Deprive;Misty Rainforest;Arid Mesa] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=22
+HANDLOG turn=15 event=cast kind=spell castBy=Ai(2)-PlayerB source=Oblivion Ring UR_hand=[Deprive;Misty Rainforest;Arid Mesa] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=22
+Turn: Turn 16 (Ai(1)-PlayerA)
+HANDLOG turn=16 event=turnstart active=Ai(1)-PlayerA UR_hand=[Deprive;Misty Rainforest;Arid Mesa] UR_untapped_lands=8 UR_total_lands=8 opp_creatures=0 UR_life=20 opp_life=22
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 17 (Ai(2)-PlayerB)
+HANDLOG turn=17 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Misty Rainforest;Arid Mesa] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=22
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=17 event=cast kind=spell castBy=Ai(2)-PlayerB source=Spreading Seas UR_hand=[Deprive;Misty Rainforest;Arid Mesa] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=22
+Damage: Misty Rainforest [91a] deals 1 damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 22 > 21
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=17 event=cast kind=spell castBy=Ai(2)-PlayerB source=Mind Spring UR_hand=[Deprive;Misty Rainforest;Arid Mesa] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=21
+HANDLOG turn=17 event=cast kind=spell castBy=Ai(2)-PlayerB source=Everflowing Chalice UR_hand=[Deprive;Misty Rainforest;Arid Mesa] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=21
+Turn: Turn 18 (Ai(1)-PlayerA)
+HANDLOG turn=18 event=turnstart active=Ai(1)-PlayerA UR_hand=[Deprive;Misty Rainforest;Mind Spring] UR_untapped_lands=8 UR_total_lands=8 opp_creatures=0 UR_life=20 opp_life=21
+Land: Ai(1)-PlayerA played a land
+Damage: Arid Mesa [652] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 20 > 19
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=18 event=cast kind=spell castBy=Ai(1)-PlayerA source=Mind Spring UR_hand=[Deprive;Misty Rainforest] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=0 UR_life=19 opp_life=21
+HANDLOG turn=18 event=cast kind=spell castBy=Ai(1)-PlayerA source=Everflowing Chalice UR_hand=[Deprive;Misty Rainforest;Wall of Omens;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=0 UR_life=19 opp_life=21
+Turn: Turn 19 (Ai(2)-PlayerB)
+HANDLOG turn=19 event=turnstart active=Ai(2)-PlayerB UR_hand=[Deprive;Misty Rainforest;Wall of Omens;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=0 UR_life=19 opp_life=21
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(2)-PlayerB source=Spreading Seas UR_hand=[Deprive;Misty Rainforest;Wall of Omens;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=0 UR_life=19 opp_life=21
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(2)-PlayerB source=Oblivion Ring UR_hand=[Deprive;Misty Rainforest;Wall of Omens;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=1 UR_life=19 opp_life=21
+Damage: Gideon Jura [162] deals 6 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 19 > 13
+Turn: Turn 20 (Ai(1)-PlayerA)
+HANDLOG turn=20 event=turnstart active=Ai(1)-PlayerA UR_hand=[Deprive;Misty Rainforest;Wall of Omens;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring] UR_untapped_lands=4 UR_total_lands=8 opp_creatures=0 UR_life=13 opp_life=21
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(1)-PlayerA source=Elspeth, Knight-Errant UR_hand=[Deprive;Misty Rainforest;Wall of Omens;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring] UR_untapped_lands=4 UR_total_lands=8 opp_creatures=0 UR_life=13 opp_life=21
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(2)-PlayerB source=Deprive UR_hand=[Deprive;Misty Rainforest;Wall of Omens;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring] UR_untapped_lands=4 UR_total_lands=7 opp_creatures=0 UR_life=13 opp_life=21
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(1)-PlayerA source=Deprive UR_hand=[Misty Rainforest;Wall of Omens;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring;Island] UR_untapped_lands=2 UR_total_lands=6 opp_creatures=0 UR_life=13 opp_life=21
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(1)-PlayerA source=Wall of Omens UR_hand=[Misty Rainforest;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring;Island] UR_untapped_lands=0 UR_total_lands=6 opp_creatures=0 UR_life=13 opp_life=21
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(1)-PlayerA source=Everflowing Chalice UR_hand=[Misty Rainforest;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=13 opp_life=21
+Turn: Turn 21 (Ai(2)-PlayerB)
+HANDLOG turn=21 event=turnstart active=Ai(2)-PlayerB UR_hand=[Misty Rainforest;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=13 opp_life=21
+Land: Ai(2)-PlayerB played a land
+Life: Life: Ai(2)-PlayerB 21 > 23
+HANDLOG turn=21 event=cast kind=spell castBy=Ai(2)-PlayerB source=Day of Judgment UR_hand=[Misty Rainforest;Oblivion Ring;Island;Tectonic Edge;Oblivion Ring] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=13 opp_life=23
+Damage: Gideon Jura [162] deals 6 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 13 > 7
+Turn: Turn 22 (Ai(1)-PlayerA)
+HANDLOG turn=22 event=turnstart active=Ai(1)-PlayerA UR_hand=[Misty Rainforest;Island;Tectonic Edge;Oblivion Ring;Sejiri Steppe] UR_untapped_lands=4 UR_total_lands=7 opp_creatures=0 UR_life=7 opp_life=23
+HANDLOG turn=22 event=cast kind=spell castBy=Ai(1)-PlayerA source=Oblivion Ring UR_hand=[Misty Rainforest;Island;Tectonic Edge;Oblivion Ring;Sejiri Steppe] UR_untapped_lands=4 UR_total_lands=7 opp_creatures=0 UR_life=7 opp_life=23
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=22 event=cast kind=spell castBy=Ai(1)-PlayerA source=Oblivion Ring UR_hand=[Misty Rainforest;Island;Sejiri Steppe] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=7 opp_life=23
+Turn: Turn 23 (Ai(2)-PlayerB)
+HANDLOG turn=23 event=turnstart active=Ai(2)-PlayerB UR_hand=[Misty Rainforest;Island;Sejiri Steppe] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=7 opp_life=23
+HANDLOG turn=23 event=cast kind=spell castBy=Ai(2)-PlayerB source=Spreading Seas UR_hand=[Misty Rainforest;Island;Sejiri Steppe] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=7 opp_life=23
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=23 event=cast kind=spell castBy=Ai(2)-PlayerB source=Martial Coup UR_hand=[Misty Rainforest;Island;Sejiri Steppe] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=7 opp_life=23
+Turn: Turn 24 (Ai(1)-PlayerA)
+HANDLOG turn=24 event=turnstart active=Ai(1)-PlayerA UR_hand=[Misty Rainforest;Island;Sejiri Steppe] UR_untapped_lands=8 UR_total_lands=8 opp_creatures=5 UR_life=7 opp_life=23
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 25 (Ai(2)-PlayerB)
+HANDLOG turn=25 event=turnstart active=Ai(2)-PlayerB UR_hand=[Misty Rainforest;Island;Sejiri Steppe] UR_untapped_lands=6 UR_total_lands=7 opp_creatures=5 UR_life=7 opp_life=23
+HANDLOG turn=25 event=cast kind=spell castBy=Ai(2)-PlayerB source=Mind Spring UR_hand=[Misty Rainforest;Island;Sejiri Steppe] UR_untapped_lands=6 UR_total_lands=7 opp_creatures=5 UR_life=7 opp_life=23
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=25 event=cast kind=spell castBy=Ai(2)-PlayerB source=Everflowing Chalice UR_hand=[Misty Rainforest;Island;Sejiri Steppe] UR_untapped_lands=6 UR_total_lands=7 opp_creatures=5 UR_life=7 opp_life=23
+HANDLOG turn=25 event=cast kind=spell castBy=Ai(2)-PlayerB source=Everflowing Chalice UR_hand=[Misty Rainforest;Island;Sejiri Steppe] UR_untapped_lands=6 UR_total_lands=7 opp_creatures=5 UR_life=7 opp_life=23
+Damage: Soldier Token [a0f] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 7 > 6
+Damage: Soldier Token [4c1] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 6 > 5
+Damage: Soldier Token [b2a] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 5 > 4
+Damage: Soldier Token [9a3] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 4 > 3
+Damage: Soldier Token [9a3] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 3 > 2
+Turn: Turn 26 (Ai(1)-PlayerA)
+HANDLOG turn=26 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island;Sejiri Steppe;Island] UR_untapped_lands=8 UR_total_lands=8 opp_creatures=5 UR_life=2 opp_life=23
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 27 (Ai(2)-PlayerB)
+HANDLOG turn=27 event=turnstart active=Ai(2)-PlayerB UR_hand=[Island;Sejiri Steppe;Island] UR_untapped_lands=8 UR_total_lands=8 opp_creatures=5 UR_life=2 opp_life=23
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=27 event=cast kind=spell castBy=Ai(2)-PlayerB source=Spreading Seas UR_hand=[Island;Sejiri Steppe;Island] UR_untapped_lands=8 UR_total_lands=8 opp_creatures=5 UR_life=2 opp_life=23
+HANDLOG turn=27 event=cast kind=spell castBy=Ai(2)-PlayerB source=Oblivion Ring UR_hand=[Island;Sejiri Steppe;Island] UR_untapped_lands=8 UR_total_lands=8 opp_creatures=6 UR_life=2 opp_life=23
+Damage: Soldier Token [a0f] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 2 > 1
+Damage: Soldier Token [4c1] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 1 > 0
+Damage: Soldier Token [b2a] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 0 > -1
+Damage: Soldier Token [9a3] deals 1 combat damage to Ai(1)-PlayerA.
+Damage: Soldier Token [9a3] deals 1 combat damage to Ai(1)-PlayerA.
+HANDLOG turn=27 event=gameend UR_hand=[] UR_untapped_lands=8 UR_total_lands=8 opp_creatures=6 UR_life=-3 opp_life=23
+XMAGEBATCH RESULT game=2/4 winner=PlayerB endTurn=27 ended=true lifeA=-3 lifeB=23 ms=85710 :: Player PlayerB is the winner
+
+Game Result: Game 2 ended in 85710 ms. Ai(2)-PlayerB has won!
+
+Turn: Turn 1 (Ai(2)-?)
+HANDLOG turn=1 event=turnstart active=Ai(2)-? UR_hand=[] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=0 opp_life=0
+XMAGEBATCH opening_hand PlayerA (7): [Glacial Fortress;Island;Plains;Tectonic Edge;Spreading Seas;Spreading Seas;Everflowing Chalice]
+XMAGEBATCH opening_hand PlayerB (7): [Celestial Colonnade;Island;Plains;Sejiri Steppe;Jace, the Mind Sculptor;Oblivion Ring;Everflowing Chalice]
+Life: Life: Ai(1)-PlayerA 0 > 20
+Life: Life: Ai(2)-PlayerB 0 > 20
+HANDLOG turn=1 event=cast kind=spell castBy=Ai(1)-PlayerA source=Everflowing Chalice UR_hand=[Glacial Fortress;Island;Plains;Tectonic Edge;Spreading Seas;Spreading Seas] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 2 (Ai(2)-PlayerB)
+HANDLOG turn=2 event=turnstart active=Ai(2)-PlayerB UR_hand=[Island;Plains;Tectonic Edge;Spreading Seas;Spreading Seas] UR_untapped_lands=0 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=2 event=cast kind=spell castBy=Ai(2)-PlayerB source=Everflowing Chalice UR_hand=[Island;Plains;Tectonic Edge;Spreading Seas;Spreading Seas] UR_untapped_lands=0 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 3 (Ai(1)-PlayerA)
+HANDLOG turn=3 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island;Plains;Spreading Seas;Spreading Seas;Celestial Colonnade] UR_untapped_lands=2 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=3 event=cast kind=spell castBy=Ai(1)-PlayerA source=Spreading Seas UR_hand=[Island;Plains;Spreading Seas;Celestial Colonnade] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 4 (Ai(2)-PlayerB)
+HANDLOG turn=4 event=turnstart active=Ai(2)-PlayerB UR_hand=[Island;Plains;Spreading Seas;Celestial Colonnade;Gideon Jura] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 5 (Ai(1)-PlayerA)
+HANDLOG turn=5 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island;Plains;Celestial Colonnade;Gideon Jura;Deprive] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(1)-PlayerA source=Spreading Seas UR_hand=[Island;Plains;Celestial Colonnade;Gideon Jura;Deprive] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 6 (Ai(2)-PlayerB)
+HANDLOG turn=6 event=turnstart active=Ai(2)-PlayerB UR_hand=[Island;Plains;Gideon Jura;Deprive;Island] UR_untapped_lands=0 UR_total_lands=3 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=6 event=cast kind=spell castBy=Ai(2)-PlayerB source=Wall of Omens UR_hand=[Island;Plains;Gideon Jura;Deprive;Island] UR_untapped_lands=0 UR_total_lands=3 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 7 (Ai(1)-PlayerA)
+HANDLOG turn=7 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island;Plains;Gideon Jura;Deprive;Island] UR_untapped_lands=0 UR_total_lands=3 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=7 event=cast kind=spell castBy=Ai(1)-PlayerA source=Oblivion Ring UR_hand=[Island;Plains;Gideon Jura;Deprive;Island] UR_untapped_lands=0 UR_total_lands=3 opp_creatures=1 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 8 (Ai(2)-PlayerB)
+HANDLOG turn=8 event=turnstart active=Ai(2)-PlayerB UR_hand=[Island;Plains;Gideon Jura;Deprive] UR_untapped_lands=1 UR_total_lands=4 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=8 event=cast kind=spell castBy=Ai(2)-PlayerB source=Oblivion Ring UR_hand=[Island;Plains;Gideon Jura;Deprive] UR_untapped_lands=1 UR_total_lands=4 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 9 (Ai(1)-PlayerA)
+HANDLOG turn=9 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island;Plains;Gideon Jura;Deprive] UR_untapped_lands=5 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=9 event=cast kind=spell castBy=Ai(1)-PlayerA source=Gideon Jura UR_hand=[Island;Plains;Deprive] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 10 (Ai(2)-PlayerB)
+HANDLOG turn=10 event=turnstart active=Ai(2)-PlayerB UR_hand=[Island;Plains;Deprive] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=10 event=cast kind=spell castBy=Ai(2)-PlayerB source=Jace, the Mind Sculptor UR_hand=[Island;Plains;Deprive] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 11 (Ai(1)-PlayerA)
+HANDLOG turn=11 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island;Plains;Deprive;Celestial Colonnade] UR_untapped_lands=5 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Damage: Gideon Jura [868] deals 6 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 20 > 14
+Turn: Turn 12 (Ai(2)-PlayerB)
+HANDLOG turn=12 event=turnstart active=Ai(2)-PlayerB UR_hand=[Island;Deprive;Celestial Colonnade] UR_untapped_lands=1 UR_total_lands=6 opp_creatures=0 UR_life=20 opp_life=14
+HANDLOG turn=12 event=cast kind=spell castBy=Ai(2)-PlayerB source=Jace, the Mind Sculptor UR_hand=[Island;Deprive;Celestial Colonnade] UR_untapped_lands=1 UR_total_lands=6 opp_creatures=0 UR_life=20 opp_life=14
+HANDLOG turn=12 event=cast kind=spell castBy=Ai(2)-PlayerB source=Everflowing Chalice UR_hand=[Island;Deprive;Celestial Colonnade] UR_untapped_lands=1 UR_total_lands=6 opp_creatures=0 UR_life=20 opp_life=14
+Land: Ai(2)-PlayerB played a land
+Life: Life: Ai(2)-PlayerB 14 > 16
+Turn: Turn 13 (Ai(1)-PlayerA)
+HANDLOG turn=13 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island;Deprive;Celestial Colonnade;Deprive] UR_untapped_lands=1 UR_total_lands=6 opp_creatures=0 UR_life=20 opp_life=16
+Land: Ai(1)-PlayerA played a land
+Damage: Gideon Jura [868] deals 6 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 16 > 10
+Turn: Turn 14 (Ai(2)-PlayerB)
+HANDLOG turn=14 event=turnstart active=Ai(2)-PlayerB UR_hand=[Island;Deprive;Deprive] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=10
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=14 event=cast kind=spell castBy=Ai(2)-PlayerB source=Gideon Jura UR_hand=[Island;Deprive;Deprive] UR_untapped_lands=0 UR_total_lands=6 opp_creatures=0 UR_life=20 opp_life=10
+Turn: Turn 15 (Ai(1)-PlayerA)
+HANDLOG turn=15 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island;Deprive;Deprive;Everflowing Chalice] UR_untapped_lands=1 UR_total_lands=6 opp_creatures=0 UR_life=20 opp_life=10
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=15 event=cast kind=spell castBy=Ai(1)-PlayerA source=Everflowing Chalice UR_hand=[Deprive;Deprive] UR_untapped_lands=2 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=10
+Damage: Gideon Jura [868] deals 6 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 10 > 4
+Damage: Celestial Colonnade [bfc] deals 4 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 4 > 0
+HANDLOG turn=15 event=gameend UR_hand=[Deprive;Deprive] UR_untapped_lands=2 UR_total_lands=7 opp_creatures=0 UR_life=20 opp_life=0
+XMAGEBATCH RESULT game=3/4 winner=PlayerA endTurn=15 ended=true lifeA=20 lifeB=0 ms=10580 :: Player PlayerA is the winner
+
+Game Result: Game 3 ended in 10580 ms. Ai(1)-PlayerA has won!
+
+Turn: Turn 1 (Ai(2)-?)
+HANDLOG turn=1 event=turnstart active=Ai(2)-? UR_hand=[] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=0 opp_life=0
+XMAGEBATCH opening_hand PlayerA (7): [Island;Plains;Sejiri Steppe;Tectonic Edge;Mind Spring;Mind Spring;Spreading Seas]
+XMAGEBATCH opening_hand PlayerB (7): [Island;Island;Sejiri Steppe;Tectonic Edge;Oblivion Ring;Path to Exile;Everflowing Chalice]
+Life: Life: Ai(1)-PlayerA 0 > 20
+Life: Life: Ai(2)-PlayerB 0 > 20
+HANDLOG turn=1 event=cast kind=spell castBy=Ai(2)-PlayerB source=Everflowing Chalice UR_hand=[Island;Plains;Sejiri Steppe;Tectonic Edge;Mind Spring;Mind Spring;Spreading Seas] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 2 (Ai(1)-PlayerA)
+HANDLOG turn=2 event=turnstart active=Ai(1)-PlayerA UR_hand=[Plains;Sejiri Steppe;Tectonic Edge;Mind Spring;Mind Spring;Spreading Seas;Gideon Jura] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 3 (Ai(2)-PlayerB)
+HANDLOG turn=3 event=turnstart active=Ai(2)-PlayerB UR_hand=[Plains;Sejiri Steppe;Tectonic Edge;Mind Spring;Mind Spring;Spreading Seas;Gideon Jura] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 4 (Ai(1)-PlayerA)
+HANDLOG turn=4 event=turnstart active=Ai(1)-PlayerA UR_hand=[Sejiri Steppe;Tectonic Edge;Mind Spring;Mind Spring;Spreading Seas;Gideon Jura;Day of Judgment] UR_untapped_lands=2 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=4 event=cast kind=spell castBy=Ai(1)-PlayerA source=Spreading Seas UR_hand=[Sejiri Steppe;Tectonic Edge;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=4 event=cast kind=spell castBy=Ai(1)-PlayerA source=Everflowing Chalice UR_hand=[Sejiri Steppe;Tectonic Edge;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 5 (Ai(2)-PlayerB)
+HANDLOG turn=5 event=turnstart active=Ai(2)-PlayerB UR_hand=[Sejiri Steppe;Tectonic Edge;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(2)-PlayerB source=Spreading Seas UR_hand=[Sejiri Steppe;Tectonic Edge;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 6 (Ai(1)-PlayerA)
+HANDLOG turn=6 event=turnstart active=Ai(1)-PlayerA UR_hand=[Sejiri Steppe;Tectonic Edge;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment] UR_untapped_lands=3 UR_total_lands=3 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 7 (Ai(2)-PlayerB)
+HANDLOG turn=7 event=turnstart active=Ai(2)-PlayerB UR_hand=[Sejiri Steppe;Tectonic Edge;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment] UR_untapped_lands=3 UR_total_lands=3 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 8 (Ai(1)-PlayerA)
+HANDLOG turn=8 event=turnstart active=Ai(1)-PlayerA UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment;Jace, the Mind Sculptor] UR_untapped_lands=4 UR_total_lands=4 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=8 event=cast kind=spell castBy=Ai(1)-PlayerA source=Jace, the Mind Sculptor UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment] UR_untapped_lands=0 UR_total_lands=4 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 9 (Ai(2)-PlayerB)
+HANDLOG turn=9 event=turnstart active=Ai(2)-PlayerB UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment;Day of Judgment] UR_untapped_lands=0 UR_total_lands=4 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=9 event=cast kind=spell castBy=Ai(2)-PlayerB source=Oblivion Ring UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment;Day of Judgment] UR_untapped_lands=0 UR_total_lands=4 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 10 (Ai(1)-PlayerA)
+HANDLOG turn=10 event=turnstart active=Ai(1)-PlayerA UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment;Day of Judgment] UR_untapped_lands=4 UR_total_lands=5 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Life: Life: Ai(1)-PlayerA 20 > 22
+Turn: Turn 11 (Ai(2)-PlayerB)
+HANDLOG turn=11 event=turnstart active=Ai(2)-PlayerB UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment;Day of Judgment] UR_untapped_lands=4 UR_total_lands=5 opp_creatures=0 UR_life=22 opp_life=20
+HANDLOG turn=11 event=cast kind=spell castBy=Ai(2)-PlayerB source=Oblivion Ring UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment;Day of Judgment] UR_untapped_lands=4 UR_total_lands=5 opp_creatures=0 UR_life=22 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 12 (Ai(1)-PlayerA)
+HANDLOG turn=12 event=turnstart active=Ai(1)-PlayerA UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment;Day of Judgment] UR_untapped_lands=4 UR_total_lands=5 opp_creatures=0 UR_life=22 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 13 (Ai(2)-PlayerB)
+HANDLOG turn=13 event=turnstart active=Ai(2)-PlayerB UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Gideon Jura;Day of Judgment;Day of Judgment] UR_untapped_lands=4 UR_total_lands=5 opp_creatures=0 UR_life=22 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 14 (Ai(1)-PlayerA)
+HANDLOG turn=14 event=turnstart active=Ai(1)-PlayerA UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Day of Judgment;Day of Judgment;Island] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=0 UR_life=22 opp_life=20
+HANDLOG turn=14 event=cast kind=spell castBy=Ai(1)-PlayerA source=Gideon Jura UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Day of Judgment;Day of Judgment;Island] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=0 UR_life=22 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=14 event=cast kind=spell castBy=Ai(2)-PlayerB source=Path to Exile UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Day of Judgment;Day of Judgment] UR_untapped_lands=1 UR_total_lands=6 opp_creatures=0 UR_life=22 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 15 (Ai(2)-PlayerB)
+HANDLOG turn=15 event=turnstart active=Ai(2)-PlayerB UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Day of Judgment;Day of Judgment] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=22 opp_life=20
+HANDLOG turn=15 event=cast kind=spell castBy=Ai(2)-PlayerB source=Jace, the Mind Sculptor UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Day of Judgment;Day of Judgment] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=22 opp_life=20
+Turn: Turn 16 (Ai(1)-PlayerA)
+HANDLOG turn=16 event=turnstart active=Ai(1)-PlayerA UR_hand=[Sejiri Steppe;Mind Spring;Mind Spring;Day of Judgment;Day of Judgment;Spreading Seas] UR_untapped_lands=2 UR_total_lands=7 opp_creatures=0 UR_life=22 opp_life=20
+HANDLOG turn=16 event=cast kind=spell castBy=Ai(1)-PlayerA source=Mind Spring UR_hand=[Sejiri Steppe;Mind Spring;Day of Judgment;Day of Judgment;Spreading Seas] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=22 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 17 (Ai(2)-PlayerB)
+HANDLOG turn=17 event=turnstart active=Ai(2)-PlayerB UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Spreading Seas] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=0 UR_life=22 opp_life=20
+HANDLOG turn=17 event=cast kind=spell castBy=Ai(2)-PlayerB source=Jace, the Mind Sculptor UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Spreading Seas] UR_untapped_lands=0 UR_total_lands=8 opp_creatures=0 UR_life=22 opp_life=20
+Turn: Turn 18 (Ai(1)-PlayerA)
+HANDLOG turn=18 event=turnstart active=Ai(1)-PlayerA UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Glacial Fortress] UR_untapped_lands=6 UR_total_lands=8 opp_creatures=0 UR_life=22 opp_life=20
+HANDLOG turn=18 event=cast kind=spell castBy=Ai(1)-PlayerA source=Spreading Seas UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Glacial Fortress] UR_untapped_lands=6 UR_total_lands=8 opp_creatures=0 UR_life=22 opp_life=20
+HANDLOG turn=18 event=cast kind=spell castBy=Ai(2)-PlayerB source=Path to Exile UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Glacial Fortress] UR_untapped_lands=1 UR_total_lands=8 opp_creatures=0 UR_life=22 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 19 (Ai(2)-PlayerB)
+HANDLOG turn=19 event=turnstart active=Ai(2)-PlayerB UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Spreading Seas] UR_untapped_lands=1 UR_total_lands=9 opp_creatures=0 UR_life=22 opp_life=20
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(2)-PlayerB source=Gideon Jura UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Spreading Seas] UR_untapped_lands=1 UR_total_lands=9 opp_creatures=0 UR_life=22 opp_life=20
+Turn: Turn 20 (Ai(1)-PlayerA)
+HANDLOG turn=20 event=turnstart active=Ai(1)-PlayerA UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Wall of Omens] UR_untapped_lands=7 UR_total_lands=9 opp_creatures=0 UR_life=22 opp_life=20
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(1)-PlayerA source=Spreading Seas UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Wall of Omens] UR_untapped_lands=7 UR_total_lands=9 opp_creatures=0 UR_life=22 opp_life=20
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(1)-PlayerA source=Wall of Omens UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Oblivion Ring] UR_untapped_lands=5 UR_total_lands=9 opp_creatures=0 UR_life=22 opp_life=20
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(1)-PlayerA source=Oblivion Ring UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Deprive] UR_untapped_lands=2 UR_total_lands=9 opp_creatures=0 UR_life=22 opp_life=20
+Turn: Turn 21 (Ai(2)-PlayerB)
+HANDLOG turn=21 event=turnstart active=Ai(2)-PlayerB UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Deprive] UR_untapped_lands=2 UR_total_lands=9 opp_creatures=0 UR_life=22 opp_life=20
+HANDLOG turn=21 event=cast kind=spell castBy=Ai(2)-PlayerB source=Spreading Seas UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Deprive] UR_untapped_lands=2 UR_total_lands=9 opp_creatures=0 UR_life=22 opp_life=20
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=21 event=cast kind=spell castBy=Ai(2)-PlayerB source=Everflowing Chalice UR_hand=[Mind Spring;Day of Judgment;Day of Judgment;Deprive] UR_untapped_lands=2 UR_total_lands=9 opp_creatures=0 UR_life=22 opp_life=20
+Damage: Gideon Jura [c7b] deals 6 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 22 > 16
+Turn: Turn 22 (Ai(1)-PlayerA)
+HANDLOG turn=22 event=turnstart active=Ai(1)-PlayerA UR_hand=[Day of Judgment;Day of Judgment;Deprive;Gideon Jura] UR_untapped_lands=0 UR_total_lands=9 opp_creatures=0 UR_life=16 opp_life=20
+HANDLOG turn=22 event=cast kind=spell castBy=Ai(1)-PlayerA source=Mind Spring UR_hand=[Day of Judgment;Day of Judgment;Deprive;Gideon Jura] UR_untapped_lands=0 UR_total_lands=9 opp_creatures=0 UR_life=16 opp_life=20
+HANDLOG turn=22 event=cast kind=spell castBy=Ai(1)-PlayerA source=Everflowing Chalice UR_hand=[Day of Judgment;Day of Judgment;Deprive;Gideon Jura;Tectonic Edge;Oblivion Ring;Celestial Colonnade;Martial Coup;Arid Mesa;Glacial Fortress] UR_untapped_lands=0 UR_total_lands=9 opp_creatures=0 UR_life=16 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 23 (Ai(2)-PlayerB)
+HANDLOG turn=23 event=turnstart active=Ai(2)-PlayerB UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Oblivion Ring;Celestial Colonnade;Martial Coup;Arid Mesa] UR_untapped_lands=1 UR_total_lands=10 opp_creatures=0 UR_life=16 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Damage: Celestial Colonnade [e35] deals 4 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 16 > 12
+Turn: Turn 24 (Ai(1)-PlayerA)
+HANDLOG turn=24 event=turnstart active=Ai(1)-PlayerA UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Oblivion Ring;Martial Coup;Arid Mesa;Oblivion Ring] UR_untapped_lands=10 UR_total_lands=11 opp_creatures=0 UR_life=12 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=24 event=cast kind=spell castBy=Ai(1)-PlayerA source=Oblivion Ring UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Martial Coup;Arid Mesa;Oblivion Ring] UR_untapped_lands=2 UR_total_lands=11 opp_creatures=0 UR_life=12 opp_life=20
+Turn: Turn 25 (Ai(2)-PlayerB)
+HANDLOG turn=25 event=turnstart active=Ai(2)-PlayerB UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Martial Coup;Arid Mesa;Oblivion Ring] UR_untapped_lands=2 UR_total_lands=11 opp_creatures=0 UR_life=12 opp_life=20
+HANDLOG turn=25 event=cast kind=spell castBy=Ai(2)-PlayerB source=Gideon Jura UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Martial Coup;Arid Mesa;Oblivion Ring] UR_untapped_lands=2 UR_total_lands=11 opp_creatures=0 UR_life=12 opp_life=20
+Turn: Turn 26 (Ai(1)-PlayerA)
+HANDLOG turn=26 event=turnstart active=Ai(1)-PlayerA UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Martial Coup;Arid Mesa;Oblivion Ring] UR_untapped_lands=12 UR_total_lands=12 opp_creatures=0 UR_life=12 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=26 event=cast kind=spell castBy=Ai(1)-PlayerA source=Martial Coup UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Arid Mesa;Oblivion Ring] UR_untapped_lands=0 UR_total_lands=12 opp_creatures=0 UR_life=12 opp_life=20
+Turn: Turn 27 (Ai(2)-PlayerB)
+HANDLOG turn=27 event=turnstart active=Ai(2)-PlayerB UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Arid Mesa;Oblivion Ring] UR_untapped_lands=0 UR_total_lands=12 opp_creatures=0 UR_life=12 opp_life=20
+HANDLOG turn=27 event=cast kind=spell castBy=Ai(2)-PlayerB source=Elspeth, Knight-Errant UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Arid Mesa;Oblivion Ring] UR_untapped_lands=0 UR_total_lands=12 opp_creatures=0 UR_life=12 opp_life=20
+HANDLOG turn=27 event=cast kind=spell castBy=Ai(2)-PlayerB source=Wall of Omens UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Arid Mesa;Oblivion Ring] UR_untapped_lands=0 UR_total_lands=12 opp_creatures=0 UR_life=12 opp_life=20
+Damage: Gideon Jura [42b] deals 9 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 12 > 3
+Turn: Turn 28 (Ai(1)-PlayerA)
+HANDLOG turn=28 event=turnstart active=Ai(1)-PlayerA UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Oblivion Ring;Path to Exile] UR_untapped_lands=13 UR_total_lands=13 opp_creatures=1 UR_life=3 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=28 event=cast kind=spell castBy=Ai(1)-PlayerA source=Path to Exile UR_hand=[Day of Judgment;Deprive;Tectonic Edge;Oblivion Ring] UR_untapped_lands=12 UR_total_lands=13 opp_creatures=1 UR_life=3 opp_life=20
+Land: Ai(2)-PlayerB played a land
+Damage: Arid Mesa [710] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 3 > 2
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=28 event=cast kind=spell castBy=Ai(1)-PlayerA source=Oblivion Ring UR_hand=[Day of Judgment;Deprive;Tectonic Edge] UR_untapped_lands=4 UR_total_lands=13 opp_creatures=0 UR_life=2 opp_life=20
+Damage: Soldier Token [ef1] deals 1 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 20 > 19
+Damage: Soldier Token [4e9] deals 1 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 19 > 18
+Damage: Soldier Token [169] deals 1 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 18 > 17
+Damage: Soldier Token [cc0] deals 1 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 17 > 16
+Damage: Soldier Token [936] deals 1 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 16 > 15
+Damage: Soldier Token [46e] deals 1 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 15 > 14
+Damage: Soldier Token [9b9] deals 1 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 14 > 13
+Damage: Soldier Token [655] deals 1 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 13 > 12
+Turn: Turn 29 (Ai(2)-PlayerB)
+HANDLOG turn=29 event=turnstart active=Ai(2)-PlayerB UR_hand=[Day of Judgment;Deprive;Tectonic Edge] UR_untapped_lands=4 UR_total_lands=13 opp_creatures=0 UR_life=2 opp_life=12
+HANDLOG turn=29 event=cast kind=spell castBy=Ai(2)-PlayerB source=Wall of Omens UR_hand=[Day of Judgment;Deprive;Tectonic Edge] UR_untapped_lands=4 UR_total_lands=13 opp_creatures=0 UR_life=2 opp_life=12
+HANDLOG turn=29 event=cast kind=spell castBy=Ai(1)-PlayerA source=Deprive UR_hand=[Day of Judgment;Tectonic Edge;Plains] UR_untapped_lands=2 UR_total_lands=12 opp_creatures=0 UR_life=2 opp_life=12
+Damage: Celestial Colonnade [e35] deals 4 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 2 > -2
+HANDLOG turn=29 event=gameend UR_hand=[] UR_untapped_lands=2 UR_total_lands=12 opp_creatures=1 UR_life=-2 opp_life=12
+XMAGEBATCH RESULT game=4/4 winner=PlayerB endTurn=29 ended=true lifeA=-2 lifeB=12 ms=40782 :: Player PlayerB is the winner
+
+Game Result: Game 4 ended in 40782 ms. Ai(2)-PlayerB has won!
+
