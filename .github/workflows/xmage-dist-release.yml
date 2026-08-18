@@ -20,6 +20,12 @@ name: xmage-dist release
 
 on:
   workflow_dispatch: {}       # manual dry run: build + audit + smoke, no upload
+  # PR dry run: the heavy build is opt-in — it runs ONLY when the PR carries the
+  # `build-xmage-dist` label (add the label = "run it"; `synchronize` re-runs on each
+  # push while the label is present). Uses the workflow definition FROM the PR branch,
+  # so the YAML can be iterated in the PR. Never publishes (upload is tag-gated below).
+  pull_request:
+    types: [labeled, synchronize]
   push:
     tags:
       - 'xmage-dist-*'        # e.g. xmage-dist-1.4.60 -> also uploads the assets
@@ -28,10 +34,11 @@ permissions:
   contents: write             # gh release upload
 
 env:
-  # XMage upstream ref to build the engine artifacts from. Keep in lockstep with
-  # xmage_runtime.XMAGE_VERSION. (Confirm the exact upstream tag name for 1.4.60.)
+  # XMage upstream ref to build the engine artifacts from. magefree/mage tags point
+  # releases with a V-suffix; xmage_1.4.60V3 is the latest for the 1.4.60 line and
+  # maps to xmage_runtime.XMAGE_VERSION='1.4.60' (our own dist tag is xmage-dist-1.4.60).
   XMAGE_REPO: 'magefree/mage'
-  XMAGE_TAG: 'xmage_1.4.60'
+  XMAGE_TAG: 'xmage_1.4.60V3'
   DIST_DIR: 'plugins/make-magic/pipeline/pipeline/sim/java/xmage-dist'
   PIPELINE_DIR: 'plugins/make-magic/pipeline'
 
@@ -39,6 +46,11 @@ jobs:
   build-and-release:
     name: build + audit + (on tag) publish
     runs-on: ubuntu-latest
+    # PR runs are gated behind the `build-xmage-dist` label (the ~15-min reactor build
+    # is too heavy to run on every PR push). workflow_dispatch and tag pushes always run.
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'build-xmage-dist')
     steps:
       - uses: actions/checkout@v4
 
