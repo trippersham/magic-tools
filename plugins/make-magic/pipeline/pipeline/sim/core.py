@@ -37,7 +37,7 @@ from typing import TYPE_CHECKING, Union
 
 from pipeline.sim.classify import classify_deck
 from pipeline.sim.gauntlet import resolve_gauntlet
-from pipeline.sim.governor import MatchSpec, run_matchups
+from pipeline.sim.governor import DEFAULT_PER_JVM_GIB, MatchSpec, run_matchups
 from pipeline.sim.runner import MatchResult, deck_to_dck, reap_stale_staging, staging_root
 from pipeline.sim.store import (
     MatchupMeta,
@@ -268,6 +268,7 @@ def run_cached_matchups(
     data_dir: str | os.PathLike[str] | None = None,
     pool_size: int | None = None,
     max_concurrency: int | None = None,
+    per_jvm_gib: float | None = None,
 ) -> MatchupBatch:
     """Run ``specs`` through the content-addressed cache, returning one outcome each.
 
@@ -334,6 +335,7 @@ def run_cached_matchups(
             miss_specs,
             pool_size=pool_size,
             max_concurrency=max_concurrency,
+            per_jvm_gib=per_jvm_gib if per_jvm_gib is not None else DEFAULT_PER_JVM_GIB,
             disk_path=staging_root(),
         )
         aborted = pool.aborted
@@ -600,6 +602,12 @@ def simulate(
     _cap = engine_cap(install) if callable(engine_cap) else None
     max_concurrency = _cap if isinstance(_cap, int) else None
 
+    # An engine MAY declare a per-JVM RAM budget for pool sizing (XMage's CP7 minimax
+    # needs more than Forge's 2 GiB — #63); duck-typed, defaults to the governor's 2.0.
+    engine_budget = getattr(engine, 'per_jvm_gib', None)
+    _budget = engine_budget() if callable(engine_budget) else None
+    per_jvm_gib = _budget if isinstance(_budget, (int, float)) else None
+
     batch = run_cached_matchups(
         engine,
         install,
@@ -608,6 +616,7 @@ def simulate(
         data_dir=data_dir,
         pool_size=pool_size,
         max_concurrency=max_concurrency,
+        per_jvm_gib=per_jvm_gib,
     )
     outcomes = batch.outcomes
 

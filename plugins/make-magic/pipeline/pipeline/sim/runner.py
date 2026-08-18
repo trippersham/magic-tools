@@ -246,16 +246,19 @@ def parse_match_log(output: str, *, deck_a: str, deck_b: str) -> MatchResult:
     )
 
 
-def _jvm_args() -> tuple[str, ...]:
-    """Base + platform headless JVM args.
+def _jvm_args(heap: str = '2g') -> tuple[str, ...]:
+    """Base + platform headless JVM args, with an overridable max heap.
 
-    macOS: ``-Dapple.awt.UIElement=true`` (background-agent AWT; the ONLY reliable
-    headless flag — ``-Djava.awt.headless=true`` makes Forge exit 1 silently).
-    Other platforms rely on an ``xvfb-run`` wrapper (see :func:`_launch_prefix`).
+    ``heap`` sets ``-Xmx`` (default ``2g`` — Forge's tuned budget). XMage's CP7 minimax
+    clones game states during search and needs more, so its launch passes a larger heap
+    (see :data:`pipeline.sim.engines.xmage._XMAGE_HEAP`). macOS adds
+    ``-Dapple.awt.UIElement=true`` (background-agent AWT; the ONLY reliable headless flag
+    — ``-Djava.awt.headless=true`` makes Forge exit 1 silently). Other platforms rely on
+    an ``xvfb-run`` wrapper (see :func:`_launch_prefix`).
     """
     import platform
 
-    args: list[str] = list(_BASE_JVM_ARGS)
+    args: list[str] = [f'-Xmx{heap}', *(a for a in _BASE_JVM_ARGS if not a.startswith('-Xmx'))]
     if platform.system() == 'Darwin':
         args.append('-Dapple.awt.UIElement=true')
     return tuple(args)

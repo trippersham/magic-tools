@@ -197,6 +197,28 @@ def test_run_warm_scan_builds_warm_cmd_and_raises_on_nonzero(monkeypatch: pytest
     assert captured['cmd'][-1] == '--warm'  # the scan-only argument.
     assert 'org.makemagic.xmage.XMageBatch' in captured['cmd']
     assert captured['cwd'] == tmp_path  # launched from the reactor's Mage.Tests dir.
+    assert '-Xmx3g' in captured['cmd']  # XMage's larger heap (#63), not Forge's 2g.
+
+
+def test_xmage_per_jvm_gib_exceeds_forge() -> None:
+    """XMage declares a larger per-JVM RAM budget than Forge's 2 GiB so the pool isn't
+    over-sized for CP7 minimax (#63)."""
+    from pipeline.sim import runner
+
+    assert XMageEngine().per_jvm_gib() == 3.0
+    assert XMageEngine().per_jvm_gib() > 2.0  # Forge's default per_jvm budget
+    # the heap and the budget move in lockstep
+    assert '-Xmx3g' in runner._jvm_args(heap='3g')
+
+
+def test_jvm_args_heap_override() -> None:
+    """runner._jvm_args(heap=...) overrides -Xmx and keeps the other headless args."""
+    from pipeline.sim import runner
+
+    assert '-Xmx2g' in runner._jvm_args()  # default
+    args = runner._jvm_args(heap='3g')
+    assert '-Xmx3g' in args and '-Xmx2g' not in args
+    assert '-XX:+DisableExplicitGC' in args  # base arg preserved
 
 
 def test_launch_xmage_kills_and_raises_on_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

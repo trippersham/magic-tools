@@ -41,6 +41,12 @@ _CP7_SKILL = 6
 #: Forge's ``-c``), and a control grind can run long — so the bound is the external
 #: kill only. Generous; a stalled game (rare) is killed and surfaced as a failure.
 _DEFAULT_TIMEOUT_S = 240
+#: XMage CP7 (MAD minimax) clones full game states during search, so it needs more
+#: heap + a larger per-JVM RAM budget than Forge's 2 GiB — under-budgeting over-admits
+#: the pool and risks swap/jetsam (#63). The ``-Xmx`` and the pool-sizing budget are
+#: kept in lockstep (a 3 GiB heap ↔ a 3 GiB/JVM pool divisor).
+_XMAGE_HEAP = '3g'
+_XMAGE_PER_JVM_GIB = 3.0
 #: ``XMageBatch --warm`` argument: build/verify the H2 card DB in ONE process.
 _WARM_ARG = '--warm'
 #: Bound on the one-time cold H2 build (a from-scratch CardScanner.scan can take a
@@ -127,6 +133,12 @@ class XMageEngine:
 
     def capabilities(self) -> EngineCapabilities:
         return _XMAGE_CAPABILITIES
+
+    def per_jvm_gib(self) -> float:
+        """XMage's per-JVM RAM budget for pool sizing — larger than Forge's 2 GiB
+        because CP7 minimax clones game states (#63). Read by ``simulate`` and threaded
+        to :func:`~pipeline.sim.governor.derive_pool_size` so the pool isn't over-sized."""
+        return _XMAGE_PER_JVM_GIB
 
     def max_concurrency(self, install: EngineInstall) -> int | None:
         """SERIALIZE (cap=1) when the per-run private-db copy would be a FULL real copy.
@@ -393,7 +405,7 @@ def _launch_xmage(handle: XMageInstall, args: list[str], *, cwd: Path, timeout_s
     cmd = [
         *runner._launch_prefix(),
         str(handle.java),
-        *runner._jvm_args(),
+        *runner._jvm_args(heap=_XMAGE_HEAP),  # CP7 minimax needs > Forge's 2g (#63)
         '-cp',
         handle.classpath,
         _XMAGE_MAIN_CLASS,
