@@ -261,6 +261,9 @@ def _ensure_engine(engine: SimEngine, *, assume_yes: bool = False) -> EngineInst
     try:
         return engine.resolve(provision=False)
     except EngineUnavailableError:
+        # Only the DEFAULT engine (Forge) auto-provisions; an opt-in engine re-raises
+        # its own how-to-enable error. Falls through to the provision path ONLY for the
+        # default (the bare except-block exit continues below).
         if engine.name != _DEFAULT_ENGINE:
             raise
     _confirm_forge_download(assume_yes=assume_yes)
@@ -888,18 +891,20 @@ def _print_engine_comparison(
 
 
 def _fire_rate(piloting: PilotingProfile | None, attr: str) -> float | None:
-    """The counter/removal fire-rate off a piloting profile, or ``None`` when there
-    is no honest number: the engine lacks hand visibility (``piloting is None``), the
-    deck's interaction couldn't be classified (``not available``), or there were no
-    opportunities (the fire-rate itself is ``None``)."""
+    """The counter/removal fire-rate as a FLOAT (for the Δ math), or ``None`` when
+    there is no honest number: the engine lacks hand visibility (``piloting is None``),
+    the deck's interaction couldn't be classified (``not available``), or there were no
+    opportunities (the fire-rate itself is ``None``). Companion to :func:`_fire_cell`,
+    which renders the SAME value as a display string."""
     if piloting is None or not piloting.available:
         return None
     return getattr(piloting, attr)
 
 
 def _fire_cell(piloting: PilotingProfile | None, attr: str) -> str:
-    """Render a fire-rate table cell: a percent, ``-`` (no opportunities), or ``n/a``
-    (no piloting signal — engine blind or deck unclassified)."""
+    """Render a fire-rate table cell as a STRING: a percent, ``-`` (no opportunities),
+    or ``n/a`` (no piloting signal — engine blind or deck unclassified). Companion to
+    :func:`_fire_rate`, which returns the SAME value as a float for the delta math."""
     if piloting is None or not piloting.available:
         return 'n/a'
     rate = getattr(piloting, attr)

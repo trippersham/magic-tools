@@ -1,7 +1,7 @@
 """OFFLINE test that ``run_matchup`` stages decks in ISOLATION (R3-2).
 
 Forge is never launched: ``subprocess.Popen`` is mocked to return a one-game log,
-and ``runner._staging_root`` is redirected to a tmp dir. The assertions:
+and ``runner.staging_root`` is redirected to a tmp dir. The assertions:
 
   * the ``-d`` paths are ABSOLUTE, ISOLATED (under the staged root, NOT the real
     Forge profile decks dir), and CONTENT-ADDRESSED;
@@ -52,7 +52,7 @@ class _CapturingProc(_Proc):
 def _isolate_staging(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Redirect the runner's staging root to a tmp dir; return it."""
     staging_root = tmp_path / 'staging'
-    monkeypatch.setattr(runner_mod, '_staging_root', lambda: staging_root)
+    monkeypatch.setattr(runner_mod, 'staging_root', lambda: staging_root)
     return staging_root
 
 
@@ -251,7 +251,7 @@ def test_reap_stale_staging_sweeps_only_old_run_dirs(monkeypatch: pytest.MonkeyP
 
     root = tmp_path / 'staging'
     root.mkdir()
-    monkeypatch.setattr(runner_mod, '_staging_root', lambda: root)
+    monkeypatch.setattr(runner_mod, 'staging_root', lambda: root)
 
     old_run = root / 'run-oldcrash'
     old_xmage = root / 'xmage-oldcrash'
@@ -278,5 +278,5 @@ def test_reap_stale_staging_never_raises_on_missing_root(monkeypatch: pytest.Mon
     not be the thing that breaks a run."""
     from pipeline.sim.runner import reap_stale_staging
 
-    monkeypatch.setattr(runner_mod, '_staging_root', lambda: tmp_path / 'does-not-exist')
+    monkeypatch.setattr(runner_mod, 'staging_root', lambda: tmp_path / 'does-not-exist')
     assert reap_stale_staging() == 0

@@ -18,18 +18,14 @@ from pipeline.sim.engines.xmage import (
     XMageEngine,
     XMageError,
     _clone_tree_cow,
-    _ensure_card_db_warm,
     _forge_dck_to_xmage_txt,
-    _run_warm_scan,
     _stage_private_db,
 )
 from pipeline.sim.xmage_runtime import XMageInstall
 
-
-@pytest.fixture(autouse=True)
-def _reset_warm_state() -> None:
-    """Each test starts with an un-warmed card-DB memo (the set is module-global)."""
-    xmage_engine._WARMED_DIRS.clear()
+# The card-DB warm memo is per-INSTANCE (XMageEngine is a registered singleton), so
+# each test that exercises warming makes its OWN XMageEngine() → fresh empty memo,
+# no reset fixture needed.
 
 
 def _install(tmp_path: Path) -> XMageInstall:
@@ -113,22 +109,24 @@ def test_warm_runs_once_then_memoized(monkeypatch: pytest.MonkeyPatch, tmp_path:
         nonlocal calls
         calls += 1
 
-    monkeypatch.setattr(xmage_engine, '_run_warm_scan', _fake_scan)
+    engine = XMageEngine()
+    monkeypatch.setattr(engine, '_run_warm_scan', _fake_scan)
     handle = _install(tmp_path)
-    _ensure_card_db_warm(handle)
-    _ensure_card_db_warm(handle)
-    _ensure_card_db_warm(handle)
+    engine._ensure_card_db_warm(handle)
+    engine._ensure_card_db_warm(handle)
+    engine._ensure_card_db_warm(handle)
     assert calls == 1
 
 
 def test_warm_is_per_reactor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Distinct reactors (distinct Mage.Tests dirs) warm independently."""
     seen: list[Path] = []
-    monkeypatch.setattr(xmage_engine, '_run_warm_scan', lambda h: seen.append(h.mage_tests_dir))
+    engine = XMageEngine()
+    monkeypatch.setattr(engine, '_run_warm_scan', lambda h: seen.append(h.mage_tests_dir))
     a, b = tmp_path / 'a', tmp_path / 'b'
-    _ensure_card_db_warm(_install(a))
-    _ensure_card_db_warm(_install(b))
-    _ensure_card_db_warm(_install(a))  # a already warm.
+    engine._ensure_card_db_warm(_install(a))
+    engine._ensure_card_db_warm(_install(b))
+    engine._ensure_card_db_warm(_install(a))  # a already warm.
     assert seen == [a, b]
 
 
@@ -145,9 +143,10 @@ def test_warm_concurrent_calls_scan_once(monkeypatch: pytest.MonkeyPatch, tmp_pa
         calls += 1
         time.sleep(0.05)  # hold the lock long enough that the others pile up behind it.
 
-    monkeypatch.setattr(xmage_engine, '_run_warm_scan', _slow_scan)
+    engine = XMageEngine()
+    monkeypatch.setattr(engine, '_run_warm_scan', _slow_scan)
     handle = _install(tmp_path)
-    threads = [threading.Thread(target=_ensure_card_db_warm, args=(handle,)) for _ in range(8)]
+    threads = [threading.Thread(target=engine._ensure_card_db_warm, args=(handle,)) for _ in range(8)]
     for thread in threads:
         thread.start()
     for thread in threads:
@@ -166,17 +165,19 @@ def test_warm_failure_propagates_and_does_not_memoize(monkeypatch: pytest.Monkey
         if attempts == 1:
             raise XMageError('cold build raced')
 
-    monkeypatch.setattr(xmage_engine, '_run_warm_scan', _flaky_scan)
+    engine = XMageEngine()
+    monkeypatch.setattr(engine, '_run_warm_scan', _flaky_scan)
     handle = _install(tmp_path)
     with pytest.raises(XMageError):
-        _ensure_card_db_warm(handle)  # first attempt fails, not memoized.
-    _ensure_card_db_warm(handle)  # retry succeeds and memoizes.
+        engine._ensure_card_db_warm(handle)  # first attempt fails, not memoized.
+    engine._ensure_card_db_warm(handle)  # retry succeeds and memoizes.
     assert attempts == 2
 
 
 def test_run_warm_scan_builds_warm_cmd_and_raises_on_nonzero(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """``_run_warm_scan`` launches ``XMageBatch --warm`` from Mage.Tests and raises
-    :class:`XMageError` on a non-zero exit (never proceeds into the cold-scan race)."""
+    """``_run_warm_scan`` launches ``XMageBatch --warm`` from Mage.Tests (via
+    :func:`_launch_xmage`) and raises :class:`XMageError` on a non-zero exit (never
+    proceeds into the cold-scan race)."""
     captured: dict[str, object] = {}
 
     class _FakeProc:
@@ -192,10 +193,28 @@ def test_run_warm_scan_builds_warm_cmd_and_raises_on_nonzero(monkeypatch: pytest
 
     monkeypatch.setattr(xmage_engine.subprocess, 'Popen', _fake_popen)
     with pytest.raises(XMageError, match='warm-up failed'):
-        _run_warm_scan(_install(tmp_path))
+        XMageEngine()._run_warm_scan(_install(tmp_path))
     assert captured['cmd'][-1] == '--warm'  # the scan-only argument.
     assert 'org.makemagic.xmage.XMageBatch' in captured['cmd']
     assert captured['cwd'] == tmp_path  # launched from the reactor's Mage.Tests dir.
+
+
+def test_launch_xmage_kills_and_raises_on_timeout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The shared launcher enforces the kill contract: a timeout kills the process
+    group and raises :class:`XMageError` naming the run (one place for run + warm)."""
+    killed: list[object] = []
+
+    class _HangProc:
+        returncode = None
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            raise xmage_engine.subprocess.TimeoutExpired(cmd='x', timeout=timeout or 0)
+
+    monkeypatch.setattr(xmage_engine.subprocess, 'Popen', lambda *a, **k: _HangProc())
+    monkeypatch.setattr(xmage_engine.runner, '_kill_process_group', lambda proc: killed.append(proc))
+    with pytest.raises(XMageError, match='exceeded the external'):
+        xmage_engine._launch_xmage(_install(tmp_path), ['--warm'], cwd=tmp_path, timeout_s=1, what='warm-up')
+    assert len(killed) == 1  # the process group was reaped before raising.
 
 
 def test_stage_private_db_copies_db_into_run_dir(tmp_path: Path) -> None:

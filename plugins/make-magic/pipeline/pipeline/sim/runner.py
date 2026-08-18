@@ -51,7 +51,9 @@ __all__ = (
     'deck_to_dck',
     'is_clockout_segment',
     'parse_match_log',
+    'reap_stale_staging',
     'run_matchup',
+    'staging_root',
 )
 
 #: The committed sim-AI harness jar (shipped package data), resolved off this
@@ -290,7 +292,7 @@ def _kill_process_group(proc: subprocess.Popen[str]) -> None:
     proc.communicate()
 
 
-def _staging_root() -> Path:
+def staging_root() -> Path:
     """The isolated root under which each run's ``.dck`` files are staged.
 
     Lives UNDER the data dir (``<data_dir>/sim/staging/``, honoring
@@ -325,7 +327,7 @@ def reap_stale_staging(max_age_s: float = _STAGING_MAX_AGE_S) -> int:
     ``run-*`` / ``xmage-*`` staging dirs, and only those past the age cutoff (so a
     concurrent sim's in-flight dirs are safe).
     """
-    root = _staging_root()
+    root = staging_root()
     try:
         entries = list(root.iterdir())
     except OSError:
@@ -394,9 +396,9 @@ def run_matchup(
     # runs from sharing a filename namespace, and CONTENT-ADDRESSED names within it
     # keep two distinct decks that sanitize to the same stem from clobbering each
     # other (both R3-2 hazards). The whole dir is removed in the `finally` below.
-    staging_root = _staging_root()
-    staging_root.mkdir(parents=True, exist_ok=True)
-    run_dir = Path(tempfile.mkdtemp(prefix='run-', dir=staging_root))
+    root = staging_root()
+    root.mkdir(parents=True, exist_ok=True)
+    run_dir = Path(tempfile.mkdtemp(prefix='run-', dir=root))
     try:
         dck_a = _stage_dck(run_dir, text_a)
         dck_b = _stage_dck(run_dir, text_b)

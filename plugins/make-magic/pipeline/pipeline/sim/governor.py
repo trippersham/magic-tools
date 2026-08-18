@@ -126,7 +126,7 @@ def free_disk_gib(path: Path | None = None) -> float:
         target = target.parent
     try:
         return shutil.disk_usage(target).free / _GIB
-    except Exception:
+    except OSError:
         return 0.0
 
 
