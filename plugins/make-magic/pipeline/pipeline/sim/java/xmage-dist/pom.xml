@@ -20,7 +20,7 @@
     against any stray transitive test/CDDL jar.
 
     Prereq: the org.mage:*:1.4.60 reactor artifacts installed in ~/.m2
-    (`mvn -pl Mage.Tests -am install -DskipTests` in a magefree/mage @ 1.4.60 clone).
+    (`mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests` in a magefree/mage @ 1.4.60 clone).
   -->
   <groupId>org.makemagic</groupId>
   <artifactId>make-magic-xmage-dist</artifactId>
@@ -40,7 +40,7 @@
     <dependency><groupId>org.mage</groupId><artifactId>mage-sets</artifactId><version>${xmage.version}</version></dependency>
     <dependency><groupId>org.mage</groupId><artifactId>mage-player-ai</artifactId><version>${xmage.version}</version></dependency>
     <!-- ComputerPlayer7 (MAD minimax) lives here. -->
-    <dependency><groupId>org.mage</groupId><artifactId>mage-player-ai-mad</artifactId><version>${xmage.version}</version></dependency>
+    <dependency><groupId>org.mage</groupId><artifactId>mage-player-ai-ma</artifactId><version>${xmage.version}</version></dependency>
     <dependency><groupId>org.mage</groupId><artifactId>mage-game-twoplayerduel</artifactId><version>${xmage.version}</version></dependency>
     <!-- FreeForAllMatch (the fake Match the AI's MatchPlayer copy needs). -->
     <dependency><groupId>org.mage</groupId><artifactId>mage-game-freeforall</artifactId><version>${xmage.version}</version></dependency>

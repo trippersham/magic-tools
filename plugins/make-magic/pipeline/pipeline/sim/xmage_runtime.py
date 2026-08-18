@@ -3,8 +3,9 @@
 XMage is a multi-module Maven app — unlike Forge, upstream publishes no single
 fat jar to fetch. So (until the shaded-jar distribution build, task 2.3b) the
 XMage engine runs against a LOCAL built reactor pointed to by
-``MAKE_MAGIC_XMAGE_HOME``: a checked-out + built XMage clone (``mvn -pl Mage.Tests
--am install -DskipTests``). ``pipeline/sim/java/xmage/build.sh`` compiles the small
+``MAKE_MAGIC_XMAGE_HOME``: a checked-out + built XMage clone (``mvn -pl
+Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests`` — the
+mad-bot module carries ComputerPlayer7). ``pipeline/sim/java/xmage/build.sh`` compiles the small
 harness jar AND caches the reactor's transitive classpath to
 ``<home>/make-magic-xmage-classpath.txt`` — so resolution here is a fast,
 network-free read (no ``mvn`` at run time).
@@ -37,8 +38,9 @@ __all__ = (
     'resolve',
 )
 
-#: Point this at a BUILT XMage reactor (a clone where ``mvn -pl Mage.Tests -am
-#: install -DskipTests`` has run) — the dir that contains ``Mage.Tests/``.
+#: Point this at a BUILT XMage reactor (a clone where ``mvn -pl
+#: Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests`` has
+#: run) — the dir that contains ``Mage.Tests/``.
 ENV_XMAGE_HOME = 'MAKE_MAGIC_XMAGE_HOME'
 
 #: The pinned XMage version the harness is compiled + verified against.
@@ -132,7 +134,7 @@ def resolve(data_dir: str | os.PathLike[str] | None = None) -> XMageInstall:
     raise XMageUnavailableError(
         f'no XMage install. Run `simulate doctor --provision` to auto-download the shaded XMage '
         f'jar (~76 MB, one-time, cached), or set {ENV_XMAGE_HOME} to a BUILT XMage {XMAGE_VERSION} '
-        'reactor (a clone where `mvn -pl Mage.Tests -am install -DskipTests` has run).'
+        'reactor (a clone where `mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests` has run).'
     )
 
 
@@ -143,7 +145,7 @@ def _resolve_reactor(home_env: str) -> XMageInstall:
     if not mage_tests.is_dir():
         raise XMageUnavailableError(
             f'{ENV_XMAGE_HOME}={home_env!r} has no Mage.Tests/ — not a built XMage reactor. '
-            'Clone XMage, then run `mvn -pl Mage.Tests -am install -DskipTests` in it.'
+            'Clone XMage, then run `mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests` in it.'
         )
     if not _HARNESS_JAR.is_file():
         raise XMageUnavailableError(

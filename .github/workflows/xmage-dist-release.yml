@@ -65,13 +65,16 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       # Build the XMage engine artifacts (org.mage:*) into ~/.m2 so the dist pom can
-      # resolve them. `-pl Mage.Tests -am` matches build.sh (installs the engine tree).
+      # resolve them. `-am` installs each named module's upstream deps. Mage.Tests pulls
+      # mage/mage-common/mage-sets/mage-player-ai/the game-modes, but NOT the "mad bot"
+      # (mage-player-ai-ma = ComputerPlayer7) — it is not a Mage.Tests dependency — so it
+      # is named explicitly, else the dist pom can't resolve it in a CLEAN ~/.m2.
       - name: Clone + install the XMage reactor
         run: |
           set -euo pipefail
           git clone --depth 1 --branch "$XMAGE_TAG" "https://github.com/${XMAGE_REPO}.git" xmage-src
           cd xmage-src
-          mvn -q -B -pl Mage.Tests -am install -DskipTests
+          mvn -q -B -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests
 
       - name: Build the shaded dist jar
         run: mvn -q -B -f "$DIST_DIR/pom.xml" -DskipTests package

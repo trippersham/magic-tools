@@ -34,7 +34,7 @@ See the spike driver `~/mtg-sim-lab/xmage-lab/spike/build_and_run.sh` for the
 reference invocation; the SHADED MIT production jar + the `XMageEngine` SimEngine
 wrapper + the CI license audit are task 2.3.
 
-    XMage jars: build the reactor (`mvn -pl Mage.Tests -am install -DskipTests`) at
+    XMage jars: build the reactor (`mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests`) at
     a local XMage 1.4.60 clone; assemble the classpath with
     `mvn dependency:build-classpath`; compile the two sources; run with
     cwd=Mage.Tests (so the H2 card db/ resolves).
