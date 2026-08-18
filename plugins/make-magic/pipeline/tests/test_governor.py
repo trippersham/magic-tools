@@ -197,6 +197,26 @@ def test_governor_never_exceeds_pool_size() -> None:
     assert not result.failures
 
 
+def test_max_concurrency_clamps_pool_below_derived() -> None:
+    """An engine-imposed ``max_concurrency`` ceiling (XMage's non-COW serialize, #61)
+    clamps the RAM-derived pool down — the peak in-flight never exceeds the cap."""
+    tracker = _ConcurrencyTracker(hold_s=0.05)
+    specs = [_spec(3000 + i) for i in range(8)]
+    result = _run(tracker, specs, pool_size=4, max_concurrency=1, stagger_s=0.0)
+
+    assert result.pool_size == 1  # clamped from 4.
+    assert tracker.max_in_flight <= 1, f'saw {tracker.max_in_flight} concurrent despite cap=1'
+    assert tracker.calls == 8  # all still ran, just serialized.
+
+
+def test_max_concurrency_none_leaves_pool_unclamped() -> None:
+    """A ``None`` cap (COW volume / Forge) does not shrink the pool."""
+    tracker = _ConcurrencyTracker(hold_s=0.0)
+    specs = [_spec(3100 + i) for i in range(4)]
+    result = _run(tracker, specs, pool_size=3, max_concurrency=None, stagger_s=0.0)
+    assert result.pool_size == 3
+
+
 def test_governor_returns_all_results_and_derived_pool() -> None:
     tracker = _ConcurrencyTracker(hold_s=0.0)
 

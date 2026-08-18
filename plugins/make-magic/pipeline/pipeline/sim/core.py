@@ -267,6 +267,7 @@ def run_cached_matchups(
     force: bool = False,
     data_dir: str | os.PathLike[str] | None = None,
     pool_size: int | None = None,
+    max_concurrency: int | None = None,
 ) -> MatchupBatch:
     """Run ``specs`` through the content-addressed cache, returning one outcome each.
 
@@ -327,7 +328,14 @@ def run_cached_matchups(
         # DBs land), not merely cwd — otherwise the floor guards the wrong volume when
         # the data dir is on a separate mount.
         reap_stale_staging()
-        pool = run_matchups(engine, install, miss_specs, pool_size=pool_size, disk_path=staging_root())
+        pool = run_matchups(
+            engine,
+            install,
+            miss_specs,
+            pool_size=pool_size,
+            max_concurrency=max_concurrency,
+            disk_path=staging_root(),
+        )
         aborted = pool.aborted
         # Surface every governor failure as ``(opponent, error)`` so a deck-load /
         # timeout / crash is DISTINCT from a real 0-0-0 loss (B2). ``deck_b`` is
@@ -584,7 +592,23 @@ def simulate(
         for offset, opp in enumerate(opponents)
     ]
 
-    batch = run_cached_matchups(engine, install, specs, force=force, data_dir=data_dir, pool_size=pool_size)
+    # An engine MAY impose a per-batch concurrency ceiling from its install/environment
+    # (XMage serializes on a non-COW staging volume, where each private-db copy is a full
+    # ~266 MB real copy — #61). Duck-typed so engines without the concern (Forge) need not
+    # implement it.
+    engine_cap = getattr(engine, 'max_concurrency', None)
+    _cap = engine_cap(install) if callable(engine_cap) else None
+    max_concurrency = _cap if isinstance(_cap, int) else None
+
+    batch = run_cached_matchups(
+        engine,
+        install,
+        specs,
+        force=force,
+        data_dir=data_dir,
+        pool_size=pool_size,
+        max_concurrency=max_concurrency,
+    )
     outcomes = batch.outcomes
 
     per_opponent: list[OpponentResult] = []

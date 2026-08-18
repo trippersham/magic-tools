@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import warnings
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -120,9 +121,44 @@ class XMageEngine:
         # isolation without a reset fixture.
         self._warm_lock = threading.Lock()
         self._warmed_dirs: set[str] = set()
+        #: Memoized COW-probe result per '<reactor>-><staging>' pair (the _stage_private_db
+        #: clone path). Guarded by _warm_lock. See :meth:`max_concurrency`.
+        self._cow_probe: dict[str, bool] = {}
 
     def capabilities(self) -> EngineCapabilities:
         return _XMAGE_CAPABILITIES
+
+    def max_concurrency(self, install: EngineInstall) -> int | None:
+        """SERIALIZE (cap=1) when the per-run private-db copy would be a FULL real copy.
+
+        :func:`_stage_private_db` prefers a copy-on-write clone (near-free) of the
+        canonical card DB, but falls back to a full ~266 MB copy on a non-COW staging
+        volume OR when the reactor DB and staging are on DIFFERENT volumes (clonefile
+        is intra-volume). There a parallel pool would burn ``pool x 266 MB`` of REAL
+        disk — the reboot-class exhaustion this guards (#61). Serializing bounds the
+        peak to ONE copy at a time (cleaned per-run), so even a low-free-disk box stays
+        safe. On a COW path returns ``None`` (no cap → full parallelism; clones are
+        ~free). Probed once + WARNed once per (reactor, staging) pair; the governor
+        clamps its RAM-derived pool by this.
+        """
+        handle: XMageInstall = install.handle
+        src = handle.mage_tests_dir
+        dst = runner.staging_root()
+        key = f'{src}->{dst}'
+        with self._warm_lock:
+            cow = self._cow_probe.get(key)
+            if cow is None:
+                cow = _probe_cow(src, dst)
+                self._cow_probe[key] = cow
+                if not cow:
+                    warnings.warn(
+                        'XMage: the staging volume does not support copy-on-write clones (a '
+                        'non-reflink filesystem, or the reactor DB and staging on different volumes) '
+                        '— SERIALIZING matchups so the per-run ~266 MB card-DB copy cannot exhaust '
+                        'disk. A COW volume (APFS/btrfs/xfs, same mount) restores full parallelism.',
+                        stacklevel=2,
+                    )
+        return None if cow else 1
 
     def resolve(self, *, provision: bool, data_dir: Path | None = None) -> EngineInstall:
         """Resolve the local XMage reactor install, wrapped in an :class:`EngineInstall`.
@@ -291,6 +327,38 @@ def _stage_private_db(handle: XMageInstall, run_dir: Path) -> None:
         return
     shutil.rmtree(dst, ignore_errors=True)  # clear any partial clone before the copy.
     shutil.copytree(src, dst)
+
+
+def _probe_cow(src_dir: Path, dst_dir: Path) -> bool:
+    """True iff a copy-on-write clone works from ``src_dir``'s volume to ``dst_dir``'s.
+
+    Mirrors the real :func:`_stage_private_db` path (reactor db → staging) with a tiny
+    probe file, using reflink-ALWAYS / clonefile (``cp -c`` on macOS, ``cp
+    --reflink=always`` on Linux) — which FAIL on a non-reflink filesystem OR across
+    volumes, unlike ``--reflink=auto`` (which silently falls back to a full copy). So a
+    ``True`` return means the per-run db copy will be near-free; ``False`` means it
+    would be a full ~266 MB copy (→ serialize, #61). Never raises; cleans up the probe.
+    """
+    try:
+        src_dir.mkdir(parents=True, exist_ok=True)
+        dst_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return False
+    probe = src_dir / '.mm-cow-probe'
+    clone = dst_dir / '.mm-cow-probe.clone'
+    try:
+        probe.write_bytes(b'\0' * 4096)
+        cmd = (
+            ['cp', '-c', str(probe), str(clone)]
+            if sys.platform == 'darwin'
+            else ['cp', '--reflink=always', str(probe), str(clone)]
+        )
+        return subprocess.run(cmd, capture_output=True, check=False).returncode == 0
+    except OSError:
+        return False
+    finally:
+        probe.unlink(missing_ok=True)
+        clone.unlink(missing_ok=True)
 
 
 def _clone_tree_cow(src: Path, dst: Path) -> bool:

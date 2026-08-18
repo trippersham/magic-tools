@@ -230,6 +230,42 @@ def test_stage_private_db_copies_db_into_run_dir(tmp_path: Path) -> None:
     assert copied.read_bytes() == b'CARD DB BYTES'  # a real, independent copy.
 
 
+def test_max_concurrency_serializes_on_non_cow(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A non-COW staging volume → cap 1 (serialize) so pool x 266MB copies can't
+    exhaust disk (#61), and it WARNs once."""
+    from pipeline.sim.engine import EngineInstall
+
+    monkeypatch.setattr(xmage_engine, '_probe_cow', lambda src, dst: False)
+    monkeypatch.setattr(xmage_engine.runner, 'staging_root', lambda: tmp_path / 'staging')
+    engine = XMageEngine()
+    install = EngineInstall(version='x', handle=_install(tmp_path / 'reactor'))
+    with pytest.warns(UserWarning, match='SERIALIZING'):
+        assert engine.max_concurrency(install) == 1
+    # memoized — a second call neither re-probes nor re-warns.
+    monkeypatch.setattr(xmage_engine, '_probe_cow', lambda src, dst: pytest.fail('re-probed'))
+    assert engine.max_concurrency(install) == 1
+
+
+def test_max_concurrency_no_cap_on_cow(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A COW volume → no cap (None) so parallelism is unrestricted (clones are ~free)."""
+    from pipeline.sim.engine import EngineInstall
+
+    monkeypatch.setattr(xmage_engine, '_probe_cow', lambda src, dst: True)
+    monkeypatch.setattr(xmage_engine.runner, 'staging_root', lambda: tmp_path / 'staging')
+    engine = XMageEngine()
+    install = EngineInstall(version='x', handle=_install(tmp_path / 'reactor'))
+    assert engine.max_concurrency(install) is None
+
+
+def test_probe_cow_returns_bool_and_cleans_up(tmp_path: Path) -> None:
+    """The real probe returns a bool (env-dependent), never raises, and leaves no
+    probe files behind."""
+    src, dst = tmp_path / 'src', tmp_path / 'dst'
+    assert isinstance(xmage_engine._probe_cow(src, dst), bool)
+    assert not list(src.glob('.mm-cow-probe*'))
+    assert not list(dst.glob('.mm-cow-probe*'))
+
+
 def test_stage_private_db_missing_source_raises(tmp_path: Path) -> None:
     """A missing canonical db (warm-up never built it) fails loudly, not silently."""
     reactor = tmp_path / 'reactor'

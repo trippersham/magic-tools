@@ -246,6 +246,11 @@ class Governor:
     stagger_s: float = 5.0
     seed_offset: int = 0
     disk_path: Path | None = None
+    #: An ENGINE-imposed hard ceiling on concurrent JVMs, clamped onto the RAM-derived
+    #: pool. Used by XMage to SERIALIZE (cap=1) on a non-COW staging volume, where each
+    #: per-run private-db copy is a full ~266 MB real copy — a parallel pool would burn
+    #: pool x db-size of real disk (the reboot-class exhaustion, #61). ``None`` = no cap.
+    max_concurrency: int | None = None
     #: Bound the admission back-off loop so a persistently starved host aborts
     #: (returns a partial result) instead of spinning forever.
     max_admission_backoffs: int = 240
@@ -262,6 +267,10 @@ class Governor:
         ``pool_size``.
         """
         pool = self.pool_size or derive_pool_size(hard_cap=self.hard_cap, per_jvm_gib=self.per_jvm_gib)
+        # An engine's per-batch safety ceiling (e.g. XMage serializing on a non-COW
+        # staging volume) clamps the RAM-derived pool — never raises it.
+        if self.max_concurrency is not None:
+            pool = max(1, min(pool, self.max_concurrency))
 
         results: list[MatchResult] = []
         failures: list[MatchFailure] = []
@@ -380,6 +389,7 @@ def run_matchups(
     stagger_s: float = 5.0,
     seed_offset: int = 0,
     disk_path: Path | None = None,
+    max_concurrency: int | None = None,
     max_admission_backoffs: int = 240,
 ) -> PoolResult:
     """Run ``specs`` across a bounded, resource-safe pool (convenience wrapper).
@@ -387,11 +397,13 @@ def run_matchups(
     Constructs a :class:`Governor` with the given knobs and runs it, dispatching
     each spec to ``engine.run_matchup`` with the resolved ``install``.
     ``pool_size`` ``None`` derives the size at runtime; pinning it (e.g. the gated
-    Forge test) caps concurrency exactly. See :class:`Governor.run` for the
-    admission and concurrency guarantees.
+    Forge test) caps concurrency exactly. ``max_concurrency`` is an engine-imposed
+    ceiling clamped onto the derived pool (XMage's non-COW serialize). See
+    :class:`Governor.run` for the admission and concurrency guarantees.
     """
     governor = Governor(
         pool_size=pool_size,
+        max_concurrency=max_concurrency,
         hard_cap=hard_cap,
         per_jvm_gib=per_jvm_gib,
         ram_floor_gib=ram_floor_gib,
