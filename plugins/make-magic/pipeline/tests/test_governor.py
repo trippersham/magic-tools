@@ -209,6 +209,41 @@ def test_max_concurrency_clamps_pool_below_derived() -> None:
     assert tracker.calls == 8  # all still ran, just serialized.
 
 
+def test_continuous_sampler_aborts_on_sustained_emergency(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The mid-run sampler catches a starvation that develops WHILE workers are in-flight
+    (no admission happening) — disk sits below the EMERGENCY floor but above the (zeroed)
+    admission floor, so only the continuous sampler can trip it. Sustained breaches abort
+    the batch; pending work is not admitted (#62)."""
+    monkeypatch.setattr(gov, 'free_disk_gib', lambda _p=None: 0.2)  # < emergency, > admission floor
+    monkeypatch.setattr(gov, 'free_ram_gib', lambda: 100.0)
+    tracker = _ConcurrencyTracker(hold_s=0.1)  # slow enough for the sampler to sample mid-run
+    specs = [_spec(4000 + i) for i in range(20)]
+    result = _run(
+        tracker,
+        specs,
+        pool_size=1,
+        stagger_s=0.0,
+        disk_floor_gib=0.0,  # admission never backs off on disk...
+        ram_floor_gib=0.0,
+        emergency_disk_gib=1.0,  # ...but 0.2 < 1.0 -> the sampler breaches every tick
+        sampler_interval_s=0.01,
+        emergency_breaches_to_abort=2,
+    )
+    assert result.aborted  # the continuous sampler tripped mid-run
+    assert tracker.calls < 20  # admission stopped — not all specs ran
+
+
+def test_sampler_does_not_abort_when_resources_healthy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Healthy resources -> the sampler never trips; all work runs, not aborted."""
+    monkeypatch.setattr(gov, 'free_disk_gib', lambda _p=None: 50.0)
+    monkeypatch.setattr(gov, 'free_ram_gib', lambda: 50.0)
+    tracker = _ConcurrencyTracker(hold_s=0.0)
+    specs = [_spec(4200 + i) for i in range(6)]
+    result = _run(tracker, specs, pool_size=2, stagger_s=0.0, sampler_interval_s=0.01)
+    assert not result.aborted
+    assert tracker.calls == 6
+
+
 def test_max_concurrency_none_leaves_pool_unclamped() -> None:
     """A ``None`` cap (COW volume / Forge) does not shrink the pool."""
     tracker = _ConcurrencyTracker(hold_s=0.0)

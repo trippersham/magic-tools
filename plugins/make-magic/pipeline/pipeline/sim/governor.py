@@ -1,15 +1,15 @@
 """Resource-safety concurrency governor for parallel Forge sim JVMs.
 
-Runs many matchups across a bounded, resource-safe worker pool so a batch can
-never exhaust the machine. Uses stdlib-only resource detection (no ``psutil``
-dependency).
+Runs MANY matchups across a bounded, resource-safe worker pool so a batch can
+never exhaust the machine. Ported from a live-tested prototype and hardened to
+STDLIB-only resource detection (no ``psutil`` dependency).
 
 Guarantees (enforced, not hoped):
 
   * **Pool size is derived at runtime, never hardcoded** —
     ``max(1, min(hard_cap, cores - 2, free_mem // per_jvm_budget))`` via
     :func:`derive_pool_size`. Defaults ``hard_cap=6``, ``per_jvm_gib=2.0``.
-  * **Memory/disk-aware admission** — before spawning each worker, free RAM and
+  * **Memory/disk-aware admission** — before spawning EACH worker, free RAM and
     free disk are re-checked against floors; below a floor the governor backs off
     (sleeps) rather than spawn. Persistent starvation aborts with a partial
     :class:`PoolResult` instead of spinning forever.
@@ -24,7 +24,7 @@ Guarantees (enforced, not hoped):
     :class:`MatchFailure`, not a crash; on abort no new work is admitted and
     in-flight subprocesses finish (or are killed by their own external timeout).
 
-Resource detection is stdlib only: ``os.cpu_count()`` for cores,
+Resource detection is STDLIB only: ``os.cpu_count()`` for cores,
 ``shutil.disk_usage()`` for free disk, and platform calls for free RAM —
 ``vm_stat`` on macOS, ``/proc/meminfo`` on Linux, conservative fallback (assume
 tight) elsewhere.
@@ -61,7 +61,7 @@ __all__ = (
     'run_matchups',
 )
 
-#: Meta-safety ceiling on concurrent JVMs for any batch (never exceeded, even on a
+#: META-SAFETY ceiling on concurrent JVMs for any batch (never exceeded, even on a
 #: big machine). 6 is empirical: beyond ~6 simultaneous Forge card-DB loads the
 #: shared I/O + memory pressure thrash and per-JVM start time balloons (3.8s solo →
 #: ~13.7s at 6-up), erasing the parallelism gain. The runtime pool is
@@ -78,12 +78,12 @@ _PAGE = 16384
 
 
 # --------------------------------------------------------------------------- #
-# Resource detection — stdlib only (no psutil).
+# Resource detection — STDLIB only (no psutil).
 # --------------------------------------------------------------------------- #
 
 
 def free_ram_gib() -> float:
-    """Best-effort reclaimable free RAM in GiB, stdlib only.
+    """Best-effort reclaimable free RAM in GiB, STDLIB only.
 
     macOS: sums ``Pages free + inactive + speculative`` from ``vm_stat`` (these
     are reclaimable under pressure). Linux: ``MemAvailable`` from
@@ -112,7 +112,7 @@ def free_ram_gib() -> float:
 
 
 def free_disk_gib(path: Path | None = None) -> float:
-    """Free disk (GiB) on the volume holding ``path`` (cwd if ``None``); stdlib.
+    """Free disk (GiB) on the volume holding ``path`` (cwd if ``None``); STDLIB.
 
     A not-yet-created target (e.g. a staging dir made lazily on first run) still
     lives on a real volume, so walk up to the nearest EXISTING ancestor before
@@ -204,7 +204,7 @@ class PoolResult:
 
     ``results`` holds every :class:`~pipeline.sim.runner.MatchResult` that parsed;
     ``failures`` holds every :class:`MatchFailure`. ``pairs`` binds each result
-    to the exact :class:`MatchSpec` that produced it — deck names are not unique
+    to the EXACT :class:`MatchSpec` that produced it — deck names are NOT unique
     across specs, so callers that need to attribute results (e.g. to a cache
     key) must pair by spec, never by name. ``pool_size`` is the derived
     (or caller-pinned) concurrency ceiling; ``max_concurrent`` is the observed
@@ -251,6 +251,18 @@ class Governor:
     #: per-run private-db copy is a full ~266 MB real copy — a parallel pool would burn
     #: pool x db-size of real disk (the reboot-class exhaustion, #61). ``None`` = no cap.
     max_concurrency: int | None = None
+    #: EMERGENCY floors (below the admission floors): a CONTINUOUS background sampler
+    #: re-checks free RAM/disk every :attr:`sampler_interval_s` DURING the run — not
+    #: just at admission — so a starvation that develops while ``pool`` workers are all
+    #: in-flight (no admission happening) is detected. ``emergency_breaches_to_abort``
+    #: consecutive breaches ABORT the batch (stop admitting; in-flight drains, each JVM
+    #: bounded by the engine's own per-matchup external timeout — the governor does not
+    #: hold the JVM handle to kill a running worker directly). This closes the
+    #: "floors are pre-admission only" gap.
+    emergency_ram_gib: float = 1.0
+    emergency_disk_gib: float = 0.5
+    sampler_interval_s: float = 2.0
+    emergency_breaches_to_abort: int = 3
     #: Bound the admission back-off loop so a persistently starved host aborts
     #: (returns a partial result) instead of spinning forever.
     max_admission_backoffs: int = 240
@@ -288,15 +300,35 @@ class Governor:
         slots = threading.Semaphore(pool)
 
         aborted = False
+        emergency = threading.Event()  # set by the sampler on sustained starvation.
+        stop_sampler = threading.Event()  # set at drain to end the sampler cleanly.
 
         def _record_resources() -> tuple[float, float]:
+            # Called from BOTH the admission loop and the sampler thread — guard the
+            # shared min/snapshot state under the same lock the workers use.
             nonlocal min_ram, min_disk
             ram = free_ram_gib()
             disk = free_disk_gib(self.disk_path)
-            min_ram = min(min_ram, ram)
-            min_disk = min(min_disk, disk)
-            snapshots.append({'free_ram_gib': ram, 'free_disk_gib': disk})
+            with lock:
+                min_ram = min(min_ram, ram)
+                min_disk = min(min_disk, disk)
+                snapshots.append({'free_ram_gib': ram, 'free_disk_gib': disk})
             return ram, disk
+
+        def _sampler() -> None:
+            # Continuously monitor DURING the run (not just at admission). N consecutive
+            # emergency-floor breaches -> abort: the admission loop stops, in-flight
+            # workers drain (each bounded by the engine's per-matchup external timeout).
+            breaches = 0
+            while not stop_sampler.wait(self.sampler_interval_s):
+                ram, disk = _record_resources()
+                if ram < self.emergency_ram_gib or disk < self.emergency_disk_gib:
+                    breaches += 1
+                    if breaches >= self.emergency_breaches_to_abort:
+                        emergency.set()
+                        return
+                else:
+                    breaches = 0
 
         def _worker(spec: MatchSpec) -> None:
             nonlocal in_flight, max_concurrent
@@ -327,12 +359,22 @@ class Governor:
         futures: list[Future[None]] = []
         last_spawn = 0.0
 
+        sampler = threading.Thread(target=_sampler, name='governor-sampler', daemon=True)
+        sampler.start()
+
         with ThreadPoolExecutor(max_workers=pool) as executor:
             while pending:
                 # Wait for a free concurrency slot (blocks -> never over-admit).
                 slots.acquire()
 
-                # Memory/disk-aware admission: re-check floors before each spawn.
+                # A sustained emergency (the continuous sampler) stops admission: no
+                # new work, in-flight drains. Distinct from a per-spawn floor back-off.
+                if emergency.is_set():
+                    aborted = True
+                    slots.release()
+                    break
+
+                # Memory/disk-aware admission: re-check floors before EACH spawn.
                 backoffs = 0
                 while True:
                     ram, disk = _record_resources()
@@ -342,7 +384,7 @@ class Governor:
                     if backoffs >= self.max_admission_backoffs:
                         aborted = True
                         break
-                    time.sleep(1.0)  # back off; do not spawn while starved.
+                    time.sleep(1.0)  # back off; do NOT spawn while starved.
 
                 if aborted:
                     slots.release()  # hand the slot back; we're not admitting.
@@ -362,6 +404,12 @@ class Governor:
             # Drain: wait for in-flight workers to finish (or self-kill on timeout).
             for fut in futures:
                 fut.result()
+
+        # End the continuous sampler now that no work remains.
+        stop_sampler.set()
+        sampler.join(timeout=self.sampler_interval_s + 1.0)
+        if emergency.is_set():
+            aborted = True
 
         return PoolResult(
             pool_size=pool,
@@ -390,6 +438,10 @@ def run_matchups(
     seed_offset: int = 0,
     disk_path: Path | None = None,
     max_concurrency: int | None = None,
+    emergency_ram_gib: float = 1.0,
+    emergency_disk_gib: float = 0.5,
+    sampler_interval_s: float = 2.0,
+    emergency_breaches_to_abort: int = 3,
     max_admission_backoffs: int = 240,
 ) -> PoolResult:
     """Run ``specs`` across a bounded, resource-safe pool (convenience wrapper).
@@ -411,6 +463,10 @@ def run_matchups(
         stagger_s=stagger_s,
         seed_offset=seed_offset,
         disk_path=disk_path,
+        emergency_ram_gib=emergency_ram_gib,
+        emergency_disk_gib=emergency_disk_gib,
+        sampler_interval_s=sampler_interval_s,
+        emergency_breaches_to_abort=emergency_breaches_to_abort,
         max_admission_backoffs=max_admission_backoffs,
     )
     return governor.run(engine, install, specs)
