@@ -972,12 +972,13 @@ def test_ensure_forge_non_interactive_auto_proceeds(monkeypatch: pytest.MonkeyPa
 
 
 def test_ensure_forge_tty_decline_aborts(monkeypatch: pytest.MonkeyPatch) -> None:
-    """S2: an interactive user answering 'n' aborts with a clean ForgeUnavailableError."""
+    """S2: an interactive user answering 'n' aborts with a clean EngineUnavailableError
+    (the consent is now engine-generic — Forge and XMage both auto-provision)."""
     monkeypatch.setattr(forge_runtime, 'resolve', _miss)
     monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: pytest.fail('declined download must not fetch'))
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
     monkeypatch.setattr('builtins.input', lambda _p: 'n')
-    with pytest.raises(ForgeUnavailableError, match='declined'):
+    with pytest.raises(EngineUnavailableError, match='declined'):
         sim_run._ensure_engine(sim_run.get_engine('forge'))
 
 

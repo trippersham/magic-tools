@@ -73,6 +73,17 @@ _XMAGE_CAPABILITIES = EngineCapabilities(
 )
 
 
+def _notify_fetching() -> None:
+    """One-time "downloading…" notice on the fetch path so a first ``--engine xmage``
+    run doesn't look hung on the ~76 MB pull (mirrors Forge's fetch notice)."""
+    import sys
+
+    print(
+        f'Downloading the XMage sim engine ({XMAGE_VERSION}, ~76 MB, one-time, cached for reuse)…',
+        file=sys.stderr,
+    )
+
+
 class XMageError(RuntimeError):
     """An XMage run failed (deck-load / unparseable output / killed on timeout)."""
 
@@ -173,16 +184,21 @@ class XMageEngine:
         return None if cow else 1
 
     def resolve(self, *, provision: bool, data_dir: Path | None = None) -> EngineInstall:
-        """Resolve the local XMage reactor install, wrapped in an :class:`EngineInstall`.
+        """Resolve an XMage install, wrapped in an :class:`EngineInstall`.
 
-        XMage is not auto-provisionable (no upstream fat jar to fetch), so
-        ``provision`` is ignored — a missing reactor raises
-        :class:`~pipeline.sim.engine.EngineUnavailableError` with the how-to-enable
-        message (the seam's never-crash contract).
+        ``provision=False`` locates an existing install read-only (a built reactor on
+        ``MAKE_MAGIC_XMAGE_HOME``, or an already-fetched shaded jar). ``provision=True``
+        AUTO-FETCHES the shaded distributable from GitHub Releases on a miss (2.3b —
+        :func:`~pipeline.sim.xmage_runtime.ensure`), surfacing a one-time "downloading…"
+        notice, so a fresh box needs no reactor build. A missing install (or a failed
+        fetch) raises :class:`~pipeline.sim.engine.EngineUnavailableError` with the
+        how-to-enable message (the seam's never-crash contract).
         """
-        del provision
         try:
-            handle = xmage_runtime.resolve(data_dir=data_dir)
+            if provision:
+                handle = xmage_runtime.ensure(data_dir=data_dir, on_fetch=_notify_fetching)
+            else:
+                handle = xmage_runtime.resolve(data_dir=data_dir)
         except XMageUnavailableError as exc:
             raise EngineUnavailableError(str(exc)) from exc
         return EngineInstall(version=_engine_version(), handle=handle)

@@ -76,6 +76,20 @@ def test_resolve_unavailable_raises_engine_unavailable(monkeypatch: pytest.Monke
     assert 'MAKE_MAGIC_XMAGE_HOME' in str(exc.value)
 
 
+def test_resolve_provision_true_calls_ensure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """resolve(provision=True) AUTO-FETCHES via xmage_runtime.ensure (2.3b); provision=False
+    stays read-only (resolve)."""
+    calls: list[str] = []
+    monkeypatch.setattr(xmage_engine.xmage_runtime, 'ensure', lambda **kw: calls.append('ensure') or _install(tmp_path))
+    monkeypatch.setattr(
+        xmage_engine.xmage_runtime, 'resolve', lambda **kw: calls.append('resolve') or _install(tmp_path)
+    )
+
+    XMageEngine().resolve(provision=True)
+    XMageEngine().resolve(provision=False)
+    assert calls == ['ensure', 'resolve']
+
+
 def test_commander_is_rejected_constructed_only() -> None:
     # XMage engine is constructed-only for now — commander must fail clearly, not
     # silently mis-run. (No install needed: the format check precedes resolve use.)

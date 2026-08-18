@@ -59,7 +59,6 @@ from pipeline.sim.engine import (
 from pipeline.sim.forge_runtime import (
     ENV_FORGE_HOME,
     ENV_JAVA,
-    FORGE_VERSION,
     ForgeInstall,
     ForgeUnavailableError,
 )
@@ -177,30 +176,30 @@ def _resolve_deck_arg(arg: str) -> _ResolvedDeck:
 # --------------------------------------------------------------------------- #
 
 
-def _confirm_forge_download(*, assume_yes: bool) -> None:
-    """Gate the ~350 MB first-run download on consent when stdin is a TTY.
+def _confirm_engine_download(engine_name: str, *, assume_yes: bool) -> None:
+    """Gate a first-run engine download on consent when stdin is a TTY.
 
-    A stranger typing ``simulate deck …`` to explore should not silently pull
-    ~350 MB on a possibly-metered connection. So on the fetch path:
+    A stranger typing ``simulate deck …`` to explore should not silently pull a large
+    artifact (Forge ~350 MB, XMage ~76 MB) on a possibly-metered connection. So on the
+    fetch path:
 
       * ``--yes`` (``assume_yes``) or a NON-interactive stdin (agent / CI / pipe)
-        proceeds without a prompt — the auto-provision promise is kept for
-        automation.
-      * an INTERACTIVE stdin (a TTY) is asked to confirm; a non-``y`` answer
-        aborts with a clean :class:`ForgeUnavailableError` naming the escape
-        hatches (``--yes`` / ``doctor --provision``).
+        proceeds without a prompt — the auto-provision promise is kept for automation.
+      * an INTERACTIVE stdin (a TTY) is asked to confirm; a non-``y`` answer aborts
+        with a clean :class:`EngineUnavailableError` naming the escape hatches. The
+        engine's own ``resolve(provision=True)`` then surfaces the size-specific
+        "downloading…" notice.
     """
     if assume_yes or not sys.stdin.isatty():
         return
     print(
-        f'Forge is not installed. Download Forge {FORGE_VERSION} + a JRE now (~350MB, one-time, cached for reuse)?',
-        file=sys.stderr,
+        f'The {engine_name} sim engine is not installed. Download it now (one-time, cached for reuse)?', file=sys.stderr
     )
     answer = input('  proceed? [y/N] ').strip().lower()
     if answer not in ('y', 'yes'):
-        raise ForgeUnavailableError(
-            'Forge download declined. Re-run with --yes to auto-provision, or '
-            '`simulate doctor --provision` to install Forge explicitly.'
+        raise EngineUnavailableError(
+            f'{engine_name} download declined. Re-run with --yes to auto-provision, or '
+            '`simulate doctor --provision` to install it explicitly.'
         )
 
 
@@ -251,22 +250,18 @@ def _ensure_engine(engine: SimEngine, *, assume_yes: bool = False) -> EngineInst
     error. Returns the :class:`~pipeline.sim.engine.EngineInstall` the engine's
     ``run_matchup`` / ``simulate`` consume.
 
-    The download-confirmation copy is Forge-specific, and Forge (the DEFAULT) is the
-    only provisionable backend this phase: an opt-in engine (XMage) that resolves
-    unavailable re-raises its own how-to-enable :class:`EngineUnavailableError`
-    immediately — it is NOT sent through the Forge download prompt (which would
-    misdirect) and is NOT auto-fetched (there is no upstream fat jar). This is also
-    what lets ``--engine both`` treat an absent opt-in engine as a clean SKIP.
+    Both backends now auto-provision (2.3b): Forge fetches its ~350 MB release + JRE,
+    XMage the ~76 MB shaded distributable jar. The consent
+    (:func:`_confirm_engine_download`) is generic; the engine's own
+    ``resolve(provision=True)`` surfaces the size-specific "downloading…" notice. An
+    impossible fetch still raises ``EngineUnavailableError`` → ``main`` prints a clean
+    error (and ``--engine both`` treats it as a clean SKIP).
     """
     try:
         return engine.resolve(provision=False)
     except EngineUnavailableError:
-        # Only the DEFAULT engine (Forge) auto-provisions; an opt-in engine re-raises
-        # its own how-to-enable error. Falls through to the provision path ONLY for the
-        # default (the bare except-block exit continues below).
-        if engine.name != _DEFAULT_ENGINE:
-            raise
-    _confirm_forge_download(assume_yes=assume_yes)
+        pass
+    _confirm_engine_download(engine.name, assume_yes=assume_yes)
     return engine.resolve(provision=True)
 
 
@@ -1030,7 +1025,9 @@ def _doctor(argv: list[str]) -> None:
         engine = get_engine(name)
         caps = engine.capabilities()
         try:
-            provisionable = name == _DEFAULT_ENGINE and args.provision
+            # `--provision` now fetches ANY registered backend (Forge ~350MB, XMage
+            # ~76MB shaded jar), not just the default — the "install everything" intent.
+            provisionable = args.provision
             install: EngineInstall = _ensure_engine(engine) if provisionable else engine.resolve(provision=False)
         except EngineUnavailableError as exc:
             # Graceful: name WHY + HOW to enable, no traceback. Only the DEFAULT
