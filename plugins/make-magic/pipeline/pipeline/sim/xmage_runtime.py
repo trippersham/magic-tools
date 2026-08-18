@@ -46,6 +46,10 @@ ENV_XMAGE_HOME = 'MAKE_MAGIC_XMAGE_HOME'
 #: The pinned XMage version the harness is compiled + verified against.
 XMAGE_VERSION = '1.4.60'
 
+#: The reactor build command surfaced in "how to enable" errors. Includes the mad-bot
+#: module (mage-player-ai-ma = ComputerPlayer7) explicitly — it is not a Mage.Tests dep.
+_REACTOR_BUILD_CMD = 'mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests'
+
 #: The reactor's transitive classpath, cached here by ``build.sh`` (one file of
 #: ``:``-joined jar paths) so run-time resolution needs no ``mvn`` call.
 _CLASSPATH_CACHE = 'make-magic-xmage-classpath.txt'
@@ -134,7 +138,7 @@ def resolve(data_dir: str | os.PathLike[str] | None = None) -> XMageInstall:
     raise XMageUnavailableError(
         f'no XMage install. Run `simulate doctor --provision` to auto-download the shaded XMage '
         f'jar (~76 MB, one-time, cached), or set {ENV_XMAGE_HOME} to a BUILT XMage {XMAGE_VERSION} '
-        'reactor (a clone where `mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests` has run).'
+        f'reactor (a clone where `{_REACTOR_BUILD_CMD}` has run).'
     )
 
 
@@ -145,7 +149,7 @@ def _resolve_reactor(home_env: str) -> XMageInstall:
     if not mage_tests.is_dir():
         raise XMageUnavailableError(
             f'{ENV_XMAGE_HOME}={home_env!r} has no Mage.Tests/ — not a built XMage reactor. '
-            'Clone XMage, then run `mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests` in it.'
+            f'Clone XMage, then run `{_REACTOR_BUILD_CMD}` in it.'
         )
     if not _HARNESS_JAR.is_file():
         raise XMageUnavailableError(
