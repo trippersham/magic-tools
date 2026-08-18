@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    make-magic XMage sim distributable: ONE shaded jar = the headless XMage CP7
+    engine (mage core + cards + the MAD/minimax AI + the two-player duel) + the
+    make-magic harness (XMageBatch + the mage.collectors shadow), fetched at runtime
+    by pipeline/sim/xmage_runtime.py so users never build the reactor.
+
+    License hygiene by CONSTRUCTION: we depend on the ENGINE modules only, NOT
+    mage-server — mage-server is what transitively pulls the GPL-3.0-INCOMPATIBLE
+    server deps (Jersey/JAX-RS/JAXB/javax.mail = CDDL, jboss-remoting = LGPL, shiro,
+    bouncycastle). The spike proved the engine runs a full game without any of them.
+    The one required license-sensitive dep, H2 (dual EPL-1.0 / MPL-2.0), is
+    distributed under its MPL-2.0 arm (GPL-3.0-compatible). ormlite = ISC; everything
+    else Apache/BSD/MIT. The <artifactSet><excludes> below are belt-and-suspenders
+    against any stray transitive test/CDDL jar.
+
+    Prereq: the org.mage:*:1.4.60 reactor artifacts installed in ~/.m2
+    (`mvn -pl Mage.Tests -am install -DskipTests` in a magefree/mage @ 1.4.60 clone).
+  -->
+  <groupId>org.makemagic</groupId>
+  <artifactId>make-magic-xmage-dist</artifactId>
+  <version>1.4.60</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <xmage.version>1.4.60</xmage.version>
+  </properties>
+
+  <dependencies>
+    <!-- Engine modules ONLY (NO mage-server → no CDDL/EPL server surface). -->
+    <dependency><groupId>org.mage</groupId><artifactId>mage</artifactId><version>${xmage.version}</version></dependency>
+    <dependency><groupId>org.mage</groupId><artifactId>mage-common</artifactId><version>${xmage.version}</version></dependency>
+    <dependency><groupId>org.mage</groupId><artifactId>mage-sets</artifactId><version>${xmage.version}</version></dependency>
+    <dependency><groupId>org.mage</groupId><artifactId>mage-player-ai</artifactId><version>${xmage.version}</version></dependency>
+    <!-- ComputerPlayer7 (MAD minimax) lives here. -->
+    <dependency><groupId>org.mage</groupId><artifactId>mage-player-ai-mad</artifactId><version>${xmage.version}</version></dependency>
+    <dependency><groupId>org.mage</groupId><artifactId>mage-game-twoplayerduel</artifactId><version>${xmage.version}</version></dependency>
+    <!-- FreeForAllMatch (the fake Match the AI's MatchPlayer copy needs). -->
+    <dependency><groupId>org.mage</groupId><artifactId>mage-game-freeforall</artifactId><version>${xmage.version}</version></dependency>
+  </dependencies>
+
+  <build>
+    <finalName>make-magic-xmage-dist</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <!-- Reflective + SPI card loading: NEVER minimizeJar (it would strip
+                   card classes the scanner loads by name). Prune via deps instead. -->
+              <minimizeJar>false</minimizeJar>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <artifactSet>
+                <excludes>
+                  <!-- test scaffolding that must never enter a runtime jar (EPL) -->
+                  <exclude>junit:junit</exclude>
+                  <exclude>org.junit.jupiter:*</exclude>
+                  <exclude>org.junit.platform:*</exclude>
+                  <exclude>org.junit.vintage:*</exclude>
+                  <exclude>org.hamcrest:*</exclude>
+                  <exclude>org.opentest4j:*</exclude>
+                  <exclude>org.apiguardian:*</exclude>
+                  <exclude>org.assertj:*</exclude>
+                  <!-- GPL-3.0-incompatible server transitives, if any leak through -->
+                  <exclude>com.sun.jersey:*</exclude>
+                  <exclude>com.sun.jersey.contribs:*</exclude>
+                  <exclude>javax.ws.rs:*</exclude>
+                  <exclude>javax.mail:*</exclude>
+                  <exclude>javax.activation:*</exclude>
+                  <exclude>com.sun.activation:*</exclude>
+                  <exclude>javax.xml.bind:*</exclude>
+                  <exclude>com.sun.xml.bind:*</exclude>
+                  <exclude>org.glassfish.jaxb:*</exclude>
+                  <exclude>org.jboss.remoting:*</exclude>
+                  <exclude>jboss:*</exclude>
+                  <exclude>org.jboss:*</exclude>
+                  <exclude>org.apache.shiro:*</exclude>
+                  <exclude>org.bouncycastle:*</exclude>
+                </excludes>
+              </artifactSet>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                    <exclude>module-info.class</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <transformers>
+                <!-- Merge the SPI service files (jspf/service-wight card loading). -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                <!-- Main-Class + Build-Time (the latter silences XMage's JarVersion NPE). -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>org.makemagic.xmage.XMageBatch</mainClass>
+                  <manifestEntries>
+                    <Build-Time>make-magic-dist</Build-Time>
+                    <Implementation-Version>${xmage.version}</Implementation-Version>
+                  </manifestEntries>
+                </transformer>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

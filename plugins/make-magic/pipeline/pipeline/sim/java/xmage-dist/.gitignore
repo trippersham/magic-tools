@@ -1,0 +1,2 @@
+# The shaded jar is a RELEASE artifact fetched at runtime, never committed (git bloat).
+target/
