@@ -353,8 +353,12 @@ def _exit_nonzero_on_unusable_run(*results: SimResult) -> None:
     for result in results:
         if result.aborted or result.total_games == 0:
             raise SystemExit(1)
-        matchups = len(result.per_opponent)
-        if matchups and len(result.failures) > _MAX_MATCHUP_FAILURE_FRACTION * matchups:
+        # Denominator is the TOTAL field attempted = successes + failures. `per_opponent`
+        # holds ONLY the matchups that produced games; failures are tracked separately, so
+        # dividing by len(per_opponent) alone trips the guard at a ~1/3 failure rate rather
+        # than the documented majority (a 30-deck field, 12 failed, would wrongly exit 1).
+        total_matchups = len(result.per_opponent) + len(result.failures)
+        if total_matchups and len(result.failures) > _MAX_MATCHUP_FAILURE_FRACTION * total_matchups:
             raise SystemExit(1)
 
 

@@ -329,13 +329,18 @@ def run_cached_matchups(
         # DBs land), not merely cwd — otherwise the floor guards the wrong volume when
         # the data dir is on a separate mount.
         reap_stale_staging()
+        per_jvm = per_jvm_gib if per_jvm_gib is not None else DEFAULT_PER_JVM_GIB
         pool = run_matchups(
             engine,
             install,
             miss_specs,
             pool_size=pool_size,
             max_concurrency=max_concurrency,
-            per_jvm_gib=per_jvm_gib if per_jvm_gib is not None else DEFAULT_PER_JVM_GIB,
+            per_jvm_gib=per_jvm,
+            # Gate admission on a full per-JVM RAM budget, not the static 2.0 default —
+            # else a 3g XMage JVM can be admitted into <3 GiB free (the OOM #63 targets).
+            # For the lighter Forge default (2.0) this is unchanged.
+            ram_floor_gib=max(2.0, per_jvm),
             disk_path=staging_root(),
         )
         aborted = pool.aborted

@@ -262,6 +262,29 @@ def test_run_cached_matchups_miss_then_hit(monkeypatch: pytest.MonkeyPatch, data
     assert len(calls) == 1  # NO second governor batch — served from cache
 
 
+def test_run_cached_matchups_ram_floor_tracks_per_jvm(monkeypatch: pytest.MonkeyPatch, data_dir: Path) -> None:
+    """The admission RAM floor is threaded from the engine's per-JVM budget (max(2.0,
+    per_jvm)) so a 3g XMage JVM is not admitted into <3 GiB free — the OOM #63 targets."""
+    captured: dict[str, object] = {}
+
+    def fake_run_matchups(engine: object, install: object, specs: list[MatchSpec], **kw: object) -> PoolResult:
+        captured.clear()
+        captured.update(kw)
+        return _pool_result_candidate_sweeps(specs)
+
+    monkeypatch.setattr(core, 'run_matchups', fake_run_matchups)
+    specs = [MatchSpec(deck_a=('Cand', 'A'), deck_b=('Opp', 'B'), n=4, seed=1, fmt='constructed')]
+
+    # XMage's 3.0 budget lifts the admission floor to 3.0.
+    run_cached_matchups(_FakeEngine(), _engine_install(), specs, per_jvm_gib=3.0, force=True, data_dir=str(data_dir))
+    assert captured['per_jvm_gib'] == 3.0
+    assert captured['ram_floor_gib'] == 3.0
+
+    # Forge's default (per_jvm_gib=None -> 2.0) keeps the historical 2.0 floor.
+    run_cached_matchups(_FakeEngine(), _engine_install(), specs, force=True, data_dir=str(data_dir))
+    assert captured['ram_floor_gib'] == 2.0
+
+
 def test_run_cached_matchups_force_bypasses_cache(monkeypatch: pytest.MonkeyPatch, data_dir: Path) -> None:
     """``force=True`` re-runs even a cached matchup."""
     calls: list[list[MatchSpec]] = []

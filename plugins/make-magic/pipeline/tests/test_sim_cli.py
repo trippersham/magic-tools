@@ -74,9 +74,10 @@ def _sim_result(
 ) -> SimResult:
     """A populated ``SimResult`` a mocked ``core.simulate`` can return.
 
-    ``n_matchups`` sets how many per-opponent rows the result carries (one row per
-    matchup, failures included) — the denominator the mostly-failed exit guard reads
-    against ``failures``.
+    ``n_matchups`` sets how many per-opponent rows the result carries. In production
+    ``per_opponent`` holds ONLY the matchups that produced games (SUCCESSES); ``failures``
+    are tracked separately. The mostly-failed exit guard divides ``failures`` by the TOTAL
+    field (successes + failures), so fixtures pass the success count here + failures apart.
     """
     profile = TelemetryProfile(
         games=4,
@@ -385,12 +386,12 @@ def test_deck_majority_matchups_failed_exits_nonzero(
     games — the exit code scales with the failure rate, not just all-or-nothing (R2-3)."""
     dck = tmp_path / 'D.dck'
     dck.write_text(_VALID_CONSTRUCTED)
-    # 6 of 10 matchups failed (>50%), but the surviving 4 produced games.
+    # 6 of 10 matchups failed (>50%): 4 succeeded (per_opponent rows), 6 failed apart.
     failures = tuple((f'Opp{i}', 'Forge could not load a deck') for i in range(6))
     monkeypatch.setattr(
         sim_run,
         'simulate',
-        lambda *a, **k: _sim_result(total_games=16, failures=failures, n_matchups=10),
+        lambda *a, **k: _sim_result(total_games=16, failures=failures, n_matchups=4),
     )
     with pytest.raises(SystemExit) as exc:
         sim_run.main(['deck', str(dck)])
@@ -407,11 +408,34 @@ def test_deck_minority_matchups_failed_exits_zero(
     race) still leaves a usable field read — the run exits 0, failures on stderr."""
     dck = tmp_path / 'D.dck'
     dck.write_text(_VALID_CONSTRUCTED)
+    # 3 failed of 30 total: 27 succeeded (per_opponent rows), 3 failed apart.
     failures = tuple((f'Opp{i}', 'transient H2 race') for i in range(3))
     monkeypatch.setattr(
         sim_run,
         'simulate',
-        lambda *a, **k: _sim_result(total_games=108, failures=failures, n_matchups=30),
+        lambda *a, **k: _sim_result(total_games=108, failures=failures, n_matchups=27),
+    )
+    sim_run.main(['deck', str(dck)])  # no SystemExit -> exit 0.
+
+
+def test_deck_middle_band_failure_below_half_exits_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """Regression: 12 failed / 18 succeeded = 40% of a 30-deck field — a MINORITY, so exit 0.
+
+    The old guard divided failures by len(per_opponent) (successes only): 12 > 0.5*18 = 9
+    → wrongly exited 1. The correct denominator is successes + failures = 30, and
+    12 > 0.5*30 = 15 is False → exit 0. This is the untested 34-50% band the bug lived in.
+    """
+    dck = tmp_path / 'D.dck'
+    dck.write_text(_VALID_CONSTRUCTED)
+    failures = tuple((f'Opp{i}', 'transient crash') for i in range(12))
+    monkeypatch.setattr(
+        sim_run,
+        'simulate',
+        lambda *a, **k: _sim_result(total_games=72, failures=failures, n_matchups=18),
     )
     sim_run.main(['deck', str(dck)])  # no SystemExit -> exit 0.
 

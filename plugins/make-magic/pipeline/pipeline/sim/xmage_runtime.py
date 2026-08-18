@@ -197,10 +197,16 @@ def ensure(
     dist_dir = _dist_dir(data_dir)
     dist_dir.mkdir(parents=True, exist_ok=True)
     dest = dist_dir / _DIST_JAR_NAME
+    # Download + SHA-verify into a sibling staging path, then atomically publish. A
+    # crash (SIGKILL / power loss / disk-full) between the partial write and the verify
+    # must never leave a truncated jar at `dest` — resolve() trusts the cached jar by
+    # existence alone. Mirrors forge_runtime._fetch_and_extract's staging discipline.
+    staging = dist_dir / f'{_DIST_JAR_NAME}.incomplete'
     try:
-        _download_verified(XMAGE_DIST_URL, dest, sha256=XMAGE_DIST_SHA256)
+        _download_verified(XMAGE_DIST_URL, staging, sha256=XMAGE_DIST_SHA256)
+        os.replace(staging, dest)
     except Exception as exc:
-        dest.unlink(missing_ok=True)  # never leave a partial/unverified jar cached.
+        staging.unlink(missing_ok=True)  # never leave a partial/unverified jar cached.
         raise XMageUnavailableError(
             f'could not fetch the shaded XMage jar from {XMAGE_DIST_URL}: {exc}. '
             f'(Or set {ENV_XMAGE_HOME} to a built reactor to skip the download.)'

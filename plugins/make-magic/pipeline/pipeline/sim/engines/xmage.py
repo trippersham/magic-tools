@@ -440,6 +440,12 @@ def _launch_xmage(handle: XMageInstall, args: list[str], *, cwd: Path, timeout_s
     except subprocess.TimeoutExpired as exc:
         runner._kill_process_group(proc)
         raise XMageError(f'XMage {what} exceeded the external {timeout_s}s timeout and was killed.') from exc
+    except BaseException:
+        # Any other failure reading the pipes (e.g. MemoryError under the very RAM
+        # pressure this subsystem fights, or KeyboardInterrupt) must not orphan the
+        # session-leader JVM holding its full -Xmx heap. Kill the group, then re-raise.
+        runner._kill_process_group(proc)
+        raise
     return (stdout or '') + (stderr or ''), proc.returncode
 
 

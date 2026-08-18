@@ -95,3 +95,43 @@ def test_ensure_prefers_existing_install(monkeypatch: pytest.MonkeyPatch, tmp_pa
     monkeypatch.setattr('pipeline.sim.forge_runtime._download_verified', _never)
     install = xr.ensure(data_dir=tmp_path)
     assert install.classpath == str(tmp_path / 'xmage' / xr._DIST_JAR_NAME)
+
+
+def test_ensure_stages_then_atomically_publishes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The download targets a `.incomplete` staging path; the final jar appears only via
+    an atomic os.replace — so resolve() never sees a half-written jar at the trusted path."""
+    monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    final = tmp_path / 'xmage' / xr._DIST_JAR_NAME
+    seen: dict[str, Path] = {}
+
+    def _fake_download(url: str, dest: Path, *, sha256: str | None) -> None:
+        seen['dest'] = Path(dest)
+        assert not final.exists()  # the final (trusted) path must not exist mid-download
+        Path(dest).write_bytes(b'PK\x03\x04 verified jar')
+
+    monkeypatch.setattr('pipeline.sim.forge_runtime._download_verified', _fake_download)
+    install = xr.ensure(data_dir=tmp_path)
+    assert seen['dest'].name.endswith('.incomplete')  # staged, not written in place
+    assert final.is_file()  # atomically published
+    assert not seen['dest'].exists()  # staging consumed by os.replace
+    assert install.classpath == str(final)
+
+
+def test_ensure_crash_after_partial_write_leaves_no_trusted_jar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A crash AFTER a partial write (SIGKILL/disk-full analogue) must leave neither a
+    truncated jar at the final path nor a leftover staging file."""
+    monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    final = tmp_path / 'xmage' / xr._DIST_JAR_NAME
+    staging = tmp_path / 'xmage' / f'{xr._DIST_JAR_NAME}.incomplete'
+
+    def _boom(url: str, dest: Path, *, sha256: str | None) -> None:
+        Path(dest).write_bytes(b'truncated')  # partial bytes land in staging...
+        raise ValueError('SHA256 mismatch')  # ...then verification fails
+
+    monkeypatch.setattr('pipeline.sim.forge_runtime._download_verified', _boom)
+    with pytest.raises(XMageUnavailableError, match='could not fetch'):
+        xr.ensure(data_dir=tmp_path)
+    assert not final.exists()  # never a truncated jar at the trusted path
+    assert not staging.exists()  # staging cleaned up too

@@ -470,6 +470,11 @@ def run_matchup(
                 f'Forge sim exceeded the external {external_timeout}s timeout and was killed '
                 f'({name_a} vs {name_b}, n={n}).'
             ) from exc
+        except BaseException:
+            # Any other pipe-read failure (e.g. MemoryError, KeyboardInterrupt) must not
+            # orphan the session-leader JVM holding its full heap. Kill the group, re-raise.
+            _kill_process_group(proc)
+            raise
 
         output = (stdout or '') + (stderr or '')
         result = parse_match_log(output, deck_a=name_a, deck_b=name_b)

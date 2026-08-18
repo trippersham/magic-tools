@@ -214,6 +214,25 @@ def test_run_warm_scan_builds_warm_cmd_and_raises_on_nonzero(monkeypatch: pytest
     assert '-Xmx3g' in captured['cmd']  # XMage's larger heap (#63), not Forge's 2g.
 
 
+def test_launch_xmage_kills_group_on_nontimeout_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A non-timeout failure reading the JVM pipes (e.g. MemoryError under the RAM
+    pressure this subsystem fights) must still kill the session-leader process group —
+    else a 3g JVM is orphaned holding its full heap. The error then propagates."""
+    killed: list[object] = []
+
+    class _FakeProc:
+        returncode = None
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            raise MemoryError('pipe read under pressure')
+
+    monkeypatch.setattr(xmage_engine.subprocess, 'Popen', lambda cmd, **kw: _FakeProc())
+    monkeypatch.setattr(xmage_engine.runner, '_kill_process_group', lambda p: killed.append(p))
+    with pytest.raises(MemoryError):
+        xmage_engine._launch_xmage(_install(tmp_path), ['--warm'], cwd=tmp_path, timeout_s=5, what='test')
+    assert len(killed) == 1  # the group was reaped before the error propagated
+
+
 def test_xmage_per_jvm_gib_exceeds_forge() -> None:
     """XMage declares a larger per-JVM RAM budget than Forge's 2 GiB so the pool isn't
     over-sized for CP7 minimax (#63)."""
