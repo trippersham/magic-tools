@@ -1,0 +1,117 @@
+name: xmage-dist release
+
+# Builds the shaded XMage sim distributable (make-magic-xmage-dist.jar) and, on a
+# release tag, publishes it as a GitHub Release asset that pipeline/sim/xmage_runtime.py
+# fetches at runtime (2.3b). Free on this PUBLIC repo (unlimited Release bandwidth).
+#
+# Flow: clone magefree/mage @ the pinned tag -> mvn install the reactor artifacts ->
+# mvn package the dist module (maven-shade) -> LICENSE AUDIT (fail on any GPL-3.0-
+# incompatible dep; assert 0 images) -> SMOKE (the jar's CardScanner builds the card
+# db) -> SHA256 (echoed to the job summary, to PIN in xmage_runtime.XMAGE_DIST_SHA256)
+# -> upload the jar + THIRD-PARTY.txt + .sha256 to the release.
+#
+# RELEASE->PIN->VERIFY (human-in-the-loop, by design): cut a release tag -> this
+# publishes the jar + prints its SHA256 -> paste that SHA into
+# xmage_runtime.XMAGE_DIST_SHA256 + commit. The runtime fetch fails CLOSED until pinned.
+#
+# NOTE: the XMage reactor build is heavy (mvn install of the module tree, ~10-20 min).
+# workflow_dispatch runs the build+audit+smoke WITHOUT publishing (a dry run); a
+# `xmage-dist-*` tag additionally uploads the assets.
+
+on:
+  workflow_dispatch: {}       # manual dry run: build + audit + smoke, no upload
+  push:
+    tags:
+      - 'xmage-dist-*'        # e.g. xmage-dist-1.4.60 -> also uploads the assets
+
+permissions:
+  contents: write             # gh release upload
+
+env:
+  # XMage upstream ref to build the engine artifacts from. Keep in lockstep with
+  # xmage_runtime.XMAGE_VERSION. (Confirm the exact upstream tag name for 1.4.60.)
+  XMAGE_REPO: 'magefree/mage'
+  XMAGE_TAG: 'xmage_1.4.60'
+  DIST_DIR: 'plugins/make-magic/pipeline/pipeline/sim/java/xmage-dist'
+  PIPELINE_DIR: 'plugins/make-magic/pipeline'
+
+jobs:
+  build-and-release:
+    name: build + audit + (on tag) publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Set up uv (for the license audit + smoke driver)
+        uses: astral-sh/setup-uv@v5
+
+      # Build the XMage engine artifacts (org.mage:*) into ~/.m2 so the dist pom can
+      # resolve them. `-pl Mage.Tests -am` matches build.sh (installs the engine tree).
+      - name: Clone + install the XMage reactor
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$XMAGE_TAG" "https://github.com/${XMAGE_REPO}.git" xmage-src
+          cd xmage-src
+          mvn -q -B -pl Mage.Tests -am install -DskipTests
+
+      - name: Build the shaded dist jar
+        run: mvn -q -B -f "$DIST_DIR/pom.xml" -DskipTests package
+
+      # LICENSE GATE: no GPL-3.0-incompatible dep bundled; 0 image files.
+      - name: License audit
+        run: |
+          set -euo pipefail
+          mvn -q -B -f "$DIST_DIR/pom.xml" \
+            org.apache.maven.plugins:maven-dependency-plugin:3.6.1:list \
+            -DincludeScope=runtime -DoutputFile="$GITHUB_WORKSPACE/deps.txt"
+          cd "$PIPELINE_DIR"
+          uv run --extra dev python -m pipeline.sim.xmage_license_audit \
+            "$GITHUB_WORKSPACE/deps.txt" \
+            "$GITHUB_WORKSPACE/$DIST_DIR/target/make-magic-xmage-dist.jar"
+
+      # SMOKE: the shaded jar is runnable and its CardScanner builds the H2 card db.
+      - name: Smoke — card DB builds from the jar
+        run: |
+          set -euo pipefail
+          JAR="$GITHUB_WORKSPACE/$DIST_DIR/target/make-magic-xmage-dist.jar"
+          workdir="$(mktemp -d)"
+          ( cd "$workdir" && java -Xmx3g -cp "$JAR" org.makemagic.xmage.XMageBatch --warm )
+          test -f "$workdir/db/cards.h2.mv.db" || { echo "::error::card db not built by the shaded jar"; exit 1; }
+          echo "shaded jar OK — card db built."
+
+      - name: Compute SHA256 (PIN this in xmage_runtime.XMAGE_DIST_SHA256)
+        id: sha
+        run: |
+          set -euo pipefail
+          JAR="$DIST_DIR/target/make-magic-xmage-dist.jar"
+          sha="$(sha256sum "$JAR" | awk '{print $1}')"
+          echo "$sha" > "$JAR.sha256"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          {
+            echo "## make-magic-xmage-dist.jar"
+            echo "- size: $(( $(stat -c%s "$JAR") / 1048576 )) MB"
+            echo "- SHA256: \`$sha\`"
+            echo ""
+            echo "**Pin this hash** in \`xmage_runtime.XMAGE_DIST_SHA256\` and commit, then the runtime fetch verifies it."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Publish ONLY on a release tag (workflow_dispatch is a dry run).
+      - name: Upload release assets
+        if: startsWith(github.ref, 'refs/tags/xmage-dist-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          JAR="$DIST_DIR/target/make-magic-xmage-dist.jar"
+          gh release upload "${{ github.ref_name }}" \
+            "$JAR" \
+            "$JAR.sha256" \
+            "$DIST_DIR/THIRD-PARTY.txt" \
+            --clobber
