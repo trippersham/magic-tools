@@ -117,6 +117,19 @@ jobs:
             echo "**Pin this hash** in \`xmage_runtime.XMAGE_DIST_SHA256\` and commit, then the runtime fetch verifies it."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Always expose the built jar + its .sha256 as a workflow artifact (even on a
+      # dry run) so a pre-release sandbox can validate onboarding against the REAL
+      # clean-room bytes before the public release is cut. Does NOT publish anything.
+      - name: Upload build artifact (jar + sha256)
+        uses: actions/upload-artifact@v4
+        with:
+          name: make-magic-xmage-dist
+          path: |
+            ${{ env.DIST_DIR }}/target/make-magic-xmage-dist.jar
+            ${{ env.DIST_DIR }}/target/make-magic-xmage-dist.jar.sha256
+          retention-days: 7
+          if-no-files-found: error
+
       # Publish ONLY on a release tag (workflow_dispatch is a dry run).
       - name: Upload release assets
         if: startsWith(github.ref, 'refs/tags/xmage-dist-')
