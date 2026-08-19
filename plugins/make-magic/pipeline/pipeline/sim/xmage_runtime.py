@@ -68,11 +68,13 @@ _DIST_JAR_NAME = 'make-magic-xmage-dist.jar'
 XMAGE_DIST_URL = (
     f'https://github.com/trippersham/magic-tools/releases/download/xmage-dist-{XMAGE_VERSION}/{_DIST_JAR_NAME}'
 )
-#: SHA256 of the published jar — the fail-closed integrity gate. ``None`` until the
-#: FIRST release is cut: ``ensure`` then refuses to fetch (``_download_verified`` fails
-#: closed on a missing checksum) with an actionable message. After cutting the release
-#: (``build.sh --print-sha`` / the workflow's job summary), pin the hash HERE.
-XMAGE_DIST_SHA256: str | None = None
+#: SHA256 of the published jar — the fail-closed integrity gate. Pinned to the
+#: ``xmage-dist-1.4.60`` release's ``make-magic-xmage-dist.jar.sha256`` asset (shaded
+#: jars are not byte-reproducible across builds, so the canonical hash comes from the
+#: release build itself, not a local/dry-run rebuild). ``None`` re-arms fail-closed:
+#: ``ensure`` refuses to fetch (``_download_verified`` rejects a missing checksum).
+#: When cutting a new release, re-pin from that release's ``.sha256`` asset.
+XMAGE_DIST_SHA256: str | None = 'f6bd98b290b922a2f0707df49ca7da5bb36f82726576b9cda693e7d6f465033b'
 
 
 class XMageUnavailableError(RuntimeError):
