@@ -78,6 +78,41 @@ def test_clean_jar_has_no_images(tmp_path: Path) -> None:
     assert la.audit_jar_no_images(jar) == []
 
 
+def test_image_audit_catches_vector_and_extra_raster_formats(tmp_path: Path) -> None:
+    """Card art could ship as webp/svg/bmp/tiff/ico, not just png/jpg/gif — the audit
+    must catch those too (a narrow check would pass a jar bundling them)."""
+    jar = tmp_path / 'art.jar'
+    with zipfile.ZipFile(jar, 'w') as zf:
+        zf.writestr('mage/cards/Foo.class', b'\xca\xfe\xba\xbe')
+        for name in ('a.webp', 'b.svg', 'c.bmp', 'd.tiff', 'e.ico'):
+            zf.writestr(f'images/{name}', b'X')
+    assert sorted(Path(n).name for n in la.audit_jar_no_images(jar)) == [
+        'a.webp',
+        'b.svg',
+        'c.bmp',
+        'd.tiff',
+        'e.ico',
+    ]
+
+
+def test_shade_excludes_match_the_pom_artifactset() -> None:
+    """Drift guard: the audit's ``_SHADE_EXCLUDES`` (what it treats as NOT bundled) must
+    equal the shade plugin's ``<artifactSet><excludes>`` in the pom. If a maintainer
+    removes an exclude from the pom (a dep becomes bundled) without updating the audit,
+    the audit would skip a now-bundled — possibly incompatible — dep (a false clean)."""
+    import re
+
+    pom = Path(la.__file__).parent / 'java' / 'xmage-dist' / 'pom.xml'
+    text = pom.read_text(encoding='utf-8')
+    artifact_set = re.search(r'<artifactSet>(.*?)</artifactSet>', text, re.DOTALL)
+    assert artifact_set is not None, 'pom has no <artifactSet> block'
+    pom_excludes = set(re.findall(r'<exclude>([^<]+)</exclude>', artifact_set.group(1)))
+    assert pom_excludes == set(la._SHADE_EXCLUDES), (
+        f'shade-exclude drift: pom-only={pom_excludes - set(la._SHADE_EXCLUDES)}, '
+        f'audit-only={set(la._SHADE_EXCLUDES) - pom_excludes}'
+    )
+
+
 def test_parse_maven_dep_list() -> None:
     """Parses the `mvn dependency:list` line format to groupId:artifactId."""
     text = (

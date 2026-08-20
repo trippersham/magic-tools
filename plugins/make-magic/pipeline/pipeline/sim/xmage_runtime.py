@@ -134,7 +134,12 @@ def resolve(data_dir: str | os.PathLike[str] | None = None) -> XMageInstall:
         return _resolve_reactor(home_env)
 
     dist_jar = _dist_dir(data_dir) / _DIST_JAR_NAME
-    if dist_jar.is_file():
+    # Require a NON-EMPTY jar: a 0-byte file (an interrupted `open('wb')` that wrote
+    # nothing, a bad manual copy, a full-disk truncation) must be treated as "not
+    # installed" so `ensure` re-fetches it, rather than resolving as available and
+    # deferring to an opaque JVM classpath crash. (`ensure` publishes atomically, so
+    # the fetch path itself never leaves a partial here — this guards external damage.)
+    if dist_jar.is_file() and dist_jar.stat().st_size > 0:
         return XMageInstall(mage_tests_dir=dist_jar.parent, classpath=str(dist_jar), java=_resolve_java())
 
     raise XMageUnavailableError(
@@ -182,14 +187,24 @@ def ensure(
     already-cached jar); on :class:`XMageUnavailableError` downloads the pinned
     ``make-magic-xmage-dist.jar`` from GitHub Releases (SHA256-verified via
     :func:`forge_runtime._download_verified` — fail-closed) into ``<data_dir>/xmage/``
-    and re-resolves. ``on_fetch`` fires ONCE, right before the download, only on the
-    fetch path (the CLI uses it for a "downloading XMage…" notice). Any
-    fetch/verify failure re-raises as :class:`XMageUnavailableError`.
+    and re-resolves. ``on_fetch`` fires ONCE, right before the download, only when a
+    download will actually be ATTEMPTED (the CLI uses it for a "downloading XMage…"
+    notice). Any fetch/verify failure re-raises as :class:`XMageUnavailableError`.
     """
     try:
         return resolve(data_dir=data_dir)
     except XMageUnavailableError:
         pass
+
+    # Fail closed BEFORE announcing a fetch: with no pinned checksum we refuse to
+    # download at all, so firing the "downloading…" notice first would be misleading
+    # (the reviewer's on_fetch-before-abort finding). Check the gate up front.
+    if XMAGE_DIST_SHA256 is None:
+        raise XMageUnavailableError(
+            f'refusing to install {XMAGE_DIST_URL!r} without a pinned SHA256 checksum '
+            f'(fail-closed integrity gate). (Or set {ENV_XMAGE_HOME} to a built reactor '
+            f'to skip the download.)'
+        )
 
     if on_fetch is not None:
         on_fetch()

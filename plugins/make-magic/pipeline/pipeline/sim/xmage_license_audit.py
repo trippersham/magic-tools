@@ -149,11 +149,28 @@ def audit_dependencies(coordinates: list[str]) -> list[Violation]:
     return violations
 
 
+#: Raster + vector image suffixes the "no card art" acceptance forbids. Deliberately
+#: broad (not just png/jpg/gif): card art could equally ship as webp/svg/bmp/tiff/ico,
+#: and a narrow check would pass a jar that bundled those.
+_IMAGE_SUFFIXES: tuple[str, ...] = (
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.svg',
+    '.bmp',
+    '.tif',
+    '.tiff',
+    '.ico',
+)
+
+
 def audit_jar_no_images(jar_path: Path) -> list[str]:
-    """Return image entries in the jar (png/jpg/jpeg/gif) — the acceptance requires 0
-    (no card art shipped). Empty return == clean."""
+    """Return image entries in the jar (see :data:`_IMAGE_SUFFIXES`) — the acceptance
+    requires 0 (no card art shipped). Empty return == clean."""
     with zipfile.ZipFile(jar_path) as zf:
-        return [n for n in zf.namelist() if n.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+        return [n for n in zf.namelist() if n.lower().endswith(_IMAGE_SUFFIXES)]
 
 
 def parse_maven_dep_list(text: str) -> list[str]:

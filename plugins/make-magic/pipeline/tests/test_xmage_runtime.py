@@ -23,6 +23,38 @@ def _fake_reactor(tmp_path: Path) -> Path:
     return home
 
 
+def test_resolve_rejects_zero_byte_cached_jar(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A 0-byte cached jar (interrupted write / bad copy / disk-full truncation) must
+    resolve as NOT installed — not as available, deferring to an opaque JVM crash."""
+    monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    (tmp_path / 'xmage').mkdir()
+    (tmp_path / 'xmage' / xr._DIST_JAR_NAME).write_bytes(b'')  # zero bytes
+    with pytest.raises(XMageUnavailableError):
+        xr.resolve(data_dir=tmp_path)
+
+
+def test_ensure_none_sha_refuses_before_on_fetch(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """With no pinned SHA the fetch is refused (fail-closed) BEFORE the on_fetch notice
+    fires — so the user never sees a misleading 'downloading…' then an instant abort."""
+    monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', None)
+    fired: list[bool] = []
+
+    def _boom(*_a: object, **_k: object) -> None:
+        pytest.fail('must not attempt a download when the SHA gate is closed')
+
+    monkeypatch.setattr('pipeline.sim.forge_runtime._download_verified', _boom)
+    with pytest.raises(XMageUnavailableError, match='without a pinned SHA256'):
+        xr.ensure(data_dir=tmp_path, on_fetch=lambda: fired.append(True))
+    assert fired == []  # the notice never fired
+
+
+def test_dist_url_couples_to_the_version_tag() -> None:
+    """The runtime fetch URL must target the release tag the workflow publishes to
+    (``xmage-dist-<XMAGE_VERSION>``) — guards a hardcoded-URL drift / version skew."""
+    assert xr.XMAGE_DIST_URL.endswith(f'xmage-dist-{xr.XMAGE_VERSION}/{xr._DIST_JAR_NAME}')
+
+
 def test_resolve_reactor_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """MAKE_MAGIC_XMAGE_HOME set + valid → reactor install (harness jar FIRST on cp)."""
     home = _fake_reactor(tmp_path)
