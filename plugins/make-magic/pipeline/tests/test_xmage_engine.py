@@ -217,6 +217,21 @@ def test_run_warm_scan_builds_warm_cmd_and_raises_on_nonzero(monkeypatch: pytest
     assert '-Xmx3g' in captured['cmd']  # XMage's larger heap (#63), not Forge's 2g.
 
 
+def test_max_concurrency_probes_the_db_subtree(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The COW probe must target the ACTUAL clone source (the ``db/`` subtree
+    _stage_private_db copies), not its Mage.Tests parent — else a ``db/`` on a
+    different volume would be mis-probed as COW-capable."""
+    from pipeline.sim.engine import EngineInstall
+
+    captured: dict[str, Path] = {}
+    monkeypatch.setattr(xmage_engine, '_probe_cow', lambda src, dst: captured.__setitem__('src', src) or True)
+    monkeypatch.setattr(xmage_engine.runner, 'staging_root', lambda: tmp_path / 'staging')
+    (tmp_path / 'db').mkdir()  # the db subtree exists -> probe it directly
+    engine = XMageEngine()
+    engine.max_concurrency(EngineInstall(version='x', handle=_install(tmp_path)))
+    assert captured['src'] == tmp_path / 'db'
+
+
 def test_supports_format_rejects_commander() -> None:
     """XMage declares constructed-only so the CLI can pre-flight SKIP commander runs."""
     engine = XMageEngine()
@@ -248,8 +263,9 @@ def test_xmage_per_jvm_gib_exceeds_forge() -> None:
     over-sized for CP7 minimax (#63)."""
     from pipeline.sim import runner
 
-    assert XMageEngine().per_jvm_gib() == 3.0
-    assert XMageEngine().per_jvm_gib() > 2.0  # Forge's default per_jvm budget
+    assert XMageEngine().per_jvm_gib() == 3.5  # 3g heap + non-heap RSS headroom
+    assert XMageEngine().per_jvm_gib() > 3.0  # strictly above the bare heap (avoid over-admit)
+    assert XMageEngine().per_jvm_gib() > 2.0  # and above Forge's default per_jvm budget
     # the heap and the budget move in lockstep
     assert '-Xmx3g' in runner._jvm_args(heap='3g')
 

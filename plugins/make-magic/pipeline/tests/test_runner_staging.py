@@ -273,6 +273,35 @@ def test_reap_stale_staging_sweeps_only_old_run_dirs(monkeypatch: pytest.MonkeyP
     assert unrelated.exists()  # non-staging entries are never touched.
 
 
+def test_reap_sweeps_dead_owner_dir_regardless_of_age(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A staging dir whose creator PID is no longer alive is a definite orphan and is
+    reaped IMMEDIATELY — even when fresh — so a crash-loop restarting within the hour
+    doesn't accumulate full-copy orphans (the gap the age-gate-only version missed).
+    A dir owned by a LIVE pid (our own) stays protected by the age gate."""
+    import subprocess as sp
+    import sys
+
+    from pipeline.sim.runner import reap_stale_staging
+
+    root = tmp_path / 'staging'
+    root.mkdir()
+    monkeypatch.setattr(runner_mod, 'staging_root', lambda: root)
+
+    dead = sp.Popen([sys.executable, '-c', ''])  # exits immediately
+    dead.wait()  # reaped -> dead.pid is now gone
+    dead_dir = root / f'run-{dead.pid}-abc'
+    alive_dir = root / f'xmage-{os.getpid()}-def'  # our own, still-alive PID
+    for d in (dead_dir, alive_dir):
+        d.mkdir()
+        (d / 'marker').write_text('x')  # both FRESH — well within the age gate
+
+    reaped = reap_stale_staging(max_age_s=3600)
+
+    assert not dead_dir.exists()  # dead owner -> swept despite a fresh mtime
+    assert alive_dir.exists()  # live owner -> kept by the age gate
+    assert reaped == 1
+
+
 def test_reap_stale_staging_never_raises_on_missing_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A missing staging root is a no-op (0 reaped), never an error — reaping must
     not be the thing that breaks a run."""

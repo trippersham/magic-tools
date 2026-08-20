@@ -17,6 +17,7 @@ shaded distributable jar is task 2.3b.
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -43,10 +44,12 @@ _CP7_SKILL = 6
 _DEFAULT_TIMEOUT_S = 240
 #: XMage CP7 (MAD minimax) clones full game states during search, so it needs more
 #: heap + a larger per-JVM RAM budget than Forge's 2 GiB — under-budgeting over-admits
-#: the pool and risks swap/jetsam (#63). The ``-Xmx`` and the pool-sizing budget are
-#: kept in lockstep (a 3 GiB heap ↔ a 3 GiB/JVM pool divisor).
+#: the pool and risks swap/jetsam (#63). The pool-sizing budget is the ``-Xmx`` heap
+#: PLUS non-heap headroom (metaspace, code cache, per-thread stacks, GC structures):
+#: a ``-Xmx3g`` HotSpot process's real RSS runs meaningfully above 3 GiB, so budgeting
+#: exactly 3.0 would over-admit by that overhead. 3.5 GiB/JVM covers a 3 GiB heap's RSS.
 _XMAGE_HEAP = '3g'
-_XMAGE_PER_JVM_GIB = 3.0
+_XMAGE_PER_JVM_GIB = 3.5
 #: ``XMageBatch --warm`` argument: build/verify the H2 card DB in ONE process.
 _WARM_ARG = '--warm'
 #: Bound on the one-time cold H2 build (a from-scratch CardScanner.scan can take a
@@ -176,7 +179,13 @@ class XMageEngine:
         clamps its RAM-derived pool by this.
         """
         handle: XMageInstall = install.handle
-        src = handle.mage_tests_dir
+        # Probe the ACTUAL clone source — the `db/` subtree `_stage_private_db` copies,
+        # not its parent. If `db/` is a symlink/mount onto a DIFFERENT volume than
+        # Mage.Tests/, probing the parent would report COW-capable while the real clone
+        # silently falls to a full 266 MB copy (the disk exhaustion the cap guards). When
+        # `db/` doesn't exist yet (pre-warm) its parent is the correct volume proxy.
+        db_src = handle.mage_tests_dir / 'db'
+        src = db_src if db_src.exists() else handle.mage_tests_dir
         dst = runner.staging_root()
         key = f'{src}->{dst}'
         with self._warm_lock:
@@ -255,7 +264,9 @@ class XMageEngine:
 
         staging = runner.staging_root()
         staging.mkdir(parents=True, exist_ok=True)
-        run_dir = Path(tempfile.mkdtemp(prefix='xmage-', dir=staging))
+        # Encode the creator PID so runner.reap_stale_staging can sweep a dead run's
+        # orphan immediately (dead owner) instead of waiting out the age gate.
+        run_dir = Path(tempfile.mkdtemp(prefix=f'xmage-{os.getpid()}-', dir=staging))
         try:
             txt_a = _stage_txt(run_dir, 'deckA', _forge_dck_to_xmage_txt(text_a))
             txt_b = _stage_txt(run_dir, 'deckB', _forge_dck_to_xmage_txt(text_b))
@@ -383,9 +394,17 @@ def _probe_cow(src_dir: Path, dst_dir: Path) -> bool:
         dst_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
         return False
-    probe = src_dir / '.mm-cow-probe'
-    clone = dst_dir / '.mm-cow-probe.clone'
+    # Probe inside self-cleaning temp dirs on the respective volumes rather than
+    # writing a bare `.mm-cow-probe` into the user's reactor checkout — a crash
+    # between write and cleanup then leaves at most one clearly-named temp dir
+    # (rmtree'd here), not a stray dotfile in a tracked working tree.
+    src_tmp: Path | None = None
+    clone_tmp: Path | None = None
     try:
+        src_tmp = Path(tempfile.mkdtemp(prefix='.mm-cow-', dir=src_dir))
+        clone_tmp = Path(tempfile.mkdtemp(prefix='.mm-cow-', dir=dst_dir))
+        probe = src_tmp / 'probe'
+        clone = clone_tmp / 'clone'
         probe.write_bytes(b'\0' * 4096)
         cmd = (
             ['cp', '-c', str(probe), str(clone)]
@@ -396,8 +415,10 @@ def _probe_cow(src_dir: Path, dst_dir: Path) -> bool:
     except OSError:
         return False
     finally:
-        probe.unlink(missing_ok=True)
-        clone.unlink(missing_ok=True)
+        if src_tmp is not None:
+            shutil.rmtree(src_tmp, ignore_errors=True)
+        if clone_tmp is not None:
+            shutil.rmtree(clone_tmp, ignore_errors=True)
 
 
 def _clone_tree_cow(src: Path, dst: Path) -> bool:

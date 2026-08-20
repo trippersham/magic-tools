@@ -358,8 +358,30 @@ def staging_root() -> Path:
 _STAGING_MAX_AGE_S = 3600.0
 
 
+def _staging_owner_pid(name: str) -> int | None:
+    """The creator PID encoded in a ``run-<pid>-<rand>`` / ``xmage-<pid>-<rand>`` staging
+    dir name, or ``None`` if it doesn't parse (e.g. a legacy PID-less dir)."""
+    parts = name.split('-')
+    if len(parts) >= 3 and parts[1].isdigit():
+        return int(parts[1])
+    return None
+
+
+def _pid_is_alive(pid: int) -> bool:
+    """True if a process with ``pid`` currently exists (best-effort, POSIX ``kill 0``)."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists but owned by another user — still alive, keep its dir.
+    except OSError:
+        return True  # unknown -> assume alive (conservative: don't reap).
+    return True
+
+
 def reap_stale_staging(max_age_s: float = _STAGING_MAX_AGE_S) -> int:
-    """Sweep orphaned per-run staging dirs older than ``max_age_s``; return the count.
+    """Sweep orphaned per-run staging dirs; return the count.
 
     The per-run ``finally`` rmtree is bypassed by a SIGKILL (a resource watchdog, the
     OOM-killer, power loss, a crash), so a killed run leaves its staging dir behind.
@@ -367,8 +389,13 @@ def reap_stale_staging(max_age_s: float = _STAGING_MAX_AGE_S) -> int:
     across crashed runs and compound disk pressure — the very failure the per-run
     private-db staging exists to prevent. Called at batch start; best-effort and
     NEVER raises (reaping must not break a run). Touches only this module's own
-    ``run-*`` / ``xmage-*`` staging dirs, and only those past the age cutoff (so a
-    concurrent sim's in-flight dirs are safe).
+    ``run-*`` / ``xmage-*`` staging dirs.
+
+    Two reap conditions, so a crash-loop that restarts within the hour still gets
+    cleaned (the finding the age-gate-only version missed): a dir whose creator PID is
+    no longer alive is a definite orphan and is reaped IMMEDIATELY; otherwise (PID
+    still alive, or a legacy PID-less name) the age cutoff applies, which keeps a
+    concurrent sim's in-flight dirs safe.
     """
     root = staging_root()
     try:
@@ -376,15 +403,20 @@ def reap_stale_staging(max_age_s: float = _STAGING_MAX_AGE_S) -> int:
     except OSError:
         return 0
     now = time.time()
+    own_pid = os.getpid()
     reaped = 0
     for entry in entries:
         if not (entry.name.startswith('run-') or entry.name.startswith('xmage-')):
             continue
-        try:
-            if now - entry.stat().st_mtime < max_age_s:
+        pid = _staging_owner_pid(entry.name)
+        dead_owner = pid is not None and pid != own_pid and not _pid_is_alive(pid)
+        if not dead_owner:
+            # Alive owner, our own PID, or unparseable -> fall back to the age gate.
+            try:
+                if now - entry.stat().st_mtime < max_age_s:
+                    continue
+            except OSError:
                 continue
-        except OSError:
-            continue
         shutil.rmtree(entry, ignore_errors=True)
         reaped += 1
     return reaped
@@ -441,7 +473,9 @@ def run_matchup(
     # other (both R3-2 hazards). The whole dir is removed in the `finally` below.
     root = staging_root()
     root.mkdir(parents=True, exist_ok=True)
-    run_dir = Path(tempfile.mkdtemp(prefix='run-', dir=root))
+    # Encode the creator PID so reap_stale_staging can sweep a dead run's orphan
+    # immediately (dead owner) rather than waiting out the age gate.
+    run_dir = Path(tempfile.mkdtemp(prefix=f'run-{os.getpid()}-', dir=root))
     try:
         dck_a = _stage_dck(run_dir, text_a)
         dck_b = _stage_dck(run_dir, text_b)
