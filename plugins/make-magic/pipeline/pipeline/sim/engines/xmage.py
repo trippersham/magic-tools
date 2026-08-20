@@ -446,17 +446,22 @@ def _launch_xmage(handle: XMageInstall, args: list[str], *, cwd: Path, timeout_s
         text=True,
         start_new_session=True,
     )
+    runner._register_active(proc)  # let the governor's emergency abort reach this JVM.
     try:
-        stdout, stderr = proc.communicate(timeout=timeout_s)
-    except subprocess.TimeoutExpired as exc:
-        runner._kill_process_group(proc)
-        raise XMageError(f'XMage {what} exceeded the external {timeout_s}s timeout and was killed.') from exc
-    except BaseException:
-        # Any other failure reading the pipes (e.g. MemoryError under the very RAM
-        # pressure this subsystem fights, or KeyboardInterrupt) must not orphan the
-        # session-leader JVM holding its full -Xmx heap. Kill the group, then re-raise.
-        runner._kill_process_group(proc)
-        raise
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout_s)
+        except subprocess.TimeoutExpired as exc:
+            runner._kill_process_group(proc)
+            raise XMageError(f'XMage {what} exceeded the external {timeout_s}s timeout and was killed.') from exc
+        except BaseException:
+            # Any other failure reading the pipes (e.g. MemoryError under the very RAM
+            # pressure this subsystem fights, KeyboardInterrupt, or the governor's
+            # emergency kill) must not orphan the session-leader JVM holding its full
+            # -Xmx heap. Kill the group, then re-raise.
+            runner._kill_process_group(proc)
+            raise
+    finally:
+        runner._unregister_active(proc)
     return (stdout or '') + (stderr or ''), proc.returncode
 
 

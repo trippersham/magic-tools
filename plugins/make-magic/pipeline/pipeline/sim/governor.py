@@ -43,7 +43,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pipeline.sim.runner import MatchResult
+from pipeline.sim.runner import MatchResult, kill_active_matchup_processes
 
 if TYPE_CHECKING:
     from pipeline.sim.engine import EngineInstall, SimEngine
@@ -71,6 +71,12 @@ DEFAULT_HARD_CAP = 6
 DEFAULT_PER_JVM_GIB = 2.0
 #: Cores held back for the OS + the governor thread itself.
 _CORE_HEADROOM = 2
+#: Slack added to the sampler's join timeout at drain. A single sample can block for
+#: up to the ``vm_stat`` subprocess timeout (5 s) plus the disk stat, so joining with
+#: only ``sampler_interval_s`` (2 s) could return while the sampler is still mid-sample
+#: — a stale sampler that keeps recording snapshots into the NEXT run's window (``ab``
+#: / ``both`` run governors back-to-back). Cover the worst-case sample cost.
+_SAMPLER_JOIN_SLACK_S = 6.0
 #: Bytes-per-GiB.
 _GIB = 1 << 30
 #: macOS ``vm_stat`` page size (bytes).
@@ -255,10 +261,12 @@ class Governor:
     #: re-checks free RAM/disk every :attr:`sampler_interval_s` DURING the run — not
     #: just at admission — so a starvation that develops while ``pool`` workers are all
     #: in-flight (no admission happening) is detected. ``emergency_breaches_to_abort``
-    #: consecutive breaches ABORT the batch (stop admitting; in-flight drains, each JVM
-    #: bounded by the engine's own per-matchup external timeout — the governor does not
-    #: hold the JVM handle to kill a running worker directly). This closes the
-    #: "floors are pre-admission only" gap.
+    #: consecutive breaches ABORT the batch: admission stops AND the in-flight JVMs are
+    #: SIGKILLed via :func:`~pipeline.sim.runner.kill_active_matchup_processes` — the
+    #: running workers are the pressure, so stopping admission alone would leave them
+    #: draining (each only bounded by its own per-matchup external timeout, minutes
+    #: long) while the host keeps starving. Killing them relieves the pressure now;
+    #: each killed matchup is recorded as a failure (the batch is aborting regardless).
     emergency_ram_gib: float = 1.0
     emergency_disk_gib: float = 0.5
     sampler_interval_s: float = 2.0
@@ -278,9 +286,18 @@ class Governor:
         semaphore + the executor size together cap concurrent JVMs at
         ``pool_size``.
         """
-        pool = self.pool_size or derive_pool_size(hard_cap=self.hard_cap, per_jvm_gib=self.per_jvm_gib)
+        # `is not None` (not truthiness): a pinned pool_size of 0 must NOT silently
+        # re-derive, and a pinned negative must NOT reach Semaphore(-1) /
+        # ThreadPoolExecutor(max_workers<=0) (a ValueError crash). Clamp to >=1 — a
+        # batch always runs at least one JVM. Derive lazily (only when unpinned) so a
+        # pinned pool doesn't waste a resource probe.
+        if self.pool_size is not None:
+            pool = max(1, self.pool_size)
+        else:
+            pool = max(1, derive_pool_size(hard_cap=self.hard_cap, per_jvm_gib=self.per_jvm_gib))
         # An engine's per-batch safety ceiling (e.g. XMage serializing on a non-COW
-        # staging volume) clamps the RAM-derived pool — never raises it.
+        # staging volume) clamps the RAM-derived pool — never raises it. `max(1, ...)`
+        # floors it so an engine returning 0 can't wedge the pool below one JVM.
         if self.max_concurrency is not None:
             pool = max(1, min(pool, self.max_concurrency))
 
@@ -317,8 +334,9 @@ class Governor:
 
         def _sampler() -> None:
             # Continuously monitor DURING the run (not just at admission). N consecutive
-            # emergency-floor breaches -> abort: the admission loop stops, in-flight
-            # workers drain (each bounded by the engine's per-matchup external timeout).
+            # emergency-floor breaches -> abort: signal the admission loop to stop AND
+            # SIGKILL the in-flight JVMs (they are the pressure; waiting for their
+            # per-matchup timeouts would leave the host starving for minutes).
             breaches = 0
             while not stop_sampler.wait(self.sampler_interval_s):
                 ram, disk = _record_resources()
@@ -326,6 +344,7 @@ class Governor:
                     breaches += 1
                     if breaches >= self.emergency_breaches_to_abort:
                         emergency.set()
+                        kill_active_matchup_processes()  # relieve pressure now, not at timeout.
                         return
                 else:
                     breaches = 0
@@ -374,7 +393,26 @@ class Governor:
                     slots.release()
                     break
 
-                # Memory/disk-aware admission: re-check floors before EACH spawn.
+                # ~5 s staggered starts FIRST (skip the delay for the very first spawn).
+                # The stagger sleep must come BEFORE the floor re-check, not after — else
+                # the admitting resource reading is up to stagger_s stale by the time the
+                # JVM actually launches (the in-flight JVMs keep eating RAM/disk during
+                # the sleep), and we'd admit straight through the floor we just "checked".
+                if last_spawn and self.stagger_s > 0:
+                    elapsed = time.monotonic() - last_spawn
+                    wait = self.stagger_s - elapsed
+                    if wait > 0:
+                        time.sleep(wait)
+
+                # The stagger sleep may have straddled an emergency — re-check before spawn.
+                if emergency.is_set():
+                    aborted = True
+                    slots.release()
+                    break
+
+                # Memory/disk-aware admission: re-check floors IMMEDIATELY before the
+                # spawn (no intervening sleep), so the reading that authorizes the JVM is
+                # fresh at launch — the per-spawn guarantee this module advertises.
                 backoffs = 0
                 while True:
                     ram, disk = _record_resources()
@@ -390,13 +428,6 @@ class Governor:
                     slots.release()  # hand the slot back; we're not admitting.
                     break
 
-                # ~5 s staggered starts (skip the delay for the very first spawn).
-                if last_spawn and self.stagger_s > 0:
-                    elapsed = time.monotonic() - last_spawn
-                    wait = self.stagger_s - elapsed
-                    if wait > 0:
-                        time.sleep(wait)
-
                 spec = pending.pop(0)
                 futures.append(executor.submit(_worker, spec))
                 last_spawn = time.monotonic()
@@ -407,7 +438,7 @@ class Governor:
 
         # End the continuous sampler now that no work remains.
         stop_sampler.set()
-        sampler.join(timeout=self.sampler_interval_s + 1.0)
+        sampler.join(timeout=self.sampler_interval_s + _SAMPLER_JOIN_SLACK_S)
         if emergency.is_set():
             aborted = True
 

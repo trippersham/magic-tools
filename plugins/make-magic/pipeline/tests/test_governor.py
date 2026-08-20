@@ -209,6 +209,76 @@ def test_max_concurrency_clamps_pool_below_derived() -> None:
     assert tracker.calls == 8  # all still ran, just serialized.
 
 
+def test_pinned_pool_size_zero_clamps_to_one_not_rederived() -> None:
+    """A pinned ``pool_size=0`` must NOT silently re-derive (truthiness bug) and must NOT
+    reach ``Semaphore(0)`` — it clamps to one JVM (`is not None` + `max(1, ...)`)."""
+    tracker = _ConcurrencyTracker(hold_s=0.01)
+    specs = [_spec(4100 + i) for i in range(3)]
+    result = _run(tracker, specs, pool_size=0, stagger_s=0.0)
+    assert result.pool_size == 1  # clamped, not the derived live-resource value
+    assert tracker.calls == 3  # still runs the batch
+
+
+def test_pinned_pool_size_negative_does_not_crash() -> None:
+    """A pinned negative ``pool_size`` must not reach ``Semaphore(-1)`` /
+    ``ThreadPoolExecutor(max_workers=-1)`` (a ValueError) — it clamps to one."""
+    tracker = _ConcurrencyTracker(hold_s=0.01)
+    specs = [_spec(4200 + i) for i in range(2)]
+    result = _run(tracker, specs, pool_size=-3, stagger_s=0.0)
+    assert result.pool_size == 1
+    assert tracker.calls == 2
+
+
+def test_admission_rechecks_floor_after_stagger(monkeypatch: pytest.MonkeyPatch) -> None:
+    """TOCTOU guard: the RAM floor is re-checked AFTER the stagger sleep, immediately
+    before spawn — so a floor that DROPS during the stagger window blocks the next
+    admission instead of being admitted on a stale (pre-stagger) reading."""
+    monkeypatch.setattr(gov, 'free_disk_gib', lambda _p=None: 100.0)
+    tracker = _ConcurrencyTracker(hold_s=0.01)
+
+    def _ram() -> float:
+        # Healthy until the first matchup has been admitted, starved thereafter —
+        # robust to any extra resource probes (unlike a fixed call-count threshold).
+        return 0.1 if tracker.calls >= 1 else 100.0
+
+    monkeypatch.setattr(gov, 'free_ram_gib', _ram)
+    specs = [_spec(7000 + i) for i in range(3)]
+    result = _run(
+        tracker,
+        specs,
+        pool_size=1,
+        stagger_s=0.02,
+        ram_floor_gib=2.0,
+        max_admission_backoffs=1,  # abort fast once the post-stagger check sees starvation
+        sampler_interval_s=100.0,  # keep the sampler out of the reading sequence
+    )
+    assert tracker.calls == 1  # only the first spec admitted; the 2nd hit the dropped floor
+    assert result.aborted  # starvation detected AFTER the stagger aborted admission
+
+
+def test_emergency_abort_kills_inflight_matchup_processes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A sustained emergency breach doesn't just stop admission — it SIGKILLs the
+    in-flight JVMs (they ARE the pressure). Assert the kill hook fires and it aborts."""
+    monkeypatch.setattr(gov, 'free_disk_gib', lambda _p=None: 0.2)  # < emergency, > admission floor
+    monkeypatch.setattr(gov, 'free_ram_gib', lambda: 100.0)
+    killed = {'n': 0}
+    monkeypatch.setattr(gov, 'kill_active_matchup_processes', lambda: killed.__setitem__('n', killed['n'] + 1) or 0)
+    tracker = _ConcurrencyTracker(hold_s=0.2)  # slow enough for the sampler to trip mid-run
+    specs = [_spec(9000 + i) for i in range(2)]
+    result = _run(
+        tracker,
+        specs,
+        pool_size=1,
+        stagger_s=0.0,
+        disk_floor_gib=0.05,  # 0.2 > 0.05 -> admission passes
+        emergency_disk_gib=1.0,  # 0.2 < 1.0 -> the sampler breaches every tick
+        emergency_breaches_to_abort=1,
+        sampler_interval_s=0.01,
+    )
+    assert killed['n'] >= 1  # the in-flight JVM(s) were killed, not just admission stopped
+    assert result.aborted
+
+
 def test_continuous_sampler_aborts_on_sustained_emergency(monkeypatch: pytest.MonkeyPatch) -> None:
     """The mid-run sampler catches a starvation that develops WHILE workers are in-flight
     (no admission happening) — disk sits below the EMERGENCY floor but above the (zeroed)

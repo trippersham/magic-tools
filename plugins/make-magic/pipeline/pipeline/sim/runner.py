@@ -34,6 +34,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -50,6 +51,7 @@ __all__ = (
     'MatchResult',
     'deck_to_dck',
     'is_clockout_segment',
+    'kill_active_matchup_processes',
     'parse_match_log',
     'reap_stale_staging',
     'run_matchup',
@@ -295,6 +297,44 @@ def _kill_process_group(proc: subprocess.Popen[str]) -> None:
     proc.communicate()
 
 
+#: Live matchup subprocesses, so the governor's emergency abort can terminate
+#: IN-FLIGHT JVMs (not merely stop new admissions) when free RAM/disk collapses
+#: mid-batch. Governors never run concurrently in this app (``simulate`` runs them
+#: one at a time — ``both``/``ab`` are sequential), so a process-global registry is
+#: safe and needs no per-run plumbing through the engine seam.
+_ACTIVE_PROCS: set[subprocess.Popen[str]] = set()
+_ACTIVE_PROCS_LOCK = threading.Lock()
+
+
+def _register_active(proc: subprocess.Popen[str]) -> None:
+    """Track ``proc`` as a live matchup JVM (paired with :func:`_unregister_active`)."""
+    with _ACTIVE_PROCS_LOCK:
+        _ACTIVE_PROCS.add(proc)
+
+
+def _unregister_active(proc: subprocess.Popen[str]) -> None:
+    """Stop tracking ``proc`` once its matchup has returned/failed/been killed."""
+    with _ACTIVE_PROCS_LOCK:
+        _ACTIVE_PROCS.discard(proc)
+
+
+def kill_active_matchup_processes() -> int:
+    """SIGKILL every currently-registered matchup process group; return how many.
+
+    Called by the governor's emergency abort when a sustained free-RAM/disk breach
+    is detected WHILE the pool is fully in-flight — stopping admission alone cannot
+    relieve pressure the running JVMs themselves are causing. Each killed worker's
+    ``run_matchup`` then fails fast (recorded as a matchup failure; the batch is
+    aborting regardless). Best-effort and idempotent — a process that already exited
+    is simply skipped."""
+    with _ACTIVE_PROCS_LOCK:
+        procs = list(_ACTIVE_PROCS)
+    for proc in procs:
+        with contextlib.suppress(Exception):
+            _kill_process_group(proc)
+    return len(procs)
+
+
 def staging_root() -> Path:
     """The isolated root under which each run's ``.dck`` files are staged.
 
@@ -462,19 +502,24 @@ def run_matchup(
             text=True,
             start_new_session=True,
         )
+        _register_active(proc)  # let the governor's emergency abort reach this JVM.
         try:
-            stdout, stderr = proc.communicate(timeout=external_timeout)
-        except subprocess.TimeoutExpired as exc:
-            _kill_process_group(proc)
-            raise ForgeError(
-                f'Forge sim exceeded the external {external_timeout}s timeout and was killed '
-                f'({name_a} vs {name_b}, n={n}).'
-            ) from exc
-        except BaseException:
-            # Any other pipe-read failure (e.g. MemoryError, KeyboardInterrupt) must not
-            # orphan the session-leader JVM holding its full heap. Kill the group, re-raise.
-            _kill_process_group(proc)
-            raise
+            try:
+                stdout, stderr = proc.communicate(timeout=external_timeout)
+            except subprocess.TimeoutExpired as exc:
+                _kill_process_group(proc)
+                raise ForgeError(
+                    f'Forge sim exceeded the external {external_timeout}s timeout and was killed '
+                    f'({name_a} vs {name_b}, n={n}).'
+                ) from exc
+            except BaseException:
+                # Any other pipe-read failure (e.g. MemoryError, KeyboardInterrupt) or an
+                # emergency kill_process_group from the governor must not orphan the
+                # session-leader JVM holding its full heap. Kill the group, re-raise.
+                _kill_process_group(proc)
+                raise
+        finally:
+            _unregister_active(proc)
 
         output = (stdout or '') + (stderr or '')
         result = parse_match_log(output, deck_a=name_a, deck_b=name_b)
