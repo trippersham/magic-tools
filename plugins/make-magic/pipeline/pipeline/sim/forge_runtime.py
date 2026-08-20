@@ -79,8 +79,9 @@ FORGE_TARBALL_SHA256 = 'df23b237095cfc5ff97a4711946b25ff852da9ff43b916c40783f6b5
 #: :func:`_temurin_asset`). The ``link`` 307-redirects to a GitHub release asset;
 #: the HTTPS-only opener (:func:`_urlopen`) follows it without allowing a
 #: downgrade. There is intentionally no checksum-less binary-redirect fallback —
-#: an unverifiable JRE fails closed.
-_TEMURIN_ASSETS_API = 'https://api.adoptium.net/v3/assets/latest/21/ga'
+#: an unverifiable JRE fails closed. NB: the path's last segment is the JVM
+#: implementation (``hotspot``), NOT the release type — ``/21/ga`` 404s.
+_TEMURIN_ASSETS_API = 'https://api.adoptium.net/v3/assets/latest/21/hotspot'
 
 #: User-Agent for downloads. GitHub release-asset / Adoptium endpoints 403 or
 #: rate-limit requests that send no (or a bare ``Python-urllib``) UA under load,
@@ -405,13 +406,17 @@ def _fetch_and_extract(
         staging_jre = staging / jre_dir.name
         staging_jre.mkdir(parents=True)
 
+        # Resolve the JRE asset FIRST — it is a cheap metadata call, and a failure
+        # here (bad endpoint, no published checksum, offline) must fail the whole
+        # provision BEFORE the ~200 MB Forge tarball is pulled, not after.
+        jre_url, jre_sha256 = _temurin_asset()
+
         forge_archive = staging / f'forge-installer-{FORGE_VERSION}.tar.bz2'
         _download_verified(forge_url, forge_archive, sha256=forge_sha256)
         with tarfile.open(forge_archive, 'r:bz2') as tar:  # r:bz2 also rejects a truncated download.
             tar.extractall(staging, filter='data')
         forge_archive.unlink(missing_ok=True)
 
-        jre_url, jre_sha256 = _temurin_asset()
         jre_archive = staging_jre / 'jre.tar.gz'
         _download_verified(jre_url, jre_archive, sha256=jre_sha256)
         with tarfile.open(jre_archive, 'r:gz') as tar:  # r:gz also rejects a truncated download.

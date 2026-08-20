@@ -759,6 +759,53 @@ def test_deck_engine_both_one_unavailable_runs_other_and_reports_skip(
     assert 'MAKE_MAGIC_XMAGE_HOME' in captured.err  # actionable how-to-enable.
 
 
+def test_deck_commander_both_skips_xmage_no_bogus_row(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A commander deck through `--engine both`: XMage (constructed-only) is a CLEAN
+    SKIP — no bogus `xmage 0-0-0` row, no nonsensical Δ — Forge runs, exit 0.
+
+    Regression for the e2e finding where XMage's commander rejection surfaced as a
+    per-matchup failure and polluted the comparison table + forced exit 1."""
+    dck = tmp_path / 'C.dck'
+    dck.write_text('[metadata]\nName=C\n' + _VALID_COMMANDER)
+    _mock_both_paths(
+        monkeypatch,
+        per_engine={'forge': _sim_result('C', fmt='commander', win_rate=0.5, piloting=_piloting(counter_fire=0.2))},
+    )
+
+    sim_run.main(['deck', str(dck), '--format', 'commander', '--engine', 'both'])  # forge ran -> exit 0.
+
+    captured = capsys.readouterr()
+    assert 'xmage' not in captured.out  # no bogus xmage RESULT row in the table
+    assert 'forge' in captured.out
+    assert 'only forge ran' in captured.out  # explicit non-comparison note
+    assert 'xmage' in captured.err and 'SKIPPED' in captured.err  # skip surfaced on stderr
+    assert 'commander' in captured.err  # names the format reason
+
+
+def test_deck_commander_xmage_single_clean_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Single-engine XMage + commander: a clean `error:` + exit 1 (never a traceback
+    or a bogus 0-0-0), raised BEFORE any provision (the guard fires pre-fetch)."""
+    dck = tmp_path / 'C.dck'
+    dck.write_text('[metadata]\nName=C\n' + _VALID_COMMANDER)
+    # If the guard did not fire first, _ensure_engine would try to provision — fail loud.
+    monkeypatch.setattr(sim_run, '_ensure_engine', lambda *a, **k: pytest.fail('must not provision'))
+
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck), '--format', 'commander', '--engine', 'xmage'])
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'does not support the commander format' in err
+    assert 'Traceback' not in err
+
+
 def test_deck_engine_both_all_unavailable_errors_nonzero(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -704,6 +704,21 @@ def _deck(argv: list[str]) -> None:
     _exit_nonzero_on_unusable_run(result)
 
 
+def _guard_engine_supports_format(engine: SimEngine, fmt: str) -> None:
+    """Raise :class:`EngineUnavailableError` if ``engine`` cannot run ``fmt``.
+
+    Duck-typed on an optional ``supports_format(fmt) -> bool`` (mirrors how
+    ``per_jvm_gib`` / ``max_concurrency`` are read off engines without widening the
+    ``SimEngine`` Protocol, so the test fakes stay ``isinstance``-valid). An engine
+    that does not declare the method supports every format. Modeled as
+    ``EngineUnavailableError`` so both the single-engine handler (clean error) and
+    ``_deck_both`` (clean SKIP) treat it uniformly — the engine genuinely can't run
+    this request."""
+    supports = getattr(engine, 'supports_format', None)
+    if callable(supports) and not supports(fmt):
+        raise EngineUnavailableError(f'the {engine.name} engine does not support the {fmt} format.')
+
+
 def _evaluate_engine(
     engine: SimEngine, candidate: _ResolvedDeck, store: object | None, args: argparse.Namespace
 ) -> SimResult:
@@ -714,7 +729,15 @@ def _evaluate_engine(
     ``simulate`` the candidate over the gauntlet. An :class:`EngineUnavailableError`
     (backend not installed) propagates so ``both`` can catch it as a SKIP; a deck
     defect (size floor / Forge-absent card) is a hard error for the whole command.
+    An engine that does not support the requested FORMAT also raises
+    :class:`EngineUnavailableError` here — before provisioning — so ``both`` skips it
+    cleanly instead of running it into a bogus 0-0-0 row.
     """
+    # Pre-flight FORMAT guard (before provisioning): an engine that can't run this
+    # format (e.g. XMage + commander) becomes a clean engine-level SKIP in `both`
+    # and a clean error single-engine — never a per-matchup failure. Duck-typed:
+    # an engine without `supports_format` supports every format.
+    _guard_engine_supports_format(engine, args.fmt)
     install = _ensure_engine(engine, assume_yes=args.yes)
     _guard_forge_availability(
         install.handle, [candidate], allow_missing=args.allow_missing, fmt=args.fmt, engine=engine.name
@@ -870,14 +893,31 @@ def _print_engine_comparison(
     print(f'candidate: {candidate}   gauntlet: {gauntlet} ({fmt})')
     print('engine comparison — per-engine win-rate + interaction piloting (the "false read" check):')
     print(f'  {"engine":<8} {"win-rate":<22} {"record":<12} {"counter-fire":<14} {"removal-fire":<14}')
+    any_piloting_na = False
     for name, result in results.items():
         lo, hi = result.win_rate_ci
         win_rate = f'{_pct(result.win_rate)} [{_pct(lo)}-{_pct(hi)}]'
         record = f'{result.wins}-{result.losses}-{result.draws}'
         counter = _fire_cell(result.piloting, 'counter_fire')
         removal = _fire_cell(result.piloting, 'removal_fire')
+        any_piloting_na = any_piloting_na or 'n/a' in (counter, removal)
         print(f'  {name:<8} {win_rate:<22} {record:<12} {counter:<14} {removal:<14}')
 
+    # The piloting columns are the advertised "false read" differentiator; when they
+    # render n/a (no otag lake for this deck) the table looks broken without a reason.
+    # The single-engine path prints this hint; the `both` table must too.
+    if any_piloting_na:
+        print(
+            "  (counter/removal-fire n/a: this deck's cards carry no otags — run the otag "
+            'build to enable the interaction piloting "false read" check.)'
+        )
+
+    if len(results) < 2:
+        # Only one engine produced results (the other was skipped / not registered).
+        # A one-row table is NOT a comparison — say so explicitly rather than letting
+        # the deltas + false-read silently no-op and read as "nothing to report".
+        only = next(iter(results))
+        print(f'  (only {only} ran — no cross-engine comparison; see the SKIPPED line(s) below.)')
     _print_engine_deltas(results)
     _print_false_read_note(results)
 
@@ -1241,6 +1281,11 @@ def main(argv: list[str] | None = None) -> None:
         CollectionError,
         FileNotFoundError,
         ValueError,
+        # get_engine() raises a self-explaining KeyError for an unknown/empty
+        # registry (e.g. a packaging failure where no engine registered on import).
+        # argparse normally constrains --engine to the live choices, so this is a
+        # last-resort clean message rather than a raw traceback.
+        KeyError,
     ) as exc:
         print(f'error: {exc}', file=sys.stderr)
         raise SystemExit(1) from exc

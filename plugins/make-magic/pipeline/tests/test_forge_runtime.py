@@ -381,6 +381,14 @@ def test_temurin_asset_fails_closed_when_checksum_missing(monkeypatch: pytest.Mo
         fr._temurin_asset()
 
 
+def test_temurin_assets_api_targets_hotspot_impl_not_release_type() -> None:
+    """Regression: the Adoptium path's last segment is the JVM impl (``hotspot``),
+    not the release type. ``/21/ga`` 404s and silently broke all clean Forge
+    provisioning (the JRE step). Guard the exact path segment."""
+    assert fr._TEMURIN_ASSETS_API.endswith('/21/hotspot')
+    assert not fr._TEMURIN_ASSETS_API.rstrip('/').endswith('/ga')
+
+
 # --------------------------------------------------------------------------- #
 # _fetch_and_extract — JRE integrity + ATOMIC publish
 # --------------------------------------------------------------------------- #
@@ -449,6 +457,30 @@ def test_partial_fetch_does_not_publish_install(tmp_path: Path, monkeypatch: pyt
     assert not (tmp_path / '.forge.incomplete').exists()  # staging cleaned up
     with pytest.raises(ForgeUnavailableError):  # and it does not resolve as 'available'
         resolve(data_dir=tmp_path)
+
+
+def test_fetch_resolves_jre_metadata_before_forge_download(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail-fast ordering: the cheap JRE metadata resolve runs BEFORE the ~200 MB
+    Forge tarball pull, so a doomed provision (bad endpoint / no checksum / offline)
+    fails without first burning bandwidth on the big download."""
+    order: list[str] = []
+
+    def _meta() -> tuple[str, str | None]:
+        order.append('jre-meta')
+        return ('http://jre', 'jresha')
+
+    def _fake_dv(_url: str, dest: Path, *, sha256: str | None) -> None:
+        order.append(f'download:{dest.name}')
+        dest.write_bytes(b'')
+
+    monkeypatch.setattr('pipeline.sim.forge_runtime._temurin_asset', _meta)
+    monkeypatch.setattr('pipeline.sim.forge_runtime._download_verified', _fake_dv)
+    monkeypatch.setattr('pipeline.sim.forge_runtime.tarfile.open', lambda *_a, **_k: _FakeTar())
+
+    forge_dir = tmp_path / 'forge'
+    fr._fetch_and_extract(forge_dir=forge_dir, jre_dir=forge_dir / 'jre', forge_url='http://forge', forge_sha256='f')
+    assert order[0] == 'jre-meta'  # metadata resolved first
+    assert order[1] == f'download:forge-installer-{FORGE_VERSION}.tar.bz2'  # then the big pull
 
 
 # --------------------------------------------------------------------------- #

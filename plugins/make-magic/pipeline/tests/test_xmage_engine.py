@@ -67,12 +67,15 @@ def test_forge_dck_translates_to_xmage_txt() -> None:
     assert 'Name=Test' not in out and 'Smash to Smithereens' not in out
 
 
-def test_resolve_unavailable_raises_engine_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_unavailable_raises_engine_unavailable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # No MAKE_MAGIC_XMAGE_HOME -> a clean EngineUnavailableError (never a traceback),
     # re-raised from XMageUnavailableError so the CLI/doctor stay actionable.
+    # Pin an EMPTY, isolated data_dir: otherwise a jar cached in the real default
+    # data dir (e.g. from a prior run on this box) makes resolve() succeed and the
+    # test spuriously fails — the env leak the regression sweep caught.
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
     with pytest.raises(EngineUnavailableError) as exc:
-        XMageEngine().resolve(provision=False)
+        XMageEngine().resolve(provision=False, data_dir=tmp_path)
     assert 'MAKE_MAGIC_XMAGE_HOME' in str(exc.value)
 
 
@@ -212,6 +215,13 @@ def test_run_warm_scan_builds_warm_cmd_and_raises_on_nonzero(monkeypatch: pytest
     assert 'org.makemagic.xmage.XMageBatch' in captured['cmd']
     assert captured['cwd'] == tmp_path  # launched from the reactor's Mage.Tests dir.
     assert '-Xmx3g' in captured['cmd']  # XMage's larger heap (#63), not Forge's 2g.
+
+
+def test_supports_format_rejects_commander() -> None:
+    """XMage declares constructed-only so the CLI can pre-flight SKIP commander runs."""
+    engine = XMageEngine()
+    assert engine.supports_format('constructed') is True
+    assert engine.supports_format('commander') is False
 
 
 def test_launch_xmage_kills_group_on_nontimeout_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

@@ -145,6 +145,17 @@ class XMageEngine:
     def capabilities(self) -> EngineCapabilities:
         return _XMAGE_CAPABILITIES
 
+    def supports_format(self, fmt: str) -> bool:
+        """XMage runs CONSTRUCTED only — commander is a follow-up (see :meth:`run_matchup`).
+
+        Duck-typed (like :meth:`per_jvm_gib` / :meth:`max_concurrency`, not on the
+        ``SimEngine`` Protocol so the test fakes stay ``isinstance``-valid). The
+        ``deck`` verb's pre-flight guard reads this so an unsupported format is a
+        clean engine-level SKIP (``--engine both``) / error (single engine) BEFORE
+        any provision or matchup, instead of a per-matchup failure that pollutes the
+        comparison table with a bogus 0-0-0 row."""
+        return fmt != 'commander'
+
     def per_jvm_gib(self) -> float:
         """XMage's per-JVM RAM budget for pool sizing — larger than Forge's 2 GiB
         because CP7 minimax clones game states (#63). Read by ``simulate`` and threaded
