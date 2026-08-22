@@ -7,6 +7,7 @@ import mage.cards.repository.CardScanner;
 import mage.collectors.MakeMagicHooks;
 import mage.constants.MultiplayerAttackOption;
 import mage.constants.RangeOfInfluence;
+import mage.game.CommanderDuel;
 import mage.game.FreeForAllMatch;
 import mage.game.Game;
 import mage.game.GameOptions;
@@ -52,29 +53,42 @@ public class XMageBatch {
             System.exit(0);
         }
         if (args.length < 2) {
-            System.err.println("usage: XMageBatch <deckA> <deckB> [games] [skill]  |  XMageBatch --warm");
+            System.err.println("usage: XMageBatch <deckA> <deckB> [games] [skill] [commander]  |  XMageBatch --warm");
             System.exit(2);
         }
         String deckAPath = args[0];
         String deckBPath = args[1];
         int games = args.length > 2 ? Integer.parseInt(args[2]) : 1;
         int skill = args.length > 3 ? Integer.parseInt(args[3]) : 6;
+        // Optional 5th positional token selects 1v1 Commander (EDH). The Python engine
+        // appends 'commander' for the commander format; constructed sends only 4 args.
+        boolean commander = args.length > 4 && "commander".equalsIgnoreCase(args[4]);
+        // Commander seats each player at RangeOfInfluence.ALL (multiplayer influence),
+        // constructed keeps the ONE range that TwoPlayerDuel uses.
+        RangeOfInfluence range = commander ? RangeOfInfluence.ALL : RangeOfInfluence.ONE;
 
         MakeMagicHooks.install();
         System.out.println("XMAGEBATCH scanning card database (first run builds it)...");
         CardScanner.scan();
         System.out.println("XMAGEBATCH card db ready; deckA=" + deckAPath + " deckB=" + deckBPath
-                + " games=" + games + " skill=" + skill);
+                + " games=" + games + " skill=" + skill + " commander=" + commander);
 
         for (int g = 0; g < games; g++) {
-            Game game = new TwoPlayerDuel(MultiplayerAttackOption.LEFT, RangeOfInfluence.ONE,
-                    MulliganType.GAME_DEFAULT.getMulligan(0), 40, 20, 7);
+            // CommanderDuel hardcodes minimumDeckSize=100 internally and takes a 5-arg
+            // ctor (attackOption, range, mulligan, startLife, startHandSize) — 40 life,
+            // 7-card hand. TwoPlayerDuel takes the 6-arg ctor (…, minimumDeckSize, …).
+            Game game = commander
+                    ? new CommanderDuel(MultiplayerAttackOption.LEFT, RangeOfInfluence.ALL,
+                            MulliganType.GAME_DEFAULT.getMulligan(0), 40, 7)
+                    : new TwoPlayerDuel(MultiplayerAttackOption.LEFT, RangeOfInfluence.ONE,
+                            MulliganType.GAME_DEFAULT.getMulligan(0), 40, 20, 7);
             // The AI's minimax (SimulatedPlayer2) copies each player's MatchPlayer, so
             // every player must belong to a Match — match.addPlayer sets it. Without
             // this, calculateActions NPEs on a null MatchPlayer source at T1.M1.
-            Match match = new FreeForAllMatch(new MatchOptions("make-magic batch", "Two Player Duel", true));
-            Player playerA = addPlayer(game, match, "PlayerA", deckAPath, skill);
-            Player playerB = addPlayer(game, match, "PlayerB", deckBPath, skill);
+            Match match = new FreeForAllMatch(new MatchOptions("make-magic batch",
+                    commander ? "Commander Duel" : "Two Player Duel", true));
+            Player playerA = addPlayer(game, match, "PlayerA", deckAPath, skill, range);
+            Player playerB = addPlayer(game, match, "PlayerB", deckBPath, skill, range);
 
             GameOptions options = new GameOptions();
             options.testMode = false; // CRITICAL: real 7-card opening hands + the mulligan phase.
@@ -108,15 +122,28 @@ public class XMageBatch {
         System.exit(0);
     }
 
-    private static Player addPlayer(Game game, Match match, String name, String deckPath, int skill) throws Exception {
+    private static Player addPlayer(Game game, Match match, String name, String deckPath, int skill,
+            RangeOfInfluence range) throws Exception {
         DeckCardLists list = DeckImporter.importDeckFromFile(deckPath, true);
         Deck deck = Deck.load(list, false, false);
+        // Floor of 40 covers both formats: constructed is >=40, commander's maindeck is
+        // ~99 (the commander itself rides in as an SB: line -> command zone), so the
+        // same guard catches a deck that failed to load in either mode.
         if (deck.getMaindeckCards().size() < 40) {
             throw new IllegalArgumentException(name + " deck too small (" + deck.getMaindeckCards().size()
                     + " cards) — did it fail to load? path=" + deckPath);
         }
-        Player player = new ComputerPlayer7(name, RangeOfInfluence.ONE, skill);
+        Player player = new ComputerPlayer7(name, range, skill);
         game.loadCards(deck.getCards(), player.getId());
+        // The explicit sideboard load is REQUIRED in BOTH modes and is NOT redundant:
+        // useDeck (via game.addPlayer -> player.useDeck) only puts the sideboard card
+        // UUIDs into player.getSideboard(); it does NOT register the card objects in the
+        // game. GameCommanderImpl.init walks player.getSideboard() and calls
+        // game.getCard(cardId) to move the commander to the command zone — without this
+        // loadCards that lookup returns null and the command zone comes up EMPTY (the
+        // commander silently never appears). Verified: omitting it -> 0 commanders seated;
+        // with it -> the commander lands in zone=COMMAND. There is no double-register
+        // (loadCards only populates the game card map; init does the zone move once).
         game.loadCards(deck.getSideboard(), player.getId());
         game.addPlayer(player, deck);
         match.addPlayer(player, deck); // links player.getMatchPlayer() (needed by the AI sim).

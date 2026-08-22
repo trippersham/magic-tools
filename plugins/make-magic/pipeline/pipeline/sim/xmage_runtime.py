@@ -3,9 +3,10 @@
 XMage is a multi-module Maven app — unlike Forge, upstream publishes no single
 fat jar to fetch. So (until the shaded-jar distribution build, task 2.3b) the
 XMage engine runs against a LOCAL built reactor pointed to by
-``MAKE_MAGIC_XMAGE_HOME``: a checked-out + built XMage clone (``mvn -pl
-Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests`` — the
-mad-bot module carries ComputerPlayer7). ``pipeline/sim/java/xmage/build.sh`` compiles the small
+``MAKE_MAGIC_XMAGE_HOME``: a checked-out + built XMage clone (``mvn -pl Mage.Tests,
+Mage.Server.Plugins/Mage.Player.AI.MA,Mage.Server.Plugins/Mage.Game.CommanderDuel -am
+install -DskipTests`` — the mad-bot module carries ComputerPlayer7, the CommanderDuel
+module the EDH game type). ``pipeline/sim/java/xmage/build.sh`` compiles the small
 harness jar AND caches the reactor's transitive classpath to
 ``<home>/make-magic-xmage-classpath.txt`` — so resolution here is a fast,
 network-free read (no ``mvn`` at run time).
@@ -38,17 +39,20 @@ __all__ = (
     'resolve',
 )
 
-#: Point this at a BUILT XMage reactor (a clone where ``mvn -pl
-#: Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests`` has
-#: run) — the dir that contains ``Mage.Tests/``.
+#: Point this at a BUILT XMage reactor (a clone where the ``_REACTOR_BUILD_CMD`` below
+#: has run) — the dir that contains ``Mage.Tests/``.
 ENV_XMAGE_HOME = 'MAKE_MAGIC_XMAGE_HOME'
 
 #: The pinned XMage version the harness is compiled + verified against.
 XMAGE_VERSION = '1.4.60'
 
-#: The reactor build command surfaced in "how to enable" errors. Includes the mad-bot
-#: module (mage-player-ai-ma = ComputerPlayer7) explicitly — it is not a Mage.Tests dep.
-_REACTOR_BUILD_CMD = 'mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests'
+#: The reactor build command surfaced in "how to enable" errors. Names, beyond Mage.Tests,
+#: the mad-bot module (mage-player-ai-ma = ComputerPlayer7) and the CommanderDuel module
+#: (the 1v1 EDH game type) explicitly — neither is a Mage.Tests dependency.
+_REACTOR_BUILD_CMD = (
+    'mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA,'
+    'Mage.Server.Plugins/Mage.Game.CommanderDuel -am install -DskipTests'
+)
 
 #: The reactor's transitive classpath, cached here by ``build.sh`` (one file of
 #: ``:``-joined jar paths) so run-time resolution needs no ``mvn`` call.
