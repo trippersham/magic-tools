@@ -12,15 +12,18 @@ from pathlib import Path
 
 import pytest
 
-from pipeline.sim.engine import EngineUnavailableError, SimEngine, get_engine
+from pipeline.sim.engine import EngineInstall, EngineUnavailableError, SimEngine, get_engine
 from pipeline.sim.engines import xmage as xmage_engine
 from pipeline.sim.engines.xmage import (
+    _COMMANDER_TIMEOUT_S,
+    _DEFAULT_TIMEOUT_S,
     XMageEngine,
     XMageError,
     _clone_tree_cow,
     _forge_dck_to_xmage_txt,
     _stage_private_db,
 )
+from pipeline.sim.runner import GameOutcome, MatchResult
 from pipeline.sim.xmage_runtime import XMageInstall
 
 # The card-DB warm memo is per-INSTANCE (XMageEngine is a registered singleton), so
@@ -67,6 +70,36 @@ def test_forge_dck_translates_to_xmage_txt() -> None:
     assert 'Name=Test' not in out and 'Smash to Smithereens' not in out
 
 
+def test_forge_dck_commander_zone_becomes_sideboard_line() -> None:
+    # A commander .dck's [Commander] zone card must reach XMage as an `SB:` line
+    # (TxtDeckImporter routes SB: → sideboard → command zone), while [Main] lines are
+    # kept as-is and the ordinary [Sideboard] is dropped.
+    dck = (
+        '[metadata]\n'
+        'Name=Kaervek\n'
+        'Deck Type=Commander\n'
+        '[Commander]\n'
+        '1 Kaervek the Merciless\n'
+        '[Main]\n'
+        '47 Swamp\n'
+        '[Sideboard]\n'
+        '1 Dispel\n'
+    )
+    out = _forge_dck_to_xmage_txt(dck)
+    assert 'SB: 1 Kaervek the Merciless' in out  # commander → command zone via SB:.
+    assert '47 Swamp' in out  # maindeck kept as-is.
+    assert 'Dispel' not in out  # the ordinary sideboard is still dropped.
+    assert 'Kaervek the Merciless' in out and out.count('Kaervek') == 1  # commander appears once.
+
+
+def test_forge_dck_constructed_unchanged_no_sideboard_prefix() -> None:
+    # A constructed .dck (no [Commander] zone) is byte-identical to before — no SB:.
+    dck = '[metadata]\nName=T\n[Main]\n4 Lightning Bolt\n20 Mountain\n[Sideboard]\n2 Duress\n'
+    out = _forge_dck_to_xmage_txt(dck)
+    assert out == '4 Lightning Bolt\n20 Mountain\n'
+    assert 'SB:' not in out
+
+
 def test_resolve_unavailable_raises_engine_unavailable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # No MAKE_MAGIC_XMAGE_HOME -> a clean EngineUnavailableError (never a traceback),
     # re-raised from XMageUnavailableError so the CLI/doctor stay actionable.
@@ -93,23 +126,84 @@ def test_resolve_provision_true_calls_ensure(monkeypatch: pytest.MonkeyPatch, tm
     assert calls == ['ensure', 'resolve']
 
 
-def test_commander_is_rejected_constructed_only() -> None:
-    # XMage engine is constructed-only for now — commander must fail clearly, not
-    # silently mis-run. (No install needed: the format check precedes resolve use.)
-    from pipeline.sim.engine import EngineInstall
+def _run_matchup_capturing_launch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, fmt: str, n: int = 1, timeout_s: int | None = None
+) -> dict[str, object]:
+    """Drive ``run_matchup`` with every JVM/IO seam mocked, capturing the launch args
+    + timeout threaded into :func:`_launch_xmage`. Returns the captured dict."""
+    seen: dict[str, object] = {}
 
-    class _Stub:
-        pass
+    def _fake_launch(handle: object, args: list[str], *, cwd: object, timeout_s: int, what: str) -> tuple[str, int]:
+        seen['args'] = args
+        seen['timeout_s'] = timeout_s
+        return ('OK', 0)
 
-    with pytest.raises(EngineUnavailableError, match='constructed only'):
-        XMageEngine().run_matchup(
-            ('A', ''),
-            ('B', ''),
-            n=1,
-            seed=1,
-            fmt='commander',
-            install=EngineInstall(version='x', handle=_Stub()),
+    def _fake_parse(output: str, *, deck_a: str, deck_b: str) -> MatchResult:
+        return MatchResult(
+            deck_a=deck_a,
+            deck_b=deck_b,
+            wins_a=n,
+            wins_b=0,
+            draws=0,
+            per_game=tuple(GameOutcome(winner='a', elapsed_ms=1) for _ in range(n)),
+            raw_log=output,
         )
+
+    jar = tmp_path / 'harness.jar'
+    jar.write_bytes(b'jar')
+    monkeypatch.setattr(xmage_engine.xmage_runtime, '_HARNESS_JAR', jar)
+    monkeypatch.setattr(xmage_engine.runner, 'staging_root', lambda: tmp_path / 'staging')
+    monkeypatch.setattr(xmage_engine, '_stage_private_db', lambda handle, run_dir: None)
+    monkeypatch.setattr(xmage_engine, '_launch_xmage', _fake_launch)
+    monkeypatch.setattr(xmage_engine.runner, 'parse_match_log', _fake_parse)
+
+    engine = XMageEngine()
+    monkeypatch.setattr(engine, '_ensure_card_db_warm', lambda handle: None)
+    install = EngineInstall(version='x', handle=_install(tmp_path))
+    engine.run_matchup(
+        ('A', '[Main]\n1 Sol Ring\n'),
+        ('B', '[Main]\n1 Sol Ring\n'),
+        n=n,
+        seed=1,
+        fmt=fmt,
+        install=install,
+        timeout_s=timeout_s,
+    )
+    return seen
+
+
+def test_commander_is_accepted_and_passes_commander_token(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # XMage now runs 1v1 commander: run_matchup no longer rejects it, and the launch
+    # gets a 5th 'commander' mode token (the Phase-2 harness parses it → CommanderDuel).
+    seen = _run_matchup_capturing_launch(monkeypatch, tmp_path, fmt='commander')
+    args = seen['args']
+    assert isinstance(args, list)
+    assert args[-1] == 'commander'  # the mode token appended for commander.
+    assert len(args) == 5  # deckA, deckB, n, skill, mode.
+
+
+def test_constructed_passes_no_commander_token(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # Constructed launch is byte-identical to before: 4 args, no mode token.
+    seen = _run_matchup_capturing_launch(monkeypatch, tmp_path, fmt='constructed')
+    args = seen['args']
+    assert isinstance(args, list)
+    assert len(args) == 4  # deckA, deckB, n, skill — no 5th token.
+    assert 'commander' not in args
+
+
+def test_commander_none_timeout_uses_higher_default(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # fmt='commander' with no explicit timeout uses the longer EDH default, so the
+    # external kill budget (headroom + n*timeout) is the larger commander budget.
+    seen = _run_matchup_capturing_launch(monkeypatch, tmp_path, fmt='commander', n=2, timeout_s=None)
+    constructed = _run_matchup_capturing_launch(monkeypatch, tmp_path, fmt='constructed', n=2, timeout_s=None)
+    headroom = xmage_engine.runner._JVM_LOAD_HEADROOM_S
+    cmdr_budget = seen['timeout_s']
+    ctor_budget = constructed['timeout_s']
+    assert isinstance(cmdr_budget, int) and isinstance(ctor_budget, int)
+    assert _COMMANDER_TIMEOUT_S > _DEFAULT_TIMEOUT_S
+    assert cmdr_budget == headroom + 2 * _COMMANDER_TIMEOUT_S
+    assert ctor_budget == headroom + 2 * _DEFAULT_TIMEOUT_S
+    assert cmdr_budget > ctor_budget  # commander gets the larger budget.
 
 
 # --------------------------------------------------------------------------- #
@@ -232,11 +326,12 @@ def test_max_concurrency_probes_the_db_subtree(monkeypatch: pytest.MonkeyPatch, 
     assert captured['src'] == tmp_path / 'db'
 
 
-def test_supports_format_rejects_commander() -> None:
-    """XMage declares constructed-only so the CLI can pre-flight SKIP commander runs."""
+def test_supports_format_accepts_constructed_and_commander() -> None:
+    """XMage now runs both constructed and 1v1 commander, so the CLI pre-flight guard
+    admits both (no bogus commander SKIP)."""
     engine = XMageEngine()
     assert engine.supports_format('constructed') is True
-    assert engine.supports_format('commander') is False
+    assert engine.supports_format('commander') is True
 
 
 def test_launch_xmage_kills_group_on_nontimeout_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

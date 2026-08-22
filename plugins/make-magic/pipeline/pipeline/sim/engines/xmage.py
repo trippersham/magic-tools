@@ -42,6 +42,11 @@ _CP7_SKILL = 6
 #: Forge's ``-c``), and a control grind can run long — so the bound is the external
 #: kill only. Generous; a stalled game (rare) is killed and surfaced as a failure.
 _DEFAULT_TIMEOUT_S = 240
+#: Per-game budget for commander (EDH). Commander games run longer than constructed,
+#: so the None-default is format-aware (mirrors Forge's ``_COMMANDER_TIMEOUT_S``); an
+#: explicit ``timeout_s`` still overrides. The external kill budget stays a per-game
+#: bound (``_JVM_LOAD_HEADROOM_S + n*timeout_s``).
+_COMMANDER_TIMEOUT_S = 300
 #: XMage CP7 (MAD minimax) clones full game states during search, so it needs more
 #: heap + a larger per-JVM RAM budget than Forge's 2 GiB — under-budgeting over-admits
 #: the pool and risks swap/jetsam (#63). The pool-sizing budget is the ``-Xmx`` heap
@@ -68,7 +73,8 @@ _XMAGE_CAPABILITIES = EngineCapabilities(
         'Result: contract so the same parser applies. CP7 actively casts counters + sequences interaction '
         '(the control-piloting strength Forge lacks). Games run to a decisive result (no draw clock), so '
         'non-decisive is rare; a long control mirror can grind for a minute+, bounded by the external '
-        'kill. Runs against a LOCAL built XMage reactor (MAKE_MAGIC_XMAGE_HOME); constructed only for now.'
+        'kill. Runs against a LOCAL built XMage reactor (MAKE_MAGIC_XMAGE_HOME); runs constructed + '
+        '1v1 commander (the commander loads via an SB: line into the command zone).'
     ),
     # XMage attributes a combat kill to a generic "combat" hit, not a specific named
     # source — downstream MUST NOT read a named killer from an XMage result.
@@ -110,20 +116,29 @@ def _engine_version() -> str:
 def _forge_dck_to_xmage_txt(text: str) -> str:
     """Translate a Forge ``.dck`` to an XMage plain ``N Cardname`` deck.
 
-    A Forge ``.dck`` is ``[metadata]`` / ``[Main]`` / ``[Sideboard]`` sections whose
-    ``[Main]`` lines are already ``N Cardname`` — exactly XMage's ``.txt`` format
-    (``DeckImporter`` reads ``.txt``). Keep ONLY the maindeck card lines. (Verified:
-    the shipped guilds decks load + play in XMage 1.4.60 with no card-not-found.)
+    A Forge ``.dck`` is ``[metadata]`` / ``[Commander]`` / ``[Main]`` / ``[Sideboard]``
+    sections whose card lines are already ``N Cardname`` — exactly XMage's ``.txt``
+    format (``DeckImporter`` reads ``.txt``). Keep the maindeck card lines as-is, and
+    carry any ``[Commander]`` zone lines as ``SB: N Cardname`` — XMage's
+    ``TxtDeckImporter`` routes ``SB:``-prefixed lines to the sideboard, and the
+    CommanderDuel game moves that sideboard card into the command zone (so a commander
+    deck reaches XMage WITH its commander). The ordinary ``[Sideboard]`` section is
+    ignored. (Verified: the shipped guilds decks load + play in XMage 1.4.60 with no
+    card-not-found.)
     """
     lines: list[str] = []
-    in_main = False
+    section = ''
     for raw in text.splitlines():
         stripped = raw.strip()
         if stripped.startswith('['):
-            in_main = stripped.lower() == '[main]'
+            section = stripped.lower()
             continue
-        if in_main and stripped:
+        if not stripped:
+            continue
+        if section == '[main]':
             lines.append(stripped)
+        elif section == '[commander]':
+            lines.append(f'SB: {stripped}')
     return '\n'.join(lines) + '\n'
 
 
@@ -149,15 +164,17 @@ class XMageEngine:
         return _XMAGE_CAPABILITIES
 
     def supports_format(self, fmt: str) -> bool:
-        """XMage runs CONSTRUCTED only — commander is a follow-up (see :meth:`run_matchup`).
+        """XMage runs both CONSTRUCTED and COMMANDER (1v1 EDH via CommanderDuel).
 
         Duck-typed (like :meth:`per_jvm_gib` / :meth:`max_concurrency`, not on the
         ``SimEngine`` Protocol so the test fakes stay ``isinstance``-valid). The
         ``deck`` verb's pre-flight guard reads this so an unsupported format is a
         clean engine-level SKIP (``--engine both``) / error (single engine) BEFORE
         any provision or matchup, instead of a per-matchup failure that pollutes the
-        comparison table with a bogus 0-0-0 row."""
-        return fmt != 'commander'
+        comparison table with a bogus 0-0-0 row. Only 'constructed'/'commander' exist
+        today and both are supported, so this returns ``True``."""
+        del fmt
+        return True
 
     def per_jvm_gib(self) -> float:
         """XMage's per-JVM RAM budget for pool sizing — larger than Forge's 2 GiB
@@ -241,13 +258,15 @@ class XMageEngine:
         EXTERNAL timeout + process-group kill, and parses the Forge-format output with
         the shared :func:`~pipeline.sim.runner.parse_match_log`. ``seed`` is part of the
         cache identity only — XMage (like the Forge harness) takes no reproducible seed.
-        Commander is not yet supported (constructed only).
+
+        Commander (1v1 EDH) is supported: the translated deck carries its commander as
+        an ``SB:`` line (→ command zone), the None-default timeout is the longer
+        :data:`_COMMANDER_TIMEOUT_S`, and a ``'commander'`` mode token is passed to the
+        harness so it builds a CommanderDuel. Constructed is unchanged.
         """
         handle: XMageInstall = install.handle
-        if fmt == 'commander':
-            raise EngineUnavailableError('the XMage engine supports constructed only (commander is a follow-up).')
         if timeout_s is None:
-            timeout_s = _DEFAULT_TIMEOUT_S
+            timeout_s = _COMMANDER_TIMEOUT_S if fmt == 'commander' else _DEFAULT_TIMEOUT_S
         name_a, text_a = deck_a
         name_b, text_b = deck_b
         del seed  # cache-key identity only; XMage has no reproducible seed.
@@ -283,9 +302,14 @@ class XMageEngine:
             # budget across n games; launched from run_dir so its H2 db is the private
             # copy (see _stage_private_db).
             external_timeout = runner._JVM_LOAD_HEADROOM_S + max(1, n) * timeout_s
+            launch_args = [str(txt_a), str(txt_b), str(n), str(_CP7_SKILL)]
+            if fmt == 'commander':
+                # Phase-2 Java harness parses this 5th token to select CommanderDuel;
+                # constructed stays 4 args (byte-identical to before).
+                launch_args.append('commander')
             output, returncode = _launch_xmage(
                 handle,
-                [str(txt_a), str(txt_b), str(n), str(_CP7_SKILL)],
+                launch_args,
                 cwd=run_dir,
                 timeout_s=external_timeout,
                 what=f'{name_a} vs {name_b} (n={n})',
