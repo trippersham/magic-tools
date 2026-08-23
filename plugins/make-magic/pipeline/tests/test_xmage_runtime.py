@@ -49,10 +49,12 @@ def test_ensure_none_sha_refuses_before_on_fetch(monkeypatch: pytest.MonkeyPatch
     assert fired == []  # the notice never fired
 
 
-def test_dist_url_couples_to_the_version_tag() -> None:
-    """The runtime fetch URL must target the release tag the workflow publishes to
-    (``xmage-dist-<XMAGE_VERSION>``) — guards a hardcoded-URL drift / version skew."""
-    assert xr.XMAGE_DIST_URL.endswith(f'xmage-dist-{xr.XMAGE_VERSION}/{xr._DIST_JAR_NAME}')
+def test_dist_url_couples_to_the_dist_tag() -> None:
+    """The runtime fetch URL must target :data:`_DIST_TAG` — the exact tag the workflow
+    publishes to — and that tag must stay prefixed with the built XMage version, so a
+    hardcoded-URL drift / version skew is caught."""
+    assert xr.XMAGE_DIST_URL.endswith(f'{xr._DIST_TAG}/{xr._DIST_JAR_NAME}')
+    assert xr._DIST_TAG.startswith(f'xmage-dist-{xr.XMAGE_VERSION}')
 
 
 def test_resolve_reactor_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -90,6 +92,7 @@ def test_resolve_neither_names_both_paths(monkeypatch: pytest.MonkeyPatch, tmp_p
 def test_ensure_fetches_on_miss(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """ensure() downloads the shaded jar into <data_dir>/xmage/ on a miss, then resolves."""
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', 'dead' * 16)  # pin so the fail-closed gate lets the mocked fetch run
 
     def _fake_download(url: str, dest: Path, *, sha256: str | None) -> None:
         dest.write_bytes(b'PK\x03\x04 fetched jar')  # simulate a verified download
@@ -104,6 +107,7 @@ def test_ensure_fetches_on_miss(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
 def test_ensure_fetch_failure_cleans_up_and_raises(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A failed/unverified download leaves NO partial jar cached and raises cleanly."""
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', 'dead' * 16)  # pin so the fail-closed gate lets the mocked fetch run
 
     def _boom(url: str, dest: Path, *, sha256: str | None) -> None:
         dest.write_bytes(b'partial')  # a partial write...
@@ -133,6 +137,7 @@ def test_ensure_stages_then_atomically_publishes(monkeypatch: pytest.MonkeyPatch
     """The download targets a `.incomplete` staging path; the final jar appears only via
     an atomic os.replace — so resolve() never sees a half-written jar at the trusted path."""
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', 'dead' * 16)  # pin so the fail-closed gate lets the mocked fetch run
     final = tmp_path / 'xmage' / xr._DIST_JAR_NAME
     seen: dict[str, Path] = {}
 
@@ -155,6 +160,7 @@ def test_ensure_crash_after_partial_write_leaves_no_trusted_jar(
     """A crash AFTER a partial write (SIGKILL/disk-full analogue) must leave neither a
     truncated jar at the final path nor a leftover staging file."""
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', 'dead' * 16)  # pin so the fail-closed gate lets the mocked fetch run
     final = tmp_path / 'xmage' / xr._DIST_JAR_NAME
     staging = tmp_path / 'xmage' / f'{xr._DIST_JAR_NAME}.incomplete'
 

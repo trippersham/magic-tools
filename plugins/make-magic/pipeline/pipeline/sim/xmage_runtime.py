@@ -67,18 +67,23 @@ _HARNESS_JAR = Path(__file__).parent / 'java' / 'xmage' / 'make-magic-xmage.jar'
 #: under ``<data_dir>/xmage/`` so a fresh box needs NO reactor build. ``ensure``
 #: auto-provisions it (mirroring Forge's fetch-at-runtime).
 _DIST_JAR_NAME = 'make-magic-xmage-dist.jar'
-#: The release asset URL — pinned to the release tag that ``xmage-dist-release.yml``
-#: publishes. (Update the tag when a new dist is cut.)
-XMAGE_DIST_URL = (
-    f'https://github.com/trippersham/magic-tools/releases/download/xmage-dist-{XMAGE_VERSION}/{_DIST_JAR_NAME}'
-)
-#: SHA256 of the published jar — the fail-closed integrity gate. Pinned to the
-#: ``xmage-dist-1.4.60`` release's ``make-magic-xmage-dist.jar.sha256`` asset (shaded
-#: jars are not byte-reproducible across builds, so the canonical hash comes from the
-#: release build itself, not a local/dry-run rebuild). ``None`` re-arms fail-closed:
-#: ``ensure`` refuses to fetch (``_download_verified`` rejects a missing checksum).
-#: When cutting a new release, re-pin from that release's ``.sha256`` asset.
-XMAGE_DIST_SHA256: str | None = 'f6bd98b290b922a2f0707df49ca7da5bb36f82726576b9cda693e7d6f465033b'
+#: The dist-artifact tag ``xmage-dist-release.yml`` publishes to. A DIST REVISION of the
+#: upstream ``XMAGE_VERSION`` line, bumped when the shaded jar's CONTENTS change without
+#: an upstream XMage bump — here ``-2`` is the first dist that bundles CommanderDuel (so
+#: install-mode can run 1v1 commander). Kept prefixed with ``xmage-dist-{XMAGE_VERSION}``
+#: so the coupling to the built XMage version stays legible; the workflow's tag trigger
+#: matches the ``xmage-dist-*`` wildcard, so any revision publishes.
+_DIST_TAG = f'xmage-dist-{XMAGE_VERSION}-2'
+#: The release asset URL — pinned to :data:`_DIST_TAG`. (Bump ``_DIST_TAG`` + re-pin the
+#: SHA below when a new dist is cut.)
+XMAGE_DIST_URL = f'https://github.com/trippersham/magic-tools/releases/download/{_DIST_TAG}/{_DIST_JAR_NAME}'
+#: SHA256 of the published jar — the fail-closed integrity gate, pinned to the
+#: :data:`_DIST_TAG` release's ``make-magic-xmage-dist.jar.sha256`` asset (shaded jars
+#: are not byte-reproducible across builds, so the canonical hash comes from the release
+#: build itself, not a local/dry-run rebuild). ``None`` re-arms fail-closed: ``ensure``
+#: refuses to fetch (``_download_verified`` rejects a missing checksum) — the state
+#: between bumping ``_DIST_TAG`` and pinning the newly-published ``.sha256``.
+XMAGE_DIST_SHA256: str | None = None
 
 
 class XMageUnavailableError(RuntimeError):
