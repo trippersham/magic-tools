@@ -8,7 +8,7 @@
 #   make-magic-xmage-dist.jar   (the shaded, runnable fat jar; NOT committed — see .gitignore)
 #
 # Prereq: the org.mage:*:1.4.60 reactor artifacts in the local Maven repo (~/.m2),
-#   i.e. a magefree/mage @ 1.4.60 clone where `mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests`
+#   i.e. a magefree/mage @ 1.4.60 clone where `mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA,Mage.Server.Plugins/Mage.Game.CommanderDuel -am install -DskipTests`
 #   has run. In CI (xmage-dist-release.yml) that clone+install is the preceding step.
 #
 # Toolchain (no reliance on PATH):

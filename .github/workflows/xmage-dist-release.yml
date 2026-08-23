@@ -74,7 +74,7 @@ jobs:
           set -euo pipefail
           git clone --depth 1 --branch "$XMAGE_TAG" "https://github.com/${XMAGE_REPO}.git" xmage-src
           cd xmage-src
-          mvn -q -B -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests
+          mvn -q -B -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA,Mage.Server.Plugins/Mage.Game.CommanderDuel -am install -DskipTests
 
       - name: Build the shaded dist jar
         run: mvn -q -B -f "$DIST_DIR/pom.xml" -DskipTests package

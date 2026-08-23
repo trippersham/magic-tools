@@ -9,7 +9,7 @@
 #     read at run time by pipeline/sim/xmage_runtime.py (no mvn at run time).
 #
 # Prereq: a BUILT XMage 1.4.60 reactor at $MAKE_MAGIC_XMAGE_HOME (a clone where
-#   `mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests` has run so the module jars are in ~/.m2).
+#   `mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA,Mage.Server.Plugins/Mage.Game.CommanderDuel -am install -DskipTests` has run so the module jars are in ~/.m2).
 #
 # Toolchain (no reliance on PATH):
 #   JAVAC   javac to use (default: /opt/homebrew/opt/openjdk@17/bin/javac)
@@ -42,8 +42,9 @@ CP_CACHE="$XMAGE_HOME/make-magic-xmage-classpath.txt"
 echo ">> assembling reactor classpath -> $CP_CACHE"
 # Include the "mad bot" (mage-player-ai-ma = ComputerPlayer7) explicitly — it is NOT a
 # Mage.Tests dependency, so `-pl Mage.Tests -am` alone would omit it from the classpath
-# and ComputerPlayer7 would fail to load at run time.
-( cd "$XMAGE_HOME" && "$MVN" -q -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am \
+# and ComputerPlayer7 would fail to load at run time. Mage.Game.CommanderDuel is likewise
+# not a Mage.Tests dependency and is named explicitly so CommanderDuel resolves at run time.
+( cd "$XMAGE_HOME" && "$MVN" -q -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA,Mage.Server.Plugins/Mage.Game.CommanderDuel -am \
     org.apache.maven.plugins:maven-dependency-plugin:3.6.1:build-classpath \
     -Dmdep.outputFile="$CP_CACHE" -Dmdep.includeScope=test )
 [[ -s "$CP_CACHE" ]] || { echo "ERROR: classpath cache not written" >&2; exit 1; }

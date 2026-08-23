@@ -3,9 +3,10 @@
 XMage is a multi-module Maven app — unlike Forge, upstream publishes no single
 fat jar to fetch. So (until the shaded-jar distribution build, task 2.3b) the
 XMage engine runs against a LOCAL built reactor pointed to by
-``MAKE_MAGIC_XMAGE_HOME``: a checked-out + built XMage clone (``mvn -pl
-Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests`` — the
-mad-bot module carries ComputerPlayer7). ``pipeline/sim/java/xmage/build.sh`` compiles the small
+``MAKE_MAGIC_XMAGE_HOME``: a checked-out + built XMage clone (``mvn -pl Mage.Tests,
+Mage.Server.Plugins/Mage.Player.AI.MA,Mage.Server.Plugins/Mage.Game.CommanderDuel -am
+install -DskipTests`` — the mad-bot module carries ComputerPlayer7, the CommanderDuel
+module the EDH game type). ``pipeline/sim/java/xmage/build.sh`` compiles the small
 harness jar AND caches the reactor's transitive classpath to
 ``<home>/make-magic-xmage-classpath.txt`` — so resolution here is a fast,
 network-free read (no ``mvn`` at run time).
@@ -38,17 +39,20 @@ __all__ = (
     'resolve',
 )
 
-#: Point this at a BUILT XMage reactor (a clone where ``mvn -pl
-#: Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests`` has
-#: run) — the dir that contains ``Mage.Tests/``.
+#: Point this at a BUILT XMage reactor (a clone where the ``_REACTOR_BUILD_CMD`` below
+#: has run) — the dir that contains ``Mage.Tests/``.
 ENV_XMAGE_HOME = 'MAKE_MAGIC_XMAGE_HOME'
 
 #: The pinned XMage version the harness is compiled + verified against.
 XMAGE_VERSION = '1.4.60'
 
-#: The reactor build command surfaced in "how to enable" errors. Includes the mad-bot
-#: module (mage-player-ai-ma = ComputerPlayer7) explicitly — it is not a Mage.Tests dep.
-_REACTOR_BUILD_CMD = 'mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests'
+#: The reactor build command surfaced in "how to enable" errors. Names, beyond Mage.Tests,
+#: the mad-bot module (mage-player-ai-ma = ComputerPlayer7) and the CommanderDuel module
+#: (the 1v1 EDH game type) explicitly — neither is a Mage.Tests dependency.
+_REACTOR_BUILD_CMD = (
+    'mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA,'
+    'Mage.Server.Plugins/Mage.Game.CommanderDuel -am install -DskipTests'
+)
 
 #: The reactor's transitive classpath, cached here by ``build.sh`` (one file of
 #: ``:``-joined jar paths) so run-time resolution needs no ``mvn`` call.
@@ -63,18 +67,23 @@ _HARNESS_JAR = Path(__file__).parent / 'java' / 'xmage' / 'make-magic-xmage.jar'
 #: under ``<data_dir>/xmage/`` so a fresh box needs NO reactor build. ``ensure``
 #: auto-provisions it (mirroring Forge's fetch-at-runtime).
 _DIST_JAR_NAME = 'make-magic-xmage-dist.jar'
-#: The release asset URL — pinned to the release tag that ``xmage-dist-release.yml``
-#: publishes. (Update the tag when a new dist is cut.)
-XMAGE_DIST_URL = (
-    f'https://github.com/trippersham/magic-tools/releases/download/xmage-dist-{XMAGE_VERSION}/{_DIST_JAR_NAME}'
-)
-#: SHA256 of the published jar — the fail-closed integrity gate. Pinned to the
-#: ``xmage-dist-1.4.60`` release's ``make-magic-xmage-dist.jar.sha256`` asset (shaded
-#: jars are not byte-reproducible across builds, so the canonical hash comes from the
-#: release build itself, not a local/dry-run rebuild). ``None`` re-arms fail-closed:
-#: ``ensure`` refuses to fetch (``_download_verified`` rejects a missing checksum).
-#: When cutting a new release, re-pin from that release's ``.sha256`` asset.
-XMAGE_DIST_SHA256: str | None = 'f6bd98b290b922a2f0707df49ca7da5bb36f82726576b9cda693e7d6f465033b'
+#: The dist-artifact tag ``xmage-dist-release.yml`` publishes to. A DIST REVISION of the
+#: upstream ``XMAGE_VERSION`` line, bumped when the shaded jar's CONTENTS change without
+#: an upstream XMage bump — here ``-2`` is the first dist that bundles CommanderDuel (so
+#: install-mode can run 1v1 commander). Kept prefixed with ``xmage-dist-{XMAGE_VERSION}``
+#: so the coupling to the built XMage version stays legible; the workflow's tag trigger
+#: matches the ``xmage-dist-*`` wildcard, so any revision publishes.
+_DIST_TAG = f'xmage-dist-{XMAGE_VERSION}-2'
+#: The release asset URL — pinned to :data:`_DIST_TAG`. (Bump ``_DIST_TAG`` + re-pin the
+#: SHA below when a new dist is cut.)
+XMAGE_DIST_URL = f'https://github.com/trippersham/magic-tools/releases/download/{_DIST_TAG}/{_DIST_JAR_NAME}'
+#: SHA256 of the published jar — the fail-closed integrity gate, pinned to the
+#: :data:`_DIST_TAG` release's ``make-magic-xmage-dist.jar.sha256`` asset (shaded jars
+#: are not byte-reproducible across builds, so the canonical hash comes from the release
+#: build itself, not a local/dry-run rebuild). ``None`` re-arms fail-closed: ``ensure``
+#: refuses to fetch (``_download_verified`` rejects a missing checksum) — the state
+#: between bumping ``_DIST_TAG`` and pinning the newly-published ``.sha256``.
+XMAGE_DIST_SHA256: str | None = '847f458796843f1010562667df809f42fc4d95e7316ccf96f2e7741fcae1930f'
 
 
 class XMageUnavailableError(RuntimeError):

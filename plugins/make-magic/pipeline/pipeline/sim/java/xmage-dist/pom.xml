@@ -20,7 +20,7 @@
     against any stray transitive test/CDDL jar.
 
     Prereq: the org.mage:*:1.4.60 reactor artifacts installed in ~/.m2
-    (`mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA -am install -DskipTests` in a magefree/mage @ 1.4.60 clone).
+    (`mvn -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA,Mage.Server.Plugins/Mage.Game.CommanderDuel -am install -DskipTests` in a magefree/mage @ 1.4.60 clone).
   -->
   <groupId>org.makemagic</groupId>
   <artifactId>make-magic-xmage-dist</artifactId>
@@ -42,6 +42,8 @@
     <!-- ComputerPlayer7 (MAD minimax) lives here. -->
     <dependency><groupId>org.mage</groupId><artifactId>mage-player-ai-ma</artifactId><version>${xmage.version}</version></dependency>
     <dependency><groupId>org.mage</groupId><artifactId>mage-game-twoplayerduel</artifactId><version>${xmage.version}</version></dependency>
+    <!-- CommanderDuel / GameCommanderImpl (1v1 EDH: commander -> command zone). -->
+    <dependency><groupId>org.mage</groupId><artifactId>mage-game-commanderduel</artifactId><version>${xmage.version}</version></dependency>
     <!-- FreeForAllMatch (the fake Match the AI's MatchPlayer copy needs). -->
     <dependency><groupId>org.mage</groupId><artifactId>mage-game-freeforall</artifactId><version>${xmage.version}</version></dependency>
   </dependencies>
