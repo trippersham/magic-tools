@@ -57,6 +57,43 @@ uv run --extra dev pytest -m forge     # only when you have Forge available
 - **Scope:** the pipeline is *additive* to the collection/deck-building workflow and
   must never degrade the local-first, no-credential default path.
 
+## Cutting a release
+
+Versions are declared in **more than one file**; a partial bump ships a broken install.
+`tests/test_versioning.py` runs in the normal CI suite and turns any drift below into a
+red build — so keep these in lockstep.
+
+**Bumping the plugin / marketplace version** — update *both*, to the same value:
+
+- `plugins/make-magic/.claude-plugin/plugin.json` → `version`
+- `plugins/make-magic/pipeline/pyproject.toml` → `project.version`
+
+(`.claude-plugin/marketplace.json` carries no version — it references the plugin by
+path, so there's nothing to bump there.)
+
+**Bumping a vendored install** — these are fetched at runtime and pinned by SHA:
+
+- **Forge** (`pipeline/sim/forge_runtime.py`): bump `FORGE_VERSION` **and** re-pin
+  `FORGE_TARBALL_SHA256` to the new release's checksum. The tarball URL is derived from
+  the version; the JRE is resolved + checksum-verified against the Adoptium API at fetch
+  time (nothing to pin).
+- **XMage dist** (`pipeline/sim/xmage_runtime.py` + `.github/workflows/xmage-dist-release.yml`):
+  1. If the upstream XMage version changes, update `XMAGE_VERSION` (runtime), the dist
+     pom's `<xmage.version>`, and the workflow's `XMAGE_TAG` (the upstream build ref) —
+     all coherent.
+  2. Whenever the shaded jar's **contents** change (new module, harness edit) — even
+     with no upstream bump — bump `_DIST_TAG` (tags are immutable; e.g. `…-2`), and
+     re-arm `XMAGE_DIST_SHA256 = None`.
+  3. Push the `xmage-dist-*` git tag → the release workflow reactor-builds, shades,
+     **license-audits**, smoke-tests, and uploads the jar + `.sha256` + `THIRD-PARTY.txt`.
+  4. Pin `XMAGE_DIST_SHA256` **from the release's `.sha256` asset** — never a local
+     rebuild (shaded jars aren't byte-reproducible) — and commit.
+  5. Verify: a fresh empty `MAKE_MAGIC_DATA_DIR` (no `MAKE_MAGIC_XMAGE_HOME`) →
+     `simulate deck … --engine xmage` fetches, SHA-verifies, and runs.
+
+Until the SHA is pinned, `ensure()` fails **closed** (refuses to fetch) — the CI guard
+also fails a merge left in that state.
+
 ## Reporting issues
 
 Use the [issue tracker](https://github.com/trippersham/magic-tools/issues). For a
