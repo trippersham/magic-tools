@@ -7,12 +7,24 @@ resolve-then-fetch flow with the download mocked.
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
 
 from pipeline.sim import xmage_runtime as xr
 from pipeline.sim.xmage_runtime import XMageUnavailableError
+
+
+def _stage_cached_jar(monkeypatch: pytest.MonkeyPatch, data_dir: Path, content: bytes = b'PK\x03\x04 jar') -> Path:
+    """Write a cached dist jar under ``<data_dir>/xmage/`` and PIN its real SHA, so a
+    cache-hit ``resolve`` passes the integrity re-check. Returns the jar path."""
+    xmage = data_dir / 'xmage'
+    xmage.mkdir(exist_ok=True)
+    jar = xmage / xr._DIST_JAR_NAME
+    jar.write_bytes(content)
+    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', hashlib.sha256(content).hexdigest())
+    return jar
 
 
 def _fake_reactor(tmp_path: Path) -> Path:
@@ -71,13 +83,34 @@ def test_resolve_cached_jar_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     """No reactor env, but a fetched shaded jar cached under <data_dir>/xmage/ →
     a self-contained install: classpath is the ONE jar, cwd is that dir."""
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
-    xmage_dir = tmp_path / 'xmage'
-    xmage_dir.mkdir()
-    jar = xmage_dir / xr._DIST_JAR_NAME
-    jar.write_bytes(b'PK\x03\x04 fake jar')
+    jar = _stage_cached_jar(monkeypatch, tmp_path, b'PK\x03\x04 fake jar')
     install = xr.resolve(data_dir=tmp_path)
     assert install.classpath == str(jar)  # the shaded jar IS the classpath
-    assert install.mage_tests_dir == xmage_dir  # cwd where CardScanner builds db/
+    assert install.mage_tests_dir == tmp_path / 'xmage'  # cwd where CardScanner builds db/
+
+
+def test_resolve_rejects_tampered_cached_jar(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A cached jar whose bytes no longer match the pinned SHA (swapped/corrupted after
+    caching) is REFUSED on cache-hit — not launched — so `ensure` re-fetches over it."""
+    monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    xmage = tmp_path / 'xmage'
+    xmage.mkdir()
+    (xmage / xr._DIST_JAR_NAME).write_bytes(b'swapped malicious bytes')
+    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', 'a' * 64)  # pin does NOT match the bytes
+    with pytest.raises(XMageUnavailableError, match='integrity check'):
+        xr.resolve(data_dir=tmp_path)
+
+
+def test_resolve_tolerates_cached_jar_when_sha_unpinned(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """In the transient release-cut window (pin=None) integrity is unverifiable, so a
+    cached jar resolves on existence + size alone (no re-hash to compare against)."""
+    monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    xmage = tmp_path / 'xmage'
+    xmage.mkdir()
+    jar = xmage / xr._DIST_JAR_NAME
+    jar.write_bytes(b'PK\x03\x04 unverifiable but present')
+    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', None)
+    assert xr.resolve(data_dir=tmp_path).classpath == str(jar)
 
 
 def test_resolve_neither_names_both_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -92,10 +125,13 @@ def test_resolve_neither_names_both_paths(monkeypatch: pytest.MonkeyPatch, tmp_p
 def test_ensure_fetches_on_miss(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """ensure() downloads the shaded jar into <data_dir>/xmage/ on a miss, then resolves."""
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
-    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', 'dead' * 16)  # pin so the fail-closed gate lets the mocked fetch run
+    body = b'PK\x03\x04 fetched jar'
+    # Pin the fetched bytes' real SHA: passes the fetch gate AND the cache-hit re-check
+    # resolve() now runs after the (mocked) download publishes the jar.
+    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', hashlib.sha256(body).hexdigest())
 
     def _fake_download(url: str, dest: Path, *, sha256: str | None) -> None:
-        dest.write_bytes(b'PK\x03\x04 fetched jar')  # simulate a verified download
+        dest.write_bytes(body)  # simulate a verified download
 
     monkeypatch.setattr('pipeline.sim.forge_runtime._download_verified', _fake_download)
     fetched: list[bool] = []
@@ -120,10 +156,9 @@ def test_ensure_fetch_failure_cleans_up_and_raises(monkeypatch: pytest.MonkeyPat
 
 
 def test_ensure_prefers_existing_install(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """ensure() resolves an already-cached jar WITHOUT downloading."""
+    """ensure() resolves an already-cached (integrity-verified) jar WITHOUT downloading."""
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
-    (tmp_path / 'xmage').mkdir()
-    (tmp_path / 'xmage' / xr._DIST_JAR_NAME).write_bytes(b'PK cached')
+    _stage_cached_jar(monkeypatch, tmp_path, b'PK cached')  # pins its matching SHA
 
     def _never(url: str, dest: Path, *, sha256: str | None) -> None:
         pytest.fail('should not download when an install already resolves')
@@ -137,14 +172,15 @@ def test_ensure_stages_then_atomically_publishes(monkeypatch: pytest.MonkeyPatch
     """The download targets a `.incomplete` staging path; the final jar appears only via
     an atomic os.replace — so resolve() never sees a half-written jar at the trusted path."""
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
-    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', 'dead' * 16)  # pin so the fail-closed gate lets the mocked fetch run
+    body = b'PK\x03\x04 verified jar'
+    monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', hashlib.sha256(body).hexdigest())  # matches the published bytes
     final = tmp_path / 'xmage' / xr._DIST_JAR_NAME
     seen: dict[str, Path] = {}
 
     def _fake_download(url: str, dest: Path, *, sha256: str | None) -> None:
         seen['dest'] = Path(dest)
         assert not final.exists()  # the final (trusted) path must not exist mid-download
-        Path(dest).write_bytes(b'PK\x03\x04 verified jar')
+        Path(dest).write_bytes(body)
 
     monkeypatch.setattr('pipeline.sim.forge_runtime._download_verified', _fake_download)
     install = xr.ensure(data_dir=tmp_path)

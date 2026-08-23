@@ -149,6 +149,7 @@ def resolve(data_dir: str | os.PathLike[str] | None = None) -> XMageInstall:
     # deferring to an opaque JVM classpath crash. (`ensure` publishes atomically, so
     # the fetch path itself never leaves a partial here — this guards external damage.)
     if dist_jar.is_file() and dist_jar.stat().st_size > 0:
+        _verify_cached_jar_integrity(dist_jar)
         return XMageInstall(mage_tests_dir=dist_jar.parent, classpath=str(dist_jar), java=_resolve_java())
 
     raise XMageUnavailableError(
@@ -156,6 +157,35 @@ def resolve(data_dir: str | os.PathLike[str] | None = None) -> XMageInstall:
         f'jar (~76 MB, one-time, cached), or set {ENV_XMAGE_HOME} to a BUILT XMage {XMAGE_VERSION} '
         f'reactor (a clone where `{_REACTOR_BUILD_CMD}` has run).'
     )
+
+
+def _verify_cached_jar_integrity(dist_jar: Path) -> None:
+    """Re-verify a CACHE-HIT jar against the pinned SHA — not only at download time.
+
+    ``ensure``'s download-time gate cannot protect a jar that was swapped AFTER it was
+    cached (an attacker with write access to ``<data_dir>/xmage/``, or on-disk
+    corruption). A sidecar marker would not help — the same write access defeats it — so
+    the only real check is re-hashing against the CODE-pinned :data:`XMAGE_DIST_SHA256`
+    (which a jar-swapping attacker cannot alter without editing the installed source).
+
+    On a mismatch, raise :class:`XMageUnavailableError`: ``resolve`` refuses the swapped
+    jar rather than launching it, and ``ensure``'s ``except XMageUnavailableError`` then
+    re-fetches a verified jar over it (self-healing). Hashing ~76 MB is ~0.1-0.3 s —
+    negligible against a multi-minute sim, and it runs only on the fetched-jar path.
+    When the pin is ``None`` (the transient release-cut window) integrity is
+    unverifiable, so the existence + size guard stands alone.
+    """
+    if XMAGE_DIST_SHA256 is None:
+        return
+    from pipeline.sim.forge_runtime import _verify_sha256
+
+    try:
+        _verify_sha256(dist_jar, XMAGE_DIST_SHA256)
+    except ValueError as exc:
+        raise XMageUnavailableError(
+            f'cached XMage jar {dist_jar} failed its integrity check ({exc}) — refusing to run a '
+            'swapped/corrupted jar; it will be re-fetched on the next provisioning run.'
+        ) from exc
 
 
 def _resolve_reactor(home_env: str) -> XMageInstall:
