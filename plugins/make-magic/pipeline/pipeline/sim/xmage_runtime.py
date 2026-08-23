@@ -83,7 +83,7 @@ XMAGE_DIST_URL = f'https://github.com/trippersham/magic-tools/releases/download/
 #: build itself, not a local/dry-run rebuild). ``None`` re-arms fail-closed: ``ensure``
 #: refuses to fetch (``_download_verified`` rejects a missing checksum) — the state
 #: between bumping ``_DIST_TAG`` and pinning the newly-published ``.sha256``.
-XMAGE_DIST_SHA256: str | None = None
+XMAGE_DIST_SHA256: str | None = '847f458796843f1010562667df809f42fc4d95e7316ccf96f2e7741fcae1930f'
 
 
 class XMageUnavailableError(RuntimeError):
