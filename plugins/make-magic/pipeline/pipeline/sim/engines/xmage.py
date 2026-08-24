@@ -386,6 +386,32 @@ class XMageEngine:
         entry the match path threads, so both contexts drive it identically). No summary
         line / a non-zero exit → :class:`XMageError` (never a silent 0). Mirrors
         :meth:`run_matchup`'s staging + warm + private-db discipline for one deck.
+
+        Return-stable wrapper over :meth:`goldfish_output`: the Phase-2 gate needs the
+        raw combined output (to grep the ``DRIVER_LINE_FIRED`` marker), so the run lives
+        in :meth:`goldfish_output`; this keeps the Phase-1 ``GoldfishResult`` return.
+        """
+        result, _output = self.goldfish_output(
+            deck_a, games=games, install=install, skill=skill, driver=driver, timeout_s=timeout_s
+        )
+        return result
+
+    def goldfish_output(
+        self,
+        deck_a: tuple[str, str],
+        *,
+        games: int,
+        install: EngineInstall,
+        skill: int = _CP7_SKILL,
+        driver: tuple[str, str] | None = None,
+        timeout_s: int | None = None,
+    ) -> tuple[GoldfishResult, str]:
+        """As :meth:`goldfish`, but also returns the RAW combined stdout+stderr.
+
+        The Phase-2 behavioral gate greps this output for the driver's
+        ``DRIVER_LINE_FIRED`` marker (the standalone solo harness emits no ``comboFired``
+        static, so "the line fired" can only be read off the marker). :meth:`goldfish`
+        delegates here and drops the output, so its Phase-1 return stays stable.
         """
         handle: XMageInstall = install.handle
         if timeout_s is None:
@@ -419,7 +445,7 @@ class XMageEngine:
                 raise XMageError(
                     f'XMage goldfish for {name_a} exited {returncode}. Output tail:\n{output[-1000:]}'
                 )
-            return _parse_goldfish_summary(output)
+            return _parse_goldfish_summary(output), output
         finally:
             shutil.rmtree(run_dir, ignore_errors=True)
 
