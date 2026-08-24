@@ -133,9 +133,18 @@ def _run_matchup_capturing_launch(
     + timeout threaded into :func:`_launch_xmage`. Returns the captured dict."""
     seen: dict[str, object] = {}
 
-    def _fake_launch(handle: object, args: list[str], *, cwd: object, timeout_s: int, what: str) -> tuple[str, int]:
+    def _fake_launch(
+        handle: object,
+        args: list[str],
+        *,
+        cwd: object,
+        timeout_s: int,
+        what: str,
+        driver: tuple[str, str] | None = None,
+    ) -> tuple[str, int]:
         seen['args'] = args
         seen['timeout_s'] = timeout_s
+        seen['driver'] = driver
         return ('OK', 0)
 
     def _fake_parse(output: str, *, deck_a: str, deck_b: str) -> MatchResult:

@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
 import warnings
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -95,6 +97,44 @@ def _notify_fetching() -> None:
 
 class XMageError(RuntimeError):
     """An XMage run failed (deck-load / unparseable output / killed on timeout)."""
+
+
+@dataclass(frozen=True)
+class GoldfishResult:
+    """The parsed ``GOLDFISH SUMMARY (OWN TURNS)`` line from a ``--solo`` run.
+
+    ``median_kills_own`` is the median OWN-turn kill turn across the games that
+    actually killed (the Java ``medianKillsOwn``); it is ``-1.0`` (the harness
+    sentinel) when NO game killed — a real value the caller interprets, never a
+    silently-zeroed miss. ``games`` is the number of solo games the summary covers.
+    """
+
+    median_kills_own: float
+    games: int
+
+
+def _parse_goldfish_summary(output: str) -> GoldfishResult:
+    """Parse ``medianKillsOwn`` + ``games`` out of an ``XMageBatch --solo`` stdout.
+
+    Raises :class:`XMageError` when no ``GOLDFISH SUMMARY (OWN TURNS)`` line is present
+    (a crash, a deck-load failure, or a killed run) — NEVER silently returns 0, so an
+    absent summary is always surfaced as a failure rather than misread as "killed on
+    turn 0".
+    """
+    for line in output.splitlines():
+        if 'GOLDFISH SUMMARY (OWN TURNS)' not in line:
+            continue
+        median_m = re.search(r'\bmedianKillsOwn=(-?\d+(?:\.\d+)?)', line)
+        games_m = re.search(r'\bgames=(\d+)', line)
+        if median_m is None or games_m is None:
+            raise XMageError(
+                f'GOLDFISH SUMMARY line missing medianKillsOwn/games field: {line!r}'
+            )
+        return GoldfishResult(median_kills_own=float(median_m.group(1)), games=int(games_m.group(1)))
+    raise XMageError(
+        'no GOLDFISH SUMMARY (OWN TURNS) line in XMage --solo output '
+        f'(run crashed / deck failed to load / was killed). Output tail:\n{output[-1000:]}'
+    )
 
 
 @lru_cache(maxsize=1)
@@ -250,6 +290,7 @@ class XMageEngine:
         fmt: str,
         install: EngineInstall,
         timeout_s: int | None = None,
+        driver: tuple[str, str] | None = None,
     ) -> MatchResult:
         """Run ONE matchup of ``n`` games: ``deck_a`` (Ai(1)/PlayerA) vs ``deck_b``.
 
@@ -313,6 +354,7 @@ class XMageEngine:
                 cwd=run_dir,
                 timeout_s=external_timeout,
                 what=f'{name_a} vs {name_b} (n={n})',
+                driver=driver,  # per-deck PlayerA driver seam; None keeps driverless argv
             )
             result = runner.parse_match_log(output, deck_a=name_a, deck_b=name_b)
             if result.games != n:
@@ -321,6 +363,63 @@ class XMageEngine:
                     f'(exit {returncode}). Output tail:\n{output[-1000:]}'
                 )
             return result
+        finally:
+            shutil.rmtree(run_dir, ignore_errors=True)
+
+    def goldfish(
+        self,
+        deck_a: tuple[str, str],
+        *,
+        games: int,
+        install: EngineInstall,
+        skill: int = _CP7_SKILL,
+        driver: tuple[str, str] | None = None,
+        timeout_s: int | None = None,
+    ) -> GoldfishResult:
+        """Run a SOLO goldfish: ``deck_a`` (PlayerA, always on the play) vs a do-nothing
+        60-Forest passer, over ``games`` games, and return the parsed own-turn kill.
+
+        Launches ``XMageBatch <deckA.txt> --solo <games> <skill>`` (the Phase-0 seam),
+        parses the ``GOLDFISH SUMMARY (OWN TURNS) … medianKillsOwn=<float>`` line, and
+        returns a :class:`GoldfishResult`. ``driver`` is an optional
+        ``(classes_dir, fqcn)`` per-deck driver injected on PlayerA (the SAME registry
+        entry the match path threads, so both contexts drive it identically). No summary
+        line / a non-zero exit → :class:`XMageError` (never a silent 0). Mirrors
+        :meth:`run_matchup`'s staging + warm + private-db discipline for one deck.
+        """
+        handle: XMageInstall = install.handle
+        if timeout_s is None:
+            timeout_s = _DEFAULT_TIMEOUT_S
+        name_a, text_a = deck_a
+
+        if not xmage_runtime._HARNESS_JAR.is_file():
+            raise XMageError(
+                f'XMage harness jar not found: {xmage_runtime._HARNESS_JAR}. '
+                'Rebuild it with pipeline/sim/java/xmage/build.sh.'
+            )
+
+        self._ensure_card_db_warm(handle)
+
+        staging = runner.staging_root()
+        staging.mkdir(parents=True, exist_ok=True)
+        run_dir = Path(tempfile.mkdtemp(prefix=f'xmage-solo-{os.getpid()}-', dir=staging))
+        try:
+            txt_a = _stage_txt(run_dir, 'deckA', _forge_dck_to_xmage_txt(text_a))
+            _stage_private_db(handle, run_dir)
+            external_timeout = runner._JVM_LOAD_HEADROOM_S + max(1, games) * timeout_s
+            output, returncode = _launch_xmage(
+                handle,
+                [str(txt_a), '--solo', str(games), str(skill)],
+                cwd=run_dir,
+                timeout_s=external_timeout,
+                what=f'{name_a} goldfish (games={games})',
+                driver=driver,
+            )
+            if returncode != 0:
+                raise XMageError(
+                    f'XMage goldfish for {name_a} exited {returncode}. Output tail:\n{output[-1000:]}'
+                )
+            return _parse_goldfish_summary(output)
         finally:
             shutil.rmtree(run_dir, ignore_errors=True)
 
@@ -463,7 +562,52 @@ def _clone_tree_cow(src: Path, dst: Path) -> bool:
         return False
 
 
-def _launch_xmage(handle: XMageInstall, args: list[str], *, cwd: Path, timeout_s: int, what: str) -> tuple[str, int]:
+def _compose_launch_cmd(
+    handle: XMageInstall,
+    args: list[str],
+    *,
+    heap: str,
+    driver: tuple[str, str] | None = None,
+) -> list[str]:
+    """Build the ``XMageBatch`` launch argv — a PURE function (no spawn), so tests can
+    assert the exact composed command without a JVM.
+
+    ``driver`` is an optional ``(classes_dir, fqcn)`` per-deck driver injection:
+
+      * the ``classes_dir`` is **prepended** onto the classpath so it sorts BEFORE the
+        dist/harness jar and its injected ``Driver`` class wins class-loading;
+      * ``-Dmakemagic.driverA=<fqcn>`` is threaded into the JVM args (the PlayerA-only
+        reflection seam ``XMageBatch`` reads).
+
+    With ``driver=None`` the argv is byte-identical to the prior driverless shape: the
+    classpath is ``handle.classpath`` verbatim and no ``-D`` sysprop is added.
+    """
+    jvm_args = list(runner._jvm_args(heap=heap))  # CP7 minimax needs > Forge's 2g (#63)
+    classpath = handle.classpath
+    if driver is not None:
+        classes_dir, fqcn = driver
+        jvm_args.append(f'-Dmakemagic.driverA={fqcn}')
+        classpath = os.pathsep.join((classes_dir, classpath))  # driver classes win class-load
+    return [
+        *runner._launch_prefix(),
+        str(handle.java),
+        *jvm_args,
+        '-cp',
+        classpath,
+        _XMAGE_MAIN_CLASS,
+        *args,
+    ]
+
+
+def _launch_xmage(
+    handle: XMageInstall,
+    args: list[str],
+    *,
+    cwd: Path,
+    timeout_s: int,
+    what: str,
+    driver: tuple[str, str] | None = None,
+) -> tuple[str, int]:
     """Launch ONE ``XMageBatch`` JVM and return ``(combined stdout+stderr, returncode)``.
 
     The single place the game-run and warm-up paths build the launch command and
@@ -472,17 +616,11 @@ def _launch_xmage(handle: XMageInstall, args: list[str], *, cwd: Path, timeout_s
     :class:`subprocess.TimeoutExpired` kills the group and raises :class:`XMageError`
     naming ``what``. Callers own the post-run interpretation (parse the log vs check
     the exit code) — this only owns launch + the external timeout. The H2 db is
-    ``./db`` relative to ``cwd``, so ``cwd`` selects which db the JVM opens.
+    ``./db`` relative to ``cwd``, so ``cwd`` selects which db the JVM opens. ``driver``
+    is threaded to :func:`_compose_launch_cmd` (the per-deck driver seam); ``None``
+    keeps the driverless argv unchanged.
     """
-    cmd = [
-        *runner._launch_prefix(),
-        str(handle.java),
-        *runner._jvm_args(heap=_XMAGE_HEAP),  # CP7 minimax needs > Forge's 2g (#63)
-        '-cp',
-        handle.classpath,
-        _XMAGE_MAIN_CLASS,
-        *args,
-    ]
+    cmd = _compose_launch_cmd(handle, args, heap=_XMAGE_HEAP, driver=driver)
     proc = subprocess.Popen(
         cmd,
         cwd=cwd,
