@@ -71,40 +71,51 @@ so a stale jar is a red build.
 
 ## Cutting a release
 
-Versions are declared in **more than one file**; a partial bump ships a broken install.
-`tests/test_versioning.py` runs in the normal CI suite and turns any drift below into a
-red build — so keep these in lockstep.
+The plugin and the bundled `make-magic-pipeline` package share **one lockstep version**.
+Per this project's `0.y.z` convention a **minor** bump (`0.x`) signals *breaking* changes,
+so a non-breaking release is a **patch**.
 
-**Bumping the plugin / marketplace version** — update *both*, to the same value:
+### 1. Ship the plugin version
 
-- `plugins/make-magic/.claude-plugin/plugin.json` → `version`
-- `plugins/make-magic/pipeline/pyproject.toml` → `project.version`
+1. **CHANGELOG** — move `CHANGELOG.md`'s `[Unreleased]` items into a new
+   `## [X.Y.Z] — <date>` section ([Keep a Changelog](https://keepachangelog.com/)).
+2. **Bump the version in _both_ files, to the same value:**
+   - `plugins/make-magic/.claude-plugin/plugin.json` → `version`
+   - `plugins/make-magic/pipeline/pyproject.toml` → `project.version`
 
-(`.claude-plugin/marketplace.json` carries no version — it references the plugin by
-path, so there's nothing to bump there.)
+   (`.claude-plugin/marketplace.json` carries no version — it references the plugin by
+   path.)
+3. **Tag + Release** — tag `vX.Y.Z` and publish a matching GitHub Release (title from the
+   changelog entry).
 
-**Bumping a vendored install** — these are fetched at runtime and pinned by SHA:
+### 2. Bump a vendored install (only when changing Forge / XMage / the JRE)
+
+These are fetched at runtime and pinned by SHA:
 
 - **Forge** (`pipeline/sim/forge_runtime.py`): bump `FORGE_VERSION` **and** re-pin
-  `FORGE_TARBALL_SHA256` to the new release's checksum. The tarball URL is derived from
-  the version; the JRE is resolved + checksum-verified against the Adoptium API at fetch
-  time (nothing to pin).
-- **XMage dist** (`pipeline/sim/xmage_runtime.py` + `.github/workflows/xmage-dist-release.yml`):
-  1. If the upstream XMage version changes, update `XMAGE_VERSION` (runtime), the dist
-     pom's `<xmage.version>`, and the workflow's `XMAGE_TAG` (the upstream build ref) —
-     all coherent.
-  2. Whenever the shaded jar's **contents** change (new module, harness edit) — even
-     with no upstream bump — bump `_DIST_TAG` (tags are immutable; e.g. `…-2`), and
-     re-arm `XMAGE_DIST_SHA256 = None`.
-  3. Push the `xmage-dist-*` git tag → the release workflow reactor-builds, shades,
-     **license-audits**, smoke-tests, and uploads the jar + `.sha256` + `THIRD-PARTY.txt`.
-  4. Pin `XMAGE_DIST_SHA256` **from the release's `.sha256` asset** — never a local
-     rebuild (shaded jars aren't byte-reproducible) — and commit.
-  5. Verify: a fresh empty `MAKE_MAGIC_DATA_DIR` (no `MAKE_MAGIC_XMAGE_HOME`) →
-     `simulate deck … --engine xmage` fetches, SHA-verifies, and runs.
+  `FORGE_TARBALL_SHA256`. The URL derives from the version; the JRE is resolved +
+  checksum-verified against Adoptium at fetch (nothing to pin).
+- **XMage dist** (`pipeline/sim/xmage_runtime.py` + `xmage-dist-release.yml`): on an
+  upstream bump keep `XMAGE_VERSION`, the pom's `<xmage.version>`, and the workflow's
+  `XMAGE_TAG` coherent. **Whenever the shaded jar's contents change** (new module,
+  harness edit) — even with no upstream bump — bump `_DIST_TAG` (tags are immutable,
+  e.g. `…-2`) and re-arm `XMAGE_DIST_SHA256 = None`. Push the `xmage-dist-*` tag → the
+  workflow builds → **license-audits** → smoke-tests → uploads the jar + `.sha256`. Pin
+  `XMAGE_DIST_SHA256` **from the release's `.sha256` asset** (never a local rebuild —
+  shaded jars aren't byte-reproducible), commit, then verify onboarding on a fresh empty
+  `MAKE_MAGIC_DATA_DIR`.
+- **Harness jars**: if you edit a source under `pipeline/sim/java/*/src`, rebuild +
+  commit its jar (`build.sh` in that dir).
 
-Until the SHA is pinned, `ensure()` fails **closed** (refuses to fetch) — the CI guard
-also fails a merge left in that state.
+### Enforced in CI (drift = red build)
+
+- lockstep plugin/package version agreement (`tests/test_versioning.py`);
+- `XMAGE_DIST_SHA256` is pinned **and** matches the published release
+  (`verify-published-pin`) — `ensure()` fails **closed** until it is;
+- harness-jar bytecode reproduces from source, both engines (`forge-simai-build.yml`,
+  `verify-committed-harness-jar`);
+- a weekly canary that the JRE + Forge tarball still resolve upstream
+  (`upstream-canary.yml`).
 
 ## Reporting issues
 
