@@ -36,17 +36,29 @@ round-trip tests).
 
 ### Gated markers
 
-Two pytest markers are deselected by default (they need external resources):
+Three pytest markers are deselected by default (they need external resources):
 
 - `-m live` — exercises a real Airtable base (needs `AIRTABLE_API_KEY`).
 - `-m forge` — runs **real** headless MTG Forge games. Needs a Forge install; set
   `MAKE_MAGIC_FORGE_HOME` + `MAKE_MAGIC_JAVA`, or let `scripts/simulate doctor
   --provision` fetch Forge + a JRE first. These spawn JVMs — the concurrency
   governor caps the pool, but run them deliberately.
+- `-m canary` — network checks that the runtime-fetched upstream deps (the Adoptium
+  JRE, the Forge tarball) still resolve. Run weekly by `.github/workflows/upstream-canary.yml`;
+  a red canary means an upstream dep moved (not a code regression).
 
 ```bash
 uv run --extra dev pytest -m forge     # only when you have Forge available
 ```
+
+### Harness jars
+
+The committed harness jars (`pipeline/sim/java/forge-simai/make-magic-forge-simai.jar`,
+`pipeline/sim/java/xmage/make-magic-xmage.jar`) are **our** compiled code. If you edit a
+harness source under `pipeline/sim/java/*/src`, rebuild + commit its jar (`build.sh` in
+that dir). CI verifies the committed jar's **bytecode** matches a fresh build from source
+(`forge-simai-build.yml`; the `verify-committed-harness-jar` job in `xmage-dist-release.yml`),
+so a stale jar is a red build.
 
 ## Conventions
 

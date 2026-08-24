@@ -186,3 +186,51 @@ jobs:
             exit 1
           fi
           echo "OK — the committed pin matches the published release."
+
+  # Reproducibility gate for the COMMITTED reactor harness jar (make-magic-xmage.jar),
+  # mirroring forge-simai-build.yml: the shipped jar must not silently drift from its
+  # source. Compiling the two harness sources against the published dist jar (which
+  # bundles the org.mage classes) reproduces byte-identical bytecode, so this needs NO
+  # ~15-min reactor build — just the dist jar + javac. Runs on every PR push (no label
+  # gate). Diffs only the .class entries (jar zip entries carry build-time timestamps, so
+  # a whole-jar byte compare is not reproducible). Skips while the pin is the transient
+  # None (no published dist jar to compile against yet).
+  verify-committed-harness-jar:
+    name: rebuild + verify committed XMage harness jar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Recompile the harness against the published dist jar + diff bytecode
+        run: |
+          set -euo pipefail
+          HARNESS="$DIST_DIR/../xmage"   # pipeline/sim/java/xmage
+          url="$(cd "$PIPELINE_DIR" && uv run python -c 'from pipeline.sim import xmage_runtime as x; print(x.XMAGE_DIST_URL)')"
+          pin="$(cd "$PIPELINE_DIR" && uv run python -c 'from pipeline.sim import xmage_runtime as x; print(x.XMAGE_DIST_SHA256)')"
+          if [ "$pin" = "None" ]; then
+            echo "XMAGE_DIST_SHA256 is None (transient release-cut state) — no published dist jar to compile against; skipping."
+            exit 0
+          fi
+          curl -fsSL "$url" -o dist.jar || { echo "::error::could not fetch the dist jar at $url"; exit 1; }
+          # sanity: the fetched dist jar is the pinned one (so we compile against the right deps)
+          got="$(sha256sum dist.jar | awk '{print $1}')"
+          [ "$got" = "$pin" ] || { echo "::error::fetched dist jar sha $got != pin $pin"; exit 1; }
+          mkdir -p fresh committed
+          javac -cp dist.jar -d fresh $(find "$HARNESS/src" -name '*.java')
+          ( cd committed && unzip -oq "$GITHUB_WORKSPACE/$HARNESS/make-magic-xmage.jar" '*.class' )
+          rc=0
+          for c in mage/collectors/MakeMagicHooks.class org/makemagic/xmage/XMageBatch.class; do
+            if cmp -s "fresh/$c" "committed/$c"; then
+              echo "reproducible: $c"
+            else
+              echo "::error::$c in the committed make-magic-xmage.jar does not match a fresh build from source — rebuild it with pipeline/sim/java/xmage/build.sh and commit."
+              rc=1
+            fi
+          done
+          exit $rc
