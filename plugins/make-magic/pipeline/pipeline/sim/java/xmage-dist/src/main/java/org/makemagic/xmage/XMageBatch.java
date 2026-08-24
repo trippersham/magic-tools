@@ -220,10 +220,13 @@ public class XMageBatch {
                 int ownEndTurn = (globalTurn + 1) / 2;
                 int killTurn;
                 if (killed) {
-                    killTurn = ownEndTurn;
+                    // Clamp a real kill to maxTurn so it can never sort at/after the brick
+                    // sentinel (maxTurn+1). Without this, a genuine kill on own-turn >maxTurn
+                    // would mis-sort as "slower than a brick" and corrupt medianAllOwn/distOwn.
+                    killTurn = Math.min(ownEndTurn, maxTurn);
                     realKills.add(killTurn);
                 } else {
-                    killTurn = maxTurn + 1; // brick sentinel (already an own-turn cap): sorts slowest.
+                    killTurn = maxTurn + 1; // brick sentinel: the only value >maxTurn, so bricks always sort last.
                     bricks++;
                 }
                 killTurns.add(killTurn);
@@ -267,10 +270,7 @@ public class XMageBatch {
             throw new IllegalArgumentException(name + " deck too small (" + deck.getMaindeckCards().size()
                     + " cards) — did it fail to load? path=" + deckPath);
         }
-        // DRIVER SEAM: a per-deck driver may replace PlayerA's engine. When
-        // -Dmakemagic.driverA=<FQCN> is set AND this is PlayerA, reflectively build the
-        // driver via the CP7 ctor shape (String, RangeOfInfluence, int). Otherwise (unset,
-        // or PlayerB) fall back to a plain ComputerPlayer7 — byte-identical prior behavior.
+        // DRIVER SEAM lives in buildEngine (the -Dmakemagic.driverA reflection).
         Player player = buildEngine(name, range, skill);
         game.loadCards(deck.getCards(), player.getId());
         // The explicit sideboard load is REQUIRED in BOTH modes and is NOT redundant:
