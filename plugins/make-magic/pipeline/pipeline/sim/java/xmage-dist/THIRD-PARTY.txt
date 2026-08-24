@@ -1,0 +1,46 @@
+THIRD-PARTY LICENSES — make-magic-xmage-dist
+
+The shaded XMage sim distributable bundles XMage 1.4.60 + its runtime deps.
+The repository is GPL-3.0; every bundled dependency below is GPL-3.0-COMPATIBLE.
+Server/client/test deps that would carry incompatible licenses (Jersey/JAX-RS/
+JAXB/javax.mail = CDDL, JUnit = EPL) are NOT bundled — the dist depends on the
+XMage ENGINE modules only, not mage-server.
+
+== Apache-2.0 ==
+  - ch.qos.reload4j:reload4j
+  - com.google.code.gson:gson
+  - com.google.errorprone:error_prone_annotations
+  - com.google.guava:failureaccess
+  - com.google.guava:guava
+  - com.google.guava:listenablefuture
+  - com.google.j2objc:j2objc-annotations
+  - org.apache.commons:commons-lang3
+  - org.jspecify:jspecify
+  - org.ocpsoft.prettytime:prettytime
+
+== BSD-2-Clause ==
+  - com.googlecode.jspf:jspf-core
+
+== BSD-3-Clause ==
+  - com.google.protobuf:protobuf-java
+
+== ISC ==
+  - com.j256.ormlite:ormlite-core
+  - com.j256.ormlite:ormlite-jdbc
+
+== LGPL-2.1 ==
+  - org.jboss.logging:jboss-logging-spi
+  - trove:trove
+
+== MIT ==
+  - org.jsoup:jsoup
+  - org.mage
+  - org.slf4j:slf4j-api
+  - org.slf4j:slf4j-reload4j
+
+== MPL-2.0 ==
+  - com.h2database:h2   (dual EPL-1.0/MPL-2.0; distributed under the MPL-2.0 arm)
+
+== Public-Domain ==
+  - concurrent:concurrent
+

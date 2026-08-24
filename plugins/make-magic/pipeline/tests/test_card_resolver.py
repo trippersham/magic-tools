@@ -82,6 +82,43 @@ _ORACLE_CARDS: list[dict[str, Any]] = [
         'set_name': 'Kamigawa: Neon Dynasty',
     },
     {
+        'oracle_id': 'split-oid',
+        # A DFC/split/adventure card: the lake stores the full 'Front // Back' name.
+        'name': 'Split Alpha // Split Beta',
+        'cmc': 2.0,
+        'mana_cost': '{1}{R}',
+        'type_line': 'Instant // Instant',
+        'colors': ['R'],
+        'color_identity': ['R'],
+        'produced_mana': [],
+        'keywords': [],
+        'oracle_text': '(front) // (back)',
+        'power': None,
+        'toughness': None,
+        'art_crop': 'https://img/split.jpg',
+        'scryfall_uri': 'https://scryfall.com/x',
+        'set_name': 'Test',
+    },
+    {
+        'oracle_id': 'alpha-oid',
+        # A DISTINCT plain card whose name collides with the DFC's FRONT face —
+        # exact match must win over the face match (no shadowing).
+        'name': 'Split Alpha',
+        'cmc': 2.0,
+        'mana_cost': '{U}{U}',
+        'type_line': 'Instant',
+        'colors': ['U'],
+        'color_identity': ['U'],
+        'produced_mana': [],
+        'keywords': [],
+        'oracle_text': 'Counter target spell.',
+        'power': None,
+        'toughness': None,
+        'art_crop': 'https://img/alpha.jpg',
+        'scryfall_uri': 'https://scryfall.com/x',
+        'set_name': 'Test',
+    },
+    {
         'oracle_id': 'jaya-oid',
         # A punctuation / apostrophe name.
         'name': "Jaya's Immolating Inferno",
@@ -107,6 +144,11 @@ _CARD_OTAG: list[dict[str, str]] = [
     {'oracle_id': 'sol-ring-oid', 'slug': 'mana-rock'},
     {'oracle_id': 'llanowar-oid', 'slug': 'ramp'},
     {'oracle_id': 'llanowar-oid', 'slug': 'mana-dork'},
+    # The DFC 'Fable ...' + the split card carry otags keyed by the FULL-name oid,
+    # so a FACE-name lookup must hit the full row to pick them up (the #49 fix).
+    {'oracle_id': 'fable-oid', 'slug': 'token-increaser'},
+    {'oracle_id': 'split-oid', 'slug': 'removal'},
+    {'oracle_id': 'alpha-oid', 'slug': 'counterspell'},
 ]
 
 
@@ -204,6 +246,95 @@ def test_resolves_dfc_full_name_offline(lake: Path) -> None:
     card = resolver.get_card('Fable of the Mirror-Breaker // Reflection of Kiki-Jiki')
     assert card is not None
     assert card.oracle_id == 'fable-oid'
+
+
+def _empty_list_card(name: str, oid: str) -> dict[str, Any]:
+    """An oracle_cards row whose list columns are all empty (the JSON[] trigger)."""
+    return {
+        'oracle_id': oid,
+        'name': name,
+        'cmc': 1.0,
+        'mana_cost': '{1}',
+        'type_line': 'Artifact',
+        'colors': [],
+        'color_identity': [],
+        'produced_mana': [],
+        'keywords': [],
+        'oracle_text': 'x',
+        'power': None,
+        'toughness': None,
+        'art_crop': 'https://img/x.jpg',
+        'scryfall_uri': 'https://scryfall.com/x',
+        'set_name': 'Test',
+    }
+
+
+def test_land_card_into_json_list_typed_bulk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A bulk whose list columns are empty in EVERY row makes read_json infer them as
+    # JSON[] (not VARCHAR[]). Landing a live card with real colors/keywords used to
+    # fail on that type mismatch ('Malformed JSON ... Input: "W"') and the card was
+    # never landed (#50). It must now land, with CLEAN (unquoted) list values.
+    root = tmp_path / 'data'
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(root))
+    _write_layer([_empty_list_card('Alpha', 'a'), _empty_list_card('Beta', 'b')], 'raw', 'oracle_cards')
+
+    resolver_mod._land_card(
+        {
+            'oracle_id': 'live-oid',
+            'name': 'Live Keyworded',
+            'cmc': 2.0,
+            'mana_cost': '{1}{W}',
+            'type_line': 'Creature',
+            'colors': ['W'],
+            'color_identity': ['W'],
+            'produced_mana': [],
+            'keywords': ['Flying', 'Lifelink'],
+            'oracle_text': 'z',
+            'prices': {},
+        }
+    )
+
+    card = DuckDBCardResolver(client=_BoomClient()).get_card('Live Keyworded')
+    assert card is not None  # landed durably (offline hit, no network)
+    assert card.color_identity == ['W']  # clean value, NOT '"W"'
+    assert card.keywords == ['Flying', 'Lifelink']
+    # The pre-existing all-empty rows still read as clean empty lists.
+    assert DuckDBCardResolver(client=_BoomClient()).get_card('Alpha').colors == []
+
+
+def test_resolves_dfc_front_face_name_with_otags(lake: Path) -> None:
+    # #49: a decklist lists the FRONT face; it must resolve to the full card AND
+    # pick up its otags (keyed by the full-name oid) — offline, no live fetch.
+    card = DuckDBCardResolver(client=_BoomClient()).get_card('Fable of the Mirror-Breaker')
+    assert card is not None
+    assert card.oracle_id == 'fable-oid'
+    assert card.otags == ['token-increaser']
+    assert card.otag_buckets == ['tokens']  # crosswalk: token-increaser -> tokens
+
+
+def test_resolves_dfc_back_face_name(lake: Path) -> None:
+    # The BACK face resolves to the SAME full card (both faces are one card).
+    card = DuckDBCardResolver(client=_BoomClient()).get_card('Reflection of Kiki-Jiki')
+    assert card is not None
+    assert card.oracle_id == 'fable-oid'
+    assert card.otag_buckets == ['tokens']
+
+
+def test_exact_name_wins_over_face_match(lake: Path) -> None:
+    # 'Split Alpha' is BOTH a distinct plain card AND the front face of
+    # 'Split Alpha // Split Beta'. The exact match must win — no shadowing.
+    card = DuckDBCardResolver(client=_BoomClient()).get_card('Split Alpha')
+    assert card is not None
+    assert card.oracle_id == 'alpha-oid'  # the plain card, NOT the DFC front face
+    assert card.otag_buckets == ['counterspells']
+
+
+def test_back_face_only_name_resolves_the_dfc(lake: Path) -> None:
+    # 'Split Beta' exists ONLY as the back face -> the DFC (back-face match).
+    card = DuckDBCardResolver(client=_BoomClient()).get_card('Split Beta')
+    assert card is not None
+    assert card.oracle_id == 'split-oid'
+    assert card.otag_buckets == ['removal']
 
 
 def test_resolves_apostrophe_name_offline(lake: Path) -> None:

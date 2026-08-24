@@ -1,0 +1,133 @@
+name: forge-simai harness build
+
+# Reproducibility gate for the committed Forge sim-AI harness jar
+# (Task 1.6c / adversary M1). On any change under the harness dir, this rebuilds
+# the jar from source against the SAME pinned Forge release the runtime fetches
+# (forge_runtime.FORGE_TARBALL_URL / _SHA256) and asserts the committed jar's
+# COMPILED BYTECODE matches a fresh build — so the shipped jar can never silently
+# drift from src/*.java + patch/*.java.
+#
+# Why diff the *.class entries and NOT the whole jar: jar/zip entries carry
+# build-time timestamps, so a byte-for-byte jar comparison is not reproducible.
+# The compiled `.class` bytecode is deterministic (javac --release 17), so we
+# unzip both jars and diff only the class files.
+#
+# End-to-end validation happens on push (this needs the Forge fetch + JDK 17,
+# which cannot be fully exercised locally). The FLOOR — always run — is a
+# jar-well-formed check (both classes + Main-Class present); the bytecode-diff
+# reproducibility step is gated on a successful Forge fetch and is skipped (not
+# failed) if the pinned release is unreachable, so upstream URL rot never red-Xes
+# an unrelated PR.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/make-magic/pipeline/pipeline/sim/java/forge-simai/**'
+      - '.github/workflows/forge-simai-build.yml'
+  pull_request:
+    paths:
+      - 'plugins/make-magic/pipeline/pipeline/sim/java/forge-simai/**'
+      - '.github/workflows/forge-simai-build.yml'
+
+defaults:
+  run:
+    working-directory: plugins/make-magic/pipeline/pipeline/sim/java/forge-simai
+
+env:
+  # Keep in sync with forge_runtime.FORGE_VERSION / FORGE_TARBALL_SHA256. The
+  # tarball URL is derived from the version the same way forge_runtime does.
+  FORGE_VERSION: '2.0.13'
+  FORGE_TARBALL_SHA256: 'df23b237095cfc5ff97a4711946b25ff852da9ff43b916c40783f6b5a41ce855'
+
+jobs:
+  reproduce-harness-jar:
+    name: rebuild + verify committed jar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # FLOOR (always): the committed jar is well-formed — both classes and the
+      # Main-Class are present. This alone catches a dropped class / bad manifest
+      # even if the Forge fetch below is unavailable.
+      - name: Verify committed jar is well-formed
+        run: |
+          set -euo pipefail
+          JAR=make-magic-forge-simai.jar
+          test -f "$JAR" || { echo "::error::$JAR missing (build.sh output not committed)"; exit 1; }
+          names="$(unzip -Z1 "$JAR")"
+          echo "$names" | grep -qx 'org/makemagic/simai/SimAIMatch.class' \
+            || { echo "::error::SimAIMatch.class missing from $JAR"; exit 1; }
+          echo "$names" | grep -qx 'forge/game/staticability/StaticAbilityContinuous.class' \
+            || { echo "::error::StaticAbilityContinuous.class (shadow) missing from $JAR"; exit 1; }
+          unzip -p "$JAR" META-INF/MANIFEST.MF | tr -d '\r' \
+            | grep -qx 'Main-Class: org.makemagic.simai.SimAIMatch' \
+            || { echo "::error::Main-Class not declared in $JAR manifest"; exit 1; }
+          echo "committed jar is well-formed (both classes + Main-Class)."
+
+      # Fetch the pinned Forge desktop jar (SHA256-verified) so build.sh can
+      # compile against Forge's real API. Skipped (not failed) if unreachable.
+      - name: Fetch pinned Forge (SHA-verified)
+        id: forge
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          url="https://github.com/Card-Forge/forge/releases/download/forge-${FORGE_VERSION}/forge-installer-${FORGE_VERSION}.tar.bz2"
+          echo "fetching $url"
+          curl -fsSL --retry 3 -A 'make-magic-sim-ci/1.0' -o forge-installer.tar.bz2 "$url"
+          echo "${FORGE_TARBALL_SHA256}  forge-installer.tar.bz2" | sha256sum -c -
+          mkdir -p forge-home
+          tar -xjf forge-installer.tar.bz2 -C forge-home
+          jar_path="$(find forge-home -name 'forge-gui-desktop-*-jar-with-dependencies.jar' | head -n1)"
+          test -n "$jar_path" || { echo "::error::no forge-gui-desktop jar in tarball"; exit 1; }
+          echo "forge_jar=$GITHUB_WORKSPACE/plugins/make-magic/pipeline/pipeline/sim/java/forge-simai/$jar_path" >> "$GITHUB_OUTPUT"
+          echo "fetched=1" >> "$GITHUB_OUTPUT"
+
+      # REPRODUCIBILITY (gated on a successful Forge fetch): rebuild from source
+      # and diff the compiled *.class bytecode against the committed jar.
+      - name: Rebuild + diff class bytecode
+        if: steps.forge.outputs.fetched == '1'
+        run: |
+          set -euo pipefail
+          # Preserve the committed jar, then rebuild fresh from src/ + patch/.
+          cp make-magic-forge-simai.jar committed.jar
+          JAVAC="$(dirname "$(readlink -f "$(command -v javac)")")/javac" \
+            ./build.sh --forge-jar "${{ steps.forge.outputs.forge_jar }}"
+
+          mkdir -p _committed _fresh
+          (cd _committed && unzip -oq ../committed.jar)
+          (cd _fresh && unzip -oq ../make-magic-forge-simai.jar)
+
+          # Compare ONLY the compiled class bytecode (jar timestamps differ, so a
+          # whole-jar byte diff is not reproducible; the .class bytes are).
+          fail=0
+          while IFS= read -r cls; do
+            rel="${cls#_fresh/}"
+            if ! cmp -s "$cls" "_committed/$rel"; then
+              echo "::error::bytecode drift: $rel differs from a fresh build"
+              fail=1
+            fi
+          done < <(find _fresh -name '*.class' | sort)
+          # Also flag a committed class with no fresh counterpart (stale entry).
+          while IFS= read -r cls; do
+            rel="${cls#_committed/}"
+            test -f "_fresh/$rel" || { echo "::error::committed jar has stale class $rel (not in fresh build)"; fail=1; }
+          done < <(find _committed -name '*.class' | sort)
+
+          if [ "$fail" -ne 0 ]; then
+            echo "committed jar is OUT OF DATE — rerun build.sh and commit the result."
+            exit 1
+          fi
+          echo "committed jar bytecode matches a fresh build."
+
+      - name: Note (Forge fetch unavailable)
+        if: steps.forge.outputs.fetched != '1'
+        run: |
+          echo "::warning::Pinned Forge fetch unavailable; ran the jar-well-formed FLOOR only."
+          echo "Full bytecode-reproducibility diff is a follow-up when the Forge release is reachable."

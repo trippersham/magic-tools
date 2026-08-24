@@ -162,6 +162,88 @@ def test_split_games_empty_returns_empty() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# split_games — GENUINE draw terminator is ALSO a game boundary (R2-1)
+# --------------------------------------------------------------------------- #
+#
+# The harness (`SimAIMatch.java:219`) emits a genuine draw as
+#   `Game Result: Game N ended in a Draw! Took <ms> ms.`
+# which the normal `ended in <ms> ms.` regex does NOT match. Before R2-1,
+# split_games did not treat a draw line as a boundary, so a draw game's lines
+# MERGED into the next segment — fewer feature rows than games, and a stored
+# per-game log carrying TWO `Game Result` lines (the corruption the adversary
+# reproduced: tally 1-1-1 but only 2 feature rows). Every sim-AI NPE game emits
+# a draw line, so this was not a rare edge.
+
+# A realistic 3-game log: decisive win + genuine draw + clockout.
+_THREE_GAME_LOG = (
+    'Ai(1)-X vs Ai(2)-Y - three games of Constructed\n'
+    # --- game 1: a decisive win ---
+    'Turn: Turn 5 (Ai(1)-X)\n'
+    'Life: Life: Ai(2)-Y 20 > 0\n'
+    'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+    'Game Outcome: Ai(2)-Y has lost because life total reached 0\n'
+    'Game Result: Game 1 ended in 24000 ms. Ai(1)-X has won!\n'
+    # --- game 2: a GENUINE draw (harness draw terminator) ---
+    'Turn: Turn 3 (Ai(2)-Y)\n'
+    'Game Result: Game 2 ended in a Draw! Took 5000 ms.\n'
+    # --- game 3: a clockout (fabricated dual-win, forced draw) ---
+    'Stopping slow match as draw\n'
+    'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+    'Game Outcome: Ai(2)-Y has won because all opponents have lost\n'
+    'Game Result: Game 3 ended in 90000 ms. Ai(1)-X has won!\n'
+)
+
+
+def test_split_games_splits_on_both_terminators() -> None:
+    """A decisive + genuine-draw + clockout log splits into THREE segments — the
+    draw line is a game boundary, not merged into the next segment (R2-1)."""
+    segments = split_games(_THREE_GAME_LOG)
+    assert len(segments) == 3
+    # Each segment holds exactly ONE Game Result line (no merged desync).
+    for i, seg in enumerate(segments, start=1):
+        assert seg.count('Game Result: Game') == 1
+        assert f'Game Result: Game {i} ended' in seg
+
+
+def test_split_games_draw_as_last_game() -> None:
+    """A genuine draw as the FINAL game is still its own terminated segment."""
+    log = (
+        'Game Result: Game 1 ended in 1000 ms. Ai(1)-X has won!\n'
+        'Turn: Turn 3 (Ai(2)-Y)\n'
+        'Game Result: Game 2 ended in a Draw! Took 2000 ms.\n'
+    )
+    segments = split_games(log)
+    assert len(segments) == 2
+    assert 'ended in 1000 ms' in segments[0]
+    assert 'ended in a Draw! Took 2000 ms' in segments[1]
+    assert segments[1].count('Game Result: Game') == 1
+
+
+def test_match_features_one_row_per_game_under_a_draw() -> None:
+    """The alignment the adversary showed broken: a 3-game log (win + draw +
+    clockout) yields ONE feature row PER NON-CLOCKOUT game — the win and the draw.
+
+    The clockout is excluded (B1b); the draw is a valid NON-DECISIVE segment
+    (winner 'draw', no fabricated kill_turn/wincon). Two rows, not one — proving
+    the draw no longer merges into the clockout segment.
+    """
+    feats = extract_match_features(_THREE_GAME_LOG, deck_a='X', deck_b='Y')
+    assert len(feats) == 2
+    assert feats[0].winner == 'a'
+    # The draw row: non-decisive — neutral winner, no fabricated result fields.
+    assert feats[1].winner == 'draw'
+    assert feats[1].wincon is None
+    assert feats[1].win_margin_life is None
+
+
+def test_split_games_stored_logs_are_one_to_one_no_double_result() -> None:
+    """No stored per-game log carries two `Game Result` lines (the 1:1 invariant
+    the store's game_index relies on) under mixed decisive+draw+clockout."""
+    segments = split_games(_THREE_GAME_LOG)
+    assert all(seg.count('Game Result:') == 1 for seg in segments)
+
+
+# --------------------------------------------------------------------------- #
 # extract_match_features — per-game features across a multi-game log
 # --------------------------------------------------------------------------- #
 
@@ -174,6 +256,36 @@ def test_match_features_commander_run_ten_games() -> None:
     assert winners.count('a') == 9
     assert winners.count('b') == 1
     assert winners[7] == 'b'
+
+
+def test_match_features_excludes_clockout_games() -> None:
+    """Clockout games are EXCLUDED from the telemetry profile — a fabricated
+    kill_turn / wincon must not fold into the aggregate (B1b).
+
+    The captured clockout fixture is TWO clocked-out games (both non-decisive);
+    every segment is a clockout, so no features are extracted.
+    """
+    feats = extract_match_features(_read('clockout.log'), deck_a='AzoriusMid', deck_b='IzzetMid')
+    assert feats == []
+
+
+def test_match_features_mixed_clockout_and_real_game() -> None:
+    """A real decisive game + a clockout -> only the real game contributes."""
+    real = (
+        'Turn: Turn 5 (Ai(1)-X)\n'
+        'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Y has lost because life total reached 0\n'
+        'Game Result: Game 1 ended in 24000 ms. Ai(1)-X has won!\n'
+    )
+    clockout = (
+        'Stopping slow match as draw\n'
+        'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Y has won because all opponents have lost\n'
+        'Game Result: Game 2 ended in 2000 ms. Ai(2)-Y has won!\n'
+    )
+    feats = extract_match_features(real + clockout, deck_a='X', deck_b='Y')
+    assert len(feats) == 1
+    assert feats[0].winner == 'a'
 
 
 # --------------------------------------------------------------------------- #

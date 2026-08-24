@@ -1,0 +1,236 @@
+name: xmage-dist release
+
+# Builds the shaded XMage sim distributable (make-magic-xmage-dist.jar) and, on a
+# release tag, publishes it as a GitHub Release asset that pipeline/sim/xmage_runtime.py
+# fetches at runtime (2.3b). Free on this PUBLIC repo (unlimited Release bandwidth).
+#
+# Flow: clone magefree/mage @ the pinned tag -> mvn install the reactor artifacts ->
+# mvn package the dist module (maven-shade) -> LICENSE AUDIT (fail on any GPL-3.0-
+# incompatible dep; assert 0 images) -> SMOKE (the jar's CardScanner builds the card
+# db) -> SHA256 (echoed to the job summary, to PIN in xmage_runtime.XMAGE_DIST_SHA256)
+# -> upload the jar + THIRD-PARTY.txt + .sha256 to the release.
+#
+# RELEASE->PIN->VERIFY (human-in-the-loop, by design): cut a release tag -> this
+# publishes the jar + prints its SHA256 -> paste that SHA into
+# xmage_runtime.XMAGE_DIST_SHA256 + commit. The runtime fetch fails CLOSED until pinned.
+# The `verify-published-pin` job (below) then ENFORCES that pin step: on the pin commit's
+# PR it asserts XMAGE_DIST_SHA256 == the SHA published at XMAGE_DIST_URL (see CONTRIBUTING).
+#
+# NOTE: the `build-and-release` job's XMage reactor build is heavy (mvn install of the
+# module tree, ~10-20 min), so it is label-gated on PRs. workflow_dispatch runs the
+# build+audit+smoke WITHOUT publishing (a dry run); a `xmage-dist-*` tag additionally
+# uploads the assets. `verify-published-pin` is a separate lightweight job (no build, no
+# label gate) that runs on every PR push.
+
+on:
+  workflow_dispatch: {}       # manual dry run: build + audit + smoke, no upload
+  # PR dry run: the heavy build is opt-in — it runs ONLY when the PR carries the
+  # `build-xmage-dist` label (add the label = "run it"; `synchronize` re-runs on each
+  # push while the label is present). Uses the workflow definition FROM the PR branch,
+  # so the YAML can be iterated in the PR. Never publishes (upload is tag-gated below).
+  pull_request:
+    types: [labeled, synchronize]
+  push:
+    tags:
+      - 'xmage-dist-*'        # e.g. xmage-dist-1.4.60 -> also uploads the assets
+
+permissions:
+  contents: write             # gh release upload
+
+env:
+  # XMage upstream ref to build the engine artifacts from. magefree/mage tags point
+  # releases with a V-suffix; xmage_1.4.60V3 is the latest for the 1.4.60 line and
+  # maps to xmage_runtime.XMAGE_VERSION='1.4.60' (our own dist tag is xmage-dist-1.4.60).
+  XMAGE_REPO: 'magefree/mage'
+  XMAGE_TAG: 'xmage_1.4.60V3'
+  DIST_DIR: 'plugins/make-magic/pipeline/pipeline/sim/java/xmage-dist'
+  PIPELINE_DIR: 'plugins/make-magic/pipeline'
+
+jobs:
+  build-and-release:
+    name: build + audit + (on tag) publish
+    runs-on: ubuntu-latest
+    # PR runs are gated behind the `build-xmage-dist` label (the ~15-min reactor build
+    # is too heavy to run on every PR push). workflow_dispatch and tag pushes always run.
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'build-xmage-dist')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Set up uv (for the license audit + smoke driver)
+        uses: astral-sh/setup-uv@v5
+
+      # Build the XMage engine artifacts (org.mage:*) into ~/.m2 so the dist pom can
+      # resolve them. `-am` installs each named module's upstream deps. Mage.Tests pulls
+      # mage/mage-common/mage-sets/mage-player-ai/the game-modes, but NOT the "mad bot"
+      # (mage-player-ai-ma = ComputerPlayer7) — it is not a Mage.Tests dependency — so it
+      # is named explicitly, else the dist pom can't resolve it in a CLEAN ~/.m2.
+      - name: Clone + install the XMage reactor
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$XMAGE_TAG" "https://github.com/${XMAGE_REPO}.git" xmage-src
+          cd xmage-src
+          mvn -q -B -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA,Mage.Server.Plugins/Mage.Game.CommanderDuel -am install -DskipTests
+
+      - name: Build the shaded dist jar
+        run: mvn -q -B -f "$DIST_DIR/pom.xml" -DskipTests package
+
+      # LICENSE GATE: no GPL-3.0-incompatible dep bundled; 0 image files.
+      - name: License audit
+        run: |
+          set -euo pipefail
+          mvn -q -B -f "$DIST_DIR/pom.xml" \
+            org.apache.maven.plugins:maven-dependency-plugin:3.6.1:list \
+            -DincludeScope=runtime -DoutputFile="$GITHUB_WORKSPACE/deps.txt"
+          cd "$PIPELINE_DIR"
+          uv run --extra dev python -m pipeline.sim.xmage_license_audit \
+            "$GITHUB_WORKSPACE/deps.txt" \
+            "$GITHUB_WORKSPACE/$DIST_DIR/target/make-magic-xmage-dist.jar"
+
+      # SMOKE: the shaded jar is runnable and its CardScanner builds the H2 card db.
+      - name: Smoke — card DB builds from the jar
+        run: |
+          set -euo pipefail
+          JAR="$GITHUB_WORKSPACE/$DIST_DIR/target/make-magic-xmage-dist.jar"
+          workdir="$(mktemp -d)"
+          ( cd "$workdir" && java -Xmx3g -cp "$JAR" org.makemagic.xmage.XMageBatch --warm )
+          test -f "$workdir/db/cards.h2.mv.db" || { echo "::error::card db not built by the shaded jar"; exit 1; }
+          echo "shaded jar OK — card db built."
+
+      - name: Compute SHA256 (PIN this in xmage_runtime.XMAGE_DIST_SHA256)
+        id: sha
+        run: |
+          set -euo pipefail
+          JAR="$DIST_DIR/target/make-magic-xmage-dist.jar"
+          sha="$(sha256sum "$JAR" | awk '{print $1}')"
+          echo "$sha" > "$JAR.sha256"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          {
+            echo "## make-magic-xmage-dist.jar"
+            echo "- size: $(( $(stat -c%s "$JAR") / 1048576 )) MB"
+            echo "- SHA256: \`$sha\`"
+            echo ""
+            echo "**Pin this hash** in \`xmage_runtime.XMAGE_DIST_SHA256\` and commit, then the runtime fetch verifies it."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Always expose the built jar + its .sha256 as a workflow artifact (even on a
+      # dry run) so a pre-release sandbox can validate onboarding against the REAL
+      # clean-room bytes before the public release is cut. Does NOT publish anything.
+      - name: Upload build artifact (jar + sha256)
+        uses: actions/upload-artifact@v4
+        with:
+          name: make-magic-xmage-dist
+          path: |
+            ${{ env.DIST_DIR }}/target/make-magic-xmage-dist.jar
+            ${{ env.DIST_DIR }}/target/make-magic-xmage-dist.jar.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+      # Publish ONLY on a release tag (workflow_dispatch is a dry run).
+      - name: Upload release assets
+        if: startsWith(github.ref, 'refs/tags/xmage-dist-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          JAR="$DIST_DIR/target/make-magic-xmage-dist.jar"
+          gh release upload "${{ github.ref_name }}" \
+            "$JAR" \
+            "$JAR.sha256" \
+            "$DIST_DIR/THIRD-PARTY.txt" \
+            --clobber
+
+  # Enforce the release runbook's PIN step: the committed XMAGE_DIST_SHA256 must equal
+  # the SHA actually published at XMAGE_DIST_URL. Lightweight (no reactor build, no label
+  # gate) so it runs on EVERY PR push — which is when the pin commit lands (the pin is set
+  # AFTER the jar is built, so this cannot be a tag-build-only check). It compares the pin
+  # to the release's published `.sha256` asset (the workflow derived that from the jar in
+  # the same run, so it IS the jar's hash); the RUNTIME independently re-verifies the jar
+  # bytes against the pin on fetch. Skips cleanly while the pin is the transient None — the
+  # unit test `test_xmage_dist_sha_is_pinned` blocks MERGING in that state.
+  verify-published-pin:
+    name: verify XMAGE_DIST_SHA256 matches the published release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Compare the committed pin to the published .sha256 asset
+        run: |
+          set -euo pipefail
+          cd "$PIPELINE_DIR"
+          url="$(uv run python -c 'from pipeline.sim import xmage_runtime as x; print(x.XMAGE_DIST_URL)')"
+          pin="$(uv run python -c 'from pipeline.sim import xmage_runtime as x; print(x.XMAGE_DIST_SHA256)')"
+          if [ "$pin" = "None" ]; then
+            echo "XMAGE_DIST_SHA256 is None (transient release-cut state) — nothing published to verify yet; skipping."
+            echo "(The unit test test_xmage_dist_sha_is_pinned blocks merging while the pin is unset.)"
+            exit 0
+          fi
+          echo "committed pin : $pin"
+          echo "published from: $url.sha256"
+          published="$(curl -fsSL "$url.sha256" | tr -d '[:space:]')" || {
+            echo "::error::could not fetch $url.sha256 — is the xmage-dist release published for this _DIST_TAG?"
+            exit 1
+          }
+          echo "published sha : $published"
+          if [ "$pin" != "$published" ]; then
+            echo "::error::XMAGE_DIST_SHA256 ($pin) != the published jar's sha ($published). Re-pin from the release .sha256 asset (CONTRIBUTING.md -> Cutting a release)."
+            exit 1
+          fi
+          echo "OK — the committed pin matches the published release."
+
+  # Reproducibility gate for the COMMITTED reactor harness jar (make-magic-xmage.jar),
+  # mirroring forge-simai-build.yml: the shipped jar must not silently drift from its
+  # source. Compiling the two harness sources against the published dist jar (which
+  # bundles the org.mage classes) reproduces byte-identical bytecode, so this needs NO
+  # ~15-min reactor build — just the dist jar + javac. Runs on every PR push (no label
+  # gate). Diffs only the .class entries (jar zip entries carry build-time timestamps, so
+  # a whole-jar byte compare is not reproducible). Skips while the pin is the transient
+  # None (no published dist jar to compile against yet).
+  verify-committed-harness-jar:
+    name: rebuild + verify committed XMage harness jar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Recompile the harness against the published dist jar + diff bytecode
+        run: |
+          set -euo pipefail
+          HARNESS="$DIST_DIR/../xmage"   # pipeline/sim/java/xmage
+          url="$(cd "$PIPELINE_DIR" && uv run python -c 'from pipeline.sim import xmage_runtime as x; print(x.XMAGE_DIST_URL)')"
+          pin="$(cd "$PIPELINE_DIR" && uv run python -c 'from pipeline.sim import xmage_runtime as x; print(x.XMAGE_DIST_SHA256)')"
+          if [ "$pin" = "None" ]; then
+            echo "XMAGE_DIST_SHA256 is None (transient release-cut state) — no published dist jar to compile against; skipping."
+            exit 0
+          fi
+          curl -fsSL "$url" -o dist.jar || { echo "::error::could not fetch the dist jar at $url"; exit 1; }
+          # sanity: the fetched dist jar is the pinned one (so we compile against the right deps)
+          got="$(sha256sum dist.jar | awk '{print $1}')"
+          [ "$got" = "$pin" ] || { echo "::error::fetched dist jar sha $got != pin $pin"; exit 1; }
+          mkdir -p fresh committed
+          javac -cp dist.jar -d fresh $(find "$HARNESS/src" -name '*.java')
+          ( cd committed && unzip -oq "$GITHUB_WORKSPACE/$HARNESS/make-magic-xmage.jar" '*.class' )
+          rc=0
+          for c in mage/collectors/MakeMagicHooks.class org/makemagic/xmage/XMageBatch.class; do
+            if cmp -s "fresh/$c" "committed/$c"; then
+              echo "reproducible: $c"
+            else
+              echo "::error::$c in the committed make-magic-xmage.jar does not match a fresh build from source — rebuild it with pipeline/sim/java/xmage/build.sh and commit."
+              rc=1
+            fi
+          done
+          exit $rc

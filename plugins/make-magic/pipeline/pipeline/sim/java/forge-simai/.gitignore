@@ -1,0 +1,7 @@
+# Intermediate compiled classes (build.sh output dir).
+build/
+
+# NOTE: the built jar (make-magic-forge-simai.jar) now lives alongside this
+# script — OUT of dist/, so the repo-root `**/dist/` ignore no longer applies and
+# it is tracked NORMALLY (no `git add -f` hack). Task 1.6c relocated it here and
+# added a hatch force-include so wheel inclusion no longer relies on git-tracking.

@@ -12,6 +12,54 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.2] — 2026-08-23
+
+A **non-breaking** simulation release (a *patch* under this project's `0.y.z`
+convention — no minor bump). XMage joins Forge as a co-equal, opt-in sim engine;
+everything existing is unchanged (`--engine` defaults to `forge`, all new behaviour is
+opt-in). Upgrading is safe: no CLI removals, no store or Airtable schema changes.
+
+### Added
+
+- **XMage as a co-equal sim engine** (`--engine xmage`) — a headless
+  ComputerPlayer7 (minimax) that actively casts counters and sequences interaction,
+  the control-piloting strength Forge's AI lacks. Emits the same `Game Result:` line
+  contract, so the whole telemetry/parser pipeline consumes it unchanged.
+- **`--engine both`** — a side-by-side comparison: per-engine win-rate ± Wilson CI,
+  records, and interaction piloting (the counter-specific "false read" check + Δ).
+- **XMage 1v1 Commander (EDH)** — `--format commander --engine xmage` runs a real
+  `CommanderDuel` (40 life); the commander loads via the deck sideboard into the
+  command zone. Curated EDH gauntlet decks now use castable, on-color commanders.
+- **Runtime auto-provisioning for XMage** — a self-contained shaded distributable jar
+  fetched from GitHub Releases (SHA256-pinned, fail-closed, re-verified on cache hit),
+  so a fresh box needs no local reactor build — mirroring Forge's fetch-at-runtime.
+
+### Changed
+
+- The concurrency governor is hardened for the heavier XMage JVMs: per-engine RAM
+  budgets, an admission floor that tracks them, a continuous resource sampler that can
+  abort (and terminate in-flight JVMs) under sustained pressure, and per-run private H2
+  card-DB copies (COW where available) that remove a parallel-init race.
+
+### Fixed
+
+- **Fresh Forge install was broken:** the Adoptium JRE metadata URL used
+  `/v3/assets/latest/21/ga` (a 404) instead of `/21/hotspot`, so every clean Forge
+  provision failed at the JRE step. The JRE is now resolved before the large Forge
+  tarball is fetched (fail-fast).
+- The "unusable run" exit-code guard divided failures by successes only, tripping
+  non-zero at ~⅓ failures instead of the documented majority; it now uses the total.
+- XMage jar fetch is atomic (stage + `os.replace`) and a non-timeout JVM error no
+  longer orphans the process group.
+
+### Infrastructure
+
+- **Release process formalized and CI-enforced** (see CONTRIBUTING → *Cutting a
+  release*): lockstep plugin/package version guard, XMage dist SHA pin ↔ published
+  release, harness-jar bytecode reproducibility (both engines), and a weekly
+  upstream-dep canary (Adoptium JRE + Forge tarball still resolve — the exact break
+  that shipped the `/21/ga` 404).
+
 ## [0.6.1] — 2026-08-05
 
 A **non-breaking** deckbuilding rework (a *patch* under this project's `0.y.z`

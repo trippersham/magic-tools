@@ -1,4 +1,4 @@
-"""TDD tests for the ``simulate`` CLI dispatcher.
+"""TDD tests for the ``simulate`` CLI dispatcher (Phase 7).
 
 Every verb that would spawn Forge is exercised with the sim CORE mocked
 (``core.simulate`` / ``core.compare`` / ``runner.run_matchup`` /
@@ -18,18 +18,67 @@ from pathlib import Path
 
 import pytest
 
+from pipeline.sim import forge_runtime
 from pipeline.sim import run as sim_run
 from pipeline.sim.core import Comparison, OpponentResult, SimResult, TelemetryProfile
-from pipeline.sim.forge_runtime import ForgeInstall, ForgeUnavailableError
+from pipeline.sim.engine import EngineInstall, EngineUnavailableError
+from pipeline.sim.forge_runtime import FORGE_VERSION, ForgeInstall, ForgeUnavailableError
 from pipeline.sim.runner import GameOutcome, MatchResult
+from pipeline.sim.telemetry import PilotingProfile, unavailable_piloting
+
+# A minimal but FLOOR-VALID deck body (>= 40 cards, all basics so they're always
+# Forge-loadable) — used by the dispatch tests that mock the engine but still pass
+# through the pre-JVM guard, whose R3-1 size floor rejects a below-minimum deck.
+_VALID_CONSTRUCTED = '[Main]\n40 Mountain\n'
+#: A floor-valid commander body (>= 100 cards).
+_VALID_COMMANDER = '[Main]\n100 Mountain\n'
+
 
 # --------------------------------------------------------------------------- #
 # Fixtures / builders.
 # --------------------------------------------------------------------------- #
 
 
-def _sim_result(candidate: str = 'Cand', fmt: str = 'constructed') -> SimResult:
-    """A populated ``SimResult`` a mocked ``core.simulate`` can return."""
+def _piloting(counter_fire: float, removal_fire: float = 0.7, *, available: bool = True) -> PilotingProfile:
+    """A populated ``PilotingProfile`` (or an unavailable marker) for the compare tests.
+
+    The ``both`` renderer reads ``counter_fire`` / ``removal_fire`` — the false-read
+    signal — so those are the params; the opportunity counts are plausible fillers.
+    """
+    if not available:
+        return unavailable_piloting('otag lake could not classify the deck')
+    return PilotingProfile(
+        counter_opps=10,
+        counter_casts=round(counter_fire * 10),
+        counter_fire=counter_fire,
+        counter_ci=(max(0.0, counter_fire - 0.1), min(1.0, counter_fire + 0.1)),
+        removal_opps=10,
+        removal_casts=round(removal_fire * 10),
+        removal_fire=removal_fire,
+        removal_ci=(max(0.0, removal_fire - 0.1), min(1.0, removal_fire + 0.1)),
+        interaction_stranded_per_game=0.5,
+        games=4,
+    )
+
+
+def _sim_result(
+    candidate: str = 'Cand',
+    fmt: str = 'constructed',
+    *,
+    failures: tuple[tuple[str, str], ...] = (),
+    aborted: bool = False,
+    total_games: int = 4,
+    win_rate: float = 0.75,
+    piloting: PilotingProfile | None = None,
+    n_matchups: int = 1,
+) -> SimResult:
+    """A populated ``SimResult`` a mocked ``core.simulate`` can return.
+
+    ``n_matchups`` sets how many per-opponent rows the result carries. In production
+    ``per_opponent`` holds ONLY the matchups that produced games (SUCCESSES); ``failures``
+    are tracked separately. The mostly-failed exit guard divides ``failures`` by the TOTAL
+    field (successes + failures), so fixtures pass the success count here + failures apart.
+    """
     profile = TelemetryProfile(
         games=4,
         avg_kill_turn=7.5,
@@ -41,7 +90,7 @@ def _sim_result(candidate: str = 'Cand', fmt: str = 'constructed') -> SimResult:
     )
     per_opp = [
         OpponentResult(
-            opponent='MonoRedAggro',
+            opponent='MonoRedAggro' if i == 0 else f'Opp{i}',
             wins=3,
             losses=1,
             draws=0,
@@ -49,23 +98,27 @@ def _sim_result(candidate: str = 'Cand', fmt: str = 'constructed') -> SimResult:
             win_rate=0.75,
             win_rate_ci=(0.3, 0.95),
             cached=False,
-        ),
+        )
+        for i in range(n_matchups)
     ]
     return SimResult(
         candidate=candidate,
         gauntlet_source='curated',
         fmt=fmt,
         games_per_opponent=4,
-        total_games=4,
+        total_games=total_games,
         wins=3,
         losses=1,
         draws=0,
-        win_rate=0.75,
-        win_rate_ci=(0.3, 0.95),
+        win_rate=win_rate,
+        win_rate_ci=(max(0.0, win_rate - 0.2), min(1.0, win_rate + 0.2)),
         per_opponent=per_opp,
         profile=profile,
         cached_matchups=0,
         fresh_matchups=1,
+        failures=failures,
+        aborted=aborted,
+        piloting=piloting,
     )
 
 
@@ -77,14 +130,15 @@ def install() -> ForgeInstall:
 
 @pytest.fixture()
 def mock_resolve(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> ForgeInstall:
-    """Patch ``run.resolve`` AND ``run.ensure`` to return a dummy install.
+    """Patch the Forge runtime's ``resolve``/``ensure`` to return a dummy install.
 
-    Game verbs auto-provision via ``_ensure_forge`` -> ``ensure`` (fetch-on-miss);
-    ``doctor`` (read-only) uses ``resolve``. Patch both so no real fetch/locate
-    runs in the CLI suite.
+    The engine seam (``_ensure_engine`` -> ``ForgeEngine.resolve``) delegates to
+    :func:`pipeline.sim.forge_runtime.resolve` (read-only) / ``ensure``
+    (fetch-on-miss); patching those keeps the CLI suite off any real fetch/locate
+    while exercising the real engine wrapper.
     """
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: install)
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
     return install
 
 
@@ -125,8 +179,9 @@ def test_match_dispatches_run_matchup(
     """``match`` parses -n/-s/--format and calls run_matchup with a win tally."""
     dck_a = tmp_path / 'A.dck'
     dck_b = tmp_path / 'B.dck'
-    dck_a.write_text('[metadata]\nName=A\n')
-    dck_b.write_text('[metadata]\nName=B\n')
+    # commander invocation below → >= 100-card floor-valid bodies.
+    dck_a.write_text('[metadata]\nName=A\n' + _VALID_COMMANDER)
+    dck_b.write_text('[metadata]\nName=B\n' + _VALID_COMMANDER)
 
     seen: dict[str, object] = {}
 
@@ -138,6 +193,7 @@ def test_match_dispatches_run_matchup(
         n: int,
         seed: int,
         fmt: str = 'constructed',
+        timeout_s: int = 30,
     ) -> MatchResult:
         seen.update(deck_a=deck_a, deck_b=deck_b, n=n, seed=seed, fmt=fmt)
         return MatchResult(
@@ -150,7 +206,9 @@ def test_match_dispatches_run_matchup(
             raw_log='',
         )
 
-    monkeypatch.setattr(sim_run, 'run_matchup', _fake_run_matchup)
+    # `match` now calls the engine, which delegates to runner.run_matchup — patch
+    # the runner so the real ForgeEngine wrapper is exercised end-to-end.
+    monkeypatch.setattr('pipeline.sim.runner.run_matchup', _fake_run_matchup)
 
     sim_run.main(['match', str(dck_a), str(dck_b), '-n', '10', '-s', '99', '--format', 'commander'])
 
@@ -174,7 +232,8 @@ def test_deck_dispatches_simulate(
 ) -> None:
     """``deck`` parses --gauntlet/--games/--format/--force and calls simulate."""
     dck = tmp_path / 'MyDeck.dck'
-    dck.write_text('[metadata]\nName=MyDeck\n')
+    # commander invocation below → >= 100-card floor-valid body.
+    dck.write_text('[metadata]\nName=MyDeck\n' + _VALID_COMMANDER)
 
     seen: dict[str, object] = {}
 
@@ -203,7 +262,7 @@ def test_deck_gauntlet_defaults(
 ) -> None:
     """Default gauntlet is curated, default force is False."""
     dck = tmp_path / 'D.dck'
-    dck.write_text('x')
+    dck.write_text(_VALID_CONSTRUCTED)
     seen: dict[str, object] = {}
 
     def _fake_simulate(deck: object, gauntlet_source: str, **kwargs: object) -> SimResult:
@@ -214,6 +273,222 @@ def test_deck_gauntlet_defaults(
     sim_run.main(['deck', str(dck)])
     assert seen['gauntlet_source'] == 'curated'
     assert seen['force'] is False
+
+
+def test_deck_surfaces_matchup_failures_on_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A FAILED matchup prints a distinct failure line to stderr (B2) — NOT a
+    silent 0-0-0 row indistinguishable from 'lost every game'."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text(_VALID_CONSTRUCTED)
+
+    def _fake_simulate(deck: object, gauntlet_source: str, **kwargs: object) -> SimResult:
+        # One failure in a 4-matchup field (a MINORITY) — surfaced on stderr, but the
+        # field read still stands so the run exits 0.
+        return _sim_result(failures=(('BorosStrong', 'Forge could not load a deck'),), n_matchups=4)
+
+    monkeypatch.setattr(sim_run, 'simulate', _fake_simulate)
+    sim_run.main(['deck', str(dck)])
+
+    captured = capsys.readouterr()
+    assert 'FAILED' in captured.err
+    assert 'BorosStrong' in captured.err
+    assert 'could not load a deck' in captured.err.lower()
+    # The failure is on STDERR, keeping stdout the clean result table.
+    assert 'FAILED' not in captured.out
+
+
+def test_deck_surfaces_aborted_run_on_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A partial (aborted) run prints a prominent notice to stderr (B2)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text(_VALID_CONSTRUCTED)
+    monkeypatch.setattr(sim_run, 'simulate', lambda *a, **k: _sim_result(aborted=True))
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck)])
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'ABORTED' in err
+    assert 'PARTIAL' in err
+
+
+# --------------------------------------------------------------------------- #
+# R2-3 — non-zero exit when a run produced ZERO usable games (all-failed / aborted)
+# --------------------------------------------------------------------------- #
+
+
+def test_deck_all_matchups_failed_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A run where EVERY matchup failed (zero usable games) exits non-zero so a
+    cron/agent consumer can't read success on a dead run (R2-3)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text(_VALID_CONSTRUCTED)
+    monkeypatch.setattr(
+        sim_run,
+        'simulate',
+        lambda *a, **k: _sim_result(total_games=0, failures=(('BorosStrong', 'Could not load a deck'),)),
+    )
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck)])
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'FAILED' in err  # the failure is still surfaced before the exit.
+
+
+def test_deck_legit_zero_winrate_with_real_games_exits_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """A legitimate 0% win-rate WITH real games played (lost every game) is NOT a
+    failure — it exits 0. Only a run with no usable games is a failure (R2-3)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text(_VALID_CONSTRUCTED)
+    # total_games > 0, no failures, no abort -> a real (losing) run.
+    monkeypatch.setattr(sim_run, 'simulate', lambda *a, **k: _sim_result(total_games=4))
+    sim_run.main(['deck', str(dck)])  # no SystemExit -> exit 0.
+
+
+def test_deck_aborted_run_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """An aborted run (even with some games) exits non-zero — results are partial
+    and a consumer must not treat them as a clean success (R2-3)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text(_VALID_CONSTRUCTED)
+    monkeypatch.setattr(sim_run, 'simulate', lambda *a, **k: _sim_result(total_games=4, aborted=True))
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck)])
+    assert exc.value.code == 1
+
+
+def test_deck_majority_matchups_failed_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A run where a MAJORITY of matchups failed exits non-zero even with SOME usable
+    games — the exit code scales with the failure rate, not just all-or-nothing (R2-3)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text(_VALID_CONSTRUCTED)
+    # 6 of 10 matchups failed (>50%): 4 succeeded (per_opponent rows), 6 failed apart.
+    failures = tuple((f'Opp{i}', 'Forge could not load a deck') for i in range(6))
+    monkeypatch.setattr(
+        sim_run,
+        'simulate',
+        lambda *a, **k: _sim_result(total_games=16, failures=failures, n_matchups=4),
+    )
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck)])
+    assert exc.value.code == 1
+    assert 'FAILED' in capsys.readouterr().err  # the carnage is surfaced before the exit.
+
+
+def test_deck_minority_matchups_failed_exits_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """A MINORITY of intermittent matchup failures (e.g. 3/30, the XMage cold-start
+    race) still leaves a usable field read — the run exits 0, failures on stderr."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text(_VALID_CONSTRUCTED)
+    # 3 failed of 30 total: 27 succeeded (per_opponent rows), 3 failed apart.
+    failures = tuple((f'Opp{i}', 'transient H2 race') for i in range(3))
+    monkeypatch.setattr(
+        sim_run,
+        'simulate',
+        lambda *a, **k: _sim_result(total_games=108, failures=failures, n_matchups=27),
+    )
+    sim_run.main(['deck', str(dck)])  # no SystemExit -> exit 0.
+
+
+def test_deck_middle_band_failure_below_half_exits_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """Regression: 12 failed / 18 succeeded = 40% of a 30-deck field — a MINORITY, so exit 0.
+
+    The old guard divided failures by len(per_opponent) (successes only): 12 > 0.5*18 = 9
+    → wrongly exited 1. The correct denominator is successes + failures = 30, and
+    12 > 0.5*30 = 15 is False → exit 0. This is the untested 34-50% band the bug lived in.
+    """
+    dck = tmp_path / 'D.dck'
+    dck.write_text(_VALID_CONSTRUCTED)
+    failures = tuple((f'Opp{i}', 'transient crash') for i in range(12))
+    monkeypatch.setattr(
+        sim_run,
+        'simulate',
+        lambda *a, **k: _sim_result(total_games=72, failures=failures, n_matchups=18),
+    )
+    sim_run.main(['deck', str(dck)])  # no SystemExit -> exit 0.
+
+
+def test_ab_all_failed_side_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``ab`` exits non-zero when EITHER side produced zero usable games (R2-3)."""
+    a = tmp_path / 'A.dck'
+    b = tmp_path / 'B.dck'
+    a.write_text(_VALID_CONSTRUCTED)
+    b.write_text(_VALID_CONSTRUCTED)
+
+    def _fake_compare(variant_a: object, variant_b: object, gauntlet_source: str, **kwargs: object) -> Comparison:
+        return Comparison(
+            a=_sim_result('A', total_games=4),
+            b=_sim_result('B', total_games=0, failures=(('X', 'crash'),)),
+            win_rate_delta=0.0,
+            metric_deltas={},
+            stronger=None,
+        )
+
+    monkeypatch.setattr(sim_run, 'compare', _fake_compare)
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['ab', str(a), str(b)])
+    assert exc.value.code == 1
+
+
+def test_ab_both_sides_have_games_exits_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """``ab`` with real games on both sides exits 0 even at a lopsided win-rate."""
+    a = tmp_path / 'A.dck'
+    b = tmp_path / 'B.dck'
+    a.write_text(_VALID_CONSTRUCTED)
+    b.write_text(_VALID_CONSTRUCTED)
+
+    def _fake_compare(variant_a: object, variant_b: object, gauntlet_source: str, **kwargs: object) -> Comparison:
+        return Comparison(
+            a=_sim_result('A', total_games=4),
+            b=_sim_result('B', total_games=4),
+            win_rate_delta=0.1,
+            metric_deltas={},
+            stronger='A',
+        )
+
+    monkeypatch.setattr(sim_run, 'compare', _fake_compare)
+    sim_run.main(['ab', str(a), str(b)])  # no SystemExit -> exit 0.
 
 
 # --------------------------------------------------------------------------- #
@@ -230,8 +505,8 @@ def test_ab_dispatches_compare(
     """``ab`` calls compare with both variants + parsed args."""
     a = tmp_path / 'A.dck'
     b = tmp_path / 'B.dck'
-    a.write_text('a')
-    b.write_text('b')
+    a.write_text(_VALID_CONSTRUCTED)
+    b.write_text(_VALID_CONSTRUCTED)
 
     seen: dict[str, object] = {}
 
@@ -318,6 +593,264 @@ def test_top_level_help_lists_verbs(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# --engine selection (task 1.7)
+# --------------------------------------------------------------------------- #
+
+
+def test_deck_defaults_to_forge_engine(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_resolve: ForgeInstall,
+    tmp_path: Path,
+) -> None:
+    """With no --engine, the deck verb routes to the Forge engine."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(sim_run, 'simulate', lambda deck, src, **kw: seen.update(kw) or _sim_result())
+
+    sim_run.main(['deck', str(dck)])
+
+    assert seen['engine'].name == 'forge'  # type: ignore[union-attr]
+
+
+def test_deck_engine_flag_routes_to_selected_engine(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """`--engine <name>` selects that registered engine (registry-driven routing)."""
+    import types
+
+    from pipeline.sim import engine as engine_mod
+
+    fake = types.SimpleNamespace(name='fake')
+    # Register the fake so argparse's choices (available_engines) accept it and
+    # get_engine resolves it; setitem auto-reverts after the test.
+    monkeypatch.setitem(engine_mod._REGISTRY, 'fake', fake)  # type: ignore[arg-type]
+    # Bypass the Forge-specific provision/guard — routing is what's under test.
+    monkeypatch.setattr(sim_run, '_ensure_engine', lambda eng, **_: EngineInstall(version='x', handle=object()))
+    monkeypatch.setattr(sim_run, '_guard_forge_availability', lambda *a, **k: None)
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(sim_run, 'simulate', lambda deck, src, **kw: seen.update(kw) or _sim_result())
+
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    sim_run.main(['deck', str(dck), '--engine', 'fake'])
+
+    assert seen['engine'] is fake
+
+
+def test_engine_bogus_choice_errors_cleanly(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unregistered --engine is rejected by argparse (exit 2, no traceback)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck), '--engine', 'bogus'])
+    assert exc.value.code == 2  # argparse usage error.
+    err = capsys.readouterr().err
+    assert 'invalid choice' in err and 'bogus' in err
+    assert 'Traceback' not in err
+
+
+# --------------------------------------------------------------------------- #
+# --engine both — side-by-side compare mode (task 3.1)
+# --------------------------------------------------------------------------- #
+
+
+def _mock_both_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    per_engine: dict[str, SimResult],
+    unavailable: dict[str, str] | None = None,
+) -> None:
+    """Wire the ``deck --engine both`` seam: per-engine ``simulate`` results + which
+    engines are unavailable. Bypasses the real resolve/provision/guard so no JVM runs.
+    """
+    unavailable = unavailable or {}
+
+    def _ensure(engine: object, **_: object) -> EngineInstall:
+        name = engine.name  # type: ignore[attr-defined]
+        if name in unavailable:
+            raise EngineUnavailableError(unavailable[name])
+        return EngineInstall(version=f'{name}-x', handle=object())
+
+    monkeypatch.setattr(sim_run, '_ensure_engine', _ensure)
+    monkeypatch.setattr(sim_run, '_guard_forge_availability', lambda *a, **k: None)
+    monkeypatch.setattr(sim_run, 'simulate', lambda deck, src, **kw: per_engine[kw['engine'].name])
+
+
+def test_deck_engine_both_renders_side_by_side_and_false_read(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`--engine both` prints a per-engine row, the Δ, and a computed false-read note.
+
+    Forge under-pilots counters (low fire-rate) vs XMage → its win-rate is flagged as
+    the weaker read where the two diverge.
+    """
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    _mock_both_paths(
+        monkeypatch,
+        per_engine={
+            'forge': _sim_result('D', win_rate=0.42, piloting=_piloting(counter_fire=0.03)),
+            'xmage': _sim_result('D', win_rate=0.30, piloting=_piloting(counter_fire=0.31)),
+        },
+    )
+
+    sim_run.main(['deck', str(dck), '--engine', 'both'])  # no SystemExit -> exit 0.
+
+    out = capsys.readouterr().out
+    assert 'forge' in out and 'xmage' in out  # both rows.
+    assert 'Δ' in out  # the delta line.
+    assert 'false-read' in out and 'UNDER-CASTS' in out
+    # Forge (0.03 counter-fire) is the under-casting engine named in the note, and the
+    # note is COUNTER-specific (not generalized to "interaction").
+    note = next(line for line in out.splitlines() if 'UNDER-CASTS' in line)
+    assert 'forge' in note and 'forge' in note.split('UNDER-CASTS')[0]
+    assert 'COUNTERS' in note and 'interaction' not in note.lower()
+
+
+def test_deck_engine_both_comparable_piloting_is_neutral(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When the engines' counter fire-rates are comparable, the note is neutral (no false-read)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    _mock_both_paths(
+        monkeypatch,
+        per_engine={
+            'forge': _sim_result('D', win_rate=0.50, piloting=_piloting(counter_fire=0.30)),
+            'xmage': _sim_result('D', win_rate=0.52, piloting=_piloting(counter_fire=0.32)),
+        },
+    )
+
+    sim_run.main(['deck', str(dck), '--engine', 'both'])
+
+    out = capsys.readouterr().out
+    assert 'comparable' in out
+    assert 'UNDER-CASTS' not in out
+
+
+def test_deck_engine_both_one_unavailable_runs_other_and_reports_skip(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One engine unavailable → run the other, print its row, report the skip on stderr, exit 0."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    _mock_both_paths(
+        monkeypatch,
+        per_engine={'forge': _sim_result('D', win_rate=0.42, piloting=_piloting(counter_fire=0.03))},
+        unavailable={'xmage': 'set MAKE_MAGIC_XMAGE_HOME to a built reactor'},
+    )
+
+    sim_run.main(['deck', str(dck), '--engine', 'both'])  # forge produced games -> exit 0.
+
+    captured = capsys.readouterr()
+    assert 'forge' in captured.out  # the available side ran.
+    assert 'xmage' in captured.err and 'SKIPPED' in captured.err
+    assert 'MAKE_MAGIC_XMAGE_HOME' in captured.err  # actionable how-to-enable.
+
+
+def test_deck_commander_both_runs_xmage_two_engine_comparison(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A commander deck through `--engine both`: XMage now SUPPORTS 1v1 commander, so
+    both engines run and the table is a real two-engine comparison — no SKIP, exit 0.
+
+    Was `test_deck_commander_both_skips_xmage_no_bogus_row`; XMage's commander support
+    (Phase 1) makes the old constructed-only SKIP contract obsolete."""
+    dck = tmp_path / 'C.dck'
+    dck.write_text('[metadata]\nName=C\n' + _VALID_COMMANDER)
+    _mock_both_paths(
+        monkeypatch,
+        per_engine={
+            'forge': _sim_result('C', fmt='commander', win_rate=0.50, piloting=_piloting(counter_fire=0.03)),
+            'xmage': _sim_result('C', fmt='commander', win_rate=0.30, piloting=_piloting(counter_fire=0.31)),
+        },
+    )
+
+    sim_run.main(['deck', str(dck), '--format', 'commander', '--engine', 'both'])  # both ran -> exit 0.
+
+    captured = capsys.readouterr()
+    assert 'forge' in captured.out and 'xmage' in captured.out  # both rows present.
+    assert 'Δ' in captured.out  # a real cross-engine delta, not a lone-engine note.
+    assert 'SKIPPED' not in captured.err  # nothing skipped on the format axis.
+
+
+def test_deck_commander_xmage_single_runs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Single-engine XMage + commander now RUNS (Phase 1): the pre-flight format guard
+    admits commander, the engine provisions + simulates, exit 0 — no clean-error.
+
+    Was `test_deck_commander_xmage_single_clean_error` (the old constructed-only guard)."""
+    dck = tmp_path / 'C.dck'
+    dck.write_text('[metadata]\nName=C\n' + _VALID_COMMANDER)
+    _mock_both_paths(
+        monkeypatch,
+        per_engine={'xmage': _sim_result('C', fmt='commander', win_rate=0.30, piloting=_piloting(counter_fire=0.31))},
+    )
+
+    sim_run.main(['deck', str(dck), '--format', 'commander', '--engine', 'xmage'])  # runs -> exit 0.
+
+    captured = capsys.readouterr()
+    assert 'commander' in captured.out and 'win-rate' in captured.out  # the run produced a result table.
+    assert 'does not support the commander format' not in captured.err
+    assert 'Traceback' not in captured.err
+
+
+def test_deck_engine_both_all_unavailable_errors_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Every engine unavailable → a clean error naming the miss, non-zero exit (nothing to compare)."""
+    dck = tmp_path / 'D.dck'
+    dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
+    _mock_both_paths(
+        monkeypatch,
+        per_engine={},
+        unavailable={'forge': 'no Forge install', 'xmage': 'no XMage reactor'},
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['deck', str(dck), '--engine', 'both'])
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'no sim engine is available' in err
+    assert 'Traceback' not in err
+
+
+@pytest.mark.parametrize('verb', ['match', 'ab'])
+def test_engine_both_rejected_on_non_deck_verbs(
+    verb: str,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`both` is a `deck`-only pseudo-engine — `match`/`ab` reject it (argparse, exit 2)."""
+    a = tmp_path / 'A.dck'
+    b = tmp_path / 'B.dck'
+    a.write_text('[metadata]\nName=A\n' + _VALID_CONSTRUCTED)
+    b.write_text('[metadata]\nName=B\n' + _VALID_CONSTRUCTED)
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main([verb, str(a), str(b), '--engine', 'both'])
+    assert exc.value.code == 2
+    assert 'invalid choice' in capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------- #
 # doctor
 # --------------------------------------------------------------------------- #
 
@@ -328,8 +861,7 @@ def test_doctor_available(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """doctor with a resolvable Forge prints version + pool size + paths, exit 0."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: install)
-    monkeypatch.setattr(sim_run, 'forge_version', lambda: '2.0.13')
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)
     monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
     monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
     monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
@@ -337,7 +869,7 @@ def test_doctor_available(
     sim_run.main(['doctor'])  # no SystemExit -> exit 0.
 
     out = capsys.readouterr().out
-    assert '2.0.13' in out
+    assert FORGE_VERSION in out  # engine install version (the pinned Forge version)
     assert '4' in out  # pool size.
     assert str(install.jar) in out
     assert str(install.java) in out
@@ -353,7 +885,7 @@ def test_doctor_unavailable_graceful(
     def _raise(**_: object) -> ForgeInstall:
         raise ForgeUnavailableError('No Forge install found. Set MAKE_MAGIC_FORGE_HOME ...')
 
-    monkeypatch.setattr(sim_run, 'resolve', _raise)
+    monkeypatch.setattr(forge_runtime, 'resolve', _raise)
     # Still report the runtime snapshot even when Forge is absent.
     monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
     monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
@@ -386,9 +918,8 @@ def test_doctor_provision_fetches_via_ensure(
         called['ensure'] = True
         return install
 
-    monkeypatch.setattr(sim_run, 'resolve', _resolve_raises)  # read-only path would fail…
-    monkeypatch.setattr(sim_run, 'ensure', _ensure)  # …but --provision fetches.
-    monkeypatch.setattr(sim_run, 'forge_version', lambda: '2.0.13')
+    monkeypatch.setattr(forge_runtime, 'resolve', _resolve_raises)  # read-only path would fail…
+    monkeypatch.setattr(forge_runtime, 'ensure', _ensure)  # …but --provision fetches (via the engine).
     monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
     monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
     monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
@@ -399,6 +930,51 @@ def test_doctor_provision_fetches_via_ensure(
     out = capsys.readouterr().out
     assert 'available' in out.lower()
     assert 'provisioned' in out.lower()
+
+
+def test_doctor_optin_engine_absent_is_informational_exit_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    install: ForgeInstall,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """doctor loops EVERY registered engine: an available Forge (the DEFAULT) + an
+    unavailable OPT-IN engine → both reported, but exit 0 (only a DEFAULT-engine
+    failure fails the exit code). The opt-in engine gets its OWN message, NOT
+    Forge's ~350MB/MAKE_MAGIC_FORGE_HOME how-to."""
+    import types
+
+    from pipeline.sim import engine as engine_mod
+    from pipeline.sim.engine import EngineCapabilities, EngineUnavailableError
+
+    caps = EngineCapabilities(
+        has_hand_visibility=False,
+        has_counter_metrics=True,
+        expected_nondecisive_rate=0.1,
+        reliability_note='fake',
+        kill_attribution='combat_generic',
+    )
+
+    def _resolve_raises(*, provision: bool, data_dir: object = None) -> object:
+        raise EngineUnavailableError('zzfake needs its own bootstrap (this is the fake how-to).')
+
+    fake = types.SimpleNamespace(name='zzfake', capabilities=lambda: caps, resolve=_resolve_raises)
+    monkeypatch.setitem(engine_mod._REGISTRY, 'zzfake', fake)  # type: ignore[arg-type]
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)  # forge (default) available.
+    monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
+    monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
+    monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
+
+    sim_run.main(['doctor'])  # default forge available -> no SystemExit (exit 0).
+
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert 'forge: available' in captured.out  # the default engine reported.
+    assert 'zzfake: NOT AVAILABLE' in combined  # the opt-in engine reported (informational).
+    assert 'this is the fake how-to' in combined  # its own message surfaced.
+    # MINOR-2: the Forge-specific provision advice must NOT be printed for zzfake.
+    assert '350MB' not in combined and 'MAKE_MAGIC_FORGE_HOME' not in combined
+    # MINOR-2: the Forge-specific provision advice must NOT be printed for zzfake.
+    assert '350MB' not in combined and 'MAKE_MAGIC_FORGE_HOME' not in combined
 
 
 def test_match_auto_provisions_via_ensure(
@@ -415,12 +991,13 @@ def test_match_auto_provisions_via_ensure(
     def _resolve_miss(**_: object) -> ForgeInstall:
         raise ForgeUnavailableError('no cached install')
 
-    # resolve() misses -> _ensure_forge falls through to ensure() (which provisions).
-    monkeypatch.setattr(sim_run, 'resolve', _resolve_miss)
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
+    # read-only resolve misses -> _ensure_forge falls through to the engine's
+    # provisioning resolve (forge_runtime.ensure).
+    monkeypatch.setattr(forge_runtime, 'resolve', _resolve_miss)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
 
     def _fake_run_matchup(inst: ForgeInstall, a: tuple[str, str], b: tuple[str, str], **_: object) -> MatchResult:
-        assert inst is install  # the ensure()-provided install is threaded through.
+        assert inst is install  # the provisioned install's handle is threaded through.
         return MatchResult(
             deck_a=a[0],
             deck_b=b[0],
@@ -431,7 +1008,7 @@ def test_match_auto_provisions_via_ensure(
             raw_log='(elided)',
         )
 
-    monkeypatch.setattr(sim_run, 'run_matchup', _fake_run_matchup)
+    monkeypatch.setattr('pipeline.sim.runner.run_matchup', _fake_run_matchup)
 
     sim_run.main(['match', str(dck_a), str(dck_b), '-n', '1'])
 
@@ -440,53 +1017,63 @@ def test_match_auto_provisions_via_ensure(
 
 
 # --------------------------------------------------------------------------- #
-# First-run ~350MB download consent gate
+# S2 — first-run ~350MB download consent gate
 # --------------------------------------------------------------------------- #
 
 
+def _miss(**_: object) -> ForgeInstall:
+    """A read-only ``forge_runtime.resolve`` that misses (raises ForgeUnavailableError)."""
+    raise ForgeUnavailableError('miss')
+
+
 def test_ensure_forge_returns_cached_without_prompt(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
-    """When Forge already resolves, no prompt and no fetch."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: install)
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: pytest.fail('must not fetch when cached'))
+    """When Forge already resolves, no prompt and no fetch — and the EngineInstall wraps it."""
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: pytest.fail('must not fetch when cached'))
     monkeypatch.setattr('builtins.input', lambda _p: pytest.fail('must not prompt when cached'))
-    assert sim_run._ensure_forge() is install
+    result = sim_run._ensure_engine(sim_run.get_engine('forge'))
+    assert isinstance(result, EngineInstall)
+    assert result.handle is install
+    # M3: the version now folds the sim-AI harness identity in.
+    assert result.version.startswith(f'{FORGE_VERSION}+simai-')
 
 
 def test_ensure_forge_non_interactive_auto_proceeds(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
-    """Non-interactive stdin (agent/CI) fetches without prompting."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
+    """S2: non-interactive stdin (agent/CI) fetches WITHOUT prompting."""
+    monkeypatch.setattr(forge_runtime, 'resolve', _miss)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: False)
     monkeypatch.setattr('builtins.input', lambda _p: pytest.fail('non-interactive must not prompt'))
-    assert sim_run._ensure_forge() is install
+    assert sim_run._ensure_engine(sim_run.get_engine('forge')).handle is install
 
 
 def test_ensure_forge_tty_decline_aborts(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An interactive user answering 'n' aborts with a clean ForgeUnavailableError."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: pytest.fail('declined download must not fetch'))
+    """S2: an interactive user answering 'n' aborts with a clean EngineUnavailableError
+    (the consent is now engine-generic — Forge and XMage both auto-provision)."""
+    monkeypatch.setattr(forge_runtime, 'resolve', _miss)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: pytest.fail('declined download must not fetch'))
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
     monkeypatch.setattr('builtins.input', lambda _p: 'n')
-    with pytest.raises(ForgeUnavailableError, match='declined'):
-        sim_run._ensure_forge()
+    with pytest.raises(EngineUnavailableError, match='declined'):
+        sim_run._ensure_engine(sim_run.get_engine('forge'))
 
 
 def test_ensure_forge_tty_accept_fetches(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
-    """An interactive user answering 'y' proceeds with the fetch."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
+    """S2: an interactive user answering 'y' proceeds with the fetch."""
+    monkeypatch.setattr(forge_runtime, 'resolve', _miss)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
     monkeypatch.setattr('builtins.input', lambda _p: 'y')
-    assert sim_run._ensure_forge() is install
+    assert sim_run._ensure_engine(sim_run.get_engine('forge')).handle is install
 
 
 def test_ensure_forge_yes_flag_skips_prompt(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> None:
-    """--yes fetches without prompting even on an interactive TTY."""
-    monkeypatch.setattr(sim_run, 'resolve', lambda **_: (_ for _ in ()).throw(ForgeUnavailableError('miss')))
-    monkeypatch.setattr(sim_run, 'ensure', lambda **_: install)
+    """S2: --yes fetches without prompting even on an interactive TTY."""
+    monkeypatch.setattr(forge_runtime, 'resolve', _miss)
+    monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
     monkeypatch.setattr('pipeline.sim.run.sys.stdin.isatty', lambda: True)
     monkeypatch.setattr('builtins.input', lambda _p: pytest.fail('--yes must not prompt'))
-    assert sim_run._ensure_forge(assume_yes=True) is install
+    assert sim_run._ensure_engine(sim_run.get_engine('forge'), assume_yes=True).handle is install
 
 
 # --------------------------------------------------------------------------- #
@@ -554,7 +1141,13 @@ def _seed_matchup(
     from pipeline.sim.telemetry import GameFeatures
 
     key = sim_store.matchup_key(
-        dck_a_text, dck_b_text, seed=seed, n_games=n_games, fmt='constructed', forge_version=forge_version
+        dck_a_text,
+        dck_b_text,
+        seed=seed,
+        n_games=n_games,
+        fmt='constructed',
+        engine='forge',
+        engine_version=forge_version,
     )
     meta = sim_store.MatchupMeta(
         deck_a_hash=sim_store.deck_hash(dck_a_text),
@@ -562,7 +1155,8 @@ def _seed_matchup(
         seed=seed,
         n_games=n_games,
         format='constructed',
-        forge_version=forge_version,
+        engine='forge',
+        engine_version=forge_version,
     )
     log = '\n'.join(
         ['Simulation mode']
@@ -692,6 +1286,95 @@ def test_log_game_index_out_of_range_errors(
     assert 'no log for game 5' in capsys.readouterr().err
 
 
+def _seed_matchup_with_clockout(data_root: Path, dck_a_text: str, dck_b_text: str, *, seed: int) -> str:
+    """Store a 2-game run where ONE game clocked out (its log is NOT retained).
+
+    ``n_games`` (total that ran) is 2 but only the ONE decisive game has a stored
+    feature row + retained log — mirrors store.py discarding clockout logs. Used to
+    prove the ``log`` index UX reports the RETRIEVABLE count, not the total (R3-3).
+    """
+    from pipeline.sim import store as sim_store
+    from pipeline.sim.runner import GameOutcome, MatchResult
+    from pipeline.sim.telemetry import GameFeatures
+
+    key = sim_store.matchup_key(
+        dck_a_text, dck_b_text, seed=seed, n_games=2, fmt='constructed', engine='forge', engine_version='2.0.13'
+    )
+    meta = sim_store.MatchupMeta(
+        deck_a_hash=sim_store.deck_hash(dck_a_text),
+        deck_b_hash=sim_store.deck_hash(dck_b_text),
+        seed=seed,
+        n_games=2,
+        format='constructed',
+        engine='forge',
+        engine_version='2.0.13',
+    )
+    # Game 1 clocks out (marker present) → non-decisive, no retained log; game 2 decides.
+    log = '\n'.join(
+        [
+            'Simulation mode',
+            'Stopping slow match as draw',
+            'Game Result: Game 1 ended in 90000 ms. Ai(1)-A has won!',
+            'Turn: Turn 1 (Ai(1)-A)  [game 2 marker]',
+            'Game Result: Game 2 ended in 2000 ms. Ai(1)-A has won!',
+        ]
+    )
+    result = MatchResult(
+        deck_a='A',
+        deck_b='B',
+        wins_a=1,
+        wins_b=0,
+        draws=1,
+        per_game=(GameOutcome(winner='draw', elapsed_ms=90000), GameOutcome(winner='a', elapsed_ms=2000)),
+        raw_log=log,
+    )
+    # ONE feature row (the decisive game) — 1:1 with the ONE retained (non-clockout) log.
+    feats = [
+        GameFeatures(
+            winner='a',
+            kill_turn=5,
+            win_margin_life=10,
+            wincon='combat',
+            mulligans_a=0,
+            mulligans_b=0,
+            game_length_ms=2000,
+            lands_by_turn_a=[],
+            lands_by_turn_b=[],
+        )
+    ]
+    sim_store.store_matchup(key, meta, result, feats)
+    return key
+
+
+def test_log_index_reports_retrievable_not_total_count(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The index header + out-of-range error reflect the STORED (retrievable) game
+    count, not the TOTAL that ran — clockout logs are discarded, so ``n_games``
+    overstates what ``--game N`` can address (R3-3)."""
+    from pipeline import store
+
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(tmp_path / 'data'))
+    a, b = tmp_path / 'A.dck', tmp_path / 'B.dck'
+    a.write_text('Name=A\n[Main]\n4 Forest\n')
+    b.write_text('Name=B\n[Main]\n4 Plains\n')
+    _seed_matchup_with_clockout(tmp_path, a.read_text(), b.read_text(), seed=42)
+
+    # Index header: 1 of 2 retrievable (one game clocked out).
+    sim_run.main(['log', str(a), str(b)])
+    out = capsys.readouterr().out
+    assert '1 of 2 game(s) retrievable' in out
+
+    # Out-of-range --game 1 (only index 0 is retrievable) names the STORED count.
+    with pytest.raises(SystemExit) as exc:
+        sim_run.main(['log', str(a), str(b), '--game', '1'])
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'no log for game 1' in err
+    assert '1 retrievable game log(s)' in err
+    assert '2 game(s) ran' in err  # the total is still surfaced for context
+
+
 def test_log_forge_filter_disambiguates(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -717,3 +1400,92 @@ def test_log_forge_filter_disambiguates(
     sim_run.main(['log', str(a), str(b), '--forge', '2.0.14', '--game', '1'])
     out = capsys.readouterr().out
     assert '[game 2 marker]' in out
+
+
+# --------------------------------------------------------------------------- #
+# Piloting block in the deck printer (_print_sim_result / _print_piloting).
+# --------------------------------------------------------------------------- #
+
+
+def _sim_result_with_piloting(piloting: object) -> SimResult:
+    """A ``SimResult`` carrying a piloting profile (or None) for printer tests."""
+    base = _sim_result()
+    from dataclasses import replace
+
+    return replace(base, piloting=piloting)  # type: ignore[type-var]
+
+
+def test_print_piloting_available_block(capsys: pytest.CaptureFixture[str]) -> None:
+    """An AVAILABLE piloting profile prints the fire-rate block + the one-line frame."""
+    from pipeline.sim.telemetry import PilotingProfile
+
+    prof = PilotingProfile(
+        counter_opps=7,
+        counter_casts=0,
+        counter_fire=0.0,
+        counter_ci=(0.0, 0.35),
+        removal_opps=2,
+        removal_casts=2,
+        removal_fire=1.0,
+        removal_ci=(0.34, 1.0),
+        interaction_stranded_per_game=0.33,
+        games=3,
+    )
+    sim_run._print_sim_result(_sim_result_with_piloting(prof))
+    out = capsys.readouterr().out
+    assert 'piloting:' in out
+    assert 'counter fire-rate' in out
+    assert '0.0%' in out  # 0/7 sim-AI signature
+    assert '(0/7 opps)' in out
+    assert 'removal fire-rate' in out
+    assert 'stranded/game' in out
+    assert 'how often the AI cast it' in out  # the one-line frame
+    # cards_total defaults to 0 here -> no coverage line (unpopulated).
+    assert 'classification coverage' not in out
+
+
+def test_print_piloting_coverage_line_names_blind_spots(capsys: pytest.CaptureFixture[str]) -> None:
+    """A populated coverage surfaces how much of the deck was classified + names the blind spots."""
+    from pipeline.sim.telemetry import PilotingProfile
+
+    prof = PilotingProfile(
+        counter_opps=0,
+        counter_casts=0,
+        counter_fire=None,
+        counter_ci=None,
+        removal_opps=2,
+        removal_casts=1,
+        removal_fire=0.5,
+        removal_ci=(0.1, 0.9),
+        interaction_stranded_per_game=0.0,
+        games=4,
+        cards_total=37,
+        cards_classified=35,
+        uncategorized=('Spoiler Card A', 'Spoiler Card B'),
+    )
+    sim_run._print_sim_result(_sim_result_with_piloting(prof))
+    out = capsys.readouterr().out
+    assert 'classification coverage: 35/37 non-land cards carry otags' in out
+    assert 'Spoiler Card A' in out and 'Spoiler Card B' in out  # blind spots named
+
+
+def test_print_piloting_unavailable_is_one_honest_line(capsys: pytest.CaptureFixture[str]) -> None:
+    """An UNAVAILABLE profile prints ONE honest line naming the reason — no 0/0."""
+    from pipeline.sim.telemetry import unavailable_piloting
+
+    prof = unavailable_piloting('otag lake not populated — run the otag build to enable piloting metrics')
+    sim_run._print_sim_result(_sim_result_with_piloting(prof))
+    out = capsys.readouterr().out
+    assert 'piloting:' in out
+    assert 'unavailable' in out
+    assert 'otag lake not populated' in out
+    # The honest line must NOT masquerade as a real zero fire-rate.
+    assert 'fire-rate' not in out
+    assert 'opps)' not in out
+
+
+def test_print_piloting_none_prints_nothing(capsys: pytest.CaptureFixture[str]) -> None:
+    """No piloting profile (engine lacks hand visibility) -> no piloting block."""
+    sim_run._print_sim_result(_sim_result_with_piloting(None))
+    out = capsys.readouterr().out
+    assert 'piloting:' not in out

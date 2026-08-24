@@ -1,0 +1,31 @@
+name: upstream canary
+
+# Watches the runtime-fetched deps we do NOT control — the Adoptium Temurin JRE (resolved
+# via the Adoptium API) and the upstream Forge tarball — so an upstream move is caught by
+# a red canary BEFORE a fresh user hits it. This is the exact class of failure that shipped
+# as `/v3/assets/latest/21/ga` (a 404 that blocked every fresh Forge install) with no CI
+# noticing: the offline suite never exercises the live JRE resolver.
+#
+# Runs the `canary`-marked tests (deselected by the normal offline suite). Weekly + on
+# demand. A failure here is not a code regression — it means an upstream dep drifted and
+# the pin/resolver needs attention (CONTRIBUTING.md -> Cutting a release).
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'      # Mondays 06:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    name: runtime-fetched upstream deps still resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Resolve the JRE + Forge tarball live
+        working-directory: plugins/make-magic/pipeline
+        run: uv run --extra dev pytest -m canary -q

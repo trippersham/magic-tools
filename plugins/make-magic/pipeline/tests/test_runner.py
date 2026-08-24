@@ -19,6 +19,7 @@ from pipeline.sim.forge_runtime import ENV_FORGE_HOME, ENV_JAVA, ForgeInstall, r
 from pipeline.sim.runner import (
     ForgeError,
     MatchResult,
+    is_clockout_segment,
     parse_match_log,
     run_matchup,
 )
@@ -100,6 +101,102 @@ def test_parse_deck_name_with_spaces_and_parens() -> None:
     result = parse_match_log(log, deck_a='UR Izzet (Chaos Sealed)', deck_b='Mono Red (Aggro!)')
     assert (result.wins_a, result.wins_b, result.draws) == (1, 1, 0)
     assert [g.winner for g in result.per_game] == ['a', 'b']
+
+
+# --------------------------------------------------------------------------- #
+# CLOCKOUT — a draw-clock timeout must NOT tally as a fabricated win (B1b)
+# --------------------------------------------------------------------------- #
+
+
+def test_clockout_log_is_non_decisive_not_a_win() -> None:
+    """The captured 2-game clockout fixture (real harness, ``-c 2``) tallies as
+    0 wins / 0 losses / 2 draws — NOT the fabricated ``Ai(2) has won!`` the
+    ``Game Result`` terminator claims.
+
+    Regression: the parser counted the bogus ``has won!`` terminator, turning
+    every clocked-out game into a decisive win (~40-60% of a live run at the old
+    30s clock). Each clockout segment carries ``Stopping slow match as draw`` +
+    the DUAL ``has won because all opponents have lost`` — the non-decision signal.
+    """
+    result = parse_match_log(_read('clockout.log'), deck_a='AzoriusMid', deck_b='IzzetMid')
+    assert (result.wins_a, result.wins_b, result.draws) == (0, 0, 2)
+    assert result.games == 2
+    assert [g.winner for g in result.per_game] == ['draw', 'draw']
+
+
+def test_is_clockout_segment_detects_marker_and_dual_win() -> None:
+    """A segment is a clockout on EITHER the explicit marker OR the dual-win pair."""
+    marker_only = 'HANDLOG …\nStopping slow match as draw\nGame Result: Game 1 ended in 5 ms. Ai(1)-X has won!'
+    assert is_clockout_segment(marker_only)
+    dual_win = (
+        'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Y has won because all opponents have lost\n'
+        'Game Result: Game 1 ended in 5 ms. Ai(2)-Y has won!'
+    )
+    assert is_clockout_segment(dual_win)
+    # A NORMAL decisive game (one winner, one loser) is NOT a clockout.
+    normal = (
+        'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Y has lost because life total reached 0\n'
+        'Game Result: Game 1 ended in 5 ms. Ai(1)-X has won!'
+    )
+    assert not is_clockout_segment(normal)
+
+
+def test_is_clockout_segment_dual_win_without_marker_is_nondecisive() -> None:
+    """LOAD-BEARING (R2-2): a marker-LESS forced draw — a fast game where Forge's
+    ``startGame`` returns without a game-over and the reverse-printed ``Game
+    Outcome`` block awards BOTH players ``has won because all opponents have
+    lost`` — carries NO ``Stopping slow match as draw`` marker, yet is still
+    non-decisive. The dual-win fallback (not a mere truncation backstop) is the
+    ONLY thing that catches this class; assert it explicitly."""
+    forced_draw_no_marker = (
+        'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Y has won because all opponents have lost\n'
+        'Game Result: Game 1 ended in 40 ms. Ai(1)-X has won!'
+    )
+    assert 'Stopping slow match as draw' not in forced_draw_no_marker
+    assert is_clockout_segment(forced_draw_no_marker)
+
+
+def test_mixed_clockout_and_real_win_only_counts_the_real_game() -> None:
+    """One clocked-out game + one genuine win -> 1 win, 1 draw (the clockout)."""
+    log = (
+        'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Y has lost because life total reached 0\n'
+        'Game Result: Game 1 ended in 24000 ms. Ai(1)-X has won!\n'
+        'Stopping slow match as draw\n'
+        'Game Outcome: Ai(1)-X has won because all opponents have lost\n'
+        'Game Outcome: Ai(2)-Y has won because all opponents have lost\n'
+        'Game Result: Game 2 ended in 2000 ms. Ai(2)-Y has won!\n'
+    )
+    result = parse_match_log(log, deck_a='X', deck_b='Y')
+    assert (result.wins_a, result.wins_b, result.draws) == (1, 0, 1)
+    assert [g.winner for g in result.per_game] == ['a', 'draw']
+
+
+# --------------------------------------------------------------------------- #
+# GENUINE draw — the "ended in a Draw! Took <ms> ms." terminator (M4)
+# --------------------------------------------------------------------------- #
+
+
+def test_genuine_draw_line_parses_as_draw_no_error() -> None:
+    """The real harness draw terminator (``SimAIMatch.java:219``) is a DRAW, and a
+    single-game match with it has ``games == 1`` (no spurious ForgeError)."""
+    log = 'Simulation mode\nGame Result: Game 1 ended in a Draw! Took 5000 ms.\n'
+    result = parse_match_log(log, deck_a='X', deck_b='Y')
+    assert (result.wins_a, result.wins_b, result.draws) == (0, 0, 1)
+    assert result.games == 1
+    assert result.per_game[0].winner == 'draw'
+    assert result.per_game[0].elapsed_ms == 5000
+
+
+def test_genuine_draw_mixed_with_a_win() -> None:
+    """A genuine draw alongside a decisive game tallies both correctly."""
+    log = 'Game Result: Game 1 ended in 1000 ms. Ai(1)-X has won!\nGame Result: Game 2 ended in a Draw! Took 2000 ms.\n'
+    result = parse_match_log(log, deck_a='X', deck_b='Y')
+    assert (result.wins_a, result.wins_b, result.draws) == (1, 0, 1)
+    assert [g.winner for g in result.per_game] == ['a', 'draw']
 
 
 # --------------------------------------------------------------------------- #

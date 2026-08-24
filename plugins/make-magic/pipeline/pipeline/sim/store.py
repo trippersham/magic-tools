@@ -1,15 +1,15 @@
 """Content-addressed cache for Forge matchups + a queryable telemetry feature store.
 
-A Forge matchup (:class:`~pipeline.sim.runner.MatchResult`) and its parsed per-game
-telemetry (:class:`~pipeline.sim.telemetry.GameFeatures`) are expensive to produce
-and fully deterministic in their inputs, so this module caches a matchup by a
-content hash of its inputs — the two ``.dck`` texts plus the run params (seed,
-game count, format, Forge version). Any change to a deck or a Forge version bump
-changes the hash, so the cache self-invalidates: a stale entry can never be served
-for changed inputs (the classic content-addressed cache guarantee).
+Phases 2-3 run a Forge matchup (:class:`~pipeline.sim.runner.MatchResult`) and
+parse per-game telemetry (:class:`~pipeline.sim.telemetry.GameFeatures`). Re-running
+Forge is expensive and fully deterministic in its inputs, so this module caches a
+matchup by a CONTENT HASH of its inputs — the two ``.dck`` texts plus the run
+params (seed, game count, format, Forge version). Any change to a deck OR a Forge
+version bump changes the hash, so the cache self-invalidates: a stale entry can
+never be served for changed inputs (the classic content-addressed cache guarantee).
 
-Everything lands in the same ``make_magic.duckdb`` as the rest of the lake, via
-:mod:`pipeline.store.io` (callers never ``import duckdb`` themselves). Two tables:
+Everything lands in the SAME ``make_magic.duckdb`` as the rest of the lake, via
+:mod:`pipeline.store.io` (callers NEVER ``import duckdb`` themselves). Two tables:
 
   * ``sim_matchups`` — one row per cached matchup: the content key, the per-deck
     hashes + params that produced it, and the win tally.
@@ -17,17 +17,18 @@ Everything lands in the same ``make_magic.duckdb`` as the rest of the lake, via
     so a batch aggregates in plain SQL (avg kill-turn, wincon counts, …). Land
     ramp curves are stored as native DuckDB ``INTEGER[]`` (list binding round-trips
     cleanly as Python ``list[int]`` — no JSON juggling needed).
-  * ``sim_game_logs`` — one row per game holding the full verbose Forge log for
-    that game, so any past game is forensically replayable without re-running
+  * ``sim_game_logs`` — one row per game holding the FULL verbose Forge log for
+    that game, so any past game is forensically replayable WITHOUT re-running
     Forge (whose ``-s`` seed is not reliably reproducible — a re-run is a
     different game, so the log must be retained at run time, not re-derived). The
     log is sliced from ``MatchResult.raw_log`` via
-    :func:`~pipeline.sim.telemetry.split_games`, so its ``game_index`` lines up
-    1:1 with ``sim_game_features`` (both derive from the same split). Read on
-    demand via :func:`get_game_logs` — not loaded on the hot cache path.
+    :func:`~pipeline.sim.telemetry.split_games` with CLOCKOUT segments excluded
+    (:func:`~pipeline.sim.runner.is_clockout_segment`), so its ``game_index`` lines
+    up 1:1 with ``sim_game_features`` (which excludes the same games). Read on
+    demand via :func:`get_game_logs` — NOT loaded on the hot cache path.
 
 The read-through hook is :func:`get_cached` (returns ``None`` on a miss); the
-``--force`` bypass is the caller's concern (they simply skip :func:`get_cached`).
+``--force`` bypass is the CALLER'S concern (they simply skip :func:`get_cached`).
 Tables are created idempotently on first write, honoring ``MAKE_MAGIC_DATA_DIR``
 so tests point at a tmp db.
 """
@@ -41,7 +42,7 @@ from typing import TYPE_CHECKING
 
 from pipeline import store
 from pipeline.sim.runner import MatchResult
-from pipeline.sim.telemetry import GameFeatures, split_games
+from pipeline.sim.telemetry import GameFeatures, decided_game_segments
 
 if TYPE_CHECKING:
     import os
@@ -62,19 +63,25 @@ __all__ = (
 )
 
 #: DDL for the matchup cache — one row per content-addressed matchup.
+#: ``engine`` + ``engine_version`` (replacing the old single ``forge_version``
+#: column) identify the backend that produced the row; both are also folded into
+#: :func:`matchup_key` so a Forge and an XMage run of the same inputs never
+#: collide. Pre-1.3 DBs carry the old ``forge_version`` column instead and are
+#: migrated forward in :func:`_ensure_tables` (see :func:`_migrate_matchups`).
 _MATCHUPS_DDL = """
 CREATE TABLE IF NOT EXISTS sim_matchups (
-    matchup_key   TEXT PRIMARY KEY,
-    deck_a_hash   TEXT,
-    deck_b_hash   TEXT,
-    seed          INT,
-    n_games       INT,
-    format        TEXT,
-    forge_version TEXT,
-    wins_a        INT,
-    wins_b        INT,
-    draws         INT,
-    created_at    TIMESTAMP
+    matchup_key    TEXT PRIMARY KEY,
+    deck_a_hash    TEXT,
+    deck_b_hash    TEXT,
+    seed           INT,
+    n_games        INT,
+    format         TEXT,
+    engine         TEXT,
+    engine_version TEXT,
+    wins_a         INT,
+    wins_b         INT,
+    draws          INT,
+    created_at     TIMESTAMP
 )
 """
 
@@ -123,7 +130,8 @@ class MatchupMeta:
     seed: int
     n_games: int
     format: str
-    forge_version: str
+    engine: str
+    engine_version: str
 
 
 @dataclass(frozen=True)
@@ -151,11 +159,22 @@ class MatchupRow:
     seed: int
     n_games: int
     format: str
-    forge_version: str
+    engine: str
+    engine_version: str
     wins_a: int
     wins_b: int
     draws: int
     created_at: str
+
+    @property
+    def forge_version(self) -> str:
+        """Back-compat alias for :attr:`engine_version` (the ``log`` verb's ``--forge``).
+
+        The store no longer keeps a distinct ``forge_version`` column — the
+        backend version lives in :attr:`engine_version`. This alias keeps the
+        existing ``simulate log --forge`` filter/display working unchanged.
+        """
+        return self.engine_version
 
 
 def _normalize_dck(dck_text: str) -> str:
@@ -181,15 +200,19 @@ def matchup_key(
     seed: int,
     n_games: int,
     fmt: str,
-    forge_version: str,
+    engine: str,
+    engine_version: str,
 ) -> str:
     """A stable content hash identifying a matchup by its exact inputs.
 
     Combines the two per-deck hashes with the run params (seed, game count,
-    format, Forge version) into one sha256. Deterministic and order-sensitive on
-    ``(deck_a, deck_b)`` — swapping the decks yields a different key (Ai(1) vs
-    Ai(2) is not symmetric). A deck edit or a Forge-version bump changes the key,
-    guaranteeing a miss for changed inputs.
+    format, sim ENGINE, and that engine's version) into one sha256. Deterministic
+    and order-sensitive on ``(deck_a, deck_b)`` — swapping the decks yields a
+    different key (Ai(1) vs Ai(2) is not symmetric). A deck edit, an
+    engine-version bump, OR a change of engine (``'forge'`` vs ``'xmage'``)
+    changes the key — so the same decks/seed/n under two DIFFERENT backends hash
+    to DIFFERENT keys and never collide in the content cache, guaranteeing a miss
+    for changed inputs.
     """
     parts = (
         deck_hash(deck_a_dck),
@@ -197,17 +220,54 @@ def matchup_key(
         str(seed),
         str(n_games),
         fmt,
-        forge_version,
+        engine,
+        engine_version,
     )
     payload = '\x00'.join(parts).encode('utf-8')
     return hashlib.sha256(payload).hexdigest()
 
 
 def _ensure_tables(conn: duckdb.DuckDBPyConnection) -> None:
-    """Create the store tables if absent (idempotent — safe to call every op)."""
+    """Create the store tables if absent (idempotent — safe to call every op).
+
+    Also forward-migrates a pre-1.3 ``sim_matchups`` (the old ``forge_version``
+    column, no ``engine``/``engine_version``) — see :func:`_migrate_matchups`.
+    """
     conn.execute(_MATCHUPS_DDL)
+    _migrate_matchups(conn)
     conn.execute(_FEATURES_DDL)
     conn.execute(_LOGS_DDL)
+
+
+def _migrate_matchups(conn: duckdb.DuckDBPyConnection) -> None:
+    """Forward-migrate an old-schema ``sim_matchups`` in place — never crash on open.
+
+    Migration strategy (chosen for the sim cache): ADDITIVE ``ALTER TABLE ADD
+    COLUMN``. A pre-1.3 DB carries a ``forge_version`` column and NO
+    ``engine``/``engine_version``. Because ``_MATCHUPS_DDL`` is
+    ``CREATE TABLE IF NOT EXISTS``, that stale table would survive untouched and
+    every new column read/write would then fail. So on open we detect the
+    missing columns and add them, backfilling existing rows to
+    ``engine='forge'`` and ``engine_version = <old forge_version>`` (the only
+    backend that could have produced a pre-1.3 row). The legacy ``forge_version``
+    column is left in place — harmless, and dropping it is not needed for
+    correctness (reads/writes go through the named columns). Non-destructive: no
+    row is lost, and every old row reads back correctly forge-tagged.
+    """
+    # PRAGMA table_info -> (cid, name, type, notnull, dflt_value, pk); name is [1].
+    cols = {row[1] for row in conn.execute('PRAGMA table_info(sim_matchups)').fetchall()}
+    if 'engine' in cols and 'engine_version' in cols:
+        return  # already current
+    if 'engine' not in cols:
+        conn.execute('ALTER TABLE sim_matchups ADD COLUMN engine TEXT')
+    if 'engine_version' not in cols:
+        conn.execute('ALTER TABLE sim_matchups ADD COLUMN engine_version TEXT')
+    # Backfill legacy rows: tag as forge, carry the old forge_version forward.
+    if 'forge_version' in cols:
+        conn.execute("UPDATE sim_matchups SET engine = 'forge' WHERE engine IS NULL")
+        conn.execute('UPDATE sim_matchups SET engine_version = forge_version WHERE engine_version IS NULL')
+    else:
+        conn.execute("UPDATE sim_matchups SET engine = 'forge' WHERE engine IS NULL")
 
 
 def store_matchup(
@@ -218,7 +278,7 @@ def store_matchup(
     *,
     data_dir: str | os.PathLike[str] | None = None,
 ) -> None:
-    """Upsert the matchup row + replace its feature and per-game log rows under ``key``.
+    """Upsert the matchup row + REPLACE its feature and per-game log rows under ``key``.
 
     Idempotent by key: the matchup row is deleted-then-inserted and every prior
     ``sim_game_features`` / ``sim_game_logs`` row for ``key`` is cleared first, so
@@ -226,7 +286,7 @@ def store_matchup(
     ``features`` is persisted in order, one row per game (``game_index`` =
     position). The full verbose log is sliced from ``result.raw_log`` via
     :func:`~pipeline.sim.telemetry.split_games` and persisted one row per game
-    under the same ``game_index`` grain (a result-less log simply yields no log
+    under the SAME ``game_index`` grain (a result-less log simply yields no log
     rows — never an error).
     """
     db_path = _db_path(data_dir)
@@ -239,8 +299,8 @@ def store_matchup(
             """
             INSERT INTO sim_matchups
                 (matchup_key, deck_a_hash, deck_b_hash, seed, n_games, format,
-                 forge_version, wins_a, wins_b, draws, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 engine, engine_version, wins_a, wins_b, draws, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 key,
@@ -249,7 +309,8 @@ def store_matchup(
                 meta.seed,
                 meta.n_games,
                 meta.format,
-                meta.forge_version,
+                meta.engine,
+                meta.engine_version,
                 result.wins_a,
                 result.wins_b,
                 result.draws,
@@ -284,13 +345,19 @@ def store_matchup(
 
         # Replace the per-game log rows wholesale (sliced from the full verbose log).
         conn.execute('DELETE FROM sim_game_logs WHERE matchup_key = ?', [key])
-        game_logs = split_games(result.raw_log)
+        # EXCLUDE clockout segments to stay 1:1 with `features` (which
+        # `extract_match_features` derives from the SAME helper) — a clocked-out
+        # game has a fabricated result and no forensic value, so dropping its log
+        # keeps `game_index` aligned across the two tables (B1b). Using the shared
+        # `decided_game_segments` is what makes the fresh piloting pool and this
+        # persisted cache measure the identical games (fresh == cached, M1).
+        game_logs = decided_game_segments(result.raw_log)
         # Invariant: log rows either line up 1:1 with feature rows (both derive from
-        # the same split_games) or are absent — a result-less/elided log (e.g. tests
-        # that pass a placeholder raw_log) yields 0 segments. Any other count means
-        # `features` and `raw_log` came from different matchups and the two tables
-        # would silently desync on `game_index`. A real raise (not `assert`, which
-        # `python -O` strips) — this guards persisted data.
+        # the SAME clockout-excluded split) OR are absent — a result-less/elided log
+        # (e.g. tests that pass a placeholder raw_log) yields 0 segments. Any OTHER
+        # count means `features` and `raw_log` came from different matchups and the
+        # two tables would silently desync on `game_index`. A real raise (not
+        # `assert`, which `python -O` strips) — this guards persisted data.
         if len(game_logs) not in (0, len(features)):
             raise ValueError(
                 f'log/feature game_index desync: {len(game_logs)} log segments vs '
@@ -361,7 +428,7 @@ def get_game_logs(
 ) -> list[str]:
     """Return the retained per-game verbose logs for ``key``, ordered by game.
 
-    The forensic-replay reader (kept off the hot cache path so ``get_cached``
+    The forensic-replay reader (kept OFF the hot cache path so ``get_cached``
     stays lean). Pass ``game_index`` to fetch just that one game's log (a list of
     0 or 1). An unknown key, a fresh db, or a matchup stored with a result-less
     log all yield ``[]`` — never a raise. Each string is the full verbose Forge
@@ -393,9 +460,9 @@ def find_matchups(
     """Find stored matchups, newest first — the offline lookup for log retrieval.
 
     All filters are optional AND-ed: pass the two deck hashes (computed offline
-    via :func:`deck_hash`, no Forge needed) to locate every run of a deck pair
-    across seeds / game-counts / Forge versions, optionally narrowed by ``fmt``.
-    No filter -> every stored matchup. Empty store -> ``[]``.
+    via :func:`deck_hash`, no engine needed) to locate every run of a deck pair
+    across seeds / game-counts / engines / engine versions, optionally narrowed
+    by ``fmt``. No filter -> every stored matchup. Empty store -> ``[]``.
     """
     clauses: list[str] = []
     params: list[object] = []
@@ -415,7 +482,7 @@ def find_matchups(
         rows = conn.execute(
             f"""
             SELECT matchup_key, deck_a_hash, deck_b_hash, seed, n_games, format,
-                   forge_version, wins_a, wins_b, draws, created_at
+                   engine, engine_version, wins_a, wins_b, draws, created_at
             FROM sim_matchups
             {where}
             ORDER BY created_at DESC
@@ -430,11 +497,12 @@ def find_matchups(
             seed=r[3],
             n_games=r[4],
             format=r[5],
-            forge_version=r[6],
-            wins_a=r[7],
-            wins_b=r[8],
-            draws=r[9],
-            created_at=str(r[10]),
+            engine=r[6],
+            engine_version=r[7],
+            wins_a=r[8],
+            wins_b=r[9],
+            draws=r[10],
+            created_at=str(r[11]),
         )
         for r in rows
     ]

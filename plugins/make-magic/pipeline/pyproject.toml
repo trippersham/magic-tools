@@ -1,6 +1,6 @@
 [project]
 name = "make-magic-pipeline"
-version = "0.6.1"
+version = "0.6.2"
 description = "Lightweight normalized data layer + pipeline for make-magic (DuckDB medallion lake + Pydantic edge contracts). Additive to the Airtable source-of-truth workflow; never degrades it."
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -48,16 +48,23 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pipeline"]
+# Belt-and-suspenders (Task 1.6c / adversary M1): explicitly ship the committed
+# Forge sim-AI harness jar so wheel inclusion never depends on git-tracking alone
+# (a jar-less install launches the JVM against a missing classpath entry and fails
+# into a silent 0-0-0 table — the runner also guards its existence at runtime).
+[tool.hatch.build.targets.wheel.force-include]
+"pipeline/sim/java/forge-simai/make-magic-forge-simai.jar" = "pipeline/sim/java/forge-simai/make-magic-forge-simai.jar"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # `live` tests hit the real Airtable base + Scryfall (creds required); deselected
 # by default so the normal suite stays offline + fast. Run with creds sourced:
 #   set -a && . ../.env && set +a && uv run --extra dev pytest -m live -q
-addopts = "-m 'not live and not forge'"
+addopts = "-m 'not live and not forge and not canary'"
 markers = [
     "live: end-to-end test against the real Airtable base (needs AIRTABLE_API_KEY; read-only)",
     "forge: gated test that spawns a REAL Forge JVM (needs MAKE_MAGIC_FORGE_HOME + MAKE_MAGIC_JAVA)",
+    "canary: network check that a runtime-fetched upstream dep still resolves (Adoptium JRE, Forge tarball); deselected by default, run on a schedule by upstream-canary.yml",
 ]
 
 # --- Style (rae-style python-styleguide: Pydantic-AI conventions) ---

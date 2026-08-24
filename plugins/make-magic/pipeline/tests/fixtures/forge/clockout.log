@@ -1,0 +1,290 @@
+Language 'en-US' loaded successfully.
+(ThreadUtil first call): Running with priority 5
+Read cards: 33319 archived files in 0 ms (25 parts) using thread pool
+Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.
+The card A-Alrund's Epiphany was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Baba Lysaga, Night Witch was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Divide by Zero was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Esika's Chariot was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Faceless Haven was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Fires of Invention was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Goldspan Dragon was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Hullbreaker Horror was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Kumano Faces Kakkazan was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Luminarch Aspirant was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Monster Manual was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Omnath, Locus of Creation was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-The Meathook Massacre was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card A-Unholy Heat was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Blinding Radiance was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Goblin Bruiser was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Ogre Painbringer was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Titanic Pelagosaur was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+The card Treetop Recluse was not assigned to any set. Adding it to UNKNOWN set... to fix see res/editions/ folder. 
+Upcoming set Star Trek (TRK) dated in the future. All `upcoming` cards will be added to this set with unknown rarity.
+Read cards: 821 files in 0 ms (8 parts) using thread pool
+SimAIMatch: /Users/trippwickersham/Code/magic-tools/plugins/make-magic/pipeline/pipeline/data/gauntlet/constructed/guilds/AzoriusMid.dck vs /Users/trippwickersham/Code/magic-tools/plugins/make-magic/pipeline/pipeline/data/gauntlet/constructed/guilds/IzzetMid.dck | games=2 clock=2s format=Constructed useSimulationAI=true
+HANDLOG turn=1 event=turnstart active=Ai(2)-IzzetMid UR_hand=[Frost Lynx;Island;Plains;Waterknot;Wind Drake;Seeker of the Way;Plains] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+hidden has neither ManaCost nor Color
+HANDLOG turn=2 event=turnstart active=Ai(1)-AzoriusMid UR_hand=[Frost Lynx;Island;Plains;Waterknot;Wind Drake;Seeker of the Way;Plains] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=3 event=turnstart active=Ai(2)-IzzetMid UR_hand=[Frost Lynx;Plains;Waterknot;Wind Drake;Seeker of the Way;Plains;Plains] UR_untapped_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=3 event=cast kind=spell castBy=Ai(2)-IzzetMid source=Incinerate UR_hand=[Frost Lynx;Plains;Waterknot;Wind Drake;Seeker of the Way;Plains;Plains] UR_untapped_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=4 event=turnstart active=Ai(1)-AzoriusMid UR_hand=[Frost Lynx;Plains;Waterknot;Wind Drake;Seeker of the Way;Plains;Plains] UR_untapped_lands=1 opp_creatures=0 UR_life=17 opp_life=20
+HANDLOG turn=4 event=cast kind=spell castBy=Ai(1)-AzoriusMid source=Seeker of the Way UR_hand=[Frost Lynx;Waterknot;Wind Drake;Plains;Plains;Aven Gagglemaster] UR_untapped_lands=0 opp_creatures=0 UR_life=17 opp_life=20
+HANDLOG turn=5 event=turnstart active=Ai(2)-IzzetMid UR_hand=[Frost Lynx;Waterknot;Wind Drake;Plains;Plains;Aven Gagglemaster] UR_untapped_lands=0 opp_creatures=0 UR_life=17 opp_life=20
+Stopping slow match as draw
+HANDLOG turn=5 event=gameend UR_hand=[Frost Lynx;Waterknot;Wind Drake;Plains;Plains;Aven Gagglemaster] UR_untapped_lands=0 opp_creatures=0 UR_life=17 opp_life=20
+Mulligan: Ai(2)-IzzetMid has mulliganed down to 6 cards.
+Mulligan: Ai(2)-IzzetMid has kept a hand of 6 cards
+Mulligan: Ai(1)-AzoriusMid has kept a hand of 7 cards
+Turn: Turn 1 (Ai(2)-IzzetMid)
+Phase: Ai(2)-IzzetMid's Untap step
+Phase: Ai(2)-IzzetMid's Upkeep step
+Phase: Ai(2)-IzzetMid's Draw step
+Phase: Ai(2)-IzzetMid's Main phase, precombat
+Land: Ai(2)-IzzetMid played Mountain (72)
+Phase: Ai(2)-IzzetMid's Beginning of Combat Step
+Phase: Ai(2)-IzzetMid's Declare Attackers Step
+Phase: Ai(2)-IzzetMid's Declare Blockers Step
+Phase: Ai(2)-IzzetMid's First Strike Damage Step
+Phase: Ai(2)-IzzetMid's Combat Damage Step
+Phase: Ai(2)-IzzetMid's End of Combat Step
+Phase: Ai(2)-IzzetMid's Main phase, postcombat
+Phase: Ai(2)-IzzetMid's End step
+Phase: Ai(2)-IzzetMid's Cleanup step
+Turn: Turn 2 (Ai(1)-AzoriusMid)
+Phase: Ai(1)-AzoriusMid's Untap step
+Phase: Ai(1)-AzoriusMid's Upkeep step
+Phase: Ai(1)-AzoriusMid's Draw step
+Phase: Ai(1)-AzoriusMid's Main phase, precombat
+Land: Ai(1)-AzoriusMid played Island (21)
+Phase: Ai(1)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(1)-AzoriusMid's Declare Attackers Step
+Phase: Ai(1)-AzoriusMid's Declare Blockers Step
+Phase: Ai(1)-AzoriusMid's First Strike Damage Step
+Phase: Ai(1)-AzoriusMid's Combat Damage Step
+Phase: Ai(1)-AzoriusMid's End of Combat Step
+Phase: Ai(1)-AzoriusMid's Main phase, postcombat
+Phase: Ai(1)-AzoriusMid's End step
+Phase: Ai(1)-AzoriusMid's Cleanup step
+Turn: Turn 3 (Ai(2)-IzzetMid)
+Phase: Ai(2)-IzzetMid's Untap step
+Phase: Ai(2)-IzzetMid's Upkeep step
+Phase: Ai(2)-IzzetMid's Draw step
+Phase: Ai(2)-IzzetMid's Main phase, precombat
+Land: Ai(2)-IzzetMid played Island (52)
+Mana: Mountain (72) - {T}: Add {R}.
+Mana: Island (52) - {T}: Add {U}.
+Add To Stack: Ai(2)-IzzetMid cast Incinerate targeting [Ai(1)-AzoriusMid]
+Damage: Incinerate (46) deals 3 non-combat damage to Ai(1)-AzoriusMid.
+Life: Life: Ai(1)-AzoriusMid 20 > 17
+Resolve Stack: Incinerate (46) - Incinerate (46) deals 3 damage to Ai(1)-AzoriusMid.  
+Phase: Ai(2)-IzzetMid's Beginning of Combat Step
+Phase: Ai(2)-IzzetMid's Declare Attackers Step
+Phase: Ai(2)-IzzetMid's Declare Blockers Step
+Phase: Ai(2)-IzzetMid's First Strike Damage Step
+Phase: Ai(2)-IzzetMid's Combat Damage Step
+Phase: Ai(2)-IzzetMid's End of Combat Step
+Phase: Ai(2)-IzzetMid's Main phase, postcombat
+Phase: Ai(2)-IzzetMid's End step
+Phase: Ai(2)-IzzetMid's Cleanup step
+Turn: Turn 4 (Ai(1)-AzoriusMid)
+Phase: Ai(1)-AzoriusMid's Untap step
+Phase: Ai(1)-AzoriusMid's Upkeep step
+Phase: Ai(1)-AzoriusMid's Draw step
+Phase: Ai(1)-AzoriusMid's Main phase, precombat
+Land: Ai(1)-AzoriusMid played Plains (8)
+Mana: Plains (8) - {T}: Add {W}.
+Mana: Island (21) - {T}: Add {U}.
+Add To Stack: Ai(1)-AzoriusMid cast Seeker of the Way
+Resolve Stack: Seeker of the Way - Creature 2 / 2
+Phase: Ai(1)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(1)-AzoriusMid's Declare Attackers Step
+Phase: Ai(1)-AzoriusMid's Declare Blockers Step
+Phase: Ai(1)-AzoriusMid's First Strike Damage Step
+Phase: Ai(1)-AzoriusMid's Combat Damage Step
+Phase: Ai(1)-AzoriusMid's End of Combat Step
+Phase: Ai(1)-AzoriusMid's Main phase, postcombat
+Phase: Ai(1)-AzoriusMid's End step
+Phase: Ai(1)-AzoriusMid's Cleanup step
+Turn: Turn 5 (Ai(2)-IzzetMid)
+Phase: Ai(2)-IzzetMid's Untap step
+Phase: Ai(2)-IzzetMid's Upkeep step
+Phase: Ai(2)-IzzetMid's Draw step
+Phase: Ai(2)-IzzetMid's Main phase, precombat
+Player Control: Ai(1)-AzoriusMid has restored control over themself
+Player Control: Ai(2)-IzzetMid has restored control over themself
+Game Outcome: Turn 3
+Game Outcome: Ai(1)-AzoriusMid has won because all opponents have lost
+Game Outcome: Ai(2)-IzzetMid has won because all opponents have lost
+Match Result: Ai(1)-AzoriusMid: 0 Ai(2)-IzzetMid: 1 
+
+Game Result: Game 1 ended in 2086 ms. Ai(2)-IzzetMid has won!
+
+SimAIMatch: game 1 wallclock 2089 ms
+HANDLOG turn=1 event=turnstart active=Ai(1)-AzoriusMid UR_hand=[Skywinder Drake;Plains;Mistral Charger;Wall of Omens;Plains;Aven Gagglemaster;Wind Drake] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=2 event=turnstart active=Ai(2)-IzzetMid UR_hand=[Skywinder Drake;Mistral Charger;Wall of Omens;Plains;Aven Gagglemaster;Wind Drake] UR_untapped_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=3 event=turnstart active=Ai(1)-AzoriusMid UR_hand=[Skywinder Drake;Mistral Charger;Wall of Omens;Plains;Aven Gagglemaster;Wind Drake] UR_untapped_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=3 event=cast kind=spell castBy=Ai(1)-AzoriusMid source=Mistral Charger UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake;Island] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=4 event=turnstart active=Ai(2)-IzzetMid UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake;Island] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=4 event=cast kind=spell castBy=Ai(2)-IzzetMid source=Magma Jet UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake;Island] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=5 event=turnstart active=Ai(1)-AzoriusMid UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake;Island] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(1)-AzoriusMid source=Aerial Responder UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=6 event=turnstart active=Ai(2)-IzzetMid UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=6 event=cast kind=spell castBy=Ai(2)-IzzetMid source=Man-o'-War UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake] UR_untapped_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=6 event=cast kind=ability castBy=Ai(2)-IzzetMid source=Man-o'-War UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=7 event=turnstart active=Ai(1)-AzoriusMid UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake;Aerial Responder] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=7 event=cast kind=spell castBy=Ai(1)-AzoriusMid source=Aerial Responder UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake;Island] UR_untapped_lands=0 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=8 event=turnstart active=Ai(2)-IzzetMid UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake] UR_untapped_lands=1 opp_creatures=1 UR_life=20 opp_life=20
+Stopping slow match as draw
+HANDLOG turn=8 event=gameend UR_hand=[Skywinder Drake;Wall of Omens;Aven Gagglemaster;Wind Drake] UR_untapped_lands=1 opp_creatures=1 UR_life=20 opp_life=20
+Mulligan: Ai(1)-AzoriusMid has kept a hand of 7 cards
+Mulligan: Ai(2)-IzzetMid has kept a hand of 7 cards
+Turn: Turn 1 (Ai(1)-AzoriusMid)
+Phase: Ai(1)-AzoriusMid's Untap step
+Phase: Ai(1)-AzoriusMid's Upkeep step
+Phase: Ai(1)-AzoriusMid's Draw step
+Phase: Ai(1)-AzoriusMid's Main phase, precombat
+Land: Ai(1)-AzoriusMid played Plains (15)
+Phase: Ai(1)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(1)-AzoriusMid's Declare Attackers Step
+Phase: Ai(1)-AzoriusMid's Declare Blockers Step
+Phase: Ai(1)-AzoriusMid's First Strike Damage Step
+Phase: Ai(1)-AzoriusMid's Combat Damage Step
+Phase: Ai(1)-AzoriusMid's End of Combat Step
+Phase: Ai(1)-AzoriusMid's Main phase, postcombat
+Phase: Ai(1)-AzoriusMid's End step
+Phase: Ai(1)-AzoriusMid's Cleanup step
+Turn: Turn 2 (Ai(2)-IzzetMid)
+Phase: Ai(2)-IzzetMid's Untap step
+Phase: Ai(2)-IzzetMid's Upkeep step
+Phase: Ai(2)-IzzetMid's Draw step
+Phase: Ai(2)-IzzetMid's Main phase, precombat
+Land: Ai(2)-IzzetMid played Island (50)
+Phase: Ai(2)-IzzetMid's Beginning of Combat Step
+Phase: Ai(2)-IzzetMid's Declare Attackers Step
+Phase: Ai(2)-IzzetMid's Declare Blockers Step
+Phase: Ai(2)-IzzetMid's First Strike Damage Step
+Phase: Ai(2)-IzzetMid's Combat Damage Step
+Phase: Ai(2)-IzzetMid's End of Combat Step
+Phase: Ai(2)-IzzetMid's Main phase, postcombat
+Phase: Ai(2)-IzzetMid's End step
+Phase: Ai(2)-IzzetMid's Cleanup step
+Turn: Turn 3 (Ai(1)-AzoriusMid)
+Phase: Ai(1)-AzoriusMid's Untap step
+Phase: Ai(1)-AzoriusMid's Upkeep step
+Phase: Ai(1)-AzoriusMid's Draw step
+Phase: Ai(1)-AzoriusMid's Main phase, precombat
+Land: Ai(1)-AzoriusMid played Plains (9)
+Mana: Plains (15) - {T}: Add {W}.
+Mana: Plains (9) - {T}: Add {W}.
+Add To Stack: Ai(1)-AzoriusMid cast Mistral Charger
+Resolve Stack: Mistral Charger - Creature 2 / 1
+Phase: Ai(1)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(1)-AzoriusMid's Declare Attackers Step
+Phase: Ai(1)-AzoriusMid's Declare Blockers Step
+Phase: Ai(1)-AzoriusMid's First Strike Damage Step
+Phase: Ai(1)-AzoriusMid's Combat Damage Step
+Phase: Ai(1)-AzoriusMid's End of Combat Step
+Phase: Ai(1)-AzoriusMid's Main phase, postcombat
+Phase: Ai(1)-AzoriusMid's End step
+Phase: Ai(1)-AzoriusMid's Cleanup step
+Turn: Turn 4 (Ai(2)-IzzetMid)
+Phase: Ai(2)-IzzetMid's Untap step
+Phase: Ai(2)-IzzetMid's Upkeep step
+Phase: Ai(2)-IzzetMid's Draw step
+Phase: Ai(2)-IzzetMid's Main phase, precombat
+Land: Ai(2)-IzzetMid played Mountain (71)
+Mana: Mountain (71) - {T}: Add {R}.
+Mana: Island (50) - {T}: Add {U}.
+Add To Stack: Ai(2)-IzzetMid cast Magma Jet targeting [Mistral Charger (27)]
+Damage: Magma Jet (63) deals 2 damage to Mistral Charger (27).
+Resolve Stack: Ai(2)-IzzetMid scried 1 card(s) to the top of the library and 1 card(s) to the bottom of the library
+Resolve Stack: Magma Jet (63) - Magma Jet (63) deals 2 damage to Mistral Charger (27). Ai(2)-IzzetMid scries 2.
+Zone Change: Mistral Charger (27) was put into Graveyard from Battlefield.
+Phase: Ai(2)-IzzetMid's Beginning of Combat Step
+Phase: Ai(2)-IzzetMid's Declare Attackers Step
+Phase: Ai(2)-IzzetMid's Declare Blockers Step
+Phase: Ai(2)-IzzetMid's First Strike Damage Step
+Phase: Ai(2)-IzzetMid's Combat Damage Step
+Phase: Ai(2)-IzzetMid's End of Combat Step
+Phase: Ai(2)-IzzetMid's Main phase, postcombat
+Phase: Ai(2)-IzzetMid's End step
+Phase: Ai(2)-IzzetMid's Cleanup step
+Turn: Turn 5 (Ai(1)-AzoriusMid)
+Phase: Ai(1)-AzoriusMid's Untap step
+Phase: Ai(1)-AzoriusMid's Upkeep step
+Phase: Ai(1)-AzoriusMid's Draw step
+Phase: Ai(1)-AzoriusMid's Main phase, precombat
+Land: Ai(1)-AzoriusMid played Island (22)
+Mana: Plains (15) - {T}: Add {W}.
+Mana: Plains (9) - {T}: Add {W}.
+Mana: Island (22) - {T}: Add {U}.
+Add To Stack: Ai(1)-AzoriusMid cast Aerial Responder
+Resolve Stack: Aerial Responder - Creature 2 / 3
+Phase: Ai(1)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(1)-AzoriusMid's Declare Attackers Step
+Phase: Ai(1)-AzoriusMid's Declare Blockers Step
+Phase: Ai(1)-AzoriusMid's First Strike Damage Step
+Phase: Ai(1)-AzoriusMid's Combat Damage Step
+Phase: Ai(1)-AzoriusMid's End of Combat Step
+Phase: Ai(1)-AzoriusMid's Main phase, postcombat
+Phase: Ai(1)-AzoriusMid's End step
+Phase: Ai(1)-AzoriusMid's Cleanup step
+Turn: Turn 6 (Ai(2)-IzzetMid)
+Phase: Ai(2)-IzzetMid's Untap step
+Phase: Ai(2)-IzzetMid's Upkeep step
+Phase: Ai(2)-IzzetMid's Draw step
+Phase: Ai(2)-IzzetMid's Main phase, precombat
+Land: Ai(2)-IzzetMid played Island (47)
+Mana: Island (50) - {T}: Add {U}.
+Mana: Mountain (71) - {T}: Add {R}.
+Mana: Island (47) - {T}: Add {U}.
+Add To Stack: Ai(2)-IzzetMid cast Man-o'-War
+Resolve Stack: Man-o'-War - Creature 2 / 2
+Add To Stack: Ai(2)-IzzetMid triggered Man-o'-War targeting [Aerial Responder (35)]
+Resolve Stack: When Man-o'-War enters, return target creature to its owner's hand. (Targeting: [[Aerial Responder (35)]]) [Zone Changer: Man-o'-War (76)]
+Phase: Ai(2)-IzzetMid's Beginning of Combat Step
+Phase: Ai(2)-IzzetMid's Declare Attackers Step
+Phase: Ai(2)-IzzetMid's Declare Blockers Step
+Phase: Ai(2)-IzzetMid's First Strike Damage Step
+Phase: Ai(2)-IzzetMid's Combat Damage Step
+Phase: Ai(2)-IzzetMid's End of Combat Step
+Phase: Ai(2)-IzzetMid's Main phase, postcombat
+Phase: Ai(2)-IzzetMid's End step
+Phase: Ai(2)-IzzetMid's Cleanup step
+Turn: Turn 7 (Ai(1)-AzoriusMid)
+Phase: Ai(1)-AzoriusMid's Untap step
+Phase: Ai(1)-AzoriusMid's Upkeep step
+Phase: Ai(1)-AzoriusMid's Draw step
+Phase: Ai(1)-AzoriusMid's Main phase, precombat
+Mana: Plains (15) - {T}: Add {W}.
+Mana: Plains (9) - {T}: Add {W}.
+Mana: Island (22) - {T}: Add {U}.
+Add To Stack: Ai(1)-AzoriusMid cast Aerial Responder
+Resolve Stack: Aerial Responder - Creature 2 / 3
+Land: Ai(1)-AzoriusMid played Island (24)
+Phase: Ai(1)-AzoriusMid's Beginning of Combat Step
+Phase: Ai(1)-AzoriusMid's Declare Attackers Step
+Phase: Ai(1)-AzoriusMid's Declare Blockers Step
+Phase: Ai(1)-AzoriusMid's First Strike Damage Step
+Phase: Ai(1)-AzoriusMid's Combat Damage Step
+Phase: Ai(1)-AzoriusMid's End of Combat Step
+Phase: Ai(1)-AzoriusMid's Main phase, postcombat
+Phase: Ai(1)-AzoriusMid's End step
+Phase: Ai(1)-AzoriusMid's Cleanup step
+Turn: Turn 8 (Ai(2)-IzzetMid)
+Phase: Ai(2)-IzzetMid's Untap step
+Phase: Ai(2)-IzzetMid's Upkeep step
+Phase: Ai(2)-IzzetMid's Draw step
+Phase: Ai(2)-IzzetMid's Main phase, precombat
+Player Control: Ai(1)-AzoriusMid has restored control over themself
+Player Control: Ai(2)-IzzetMid has restored control over themself
+Game Outcome: Turn 4
+Game Outcome: Ai(1)-AzoriusMid has won because all opponents have lost
+Game Outcome: Ai(2)-IzzetMid has won because all opponents have lost
+Match Result: Ai(1)-AzoriusMid: 0 Ai(2)-IzzetMid: 2 
+
+Game Result: Game 2 ended in 2010 ms. Ai(2)-IzzetMid has won!
+
+SimAIMatch: game 2 wallclock 2012 ms
