@@ -13,10 +13,14 @@ name: xmage-dist release
 # RELEASE->PIN->VERIFY (human-in-the-loop, by design): cut a release tag -> this
 # publishes the jar + prints its SHA256 -> paste that SHA into
 # xmage_runtime.XMAGE_DIST_SHA256 + commit. The runtime fetch fails CLOSED until pinned.
+# The `verify-published-pin` job (below) then ENFORCES that pin step: on the pin commit's
+# PR it asserts XMAGE_DIST_SHA256 == the SHA published at XMAGE_DIST_URL (see CONTRIBUTING).
 #
-# NOTE: the XMage reactor build is heavy (mvn install of the module tree, ~10-20 min).
-# workflow_dispatch runs the build+audit+smoke WITHOUT publishing (a dry run); a
-# `xmage-dist-*` tag additionally uploads the assets.
+# NOTE: the `build-and-release` job's XMage reactor build is heavy (mvn install of the
+# module tree, ~10-20 min), so it is label-gated on PRs. workflow_dispatch runs the
+# build+audit+smoke WITHOUT publishing (a dry run); a `xmage-dist-*` tag additionally
+# uploads the assets. `verify-published-pin` is a separate lightweight job (no build, no
+# label gate) that runs on every PR push.
 
 on:
   workflow_dispatch: {}       # manual dry run: build + audit + smoke, no upload
@@ -143,3 +147,42 @@ jobs:
             "$JAR.sha256" \
             "$DIST_DIR/THIRD-PARTY.txt" \
             --clobber
+
+  # Enforce the release runbook's PIN step: the committed XMAGE_DIST_SHA256 must equal
+  # the SHA actually published at XMAGE_DIST_URL. Lightweight (no reactor build, no label
+  # gate) so it runs on EVERY PR push — which is when the pin commit lands (the pin is set
+  # AFTER the jar is built, so this cannot be a tag-build-only check). It compares the pin
+  # to the release's published `.sha256` asset (the workflow derived that from the jar in
+  # the same run, so it IS the jar's hash); the RUNTIME independently re-verifies the jar
+  # bytes against the pin on fetch. Skips cleanly while the pin is the transient None — the
+  # unit test `test_xmage_dist_sha_is_pinned` blocks MERGING in that state.
+  verify-published-pin:
+    name: verify XMAGE_DIST_SHA256 matches the published release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Compare the committed pin to the published .sha256 asset
+        run: |
+          set -euo pipefail
+          cd "$PIPELINE_DIR"
+          url="$(uv run python -c 'from pipeline.sim import xmage_runtime as x; print(x.XMAGE_DIST_URL)')"
+          pin="$(uv run python -c 'from pipeline.sim import xmage_runtime as x; print(x.XMAGE_DIST_SHA256)')"
+          if [ "$pin" = "None" ]; then
+            echo "XMAGE_DIST_SHA256 is None (transient release-cut state) — nothing published to verify yet; skipping."
+            echo "(The unit test test_xmage_dist_sha_is_pinned blocks merging while the pin is unset.)"
+            exit 0
+          fi
+          echo "committed pin : $pin"
+          echo "published from: $url.sha256"
+          published="$(curl -fsSL "$url.sha256" | tr -d '[:space:]')" || {
+            echo "::error::could not fetch $url.sha256 — is the xmage-dist release published for this _DIST_TAG?"
+            exit 1
+          }
+          echo "published sha : $published"
+          if [ "$pin" != "$published" ]; then
+            echo "::error::XMAGE_DIST_SHA256 ($pin) != the published jar's sha ($published). Re-pin from the release .sha256 asset (CONTRIBUTING.md -> Cutting a release)."
+            exit 1
+          fi
+          echo "OK — the committed pin matches the published release."
