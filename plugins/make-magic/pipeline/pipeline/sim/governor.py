@@ -190,6 +190,10 @@ class MatchSpec:
     n: int
     seed: int
     fmt: str = 'constructed'
+    #: Optional ``(classes_dir, fqcn)`` per-deck driver for PlayerA (``deck_a``). Only
+    #: the XMage engine consumes it; ``None`` keeps ``run_matchup`` driverless (the
+    #: kwarg is not even passed), so a Forge spec is byte-identical to before.
+    driver: tuple[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -355,6 +359,10 @@ class Governor:
                 in_flight += 1
                 max_concurrent = max(max_concurrent, in_flight)
             try:
+                # Only pass ``driver`` when the spec carries one — a driverless spec
+                # (every Forge spec, and undriven XMage) calls run_matchup with the
+                # exact prior signature (Forge's run_matchup has no ``driver`` kwarg).
+                driver_kw = {'driver': spec.driver} if spec.driver is not None else {}
                 result = engine.run_matchup(
                     spec.deck_a,
                     spec.deck_b,
@@ -362,6 +370,7 @@ class Governor:
                     seed=spec.seed + self.seed_offset,
                     fmt=spec.fmt,
                     install=install,
+                    **driver_kw,
                 )
                 with lock:
                     results.append(result)

@@ -296,6 +296,7 @@ def run_cached_matchups(
             fmt=s.fmt,
             engine=engine.name,
             engine_version=version,
+            driver=s.driver,
         )
         for s in specs
     ]
@@ -557,6 +558,7 @@ def simulate(
     store: object | None = None,
     data_dir: str | os.PathLike[str] | None = None,
     pool_size: int | None = None,
+    driver: tuple[str, str] | None = None,
 ) -> SimResult:
     """Simulate ``deck`` against a resolved gauntlet and aggregate the results.
 
@@ -595,6 +597,10 @@ def simulate(
             # AND parallel JVMs don't replay identical games.
             seed=seed + offset,
             fmt=fmt,
+            # The candidate is ALWAYS deck_a, so a per-deck driver pilots PlayerA
+            # only (candidate-only) — opponents keep their normal AI. None keeps the
+            # matchup driverless (Forge, and undriven XMage).
+            driver=driver,
         )
         for offset, opp in enumerate(opponents)
     ]

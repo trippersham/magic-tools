@@ -615,10 +615,47 @@ def _crispi_combos(names: set[str]) -> list:
         return []
 
 
+class SpeedNotApplicable(Exception):
+    """The auto-computed Speed is N/A (control / no honest own-turn kill).
+
+    The CRISPI contract (``crispi_score``/``speed_axis``) requires a NUMERIC
+    fundamental turn — it has no representation for Speed N/A — so we refuse to
+    fabricate a turn. The caller surfaces this and directs the user to pass
+    ``--fundamental-turn`` explicitly if they want to force a numeric Speed.
+    """
+
+    def __init__(self, rationale: str) -> None:
+        super().__init__(rationale)
+        self.rationale = rationale
+
+
+def _auto_fundamental_turn(deck, cards, card_otag):  # noqa: ANN001
+    """Compute the fundamental turn via the Tier-1 -> Tier-2-driven Speed router.
+
+    Resolves an XMage install READ-ONLY (never provisions) so a Tier-2 DRIVEN
+    goldfish fires only when the deck ALSO has a ``driver_valid`` driver; on any
+    resolve failure the install is ``None`` and the router falls back to Tier-1 with
+    ``tier2_recommended`` (AC3 — never a naive XMage run). Returns the
+    ``FundamentalTurn``.
+    """
+    _ensure_pipeline_on_path()
+    from pipeline.sim.speed import fundamental_turn as _router
+
+    install = None
+    try:
+        from pipeline.sim.engine import get_engine
+
+        install = get_engine('xmage').resolve(provision=False)
+    except Exception as exc:  # no jar / not provisioned -> Tier-1 fallback path.
+        log.debug('crispi: XMage install unavailable for Tier-2 (%s); Tier-1 only.', exc)
+
+    return _router(deck, cards, card_otag, install=install)
+
+
 def crispi_from_deck(
     deck,  # a contracts.Deck
     *,
-    fundamental_turn: float,
+    fundamental_turn: float | None = None,
     commander_dependence: str,
     computed_at: str = '',
 ) -> dict:
@@ -642,6 +679,21 @@ def crispi_from_deck(
     names = {c.name for c in deck.cards}
     combos = _crispi_combos(names)
 
+    # Speed input: an explicit ``fundamental_turn`` is the manual override (used
+    # verbatim). When omitted, auto-compute it via the Tier-1 -> Tier-2-driven router.
+    speed_source: dict | None = None
+    if fundamental_turn is None:
+        ft = _auto_fundamental_turn(deck, cards, card_otag)
+        if ft.turn is None:  # Speed N/A — the contract can't represent it; surface.
+            raise SpeedNotApplicable(ft.source_rationale)
+        fundamental_turn = ft.turn
+        speed_source = {
+            'tier': ft.tier,
+            'confidence': ft.confidence,
+            'tier2_recommended': ft.tier2_recommended,
+            'rationale': ft.source_rationale,
+        }
+
     result = crispi_score(
         cards,
         card_otag,
@@ -651,7 +703,10 @@ def crispi_from_deck(
         combos=combos,
         computed_at=computed_at,
     )
-    return result.model_dump()
+    out = result.model_dump()
+    if speed_source is not None:
+        out['speed_source'] = speed_source  # provenance for the CLI (auto-computed).
+    return out
 
 
 # --------------------------------------------------------------------------- #

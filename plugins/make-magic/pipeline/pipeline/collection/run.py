@@ -1831,8 +1831,10 @@ def _crispi(argv: list[str]) -> None:
         '--fundamental-turn',
         dest='fundamental_turn',
         type=float,
-        required=True,
-        help='The AI-judged fundamental turn (float; half-steps allowed) — drives Speed.',
+        default=None,
+        help='The fundamental turn (float; half-steps allowed) — drives Speed. OPTIONAL: '
+        'supplied OVERRIDES the estimator (manual escape hatch); omitted auto-computes it '
+        'via the Tier-1 closed form -> Tier-2 driven goldfish router.',
     )
     parser.add_argument(
         '--commander-dependence',
@@ -1852,15 +1854,33 @@ def _crispi(argv: list[str]) -> None:
     root = str(_SCRIPTS_DIR)
     if root not in sys.path:
         sys.path.insert(0, root)
-    from deck_factsheet import crispi_from_deck  # pyright: ignore[reportMissingImports]
+    from deck_factsheet import SpeedNotApplicable, crispi_from_deck  # pyright: ignore[reportMissingImports]
 
     computed_at = datetime.now(UTC).isoformat()
-    result = crispi_from_deck(
-        deck,
-        fundamental_turn=args.fundamental_turn,
-        commander_dependence=args.commander_dependence,
-        computed_at=computed_at,
-    )
+    try:
+        result = crispi_from_deck(
+            deck,
+            fundamental_turn=args.fundamental_turn,
+            commander_dependence=args.commander_dependence,
+            computed_at=computed_at,
+        )
+    except SpeedNotApplicable as exc:
+        # The auto-computed Speed is N/A (control / no honest own-turn kill) and the
+        # CRISPI contract has no N/A representation — refuse to fabricate a turn.
+        raise CollectionError(
+            f'crispi: Speed is N/A for this deck ({exc.rationale}). The CRISPI contract '
+            'requires a numeric fundamental turn; pass --fundamental-turn explicitly to '
+            'force a Speed for this deck.'
+        ) from exc
+    # When auto-computed, surface which tier/confidence produced the turn (provenance).
+    source = result.get('speed_source') if isinstance(result, dict) else None
+    if source is not None:
+        print(
+            f'# Speed auto-computed: fundamental turn {result["inputs"]["fundamental_turn"]:g} '
+            f'via {source["tier"]} (confidence {source["confidence"]}'
+            f'{", tier2_recommended" if source["tier2_recommended"] else ""}).',
+            file=sys.stderr,
+        )
     print(json.dumps(result, indent=2))
 
 

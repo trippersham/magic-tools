@@ -742,6 +742,11 @@ def _evaluate_engine(
     _guard_forge_availability(
         install.handle, [candidate], allow_missing=args.allow_missing, fmt=args.fmt, engine=engine.name
     )
+    # Sim engine selector (deliverable 2): driverless -> Forge, driven -> XMage. When
+    # the XMage engine runs a candidate that has a CURRENT gate-passed driver, thread
+    # (classes_dir, fqcn) so the driver pilots PlayerA (candidate-only). Forge (and an
+    # undriven XMage candidate) stays driverless — driver=None keeps the argv unchanged.
+    driver = _candidate_driver(engine, candidate)
     return simulate(
         candidate.ref,
         args.gauntlet,
@@ -751,7 +756,29 @@ def _evaluate_engine(
         engine=engine,
         force=args.force,
         store=store,
+        driver=driver,
     )
+
+
+def _candidate_driver(engine: SimEngine, candidate: _ResolvedDeck) -> tuple[str, str] | None:
+    """The ``(classes_dir, fqcn)`` PlayerA driver for ``candidate`` on ``engine``, or None.
+
+    Returns a driver ONLY when the engine is XMage (the sole driver-consuming backend)
+    AND the candidate is a hydrated store deck with a ``driver_valid`` compiled driver.
+    Forge, a raw ``.dck`` (no ``deck``), or a deck with no valid driver -> ``None`` (the
+    driverless path — byte-identical to before). This is the sim-side selector; it is
+    NOT the Speed path (AC3 governs Speed, not this).
+    """
+    if engine.name != 'xmage' or candidate.deck is None:
+        return None
+    from pipeline.sim import drivers
+
+    if not drivers.driver_valid(candidate.deck):
+        return None
+    meta = drivers.read_meta(candidate.deck)
+    if meta is None:
+        return None
+    return (str(drivers.classes_dir(candidate.deck)), meta.fqcn)
 
 
 def _deck_both(args: argparse.Namespace, candidate: _ResolvedDeck, store: object | None) -> None:

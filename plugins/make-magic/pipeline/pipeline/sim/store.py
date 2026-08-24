@@ -202,6 +202,7 @@ def matchup_key(
     fmt: str,
     engine: str,
     engine_version: str,
+    driver: tuple[str, str] | None = None,
 ) -> str:
     """A stable content hash identifying a matchup by its exact inputs.
 
@@ -213,6 +214,11 @@ def matchup_key(
     changes the key — so the same decks/seed/n under two DIFFERENT backends hash
     to DIFFERENT keys and never collide in the content cache, guaranteeing a miss
     for changed inputs.
+
+    ``driver`` folds a PlayerA per-deck driver (its ``fqcn``) into the key so a
+    DRIVEN run and the driverless run of the same deck/opponent/seed never collide
+    (AC6 — the driven read must not be served a stale driverless cache row).
+    ``None`` keeps the key byte-identical to the pre-driver shape.
     """
     parts = (
         deck_hash(deck_a_dck),
@@ -223,6 +229,8 @@ def matchup_key(
         engine,
         engine_version,
     )
+    if driver is not None:
+        parts = (*parts, f'driverA={driver[1]}')
     payload = '\x00'.join(parts).encode('utf-8')
     return hashlib.sha256(payload).hexdigest()
 
