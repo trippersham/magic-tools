@@ -70,6 +70,10 @@ _DEFAULT_TOLERANCE = 2.0
 class DriverCompileError(RuntimeError):
     """``javac`` rejected the generated ``Driver.java`` (source is not compilable)."""
 
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
 
 @dataclass(frozen=True)
 class GateResult:

@@ -625,8 +625,9 @@ class SpeedNotApplicable(Exception):
     """
 
     def __init__(self, rationale: str) -> None:
-        super().__init__(rationale)
+        self.message = rationale
         self.rationale = rationale
+        super().__init__(rationale)
 
 
 def _auto_fundamental_turn(deck, cards, card_otag):  # noqa: ANN001

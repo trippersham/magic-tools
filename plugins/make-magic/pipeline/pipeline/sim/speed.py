@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from pipeline.sim import drivers
 from pipeline.sim.speed_estimate import DEFAULT_LETHAL, SpeedEstimate, estimate_speed
 
-__all__ = ['DEFAULT_GOLDFISH_GAMES', 'FundamentalTurn', 'fundamental_turn']
+__all__ = ('DEFAULT_GOLDFISH_GAMES', 'FundamentalTurn', 'fundamental_turn')
 
 #: Games for the Tier-2 driven goldfish. The median own-turn kill is read across the
 #: games that actually killed, so a modest sample gives a stable median.
