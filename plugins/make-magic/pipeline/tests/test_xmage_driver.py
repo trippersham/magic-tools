@@ -75,6 +75,86 @@ def test_compose_driver_prepends_classes_and_threads_prop(tmp_path: Path) -> Non
 
 
 # --------------------------------------------------------------------------- #
+# 1a. fail-loud: a REQUESTED driver that never registered must not score as CP7 #
+# --------------------------------------------------------------------------- #
+
+
+class _FakePopen:
+    """Stand-in for subprocess.Popen: returns canned (stdout, stderr) + returncode."""
+
+    def __init__(self, stdout: str, stderr: str = '', returncode: int = 0) -> None:
+        self._stdout = stdout
+        self._stderr = stderr
+        self.returncode = returncode
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        return self._stdout, self._stderr
+
+
+def _patch_launch(monkeypatch: pytest.MonkeyPatch, stdout: str, returncode: int = 0) -> None:
+    """Route _launch_xmage's Popen + runner hooks to a no-JVM fake emitting ``stdout``."""
+    monkeypatch.setattr(
+        xe.subprocess, 'Popen', lambda *a, **k: _FakePopen(stdout, '', returncode)
+    )
+    monkeypatch.setattr(xe.runner, '_register_active', lambda proc: None)
+    monkeypatch.setattr(xe.runner, '_unregister_active', lambda proc: None)
+
+
+def test_launch_driver_requested_without_registered_line_raises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A run that REQUESTED a driver (driver=... → -Dmakemagic.driver present) but whose
+    captured stdout carries NO ``DRIVER_REGISTERED`` line must RAISE — a shadowed/stale
+    Driver silently degrading to bare CP7 (exit 0) must never be scored as a pass."""
+    install = _install(tmp_path)
+    _patch_launch(monkeypatch, 'XMAGEBATCH SOLO card db ready\nGOLDFISH SUMMARY ...\n')
+    with pytest.raises(xe.XMageError, match='DRIVER_REGISTERED'):
+        xe._launch_xmage(
+            install,
+            ['deckA.txt', '--solo', '1', '6'],
+            cwd=tmp_path,
+            timeout_s=5,
+            what='goldfish',
+            driver=(str(tmp_path / 'classes'), 'makemagic.driver.X'),
+        )
+
+
+def test_launch_driver_requested_with_registered_line_ok(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A driver-requested run WITH a ``DRIVER_REGISTERED`` line does NOT raise."""
+    install = _install(tmp_path)
+    _patch_launch(
+        monkeypatch,
+        'DRIVER_REGISTERED fqcn=makemagic.driver.X playerId=abc\nGOLDFISH SUMMARY ...\n',
+    )
+    output, rc = xe._launch_xmage(
+        install,
+        ['deckA.txt', '--solo', '1', '6'],
+        cwd=tmp_path,
+        timeout_s=5,
+        what='goldfish',
+        driver=(str(tmp_path / 'classes'), 'makemagic.driver.X'),
+    )
+    assert rc == 0
+    assert 'DRIVER_REGISTERED' in output
+
+
+def test_launch_no_driver_never_raises_on_missing_registered(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A run with NO driver requested never checks for DRIVER_REGISTERED (bare CP7 is a
+    legitimate driverless run)."""
+    install = _install(tmp_path)
+    _patch_launch(monkeypatch, 'GOLDFISH SUMMARY ... (no driver)\n')
+    output, rc = xe._launch_xmage(
+        install, ['deckA.txt', '--solo', '1', '6'], cwd=tmp_path, timeout_s=5, what='goldfish'
+    )
+    assert rc == 0
+    assert 'DRIVER_REGISTERED' not in output
+
+
+# --------------------------------------------------------------------------- #
 # 1b. author -> ECJ compile -> inject wiring (Phase 3.3)                       #
 # --------------------------------------------------------------------------- #
 

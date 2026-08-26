@@ -214,7 +214,13 @@ def resolve(data_dir: str | os.PathLike[str] | None = None) -> XMageInstall:
             ENV_XMAGE_DIST_JAR,
             override,
         )
-        return XMageInstall(mage_tests_dir=override.parent, classpath=str(override), java=_resolve_java())
+        # Prepend the COMMITTED harness jar so its fresh XMageBatch (register-by-playerId)
+        # shadows the STALE shaded XMageBatch bundled inside the dist jar. Class-loading
+        # takes the FIRST match on the classpath, so without this the old engine-replacement
+        # class wins, ignores -Dmakemagic.driver, and the run silently degrades to bare CP7
+        # (exit 0) — defeating the driver gate. Mirrors the reactor branch's ordering.
+        classpath = os.pathsep.join((str(_HARNESS_JAR), str(override)))
+        return XMageInstall(mage_tests_dir=override.parent, classpath=classpath, java=_resolve_java())
 
     home_env = os.environ.get(ENV_XMAGE_HOME)
     if home_env:

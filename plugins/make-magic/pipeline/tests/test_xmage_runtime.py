@@ -8,6 +8,7 @@ resolve-then-fetch flow with the download mocked.
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 import pytest
@@ -77,6 +78,23 @@ def test_resolve_reactor_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     assert install.mage_tests_dir == home / 'Mage.Tests'
     assert install.classpath.startswith(str(xr._HARNESS_JAR))  # shadow jar wins class-load
     assert '/fake/dep1.jar' in install.classpath
+
+
+def test_resolve_dist_override_prepends_harness_jar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """MAKE_MAGIC_XMAGE_DIST_JAR set → classpath is [harness jar, override jar] in that
+    order. The committed harness jar MUST sort FIRST so its fresh XMageBatch shadows the
+    STALE shaded XMageBatch bundled in the dist (else the run silently degrades to bare
+    CP7, ignoring -Dmakemagic.driver, and exits 0 — defeating the driver gate)."""
+    override = tmp_path / 'make-magic-xmage-dist.jar'
+    override.write_bytes(b'PK\x03\x04 dist jar with a STALE shaded XMageBatch')
+    monkeypatch.setenv('MAKE_MAGIC_XMAGE_DIST_JAR', str(override))
+    install = xr.resolve(data_dir=tmp_path)
+    parts = install.classpath.split(os.pathsep)
+    assert parts[0] == str(xr._HARNESS_JAR)  # committed harness shadows the stale dist class
+    assert parts[1] == str(override)
+    assert len(parts) == 2
 
 
 def test_resolve_cached_jar_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -204,7 +222,9 @@ def test_local_dist_override_resolves_that_jar(monkeypatch: pytest.MonkeyPatch, 
     monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', 'a' * 64)
 
     install = xr.resolve(data_dir=tmp_path)
-    assert install.classpath == str(local)  # the override jar IS the classpath
+    # classpath = [committed harness jar, override jar]: the harness shadows the STALE
+    # shaded XMageBatch in the dist so -Dmakemagic.driver is honored (not silent CP7).
+    assert install.classpath == os.pathsep.join((str(xr._HARNESS_JAR), str(local)))
     assert xr.effective_dist_sha256(data_dir=tmp_path) == hashlib.sha256(body).hexdigest()
 
 
@@ -217,7 +237,8 @@ def test_local_dist_override_takes_precedence_over_reactor(
     local = tmp_path / 'my-dist.jar'
     local.write_bytes(b'PK override')
     monkeypatch.setenv('MAKE_MAGIC_XMAGE_DIST_JAR', str(local))
-    assert xr.resolve().classpath == str(local)
+    # override wins over the reactor; harness jar still prepended to shadow the stale dist class.
+    assert xr.resolve().classpath == os.pathsep.join((str(xr._HARNESS_JAR), str(local)))
 
 
 def test_local_dist_override_missing_fails_loudly(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

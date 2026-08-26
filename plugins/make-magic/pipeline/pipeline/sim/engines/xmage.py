@@ -672,7 +672,23 @@ def _launch_xmage(
             raise
     finally:
         runner._unregister_active(proc)
-    return (stdout or '') + (stderr or ''), proc.returncode
+    combined = (stdout or '') + (stderr or '')
+    # Defense-in-depth fail-loud: if a driver WAS requested but the run emitted no
+    # DRIVER_REGISTERED line, the Driver never registered on PlayerA (a shadowed/stale
+    # XMageBatch that ignored -Dmakemagic.driver, or a bad Driver class). The run then
+    # degrades to bare CP7 with exit 0 — which would be scored as "no regression" and
+    # silently defeat the driver gate. Refuse it loudly. Skipped for driverless runs,
+    # where a missing marker is the correct, expected state. One cheap scan of captured
+    # stdout.
+    if driver is not None and 'DRIVER_REGISTERED' not in combined:
+        _, fqcn = driver
+        raise XMageError(
+            f'XMage {what}: driver {fqcn} was requested (-Dmakemagic.driver) but the run '
+            'emitted no DRIVER_REGISTERED line — the Driver never registered on PlayerA '
+            '(a shadowed/stale XMageBatch that ignores the seam, or a broken Driver class). '
+            f'Refusing to score this as a silent CP7 pass. Output tail:\n{combined[-1000:]}'
+        )
+    return combined, proc.returncode
 
 
 register_engine(XMageEngine())
