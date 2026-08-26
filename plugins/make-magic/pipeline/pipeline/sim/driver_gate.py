@@ -50,6 +50,7 @@ from pipeline.decks.version import version
 from pipeline.sim import driver_compile, drivers
 from pipeline.sim.driver_authoring import (
     DRIVER_MACRO_FIRED_MARKER,
+    DRIVER_MULLIGAN_MARKER,
     DRIVER_STEER_FIRED_MARKER,
     check_quad_guardrails,
     driver_fqcn,
@@ -65,6 +66,7 @@ if TYPE_CHECKING:
 __all__ = (
     'DRIVER_REGISTERED_MARKER',
     'MACRO_FIRE_REAL_MARKER',
+    'MULLIGAN_FIRED_MARKER',
     'GateResult',
     'compile_quad_driver',
     'gate_driver',
@@ -81,6 +83,15 @@ DRIVER_REGISTERED_MARKER = 'DRIVER_REGISTERED'
 #: gate keys on it, NOT on the emitter's ``DRIVER_MACRO_FIRED`` (which the seam also prints from
 #: apply() on throwaway search copies, so that one only proves REACHABILITY).
 MACRO_FIRE_REAL_MARKER = 'MACRO_FIRE_REAL'
+
+#: The mulligan slot's real-fire marker (the restored 5th dimension): the DIST itself (patch
+#: ``0005`` ``ComputerPlayer.chooseMulligan``) prints ``DRIVER_MULLIGAN name=<seat> ship=<bool>``
+#: on stderr the instant a REGISTERED seat makes its real pre-game keep/ship decision. An
+#: unregistered seat is byte-identical to prior CP7 and never emits it, so its presence proves the
+#: mulligan hook fired. Recorded in :attr:`GateResult.mulligan_fired` as an exercised-slot signal —
+#: NOT a proactive PASS requirement on its own (a deck may own mulligan alongside a macro, or
+#: mulligan-only), so a mulligan-owning quad's DRIVER_MULLIGAN firing is observed, not gated on.
+MULLIGAN_FIRED_MARKER = DRIVER_MULLIGAN_MARKER
 
 #: Hard floor on the gate's per-run game count. The never-slower check compares two seedless,
 #: independently-jittery medians; below this count the check flakes (n=8 flaked, n=15 was stable),
@@ -106,6 +117,9 @@ class GateResult:
     real ``act()`` commit) — what the proactive gate keys on. ``macro_reachable`` = the emitter's
     ``DRIVER_MACRO_FIRED`` was seen (apply() was entered) — but the seam runs apply() on THROWAWAY
     search copies as well as in real act(), so this only proves reachability, NOT execution.
+    ``mulligan_fired`` = the dist's ``chooseMulligan`` hook (patch 0005) consulted a registered
+    mulligan steer on the real opening hand (the ``DRIVER_MULLIGAN`` marker) — an exercised-slot
+    signal recorded for both modes, never a PASS requirement on its own.
     ``markers_seen`` is the set of those marker names for a loop to introspect. ``driven_median``
     / ``baseline_median`` are the raw ``medianKillsOwn`` values compared (``-1.0`` = the harness
     "never killed" sentinel).
@@ -118,6 +132,7 @@ class GateResult:
     macro_fired: bool = False
     macro_reachable: bool = False
     steer_fired: bool = False
+    mulligan_fired: bool = False
     markers_seen: frozenset[str] = frozenset()
     driven_median: float | None = None
     baseline_median: float | None = None
@@ -265,6 +280,10 @@ def gate_driver(
     macro_fired = MACRO_FIRE_REAL_MARKER in output
     macro_reachable = DRIVER_MACRO_FIRED_MARKER in output
     steer_fired = DRIVER_STEER_FIRED_MARKER in output
+    # mulligan_fired = the dist's chooseMulligan hook (patch 0005) consulted a registered
+    # mulligan steer on the real opening hand. An exercised-slot signal (recorded), never a
+    # PASS requirement on its own — a deck may own mulligan alongside a macro, or mulligan-only.
+    mulligan_fired = MULLIGAN_FIRED_MARKER in output
     markers_seen = frozenset(
         m
         for m, seen in (
@@ -272,6 +291,7 @@ def gate_driver(
             (MACRO_FIRE_REAL_MARKER, macro_fired),
             (DRIVER_MACRO_FIRED_MARKER, macro_reachable),
             (DRIVER_STEER_FIRED_MARKER, steer_fired),
+            (MULLIGAN_FIRED_MARKER, mulligan_fired),
         )
         if seen
     )
@@ -289,6 +309,7 @@ def gate_driver(
             macro_fired=macro_fired,
             macro_reachable=macro_reachable,
             steer_fired=steer_fired,
+            mulligan_fired=mulligan_fired,
             markers_seen=markers_seen,
             driven_median=driven_median,
             baseline_median=baseline_median,
@@ -325,6 +346,7 @@ def gate_driver(
         'gate_driven_median_kills_own': driven_median,
         'gate_baseline_median_kills_own': baseline_median,
         'gate_defended_lens': defended_lens,
+        'gate_mulligan_fired': mulligan_fired,
         'gate_markers_seen': sorted(markers_seen),
     }
     drivers.write_meta(
@@ -347,6 +369,7 @@ def gate_driver(
         macro_fired=macro_fired,
         macro_reachable=macro_reachable,
         steer_fired=steer_fired,
+        mulligan_fired=mulligan_fired,
         markers_seen=markers_seen,
         driven_median=driven_median,
         baseline_median=baseline_median,

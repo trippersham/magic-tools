@@ -50,6 +50,7 @@ if TYPE_CHECKING:
 __all__ = (
     # Names sorted (ruff RUF022).
     'DRIVER_MACRO_FIRED_MARKER',
+    'DRIVER_MULLIGAN_MARKER',
     'DRIVER_PACKAGE_ROOT',
     'DRIVER_REGISTERED_MARKER',
     'DRIVER_SIMPLE_CLASS',
@@ -58,6 +59,7 @@ __all__ = (
     'SHORIKAI_REACTIVE_QUAD_SPEC',
     'GuardrailViolation',
     'MacroSpec',
+    'MulliganSpec',
     'QuadSpec',
     'SteerSpec',
     'check_quad_guardrails',
@@ -83,6 +85,14 @@ DRIVER_REGISTERED_MARKER = 'QUAD_DRIVER_REGISTERED'
 #: kept alongside for debugging.
 DRIVER_MACRO_FIRED_MARKER = 'DRIVER_MACRO_FIRED'
 DRIVER_STEER_FIRED_MARKER = 'DRIVER_STEER_FIRED'
+#: The mulligan slot's real-fire marker. The **dist itself** (patch ``0005``,
+#: ``ComputerPlayer.chooseMulligan``) prints the AUTHORITATIVE ``DRIVER_MULLIGAN name=<seat>
+#: ship=<bool>`` on stderr the instant a registered seat makes its REAL pre-game keep/ship
+#: decision (guarded on ``!game.isSimulation()`` after the full-hand/test/Momir early-returns), so
+#: an unregistered seat is byte-identical to prior CP7 and never emits it. The emitter also injects
+#: a detail line (the same prefix) at the top of the steer body for debugging; the gate keys on the
+#: marker's presence to record :attr:`~pipeline.sim.driver_gate.GateResult.mulligan_fired`.
+DRIVER_MULLIGAN_MARKER = 'DRIVER_MULLIGAN'
 
 
 def _sanitize(uuid: str) -> str:
@@ -150,6 +160,24 @@ class SteerSpec:
 
 
 @dataclass(frozen=True)
+class MulliganSpec:
+    """The mulligan slot (the quad's 5th dimension): the opening-hand keep/ship decision.
+
+    ``ship_body`` (from the primer **Mulligan / keepable hands** section) is the body of
+    ``boolean shipHand(Game game, UUID pid)`` — return ``true`` to SHIP (take a mulligan on)
+    this opening hand, ``false`` to KEEP. The scaffold prepends a non-null ``Player me`` guard
+    (returning ``false`` — keep — on a torn-down player) so the body may read ``me.getHand()``.
+
+    This is a REAL-SEAT decision (the dist consults it only on the real pre-game hand, never on
+    a search copy), so the design §7.1 three-beat guard→act→defer discipline applies: own the
+    keep/ship of the opening hand (ship no-land/flood, keep a hand with a plan piece), and defer
+    WHICH cards to bottom (London) to CP — v1 is the keep/ship boolean only.
+    """
+
+    ship_body: str
+
+
+@dataclass(frozen=True)
 class QuadSpec:
     """The primer-derived quad — the typed input to :func:`render_quad_driver`.
 
@@ -161,8 +189,12 @@ class QuadSpec:
     ``private static`` helper methods the slot bodies share (e.g. an ``untappedLands`` mana
     proxy). ``imports`` are the extra ``mage.*`` imports the bodies reference (beyond the
     always-present ``Game`` / ``Player`` / ``UUID`` + the registry types the scaffold wires).
-    ``mulligan_note`` records the primer **Mulligan** guidance as documentation only — the
-    frozen seam has no mulligan registry to bind it to (a P6.6 follow-up).
+    ``mulligan`` is the OPTIONAL 5th-dimension slot (:class:`MulliganSpec`): present ⇒ the
+    scaffold emits a ``MulliganSteer`` inner class + ``MulliganRegistry.register`` so the dist's
+    ``chooseMulligan`` hook (patch ``0005``) consults it on the real opening hand; ``None`` ⇒ no
+    mulligan registration (the deck keeps CP7's default land-count heuristic). ``mulligan_note``
+    records the primer **Mulligan** guidance as prose in the class javadoc (independent of the
+    live slot — keep it as the human-readable intent even when ``mulligan`` is wired).
     """
 
     name: str
@@ -172,6 +204,7 @@ class QuadSpec:
     phi_body: str
     macro: MacroSpec | None = None
     steer: SteerSpec | None = None
+    mulligan: MulliganSpec | None = None
     helpers: str = ''
     imports: tuple[str, ...] = ()
     mulligan_note: str = ''
@@ -196,6 +229,7 @@ def render_quad_driver(deck: Deck, spec: QuadSpec) -> str:
     pkg = driver_package(deck)
     has_macro = spec.macro is not None
     has_steer = spec.steer is not None
+    has_mulligan = spec.mulligan is not None
 
     imports = [
         'import java.util.UUID;',
@@ -217,6 +251,11 @@ def render_quad_driver(deck: Deck, spec: QuadSpec) -> str:
             'import mage.player.ai.score.SelectionSteer;',
             'import mage.target.TargetCard;',
         ]
+    if has_mulligan:
+        imports += [
+            'import mage.player.ai.score.MulliganRegistry;',
+            'import mage.player.ai.score.MulliganSteer;',
+        ]
     if spec.imports:
         imports += ['', *spec.imports]
 
@@ -229,6 +268,9 @@ def render_quad_driver(deck: Deck, spec: QuadSpec) -> str:
     if has_steer:
         reg_lines.append('        SelectionRegistry.register(playerId, new Steer());')
         wired.append('S=SelectionRegistry')
+    if has_mulligan:
+        reg_lines.append('        MulliganRegistry.register(playerId, new Mull());')
+        wired.append('mull=MulliganRegistry')
     wired_str = ' + '.join(wired)
     reg_lines.append(
         f'        System.err.println("{DRIVER_REGISTERED_MARKER} playerId=" + playerId\n'
@@ -238,9 +280,13 @@ def render_quad_driver(deck: Deck, spec: QuadSpec) -> str:
 
     mull_doc = ''
     if spec.mulligan_note:
+        binding = (
+            'wired into MulliganRegistry — the dist consults it on the real opening hand'
+            if has_mulligan
+            else 'documentation only — this quad keeps CP7 default mulligan'
+        )
         mull_doc = (
-            '\n     *\n     * <p>Mulligan (keepable hands, primer-derived — documentation only;\n'
-            '     * the frozen seam has no mulligan registry to bind it to): '
+            f'\n     *\n     * <p>Mulligan (keepable hands, primer-derived; {binding}): '
             f'{spec.mulligan_note}</p>'
         )
 
@@ -319,6 +365,25 @@ def render_quad_driver(deck: Deck, spec: QuadSpec) -> str:
         parts.append('        private boolean steer(Game game, UUID pid, Cards cards, TargetCard target,')
         parts.append('                Ability source, boolean useAddTarget) {')
         parts.append(_indent(steer.apply_body, 12))
+        parts.append('        }')
+        parts.append('    }')
+    if has_mulligan:
+        mulligan = spec.mulligan
+        assert mulligan is not None
+        parts.append('')
+        parts.append('    // ---- mulligan (5th dimension): the opening-hand keep/ship decision --------------')
+        parts.append('    private static final class Mull implements MulliganSteer {')
+        parts.append('        @Override')
+        parts.append('        public boolean shipHand(Game game, UUID pid) {')
+        parts.append('            // The dist (patch 0005 chooseMulligan) emits the AUTHORITATIVE DRIVER_MULLIGAN')
+        parts.append('            // line on the real pre-game decision; this detail line aids debugging.')
+        parts.append('            Player me = game.getPlayer(pid);')
+        parts.append('            if (me == null) {')
+        parts.append('                return false;')
+        parts.append('            }')
+        parts.append(f'            System.err.println("{DRIVER_MULLIGAN_MARKER} (author) pid=" + pid')
+        parts.append('                    + " handSize=" + me.getHand().size());')
+        parts.append(_indent(mulligan.ship_body, 12))
         parts.append('        }')
         parts.append('    }')
     parts.append('}')
@@ -540,15 +605,40 @@ for (String want : wants) {
 }
 return false;'''
 
+_JELEVA_MULLIGAN = '''\
+int lands = 0;
+boolean hasPiece = false;
+for (Card c : me.getHand().getCards(game)) {
+    if (c.isLand(game)) {
+        lands++;
+    }
+    String n = c.getName();
+    if ("Thassa's Oracle".equals(n) || "Demonic Consultation".equals(n)
+            || "Tainted Pact".equals(n) || "Demonic Tutor".equals(n)
+            || "Vampiric Tutor".equals(n) || "Mystical Tutor".equals(n)
+            || "Imperial Seal".equals(n)) {
+        hasPiece = true;
+    }
+}
+int size = me.getHand().size();
+// Keep any hand with a plan piece on a workable land count (2..size-2).
+if (hasPiece && lands >= 2 && lands <= size - 2) {
+    return false;
+}
+// Ship land-screw (0-1 land) or flood (>= size-1 lands); otherwise keep.
+return lands <= 1 || lands >= size - 1;'''
+
 #: The Jeleva/Thoracle quad — the emitter's PROACTIVE positive control (mirrors the proven
 #: hand-authored reference driver). Φ ← Gameplan, macro ← Win Condition, P ← Assembly,
-#: S ← Sequencing (steer a tutor to the missing combo half).
+#: S ← Sequencing (steer a tutor to the missing combo half), mulligan ← Mulligan (ship
+#: screw/flood, keep a hand with a combo piece).
 JELEVA_QUAD_SPEC = QuadSpec(
     name='jeleva-thoracle-spell-combo',
     archetype='proactive',
     phi_body=_JELEVA_PHI,
     macro=MacroSpec(applicable_body=_JELEVA_MACRO_APPLICABLE, apply_body=_JELEVA_MACRO_APPLY),
     steer=SteerSpec(apply_body=_JELEVA_STEER),
+    mulligan=MulliganSpec(ship_body=_JELEVA_MULLIGAN),
     helpers=_JELEVA_HELPERS,
     imports=(
         'import java.util.ArrayList;',

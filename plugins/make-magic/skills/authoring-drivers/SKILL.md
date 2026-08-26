@@ -42,12 +42,14 @@ maps to one quad slot:
 | Win condition(s) | **macro** | `ComboMacro.apply(Game, UUID)` — the deterministic win, driven with bounded state moves, registered into `MacroRegistry` |
 | Assembly / the combo turn | **P** | `ComboMacro.applicable(Game, UUID)` — "is the kill executable NOW?" |
 | Key sequencing & choices | **S** | `SelectionSteer.apply(...)` — a category-comprehensive selection steer, registered into `SelectionRegistry` |
-| Mulligan / keepable hands | note | documented in the class javadoc (the frozen seam has no mulligan registry yet) |
+| Mulligan / keepable hands | **mulligan** | `MulliganSteer.shipHand(Game, UUID)` — the opening-hand keep/ship decision, registered into `MulliganRegistry` (a live slot since P5.5) |
 
 The emitter (`pipeline/pipeline/sim/driver_authoring.py`) owns the ingestion contract: you write
 each slot's **body**; it generates the `public static void register(UUID playerId)` that wires
-the (up to) three registries, the method/inner-class signatures, and the non-null `Player me`
-guard. The reference implementation is
+the (up to) four registries, the method/inner-class signatures, and the non-null `Player me`
+guard. The **mulligan** slot is OPTIONAL (`QuadSpec.mulligan=MulliganSpec(ship_body=...)`):
+present ⇒ the deck owns its keep/ship on the real opening hand; absent ⇒ CP7's default land-count
+heuristic (byte-identical to bare CP7). The reference implementation is
 `pipeline/pipeline/sim/reference_drivers/JelevaThoracleReferenceDriver.java`; the worked specs
 `JELEVA_QUAD_SPEC` (proactive) and `SHORIKAI_REACTIVE_QUAD_SPEC` (Φ-only) are your templates.
 
@@ -56,8 +58,9 @@ guard. The reference implementation is
 These are load-bearing. Every quad must honor them; `check_quad_guardrails` enforces the
 mechanical ones and the never-worse gate (P5) is the ultimate arbiter.
 
-- **Own the noun, defer the verb.** The **real-seat slots** — **S** and the **macro's real
-  fire** — act on ONE owned decision (what to cast/target/keep) and defer everything else. Never
+- **Own the noun, defer the verb.** The **real-seat slots** — **S**, the **macro's real
+  fire**, and the **mulligan** keep/ship — act on ONE owned decision (what to cast/target/keep)
+  and defer everything else. Never
   own combat, land drops, attacker selection, or generic sequencing. Φ and the in-search
   macro-fold run *inside* the search by design and cannot regress the real seat. This is the
   core never-regress discipline: a Driver that re-pilots what CP7 already does well plays
@@ -78,7 +81,10 @@ mechanical ones and the never-worse gate (P5) is the ultimate arbiter.
   `ComboMacro.PROBE_MAX_STEPS`).
 - **The three-beat guard→act→defer shape** is the shape of every real-seat slot: **guard** on
   "is this my owned decision now?" (S: `pid.equals(source.getControllerId())`; macro:
-  `applicable`), **act** once, **defer** (`return false`) everywhere else so CP7 keeps control.
+  `applicable`; mulligan: the dist already guards it to the real opening hand, so `shipHand`
+  just reads the hand), **act** once, **defer** (`return false`) everywhere else so CP7 keeps
+  control. For **mulligan** specifically: own the keep/ship (ship no-land/flood, keep a hand
+  with a plan piece), defer WHICH cards to bottom (London) to CP — v1 is keep/ship only.
 
 ## The seed patterns are examples, NOT a closed menu (open-ended authoring)
 
@@ -91,7 +97,7 @@ The pattern catalog (`references/pattern-catalog.md`) and the combo package
 | reanimate-target / sac-selection / discard-selection | **S** — a category-comprehensive selection steer (the graveyard bomb, the expendable fodder, the off-plan pitch). |
 | hold-interaction / protect-commander | **Φ-only** (reactive) — Φ rewards holding interaction + mana open; no macro. |
 | gowide-payoff | **macro (light) + Φ** — Φ rewards a wide board; macro casts the payoff (never `selectAttackers`). |
-| mull-for-plan | the **mulligan note** (documented; no seam registry yet). |
+| mull-for-plan | the **mulligan** slot — `MulliganSpec.ship_body` returns keep/ship for the opening hand (ship screw/flood, keep a hand with a plan piece). |
 
 When none fits, **compose a novel quad from the primitives** — the gate is what makes a novel
 line safe, not membership in a menu. A line that declares its win (macro fires) and does not
@@ -120,9 +126,14 @@ The greedy-combo package (tutor-assemble + fire) — now expressed as **S** (tut
    **proactive/reactive** call from `PRIMARY STRATEGY`. Proactive ⇒ a macro; reactive ⇒ Φ-only.
 2. **Derive the slots** from the primer readings (table above). For a proactive deck: Φ from the
    Gameplan, `apply` (macro) from the Win Condition, `applicable` (P) from the Assembly turn, S
-   from the `KEY LINES` `OWN:` at category altitude. For a reactive deck: Φ only.
-3. **Build the `QuadSpec`** (`driver_authoring.QuadSpec` / `MacroSpec` / `SteerSpec`) and render
-   with `render_quad_driver(deck, spec)`. `macro=None, steer=None` ⇒ a Φ-only reactive class.
+   from the `KEY LINES` `OWN:` at category altitude. For a reactive deck: Φ only. Derive the
+   **mulligan** (`shipHand`) from the primer Mulligan section whenever the deck has a real
+   keep/ship intuition (ship screw/flood, keep a hand with a plan piece) — it composes with
+   either archetype (proactive + mulligan, or Φ-only reactive + mulligan); omit it for a deck
+   with no better-than-CP7 mulligan read.
+3. **Build the `QuadSpec`** (`driver_authoring.QuadSpec` / `MacroSpec` / `SteerSpec` /
+   `MulliganSpec`) and render with `render_quad_driver(deck, spec)`. `macro=None, steer=None` ⇒
+   a Φ-only reactive class; `mulligan=None` ⇒ CP7 default mulligan (byte-identical to bare CP7).
 4. **Guardrail-check.** `check_quad_guardrails(rendered)` — raises `GuardrailViolation` on a
    `priority()`/`copy()`-in-macro, owned combat, or owned land drops. Fix and re-render.
 5. **ECJ-compile.** `driver_compile.compile_driver(source)` (or `compile_for_injection`) against

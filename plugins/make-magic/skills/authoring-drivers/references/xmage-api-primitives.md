@@ -6,10 +6,11 @@
 > engine-replacement driver and is rewritten in Phase 4.**
 
 An in-search quad driver does **not** replace PlayerA's engine. PlayerA stays a plain
-`ComputerPlayer7`; the driver **registers its quad `(Φ, P, macro, S)` by `playerId`** into
-the dist's already-public seam registries, which the patched minimax consults inside the
-search. The contract is **reflection-by-convention** (no new dist interface): an authored
-Driver class exposes one static method —
+`ComputerPlayer7`; the driver **registers its quad `(Φ, P, macro, S)` (+ the optional mulligan
+5th dimension) by `playerId`** into the dist's already-public seam registries, which the patched
+minimax (and, for mulligan, `ComputerPlayer.chooseMulligan`) consult. The contract is
+**reflection-by-convention** (no new dist interface): an authored Driver class exposes one static
+method —
 
 ```java
 public static void register(java.util.UUID playerId) {
@@ -19,6 +20,8 @@ public static void register(java.util.UUID playerId) {
     mage.player.ai.score.MacroRegistry.register(playerId, new MyComboMacro());
     // S — selection steer on the real + rollout card-choice hooks:
     mage.player.ai.score.SelectionRegistry.register(playerId, new MySelectionSteer());
+    // mulligan (5th dimension, OPTIONAL) — the opening-hand keep/ship on the REAL pre-game hand:
+    mage.player.ai.score.MulliganRegistry.register(playerId, (game, pid) -> /* boolean ship */ false);
 }
 ```
 
@@ -31,8 +34,8 @@ exception thrown inside it aborts the run (never a silent CP7 fallback that woul
 broken driver as a passing gate). On success `XMageBatch` logs
 `DRIVER_REGISTERED fqcn=… playerId=…`.
 
-The three registries (all `public static`, `playerId`-keyed, shipped in the dist via patch
-`0001`, frozen until the Phase-6.6 release cut):
+The four registries (all `public static`, `playerId`-keyed, shipped in the dist via patches
+`0001` (Φ/macro/S) + `0005` (mulligan), strict no-op for any unregistered seat):
 
 - `DriverBonus.register(UUID, java.util.function.ToIntBiFunction<Game,UUID>)` — Φ.
 - `MacroRegistry.register(UUID, ComboMacro)` — the macro; `ComboMacro` is
@@ -41,9 +44,18 @@ The three registries (all `public static`, `playerId`-keyed, shipped in the dist
   explicit state moves + `applyEffects` + a capped stack resolve).
 - `SelectionRegistry.register(UUID, SelectionSteer)` — S:
   `boolean apply(Game, UUID, Cards, TargetCard, Ability, boolean useAddTarget)`.
+- `MulliganRegistry.register(UUID, MulliganSteer)` — the mulligan 5th dimension (OPTIONAL);
+  `MulliganSteer` is `boolean shipHand(Game, UUID)` (`true` = ship/mulligan this opening
+  hand, `false` = keep). The dist's patched `ComputerPlayer.chooseMulligan` consults it **only
+  on the real pre-game decision** — after the full-hand/test/Momir early-returns and guarded on
+  `!game.isSimulation()`, so it never fires on a nested search copy, and an UNREGISTERED seat is
+  byte-identical to prior CP7's land-count heuristic. On a registered decision the dist prints
+  the authoritative `DRIVER_MULLIGAN name=<seat> ship=<bool>`. v1 owns the keep/ship boolean
+  only; WHICH cards to bottom (London) stays with CP (a documented follow-up).
 
 The `playerId` is invariant across `createSimulationForAI` copies and the SP2 swap, so a
-quad registered for the real PlayerA reaches every leaf/rollout of the search for that seat.
+quad registered for the real PlayerA reaches every leaf/rollout of the search for that seat
+(and the stable id is exactly what the pre-game `chooseMulligan` seat carries).
 A hand-authored reference implementation of this contract (Jeleva Thoracle) lives at
 `pipeline/pipeline/sim/reference_drivers/JelevaThoracleReferenceDriver.java`.
 

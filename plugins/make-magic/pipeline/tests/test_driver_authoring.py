@@ -115,12 +115,56 @@ def test_phi_scaffold_injects_null_guarded_me() -> None:
     assert 'if (me == null) {' in src
 
 
-def test_mulligan_note_is_documented_not_registered() -> None:
-    """The primer Mulligan guidance is carried as documentation (the frozen seam has no
-    mulligan registry) — it appears in the class javadoc, never as a registry call."""
+def test_mulligan_note_appears_in_javadoc() -> None:
+    """The primer Mulligan guidance is carried as prose in the class javadoc (independent of
+    whether the live slot is wired)."""
     src = da.render_quad_driver(_deck(), da.JELEVA_QUAD_SPEC)
     assert 'Mulligan' in src
     assert da.JELEVA_QUAD_SPEC.mulligan_note in src
+
+
+def test_proactive_quad_with_mulligan_wires_mulligan_registry() -> None:
+    """A spec carrying a MulliganSpec (the restored 5th dimension) emits a MulliganSteer inner
+    class + a MulliganRegistry.register call, so the dist's chooseMulligan hook consults it."""
+    src = da.render_quad_driver(_deck(), da.JELEVA_QUAD_SPEC)
+    assert da.JELEVA_QUAD_SPEC.mulligan is not None
+    assert 'import mage.player.ai.score.MulliganRegistry;' in src
+    assert 'import mage.player.ai.score.MulliganSteer;' in src
+    assert 'MulliganRegistry.register(playerId, new Mull());' in src
+    assert 'private static final class Mull implements MulliganSteer {' in src
+    assert 'public boolean shipHand(Game game, UUID pid) {' in src
+    # the wired-registry breadcrumb names the mulligan slot
+    assert 'mull=MulliganRegistry' in src
+
+
+def test_quad_without_mulligan_omits_mulligan_registry() -> None:
+    """A spec with mulligan=None registers no mulligan — the seat keeps CP7's default heuristic
+    (the emitter emits neither the MulliganSteer inner class nor its import/registration)."""
+    src = da.render_quad_driver(_deck(), da.SHORIKAI_REACTIVE_QUAD_SPEC)
+    assert da.SHORIKAI_REACTIVE_QUAD_SPEC.mulligan is None
+    assert 'MulliganRegistry' not in src
+    assert 'implements MulliganSteer' not in src
+    assert 'import mage.player.ai.score.MulliganSteer;' not in src
+
+
+def test_phi_only_reactive_plus_mulligan_wires_only_phi_and_mulligan() -> None:
+    """A Φ-only reactive quad that ALSO owns mulligan registers DriverBonus + MulliganRegistry
+    only — no macro/P/S — proving the mulligan slot composes independently of the macro."""
+    spec = da.QuadSpec(
+        name='reactive-plus-mulligan',
+        archetype='reactive',
+        phi_body=da.SHORIKAI_REACTIVE_QUAD_SPEC.phi_body,
+        imports=da.SHORIKAI_REACTIVE_QUAD_SPEC.imports,
+        mulligan=da.MulliganSpec(ship_body='return me.getHand().size() < 6;'),
+    )
+    src = da.render_quad_driver(_deck(), spec)
+    assert 'DriverBonus.register(playerId, Driver::phi);' in src
+    assert 'MulliganRegistry.register(playerId, new Mull());' in src
+    assert 'implements MulliganSteer' in src
+    # still no macro / S
+    assert 'MacroRegistry' not in src
+    assert 'SelectionRegistry' not in src
+    assert 'implements ComboMacro' not in src
 
 
 # --------------------------------------------------------------------------- #
@@ -184,6 +228,8 @@ def test_proactive_quad_ecj_compiles_against_real_dist(
     assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}.class').is_file()
     assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Macro.class').is_file()
     assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Steer.class').is_file()
+    # the restored 5th dimension: the mulligan inner class compiles against MulliganSteer
+    assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Mull.class').is_file()
 
 
 @pytest.mark.integration
