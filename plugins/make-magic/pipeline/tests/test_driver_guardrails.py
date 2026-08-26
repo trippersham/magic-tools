@@ -7,12 +7,16 @@ rendered quad whose owned code reaches for something the design §7.1 do-not-own
   * the macro's ``apply`` calls ``priority()`` or ``copy()`` on the handed sim game (it must
     drive the outcome with bounded explicit state moves, never re-enter the turn loop / copy);
   * any slot owns combat / land drops / attacker selection (``selectAttackers`` /
-    ``selectBlockers`` / a forced ``declareAttacker``);
-  * the S steer proxies a whole category by a SINGLE card name (category-altitude rule).
+    ``selectBlockers`` / a forced ``declareAttacker``).
 
 :func:`pipeline.sim.driver_authoring.check_quad_guardrails` enforces these statically over a
 rendered quad; the emitter's own worked specs must pass, and deliberately-violating specs must
 be rejected.
+
+NOTE: the category-altitude rule (an S steer must not proxy a whole category by a single card
+name) is authoring GUIDANCE, not a static check — comprehensiveness is undecidable from the
+source (``getName()`` against the full member set of a category is legitimate). It is enforced
+behaviorally by the never-worse ship gate, not by ``check_quad_guardrails``.
 """
 
 from __future__ import annotations

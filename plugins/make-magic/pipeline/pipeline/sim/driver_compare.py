@@ -409,6 +409,7 @@ def compare_pilotings(
     engine: _CompareEngine | None = None,
     data_dir: str | os.PathLike[str] | None = None,
     run_matchups: Callable[[_CompareEngine, EngineInstall, list[MatchSpec]], PoolResult] | None = None,
+    power_run: bool = False,
 ) -> PilotingComparison:
     """Measure ``deck``'s gated driver vs a plain CP7 piloting against a shared benchmark.
 
@@ -416,14 +417,21 @@ def compare_pilotings(
     the caller at ``driver author`` when absent), then runs two INDEPENDENT lenses over
     the shared ``deck_ref``:
 
-      * the goldfish own-turn clock (driven vs driverless) → ``own_turn_delta``;
+      * the goldfish **solo own-turn clock** (driven vs driverless) → ``own_turn_delta``
+        (the same metric the Phase-5 ship gate uses — a lower own-turn kill is faster);
       * when ``gauntlet`` is supplied, both pilotings vs each opponent's normal CP7 at a
         fixed per-opponent seed → win-rate ± Wilson-CI delta + per-opponent rows.
+
+    ``power_run`` is the opt-in headline measurement — it DOUBLES ``games`` to tighten the
+    medians / CIs toward statistical *superiority*. It is **default-off**: the gate never
+    requires it, and a routine comparison runs at the caller's ``games``.
 
     ``engine`` defaults to the registered XMage engine; ``run_matchups`` to the bounded
     governor (:func:`_default_run_matchups`). Holding engine/seed/opponents constant
     across the two pilotings — differing ONLY in the driver — is the anti-confound; the
     candidate never faces a copy of itself."""
+    if power_run:
+        games *= 2  # opt-in ~2x sample for a headline superiority read; never a ship requirement.
     if not drivers.driver_valid(deck, data_dir=data_dir):
         raise DriverCompareError(
             f'deck {deck.name!r} has no VALID driver to compare — author + gate one first with '

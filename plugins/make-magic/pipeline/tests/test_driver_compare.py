@@ -76,9 +76,9 @@ def _store(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _stamp_valid_driver(deck: Deck, data_dir: Path, *, gate_mode: str = 'match') -> None:
+def _stamp_valid_driver(deck: Deck, data_dir: Path, *, gate_mode: str = 'proactive') -> None:
     """Stamp a CURRENT, gate-passed meta so ``driver_valid`` is True (no compile needed —
-    the comparison only reads the fqcn + classes_dir path)."""
+    the comparison only reads the fqcn + classes_dir path + gate_mode)."""
     from pipeline.decks.version import version
 
     drivers.write_meta(
@@ -88,9 +88,7 @@ def _stamp_valid_driver(deck: Deck, data_dir: Path, *, gate_mode: str = 'match')
             harness_version=drivers.harness_version(data_dir=data_dir),
             fqcn='DriverCompareDeck',
             gates_passed=True,
-            intent_tags=('x',),
-            gate_mode=gate_mode,  # type: ignore[arg-type]
-            strategy_version=drivers.strategy_version(deck),
+            gate_mode=gate_mode,
         ),
         data_dir=data_dir,
     )
@@ -284,6 +282,22 @@ def test_anti_confound_both_pilotings_identical_except_driver(_store: Path) -> N
 # --------------------------------------------------------------------------- #
 
 
+def test_power_run_is_default_off_and_doubles_games_when_set(_store: Path) -> None:
+    """The opt-in power run is default-off (routine games honoured) and ~2x games when set —
+    never a ship requirement, just a tighter headline read."""
+    deck = _deck()
+    _stamp_valid_driver(deck, _store)
+    eng = _FakeEngine(driven_median=6.0, cp7_median=8.0)
+
+    routine = dc.compare_pilotings(deck, _DECK_REF, install=object(), games=5, engine=eng, data_dir=_store)
+    assert routine.games == 5  # default-off: no doubling
+
+    powered = dc.compare_pilotings(
+        deck, _DECK_REF, install=object(), games=5, engine=eng, data_dir=_store, power_run=True
+    )
+    assert powered.games == 10  # opt-in: ~2x sample
+
+
 def test_compare_pilotings_requires_a_valid_driver(_store: Path) -> None:
     """A deck with no gated driver → DriverCompareError pointing at `driver author`."""
     deck = _deck('No Driver Deck')
@@ -314,7 +328,7 @@ def test_as_dict_json_shape(_store: Path) -> None:
     )
     d = comparison.as_dict()
 
-    assert d['candidate'] == 'Compare Deck' and d['gate_mode_used'] == 'match'
+    assert d['candidate'] == 'Compare Deck' and d['gate_mode_used'] == 'proactive'
     assert d['goldfish'] == {'own_turn_driver': 6.0, 'own_turn_cp7': 8.0, 'own_turn_delta': pytest.approx(-2.0)}
     gaunt = d['gauntlet']
     assert isinstance(gaunt, dict)
@@ -334,20 +348,19 @@ def test_as_dict_json_shape(_store: Path) -> None:
 _DATA_DIR = Path.home() / '.local' / 'share' / 'make-magic'
 _DIST_JAR = _DATA_DIR / 'xmage' / 'make-magic-xmage-dist.jar'
 _LAB_JRE = Path.home() / 'mtg-sim-lab' / 'jre' / 'jdk-21.0.12+8-jre' / 'Contents' / 'Home' / 'bin' / 'java'
-_MIKAEUS_TXT = Path.home() / 'mtg-sim-lab' / 'xmage-lab' / 'mage' / 'Mage.Tests' / 'Combo_Mikaeus.txt'
-_JAVAC = Path('/opt/homebrew/opt/openjdk@17/bin/javac')
-_INTEGRATION_READY = _DIST_JAR.is_file() and _LAB_JRE.is_file() and _MIKAEUS_TXT.is_file() and _JAVAC.is_file()
+_JELEVA_TXT = Path.home() / 'mtg-sim-lab' / 'reward-poc' / 'decks' / 'jeleva.txt'
+_INTEGRATION_READY = _DIST_JAR.is_file() and _LAB_JRE.is_file() and _JELEVA_TXT.is_file()
 
 
-def _mikaeus_dck() -> tuple[str, str]:
-    lines = [ln.strip() for ln in _MIKAEUS_TXT.read_text().splitlines() if ln.strip()]
-    return ('Combo_Mikaeus', '[metadata]\nName=Combo_Mikaeus\n[Main]\n' + '\n'.join(lines) + '\n')
+def _jeleva_dck() -> tuple[str, str]:
+    lines = [ln.strip() for ln in _JELEVA_TXT.read_text().splitlines() if ln.strip()]
+    return ('jeleva', '[metadata]\nName=jeleva\n[Main]\n' + '\n'.join(lines) + '\n')
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(not _INTEGRATION_READY, reason='local dist jar / lab JRE / javac / Mikaeus deck absent')
-def test_mikaeus_compare_pilotings_real_jar(monkeypatch: pytest.MonkeyPatch) -> None:
-    """END-TO-END: author + gate the Mikaeus driver on the real jar, then run the FULL
+@pytest.mark.skipif(not _INTEGRATION_READY, reason='local dist jar / lab JRE / jeleva deck absent')
+def test_jeleva_compare_pilotings_real_jar(monkeypatch: pytest.MonkeyPatch) -> None:
+    """END-TO-END: ECJ-compile + gate the Jeleva quad on the real jar, then run the FULL
     benchmark-relative comparison (own-turn goldfish Δ + a 2-opponent curated gauntlet
     win-rate ± Wilson-CI Δ) through the real governor. TINY (games=2) — a mechanism
     proof, not a power measurement. The candidate faces the field, never a copy of itself."""
@@ -359,17 +372,17 @@ def test_mikaeus_compare_pilotings_real_jar(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setenv('MAKE_MAGIC_DATA_DIR', str(_DATA_DIR))
     monkeypatch.setenv('MAKE_MAGIC_JAVA', str(_LAB_JRE))
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    monkeypatch.setenv('MAKE_MAGIC_XMAGE_DIST_JAR', str(_DIST_JAR))
     monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', None)  # local-dev: hash the built jar.
 
     engine = get_engine('xmage')
     install = engine.resolve(provision=False, data_dir=_DATA_DIR)
-    deck_ref = _mikaeus_dck()
-    deck = Deck(name='Mikaeus Compare', cards=[DeckCard(name='Forest', quantity=1)])
+    deck_ref = _jeleva_dck()
+    deck = Deck(name='Jeleva Compare', cards=[DeckCard(name='Forest', quantity=1)])
 
-    src = da.render_driver(deck, da.MIKAEUS_LINE_SPEC)
-    dg.compile_driver(deck, src, install=install, javac=str(_JAVAC), data_dir=_DATA_DIR)
+    dg.compile_quad_driver(deck, da.JELEVA_QUAD_SPEC, data_dir=_DATA_DIR)
     gate = dg.gate_driver(
-        deck, deck_ref, line_spec=da.MIKAEUS_LINE_SPEC, install=install, games=2, engine=engine, data_dir=_DATA_DIR
+        deck, deck_ref, spec=da.JELEVA_QUAD_SPEC, install=install, games=4, engine=engine, data_dir=_DATA_DIR
     )
     assert gate.passed, f'gate failed: {gate.reason}'
     assert drivers.driver_valid(deck, data_dir=_DATA_DIR)
@@ -387,4 +400,4 @@ def test_mikaeus_compare_pilotings_real_jar(monkeypatch: pytest.MonkeyPatch) -> 
     assert comparison.winrate_driver is not None and comparison.winrate_cp7 is not None
     assert len(comparison.per_opponent) == 2
     # No mirror: every opponent is a curated field deck, never the candidate.
-    assert all(o.opponent != 'Combo_Mikaeus' for o in comparison.per_opponent)
+    assert all(o.opponent != 'jeleva' for o in comparison.per_opponent)

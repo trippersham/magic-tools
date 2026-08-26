@@ -30,43 +30,39 @@ The load-bearing discipline the scaffold guarantees (so a fill cannot forget it 
     the game it is handed. There is no ``ComputerPlayer7`` subclass, so there is no ``copy()``
     to override.
 
-**Retired in Phase 4:** the external ``-Dmakemagic.driverA`` ``ComputerPlayer7``-subclass
-template and the ``probeWins`` / greedy-assembly go/no-go skeleton — the go/no-go is emergent
-in-search now (the macro-fold + Φ decide whether firing wins). A thin DEPRECATED compat shim
-(:data:`_DRIVER_TEMPLATE` / :func:`render_driver` / :data:`MIKAEUS_LINE_SPEC`) survives ONLY
-until Phase 5 rewires ``driver_gate`` to the quad surface; new authoring goes through
+**Retired:** the external ``-Dmakemagic.driverA`` ``ComputerPlayer7``-subclass template and the
+``probeWins`` / greedy-assembly go/no-go skeleton — the go/no-go is emergent in-search now (the
+macro-fold + Φ decide whether firing wins). The thin DEPRECATED compat shim
+(``_DRIVER_TEMPLATE`` / ``render_driver`` / ``MIKAEUS_LINE_SPEC``) that survived P4 was DELETED
+in Phase 5 once ``driver_gate`` rewired to the quad surface; all authoring goes through
 :func:`render_quad_driver`.
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pipeline.contracts import Deck
 
 __all__ = (
-    # Names sorted (ruff RUF022). DEPRECATED shim exports (DRIVER_LINE_FIRED_MARKER, LineSpec,
-    # MIKAEUS_LINE_SPEC, render_driver) are the retired external-driver path — see the bottom of
-    # this module; kept only until P5 rewires driver_gate to the quad.
-    'DRIVER_LINE_FIRED_MARKER',
+    # Names sorted (ruff RUF022).
+    'DRIVER_MACRO_FIRED_MARKER',
     'DRIVER_PACKAGE_ROOT',
     'DRIVER_REGISTERED_MARKER',
     'DRIVER_SIMPLE_CLASS',
+    'DRIVER_STEER_FIRED_MARKER',
     'JELEVA_QUAD_SPEC',
-    'MIKAEUS_LINE_SPEC',
     'SHORIKAI_REACTIVE_QUAD_SPEC',
     'GuardrailViolation',
-    'LineSpec',
     'MacroSpec',
     'QuadSpec',
     'SteerSpec',
     'check_quad_guardrails',
     'driver_fqcn',
     'driver_package',
-    'render_driver',
     'render_quad_driver',
 )
 
@@ -78,6 +74,15 @@ DRIVER_SIMPLE_CLASS = 'Driver'
 #: The stderr marker the emitted ``register(UUID)`` prints once its quad is wired — an
 #: observability breadcrumb alongside XMageBatch's own ``DRIVER_REGISTERED`` line.
 DRIVER_REGISTERED_MARKER = 'QUAD_DRIVER_REGISTERED'
+#: STANDARD slot-exercise markers (Phase 5) the EMITTER injects into every authored quad — so
+#: the dual-mode gate can assert slot exercise DECK-AGNOSTICALLY (not off a deck-specific
+#: println). :data:`DRIVER_MACRO_FIRED_MARKER` is printed at the top of the macro's ``apply``
+#: (which the seam invokes ONLY to execute the deterministic win ⇒ entry == the macro fired);
+#: :data:`DRIVER_STEER_FIRED_MARKER` is printed when the steer actually added a target (a true
+#: return), never when it defers to CP7. Deck-specific logs (e.g. ``MACRO_ORACLE_ETB_WIN``) are
+#: kept alongside for debugging.
+DRIVER_MACRO_FIRED_MARKER = 'DRIVER_MACRO_FIRED'
+DRIVER_STEER_FIRED_MARKER = 'DRIVER_STEER_FIRED'
 
 
 def _sanitize(uuid: str) -> str:
@@ -285,6 +290,9 @@ def render_quad_driver(deck: Deck, spec: QuadSpec) -> str:
         parts.append('')
         parts.append('        @Override')
         parts.append('        public void apply(Game game, UUID pid) {')
+        parts.append('            // STANDARD slot-exercise marker (emitter-injected): the seam invokes')
+        parts.append('            // apply() ONLY to execute the deterministic win, so entry == the macro fired.')
+        parts.append(f'            System.err.println("{DRIVER_MACRO_FIRED_MARKER} pid=" + pid);')
         parts.append(_indent(macro.apply_body, 12))
         parts.append('        }')
         parts.append('    }')
@@ -296,6 +304,17 @@ def render_quad_driver(deck: Deck, spec: QuadSpec) -> str:
         parts.append('    private static final class Steer implements SelectionSteer {')
         parts.append('        @Override')
         parts.append('        public boolean apply(Game game, UUID pid, Cards cards, TargetCard target,')
+        parts.append('                Ability source, boolean useAddTarget) {')
+        parts.append('            // Wrap the author body so the STANDARD steer marker (emitter-injected) fires')
+        parts.append('            // ONLY on a true return (a target actually added), never on a defer to CP7.')
+        parts.append('            boolean fired = steer(game, pid, cards, target, source, useAddTarget);')
+        parts.append('            if (fired) {')
+        parts.append(f'                System.err.println("{DRIVER_STEER_FIRED_MARKER} pid=" + pid);')
+        parts.append('            }')
+        parts.append('            return fired;')
+        parts.append('        }')
+        parts.append('')
+        parts.append('        private boolean steer(Game game, UUID pid, Cards cards, TargetCard target,')
         parts.append('                Ability source, boolean useAddTarget) {')
         parts.append(_indent(steer.apply_body, 12))
         parts.append('        }')
@@ -575,188 +594,4 @@ SHORIKAI_REACTIVE_QUAD_SPEC = QuadSpec(
     steer=None,
     imports=('import mage.game.permanent.Permanent;',),
     mulligan_note='keep hands with >=2 lands and an early interactive spell; ship all-action no-mana keeps.',
-)
-
-
-# =========================================================================== #
-# DEPRECATED — the RETIRED external ComputerPlayer7-subclass path.             #
-#                                                                              #
-# Phase 4 retired this as the authoring surface (new authoring uses            #
-# render_quad_driver above). It survives ONLY so the P5-bound driver_gate +    #
-# its tests keep importing DRIVER_LINE_FIRED_MARKER / render_driver /          #
-# MIKAEUS_LINE_SPEC until Phase 5 rewires the gate to the quad. Do not build    #
-# new drivers on it.                                                           #
-# =========================================================================== #
-
-#: DEPRECATED: the stderr marker the old thin template emitted the first time its owned line
-#: ran. Retained only for the P5-bound ``driver_gate`` import; the quad emits
-#: :data:`DRIVER_REGISTERED_MARKER` instead.
-DRIVER_LINE_FIRED_MARKER = 'DRIVER_LINE_FIRED'
-
-
-@dataclass(frozen=True)
-class LineSpec:
-    """DEPRECATED (retired external path). The deck-specific fill stamped into the old
-    ``ComputerPlayer7``-subclass thin-driver template. Kept only for the P5-bound gate."""
-
-    name: str
-    imports: tuple[str, ...]
-    members: str = field(default='')
-
-
-_DRIVER_TEMPLATE = '''\
-package @@PACKAGE@@;
-
-import mage.constants.RangeOfInfluence;
-import mage.player.ai.ComputerPlayer7;
-@@IMPORTS@@
-
-/**
- * DEPRECATED (retired external per-deck driver, @@NAME@@). Superseded by the in-search quad
- * (render_quad_driver). Kept only until Phase 5 rewires driver_gate to the quad surface.
- */
-public class Driver extends ComputerPlayer7 {
-
-    private boolean lineFired = false;
-
-    public Driver(String name, RangeOfInfluence range, int skill) {
-        super(name, range, skill);
-    }
-
-    public Driver(final Driver d) {
-        super(d);
-        this.lineFired = d.lineFired;
-    }
-
-    protected void markLineFired() {
-        if (!lineFired) {
-            lineFired = true;
-            System.err.println("@@MARKER@@ name=" + getName());
-        }
-    }
-
-@@MEMBERS@@
-}
-'''
-
-
-def render_driver(deck: Deck, line_spec: LineSpec) -> str:
-    """DEPRECATED (retired external path). Stamp ``line_spec`` into the old thin-driver
-    template. New authoring uses :func:`render_quad_driver`; this survives only for the
-    P5-bound ``driver_gate`` + its tests."""
-    imports = '\n'.join(line_spec.imports)
-    return (
-        _DRIVER_TEMPLATE.replace('@@PACKAGE@@', driver_package(deck))
-        .replace('@@IMPORTS@@', imports)
-        .replace('@@NAME@@', line_spec.name)
-        .replace('@@MARKER@@', DRIVER_LINE_FIRED_MARKER)
-        .replace('@@MEMBERS@@', line_spec.members)
-    )
-
-
-_MIKAEUS_MEMBERS = '''\
-    // set for the priority pass in which the ping should hit TRISKELION ITSELF
-    private boolean pingSelfNext = false;
-
-    // ---- OWNED #3: mulligan-for-the-line (land window only; visible info) ----
-    @Override
-    public boolean chooseMulligan(mage.game.Game game) {
-        int handSize = hand.size();
-        if (handSize <= 5) {
-            return false; // never mulligan below 5 for a solo race
-        }
-        int lands = 0;
-        for (mage.cards.Card c : hand.getCards(game)) {
-            if (c.isLand(game)) {
-                lands++;
-            }
-        }
-        return lands < 2 || lands > 5; // ship no-landers and floods; keep the rest
-    }
-
-    private mage.game.permanent.Permanent findMine(mage.game.Game game, String name) {
-        for (mage.game.permanent.Permanent p : game.getBattlefield().getAllActivePermanents(getId())) {
-            if (p.getName().equals(name)) {
-                return p;
-            }
-        }
-        return null;
-    }
-
-    // ---- OWNED #1: the loop, ONLY when assembled on my main w/ empty stack ----
-    @Override
-    public boolean priority(mage.game.Game game) {
-        boolean myPriority = getId().equals(game.getState().getPriorityPlayerId());
-        boolean myMainStep = game.getTurnStepType() == mage.constants.PhaseStep.PRECOMBAT_MAIN
-                || game.getTurnStepType() == mage.constants.PhaseStep.POSTCOMBAT_MAIN;
-        if (!(myPriority && myMainStep && game.getStack().isEmpty())) {
-            return super.priority(game); // everything else -> pure CP7
-        }
-        mage.game.permanent.Permanent mikaeus = findMine(game, "Mikaeus, the Unhallowed");
-        mage.game.permanent.Permanent trisk = findMine(game, "Triskelion");
-        if (mikaeus != null && trisk != null) {
-            int counters = trisk.getCounters(game).getCount(mage.counters.CounterType.P1P1);
-            mage.abilities.ActivatedAbility ping = null;
-            for (mage.abilities.ActivatedAbility a : getPlayable(game, true)) {
-                if (!a.getSourceId().equals(trisk.getId())) {
-                    continue;
-                }
-                String rule = a.getRule() == null ? "" : a.getRule();
-                if (rule.startsWith("Remove a")) {
-                    ping = a;
-                    break;
-                }
-            }
-            if (ping != null && counters > 0) {
-                // face while >2 counters; the last 2 go to self-pings so Triskelion
-                // re-dies at 0 counters and undying refuels it to 4
-                pingSelfNext = counters <= 2;
-                boolean ok = activateAbility(ping, game);
-                if (ok) {
-                    markLineFired(); // the owned line is executing -> emit the gate marker
-                    return false;
-                }
-            }
-            // ping momentarily unavailable (mid death/undying return) -> let CP7
-            // advance triggers/SBAs; we get priority back and resume the loop
-            return super.priority(game);
-        }
-        // not assembled -> pure CP7 develops, casts the pieces, fights
-        return super.priority(game);
-    }
-
-    // ---- OWNED #2: steer ONLY Triskelion's damage target (face vs self-ping) ----
-    @Override
-    public boolean chooseTarget(mage.constants.Outcome outcome, mage.target.Target target,
-            mage.abilities.Ability source, mage.game.Game game) {
-        if (outcome == mage.constants.Outcome.Damage
-                && target instanceof mage.target.common.TargetAnyTarget && source != null) {
-            mage.game.permanent.Permanent src = game.getPermanent(source.getSourceId());
-            if (src != null && src.getName().equals("Triskelion") && src.isControlledBy(getId())) {
-                if (pingSelfNext) {
-                    mage.game.permanent.Permanent trisk = findMine(game, "Triskelion");
-                    if (trisk != null && target.canTarget(getId(), trisk.getId(), source, game)) {
-                        target.addTarget(trisk.getId(), source, game);
-                        return true;
-                    }
-                }
-                for (java.util.UUID opp : game.getOpponents(getId())) {
-                    if (target.canTarget(getId(), opp, source, game)) {
-                        target.addTarget(opp, source, game);
-                        return true;
-                    }
-                }
-            }
-        }
-        return super.chooseTarget(outcome, target, source, game);
-    }
-    // NOTE: no selectAttackers, no chooseUse, no develop override -- CP7 owns them.\
-'''
-
-#: DEPRECATED (retired external path). The canonical Mikaeus + Triskelion fill — kept only for
-#: the P5-bound ``driver_gate`` + its tests. New combo authoring uses a :class:`QuadSpec`.
-MIKAEUS_LINE_SPEC = LineSpec(
-    name='mikaeus-triskelion-undying-loop',
-    imports=(),
-    members=_MIKAEUS_MEMBERS,
 )

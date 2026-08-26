@@ -65,7 +65,12 @@ CLASSES_DIRNAME = 'classes'
 #: The core meta.json keys this module owns; any OTHER key read from disk is
 #: preserved into :attr:`DriverMeta.extra` so Phase-2 gate stamps survive a
 #: read/write round-trip through this module.
-_CORE_KEYS = frozenset({'deck_version', 'harness_version', 'fqcn', 'gates_passed'})
+_CORE_KEYS = frozenset({'deck_version', 'harness_version', 'fqcn', 'gates_passed', 'gate_mode'})
+
+#: The gate mode a driver was signed off under (Phase 5 dual-mode gate): ``'proactive'``
+#: (macro-bearing — gated on macro-fire + never-slower) or ``'reactive'`` (Φ-only — gated on
+#: the never-worse-solo floor). Older metas predating the field read back as the default.
+_DEFAULT_GATE_MODE = 'proactive'
 
 
 @dataclass(frozen=True)
@@ -81,6 +86,7 @@ class DriverMeta:
     harness_version: str
     fqcn: str
     gates_passed: bool
+    gate_mode: str = _DEFAULT_GATE_MODE
     extra: dict[str, object] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, object]:
@@ -90,6 +96,7 @@ class DriverMeta:
             'harness_version': self.harness_version,
             'fqcn': self.fqcn,
             'gates_passed': self.gates_passed,
+            'gate_mode': self.gate_mode,
             **self.extra,
         }
 
@@ -107,6 +114,7 @@ class DriverMeta:
             harness_version=str(data['harness_version']),
             fqcn=str(data['fqcn']),
             gates_passed=bool(data['gates_passed']),
+            gate_mode=str(data.get('gate_mode', _DEFAULT_GATE_MODE)),
             extra=extra,
         )
 

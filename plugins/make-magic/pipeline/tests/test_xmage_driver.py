@@ -169,7 +169,7 @@ def test_compile_for_injection_returns_classdir_and_fqcn(
     monkeypatch.setattr(
         dc,
         'compile_driver',
-        lambda source, *, data_dir=None: dc.CompileResult(
+        lambda source, *, fqcn=None, data_dir=None: dc.CompileResult(
             ok=True, class_dir=class_dir, diagnostics=(), raw_stderr='', cache_hit=False
         ),
     )
@@ -189,7 +189,7 @@ def test_compile_for_injection_raises_on_compile_failure(
     monkeypatch.setattr(
         dc,
         'compile_driver',
-        lambda source, *, data_dir=None: dc.CompileResult(
+        lambda source, *, fqcn=None, data_dir=None: dc.CompileResult(
             ok=False, class_dir=None, diagnostics=(diag,), raw_stderr='boom', cache_hit=False
         ),
     )
@@ -209,7 +209,7 @@ def test_injection_tuple_threads_into_launch_cmd(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(
         dc,
         'compile_driver',
-        lambda source, *, data_dir=None: dc.CompileResult(
+        lambda source, *, fqcn=None, data_dir=None: dc.CompileResult(
             ok=True, class_dir=class_dir, diagnostics=(), raw_stderr='', cache_hit=False
         ),
     )

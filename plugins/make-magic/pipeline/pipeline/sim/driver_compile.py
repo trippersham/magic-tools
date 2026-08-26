@@ -219,9 +219,25 @@ def _driver_cache_dir(data_dir: str | os.PathLike[str] | None, dist_sha: str | N
     return xr._dist_dir(data_dir) / 'drivers' / key
 
 
+def _compiled_class_file(out_dir: Path, source: Path, fqcn: str | None) -> Path:
+    """The on-disk path ECJ writes the compiled ``.class`` to under ``-d out_dir``.
+
+    A **packaged** Driver (the emitter always emits ``package makemagic.driver.d_<uuid>;``)
+    lands under ``out_dir/<pkg-subpath>/<Class>.class`` — NOT ``out_dir/<stem>.class`` — so a
+    cache-hit probe on ``<stem>.class`` never matches and ECJ recompiles every call
+    (P4 discovery #3). When ``fqcn`` is known, resolve the true packaged path; otherwise fall
+    back to the bare ``<stem>.class`` (an unpackaged/default-package source).
+    """
+    if fqcn and '.' in fqcn:
+        *pkg_parts, cls = fqcn.split('.')
+        return out_dir.joinpath(*pkg_parts, f'{cls}.class')
+    return out_dir / f'{source.stem}.class'
+
+
 def compile_driver(
     source: str | os.PathLike[str],
     *,
+    fqcn: str | None = None,
     data_dir: str | os.PathLike[str] | None = None,
 ) -> CompileResult:
     """Compile a single Driver ``.java`` against the effective dist jar, with caching.
@@ -232,6 +248,10 @@ def compile_driver(
     ``java -jar ecj.jar --release <lvl> -proc:none -cp <dist> -d <out> <source>``. A cache
     hit returns immediately. A compile failure returns ``ok=False`` with parsed diagnostics
     and is NEVER cached.
+
+    ``fqcn`` (the Driver's fully-qualified class name) lets the cache-hit probe find the
+    **packaged** ``.class`` ECJ actually writes (``<out>/<pkg>/<Class>.class``); without it the
+    probe falls back to ``<stem>.class`` and a packaged driver never cache-hits.
     """
     src = Path(source)
     install = xr.resolve(data_dir=data_dir)
@@ -239,7 +259,7 @@ def compile_driver(
     src_hash = xr._sha256_of(src)
     out_dir = _driver_cache_dir(data_dir, dist_sha, src_hash)
 
-    class_file = out_dir / f'{src.stem}.class'
+    class_file = _compiled_class_file(out_dir, src, fqcn)
     if class_file.is_file():
         return CompileResult(ok=True, class_dir=out_dir, diagnostics=(), raw_stderr='', cache_hit=True)
 
@@ -296,7 +316,7 @@ def compile_for_injection(
     raises :class:`DriverCompileError` with the parsed diagnostics (fail-loud — never returns a
     tuple pointing at an empty/partial class dir).
     """
-    result = compile_driver(source, data_dir=data_dir)
+    result = compile_driver(source, fqcn=fqcn, data_dir=data_dir)
     if not result.ok or result.class_dir is None:
         raise DriverCompileError(Path(source), result)
     return str(result.class_dir), fqcn

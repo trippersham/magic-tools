@@ -179,6 +179,36 @@ def test_compile_driver_ok(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     assert again.ok and again.cache_hit is True
 
 
+def test_packaged_driver_cache_hits_on_second_call(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """P4 discovery #3: a PACKAGED driver's .class lands under <out>/<pkg>/<Class>.class, not
+    <out>/<stem>.class — so the cache-hit probe must use the fqcn or it recompiles every call.
+    With the fqcn threaded, the second identical call is a cache HIT."""
+    java = _runnable_java()
+    if java is None:
+        pytest.skip('no runnable java (set MAKE_MAGIC_JAVA)')
+    monkeypatch.setenv('MAKE_MAGIC_JAVA', java)
+    monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    _stage_real_ecj(tmp_path)
+    override = _empty_jar(tmp_path / 'fake-dist.jar', b'A')
+    monkeypatch.setenv('MAKE_MAGIC_XMAGE_DIST_JAR', str(override))
+
+    fqcn = 'makemagic.driver.d_abc123.Driver'
+    src = tmp_path / 'Driver.java'
+    src.write_text(
+        'package makemagic.driver.d_abc123;\npublic final class Driver { }\n', encoding='utf-8'
+    )
+    first = dc.compile_driver(src, fqcn=fqcn, data_dir=tmp_path)
+    assert first.ok and first.cache_hit is False
+    assert first.class_dir is not None
+    # the .class really is under the package subpath, NOT the bare stem.
+    assert (first.class_dir / 'makemagic' / 'driver' / 'd_abc123' / 'Driver.class').is_file()
+    assert not (first.class_dir / 'Driver.class').is_file()
+
+    # Second identical call → the fqcn-aware probe finds the packaged .class → cache HIT.
+    again = dc.compile_driver(src, fqcn=fqcn, data_dir=tmp_path)
+    assert again.ok and again.cache_hit is True
+
+
 def test_compile_driver_diagnostics(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A syntactically broken Driver returns ok=False with PARSED diagnostics."""
     java = _runnable_java()

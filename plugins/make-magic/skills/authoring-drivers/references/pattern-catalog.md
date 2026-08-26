@@ -14,15 +14,18 @@
 > `PatternSkeleton` code the body references belonged to the retired template and is gone; the
 > live emitter is `render_quad_driver(deck, QuadSpec)`.
 
-The ranked top-8 skeletons live in code as `SEED_PATTERNS` in
-`pipeline/pipeline/sim/driver_authoring.py`. Each `PatternSkeleton` carries the correct
-hook, the guard idiom, an `intent_tag`, a `gate_mode`, and `@@PLACEHOLDER@@` tokens for
-the deck-specific bits. Only `combo-loop` is a **proven** end-to-end fill (Mikaeus, the
-gate's positive control); the other seven are coherent documented skeletons (right shape,
-grow by extraction as a specific deck shows the miss).
+The ranked top-8 skeletons below were once `SEED_PATTERNS`/`PatternSkeleton` code in
+`driver_authoring.py` for the retired `ComputerPlayer7`-subclass template; that code (and the
+`LineSpec`/`PatternSkeleton.build` machinery) is **gone**. They survive here as a *design
+catalog* — read each for the decision it owns, then express it as quad slots per the
+Quad re-expression note above. The live emitter is `render_quad_driver(deck, QuadSpec)`, and
+`JELEVA_QUAD_SPEC` in `driver_authoring.py` is the **proven** end-to-end positive control (a
+proactive spell-combo quad: Φ + macro + P + S). The other rows are coherent design shapes —
+grow one into a `QuadSpec` when a specific deck's goldfish shows the miss.
 
-`PatternSkeleton.build(name, fills)` fills the placeholders and returns a `LineSpec`. You
-can also read a skeleton's `.sample_fills` to see a concrete render.
+The `gate_mode` column below is the *old* solo/match label; the Phase-5 gate now routes by the
+quad's shape — a macro-bearing quad is **proactive** (gated on macro-fire + never-slower), a
+Φ-only quad is **reactive** (gated on the never-worse-solo floor).
 
 ---
 
@@ -96,36 +99,33 @@ risks the never-worse gate.
 
 ---
 
-## The Mikaeus worked example (the proven fill)
+## Worked example — the live quad (`JELEVA_QUAD_SPEC`) and the retired Mikaeus fill
 
-`MIKAEUS_LINE_SPEC` in `driver_authoring.py` is the one gate-passing end-to-end fill — the
-positive control. Read it there in full; the shape to learn:
+The live, gate-passing positive control is **`JELEVA_QUAD_SPEC`** in `driver_authoring.py` — a
+proactive Thassa's-Oracle spell-combo quad. Read it there in full (and its rendered form via
+`render_quad_driver`); the shape to learn:
 
-**The line.** With Mikaeus, the Unhallowed + Triskelion both on my battlefield, on my main
-with an empty stack, ping the opponent with Triskelion's counters; at 2 counters left,
-self-ping so Triskelion re-dies at 0 → undying refuels it to 4 → loop to lethal.
+- **Φ** (`phi_body`, from **Gameplan**) — a monotone potential rising across the whole assembly
+  path (hold a combo half → a tutor can fetch the missing half → both halves → library empty +
+  Oracle), so CP7's leaf evaluator develops toward the combo.
+- **macro + P** (`MacroSpec`, from **Win Condition** + **Assembly**) — `applicable` (P) gates on
+  "the deterministic kill is executable NOW" (my turn, empty stack, Oracle in hand + an
+  exile-library piece + mana, or library already empty); `apply` drives the known outcome with
+  bounded explicit state moves (exile the library, ETB the Oracle, resolve), **never**
+  `priority()`/`copy()` on the handed game. The emitter injects the standard `DRIVER_MACRO_FIRED`
+  marker at `apply` entry — the gate's proactive slot-exercise signal.
+- **S** (`SteerSpec`, from **Sequencing**) — steer a tutor's library search to the *missing*
+  combo half, category-comprehensively; the emitter emits `DRIVER_STEER_FIRED` on a true return.
 
-**What it OWNS (three thin responsibilities), each deferring to `super` otherwise:**
-1. **The loop** (`priority`) — guarded by the inherited `onMyMainEmptyStack(game)`; finds
-   the two pieces with `findMine`; activates Triskelion's "Remove a" ping via
-   `activatableByRule`; sets a `pingSelfNext` flag at ≤2 counters; calls
-   `declareIntent("combo-loop:mikaeus")` when the ability actually activates. If the pieces
-   aren't assembled or the ability is momentarily gone (mid death/undying return), it
-   returns `super.priority(game)` and lets CP7 advance triggers/SBAs.
-2. **Triskelion's damage target** (`chooseTarget`) — scoped to `Outcome.Damage` +
-   `source` name == "Triskelion" + controlled by me; steers to Triskelion itself when
-   `pingSelfNext`, else to an opponent, via the guarded `steerTarget`. Everything else →
-   `super`.
-3. **The mulligan** (`chooseMulligan`) — never below 5; ship no-landers (< 2) and floods
-   (> 5); keep the rest. Visible info only.
+A new proactive combo copies this: swap the piece names, the Φ milestones, the `applicable`
+gate, and the steer's want-list; keep the guard→act→defer shape. A Φ-only reactive deck (e.g.
+`SHORIKAI_REACTIVE_QUAD_SPEC`) emits Φ only — no macro/P/S — and is gated on the never-worse
+floor.
 
-**What it does NOT own:** no attacker selection, no `chooseUse`, no develop override, no
-`copy()`. CP7 develops the board, casts the pieces, and fights all combat.
-
-**The intent marker.** `intent_tags=('combo-loop:mikaeus',)`, `gate_mode='solo'`. The tag
-appears as a `declareIntent("combo-loop:mikaeus")` call at the point the loop fires; the
-gate asserts that marker emitted and that the driven own-turn clock is never-worse than
-bare CP7. Fully-qualified `mage.*` refs keep `imports=()`.
-
-This is the template a new combo fill copies: swap the two piece names, the loop's rule
-prefix, and the mulligan key piece; keep the guard→act→declare→defer shape verbatim.
+**The retired Mikaeus fill (historical).** Before the quad, the proven end-to-end example was
+`MIKAEUS_LINE_SPEC` — a `ComputerPlayer7`-subclass thin driver (Mikaeus + Triskelion undying
+ping-loop) that owned three thin responsibilities via `priority()`/`chooseTarget()`/
+`chooseMulligan()` overrides, emitting a `DRIVER_LINE_FIRED` marker. That template and its
+`LineSpec` were **deleted in Phase 5**; the loop it expressed maps onto the quad as **macro + Φ**
+(the ping-loop as `ComboMacro.apply`, gated by `applicable`; Φ develops toward assembly). It is
+retained here only as a design reference for the guard→act→defer discipline, not as live code.

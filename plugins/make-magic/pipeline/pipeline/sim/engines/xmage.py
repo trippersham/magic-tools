@@ -387,9 +387,10 @@ class XMageEngine:
         line / a non-zero exit → :class:`XMageError` (never a silent 0). Mirrors
         :meth:`run_matchup`'s staging + warm + private-db discipline for one deck.
 
-        Return-stable wrapper over :meth:`goldfish_output`: the Phase-2 gate needs the
-        raw combined output (to grep the ``DRIVER_LINE_FIRED`` marker), so the run lives
-        in :meth:`goldfish_output`; this keeps the Phase-1 ``GoldfishResult`` return.
+        Return-stable wrapper over :meth:`goldfish_output`: the dual-mode gate needs the
+        raw combined output (to grep the ``DRIVER_REGISTERED`` / ``DRIVER_MACRO_FIRED``
+        slot-exercise markers), so the run lives in :meth:`goldfish_output`; this keeps the
+        Phase-1 ``GoldfishResult`` return.
         """
         result, _output = self.goldfish_output(
             deck_a, games=games, install=install, skill=skill, driver=driver, timeout_s=timeout_s
@@ -408,10 +409,11 @@ class XMageEngine:
     ) -> tuple[GoldfishResult, str]:
         """As :meth:`goldfish`, but also returns the RAW combined stdout+stderr.
 
-        The Phase-2 behavioral gate greps this output for the driver's
-        ``DRIVER_LINE_FIRED`` marker (the standalone solo harness emits no ``comboFired``
-        static, so "the line fired" can only be read off the marker). :meth:`goldfish`
-        delegates here and drops the output, so its Phase-1 return stays stable.
+        The dual-mode behavioral gate greps this output for the driver's standard markers
+        (``DRIVER_REGISTERED`` for registration, ``DRIVER_MACRO_FIRED`` for a proactive
+        quad's slot exercise), which are the only honest signal the standalone solo harness
+        exposes. :meth:`goldfish` delegates here and drops the output, so its Phase-1 return
+        stays stable.
         """
         handle: XMageInstall = install.handle
         if timeout_s is None:

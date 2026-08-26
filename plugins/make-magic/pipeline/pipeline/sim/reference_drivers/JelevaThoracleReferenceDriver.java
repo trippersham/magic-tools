@@ -174,6 +174,10 @@ public final class JelevaThoracleReferenceDriver {
 
         @Override
         public void apply(Game game, UUID pid) {
+            // STANDARD slot-exercise marker (Phase 5): the seam invokes apply() ONLY to execute
+            // the deterministic win, so entry == the macro fired. The emitter injects the same
+            // line into every authored quad; kept here so the reference driver matches.
+            System.err.println("DRIVER_MACRO_FIRED pid=" + pid);
             Player me = game.getPlayer(pid);
             if (me == null) {
                 return;
