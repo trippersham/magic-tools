@@ -74,6 +74,67 @@ This carries a matching **consumption rule** for `authoring-drivers`: a driver's
 
 The BUG is matching ONE card as a proxy for the category: it misses comparable members and silently breaks on a swap. Enumerated name-sets are drift-safe because a swap changes `deck_version` → `driver_valid` flips false → re-author picks up the new member. Combo pieces stay name-matched.
 
+## The deck-primer lens — how a Strategy projects onto a sim Driver
+
+The five-section format above is the **live schema** every downstream skill reads (the tagger,
+refining-decks, the pre-mortem). Driver authoring reads that same Strategy through a
+**deck-primer lens**: the recognized primer vocabulary a Commander player already uses to
+describe a deck. Nothing new to author — the primer is a *reading* of the sections above, and
+it maps ~1:1 onto the sim Driver's quad `(Φ, P, macro, S)`. Authoring-drivers consumes this
+lens; distilling-strategy elicits with it.
+
+### The proactive/reactive call routes everything (read this FIRST)
+
+Before anything else, the `PRIMARY STRATEGY` archetype answers one question: **does this deck
+enact its own win, or answer the opponent's?**
+
+- **Proactive** (aggro / combo / midrange / go-wide / voltron) — the deck has a **win it
+  executes**: a combo to fire, a board to develop and swing, a payoff to land. It gets a
+  **macro** (the win sequence) gated by **P** (the assembly precondition), plus **Φ** and
+  optional **S**. Gated in **macro-deck mode** (macro demonstrably fires + never-slower solo).
+- **Reactive** (control / stax / spellslinger-control) — the deck's job is to **answer**, hold
+  up interaction, and win late off inevitability. It has no proactive kill to script, so it is
+  **Φ-only**: potential toward a healthy reactive board, **no macro/P/S**. Gated in **Φ-only
+  mode** (never-worse-solo floor; reactive value measured only via an opt-in defended lens — a
+  passive goldfish gives a reactive deck nothing to react to).
+
+This call is the machine router: **proactive ⇒ emit a macro; reactive ⇒ Φ-only.** Get it wrong
+and the whole Driver is the wrong shape.
+
+### The primer → quad map
+
+| Primer reading (of the live sections) | Sim Driver slot |
+|---|---|
+| **Proactive or reactive? / archetype** (`PRIMARY STRATEGY`) | routes macro-deck vs Φ-only → **which gate mode** |
+| **Gameplan / identity** (`GAME PLAN`) | **Φ** — a bounded monotone potential toward the plan |
+| **Win condition(s)** (the payoff in `GAME PLAN` / a combo `KEY LINE`) | **macro** — the deterministic win sequence |
+| **Assembly / the combo turn** (when the win is executable) | **P** — the macro's `applicable` precondition |
+| **Key sequencing & choices** (`KEY LINES` `OWN:` clauses) | **S** — a selection steer + macro ordering |
+| **Mulligan / keepable hands** | a mulligan note (documented; no seam registry yet) |
+
+### `KEY LINES` **is** the Sequencing subsection — the §7.1 intuitions live here
+
+The `KEY LINES` work (its `OWN:`/`DEFER:` discipline, category framing) is exactly the primer's
+**Key Sequencing & Choices** reading, and it carries the hard-won authoring intuitions the
+Driver depends on. They re-home here (and into `authoring-drivers`) as follows:
+
+- **Own the noun, defer the verb.** A `KEY LINE`'s `OWN:` names *what to cast/target/keep* (the
+  noun); its `DEFER:` leaves *combat, land drops, sequencing* (the verbs) to the base AI. This
+  is the core never-regress discipline: it becomes the rule for the Driver's **S** slot and the
+  **macro's real-fire step** — own the one non-obvious pick, defer everything else. A line that
+  owns combat or land drops is a **bug** in the Strategy, not just the Driver.
+- **Category/mechanic altitude, not individual cards.** A `KEY LINE` addresses *all* cards in a
+  category ("ANY land-sac outlet"), naming specific cards only as non-exhaustive members. This
+  becomes how **S** must be written: match by a **comprehensive predicate over the category**,
+  never one card as a stand-in. `getName()` matched against the **FULL member set** of a
+  category is acceptable *when that set is knowable at design time* (enumerated name-sets are
+  drift-safe — a swap flips `driver_valid` and re-authoring picks up the new member). A discrete
+  infinite/deterministic combo **is** its named pieces — name them (that is the macro's own
+  precondition).
+- **The do-not-own guardrails.** `DEFER:` is the Strategy-level statement of the same
+  guardrails the Driver enforces: never own attacker selection / force-attack, generic
+  combat/blocks, land drops, or politics. Naming what NOT to own is half the value.
+
 ## Reference examples (real live strategies)
 
 These are the actual live `Strategy` fields (read via `collection get-deck "<deck>" --field strategy`), with their `KEY LINES` lightly enriched to piloting altitude + category framing. `WANTS` / `DOES NOT WANT` are kept close to the live text.
@@ -185,6 +246,29 @@ DOES NOT WANT:
 • High CMC without immediate board impact
 • Non-permanent spells that don't advance the engine
 ```
+
+### Worked primer re-expression — World Reclaimer read through the lens
+
+The live `World Reclaimer` Strategy above, read through the deck-primer lens for the Driver
+author (no new authoring — the same sections, re-organized):
+
+- **Proactive or reactive?** **Proactive** (lands-matter / sacrifice value engine — it *enacts*
+  a recursion loop). → macro-deck gate mode.
+- **Gameplan / identity → Φ:** develop the land-recursion engine — reward a stocked graveyard of
+  lands + a sacrifice outlet + a recursion effect in play. Φ rises as those pieces assemble.
+- **Win condition(s) → macro:** the explosive mass-recursion swing (Splendid Reclamation /
+  mass land-return after the yard is full) firing its landfall payoffs.
+- **Assembly / the combo turn → P:** the outlet + a graveyard-return effect + enough lands in
+  the yard that the mass return is a swing (not a ramp spell), on my turn.
+- **Key sequencing & choices → S (+ ordering):** from the first `KEY LINE`'s `OWN:` — *"feed a
+  fetched/surplus land to ANY land-sac outlet, never a land tapped for a payoff this turn."*
+  **S** steers the sacrifice choice to an expendable land by a **category-comprehensive**
+  predicate (any surplus land), never one named land. `DEFER:` land drops / curve / combat.
+- **Mulligan / keepable hands:** keep hands with a land-sac outlet or a recursion enabler + a
+  land base; ship no-outlet, no-recursion piles.
+
+That reading is exactly what a `QuadSpec` in `driver_authoring.py` encodes; the author writes
+each slot's body from it, then ECJ-compiles and gates.
 
 ## The `PRIMARY STRATEGY:` line frames the pre-mortem
 

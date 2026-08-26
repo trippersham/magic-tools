@@ -147,6 +147,12 @@ Don't dump all questions at once — this is a conversation, not a form.
   voltron / go-wide / stax / … The archetype frames what "healthy" looks like per
   game-state downstream, so pin it explicitly (see the `PRIMARY STRATEGY:` pre-mortem
   table in strategy-schema.md).
+- **Proactive or reactive?** — the archetype answers one load-bearing question that routes
+  the sim Driver: does this deck **enact its own win** (proactive: aggro/combo/midrange/
+  go-wide/voltron) or **answer the opponent's** (reactive: control/stax/spellslinger-control)?
+  Pin it — it decides whether the deck's Driver gets a scripted win **macro** (proactive) or is
+  **Φ-only** (reactive), and which gate mode it runs in. See the deck-primer lens in
+  strategy-schema.md.
 
 **2. The GAME PLAN + WANTS — how it wins and what makes a card good here.**
 - **Game plan / win conditions** — how does this deck actually win? Name the payoff(s).

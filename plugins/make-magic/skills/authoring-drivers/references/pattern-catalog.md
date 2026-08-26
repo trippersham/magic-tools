@@ -1,5 +1,19 @@
 # Seed pattern catalog + selection + the Mikaeus worked example
 
+> **Quad re-expression (Phase 4).** These seeds were written for the retired
+> `ComputerPlayer7`-subclass path (`priority()`/`chooseTarget()` overrides). They carry forward
+> as **quad shapes** — read them for the *decision each pattern owns* and the *do-not-own list*
+> (both unchanged), then express the logic as quad slots: **combo-loop / spell-combo → macro +
+> Φ** (the loop/sequence as `ComboMacro.apply`, gated by `applicable`=P; Φ develops toward it);
+> **reanimate-target / sac-selection / discard-selection → S** (a category-comprehensive
+> `SelectionSteer`); **hold-interaction / protect-commander → Φ-only** (reactive; Φ rewards
+> holding interaction + mana open, no macro); **gowide-payoff → macro (light) + Φ** (cast the
+> payoff, NEVER `selectAttackers`); **mull-for-plan → the mulligan note** (documented; no seam
+> registry). The DO-NOT-OWN list below is the quad's guardrail surface verbatim (plus: a macro's
+> `apply` must never call `priority()`/`copy()` on the handed sim). The `SEED_PATTERNS`/
+> `PatternSkeleton` code the body references belonged to the retired template and is gone; the
+> live emitter is `render_quad_driver(deck, QuadSpec)`.
+
 The ranked top-8 skeletons live in code as `SEED_PATTERNS` in
 `pipeline/pipeline/sim/driver_authoring.py`. Each `PatternSkeleton` carries the correct
 hook, the guard idiom, an `intent_tag`, a `gate_mode`, and `@@PLACEHOLDER@@` tokens for

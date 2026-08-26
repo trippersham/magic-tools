@@ -1,5 +1,16 @@
 # The greedy-combo PACKAGE (novel spell-sequence + tutor-assembly combos)
 
+> **Quad re-expression (Phase 4).** This package predates the in-search quad; its five stages
+> re-home onto quad slots: **TUTOR & steer → S** (a `SelectionSteer` over the tutor's library
+> search, category-comprehensive); **deploy + fire → macro** (`ComboMacro.apply` drives the
+> deterministic win with bounded state moves); **mulligan-for-combo → the mulligan note**;
+> **Φ** develops toward assembly. The retired **GO/NO-GO `probeWins` / STOP-on-kill `iWon`**
+> helpers are **gone** — the go/no-go is **emergent in-search** now: the macro-fold evaluates
+> firing inside CP7's own alpha-beta, and `applicable` (P) gates the real fire, so the Driver
+> no longer runs its own throwaway probe. The Thoracle worked example below is realized as the
+> proven `JELEVA_QUAD_SPEC` / `JelevaThoracleReferenceDriver.java` — read that for the quad
+> shape; the `priority()`-override code here is the retired idiom kept for its `mage.*` API.
+
 The `combo-loop` seed skeleton covers a **permanent-activation** loop (Mikaeus-shaped): the
 pieces are permanents already on the battlefield and the driver activates one ability to
 loop. But many combo decks — especially cEDH — win with a **spell-cast sequence** that is
