@@ -1,0 +1,1562 @@
+[
+  {
+    "identity": "Mono-White (W)",
+    "commander": "Myrel, Shield of Argive",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:10126962",
+    "cards": 100,
+    "file_name": "mono-white__myrel-shield-of-argive.dck"
+  },
+  {
+    "identity": "Mono-White (W)",
+    "commander": "Light-Paws, Emperor's Voice",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "edhrec:light-paws-emperors-voice.json",
+    "cards": 100,
+    "file_name": "mono-white__light-paws-emperor-s-voice.dck"
+  },
+  {
+    "identity": "Mono-White (W)",
+    "commander": "Sram, Senior Edificer",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:3981530",
+    "cards": 100,
+    "file_name": "mono-white__sram-senior-edificer.dck"
+  },
+  {
+    "identity": "Mono-White (W)",
+    "commander": "Heliod, Sun-Crowned",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:6734200",
+    "cards": 97,
+    "file_name": "mono-white__heliod-sun-crowned.dck"
+  },
+  {
+    "identity": "Mono-White (W)",
+    "commander": "Giada, Font of Hope",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "archidekt:849785",
+    "cards": 100,
+    "file_name": "mono-white__giada-font-of-hope.dck"
+  },
+  {
+    "identity": "Mono-Blue (U)",
+    "commander": "Emry, Lurker of the Loch",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "archidekt:14737331",
+    "cards": 102,
+    "file_name": "mono-blue__emry-lurker-of-the-loch.dck"
+  },
+  {
+    "identity": "Mono-Blue (U)",
+    "commander": "Emry — \"No Combos\" (fair value)",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:5116406",
+    "cards": 100,
+    "file_name": "mono-blue__emry-no-combos.dck"
+  },
+  {
+    "identity": "Mono-Blue (U)",
+    "commander": "Urza, Lord High Artificer",
+    "bracket": "5",
+    "file": "mono-and-5color.md",
+    "bundle": "cedh",
+    "source": "archidekt:3072782",
+    "cards": 100,
+    "file_name": "mono-blue__urza-lord-high-artificer.dck"
+  },
+  {
+    "identity": "Mono-Blue (U)",
+    "commander": "Baral, Chief of Compliance",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "edhrec:baral-chief-of-compliance.json",
+    "cards": 100,
+    "file_name": "mono-blue__baral-chief-of-compliance.dck"
+  },
+  {
+    "identity": "Mono-Blue (U)",
+    "commander": "Talrand, Sky Summoner",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "edhrec:talrand-sky-summoner.json",
+    "cards": 100,
+    "file_name": "mono-blue__talrand-sky-summoner.dck"
+  },
+  {
+    "identity": "Mono-Blue (U)",
+    "commander": "Talrand, Sky Summoner",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "edhrec:talrand-sky-summoner.json",
+    "cards": 100,
+    "file_name": "mono-blue__talrand-sky-summoner.dck"
+  },
+  {
+    "identity": "Mono-Blue (U)",
+    "commander": "Bruvac the Grandiloquent",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "archidekt:16411613",
+    "cards": 100,
+    "file_name": "mono-blue__bruvac-the-grandiloquent.dck"
+  },
+  {
+    "identity": "Mono-Blue (U)",
+    "commander": "Azami, Lady of Scrolls",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "edhrec:azami-lady-of-scrolls.json",
+    "cards": 100,
+    "file_name": "mono-blue__azami-lady-of-scrolls.dck"
+  },
+  {
+    "identity": "Mono-Black (B)",
+    "commander": "Ayara, First of Locthwain",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "edhrec:ayara-first-of-locthwain/aristocrats.json",
+    "cards": 100,
+    "file_name": "mono-black__ayara-first-of-locthwain.dck"
+  },
+  {
+    "identity": "Mono-Black (B)",
+    "commander": "Braids, Arisen Nightmare",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:10803147",
+    "cards": 100,
+    "file_name": "mono-black__braids-arisen-nightmare.dck"
+  },
+  {
+    "identity": "Mono-Black (B)",
+    "commander": "Yawgmoth, Thran Physician",
+    "bracket": "5",
+    "file": "mono-and-5color.md",
+    "bundle": "cedh",
+    "source": "archidekt:3834903",
+    "cards": 100,
+    "file_name": "mono-black__yawgmoth-thran-physician.dck"
+  },
+  {
+    "identity": "Mono-Black (B)",
+    "commander": "Erebos, God of the Dead",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:7968453",
+    "cards": 100,
+    "file_name": "mono-black__erebos-god-of-the-dead.dck"
+  },
+  {
+    "identity": "Mono-Black (B)",
+    "commander": "K'rrik, Son of Yawgmoth",
+    "bracket": "5",
+    "file": "mono-and-5color.md",
+    "bundle": "cedh",
+    "source": "archidekt:3799677",
+    "cards": 99,
+    "file_name": "mono-black__k-rrik-son-of-yawgmoth.dck"
+  },
+  {
+    "identity": "Mono-Black (B)",
+    "commander": "Sheoldred, Whispering One",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "edhrec:sheoldred-whispering-one.json",
+    "cards": 100,
+    "file_name": "mono-black__sheoldred-whispering-one.dck"
+  },
+  {
+    "identity": "Mono-Black (B)",
+    "commander": "K'rrik, Son of Yawgmoth",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "edhrec:krrik-son-of-yawgmoth/reanimator.json",
+    "cards": 100,
+    "file_name": "mono-black__k-rrik-son-of-yawgmoth.dck"
+  },
+  {
+    "identity": "Mono-Black (B)",
+    "commander": "Xu-Ifit, Osteoharmonist",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "edhrec:xu-ifit-osteoharmonist.json",
+    "cards": 100,
+    "file_name": "mono-black__xu-ifit-osteoharmonist.dck"
+  },
+  {
+    "identity": "Mono-Red (R)",
+    "commander": "Krenko, Mob Boss",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "edhrec:krenko-mob-boss.json",
+    "cards": 100,
+    "file_name": "mono-red__krenko-mob-boss.dck"
+  },
+  {
+    "identity": "Mono-Red (R)",
+    "commander": "Torbran, Thane of Red Fell",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:11544750",
+    "cards": 100,
+    "file_name": "mono-red__torbran-thane-of-red-fell.dck"
+  },
+  {
+    "identity": "Mono-Red (R)",
+    "commander": "Neheb, the Eternal",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:2980241",
+    "cards": 100,
+    "file_name": "mono-red__neheb-the-eternal.dck"
+  },
+  {
+    "identity": "Mono-Red (R)",
+    "commander": "Lathliss, Dragon Queen",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "edhrec:lathliss-dragon-queen.json",
+    "cards": 100,
+    "file_name": "mono-red__lathliss-dragon-queen.dck"
+  },
+  {
+    "identity": "Mono-Red (R)",
+    "commander": "Zada, Hedron Grinder",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "edhrec:zada-hedron-grinder/spellslinger.json",
+    "cards": 100,
+    "file_name": "mono-red__zada-hedron-grinder.dck"
+  },
+  {
+    "identity": "Mono-Red (R)",
+    "commander": "Godo, Bandit Warlord + Helm of the Host",
+    "bracket": "5",
+    "file": "mono-and-5color.md",
+    "bundle": "cedh",
+    "source": "edhrec:godo-bandit-warlord/cedh.json",
+    "cards": 100,
+    "file_name": "mono-red__godo-bandit-warlord-helm-of-the-host.dck"
+  },
+  {
+    "identity": "Mono-Green (G)",
+    "commander": "Omnath, Locus of Mana",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "edhrec:omnath-locus-of-mana.json",
+    "cards": 100,
+    "file_name": "mono-green__omnath-locus-of-mana.dck"
+  },
+  {
+    "identity": "Mono-Green (G)",
+    "commander": "Azusa, Lost but Seeking",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "edhrec:azusa-lost-but-seeking/landfall.json",
+    "cards": 100,
+    "file_name": "mono-green__azusa-lost-but-seeking.dck"
+  },
+  {
+    "identity": "Mono-Green (G)",
+    "commander": "Marwyn, the Nurturer",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:5772203",
+    "cards": 96,
+    "file_name": "mono-green__marwyn-the-nurturer.dck"
+  },
+  {
+    "identity": "Mono-Green (G)",
+    "commander": "Ezuri, Renegade Leader",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "edhrec:ezuri-renegade-leader.json",
+    "cards": 100,
+    "file_name": "mono-green__ezuri-renegade-leader.dck"
+  },
+  {
+    "identity": "Mono-Green (G)",
+    "commander": "Gargos, Vicious Watcher",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "edhrec:gargos-vicious-watcher.json",
+    "cards": 100,
+    "file_name": "mono-green__gargos-vicious-watcher.dck"
+  },
+  {
+    "identity": "Mono-Green (G)",
+    "commander": "Selvala, Heart of the Wilds",
+    "bracket": "4",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:2202378",
+    "cards": 100,
+    "file_name": "mono-green__selvala-heart-of-the-wilds.dck"
+  },
+  {
+    "identity": "Five-Color (WUBRG)",
+    "commander": "Jodah, the Unifier",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:3361540",
+    "cards": 97,
+    "file_name": "five-color__jodah-the-unifier.dck"
+  },
+  {
+    "identity": "Five-Color (WUBRG)",
+    "commander": "The Ur-Dragon",
+    "bracket": "2",
+    "file": "mono-and-5color.md",
+    "bundle": "casual",
+    "source": "archidekt:3800397",
+    "cards": 100,
+    "file_name": "five-color__the-ur-dragon.dck"
+  },
+  {
+    "identity": "Five-Color (WUBRG)",
+    "commander": "The Ur-Dragon",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "archidekt:12949870",
+    "cards": 101,
+    "file_name": "five-color__the-ur-dragon.dck"
+  },
+  {
+    "identity": "Five-Color (WUBRG)",
+    "commander": "Kenrith, the Returned King",
+    "bracket": "5",
+    "file": "mono-and-5color.md",
+    "bundle": "cedh",
+    "source": "edhrec:kenrith-the-returned-king/cedh.json",
+    "cards": 97,
+    "file_name": "five-color__kenrith-the-returned-king.dck"
+  },
+  {
+    "identity": "Five-Color (WUBRG)",
+    "commander": "Ramos, Dragon Engine",
+    "bracket": "3",
+    "file": "mono-and-5color.md",
+    "bundle": "mid",
+    "source": "edhrec:ramos-dragon-engine/spellslinger.json",
+    "cards": 100,
+    "file_name": "five-color__ramos-dragon-engine.dck"
+  },
+  {
+    "identity": "Azorius (WU)",
+    "commander": "Grand Arbiter Augustin IV",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:grand-arbiter-augustin-iv/stax.json",
+    "cards": 100,
+    "file_name": "azorius__grand-arbiter-augustin-iv.dck"
+  },
+  {
+    "identity": "Azorius (WU)",
+    "commander": "Brago, King Eternal",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:brago-king-eternal.json",
+    "cards": 100,
+    "file_name": "azorius__brago-king-eternal.dck"
+  },
+  {
+    "identity": "Azorius (WU)",
+    "commander": "Isperia, Supreme Judge",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "archidekt:10914352",
+    "cards": 100,
+    "file_name": "azorius__isperia-supreme-judge.dck"
+  },
+  {
+    "identity": "Azorius (WU)",
+    "commander": "Kastral, the Windcrested",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:kastral-the-windcrested.json",
+    "cards": 100,
+    "file_name": "azorius__kastral-the-windcrested.dck"
+  },
+  {
+    "identity": "Azorius (WU)",
+    "commander": "Shorikai, Genesis Engine",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:shorikai-genesis-engine/vehicles.json",
+    "cards": 100,
+    "file_name": "azorius__shorikai-genesis-engine.dck"
+  },
+  {
+    "identity": "Azorius (WU)",
+    "commander": "Shorikai",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "archidekt:5144758(size=125)",
+    "cards": 125,
+    "file_name": "azorius__shorikai.dck"
+  },
+  {
+    "identity": "Azorius (WU)",
+    "commander": "Shorikai",
+    "bracket": "5",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "cedh",
+    "source": "edhrec:shorikai-genesis-engine/cedh.json",
+    "cards": 100,
+    "file_name": "azorius__shorikai.dck"
+  },
+  {
+    "identity": "Orzhov (WB)",
+    "commander": "Teysa Karlov",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:teysa-karlov.json",
+    "cards": 100,
+    "file_name": "orzhov__teysa-karlov.dck"
+  },
+  {
+    "identity": "Orzhov (WB)",
+    "commander": "Teysa, Orzhov Scion",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:teysa-orzhov-scion/aristocrats.json",
+    "cards": 100,
+    "file_name": "orzhov__teysa-orzhov-scion.dck"
+  },
+  {
+    "identity": "Orzhov (WB)",
+    "commander": "Karlov of the Ghost Council",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:karlov-of-the-ghost-council.json",
+    "cards": 100,
+    "file_name": "orzhov__karlov-of-the-ghost-council.dck"
+  },
+  {
+    "identity": "Orzhov (WB)",
+    "commander": "Liesa, Shroud of Dusk",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:liesa-shroud-of-dusk.json",
+    "cards": 100,
+    "file_name": "orzhov__liesa-shroud-of-dusk.dck"
+  },
+  {
+    "identity": "Orzhov (WB)",
+    "commander": "Elenda, the Dusk Rose",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:elenda-the-dusk-rose.json",
+    "cards": 100,
+    "file_name": "orzhov__elenda-the-dusk-rose.dck"
+  },
+  {
+    "identity": "Orzhov (WB)",
+    "commander": "Ketramose, the New Dawn",
+    "bracket": "5",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "cedh",
+    "source": "archidekt:11579233",
+    "cards": 100,
+    "file_name": "orzhov__ketramose-the-new-dawn.dck"
+  },
+  {
+    "identity": "Boros (WR)",
+    "commander": "Wyleth, Soul of Steel",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:wyleth-soul-of-steel.json",
+    "cards": 100,
+    "file_name": "boros__wyleth-soul-of-steel.dck"
+  },
+  {
+    "identity": "Boros (WR)",
+    "commander": "Ardenn + Rograkh",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:ardenn-intrepid-archaeologist-rograkh-son-of-rohgahh.json",
+    "cards": 100,
+    "file_name": "boros__ardenn-rograkh.dck"
+  },
+  {
+    "identity": "Boros (WR)",
+    "commander": "Neyali, Suns' Vanguard",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:neyali-suns-vanguard.json",
+    "cards": 100,
+    "file_name": "boros__neyali-suns-vanguard.dck"
+  },
+  {
+    "identity": "Boros (WR)",
+    "commander": "Winota, Joiner of Forces",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:winota-joiner-of-forces.json",
+    "cards": 100,
+    "file_name": "boros__winota-joiner-of-forces.dck"
+  },
+  {
+    "identity": "Boros (WR)",
+    "commander": "Feather, the Redeemed",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:feather-the-redeemed.json",
+    "cards": 100,
+    "file_name": "boros__feather-the-redeemed.dck"
+  },
+  {
+    "identity": "Boros (WR)",
+    "commander": "Nelly Borca, Impulsive Accuser",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:nelly-borca-impulsive-accuser.json",
+    "cards": 100,
+    "file_name": "boros__nelly-borca-impulsive-accuser.dck"
+  },
+  {
+    "identity": "Selesnya (WG)",
+    "commander": "Trostani, Selesnya's Voice",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:trostani-selesnyas-voice.json",
+    "cards": 100,
+    "file_name": "selesnya__trostani-selesnya-s-voice.dck"
+  },
+  {
+    "identity": "Selesnya (WG)",
+    "commander": "Rhys the Redeemed",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:rhys-the-redeemed.json",
+    "cards": 100,
+    "file_name": "selesnya__rhys-the-redeemed.dck"
+  },
+  {
+    "identity": "Selesnya (WG)",
+    "commander": "Rinoa Heartilly",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:rinoa-heartilly.json",
+    "cards": 100,
+    "file_name": "selesnya__rinoa-heartilly.dck"
+  },
+  {
+    "identity": "Selesnya (WG)",
+    "commander": "Hamza, Guardian of Arashin",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:hamza-guardian-of-arashin.json",
+    "cards": 100,
+    "file_name": "selesnya__hamza-guardian-of-arashin.dck"
+  },
+  {
+    "identity": "Selesnya (WG)",
+    "commander": "Kyler, Sigardian Emissary",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:kyler-sigardian-emissary.json",
+    "cards": 100,
+    "file_name": "selesnya__kyler-sigardian-emissary.dck"
+  },
+  {
+    "identity": "Selesnya (WG)",
+    "commander": "Sythis, Harvest's Hand",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:sythis-harvests-hand/enchantress.json",
+    "cards": 100,
+    "file_name": "selesnya__sythis-harvest-s-hand.dck"
+  },
+  {
+    "identity": "Selesnya (WG)",
+    "commander": "Trelasarra, Moon Dancer",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:trelasarra-moon-dancer.json",
+    "cards": 100,
+    "file_name": "selesnya__trelasarra-moon-dancer.dck"
+  },
+  {
+    "identity": "Dimir (UB)",
+    "commander": "Yuriko, the Tiger's Shadow",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:yuriko-the-tigers-shadow.json",
+    "cards": 100,
+    "file_name": "dimir__yuriko-the-tiger-s-shadow.dck"
+  },
+  {
+    "identity": "Dimir (UB)",
+    "commander": "Phenax, God of Deception",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:phenax-god-of-deception/mill.json",
+    "cards": 100,
+    "file_name": "dimir__phenax-god-of-deception.dck"
+  },
+  {
+    "identity": "Dimir (UB)",
+    "commander": "Xanathar, Guild Kingpin",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:xanathar-guild-kingpin.json",
+    "cards": 100,
+    "file_name": "dimir__xanathar-guild-kingpin.dck"
+  },
+  {
+    "identity": "Dimir (UB)",
+    "commander": "Tasha, the Witch Queen",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:tasha-the-witch-queen/upgraded.json",
+    "cards": 100,
+    "file_name": "dimir__tasha-the-witch-queen.dck"
+  },
+  {
+    "identity": "Dimir (UB)",
+    "commander": "Wilhelt, the Rotcleaver",
+    "bracket": "2",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "casual",
+    "source": "edhrec:wilhelt-the-rotcleaver.json",
+    "cards": 100,
+    "file_name": "dimir__wilhelt-the-rotcleaver.dck"
+  },
+  {
+    "identity": "Dimir (UB)",
+    "commander": "Lazav, the Multifarious",
+    "bracket": "3",
+    "file": "2color-azorius-orzhov-boros-selesnya-dimir.md",
+    "bundle": "mid",
+    "source": "edhrec:lazav-the-multifarious/reanimator.json",
+    "cards": 100,
+    "file_name": "dimir__lazav-the-multifarious.dck"
+  },
+  {
+    "identity": "Izzet (UR)",
+    "commander": "Vivi Ornitier",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:vivi-ornitier.json",
+    "cards": 100,
+    "file_name": "izzet__vivi-ornitier.dck"
+  },
+  {
+    "identity": "Izzet (UR)",
+    "commander": "Veyran",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:veyran-voice-of-duality.json",
+    "cards": 100,
+    "file_name": "izzet__veyran.dck"
+  },
+  {
+    "identity": "Izzet (UR)",
+    "commander": "Ral, Monsoon Mage // Ral, Leyline Prodigy",
+    "bracket": "5",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "cedh",
+    "source": "edhrec:ral-monsoon-mage.json",
+    "cards": 100,
+    "file_name": "izzet__ral-monsoon-mage-ral-leyline-prodigy.dck"
+  },
+  {
+    "identity": "Izzet (UR)",
+    "commander": "The Locust God",
+    "bracket": "2",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "casual",
+    "source": "archidekt:20733169",
+    "cards": 100,
+    "file_name": "izzet__the-locust-god.dck"
+  },
+  {
+    "identity": "Izzet (UR)",
+    "commander": "Niv-Mizzet, Parun",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:niv-mizzet-parun.json",
+    "cards": 100,
+    "file_name": "izzet__niv-mizzet-parun.dck"
+  },
+  {
+    "identity": "Izzet (UR)",
+    "commander": "Jhoira",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:jhoira-weatherlight-captain.json",
+    "cards": 100,
+    "file_name": "izzet__jhoira.dck"
+  },
+  {
+    "identity": "Simic (UG)",
+    "commander": "Hakbal of the Surging Soul",
+    "bracket": "2",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "casual",
+    "source": "edhrec:hakbal-of-the-surging-soul.json",
+    "cards": 100,
+    "file_name": "simic__hakbal-of-the-surging-soul.dck"
+  },
+  {
+    "identity": "Simic (UG)",
+    "commander": "Ezuri",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:ezuri-claw-of-progress.json",
+    "cards": 100,
+    "file_name": "simic__ezuri.dck"
+  },
+  {
+    "identity": "Simic (UG)",
+    "commander": "Aesi",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:aesi-tyrant-of-gyre-strait.json",
+    "cards": 100,
+    "file_name": "simic__aesi.dck"
+  },
+  {
+    "identity": "Simic (UG)",
+    "commander": "Volo, Guide to Monsters",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:volo-guide-to-monsters.json",
+    "cards": 100,
+    "file_name": "simic__volo-guide-to-monsters.dck"
+  },
+  {
+    "identity": "Rakdos (BR)",
+    "commander": "Valgavoth, Harrower of Souls (backup: The Lord of Pain)",
+    "bracket": "2",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "casual",
+    "source": "archidekt:9189744",
+    "cards": 100,
+    "file_name": "rakdos__valgavoth-harrower-of-souls.dck"
+  },
+  {
+    "identity": "Rakdos (BR)",
+    "commander": "Rakdos, the Muscle",
+    "bracket": "2",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "casual",
+    "source": "edhrec:rakdos-the-muscle/reanimator.json",
+    "cards": 100,
+    "file_name": "rakdos__rakdos-the-muscle.dck"
+  },
+  {
+    "identity": "Rakdos (BR)",
+    "commander": "Judith",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:judith-carnage-connoisseur.json",
+    "cards": 100,
+    "file_name": "rakdos__judith.dck"
+  },
+  {
+    "identity": "Rakdos (BR)",
+    "commander": "Prosper",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:prosper-tome-bound.json",
+    "cards": 100,
+    "file_name": "rakdos__prosper.dck"
+  },
+  {
+    "identity": "Rakdos (BR)",
+    "commander": "Prosper",
+    "bracket": "5",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "cedh",
+    "source": "edhrec:prosper-tome-bound/cedh.json",
+    "cards": 100,
+    "file_name": "rakdos__prosper.dck"
+  },
+  {
+    "identity": "Golgari (BG)",
+    "commander": "Gitrog",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "archidekt:95139",
+    "cards": 100,
+    "file_name": "golgari__gitrog.dck"
+  },
+  {
+    "identity": "Gruul (RG)",
+    "commander": "Bello",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:bello-bard-of-the-brambles.json",
+    "cards": 100,
+    "file_name": "gruul__bello.dck"
+  },
+  {
+    "identity": "Gruul (RG)",
+    "commander": "Etali // Etali, Primal Sickness",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:etali-primal-conqueror.json",
+    "cards": 100,
+    "file_name": "gruul__etali-etali-primal-sickness.dck"
+  },
+  {
+    "identity": "Gruul (RG)",
+    "commander": "Xenagos",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:xenagos-god-of-revels.json",
+    "cards": 100,
+    "file_name": "gruul__xenagos.dck"
+  },
+  {
+    "identity": "Gruul (RG)",
+    "commander": "Roxanne",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:roxanne-starfall-savant.json",
+    "cards": 100,
+    "file_name": "gruul__roxanne.dck"
+  },
+  {
+    "identity": "Gruul (RG)",
+    "commander": "Tovolar // the Midnight Scourge",
+    "bracket": "2",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "casual",
+    "source": "edhrec:tovolar-dire-overlord.json",
+    "cards": 100,
+    "file_name": "gruul__tovolar-the-midnight-scourge.dck"
+  },
+  {
+    "identity": "Gruul (RG)",
+    "commander": "Zilortha",
+    "bracket": "3",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "mid",
+    "source": "edhrec:gishath-suns-avatar.json",
+    "cards": 100,
+    "file_name": "gruul__zilortha.dck"
+  },
+  {
+    "identity": "Gruul (RG)",
+    "commander": "Rydia",
+    "bracket": "5",
+    "file": "2color-izzet-simic-rakdos-golgari-gruul.md",
+    "bundle": "cedh",
+    "source": "edhrec:rydia-summoner-of-mist/cedh.json",
+    "cards": 100,
+    "file_name": "gruul__rydia.dck"
+  },
+  {
+    "identity": "Esper (WUB)",
+    "commander": "Sen Triplets",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "edhrec:sen-triplets.json",
+    "cards": 100,
+    "file_name": "esper__sen-triplets.dck"
+  },
+  {
+    "identity": "Esper (WUB)",
+    "commander": "Aminatou, Veil Piercer (2025 Aetherdrift card; NOT the Fateshifter)",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:15770928",
+    "cards": 100,
+    "file_name": "esper__aminatou-veil-piercer.dck"
+  },
+  {
+    "identity": "Esper (WUB)",
+    "commander": "Aminatou, the Fateshifter",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "archidekt:9158029",
+    "cards": 100,
+    "file_name": "esper__aminatou-the-fateshifter.dck"
+  },
+  {
+    "identity": "Esper (WUB)",
+    "commander": "Aminatou, the Fateshifter",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "edhrec:aminatou-the-fateshifter/planeswalkers.json",
+    "cards": 100,
+    "file_name": "esper__aminatou-the-fateshifter.dck"
+  },
+  {
+    "identity": "Esper (WUB)",
+    "commander": "Sydri, Galvanic Genius",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "archidekt:24168523",
+    "cards": 100,
+    "file_name": "esper__sydri-galvanic-genius.dck"
+  },
+  {
+    "identity": "Esper (WUB)",
+    "commander": "Sydri, Galvanic Genius",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:3827658",
+    "cards": 100,
+    "file_name": "esper__sydri-galvanic-genius.dck"
+  },
+  {
+    "identity": "Esper (WUB)",
+    "commander": "Sharuum the Hegemon",
+    "bracket": "4",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:4541728",
+    "cards": 100,
+    "file_name": "esper__sharuum-the-hegemon.dck"
+  },
+  {
+    "identity": "Esper (WUB)",
+    "commander": "Raffine, Scheming Seer",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "edhrec:raffine-scheming-seer/upgraded.json",
+    "cards": 100,
+    "file_name": "esper__raffine-scheming-seer.dck"
+  },
+  {
+    "identity": "Esper (WUB)",
+    "commander": "Raffine, Scheming Seer",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:9288633",
+    "cards": 100,
+    "file_name": "esper__raffine-scheming-seer.dck"
+  },
+  {
+    "identity": "Esper (WUB)",
+    "commander": "Hashaton, Scarab's Fist",
+    "bracket": "5",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "cedh",
+    "source": "archidekt:11392187",
+    "cards": 100,
+    "file_name": "esper__hashaton-scarab-s-fist.dck"
+  },
+  {
+    "identity": "Esper (WUB)",
+    "commander": "Raffine, Scheming Seer",
+    "bracket": "5",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "cedh",
+    "source": "edhrec:raffine-scheming-seer/cedh.json",
+    "cards": 100,
+    "file_name": "esper__raffine-scheming-seer.dck"
+  },
+  {
+    "identity": "Jeskai (WUR)",
+    "commander": "Kykar, Wind's Fury",
+    "bracket": "5",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "cedh",
+    "source": "edhrec:kykar-winds-fury/cedh.json",
+    "cards": 100,
+    "file_name": "jeskai__kykar-wind-s-fury.dck"
+  },
+  {
+    "identity": "Jeskai (WUR)",
+    "commander": "Elsha of the Infinite",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "edhrec:elsha-of-the-infinite.json",
+    "cards": 100,
+    "file_name": "jeskai__elsha-of-the-infinite.dck"
+  },
+  {
+    "identity": "Jeskai (WUR)",
+    "commander": "Kykar, Wind's Fury",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "edhrec:kykar-winds-fury/spellslinger.json",
+    "cards": 100,
+    "file_name": "jeskai__kykar-wind-s-fury.dck"
+  },
+  {
+    "identity": "Jeskai (WUR)",
+    "commander": "Narset, Enlightened Master",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "edhrec:narset-enlightened-master/planeswalkers.json",
+    "cards": 100,
+    "file_name": "jeskai__narset-enlightened-master.dck"
+  },
+  {
+    "identity": "Jeskai (WUR)",
+    "commander": "Narset, Enlightened Master",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "edhrec:narset-enlightened-master.json",
+    "cards": 100,
+    "file_name": "jeskai__narset-enlightened-master.dck"
+  },
+  {
+    "identity": "Jeskai (WUR)",
+    "commander": "Shiko and Narset, Unified",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "archidekt:12002085",
+    "cards": 100,
+    "file_name": "jeskai__shiko-and-narset-unified.dck"
+  },
+  {
+    "identity": "Jeskai (WUR)",
+    "commander": "Shiko, Paragon of the Way",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:13081607",
+    "cards": 100,
+    "file_name": "jeskai__shiko-paragon-of-the-way.dck"
+  },
+  {
+    "identity": "Jeskai (WUR)",
+    "commander": "Cayth, Famed Mechanist",
+    "bracket": "4",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:11086688",
+    "cards": 100,
+    "file_name": "jeskai__cayth-famed-mechanist.dck"
+  },
+  {
+    "identity": "Bant (WUG)",
+    "commander": "Roon of the Hidden Realm",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "edhrec:roon-of-the-hidden-realm.json",
+    "cards": 100,
+    "file_name": "bant__roon-of-the-hidden-realm.dck"
+  },
+  {
+    "identity": "Bant (WUG)",
+    "commander": "Tuvasa the Sunlit",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "archidekt:2995596",
+    "cards": 100,
+    "file_name": "bant__tuvasa-the-sunlit.dck"
+  },
+  {
+    "identity": "Bant (WUG)",
+    "commander": "Rafiq of the Many",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "edhrec:rafiq-of-the-many/voltron.json",
+    "cards": 100,
+    "file_name": "bant__rafiq-of-the-many.dck"
+  },
+  {
+    "identity": "Bant (WUG)",
+    "commander": "Helga, Skittish Seer",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:8378608",
+    "cards": 100,
+    "file_name": "bant__helga-skittish-seer.dck"
+  },
+  {
+    "identity": "Bant (WUG)",
+    "commander": "Aang, at the Crossroads // Aang, Destined Savior",
+    "bracket": "5",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "cedh",
+    "source": "archidekt:20299212",
+    "cards": 100,
+    "file_name": "bant__aang-at-the-crossroads-aang-destined-savior.dck"
+  },
+  {
+    "identity": "Bant (WUG)",
+    "commander": "Derevi, Empyrial Tactician",
+    "bracket": "5",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "cedh",
+    "source": "edhrec:derevi-empyrial-tactician.json",
+    "cards": 100,
+    "file_name": "bant__derevi-empyrial-tactician.dck"
+  },
+  {
+    "identity": "Mardu (WBR)",
+    "commander": "Isshin, Two Heavens as One",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "edhrec:isshin-two-heavens-as-one/budget.json",
+    "cards": 100,
+    "file_name": "mardu__isshin-two-heavens-as-one.dck"
+  },
+  {
+    "identity": "Mardu (WBR)",
+    "commander": "Isshin, Two Heavens as One (average)",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "edhrec:isshin-two-heavens-as-one.json",
+    "cards": 100,
+    "file_name": "mardu__isshin-two-heavens-as-one.dck"
+  },
+  {
+    "identity": "Mardu (WBR)",
+    "commander": "Vihaan, Goldwaker",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "edhrec:vihaan-goldwaker/treasure.json",
+    "cards": 100,
+    "file_name": "mardu__vihaan-goldwaker.dck"
+  },
+  {
+    "identity": "Mardu (WBR)",
+    "commander": "Alesha, Who Smiles at Death",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "edhrec:alesha-who-smiles-at-death/reanimator.json",
+    "cards": 100,
+    "file_name": "mardu__alesha-who-smiles-at-death.dck"
+  },
+  {
+    "identity": "Mardu (WBR)",
+    "commander": "Dihada, Binder of Wills",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "edhrec:dihada-binder-of-wills.json",
+    "cards": 100,
+    "file_name": "mardu__dihada-binder-of-wills.dck"
+  },
+  {
+    "identity": "Mardu (WBR)",
+    "commander": "Kaalia of the Vast",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "edhrec:kaalia-of-the-vast/optimized.json",
+    "cards": 100,
+    "file_name": "mardu__kaalia-of-the-vast.dck"
+  },
+  {
+    "identity": "Mardu (WBR)",
+    "commander": "Celes, Rune Knight",
+    "bracket": "5",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "cedh",
+    "source": "edhrec:edgar-markov.json",
+    "cards": 100,
+    "file_name": "mardu__celes-rune-knight.dck"
+  },
+  {
+    "identity": "Abzan (WBG)",
+    "commander": "Anafenza, the Foremost",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:258006",
+    "cards": 100,
+    "file_name": "abzan__anafenza-the-foremost.dck"
+  },
+  {
+    "identity": "Abzan (WBG)",
+    "commander": "Kathril, Aspect Warper",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:4087555",
+    "cards": 100,
+    "file_name": "abzan__kathril-aspect-warper.dck"
+  },
+  {
+    "identity": "Abzan (WBG)",
+    "commander": "Ghave, Guru of Spores",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:94035",
+    "cards": 100,
+    "file_name": "abzan__ghave-guru-of-spores.dck"
+  },
+  {
+    "identity": "Abzan (WBG)",
+    "commander": "Karador, Ghost Chieftain",
+    "bracket": "2",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "casual",
+    "source": "edhrec:karador-ghost-chieftain.json",
+    "cards": 100,
+    "file_name": "abzan__karador-ghost-chieftain.dck"
+  },
+  {
+    "identity": "Abzan (WBG)",
+    "commander": "Nethroi, Apex of Death",
+    "bracket": "4",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:8389920",
+    "cards": 100,
+    "file_name": "abzan__nethroi-apex-of-death.dck"
+  },
+  {
+    "identity": "Abzan (WBG)",
+    "commander": "Doran, the Siege Tower",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:5117231",
+    "cards": 100,
+    "file_name": "abzan__doran-the-siege-tower.dck"
+  },
+  {
+    "identity": "Abzan (WBG)",
+    "commander": "Betor, Ancestor's Voice",
+    "bracket": "3",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "mid",
+    "source": "archidekt:12142491",
+    "cards": 100,
+    "file_name": "abzan__betor-ancestor-s-voice.dck"
+  },
+  {
+    "identity": "Abzan (WBG)",
+    "commander": "Tayam, Luminous Enigma",
+    "bracket": "5",
+    "file": "3color-esper-jeskai-bant-mardu-abzan.md",
+    "bundle": "cedh",
+    "source": "archidekt:4600695",
+    "cards": 100,
+    "file_name": "abzan__tayam-luminous-enigma.dck"
+  },
+  {
+    "identity": "Naya (WRG)",
+    "commander": "Gishath, Sun's Avatar",
+    "bracket": "3",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "mid",
+    "source": "edhrec:gishath-suns-avatar.json",
+    "cards": 100,
+    "file_name": "naya__gishath-sun-s-avatar.dck"
+  },
+  {
+    "identity": "Naya (WRG)",
+    "commander": "Marath, Will of the Wild",
+    "bracket": "2",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "casual",
+    "source": "edhrec:marath-will-of-the-wild.json",
+    "cards": 100,
+    "file_name": "naya__marath-will-of-the-wild.dck"
+  },
+  {
+    "identity": "Naya (WRG)",
+    "commander": "Obuun, Mul Daya Ancestor",
+    "bracket": "2",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "casual",
+    "source": "edhrec:obuun-mul-daya-ancestor.json",
+    "cards": 100,
+    "file_name": "naya__obuun-mul-daya-ancestor.dck"
+  },
+  {
+    "identity": "Naya (WRG)",
+    "commander": "Rocco, Cabaretti Caterer",
+    "bracket": "5",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "cedh",
+    "source": "edhrec:rocco-cabaretti-caterer/cedh.json",
+    "cards": 100,
+    "file_name": "naya__rocco-cabaretti-caterer.dck"
+  },
+  {
+    "identity": "Grixis (UBR)",
+    "commander": "Kess, Dissident Mage",
+    "bracket": "5",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "cedh",
+    "source": "edhrec:kess-dissident-mage/cedh.json",
+    "cards": 100,
+    "file_name": "grixis__kess-dissident-mage.dck"
+  },
+  {
+    "identity": "Grixis (UBR)",
+    "commander": "Jeleva, Nephalia's Scourge",
+    "bracket": "5",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "cedh",
+    "source": "edhrec:jeleva-nephalias-scourge/cedh.json",
+    "cards": 100,
+    "file_name": "grixis__jeleva-nephalia-s-scourge.dck"
+  },
+  {
+    "identity": "Grixis (UBR)",
+    "commander": "Nekusar, the Mindrazer",
+    "bracket": "2",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "casual",
+    "source": "edhrec:nekusar-the-mindrazer.json",
+    "cards": 100,
+    "file_name": "grixis__nekusar-the-mindrazer.dck"
+  },
+  {
+    "identity": "Grixis (UBR)",
+    "commander": "Marchesa, the Black Rose",
+    "bracket": "2",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "casual",
+    "source": "archidekt:1267252",
+    "cards": 100,
+    "file_name": "grixis__marchesa-the-black-rose.dck"
+  },
+  {
+    "identity": "Grixis (UBR)",
+    "commander": "Marchesa, Dealer of Death",
+    "bracket": "5",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "cedh",
+    "source": "edhrec:marchesa-dealer-of-death/reanimator.json",
+    "cards": 100,
+    "file_name": "grixis__marchesa-dealer-of-death.dck"
+  },
+  {
+    "identity": "Sultai (UBG)",
+    "commander": "Teval, the Balanced Scale",
+    "bracket": "2",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "casual",
+    "source": "archidekt:12047649",
+    "cards": 100,
+    "file_name": "sultai__teval-the-balanced-scale.dck"
+  },
+  {
+    "identity": "Sultai (UBG)",
+    "commander": "Muldrotha, the Gravetide",
+    "bracket": "3",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "mid",
+    "source": "edhrec:muldrotha-the-gravetide.json",
+    "cards": 100,
+    "file_name": "sultai__muldrotha-the-gravetide.dck"
+  },
+  {
+    "identity": "Sultai (UBG)",
+    "commander": "The Mimeoplasm",
+    "bracket": "3",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "mid",
+    "source": "edhrec:the-mimeoplasm.json",
+    "cards": 100,
+    "file_name": "sultai__the-mimeoplasm.dck"
+  },
+  {
+    "identity": "Sultai (UBG)",
+    "commander": "Damia, Sage of Stone",
+    "bracket": "3",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "mid",
+    "source": "archidekt:7985702",
+    "cards": 100,
+    "file_name": "sultai__damia-sage-of-stone.dck"
+  },
+  {
+    "identity": "Temur (URG)",
+    "commander": "Animar, Soul of Elements",
+    "bracket": "3",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "mid",
+    "source": "edhrec:animar-soul-of-elements.json",
+    "cards": 100,
+    "file_name": "temur__animar-soul-of-elements.dck"
+  },
+  {
+    "identity": "Temur (URG)",
+    "commander": "Ureni of the Unwritten",
+    "bracket": "2",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "casual",
+    "source": "edhrec:ureni-of-the-unwritten.json",
+    "cards": 100,
+    "file_name": "temur__ureni-of-the-unwritten.dck"
+  },
+  {
+    "identity": "Temur (URG)",
+    "commander": "Kalamax, the Stormsire",
+    "bracket": "3",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "mid",
+    "source": "edhrec:kalamax-the-stormsire.json",
+    "cards": 100,
+    "file_name": "temur__kalamax-the-stormsire.dck"
+  },
+  {
+    "identity": "Temur (URG)",
+    "commander": "Omnath, Locus of the Roil",
+    "bracket": "2",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "casual",
+    "source": "edhrec:omnath-locus-of-the-roil.json",
+    "cards": 100,
+    "file_name": "temur__omnath-locus-of-the-roil.dck"
+  },
+  {
+    "identity": "Temur (URG)",
+    "commander": "Miirym, Sentinel Wyrm",
+    "bracket": "2",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "casual",
+    "source": "edhrec:miirym-sentinel-wyrm.json",
+    "cards": 100,
+    "file_name": "temur__miirym-sentinel-wyrm.dck"
+  },
+  {
+    "identity": "Temur (URG)",
+    "commander": "Xyris, the Writhing Storm",
+    "bracket": "5",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "cedh",
+    "source": "edhrec:xyris-the-writhing-storm.json",
+    "cards": 100,
+    "file_name": "temur__xyris-the-writhing-storm.dck"
+  },
+  {
+    "identity": "Jund (BRG)",
+    "commander": "Korvold, Fae-Cursed King",
+    "bracket": "3",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "mid",
+    "source": "edhrec:korvold-fae-cursed-king.json",
+    "cards": 100,
+    "file_name": "jund__korvold-fae-cursed-king.dck"
+  },
+  {
+    "identity": "Jund (BRG)",
+    "commander": "Korvold, Fae-Cursed King",
+    "bracket": "5",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "cedh",
+    "source": "edhrec:korvold-fae-cursed-king.json",
+    "cards": 100,
+    "file_name": "jund__korvold-fae-cursed-king.dck"
+  },
+  {
+    "identity": "Jund (BRG)",
+    "commander": "Henzie \"Toolbox\" Torre",
+    "bracket": "2",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "casual",
+    "source": "edhrec:henzie-toolbox-torre.json",
+    "cards": 100,
+    "file_name": "jund__henzie-toolbox-torre.dck"
+  },
+  {
+    "identity": "Jund (BRG)",
+    "commander": "Lord Windgrace (planeswalker commander)",
+    "bracket": "2",
+    "file": "3color-naya-grixis-sultai-temur-jund.md",
+    "bundle": "casual",
+    "source": "edhrec:lord-windgrace/landfall.json",
+    "cards": 100,
+    "file_name": "jund__lord-windgrace.dck"
+  }
+]
