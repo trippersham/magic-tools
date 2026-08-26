@@ -160,6 +160,7 @@ class _GoldfishEngine(Protocol):
         games: int,
         install: EngineInstall,
         driver: tuple[str, str] | None = ...,
+        fmt: str = ...,
     ) -> tuple[GoldfishResult, str]: ...
 
     def goldfish(
@@ -169,6 +170,7 @@ class _GoldfishEngine(Protocol):
         games: int,
         install: EngineInstall,
         driver: tuple[str, str] | None = ...,
+        fmt: str = ...,
     ) -> GoldfishResult: ...
 
 
@@ -280,8 +282,14 @@ def gate_driver(
     is_proactive = spec.macro is not None
     mode = 'proactive' if is_proactive else 'reactive'
 
-    driven, output = eng.goldfish_output(deck_ref, games=games, install=install, driver=driver)
-    baseline = eng.goldfish(deck_ref, games=games, install=install, driver=None)
+    # Commander decks MUST run the commander-native solo goldfish (CommanderDuel, 40 life
+    # + command zone) so the commander is actually seated — a commander-dependent macro
+    # can never fire in the constructed 60-basics goldfish (the P6.2 Yawgmoth VETO). The
+    # DRIVEN and BASELINE runs use the SAME fmt so the never-slower comparison is honest.
+    fmt = 'commander' if deck.commanders else 'constructed'
+
+    driven, output = eng.goldfish_output(deck_ref, games=games, install=install, driver=driver, fmt=fmt)
+    baseline = eng.goldfish(deck_ref, games=games, install=install, driver=None, fmt=fmt)
 
     registered = DRIVER_REGISTERED_MARKER in output
     # macro_fired = REAL execution (act() commit); macro_reachable = apply() entered (search

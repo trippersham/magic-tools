@@ -54,16 +54,19 @@ import java.util.UUID;
  *      PlayerA is ever registered; PlayerB stays pure CP7. Registration failure is
  *      FAIL-LOUD (a bad Driver must not silently run as pure CP7 and mask a broken gate).
  *      Unset/empty ⇒ no registration ⇒ pure CP7 (byte-identical prior behavior).
- *   2. SOLO (goldfish) MODE — {@code <deckA> --solo [games] [skill]}: PlayerB is a
- *      do-nothing passer (60 basics, passes every priority, never blocks); PlayerA
+ *   2. SOLO (goldfish) MODE — {@code <deckA> --solo [games] [skill] [commander]}:
+ *      PlayerB is a do-nothing passer (passes every priority, never blocks); PlayerA
  *      is ALWAYS on the play. Measures the OWN-turn kill
  *      ({@code ownTurn = (globalTurn + 1) / 2}) and emits a
  *      {@code GOLDFISH SUMMARY (OWN TURNS) ...} line. Ported from the lab's
- *      {@code GoldfishBatchTest}.
+ *      {@code GoldfishBatchTest}. The optional 5th {@code commander} token makes the
+ *      goldfish COMMANDER-NATIVE (a {@link CommanderDuel}, 40 life + command zone, vs a
+ *      legal 100-card commander passer shell); absent it is the constructed 60-basics
+ *      passer (byte-identical prior behavior).
  *
  * Usage:
  *   MATCH:  java -cp &lt;cp&gt; [-Dmakemagic.driver=&lt;FQCN&gt;] org.makemagic.xmage.XMageBatch &lt;deckA&gt; &lt;deckB&gt; [games] [skill] [commander]
- *   SOLO:   java -cp &lt;cp&gt; [-Dmakemagic.driver=&lt;FQCN&gt;] org.makemagic.xmage.XMageBatch &lt;deckA&gt; --solo [games] [skill]
+ *   SOLO:   java -cp &lt;cp&gt; [-Dmakemagic.driver=&lt;FQCN&gt;] org.makemagic.xmage.XMageBatch &lt;deckA&gt; --solo [games] [skill] [commander]
  *   WARM:   java -cp &lt;cp&gt; org.makemagic.xmage.XMageBatch --warm
  * Run with cwd = a dir holding the H2 db/ (built by CardScanner.scan() on first use).
  */
@@ -94,24 +97,27 @@ public class XMageBatch {
         }
         if (args.length < 1) {
             System.err.println("usage: XMageBatch <deckA> <deckB> [games] [skill] [commander]  |  "
-                    + "XMageBatch <deckA> --solo [games] [skill]  |  XMageBatch --warm");
+                    + "XMageBatch <deckA> --solo [games] [skill] [commander]  |  XMageBatch --warm");
             System.exit(2);
         }
 
-        // SOLO (goldfish) dispatch: `<deckA> --solo [games] [skill]`. The `--solo`
-        // sentinel in the deckB position selects the do-nothing-opponent goldfish
-        // harness. Constructed only for now (commander solo is a design follow-on).
+        // SOLO (goldfish) dispatch: `<deckA> --solo [games] [skill] [commander]`. The
+        // `--solo` sentinel in the deckB position selects the do-nothing-opponent
+        // goldfish harness. An optional 5th `commander` token (mirroring the MATCH 5th-arg
+        // convention) selects the commander-native goldfish (CommanderDuel, 40 life +
+        // command zone). Absent -> the constructed goldfish (byte-identical prior argv).
         if (args.length >= 2 && "--solo".equals(args[1])) {
             String deckAPath = args[0];
             int games = args.length > 2 ? Integer.parseInt(args[2]) : 1;
             int skill = args.length > 3 ? Integer.parseInt(args[3]) : 6;
-            runSolo(deckAPath, games, skill);
+            boolean commander = args.length > 4 && "commander".equalsIgnoreCase(args[4]);
+            runSolo(deckAPath, games, skill, commander);
             return;
         }
 
         if (args.length < 2) {
             System.err.println("usage: XMageBatch <deckA> <deckB> [games] [skill] [commander]  |  "
-                    + "XMageBatch <deckA> --solo [games] [skill]  |  XMageBatch --warm");
+                    + "XMageBatch <deckA> --solo [games] [skill] [commander]  |  XMageBatch --warm");
             System.exit(2);
         }
         String deckAPath = args[0];
@@ -132,14 +138,7 @@ public class XMageBatch {
                 + " games=" + games + " skill=" + skill + " commander=" + commander);
 
         for (int g = 0; g < games; g++) {
-            // CommanderDuel hardcodes minimumDeckSize=100 internally and takes a 5-arg
-            // ctor (attackOption, range, mulligan, startLife, startHandSize) — 40 life,
-            // 7-card hand. TwoPlayerDuel takes the 6-arg ctor (…, minimumDeckSize, …).
-            Game game = commander
-                    ? new CommanderDuel(MultiplayerAttackOption.LEFT, RangeOfInfluence.ALL,
-                            MulliganType.GAME_DEFAULT.getMulligan(0), 40, 7)
-                    : new TwoPlayerDuel(MultiplayerAttackOption.LEFT, RangeOfInfluence.ONE,
-                            MulliganType.GAME_DEFAULT.getMulligan(0), 40, 20, 7);
+            Game game = newGame(commander);
             // The AI's minimax (SimulatedPlayer2) copies each player's MatchPlayer, so
             // every player must belong to a Match — match.addPlayer sets it. Without
             // this, calculateActions NPEs on a null MatchPlayer source at T1.M1.
@@ -182,35 +181,53 @@ public class XMageBatch {
 
     /**
      * SOLO (goldfish) harness: PlayerA (its real deck, optionally driven via the
-     * {@code -Dmakemagic.driver} register-by-playerId seam) vs a do-nothing 60-basics
-     * passer, PlayerA ALWAYS on the play. Measures the OWN-turn kill and emits a
+     * {@code -Dmakemagic.driver} register-by-playerId seam) vs a do-nothing passer,
+     * PlayerA ALWAYS on the play. Measures the OWN-turn kill and emits a
      * {@code GOLDFISH SUMMARY (OWN TURNS) ...} line (ported from GoldfishBatchTest).
+     *
+     * <p>When {@code commander} is true the goldfish is COMMANDER-NATIVE: the game is a
+     * {@link CommanderDuel} (40 life + command zone, via {@link #newGame}, the SAME
+     * construction the MATCH path uses), and the passer is a minimal LEGAL commander
+     * shell (99 basics + a vanilla mono-color legendary commander on an {@code SB:} line
+     * -> command zone, since CommanderDuel hardcodes {@code minimumDeckSize=100}), still
+     * piloted by the do-nothing {@link PassingPlayer}. PlayerA's real commander rides in
+     * via its own {@code SB:} line (the verified command-zone loader in {@link #addPlayer}).
+     * When false the goldfish is the constructed 60-basics passer (byte-identical prior
+     * behavior). Registration ({@link #registerDriver}) is unchanged and shared via
+     * {@link #addPlayer}, so PlayerA still registers (or fails loud) in BOTH formats.
      */
-    private static void runSolo(String deckAPath, int games, int skill) throws Exception {
-        RangeOfInfluence range = RangeOfInfluence.ONE;
+    private static void runSolo(String deckAPath, int games, int skill, boolean commander)
+            throws Exception {
+        // Commander seats each player at RangeOfInfluence.ALL (multiplayer influence);
+        // constructed keeps the ONE range that TwoPlayerDuel uses.
+        RangeOfInfluence range = commander ? RangeOfInfluence.ALL : RangeOfInfluence.ONE;
         MakeMagicHooks.install();
         System.out.println("XMAGEBATCH scanning card database (first run builds it)...");
         CardScanner.scan();
         String driverFqcn = System.getProperty(DRIVER_PROP, "");
         String variant = driverFqcn.isEmpty() ? "cp7" : driverFqcn;
         System.out.println("XMAGEBATCH SOLO card db ready; deckA=" + deckAPath
-                + " games=" + games + " skill=" + skill + " driver=" + variant);
+                + " games=" + games + " skill=" + skill + " commander=" + commander
+                + " driver=" + variant);
 
-        Path passerDeck = writePasserDeck(); // 60 Forest, one temp file reused across games.
+        // Passer: 60 Forest (constructed) or a legal 100-card commander shell.
+        Path passerDeck = commander ? writeCommanderPasserDeck() : writePasserDeck();
 
         // MAX_TURN is the OWN-turn brick cap: a game that never kills sorts slowest at
         // MAX_TURN+1 (the goldfish never terminates by design once PlayerA decks itself
         // and LOSES, so game.start() always returns — this cap only shapes the sentinel).
-        final int maxTurn = 20;
+        // Commander gets a longer cap (25 vs 20): a 40-life kill under command-tax ramp
+        // is slower on average, so 25 own-turns keeps a legitimately slow-but-real kill
+        // from being mis-sorted as a brick while still bounding a non-terminating game.
+        final int maxTurn = commander ? 25 : 20;
         List<Integer> killTurns = new ArrayList<>(); // capped OWN kill turns for ALL games (bricks = maxTurn+1)
         List<Integer> realKills = new ArrayList<>(); // OWN kill turns for games that actually killed
         int bricks = 0;
         try {
             for (int g = 0; g < games; g++) {
-                Game game = new TwoPlayerDuel(MultiplayerAttackOption.LEFT, RangeOfInfluence.ONE,
-                        MulliganType.GAME_DEFAULT.getMulligan(0), 40, 20, 7);
+                Game game = newGame(commander);
                 Match match = new FreeForAllMatch(new MatchOptions("make-magic goldfish",
-                        "Two Player Duel", true));
+                        commander ? "Commander Duel" : "Two Player Duel", true));
                 Player playerA = addPlayer(game, match, "PlayerA", deckAPath, skill, range);
                 Player playerB = addPassingPlayer(game, match, "PlayerB", passerDeck.toString(), range);
 
@@ -354,10 +371,40 @@ public class XMageBatch {
         return player;
     }
 
+    /**
+     * Build the game for a solo/match run: a {@link CommanderDuel} (40 life + command
+     * zone, 7-card hand) in commander mode, else a {@link TwoPlayerDuel} (40 life, 7-card
+     * hand). The SINGLE construction point shared by the MATCH loop and {@link #runSolo}
+     * so the two paths can never diverge. CommanderDuel hardcodes minimumDeckSize=100
+     * internally and takes the 5-arg ctor (attackOption, range, mulligan, startLife,
+     * startHandSize); TwoPlayerDuel takes the 6-arg ctor (…, minimumDeckSize, …).
+     */
+    private static Game newGame(boolean commander) {
+        return commander
+                ? new CommanderDuel(MultiplayerAttackOption.LEFT, RangeOfInfluence.ALL,
+                        MulliganType.GAME_DEFAULT.getMulligan(0), 40, 7)
+                : new TwoPlayerDuel(MultiplayerAttackOption.LEFT, RangeOfInfluence.ONE,
+                        MulliganType.GAME_DEFAULT.getMulligan(0), 40, 20, 7);
+    }
+
     /** Write the 60-basics goldfish opponent deck to a temp {@code N Cardname} .txt file. */
     private static Path writePasserDeck() throws IOException {
         Path f = Files.createTempFile("goldfish_lands", ".txt");
         Files.write(f, "60 Forest\n".getBytes(StandardCharsets.UTF_8));
+        return f;
+    }
+
+    /**
+     * Write the COMMANDER goldfish passer: a minimal LEGAL 100-card commander shell —
+     * 99 Swamp maindeck + a vanilla mono-black legendary commander ({@code Yargle,
+     * Glutton of Urborg}) on an {@code SB:} line so {@code GameCommanderImpl.init} moves
+     * it to the command zone (CommanderDuel hardcodes minimumDeckSize=100). The passer
+     * is piloted by the do-nothing {@link PassingPlayer}, so it never casts anything;
+     * the commander only satisfies legality + gives the 40-life target a full deck.
+     */
+    private static Path writeCommanderPasserDeck() throws IOException {
+        Path f = Files.createTempFile("goldfish_cmd_passer", ".txt");
+        Files.write(f, "99 Swamp\nSB: 1 Yargle, Glutton of Urborg\n".getBytes(StandardCharsets.UTF_8));
         return f;
     }
 

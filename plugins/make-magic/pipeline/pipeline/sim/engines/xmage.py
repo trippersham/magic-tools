@@ -375,17 +375,22 @@ class XMageEngine:
         skill: int = _CP7_SKILL,
         driver: tuple[str, str] | None = None,
         timeout_s: int | None = None,
+        fmt: str = 'constructed',
     ) -> GoldfishResult:
         """Run a SOLO goldfish: ``deck_a`` (PlayerA, always on the play) vs a do-nothing
         60-Forest passer, over ``games`` games, and return the parsed own-turn kill.
 
-        Launches ``XMageBatch <deckA.txt> --solo <games> <skill>`` (the Phase-0 seam),
-        parses the ``GOLDFISH SUMMARY (OWN TURNS) … medianKillsOwn=<float>`` line, and
-        returns a :class:`GoldfishResult`. ``driver`` is an optional
+        Launches ``XMageBatch <deckA.txt> --solo <games> <skill> [commander]`` (the
+        Phase-0 seam), parses the ``GOLDFISH SUMMARY (OWN TURNS) … medianKillsOwn=<float>``
+        line, and returns a :class:`GoldfishResult`. ``driver`` is an optional
         ``(classes_dir, fqcn)`` per-deck driver injected on PlayerA (the SAME registry
-        entry the match path threads, so both contexts drive it identically). No summary
-        line / a non-zero exit → :class:`XMageError` (never a silent 0). Mirrors
-        :meth:`run_matchup`'s staging + warm + private-db discipline for one deck.
+        entry the match path threads, so both contexts drive it identically).
+        ``fmt='commander'`` appends the 5th ``commander`` token so the harness seats the
+        commander in a CommanderDuel (40 life + command zone) — the ONLY way a
+        commander-dependent macro can fire in the solo gate; ``'constructed'`` is
+        byte-identical prior argv. No summary line / a non-zero exit → :class:`XMageError`
+        (never a silent 0). Mirrors :meth:`run_matchup`'s staging + warm + private-db
+        discipline for one deck.
 
         Return-stable wrapper over :meth:`goldfish_output`: the dual-mode gate needs the
         raw combined output (to grep the ``DRIVER_REGISTERED`` / ``DRIVER_MACRO_FIRED``
@@ -393,7 +398,8 @@ class XMageEngine:
         Phase-1 ``GoldfishResult`` return.
         """
         result, _output = self.goldfish_output(
-            deck_a, games=games, install=install, skill=skill, driver=driver, timeout_s=timeout_s
+            deck_a, games=games, install=install, skill=skill, driver=driver,
+            timeout_s=timeout_s, fmt=fmt,
         )
         return result
 
@@ -406,6 +412,7 @@ class XMageEngine:
         skill: int = _CP7_SKILL,
         driver: tuple[str, str] | None = None,
         timeout_s: int | None = None,
+        fmt: str = 'constructed',
     ) -> tuple[GoldfishResult, str]:
         """As :meth:`goldfish`, but also returns the RAW combined stdout+stderr.
 
@@ -413,11 +420,13 @@ class XMageEngine:
         (``DRIVER_REGISTERED`` for registration, ``DRIVER_MACRO_FIRED`` for a proactive
         quad's slot exercise), which are the only honest signal the standalone solo harness
         exposes. :meth:`goldfish` delegates here and drops the output, so its Phase-1 return
-        stays stable.
+        stays stable. ``fmt='commander'`` appends the 5th ``commander`` token (CommanderDuel
+        + command-zone commander) and uses the longer :data:`_COMMANDER_TIMEOUT_S` default;
+        ``'constructed'`` is byte-identical prior argv/timeout.
         """
         handle: XMageInstall = install.handle
         if timeout_s is None:
-            timeout_s = _DEFAULT_TIMEOUT_S
+            timeout_s = _COMMANDER_TIMEOUT_S if fmt == 'commander' else _DEFAULT_TIMEOUT_S
         name_a, text_a = deck_a
 
         if not xmage_runtime._HARNESS_JAR.is_file():
@@ -435,12 +444,18 @@ class XMageEngine:
             txt_a = _stage_txt(run_dir, 'deckA', _forge_dck_to_xmage_txt(text_a))
             _stage_private_db(handle, run_dir)
             external_timeout = runner._JVM_LOAD_HEADROOM_S + max(1, games) * timeout_s
+            solo_args = [str(txt_a), '--solo', str(games), str(skill)]
+            if fmt == 'commander':
+                # 5th token → commander-native solo (CommanderDuel, 40 life + command
+                # zone, commander seated from the deck's SB: line). Constructed stays 4
+                # args (byte-identical prior argv).
+                solo_args.append('commander')
             output, returncode = _launch_xmage(
                 handle,
-                [str(txt_a), '--solo', str(games), str(skill)],
+                solo_args,
                 cwd=run_dir,
                 timeout_s=external_timeout,
-                what=f'{name_a} goldfish (games={games})',
+                what=f'{name_a} goldfish (games={games}, fmt={fmt})',
                 driver=driver,
             )
             if returncode != 0:

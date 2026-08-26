@@ -149,7 +149,13 @@ def fundamental_turn(
         meta = drivers.read_meta(deck, data_dir=data_dir)  # type: ignore[arg-type]
         if meta is not None:
             ref = deck_ref if deck_ref is not None else _deck_ref(deck)
-            result = eng.goldfish(ref, games=games, install=install, driver=(classes, meta.fqcn))
+            # Commander decks run the commander-native solo (CommanderDuel, 40 life +
+            # command zone) so the commander is seated — else a commander-dependent line
+            # can never execute in the constructed goldfish (P6.2 Yawgmoth VETO).
+            fmt = 'commander' if getattr(deck, 'commanders', None) else 'constructed'
+            result = eng.goldfish(
+                ref, games=games, install=install, driver=(classes, meta.fqcn), fmt=fmt
+            )
             median = float(result.median_kills_own)
             if median >= 0:
                 return FundamentalTurn(

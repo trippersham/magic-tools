@@ -61,15 +61,18 @@ class _FakeEngine:
         self._driven_output = driven_output
         self._baseline = baseline
         self.calls: list[str] = []
+        self.fmts: list[str] = []  # records the fmt each goldfish call received
 
-    def goldfish_output(self, deck_a, *, games, install, driver=None):
+    def goldfish_output(self, deck_a, *, games, install, driver=None, fmt='constructed'):
         assert driver is not None  # the driven run always injects the driver
         self.calls.append('driven')
+        self.fmts.append(fmt)
         return self._driven, self._driven_output
 
-    def goldfish(self, deck_a, *, games, install, driver=None):
+    def goldfish(self, deck_a, *, games, install, driver=None, fmt='constructed'):
         assert driver is None  # the baseline is driverless (throwaway pure CP7)
         self.calls.append('baseline')
+        self.fmts.append(fmt)
         return self._baseline
 
 
@@ -258,6 +261,58 @@ def test_reactive_fails_below_the_floor(_store: Path) -> None:
     assert result.passed is False
     assert 'floor' in result.reason
     assert drivers.driver_valid(deck, data_dir=_store) is False
+
+
+# --------------------------------------------------------------------------- #
+# 2b. commander fmt threading — the P6.0 fix                                    #
+# --------------------------------------------------------------------------- #
+
+
+def _commander_deck(name: str = 'Cmd Deck') -> Deck:
+    """A deck carrying a commander (role='commander') → the gate must run fmt='commander'."""
+    return Deck(
+        name=name,
+        cards=[
+            DeckCard(name='Yawgmoth, Thran Physician', quantity=1, role='commander'),
+            DeckCard(name='Swamp', quantity=1),
+        ],
+    )
+
+
+def test_commander_deck_threads_fmt_commander_to_both_goldfish_calls(_store: Path) -> None:
+    """A commander deck (has commanders) → BOTH driven and baseline goldfish run
+    fmt='commander' so the commander is seated (CommanderDuel) — the P6.0 Signal-A fix.
+    Same fmt on both keeps the never-slower comparison honest."""
+    deck = _commander_deck()
+    output = (
+        f'{_REG} fqcn=x playerId=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
+        'GOLDFISH SUMMARY (OWN TURNS) ...\n'
+    )
+    eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
+
+    dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
+
+    assert eng.calls == ['driven', 'baseline']
+    assert eng.fmts == ['commander', 'commander']
+
+
+def test_noncommander_deck_stays_constructed_fmt(_store: Path) -> None:
+    """A non-commander deck (no commanders) → both goldfish calls stay fmt='constructed'
+    (byte-identical prior argv) — the constructed path is unchanged."""
+    deck = _deck()
+    output = (
+        f'{_REG} fqcn=x playerId=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
+        'GOLDFISH SUMMARY (OWN TURNS) ...\n'
+    )
+    eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
+
+    dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
+
+    assert eng.fmts == ['constructed', 'constructed']
 
 
 # --------------------------------------------------------------------------- #
