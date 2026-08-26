@@ -41,8 +41,10 @@ __all__ = (
     'ECJ_VERSION',
     'CompileResult',
     'Diagnostic',
+    'DriverCompileError',
     'DriverCompileToolError',
     'compile_driver',
+    'compile_for_injection',
     'ensure_ecj',
 )
 
@@ -86,6 +88,19 @@ _DIAG_DIVIDER = re.compile(r'^-{3,}$', re.MULTILINE)
 
 class DriverCompileToolError(RuntimeError):
     """The ECJ toolchain could not be provisioned (fetch/pin/verify failure) — actionable."""
+
+
+class DriverCompileError(RuntimeError):
+    """ECJ rejected the Driver ``.java`` — carries the parsed diagnostics for the repair loop."""
+
+    def __init__(self, source: Path, result: CompileResult) -> None:
+        self.source = source
+        self.result = result
+        detail = '; '.join(f'{d.file}:{d.line} {d.severity} {d.message}' for d in result.diagnostics)
+        super().__init__(
+            f'Driver {source} did not compile ({len(result.diagnostics)} diagnostic(s))'
+            + (f': {detail}' if detail else f'.\n{result.raw_stderr}')
+        )
 
 
 @dataclass(frozen=True)
@@ -259,3 +274,29 @@ def compile_driver(
     return CompileResult(
         ok=True, class_dir=out_dir, diagnostics=diagnostics, raw_stderr=proc.stderr, cache_hit=False
     )
+
+
+def compile_for_injection(
+    source: str | os.PathLike[str],
+    fqcn: str,
+    *,
+    data_dir: str | os.PathLike[str] | None = None,
+) -> tuple[str, str]:
+    """Compile a Driver ``.java`` and return the ``(classes_dir, fqcn)`` injection tuple.
+
+    The one glue step the Phase-3 launch path needs between *authoring* and *running*: it
+    runs :func:`compile_driver` (ECJ against the effective dist jar, cached) and, on success,
+    returns exactly the tuple the XMage engine's ``driver=`` parameter takes — the compiled
+    ``.class`` dir (prepended onto the run classpath so the Driver wins class-loading) plus the
+    ``fqcn`` (threaded as ``-Dmakemagic.driver=<fqcn>``, which ``XMageBatch`` loads and whose
+    ``static register(UUID)`` it reflectively invokes on PlayerA).
+
+    ``fqcn`` is the caller's responsibility (it must match the Driver's declared
+    package + class name); this helper does not parse it out of the source. A compile FAILURE
+    raises :class:`DriverCompileError` with the parsed diagnostics (fail-loud — never returns a
+    tuple pointing at an empty/partial class dir).
+    """
+    result = compile_driver(source, data_dir=data_dir)
+    if not result.ok or result.class_dir is None:
+        raise DriverCompileError(Path(source), result)
+    return str(result.class_dir), fqcn

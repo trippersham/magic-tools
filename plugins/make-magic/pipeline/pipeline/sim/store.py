@@ -230,7 +230,7 @@ def matchup_key(
         engine_version,
     )
     if driver is not None:
-        parts = (*parts, f'driverA={driver[1]}')
+        parts = (*parts, f'driver={driver[1]}')
     payload = '\x00'.join(parts).encode('utf-8')
     return hashlib.sha256(payload).hexdigest()
 

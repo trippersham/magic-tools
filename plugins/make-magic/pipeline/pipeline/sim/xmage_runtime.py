@@ -101,7 +101,7 @@ XMAGE_DIST_URL = f'https://github.com/trippersham/magic-tools/releases/download/
 #: refuses to fetch (``_download_verified`` rejects a missing checksum) — the state
 #: between bumping ``_DIST_TAG`` and pinning the newly-published ``.sha256``.
 # LOCAL-DEV (branch feat/shared-perdeck-driver): pinned to ``None`` on purpose. Phase 0
-# adds the ``-Dmakemagic.driverA`` seam + ``--solo`` mode to XMageBatch, which requires a
+# adds the ``-Dmakemagic.driver`` register-by-playerId seam + ``--solo`` mode to XMageBatch, which requires a
 # dist-jar rebuild whose shaded bytes are NOT reproducible — so there is no published
 # release to hash yet. ``None`` means "locally-built jar → skip SHA verification"
 # (``_verify_cached_jar_integrity`` returns early; a hand-placed jar under

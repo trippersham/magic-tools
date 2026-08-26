@@ -602,8 +602,9 @@ def _compose_launch_cmd(
 
       * the ``classes_dir`` is **prepended** onto the classpath so it sorts BEFORE the
         dist/harness jar and its injected ``Driver`` class wins class-loading;
-      * ``-Dmakemagic.driverA=<fqcn>`` is threaded into the JVM args (the PlayerA-only
-        reflection seam ``XMageBatch`` reads).
+      * ``-Dmakemagic.driver=<fqcn>`` is threaded into the JVM args (the PlayerA-only
+        register-by-playerId seam ``XMageBatch`` reads: it loads the Driver class and
+        reflectively invokes its ``static register(UUID)`` on PlayerA's id).
 
     With ``driver=None`` the argv is byte-identical to the prior driverless shape: the
     classpath is ``handle.classpath`` verbatim and no ``-D`` sysprop is added.
@@ -612,7 +613,7 @@ def _compose_launch_cmd(
     classpath = handle.classpath
     if driver is not None:
         classes_dir, fqcn = driver
-        jvm_args.append(f'-Dmakemagic.driverA={fqcn}')
+        jvm_args.append(f'-Dmakemagic.driver={fqcn}')
         classpath = os.pathsep.join((classes_dir, classpath))  # driver classes win class-load
     return [
         *runner._launch_prefix(),

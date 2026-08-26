@@ -40,15 +40,20 @@ import java.util.UUID;
  * game-thread guard whitelists). Opening hands + the game log are surfaced by
  * {@link MakeMagicHooks}.
  *
- * Phase 0 adds two proven-lab seams to this productionized runner:
- *   1. DRIVER SEAM — a per-deck driver may replace PlayerA's engine via the
- *      {@code -Dmakemagic.driverA=<FQCN>} system property: the FQCN is
- *      reflectively instantiated with the CP7 ctor shape
- *      {@code (String name, RangeOfInfluence range, int skill)}. Empty/unset ⇒
- *      plain {@link ComputerPlayer7} (byte-identical prior behavior). Ported from
- *      the lab's {@code AIvsAIBatchTest} {@code -Dailab.driverA} hook, but using
- *      {@code Class.forName} (per-deck drivers are separately-compiled classes
- *      injected on the classpath, not a fixed factory switch).
+ * Phase 3 productionizes the in-search quad DRIVER SEAM (supersedes the Phase-0
+ * engine-replacement {@code -Dmakemagic.driverA} path):
+ *   1. DRIVER SEAM (register-by-playerId) — a per-deck driver does NOT replace
+ *      PlayerA's engine. PlayerA stays a plain {@link ComputerPlayer7}; the driver
+ *      REGISTERS its quad {@code (Φ, P, macro, S)} by PlayerA's stable {@code playerId}
+ *      into the dist's seam registries ({@code DriverBonus}/{@code MacroRegistry}/
+ *      {@code SelectionRegistry}), which the patched minimax consults inside the search.
+ *      Selected via {@code -Dmakemagic.driver=<FQCN>}: the FQCN is a classpath-injected,
+ *      separately-compiled Driver class exposing
+ *      {@code public static void register(java.util.UUID playerId)}, invoked reflectively
+ *      by convention AFTER {@code game/match.addPlayer} (the id is then final). Only
+ *      PlayerA is ever registered; PlayerB stays pure CP7. Registration failure is
+ *      FAIL-LOUD (a bad Driver must not silently run as pure CP7 and mask a broken gate).
+ *      Unset/empty ⇒ no registration ⇒ pure CP7 (byte-identical prior behavior).
  *   2. SOLO (goldfish) MODE — {@code <deckA> --solo [games] [skill]}: PlayerB is a
  *      do-nothing passer (60 basics, passes every priority, never blocks); PlayerA
  *      is ALWAYS on the play. Measures the OWN-turn kill
@@ -57,15 +62,20 @@ import java.util.UUID;
  *      {@code GoldfishBatchTest}.
  *
  * Usage:
- *   MATCH:  java -cp &lt;cp&gt; org.makemagic.xmage.XMageBatch &lt;deckA&gt; &lt;deckB&gt; [games] [skill] [commander]
- *   SOLO:   java -cp &lt;cp&gt; [-Dmakemagic.driverA=&lt;FQCN&gt;] org.makemagic.xmage.XMageBatch &lt;deckA&gt; --solo [games] [skill]
+ *   MATCH:  java -cp &lt;cp&gt; [-Dmakemagic.driver=&lt;FQCN&gt;] org.makemagic.xmage.XMageBatch &lt;deckA&gt; &lt;deckB&gt; [games] [skill] [commander]
+ *   SOLO:   java -cp &lt;cp&gt; [-Dmakemagic.driver=&lt;FQCN&gt;] org.makemagic.xmage.XMageBatch &lt;deckA&gt; --solo [games] [skill]
  *   WARM:   java -cp &lt;cp&gt; org.makemagic.xmage.XMageBatch --warm
  * Run with cwd = a dir holding the H2 db/ (built by CardScanner.scan() on first use).
  */
 public class XMageBatch {
 
-    /** {@code -Dmakemagic.driverA=<FQCN>} — the per-deck driver reflection seam (PlayerA only). */
-    private static final String DRIVER_A_PROP = "makemagic.driverA";
+    /**
+     * {@code -Dmakemagic.driver=<FQCN>} — the in-search quad driver REGISTRATION seam
+     * (PlayerA only). The FQCN names a classpath-injected Driver class exposing
+     * {@code public static void register(java.util.UUID playerId)}; the id-keyed quad it
+     * registers is consulted by the patched minimax. Unset ⇒ no registration ⇒ pure CP7.
+     */
+    private static final String DRIVER_PROP = "makemagic.driver";
 
     public static void main(String[] args) throws Exception {
         // Warm-up mode: build/verify the H2 card DB in a SINGLE process and exit.
@@ -172,8 +182,8 @@ public class XMageBatch {
 
     /**
      * SOLO (goldfish) harness: PlayerA (its real deck, optionally driven via the
-     * {@code -Dmakemagic.driverA} seam) vs a do-nothing 60-basics passer, PlayerA
-     * ALWAYS on the play. Measures the OWN-turn kill and emits a
+     * {@code -Dmakemagic.driver} register-by-playerId seam) vs a do-nothing 60-basics
+     * passer, PlayerA ALWAYS on the play. Measures the OWN-turn kill and emits a
      * {@code GOLDFISH SUMMARY (OWN TURNS) ...} line (ported from GoldfishBatchTest).
      */
     private static void runSolo(String deckAPath, int games, int skill) throws Exception {
@@ -181,10 +191,10 @@ public class XMageBatch {
         MakeMagicHooks.install();
         System.out.println("XMAGEBATCH scanning card database (first run builds it)...");
         CardScanner.scan();
-        String driverFqcn = System.getProperty(DRIVER_A_PROP, "");
+        String driverFqcn = System.getProperty(DRIVER_PROP, "");
         String variant = driverFqcn.isEmpty() ? "cp7" : driverFqcn;
         System.out.println("XMAGEBATCH SOLO card db ready; deckA=" + deckAPath
-                + " games=" + games + " skill=" + skill + " driverA=" + variant);
+                + " games=" + games + " skill=" + skill + " driver=" + variant);
 
         Path passerDeck = writePasserDeck(); // 60 Forest, one temp file reused across games.
 
@@ -270,8 +280,11 @@ public class XMageBatch {
             throw new IllegalArgumentException(name + " deck too small (" + deck.getMaindeckCards().size()
                     + " cards) — did it fail to load? path=" + deckPath);
         }
-        // DRIVER SEAM lives in buildEngine (the -Dmakemagic.driverA reflection).
-        Player player = buildEngine(name, range, skill);
+        // PlayerA and PlayerB are BOTH plain ComputerPlayer7 — the in-search quad driver
+        // does NOT replace the engine (that was the retired -Dmakemagic.driverA path); it
+        // REGISTERS a quad by playerId below (see registerDriver), which the patched
+        // minimax consults. Single construction point for every seat.
+        Player player = new ComputerPlayer7(name, range, skill);
         game.loadCards(deck.getCards(), player.getId());
         // The explicit sideboard load is REQUIRED in BOTH modes and is NOT redundant:
         // useDeck (via game.addPlayer -> player.useDeck) only puts the sideboard card
@@ -285,22 +298,39 @@ public class XMageBatch {
         game.loadCards(deck.getSideboard(), player.getId());
         game.addPlayer(player, deck);
         match.addPlayer(player, deck); // links player.getMatchPlayer() (needed by the AI sim).
+        // Register the in-search quad driver — PlayerA ONLY, and only AFTER game/match
+        // addPlayer so the playerId is final. This is the SINGLE registration point shared
+        // by the match loop and the solo goldfish (they both seat PlayerA via addPlayer),
+        // so the two paths can never diverge. PlayerB is never registered (stays pure CP7).
+        if ("PlayerA".equals(name)) {
+            registerDriver(player.getId());
+        }
         return player;
     }
 
     /**
-     * Build PlayerA's engine honoring the {@code -Dmakemagic.driverA} seam; every other
-     * seat is a plain {@link ComputerPlayer7}. Reflection failure is fail-loud (a bad
-     * FQCN / wrong ABI must NOT silently degrade a "driven" result to CP7).
+     * The in-search quad driver REGISTRATION seam (reflection-by-convention). When
+     * {@code -Dmakemagic.driver=<FQCN>} is set, load that classpath-injected Driver class
+     * and reflectively invoke its {@code public static void register(java.util.UUID)},
+     * handing it PlayerA's final playerId — the Driver registers its quad
+     * {@code (Φ, P, macro, S)} into the dist's {@code DriverBonus}/{@code MacroRegistry}/
+     * {@code SelectionRegistry} keyed by that id, which the patched minimax consults. No
+     * dist interface is added (the seam stays frozen); the contract is the {@code register}
+     * method by convention.
+     *
+     * <p>Fail-loud: a missing class / missing {@code register(UUID)} / an exception thrown
+     * inside registration PROPAGATES (this method throws), so a broken Driver aborts the run
+     * rather than silently degrading to pure CP7 and masking a broken gate. Unset/empty ⇒
+     * no registration ⇒ pure CP7 (unregistered seats no-op in every registry).</p>
      */
-    private static Player buildEngine(String name, RangeOfInfluence range, int skill) throws Exception {
-        String driverFqcn = System.getProperty(DRIVER_A_PROP, "");
-        if (!driverFqcn.isEmpty() && "PlayerA".equals(name)) {
-            Class<?> cls = Class.forName(driverFqcn);
-            return (Player) cls.getConstructor(String.class, RangeOfInfluence.class, int.class)
-                    .newInstance(name, range, skill);
+    private static void registerDriver(UUID playerId) throws Exception {
+        String fqcn = System.getProperty(DRIVER_PROP, "");
+        if (fqcn.isEmpty()) {
+            return; // no driver → pure CP7 (the intelligence-preserving default).
         }
-        return new ComputerPlayer7(name, range, skill);
+        Class<?> driverClass = Class.forName(fqcn);
+        driverClass.getMethod("register", UUID.class).invoke(null, playerId);
+        System.out.println("DRIVER_REGISTERED fqcn=" + fqcn + " playerId=" + playerId);
     }
 
     /**

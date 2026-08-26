@@ -1,5 +1,12 @@
 """Phase 2 -- the thin per-deck driver AUTHORING surface (template + Mikaeus fill).
 
+TODO(P4 retire): this module still emits the RETIRED engine-replacement driver (a
+``ComputerPlayer7`` subclass instantiated by ctor). Phase 3 replaced the XMageBatch seam
+with register-by-playerId (``-Dmakemagic.driver`` + ``static register(UUID)``); this whole
+module + ``probeWins`` / the greedy-assembly skeleton are rewritten in Phase 4 to emit a
+quad Java class that registers ``(Φ, P, macro, S)``. The ``-Dmakemagic.driverA`` references
+below describe the OLD path and are intentionally left until that rewrite.
+
 A per-deck driver is a separately-compiled ``ComputerPlayer7`` subclass that plugs
 into the Phase-0 ``XMageBatch`` ``-Dmakemagic.driverA=<FQCN>`` seam (see
 :mod:`pipeline.sim.drivers` for storage, :mod:`pipeline.sim.driver_gate` for the

@@ -1,5 +1,54 @@
 # XMage API primitives for a per-deck driver fill
 
+## The registration contract (Phase-3 seam — P1.3)
+
+> **This section is the current seam. The rest of this file describes the RETIRED
+> engine-replacement driver and is rewritten in Phase 4.**
+
+An in-search quad driver does **not** replace PlayerA's engine. PlayerA stays a plain
+`ComputerPlayer7`; the driver **registers its quad `(Φ, P, macro, S)` by `playerId`** into
+the dist's already-public seam registries, which the patched minimax consults inside the
+search. The contract is **reflection-by-convention** (no new dist interface): an authored
+Driver class exposes one static method —
+
+```java
+public static void register(java.util.UUID playerId) {
+    // Φ — leaf-eval potential toward the gameplan (bounded, deterministic; specialScore==0):
+    mage.player.ai.score.DriverBonus.register(playerId, (game, pid) -> /* int score */ 0);
+    // macro (+ P) — the deterministic win sequence; applicable(game,pid)=P, apply(game,pid) fires it:
+    mage.player.ai.score.MacroRegistry.register(playerId, new MyComboMacro());
+    // S — selection steer on the real + rollout card-choice hooks:
+    mage.player.ai.score.SelectionRegistry.register(playerId, new MySelectionSteer());
+}
+```
+
+`XMageBatch` loads the Driver by `-Dmakemagic.driver=<FQCN>` (classpath-injected ahead of
+the dist jar), and — **after** `game/match.addPlayer` so the id is final — reflectively
+invokes `register(playerA.getId())`. Only **PlayerA** is registered; PlayerB (and any
+unregistered seat) no-ops in every registry ⇒ **pure CP7** (the intelligence-preserving
+property). Registration is **fail-loud**: a missing class / missing `register(UUID)` / an
+exception thrown inside it aborts the run (never a silent CP7 fallback that would mask a
+broken driver as a passing gate). On success `XMageBatch` logs
+`DRIVER_REGISTERED fqcn=… playerId=…`.
+
+The three registries (all `public static`, `playerId`-keyed, shipped in the dist via patch
+`0001`, frozen until the Phase-6.6 release cut):
+
+- `DriverBonus.register(UUID, java.util.function.ToIntBiFunction<Game,UUID>)` — Φ.
+- `MacroRegistry.register(UUID, ComboMacro)` — the macro; `ComboMacro` is
+  `boolean applicable(Game,UUID)` (= P) + `void apply(Game,UUID)` (the bounded win
+  sequence; **never** call `priority()` / the turn loop on the handed game — drive it with
+  explicit state moves + `applyEffects` + a capped stack resolve).
+- `SelectionRegistry.register(UUID, SelectionSteer)` — S:
+  `boolean apply(Game, UUID, Cards, TargetCard, Ability, boolean useAddTarget)`.
+
+The `playerId` is invariant across `createSimulationForAI` copies and the SP2 swap, so a
+quad registered for the real PlayerA reaches every leaf/rollout of the search for that seat.
+A hand-authored reference implementation of this contract (Jeleva Thoracle) lives at
+`pipeline/pipeline/sim/reference_drivers/JelevaThoracleReferenceDriver.java`.
+
+---
+
 Distilled from `research/xmage-api-surface.md`. A driver is a **thin** `ComputerPlayer7`
 (CP7) subclass loaded on PlayerA via `-Dmakemagic.driverA=<FQCN>`. It owns ONLY the
 decisions CP7 misplays and defers everything else to `super.*`. **This fork is

@@ -17,6 +17,7 @@ import pytest
 
 from pipeline.contracts.models import Deck, DeckCard
 from pipeline.decks.version import version
+from pipeline.sim import driver_compile as dc
 from pipeline.sim import drivers
 from pipeline.sim import xmage_runtime as xr
 from pipeline.sim.engines import xmage as xe
@@ -45,25 +46,26 @@ def _deck() -> Deck:
 
 def test_compose_driverless_argv_unchanged(tmp_path: Path) -> None:
     """With NO driver the composed argv is the prior driverless shape: the classpath is
-    the install's own classpath verbatim and no -Dmakemagic.driverA appears."""
+    the install's own classpath verbatim and no -Dmakemagic.driver appears."""
     install = _install(tmp_path)
     cmd = xe._compose_launch_cmd(install, ['deckA.txt', '--solo', '1', '6'], heap='3g')
     assert '-cp' in cmd
     cp = cmd[cmd.index('-cp') + 1]
     assert cp == install.classpath
-    assert not any(a.startswith('-Dmakemagic.driverA') for a in cmd)
+    assert not any(a.startswith('-Dmakemagic.driver') for a in cmd)
 
 
 def test_compose_driver_prepends_classes_and_threads_prop(tmp_path: Path) -> None:
     """With a driver: drivers/<id>/classes sorts BEFORE the dist jar on the classpath
-    (so the injected Driver wins class-load) and -Dmakemagic.driverA=<FQCN> is passed."""
+    (so the injected Driver wins class-load) and -Dmakemagic.driver=<FQCN> is passed
+    (the register-by-playerId seam ``XMageBatch`` reads to invoke ``register(UUID)``)."""
     install = _install(tmp_path)
     classes = tmp_path / 'drivers' / 'abc123' / 'classes'
     fqcn = 'makemagic.driver.Deck_abc123'
     cmd = xe._compose_launch_cmd(
         install, ['deckA.txt', '--solo', '1', '6'], heap='3g', driver=(str(classes), fqcn)
     )
-    assert f'-Dmakemagic.driverA={fqcn}' in cmd
+    assert f'-Dmakemagic.driver={fqcn}' in cmd
     cp = cmd[cmd.index('-cp') + 1]
     entries = cp.split(os.pathsep)
     assert entries[0] == str(classes)  # driver classes FIRST
@@ -73,11 +75,81 @@ def test_compose_driver_prepends_classes_and_threads_prop(tmp_path: Path) -> Non
 
 
 # --------------------------------------------------------------------------- #
+# 1b. author -> ECJ compile -> inject wiring (Phase 3.3)                       #
+# --------------------------------------------------------------------------- #
+
+
+def test_compile_for_injection_returns_classdir_and_fqcn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """compile_for_injection compiles the Driver .java (ECJ, mocked here) and returns the
+    exact ``(classes_dir, fqcn)`` tuple the engine's ``driver=`` parameter takes."""
+    class_dir = tmp_path / 'out'
+    class_dir.mkdir()
+    monkeypatch.setattr(
+        dc,
+        'compile_driver',
+        lambda source, *, data_dir=None: dc.CompileResult(
+            ok=True, class_dir=class_dir, diagnostics=(), raw_stderr='', cache_hit=False
+        ),
+    )
+    src = tmp_path / 'JelevaThoracleReferenceDriver.java'
+    src.write_text('// stub', encoding='utf-8')
+    fqcn = 'makemagic.driver.reference.JelevaThoracleReferenceDriver'
+    injection = dc.compile_for_injection(src, fqcn)
+    assert injection == (str(class_dir), fqcn)
+
+
+def test_compile_for_injection_raises_on_compile_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A compile FAILURE is fail-loud (DriverCompileError carrying the diagnostics) — never a
+    tuple pointing at an empty/partial class dir that would silently run as pure CP7."""
+    diag = dc.Diagnostic(severity='ERROR', file='Driver.java', line=3, message='cannot find symbol')
+    monkeypatch.setattr(
+        dc,
+        'compile_driver',
+        lambda source, *, data_dir=None: dc.CompileResult(
+            ok=False, class_dir=None, diagnostics=(diag,), raw_stderr='boom', cache_hit=False
+        ),
+    )
+    src = tmp_path / 'Driver.java'
+    src.write_text('// stub', encoding='utf-8')
+    with pytest.raises(dc.DriverCompileError) as excinfo:
+        dc.compile_for_injection(src, 'makemagic.driver.Driver')
+    assert 'cannot find symbol' in str(excinfo.value)
+
+
+def test_injection_tuple_threads_into_launch_cmd(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """End-to-end wiring: the tuple from compile_for_injection composes into the launch argv
+    with the compiled dir FIRST on the classpath and -Dmakemagic.driver=<fqcn> set."""
+    class_dir = tmp_path / 'drivers' / 'classes'
+    class_dir.mkdir(parents=True)
+    fqcn = 'makemagic.driver.reference.JelevaThoracleReferenceDriver'
+    monkeypatch.setattr(
+        dc,
+        'compile_driver',
+        lambda source, *, data_dir=None: dc.CompileResult(
+            ok=True, class_dir=class_dir, diagnostics=(), raw_stderr='', cache_hit=False
+        ),
+    )
+    src = tmp_path / 'JelevaThoracleReferenceDriver.java'
+    src.write_text('// stub', encoding='utf-8')
+    injection = dc.compile_for_injection(src, fqcn)
+
+    install = _install(tmp_path)
+    cmd = xe._compose_launch_cmd(install, ['deckA.txt', '--solo', '1', '6'], heap='3g', driver=injection)
+    assert f'-Dmakemagic.driver={fqcn}' in cmd
+    cp = cmd[cmd.index('-cp') + 1]
+    assert cp.split(os.pathsep)[0] == str(class_dir)
+
+
+# --------------------------------------------------------------------------- #
 # 2. goldfish() parses medianKillsOwn                                          #
 # --------------------------------------------------------------------------- #
 
 _SUMMARY = (
-    'XMAGEBATCH SOLO card db ready; deckA=deckA.txt games=5 skill=6 driverA=cp7\n'
+    'XMAGEBATCH SOLO card db ready; deckA=deckA.txt games=5 skill=6 driver=cp7\n'
     'GOLDFISH GAME 1/5 deck=deckA.txt variant=cp7 killed=true ownKillTurn=6 globalTurn=11 lifeB=-2 ms=900\n'
     'GOLDFISH SUMMARY (OWN TURNS) deck=deckA.txt variant=cp7 games=5 maxTurn=20 skill=6 '
     'kills=4 bricks=1 medianAllOwn=6.0 medianKillsOwn=6.0 meanKillsOwn=6.25 bestOwn=5 distOwn=[6, 6, 6, 6, 21]\n'
