@@ -88,7 +88,7 @@ _REG = dg.DRIVER_REGISTERED_MARKER
 _MACRO = da.DRIVER_MACRO_FIRED_MARKER  # reachability (apply() entered — search copy OR real)
 _REAL = dg.MACRO_FIRE_REAL_MARKER  # true execution (act() committed the win on the REAL game)
 
-_GAMES = 12  # >= dg._MIN_GATE_GAMES floor
+_GAMES = 20  # >= dg._MIN_GATE_GAMES floor
 
 
 # --------------------------------------------------------------------------- #
@@ -379,7 +379,7 @@ def test_jeleva_positive_control_and_nonfiring_rejection(monkeypatch: pytest.Mon
     engine = get_engine('xmage')
     install = engine.resolve(provision=False, data_dir=_DATA_DIR)
     deck_ref = _jeleva_dck()
-    games = 12  # >= dg._MIN_GATE_GAMES floor
+    games = 20  # >= dg._MIN_GATE_GAMES floor
 
     good_deck = Deck(name='Jeleva Good', cards=[DeckCard(name='Forest', quantity=1)])
     dg.compile_quad_driver(good_deck, da.JELEVA_QUAD_SPEC, data_dir=_DATA_DIR)

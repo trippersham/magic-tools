@@ -94,9 +94,18 @@ MACRO_FIRE_REAL_MARKER = 'MACRO_FIRE_REAL'
 MULLIGAN_FIRED_MARKER = DRIVER_MULLIGAN_MARKER
 
 #: Hard floor on the gate's per-run game count. The never-slower check compares two seedless,
-#: independently-jittery medians; below this count the check flakes (n=8 flaked, n=15 was stable),
-#: and a silently-underpowered gate is worse than a loud stop. Both modes are jitter-sensitive.
-_MIN_GATE_GAMES = 12
+#: independently-jittery medians; below this count the check flakes and a silently-underpowered
+#: gate is worse than a loud stop. Both modes are jitter-sensitive.
+#:
+#: WHY 20: the Phase 6.1 Jeleva canary showed the never-slower NUMERIC check false-FAILS at n=12
+#: and n=15 for a deck whose driven own-turn clock coincides with the CP7 baseline mode (driven
+#: ~12-14 vs a throwaway baseline jittering 11/13/14 → Δ crosses the ±2 tolerance on baseline
+#: draw luck alone). The categorical signals (DRIVER_REGISTERED, MACRO_FIRE_REAL, DRIVER_MULLIGAN)
+#: are robust at any n; only the point-median never-slower term coin-flips near driven≈baseline.
+#: Re-gating the authored Jeleva quad at n=20 passed cleanly 3x in a row (driven/baseline =
+#: 10/13, 13/13, 11/12) where n=12 and n=15 had each false-failed — so 20 is the empirically-
+#: pinned floor at which the numeric term stops flaking for a driven≈baseline deck.
+_MIN_GATE_GAMES = 20
 
 #: Own-turn-kill slack allowed on the never-slower check. XMage has no reproducible seed, so the
 #: driven + baseline solo medians are two independent noisy samples that jitter ~±1 own-turn
