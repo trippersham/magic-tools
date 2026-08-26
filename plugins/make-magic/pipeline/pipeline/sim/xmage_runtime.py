@@ -18,6 +18,8 @@ a missing-install run stay actionable.
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,17 +33,32 @@ if TYPE_CHECKING:
 
 __all__ = (
     'ENV_JAVA',
+    'ENV_XMAGE_DIST_JAR',
     'ENV_XMAGE_HOME',
     'XMAGE_VERSION',
     'XMageInstall',
     'XMageUnavailableError',
+    'effective_dist_sha256',
     'ensure',
     'resolve',
 )
 
+_log = logging.getLogger(__name__)
+
 #: Point this at a BUILT XMage reactor (a clone where the ``_REACTOR_BUILD_CMD`` below
 #: has run) — the dir that contains ``Mage.Tests/``.
 ENV_XMAGE_HOME = 'MAKE_MAGIC_XMAGE_HOME'
+
+#: DEV-ONLY escape hatch: point this at a LOCAL dist jar (e.g. a freshly-built,
+#: not-yet-released ``make-magic-xmage-dist.jar``). When set, :func:`resolve` /
+#: :func:`ensure` use THAT jar directly — no fetch, no download, no code-pin SHA
+#: verification — and the jar's OWN sha256 becomes the *effective dist SHA*
+#: (:func:`effective_dist_sha256`) that keys the driver-compile cache + the ECJ
+#: classpath. It takes precedence over BOTH install modes below. Unset restores the
+#: byte-for-byte production path (fetch + verify against :data:`XMAGE_DIST_SHA256`,
+#: fail-closed on ``None``). Used to compile/test Drivers against a local dist before a
+#: release is cut.
+ENV_XMAGE_DIST_JAR = 'MAKE_MAGIC_XMAGE_DIST_JAR'
 
 #: The pinned XMage version the harness is compiled + verified against.
 XMAGE_VERSION = '1.4.60'
@@ -124,6 +141,49 @@ def _resolve_java() -> Path:
     return Path('java')
 
 
+def _dist_override() -> Path | None:
+    """The :data:`ENV_XMAGE_DIST_JAR` local-dist override jar, or ``None`` when unset.
+
+    A set-but-unusable override (missing / empty / not a file) RAISES rather than silently
+    falling through to the production fetch path — an explicit dev override that cannot be
+    honored must fail loudly.
+    """
+    override = os.environ.get(ENV_XMAGE_DIST_JAR)
+    if not override:
+        return None
+    jar = Path(override)
+    if not (jar.is_file() and jar.stat().st_size > 0):
+        raise XMageUnavailableError(
+            f'{ENV_XMAGE_DIST_JAR}={override!r} is not a readable, non-empty jar file.'
+        )
+    return jar
+
+
+def _sha256_of(path: Path) -> str:
+    """SHA256 of ``path``, hashed in 1 MiB chunks (the dist jar is ~79 MB)."""
+    digest = hashlib.sha256()
+    with path.open('rb') as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def effective_dist_sha256(data_dir: str | os.PathLike[str] | None = None) -> str | None:
+    """The dist SHA that keys the driver-compile cache + identifies the ECJ classpath.
+
+    With the local-dist override active, this is the override jar's REAL hash (so swapping
+    the local jar re-keys the compile cache — a changed dist forces recompilation). Unset,
+    it is the code-pinned :data:`XMAGE_DIST_SHA256` verbatim — ``None`` in the release-cut
+    window, so the production path is unchanged by this accessor's presence. ``data_dir`` is
+    accepted for signature parity with :func:`resolve` / :func:`ensure` (the override path
+    is data-dir-independent).
+    """
+    override = _dist_override()
+    if override is not None:
+        return _sha256_of(override)
+    return XMAGE_DIST_SHA256
+
+
 def _dist_dir(data_dir: str | os.PathLike[str] | None) -> Path:
     """``<data_dir>/xmage/`` — where the fetched shaded jar + its card DB live."""
     root = Path(data_dir) if data_dir is not None else StorePaths.resolve().data_dir
@@ -146,6 +206,16 @@ def resolve(data_dir: str | os.PathLike[str] | None = None) -> XMageInstall:
 
     Neither present → an actionable error naming BOTH how-to-enable paths.
     """
+    override = _dist_override()
+    if override is not None:
+        _log.warning(
+            'LOCAL-DIST OVERRIDE active (%s=%s): using this jar directly — no fetch, no '
+            'download, no code-pin SHA verification. This is a dev-only escape hatch.',
+            ENV_XMAGE_DIST_JAR,
+            override,
+        )
+        return XMageInstall(mage_tests_dir=override.parent, classpath=str(override), java=_resolve_java())
+
     home_env = os.environ.get(ENV_XMAGE_HOME)
     if home_env:
         return _resolve_reactor(home_env)
