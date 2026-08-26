@@ -174,9 +174,11 @@ public final class JelevaThoracleReferenceDriver {
 
         @Override
         public void apply(Game game, UUID pid) {
-            // STANDARD slot-exercise marker (Phase 5): the seam invokes apply() ONLY to execute
-            // the deterministic win, so entry == the macro fired. The emitter injects the same
-            // line into every authored quad; kept here so the reference driver matches.
+            // REACHABILITY marker (Phase 5): the seam invokes apply() on THROWAWAY search copies
+            // at every node where P holds AND in real act(), so entry means the macro is
+            // REACHABLE, not that it executed to win. True execution is proven by the frozen
+            // dist's MACRO_FIRE_REAL (emitted only from the real act() commit). The emitter
+            // injects this same line into every authored quad; kept here so the reference matches.
             System.err.println("DRIVER_MACRO_FIRED pid=" + pid);
             Player me = game.getPlayer(pid);
             if (me == null) {

@@ -69,8 +69,15 @@ _CORE_KEYS = frozenset({'deck_version', 'harness_version', 'fqcn', 'gates_passed
 
 #: The gate mode a driver was signed off under (Phase 5 dual-mode gate): ``'proactive'``
 #: (macro-bearing — gated on macro-fire + never-slower) or ``'reactive'`` (Φ-only — gated on
-#: the never-worse-solo floor). Older metas predating the field read back as the default.
+#: the never-worse-solo floor). The default for a programmatically-built :class:`DriverMeta`
+#: without an explicit mode.
 _DEFAULT_GATE_MODE = 'proactive'
+
+#: The sentinel a legacy ``meta.json`` predating the ``gate_mode`` field reads back as. The
+#: field is descriptive-only (``driver_valid`` does not branch on it), so an absent value must
+#: NOT be guessed as ``'proactive'`` — labeling a legacy meta a mode it was never gated under is
+#: worse than an honest ``'unknown'``.
+_LEGACY_GATE_MODE = 'unknown'
 
 
 @dataclass(frozen=True)
@@ -114,7 +121,7 @@ class DriverMeta:
             harness_version=str(data['harness_version']),
             fqcn=str(data['fqcn']),
             gates_passed=bool(data['gates_passed']),
-            gate_mode=str(data.get('gate_mode', _DEFAULT_GATE_MODE)),
+            gate_mode=str(data.get('gate_mode', _LEGACY_GATE_MODE)),
             extra=extra,
         )
 

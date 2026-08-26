@@ -382,7 +382,7 @@ def test_jeleva_compare_pilotings_real_jar(monkeypatch: pytest.MonkeyPatch) -> N
 
     dg.compile_quad_driver(deck, da.JELEVA_QUAD_SPEC, data_dir=_DATA_DIR)
     gate = dg.gate_driver(
-        deck, deck_ref, spec=da.JELEVA_QUAD_SPEC, install=install, games=4, engine=engine, data_dir=_DATA_DIR
+        deck, deck_ref, spec=da.JELEVA_QUAD_SPEC, install=install, games=12, engine=engine, data_dir=_DATA_DIR
     )
     assert gate.passed, f'gate failed: {gate.reason}'
     assert drivers.driver_valid(deck, data_dir=_DATA_DIR)

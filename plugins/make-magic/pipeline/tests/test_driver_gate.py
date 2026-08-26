@@ -5,7 +5,7 @@ The unit tests use a FAKE goldfish engine (canned driven/baseline medians + a dr
 string carrying the standard slot-exercise markers) — NO real JVM. The gate routes by the
 quad's shape (a macro ⇒ proactive, Φ-only ⇒ reactive):
 
-  * proactive PASS = registers + ``DRIVER_MACRO_FIRED`` + never-slower;
+  * proactive PASS = registers + ``MACRO_FIRE_REAL`` (true execution) + never-slower;
   * proactive FAIL = macro never fires, OR slower than CP7;
   * reactive PASS = registers + never-worse-solo floor (NO macro-fire requirement).
 
@@ -85,7 +85,10 @@ def _res(median: float, games: int = 5) -> GoldfishResult:
 
 
 _REG = dg.DRIVER_REGISTERED_MARKER
-_MACRO = da.DRIVER_MACRO_FIRED_MARKER
+_MACRO = da.DRIVER_MACRO_FIRED_MARKER  # reachability (apply() entered — search copy OR real)
+_REAL = dg.MACRO_FIRE_REAL_MARKER  # true execution (act() committed the win on the REAL game)
+
+_GAMES = 12  # >= dg._MIN_GATE_GAMES floor
 
 
 # --------------------------------------------------------------------------- #
@@ -93,20 +96,24 @@ _MACRO = da.DRIVER_MACRO_FIRED_MARKER
 # --------------------------------------------------------------------------- #
 
 
-def test_proactive_passes_when_registers_fires_and_not_slower(_store: Path) -> None:
-    """Proactive: DRIVER_REGISTERED + DRIVER_MACRO_FIRED present AND driven <= baseline →
-    pass, meta stamped gates_passed + gate_mode='proactive', driver_valid True."""
+def test_proactive_passes_when_registers_really_fires_and_not_slower(_store: Path) -> None:
+    """Proactive: DRIVER_REGISTERED + MACRO_FIRE_REAL (true execution) present AND driven <=
+    baseline → pass, meta stamped gates_passed + gate_mode='proactive', driver_valid True."""
     deck = _deck()
-    output = f'noise\n{_REG} fqcn=x playerId=1\n{_MACRO} pid=1\nGOLDFISH SUMMARY (OWN TURNS) ...\n'
+    output = (
+        f'noise\n{_REG} fqcn=x playerId=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
+        'GOLDFISH SUMMARY (OWN TURNS) ...\n'
+    )
     eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
 
     result = dg.gate_driver(
         deck, ('D', 'dck'),
-        spec=_proactive_spec(), install=object(), games=5, engine=eng, data_dir=_store)
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
 
     assert result.passed is True
     assert result.mode == 'proactive'
     assert result.registered is True and result.macro_fired is True
+    assert result.macro_reachable is True
     assert eng.calls == ['driven', 'baseline']
     meta = drivers.read_meta(deck, data_dir=_store)
     assert meta is not None and meta.gates_passed is True and meta.gate_mode == 'proactive'
@@ -115,34 +122,81 @@ def test_proactive_passes_when_registers_fires_and_not_slower(_store: Path) -> N
 
 
 def test_proactive_fails_when_macro_never_fires(_store: Path) -> None:
-    """Proactive: registers but DRIVER_MACRO_FIRED absent → fail even if the median is fine;
+    """Proactive: registers but MACRO_FIRE_REAL absent → fail even if the median is fine;
     nothing stamped, driver_valid False."""
     deck = _deck()
-    output = f'{_REG} fqcn=x playerId=1\nGOLDFISH SUMMARY (OWN TURNS) ...\n'  # no macro marker
+    output = f'{_REG} fqcn=x playerId=1\nGOLDFISH SUMMARY (OWN TURNS) ...\n'  # no fire markers
     eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
 
     result = dg.gate_driver(
         deck, ('D', 'dck'),
-        spec=_proactive_spec(), install=object(), games=5, engine=eng, data_dir=_store)
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
 
     assert result.passed is False
     assert result.mode == 'proactive'
     assert result.registered is True and result.macro_fired is False
-    assert 'DRIVER_MACRO_FIRED' in result.reason
+    assert result.macro_reachable is False
+    assert 'MACRO_FIRE_REAL' in result.reason
     assert drivers.read_meta(deck, data_dir=_store) is None
     assert drivers.driver_valid(deck, data_dir=_store) is False
+
+
+def test_proactive_fails_when_reachable_but_never_really_fires(_store: Path) -> None:
+    """THE NEW TEETH: registers + DRIVER_MACRO_FIRED present (the macro is REACHABLE — apply()
+    entered on a throwaway search copy) but MACRO_FIRE_REAL absent (it never executed to win on
+    the real game) → FAIL. Reachability alone must not pass the fire check."""
+    deck = _deck()
+    output = (
+        f'{_REG} fqcn=x playerId=1\n{_MACRO} pid=1\n{_MACRO} pid=1\n'  # reachable in search, never real
+        'GOLDFISH SUMMARY (OWN TURNS) ...\n'
+    )
+    eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
+
+    result = dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
+
+    assert result.passed is False
+    assert result.macro_reachable is True  # reachability recorded…
+    assert result.macro_fired is False  # …but NOT true execution
+    assert 'MACRO_FIRE_REAL' in result.reason
+    assert drivers.read_meta(deck, data_dir=_store) is None
+    assert drivers.driver_valid(deck, data_dir=_store) is False
+
+
+def test_games_floor_raises_below_minimum(_store: Path) -> None:
+    """A silently-underpowered gate is worse than a hard stop: games below the floor raises
+    ValueError LOUDLY (both modes); at the floor it does not."""
+    deck = _deck()
+    output = f'{_REG} p=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
+    eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
+
+    with pytest.raises(ValueError, match='games'):
+        dg.gate_driver(
+            deck, ('D', 'dck'),
+            spec=_proactive_spec(), install=object(), games=8, engine=eng, data_dir=_store)
+    # reactive too — jitter affects the never-worse floor as well.
+    with pytest.raises(ValueError, match='games'):
+        dg.gate_driver(
+            deck, ('D', 'dck'),
+            spec=_reactive_spec(), install=object(), games=8, engine=eng, data_dir=_store)
+    # at the floor: no raise.
+    result = dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=_proactive_spec(), install=object(), games=dg._MIN_GATE_GAMES, engine=eng, data_dir=_store)
+    assert result.passed is True
 
 
 def test_proactive_fails_when_slower_than_baseline(_store: Path) -> None:
     """Proactive: registers + fires but driven median WORSE than baseline by MORE than the
     tolerance (default 2) → fail. 9.0 vs 6.0 is +3, beyond the 2-turn jitter slack."""
     deck = _deck()
-    output = f'{_REG} p=1\n{_MACRO} pid=1\n'
+    output = f'{_REG} p=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
     eng = _FakeEngine(driven=_res(9.0), driven_output=output, baseline=_res(6.0))
 
     result = dg.gate_driver(
         deck, ('D', 'dck'),
-        spec=_proactive_spec(), install=object(), games=5, engine=eng, data_dir=_store)
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
 
     assert result.passed is False
     assert result.macro_fired is True
@@ -153,12 +207,12 @@ def test_proactive_fails_when_slower_than_baseline(_store: Path) -> None:
 def test_gate_fails_when_not_registered(_store: Path) -> None:
     """Neither mode passes without DRIVER_REGISTERED (belt-and-suspenders over the P3 fail-loud)."""
     deck = _deck()
-    output = f'{_MACRO} pid=1\nGOLDFISH SUMMARY (OWN TURNS) ...\n'  # macro but no registration
+    output = f'{_MACRO} pid=1\n{_REAL} name=A turn=6\nGOLDFISH SUMMARY (OWN TURNS) ...\n'  # no registration
     eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
 
     result = dg.gate_driver(
         deck, ('D', 'dck'),
-        spec=_proactive_spec(), install=object(), games=5, engine=eng, data_dir=_store)
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
 
     assert result.passed is False
     assert result.registered is False
@@ -180,7 +234,7 @@ def test_reactive_passes_on_floor_without_macro_fire(_store: Path) -> None:
 
     result = dg.gate_driver(
         deck, ('D', 'dck'),
-        spec=_reactive_spec(), install=object(), games=5, engine=eng, data_dir=_store)
+        spec=_reactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
 
     assert result.passed is True
     assert result.mode == 'reactive'
@@ -199,7 +253,7 @@ def test_reactive_fails_below_the_floor(_store: Path) -> None:
 
     result = dg.gate_driver(
         deck, ('D', 'dck'),
-        spec=_reactive_spec(), install=object(), games=5, engine=eng, data_dir=_store)
+        spec=_reactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
 
     assert result.passed is False
     assert 'floor' in result.reason
@@ -215,12 +269,12 @@ def test_tolerance_absorbs_seedless_jitter(_store: Path) -> None:
     """Within the tolerance (default 2), a driven median slightly above baseline still passes
     — the check must not coin-flip on XMage's seedless ±1-turn jitter."""
     deck = _deck()
-    output = f'{_REG} p=1\n{_MACRO} pid=1\n'
+    output = f'{_REG} p=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
     eng = _FakeEngine(driven=_res(9.0), driven_output=output, baseline=_res(8.0))  # +1, within tol
 
     result = dg.gate_driver(
         deck, ('D', 'dck'),
-        spec=_proactive_spec(), install=object(), games=5, engine=eng, data_dir=_store)
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
 
     assert result.passed is True
     assert result.extra['gate_tolerance'] == 2.0
@@ -230,11 +284,11 @@ def test_tolerance_absorbs_seedless_jitter(_store: Path) -> None:
 def test_tolerance_is_configurable(_store: Path) -> None:
     """A stricter tolerance=0 restores exact never-slower: +1 now fails."""
     deck = _deck()
-    output = f'{_REG} p=1\n{_MACRO} pid=1\n'
+    output = f'{_REG} p=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
     eng = _FakeEngine(driven=_res(9.0), driven_output=output, baseline=_res(8.0))
 
     result = dg.gate_driver(
-        deck, ('D', 'dck'), spec=_proactive_spec(), install=object(), games=5, tolerance=0.0,
+        deck, ('D', 'dck'), spec=_proactive_spec(), install=object(), games=_GAMES, tolerance=0.0,
         engine=eng, data_dir=_store,
     )
 
@@ -325,7 +379,7 @@ def test_jeleva_positive_control_and_nonfiring_rejection(monkeypatch: pytest.Mon
     engine = get_engine('xmage')
     install = engine.resolve(provision=False, data_dir=_DATA_DIR)
     deck_ref = _jeleva_dck()
-    games = 8
+    games = 12  # >= dg._MIN_GATE_GAMES floor
 
     good_deck = Deck(name='Jeleva Good', cards=[DeckCard(name='Forest', quantity=1)])
     dg.compile_quad_driver(good_deck, da.JELEVA_QUAD_SPEC, data_dir=_DATA_DIR)

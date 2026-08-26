@@ -345,6 +345,20 @@ def test_registry_roundtrip_and_extras_preserved(_store: Path) -> None:
     assert drivers.classes_dir(deck, data_dir=_store) == _store / 'drivers' / deck.uuid / 'classes'
 
 
+def test_legacy_meta_without_gate_mode_reads_as_unknown() -> None:
+    """A meta JSON predating the Phase-5 gate_mode field reads back as the 'unknown' sentinel
+    (NOT an arbitrary 'proactive' guess): the field is descriptive-only and driver_valid does
+    not branch on it, so a legacy meta must not be mislabeled."""
+    legacy = {
+        'deck_version': 'v1',
+        'harness_version': 'h1',
+        'fqcn': 'makemagic.driver.X',
+        'gates_passed': True,
+    }
+    meta = drivers.DriverMeta.from_json(legacy)
+    assert meta.gate_mode == 'unknown'
+
+
 def test_harness_version_uses_pinned_sha(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """When XMAGE_DIST_SHA256 is pinned, harness_version returns it directly (the ABI
     identity a compiled driver is bound to) — no jar hashing needed."""
