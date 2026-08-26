@@ -1,0 +1,38 @@
+From 4a17080f13be614f585e99632138c00256af6109 Mon Sep 17 00:00:00 2001
+From: Tripp Wickersham <tripp@hominy.ai>
+Date: Tue, 25 Aug 2026 20:36:23 -0700
+Subject: [PATCH 4/4] ComputerPlayer: S selection steer on the sim-rollout seat
+
+Adds the S steer to chooseTarget/choose so SimulatedPlayer2 (extends
+ComputerPlayer) models assembly during rollouts. No-op unregistered.
+---
+ .../src/main/java/mage/player/ai/ComputerPlayer.java  | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/ComputerPlayer.java b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/ComputerPlayer.java
+index 1fea8bc4..bc6f9c95 100644
+--- a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/ComputerPlayer.java
++++ b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/ComputerPlayer.java
+@@ -891,11 +891,22 @@ public class ComputerPlayer extends PlayerImpl {
+ 
+     @Override
+     public boolean chooseTarget(Outcome outcome, Cards cards, TargetCard target, Ability source, Game game) {
++        // In-search driver hook S (selection steer): fires on the sim-rollout seat
++        // (SimulatedPlayer2 extends ComputerPlayer) keyed by the stable playerId, so the
++        // search MODELS assembly (tutor fetches the missing combo piece). No-op unregistered.
++        mage.player.ai.score.SelectionSteer steer = mage.player.ai.score.SelectionRegistry.get(getId());
++        if (steer != null && steer.apply(game, getId(), cards, target, source, true)) {
++            return true;
++        }
+         return makeChoice(outcome, target, source, game, cards);
+     }
+ 
+     @Override
+     public boolean choose(Outcome outcome, Cards cards, TargetCard target, Ability source, Game game) {
++        mage.player.ai.score.SelectionSteer steer = mage.player.ai.score.SelectionRegistry.get(getId());
++        if (steer != null && steer.apply(game, getId(), cards, target, source, false)) {
++            return true;
++        }
+         return makeChoice(outcome, target, source, game, cards);
+     }
+ 

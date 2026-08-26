@@ -1,0 +1,225 @@
+From 7386c9e6522aaea50980368ef1dab3dff71e49d5 Mon Sep 17 00:00:00 2001
+From: Tripp Wickersham <tripp@hominy.ai>
+Date: Tue, 25 Aug 2026 20:36:23 -0700
+Subject: [PATCH 1/4] add score package: in-search driver quad registries +
+ types
+
+New AI-module classes for the make-magic in-search quad Driver seam:
+  DriverBonus (Phi reward-shaping registry), ComboMacro + MacroRegistry
+  (P/macro), SelectionSteer + SelectionRegistry (S selection steer).
+All keyed by the stable playerId UUID; strict no-op for unregistered seats.
+---
+ .../java/mage/player/ai/score/ComboMacro.java | 33 +++++++++++++++++
+ .../mage/player/ai/score/DriverBonus.java     | 37 +++++++++++++++++++
+ .../mage/player/ai/score/MacroRegistry.java   | 32 ++++++++++++++++
+ .../player/ai/score/SelectionRegistry.java    | 33 +++++++++++++++++
+ .../mage/player/ai/score/SelectionSteer.java  | 37 +++++++++++++++++++
+ 5 files changed, 172 insertions(+)
+ create mode 100644 Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/ComboMacro.java
+ create mode 100644 Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/DriverBonus.java
+ create mode 100644 Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MacroRegistry.java
+ create mode 100644 Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/SelectionRegistry.java
+ create mode 100644 Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/SelectionSteer.java
+
+diff --git a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/ComboMacro.java b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/ComboMacro.java
+new file mode 100644
+index 00000000..696917fc
+--- /dev/null
++++ b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/ComboMacro.java
+@@ -0,0 +1,33 @@
++package mage.player.ai.score;
++
++import mage.game.Game;
++
++import java.util.UUID;
++
++/**
++ * In-search driver hook B: a per-deck deterministic-execution macro.
++ *
++ * <p>A {@code ComboMacro} encodes ONE thing: the deck's deterministic win sequence. It is
++ * consulted by the search's candidate-action generation (ComputerPlayer6.simulatePriority)
++ * at EVERY node and by the real player's action commit (ComputerPlayer6.act), keyed by the
++ * STABLE playerId (invariant across createSimulationForAI copies + the SP2 swap). When
++ * {@link #applicable} holds for the acting player, the search evaluates firing the macro as
++ * a sibling candidate (its terminal scores WIN_GAME_SCORE), so minimax reasons about firing
++ * vs holding with full lookahead; when it holds on the real game, {@link #apply} drives the
++ * kill on the real state.</p>
++ *
++ * <p>{@link #apply} must be BOUNDED and must NEVER call {@code priority()} / the turn loop on
++ * the game it is handed (probeWins discipline): drive it only with explicit state moves /
++ * activateAbility + applyEffects + a capped stack resolve.</p>
++ */
++public interface ComboMacro {
++
++    /** Bound on any hand-driven resolve inside {@link #apply} (probeWins discipline). */
++    int PROBE_MAX_STEPS = 128;
++
++    /** Precondition P: the deterministic win is executable for {@code playerId} in this state. */
++    boolean applicable(Game game, UUID playerId);
++
++    /** Drive the deterministic win sequence for {@code playerId} on {@code game} (bounded). */
++    void apply(Game game, UUID playerId);
++}
+diff --git a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/DriverBonus.java b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/DriverBonus.java
+new file mode 100644
+index 00000000..06a33341
+--- /dev/null
++++ b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/DriverBonus.java
+@@ -0,0 +1,37 @@
++package mage.player.ai.score;
++
++import mage.game.Game;
++
++import java.util.Map;
++import java.util.UUID;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.function.ToIntBiFunction;
++
++/**
++ * POC reward-shaping seam: a per-playerId "distance-to-win" bonus folded into the
++ * normal-heuristic leaf score of {@link GameStateEvaluator2}. Keyed by the STABLE
++ * playerId UUID (invariant across createSimulationForAI copies + the SP2 swap), so a
++ * bonus registered for the real PlayerA reaches every PlayerA leaf in the real search
++ * AND the nested rollouts. Bounded by the caller (recommend |bonus| &lt;&lt; WIN_GAME_SCORE).
++ * Deterministic pure function of (game, playerId) is required to keep alpha-beta correct.
++ */
++public final class DriverBonus {
++
++    private static final Map<UUID, ToIntBiFunction<Game, UUID>> REGISTRY = new ConcurrentHashMap<>();
++
++    public static void register(UUID playerId, ToIntBiFunction<Game, UUID> fn) {
++        REGISTRY.put(playerId, fn);
++    }
++
++    public static void clear(UUID playerId) {
++        REGISTRY.remove(playerId);
++    }
++
++    public static int evaluate(UUID playerId, Game game) {
++        ToIntBiFunction<Game, UUID> fn = REGISTRY.get(playerId);
++        return fn == null ? 0 : fn.applyAsInt(game, playerId);
++    }
++
++    private DriverBonus() {
++    }
++}
+diff --git a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MacroRegistry.java b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MacroRegistry.java
+new file mode 100644
+index 00000000..09b3e722
+--- /dev/null
++++ b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MacroRegistry.java
+@@ -0,0 +1,32 @@
++package mage.player.ai.score;
++
++import java.util.Map;
++import java.util.UUID;
++import java.util.concurrent.ConcurrentHashMap;
++
++/**
++ * In-search driver hook B registry (sibling of {@link DriverBonus}): a per-playerId
++ * {@link ComboMacro}. Keyed by the STABLE playerId UUID so a macro registered for the real
++ * PlayerA is consulted at every search node for that seat AND on the real player's action
++ * commit, and is a strict no-op for any other seat (per-playerId isolation = the
++ * intelligence-preserving property: an unregistered seat plays as pure CP7).
++ */
++public final class MacroRegistry {
++
++    private static final Map<UUID, ComboMacro> REGISTRY = new ConcurrentHashMap<>();
++
++    public static void register(UUID playerId, ComboMacro macro) {
++        REGISTRY.put(playerId, macro);
++    }
++
++    public static void clear(UUID playerId) {
++        REGISTRY.remove(playerId);
++    }
++
++    public static ComboMacro get(UUID playerId) {
++        return REGISTRY.get(playerId);
++    }
++
++    private MacroRegistry() {
++    }
++}
+diff --git a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/SelectionRegistry.java b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/SelectionRegistry.java
+new file mode 100644
+index 00000000..1ea6b81a
+--- /dev/null
++++ b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/SelectionRegistry.java
+@@ -0,0 +1,33 @@
++package mage.player.ai.score;
++
++import java.util.Map;
++import java.util.UUID;
++import java.util.concurrent.ConcurrentHashMap;
++
++/**
++ * In-search driver hook S registry (sibling of {@link MacroRegistry} / {@link DriverBonus}):
++ * a per-playerId {@link SelectionSteer}. Keyed by the STABLE playerId UUID so a steer
++ * registered for the real PlayerA is consulted on that seat's card-choice hooks in BOTH the
++ * real game AND the sim rollouts (the id is invariant across createSimulationForAI copies +
++ * the SP2 swap), and is a strict no-op for any other seat (per-playerId isolation = the
++ * intelligence-preserving property: an unregistered seat picks with pure CP7).
++ */
++public final class SelectionRegistry {
++
++    private static final Map<UUID, SelectionSteer> REGISTRY = new ConcurrentHashMap<>();
++
++    public static void register(UUID playerId, SelectionSteer steer) {
++        REGISTRY.put(playerId, steer);
++    }
++
++    public static void clear(UUID playerId) {
++        REGISTRY.remove(playerId);
++    }
++
++    public static SelectionSteer get(UUID playerId) {
++        return REGISTRY.get(playerId);
++    }
++
++    private SelectionRegistry() {
++    }
++}
+diff --git a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/SelectionSteer.java b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/SelectionSteer.java
+new file mode 100644
+index 00000000..45a31bf2
+--- /dev/null
++++ b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/SelectionSteer.java
+@@ -0,0 +1,37 @@
++package mage.player.ai.score;
++
++import mage.abilities.Ability;
++import mage.cards.Cards;
++import mage.game.Game;
++import mage.target.TargetCard;
++
++import java.util.UUID;
++
++/**
++ * In-search driver hook S (selection steer): a per-deck thin nudge on the REAL-player
++ * card-choice hooks ({@code ComputerPlayer(6).chooseTarget/choose} over {@link Cards} /
++ * {@link TargetCard}) — the choice-points {@link DriverBonus} (leaf eval) and
++ * {@link ComboMacro} (action gen) cannot reach.
++ *
++ * <p>Where Φ gets the deck TO a tutor cast and the macro fires FROM an assembled hand, S
++ * closes the gap between them: when a tutor searches MY library and I am missing a combo
++ * piece, S steers the search's target-pick to the MISSING piece instead of CP7's
++ * first-legal card. It is consulted keyed by the STABLE playerId, so it fires in BOTH the
++ * real game (CP6 seat) AND the nested sim rollouts (SimulatedPlayer2 → ComputerPlayer
++ * seat) — the sim firing is essential: it lets the search MODEL assembly
++ * ("cast tutor → hold both pieces → macro → WIN") and thus VALUE casting the tutor. A
++ * strict no-op for any unregistered seat (intelligence-preserving isolation).</p>
++ */
++public interface SelectionSteer {
++
++    /**
++     * If this steer applies to {@code playerId}'s current card choice, add the steered
++     * target(s) to {@code target} and return {@code true} (the caller then returns without
++     * running CP7's default pick). Otherwise return {@code false} (fall through to CP7).
++     *
++     * @param useAddTarget {@code true} → add via {@code target.addTarget(id, source, game)}
++     *                     (the {@code chooseTarget} path); {@code false} → {@code target.add(id, game)}
++     *                     (the {@code choose} path).
++     */
++    boolean apply(Game game, UUID playerId, Cards cards, TargetCard target, Ability source, boolean useAddTarget);
++}

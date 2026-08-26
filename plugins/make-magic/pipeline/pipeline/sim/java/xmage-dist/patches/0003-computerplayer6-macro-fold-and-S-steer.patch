@@ -1,0 +1,103 @@
+From 910ee08cbb2e9c8f82662ddee847a29f8903b91c Mon Sep 17 00:00:00 2001
+From: Tripp Wickersham <tripp@hominy.ai>
+Date: Tue, 25 Aug 2026 20:36:23 -0700
+Subject: [PATCH 3/4] ComputerPlayer6: in-search macro fold (sim + real) + S
+ selection steer
+
+Evaluates firing the registered ComboMacro as a sibling candidate at every
+search node and commits it in act(); adds the S steer to chooseTarget/choose
+on the real CP7 seat. Keyed by the stable playerId; no-op unregistered.
+---
+ .../src/mage/player/ai/ComputerPlayer6.java   | 58 +++++++++++++++++++
+ 1 file changed, 58 insertions(+)
+
+diff --git a/Mage.Server.Plugins/Mage.Player.AI.MA/src/mage/player/ai/ComputerPlayer6.java b/Mage.Server.Plugins/Mage.Player.AI.MA/src/mage/player/ai/ComputerPlayer6.java
+index 24f62353..4ea8bfea 100644
+--- a/Mage.Server.Plugins/Mage.Player.AI.MA/src/mage/player/ai/ComputerPlayer6.java
++++ b/Mage.Server.Plugins/Mage.Player.AI.MA/src/mage/player/ai/ComputerPlayer6.java
+@@ -170,6 +170,21 @@ public class ComputerPlayer6 extends ComputerPlayer {
+     }
+ 
+     protected void act(Game game) {
++        // In-search driver hook B (real commit): when a combo macro is registered for THIS
++        // player's stable id and its precondition P holds on the REAL game, fire the
++        // deterministic kill. P is the "deterministic win available now" boundary that the
++        // search (potential-shaping Phi + the in-search macro node above) drove the AI to
++        // reach; committing it here is the go decision minimax already valued at WIN.
++        mage.player.ai.score.ComboMacro liveMacro = mage.player.ai.score.MacroRegistry.get(playerId);
++        if (liveMacro != null && !game.checkIfGameIsOver() && liveMacro.applicable(game, playerId)) {
++            logger.info("MACRO FIRE (real) player=" + getName() + " turn=" + game.getTurnNum());
++            System.err.println("MACRO_FIRE_REAL name=" + getName() + " turn=" + game.getTurnNum());
++            liveMacro.apply(game, playerId);
++            game.applyEffects();
++            game.checkStateAndTriggered();
++            System.err.println("MACRO_FIRE_DONE name=" + getName() + " gameOver=" + game.checkIfGameIsOver());
++            return;
++        }
+         if (actions == null
+                 || actions.isEmpty()) {
+             pass(game);
+@@ -537,6 +552,37 @@ public class ComputerPlayer6 extends ComputerPlayer {
+         }
+         int actionNumber = 0;
+         int bestValSubNodes = Integer.MIN_VALUE;
++        // In-search driver hook B (every node): evaluate FIRING the registered combo macro
++        // as a sibling candidate at THIS node, keyed by the acting player's STABLE id
++        // (invariant across createSimulationForAI + the SP2 swap). apply() drives the
++        // deterministic kill on a throwaway copy; its terminal scores WIN_GAME_SCORE, so
++        // minimax values reaching the precondition P as a win and propagates that up
++        // (giving the potential-shaping Phi a winning endpoint). Real execution = act().
++        mage.player.ai.score.ComboMacro macro = mage.player.ai.score.MacroRegistry.get(currentPlayer.getId());
++        if (macro != null && currentPlayer.getId().equals(playerId)) {
++            try {
++                if (macro.applicable(game, playerId)) {
++                    Game msim = game.createSimulationForAI();
++                    macro.apply(msim, playerId);
++                    msim.applyEffects();
++                    msim.checkStateAndTriggered();
++                    int macroScore = GameStateEvaluator2.evaluate(playerId, msim).getTotalScore();
++                    if (depth == maxDepth) {
++                        logger.info("MACRO in-search: applicable=true score=" + macroScore
++                                + " win=" + GameStateEvaluator2.WIN_GAME_SCORE
++                                + " gameOver=" + msim.checkIfGameIsOver());
++                    }
++                    if (macroScore > bestValSubNodes) {
++                        bestValSubNodes = macroScore;
++                    }
++                    if (macroScore > alpha) {
++                        alpha = macroScore;
++                    }
++                }
++            } catch (Throwable t) {
++                logger.debug("MACRO in-search eval error: " + t);
++            }
++        }
+         for (Ability action : allActions) {
+             actionNumber++;
+             if (!COMPUTER_DISABLE_TIMEOUT_IN_GAME_SIMULATIONS && Thread.currentThread().isInterrupted()) {
+@@ -889,6 +935,14 @@ public class ComputerPlayer6 extends ComputerPlayer {
+ 
+     @Override
+     public boolean chooseTarget(Outcome outcome, Cards cards, TargetCard target, Ability source, Game game) {
++        // In-search driver hook S (selection steer): fires on the REAL CP7 seat (CP7 extends
++        // CP6) keyed by the stable playerId, BEFORE CP6's precomputed-targets path, so a
++        // registered tutor-target steer fetches the missing combo piece in the real game.
++        // No-op for any unregistered seat (pure CP7).
++        mage.player.ai.score.SelectionSteer steer = mage.player.ai.score.SelectionRegistry.get(getId());
++        if (steer != null && steer.apply(game, getId(), cards, target, source, true)) {
++            return true;
++        }
+         if (targets.isEmpty()) {
+             return super.chooseTarget(outcome, cards, target, source, game);
+         }
+@@ -909,6 +963,10 @@ public class ComputerPlayer6 extends ComputerPlayer {
+ 
+     @Override
+     public boolean choose(Outcome outcome, Cards cards, TargetCard target, Ability source, Game game) {
++        mage.player.ai.score.SelectionSteer steer = mage.player.ai.score.SelectionRegistry.get(getId());
++        if (steer != null && steer.apply(game, getId(), cards, target, source, false)) {
++            return true;
++        }
+         if (targets.isEmpty()) {
+             return super.choose(outcome, cards, target, source, game);
+         }

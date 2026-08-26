@@ -78,6 +78,15 @@ jobs:
           set -euo pipefail
           git clone --depth 1 --branch "$XMAGE_TAG" "https://github.com/${XMAGE_REPO}.git" xmage-src
           cd xmage-src
+          # SEAM: apply the in-search quad Driver patch series over the pristine tag BEFORE
+          # install. `git apply --check` first so an XMage bump that breaks a hunk FAILS
+          # LOUD here (instead of silently building an unseamed dist). There is no fork —
+          # patches/NNNN-*.patch is the maintained artifact (see DIST_DIR/build.sh).
+          PATCHES=("$GITHUB_WORKSPACE/$DIST_DIR"/patches/*.patch)
+          echo "applying ${#PATCHES[@]} seam patch(es) over $XMAGE_TAG"
+          git apply --check "${PATCHES[@]}" \
+            || { echo "::error::seam patches do not apply cleanly to $XMAGE_TAG — re-derive $DIST_DIR/patches/"; exit 1; }
+          git apply "${PATCHES[@]}"
           mvn -q -B -pl Mage.Tests,Mage.Server.Plugins/Mage.Player.AI.MA,Mage.Server.Plugins/Mage.Game.CommanderDuel -am install -DskipTests
 
       - name: Build the shaded dist jar
