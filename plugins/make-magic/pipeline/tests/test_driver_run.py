@@ -401,3 +401,31 @@ def test_run_reads_sys_argv_when_argv_is_none(monkeypatch: pytest.MonkeyPatch, t
     dr.main()  # argv=None -> must read sys.argv
     written = list(out.glob('driver-run-buckets.*'))
     assert {p.suffix for p in written} == {'.json', '.md'}, f'custom --out-dir not honored: {written}'
+
+
+def test_skip_gate_bypasses_gate_and_compares(_store: Path) -> None:
+    """--skip-gate: even an engine that would FAIL the gate reaches ``compared`` (gate bypassed),
+    and a valid driver meta is force-stamped so compare's ``driver_valid`` check passes."""
+    from pipeline.sim import drivers
+
+    deck_id = _real_drive_id()
+    batch = _batch_ledger(_store, [deck_id])
+    run_ledger = Ledger(_store / 'run.jsonl')
+    field = dr.build_opponent_field(drive_deck_ids=[deck_id])
+
+    status = dr.run_one_deck(
+        batch.row(deck_id),
+        field=field,
+        install=object(),
+        games=20,
+        ledger=run_ledger,
+        engine=_FakeEngine(gate_pass=False, driver_wins=3, cp7_wins=1, games_b=4),
+        data_dir=_store,
+        skip_gate=True,
+    )
+    assert status == 'compared'  # gate would have FAILED, but skip_gate bypasses it
+    row = run_ledger.row(deck_id)
+    assert row['stage'] == 'compared'
+    assert row['gate_mode'] == 'skipped'
+    deck, _ = dr.deck_and_ref_for_row(batch.row(deck_id))
+    assert drivers.driver_valid(deck, data_dir=_store) is True
