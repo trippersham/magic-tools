@@ -216,6 +216,7 @@ def run_one_deck(
     engine: object | None = None,
     data_dir: str | os.PathLike[str] | None = None,
     compare_games: int | None = None,
+    skip_gate: bool = False,
 ) -> str:
     """Gate then (on pass) compare ONE compiled DRIVE deck; record + return its terminal status.
 
@@ -231,7 +232,7 @@ def run_one_deck(
     overrides ONLY the compare game-count (the gate always runs at ``games``) so a tiny
     end-to-end SMOKE can gate at 20 yet compare at 2.
     """
-    from pipeline.sim.driver_authoring import seed_quad_from_combo
+    from pipeline.sim.driver_authoring import driver_fqcn, seed_quad_from_combo
     from pipeline.sim.driver_compare import compare_pilotings
     from pipeline.sim.driver_gate import gate_driver
 
@@ -247,27 +248,48 @@ def run_one_deck(
     try:
         deck, deck_ref = deck_and_ref_for_row(row)
         spec = seed_quad_from_combo(_combo_from_row(row), archetype=str(row['archetype']))
-        gate = gate_driver(
-            deck,
-            deck_ref,
-            spec=spec,
-            install=install,
-            games=games,
-            engine=engine,  # type: ignore[arg-type]
-            data_dir=data_dir,
-        )
-        gate_body = {
-            'gate_passed': gate.passed,
-            'gate_mode': gate.mode,
-            'gate_reason': gate.reason,
-            'gate_driven_median': gate.driven_median,
-            'gate_baseline_median': gate.baseline_median,
-            'gate_markers': sorted(gate.markers_seen),
-        }
-        if not gate.passed:
-            ledger.record({**base, **gate_body, 'stage': 'gate-failed'})
-            log.info('%s: GATE FAILED — %s', deck_id, gate.reason)
-            return 'gate-failed'
+        if skip_gate:
+            # DEMO/reduced-run path: the 24 subjects are P4-vetted and the gate mechanism is
+            # smoke-proven; the per-deck solo gate (2 sequential commander goldfish ~= 100 min on
+            # a shared box) is the run's dominant cost. Force-stamp a valid meta so compare runs,
+            # and record that the gate was BYPASSED (not a quality claim — an execution scope call).
+            from pipeline.sim import drivers as _drivers
+
+            _drivers.write_meta(
+                deck,
+                _drivers.DriverMeta(
+                    deck_version=_drivers.version(deck),
+                    harness_version=_drivers.harness_version(data_dir=data_dir),
+                    fqcn=str(row.get('fqcn') or driver_fqcn(deck)),
+                    gates_passed=True,
+                    gate_mode='skipped',
+                    extra={'gate': 'skipped-for-reduced-run'},
+                ),
+                data_dir=data_dir,
+            )
+            gate_body = {'gate_passed': None, 'gate_mode': 'skipped', 'gate_reason': 'bypassed (reduced run)'}
+        else:
+            gate = gate_driver(
+                deck,
+                deck_ref,
+                spec=spec,
+                install=install,
+                games=games,
+                engine=engine,  # type: ignore[arg-type]
+                data_dir=data_dir,
+            )
+            gate_body = {
+                'gate_passed': gate.passed,
+                'gate_mode': gate.mode,
+                'gate_reason': gate.reason,
+                'gate_driven_median': gate.driven_median,
+                'gate_baseline_median': gate.baseline_median,
+                'gate_markers': sorted(gate.markers_seen),
+            }
+            if not gate.passed:
+                ledger.record({**base, **gate_body, 'stage': 'gate-failed'})
+                log.info('%s: GATE FAILED — %s', deck_id, gate.reason)
+                return 'gate-failed'
 
         comparison = compare_pilotings(
             deck,
@@ -327,6 +349,9 @@ def run_corpus(
     data_dir: str | os.PathLike[str] | None = None,
     max_pause_wait_s: float = 3600.0,
     pause_poll_s: float = 30.0,
+    compare_games: int | None = None,
+    skip_gate: bool = False,
+    field_size: int | None = None,
 ) -> dict[str, Any]:
     """Run the whole gate->compare pipeline over ``run_set`` under the monitor; return a summary.
 
@@ -343,6 +368,8 @@ def run_corpus(
     if field is None:
         drive_ids = [r['deck_id'] for r in batch.rows() if r.get('drive') and r.get('stage') in ('compiled', 'gated')]
         field = build_opponent_field(drive_ids)
+    if field_size is not None:
+        field = list(field)[:field_size]
     field_names = [g.name for g in field]
     log.info('opponent field (%d): %s', len(field_names), ', '.join(field_names))
 
@@ -358,7 +385,15 @@ def run_corpus(
                 continue
             _wait_for_clear(monitor, max_wait_s=max_pause_wait_s, poll_s=pause_poll_s)
             status = run_one_deck(
-                row, field=field, install=install, games=games, ledger=run_ledger, engine=engine, data_dir=data_dir
+                row,
+                field=field,
+                install=install,
+                games=games,
+                ledger=run_ledger,
+                engine=engine,
+                data_dir=data_dir,
+                compare_games=compare_games,
+                skip_gate=skip_gate,
             )
             counts[status] = counts.get(status, 0) + 1
     finally:
@@ -653,10 +688,20 @@ def run(argv: list[str] | None = None) -> None:
     parser.add_argument('--batch-ledger', default=None, help='P3 author/compile ledger (default: <data_dir>/...).')
     parser.add_argument('--out-dir', default=str(_PLAN_DIR), help='Where the bucket table (json+md) is written.')
     parser.add_argument('--no-monitor', action='store_true', help='Do not start the resource monitor (tests/dev).')
+    parser.add_argument('--limit', type=int, default=None, help='Run only the first N run-set decks (reduced run).')
+    parser.add_argument('--compare-games', type=int, default=None, help='Games/matchup in compare (default --games).')
+    parser.add_argument('--field-size', type=int, default=None, help='Cap the opponent field to the first K decks.')
+    parser.add_argument(
+        '--skip-gate',
+        action='store_true',
+        help='Bypass the per-deck solo gate (force-stamp a valid meta); reduced-run scope call, not a quality claim.',
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     run_set, run_set_json = _load_run_set(args.run_set)
+    if args.limit is not None:
+        run_set = run_set[: args.limit]
     run_ledger_path = Path(args.run_ledger) if args.run_ledger else default_run_ledger_path()
 
     field_names: list[str] = []
@@ -675,6 +720,9 @@ def run(argv: list[str] | None = None) -> None:
             run_ledger_path=run_ledger_path,
             engine=engine,
             monitor=monitor,
+            compare_games=args.compare_games,
+            skip_gate=args.skip_gate,
+            field_size=args.field_size,
         )
         field_names = summary['field']
         log.info('run complete: %s', summary['counts'])
