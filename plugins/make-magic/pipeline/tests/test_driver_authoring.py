@@ -241,6 +241,67 @@ def test_seed_quad_rejects_bad_archetype() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Opportunistic nudge Φ — the missing middle of the magnitude axis            #
+# --------------------------------------------------------------------------- #
+
+
+def test_nudge_alpha_zero_is_identical_to_thin_phi() -> None:
+    """alpha=0 must be byte-identical to thin Φ (return 0;) — the axis origin does nothing."""
+    body = da._nudge_phi_body(_win_combo().card_names, alpha=0)
+    assert body == 'return 0;'
+
+
+def test_nudge_phi_has_cheap_early_out_and_bounded_alpha() -> None:
+    """alpha>0 Φ carries the cheap early-out gate (return 0 when no piece is live), scans hand AND
+    battlefield for piece presence, and scales its score by the alpha literal — bounded well under 1e6."""
+    alpha = 2000
+    body = da._nudge_phi_body(_win_combo().card_names, alpha=alpha)
+    # early-out gate present (return 0 before any assembly scoring)
+    assert 'anyLive' in body
+    assert 'return 0;' in body
+    # piece detection reuses the dedicated presence logic (hand + battlefield)
+    assert 'me.getHand().getCards(game)' in body
+    assert 'game.getBattlefield().getAllActivePermanents(pid)' in body
+    # alpha is the per-piece weight, a SMALL bounded nudge (not the dedicated 40000 dominant term)
+    assert f'* {alpha}' in body
+    # the assembly bonus is alpha-scaled and the whole Φ stays bounded well under ±1e6
+    assert f'{alpha * da.NUDGE_ASSEMBLY_BONUS_MULT}' in body
+    max_score = len(_win_combo().card_names) * alpha + alpha * da.NUDGE_ASSEMBLY_BONUS_MULT
+    assert max_score < 1_000_000
+
+
+def test_nudge_phi_magnitude_is_monotonic_in_alpha() -> None:
+    """A larger alpha yields strictly larger nudge literals — the magnitude knob is monotone."""
+    small = da._nudge_phi_body(_win_combo().card_names, alpha=2000)
+    large = da._nudge_phi_body(_win_combo().card_names, alpha=40000)
+    assert '* 2000' in small
+    assert '* 40000' in large
+
+
+def test_seed_nudge_quad_carries_macro_steer_and_nudge_phi() -> None:
+    """The opportunistic quad keeps the rule-3 macro + steer (fires when pieces assemble) and a
+    small-alpha nudge Φ that does NOT force assembly. alpha=0 collapses the Φ to thin."""
+    thin = da.seed_nudge_quad(_win_combo(), alpha=0)
+    assert thin.macro is not None  # opportunistic macro present even at alpha=0
+    assert thin.steer is not None
+    assert 'return 0;' in thin.phi_body
+    assert 'anyLive' not in thin.phi_body
+
+    opp = da.seed_nudge_quad(_win_combo(), alpha=2000)
+    assert opp.macro is not None
+    assert 'anyLive' in opp.phi_body
+    src = da.render_quad_driver(_deck(), opp)
+    assert "Thassa's Oracle" in src
+    assert 'private static final class Macro implements ComboMacro {' in src
+    da.check_quad_guardrails(src)  # must not raise
+
+
+def test_seed_nudge_quad_rejects_negative_alpha() -> None:
+    with pytest.raises(ValueError):
+        da.seed_nudge_quad(_win_combo(), alpha=-1)
+
+
+# --------------------------------------------------------------------------- #
 # ECJ compile — the load-bearing acceptance bar (proactive AND Φ-only)         #
 # --------------------------------------------------------------------------- #
 
@@ -354,3 +415,25 @@ def test_combo_seeded_quad_ecj_compiles_against_real_dist(
         pkg = result.class_dir / pkg_rel
         assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Macro.class').is_file()
         assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Steer.class').is_file()
+
+
+@pytest.mark.integration
+def test_nudge_quad_ecj_compiles_across_alpha(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The opportunistic-nudge quad ECJ-compiles against the real dist at every alpha on the sweep
+    axis (0=thin, small, medium, large≈dedicated) — the early-out gate + alpha-scaled Φ are valid Java."""
+    combo = Combo(
+        variant_id='synthetic-1',
+        card_names=("Thassa's Oracle", 'Demonic Consultation'),
+        card_oracle_ids=('oid-a', 'oid-b'),
+        result='Each opponent loses the game',
+    )
+    for alpha in (0, 2000, 12000, 40000):
+        spec = da.seed_nudge_quad(combo, alpha=alpha)
+        result, pkg_rel = _compile_quad(spec, monkeypatch, tmp_path / f'a{alpha}')
+        assert result.ok, result.raw_stderr
+        assert result.class_dir is not None
+        pkg = result.class_dir / pkg_rel
+        assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}.class').is_file()
+        assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Macro.class').is_file()

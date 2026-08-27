@@ -530,6 +530,89 @@ if (pieces == {total}) {{
 return score;'''
 
 
+#: The assembly-completion bonus multiplier for the opportunistic nudge Φ: the all-pieces-present
+#: bonus is ``alpha * NUDGE_ASSEMBLY_BONUS_MULT``. Kept small enough that the whole nudge stays a
+#: bounded tie-breaker (max ``total*alpha + alpha*MULT`` — well under ±1e6 at the swept alphas),
+#: NOT a dominant term like the DEDICATED Φ (which hard-codes 40000/piece + 700000 all-present).
+NUDGE_ASSEMBLY_BONUS_MULT = 10
+
+
+def _nudge_phi_body(card_names: tuple[str, ...], *, alpha: int) -> str:
+    """OPPORTUNISTIC combo-Φ: a SMALL, bounded nudge (magnitude ``alpha``) toward holding/assembling
+    the win pieces — the missing middle of the magnitude axis between thin (Φ=0) and DEDICATED
+    (Φ=40000/piece, combo-is-the-plan).
+
+    Three cheapness properties (this is also the answer to the 3.2x nudge-cost tax):
+
+    * **Cheap early-out gate** — a first pass asks "is even ONE combo piece live (in my hand or on
+      my battlefield)?"; if not, ``return 0`` immediately, skipping the assembly scoring on the
+      ~majority of search nodes where the combo is not in play. Reuses the same piece-presence
+      logic as the DEDICATED Φ / the P precondition (``want.contains(name)`` over hand + battlefield).
+    * **Bounded magnitude alpha** — the score is ``alpha`` per distinct piece present plus an
+      ``alpha * NUDGE_ASSEMBLY_BONUS_MULT`` all-present bonus. It is a tie-breaker that biases the
+      search toward holding/playing pieces and completing assembly, NOT a dominant term; ``alpha=0``
+      is byte-identical to thin (``return 0;``), and even at the large end the total stays bounded
+      well under ±1e6.
+    * **Per-turn memoization** — deliberately NOT applied across nodes: Φ is evaluated on THROWAWAY
+      minimax search COPIES of the game (each node is a distinct, mutated ``Game``), so a static
+      cross-node cache keyed on turn would return STALE assembly facts for a sibling node whose board
+      differs. Correctness forbids it. Instead the cheapness comes from the early-out (skips the body
+      entirely on most nodes) + a bounded O(hand + battlefield) body after it. Documented here per the
+      seam's memoization guidance.
+    """
+    if alpha < 0:
+        raise ValueError(f'nudge alpha must be >= 0 (got {alpha})')
+    if alpha == 0:
+        # alpha=0 is the axis origin: identical to thin Φ (does nothing — no distortion of the base plan).
+        return 'return 0;'
+    names = _java_name_set(card_names)
+    total = len(card_names)
+    bonus = alpha * NUDGE_ASSEMBLY_BONUS_MULT
+    return f'''\
+// OPPORTUNISTIC combo-Φ (bounded nudge magnitude alpha={alpha}): a SMALL tie-breaker toward
+// holding/assembling the win pieces, NOT a dominant term. The deck plays its normal game and
+// captures the combo when it naturally comes together (the macro fires when P holds).
+java.util.Set<String> want = new java.util.HashSet<>(java.util.Arrays.asList({names}));
+// CHEAP EARLY-OUT: if not one combo piece is live (hand or battlefield), the combo is not in play
+// at this node — skip the assembly scoring entirely (the common case, killing the nudge cost tax).
+boolean anyLive = false;
+for (Card c : me.getHand().getCards(game)) {{
+    if (want.contains(c.getName())) {{
+        anyLive = true;
+        break;
+    }}
+}}
+if (!anyLive) {{
+    for (Permanent p : game.getBattlefield().getAllActivePermanents(pid)) {{
+        if (want.contains(p.getName())) {{
+            anyLive = true;
+            break;
+        }}
+    }}
+}}
+if (!anyLive) {{
+    return 0;
+}}
+// Assembly progress: distinct pieces present in hand or on the battlefield (bounded O(hand+board)).
+java.util.Set<String> have = new java.util.HashSet<>();
+for (Card c : me.getHand().getCards(game)) {{
+    if (want.contains(c.getName())) {{
+        have.add(c.getName());
+    }}
+}}
+for (Permanent p : game.getBattlefield().getAllActivePermanents(pid)) {{
+    if (want.contains(p.getName())) {{
+        have.add(p.getName());
+    }}
+}}
+int pieces = have.size();
+int score = pieces * {alpha};
+if (pieces == {total}) {{
+    score += {bonus};
+}}
+return score;'''
+
+
 def _seed_applicable_body(card_names: tuple[str, ...]) -> str:
     """P body: all combo pieces present (hand or battlefield) & the kill is castable this turn."""
     names = _java_name_set(card_names)
@@ -667,6 +750,42 @@ def seed_quad_from_combo(combo: Combo, *, archetype: str) -> QuadSpec:
             'import mage.game.permanent.Permanent;',
         ),
         mulligan_note=f'seeded from combo {combo.variant_id}: {", ".join(combo.card_names)}.',
+    )
+
+
+def seed_nudge_quad(combo: Combo, *, alpha: int) -> QuadSpec:
+    """OPPORTUNISTIC seed: the rule-3 macro/P/S (fires the win when pieces assemble+cast) plus an
+    opportunistic **nudge Φ** of magnitude ``alpha`` — the missing middle of the Φ magnitude axis.
+
+    This is the quad the opportunistic-mode bet rests on: the macro is the SAME rule-3 win-enactment
+    as :func:`seed_quad_from_combo`, so the deck captures the combo when it naturally comes together,
+    but the Φ does NOT force assembly — it is only a small bounded tie-breaker (see
+    :func:`_nudge_phi_body`). Sweeping ``alpha`` walks the single axis: ``alpha=0`` is thin
+    (Φ=0 + macro), a small/medium ``alpha`` is the opportunistic middle, and a large ``alpha``
+    approaches the DEDICATED end (big staging Φ). ``alpha`` must be ``>= 0``.
+    """
+    if alpha < 0:
+        raise ValueError(f'nudge alpha must be >= 0 (got {alpha})')
+    # archetype is documentary (rides the DRIVER_REGISTERED breadcrumb only): 'drive-capable' at the
+    # thin origin (Φ=0), 'drive-dedicated' once the Φ carries an assembly gradient.
+    archetype = 'drive-capable' if alpha == 0 else 'drive-dedicated'
+    return QuadSpec(
+        name=f'combo-{combo.variant_id}-nudge{alpha}',
+        archetype=archetype,
+        phi_body=_nudge_phi_body(combo.card_names, alpha=alpha),
+        macro=MacroSpec(
+            applicable_body=_seed_applicable_body(combo.card_names),
+            apply_body=_seed_apply_body(combo.result),
+        ),
+        steer=SteerSpec(apply_body=_seed_steer_body(combo.card_names)),
+        imports=(
+            'import mage.cards.Card;',
+            'import mage.game.permanent.Permanent;',
+        ),
+        mulligan_note=(
+            f'opportunistic nudge (alpha={alpha}) seeded from combo {combo.variant_id}: '
+            f'{", ".join(combo.card_names)}.'
+        ),
     )
 
 

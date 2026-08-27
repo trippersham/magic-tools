@@ -137,6 +137,14 @@ public class XMageBatch {
         System.out.println("XMAGEBATCH card db ready; deckA=" + deckAPath + " deckB=" + deckBPath
                 + " games=" + games + " skill=" + skill + " commander=" + commander);
 
+        // Per-game GLOBAL turn cap (see setTurnCap): bound a non-closing match so it STOPS
+        // instead of grinding to deckout (~90+ turns). maxTurn is the own-turn budget (25
+        // commander / 20 constructed, matching the solo goldfish sentinel); the global cap is
+        // 2*maxTurn (both seats play), stamped via GameOptions.stopOnTurn. A game that reaches
+        // the cap undecided ends with winnerId=null -> "DRAW/UNFINISHED" (an undecided game the
+        // win-rate lens simply excludes), never a fabricated winner.
+        final int matchMaxTurn = commander ? 25 : 20;
+
         for (int g = 0; g < games; g++) {
             Game game = newGame(commander);
             // The AI's minimax (SimulatedPlayer2) copies each player's MatchPlayer, so
@@ -149,6 +157,7 @@ public class XMageBatch {
 
             GameOptions options = new GameOptions();
             options.testMode = false; // CRITICAL: real 7-card opening hands + the mulligan phase.
+            setTurnCap(options, matchMaxTurn);
             game.setGameOptions(options);
 
             UUID starter = (g % 2 == 0) ? playerA.getId() : playerB.getId();
@@ -233,6 +242,13 @@ public class XMageBatch {
 
                 GameOptions options = new GameOptions();
                 options.testMode = false; // real 7-card opening hands + the mulligan phase.
+                // Per-game turn cap: PlayerA is ALWAYS on the play, so its OWN turns are the
+                // odd global turns and its maxTurn-th own turn is global turn (2*maxTurn - 1).
+                // Cap at global 2*maxTurn so that turn plays out fully, then the game STOPS at
+                // the next untap instead of grinding to deckout. A non-closing game now ends
+                // undecided at the cap -> killed=false -> the existing brick sentinel
+                // (maxTurn+1), which is exactly what the gate's brick-cap guard already assumes.
+                setTurnCap(options, maxTurn);
                 game.setGameOptions(options);
 
                 long t0 = System.currentTimeMillis();
@@ -385,6 +401,31 @@ public class XMageBatch {
                         MulliganType.GAME_DEFAULT.getMulligan(0), 40, 7)
                 : new TwoPlayerDuel(MultiplayerAttackOption.LEFT, RangeOfInfluence.ONE,
                         MulliganType.GAME_DEFAULT.getMulligan(0), 40, 20, 7);
+    }
+
+    /**
+     * Stamp a REAL per-game turn cap onto the options via XMage's built-in stop-on-turn
+     * feature. {@code ownMaxTurn} is the OWN-turn budget (the solo goldfish sentinel: 25
+     * commander / 20 constructed); the cap is the GLOBAL turn {@code 2*ownMaxTurn}. XMage's
+     * {@code GameImpl.playTurn} calls {@code checkStopOnTurnOption()} at the TOP of each turn
+     * and, when {@code stopOnTurn == turnNum} at the (default) {@code stopAtStep=UNTAP},
+     * sets {@code winnerId=null} and returns false — breaking the play loop BEFORE that turn
+     * is played. So turns {@code 1..2*ownMaxTurn-1} play out (PlayerA, always on the play in
+     * solo, gets exactly {@code ownMaxTurn} own turns: the odd globals up to 2*ownMaxTurn-1)
+     * and the game then STOPS undecided at the untap of global turn {@code 2*ownMaxTurn}.
+     *
+     * <p>This is ZERO gate-semantic change: the solo harness already clamps any counted kill
+     * to {@code maxTurn} and the gate's brick-cap validity guard already REJECTS a driven
+     * median at/beyond {@code maxTurn} as a clamp artifact (a brick masquerading as a pass).
+     * A kill on own-turn {@code <= maxTurn} lands at global {@code <= 2*maxTurn-1} and still
+     * happens; a would-be kill on own-turn {@code > maxTurn} (already gate-invalid) simply
+     * becomes the brick sentinel instead of a clamped-to-maxTurn "kill". The cap only makes
+     * a non-closing game STOP fast instead of deckout-grinding.</p>
+     */
+    private static void setTurnCap(GameOptions options, int ownMaxTurn) {
+        // stopAtStep defaults to UNTAP in the GameOptions ctor; stopOnTurn is the GLOBAL turn
+        // at whose untap the game halts (that turn is NOT played).
+        options.stopOnTurn = 2 * ownMaxTurn;
     }
 
     /** Write the 60-basics goldfish opponent deck to a temp {@code N Cardname} .txt file. */
