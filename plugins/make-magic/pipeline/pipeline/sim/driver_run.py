@@ -509,7 +509,12 @@ def _bucket_stat(bucket: str, members: list[DeckDelta]) -> BucketStat:
         verdict = 'thin-inconclusive'
         bits = []
         if not excludes_zero:
-            bits.append('lift 95% CI includes 0')
+            # Distinguish "straddles 0" (truly inconclusive) from "entirely below 0"
+            # (driver significantly WORSE) — reporting the latter as "includes 0" misleads.
+            if lift_ci[1] < 0.0:
+                bits.append('lift 95% CI entirely below 0 (driver significantly WORSE)')
+            else:
+                bits.append('lift 95% CI includes 0')
         if not enough:
             bits.append(f'n={n_matchups} < {_MIN_SHIP_MATCHUPS} matchups')
         reason = '; '.join(bits)
