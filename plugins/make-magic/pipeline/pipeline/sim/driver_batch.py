@@ -30,6 +30,7 @@ is only observable once the AUTHOR→GATE stages run games, so classify uses the
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -42,6 +43,8 @@ from pipeline.transforms.combo_detect import Combo, _norm_name, win_combos_in_de
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
+
+    from pipeline.contracts.models import Deck
 
 log = logging.getLogger('make_magic.sim.driver_batch')
 
@@ -353,17 +356,214 @@ def run_classify(
 # --------------------------------------------------------------------------- #
 
 
-def run_author(*_args: object, **_kw: object) -> None:
-    """Reserved AUTHOR stage — seed a quad per DRIVE deck (rule 3) via
-    :func:`pipeline.sim.driver_authoring.seed_quad_from_combo`. NOT run in this cheap pass;
-    invoke separately once classify has populated the ledger."""
-    raise NotImplementedError('author stage runs later (staged, resource-monitored) — see module docstring')
+def _driver_uuid(deck_id: str) -> str:
+    """A deterministic, filesystem-safe driver identity for a corpus ``deck_id``.
+
+    Corpus deck_ids are gauntlet-relative paths (``commander/cedh/x.dck``) or
+    ``inventory/<uuid>`` — neither is a legal single-segment dir name (slashes) nor a stable
+    Java package leaf. Hashing gives BOTH stages (author + compile) an identical, path-safe
+    ``deck.uuid`` so :func:`pipeline.sim.drivers.driver_dir` keys a single per-deck dir and the
+    emitted FQCN is stable across re-runs.
+    """
+    return hashlib.sha1(deck_id.encode('utf-8')).hexdigest()
 
 
-def run_compile(*_args: object, **_kw: object) -> None:
-    """Reserved COMPILE stage — ECJ-compile each authored quad
-    (:func:`pipeline.sim.driver_compile.compile_quad_driver`). Run later."""
-    raise NotImplementedError('compile stage runs later (staged, resource-monitored) — see module docstring')
+def _combo_from_row(row: dict[str, Any]) -> Combo:
+    """Reconstruct the chosen win :class:`Combo` from a classified ledger row.
+
+    The classify stage persisted the chosen combo's identity (``variant_id`` / ``card_names`` /
+    ``result``) verbatim, so the seed can be rebuilt without re-loading the combo lake. Oracle
+    ids are irrelevant to seeding (:func:`~pipeline.sim.driver_authoring.seed_quad_from_combo`
+    reads only names + result), so they are filled with placeholders.
+    """
+    cc = row.get('chosen_combo') or {}
+    names = tuple(cc.get('card_names') or ())
+    return Combo(
+        variant_id=str(cc.get('variant_id', '')),
+        card_names=names,
+        card_oracle_ids=('',) * len(names),
+        result=str(cc.get('result') or ''),
+    )
+
+
+def _deck_for_row(row: dict[str, Any]) -> Deck:
+    """A minimal :class:`~pipeline.contracts.models.Deck` carrying the stable driver identity.
+
+    Only ``uuid`` (the driver dir / FQCN key) and ``name`` are load-bearing for AUTHOR + COMPILE
+    (render + ECJ). ``cards`` is empty — the seeded quad's card logic rides in the combo, and no
+    stage here runs a sim that would need the 99.
+    """
+    from pipeline.contracts.models import Deck
+
+    return Deck(name=str(row.get('name', row['deck_id'])), uuid=_driver_uuid(row['deck_id']), cards=[])
+
+
+def authored_dir(ledger_path: str | os.PathLike[str], deck_id: str) -> Path:
+    """``<ledger_dir>/authored/<deck_id>/`` — the per-deck rendered-driver artifact dir (P4 reads it)."""
+    return Path(ledger_path).parent / 'authored' / deck_id
+
+
+def run_author(
+    *,
+    ledger_path: str | os.PathLike[str],
+    target_stage: str = 'authored',
+) -> dict[str, int]:
+    """Run the AUTHOR stage over every DRIVE ledger row not yet at ``authored`` (restartable).
+
+    For each DRIVE row: reconstruct the chosen :class:`Combo`, seed a
+    :class:`~pipeline.sim.driver_authoring.QuadSpec`
+    (:func:`~pipeline.sim.driver_authoring.seed_quad_from_combo`) at the row's ``archetype``,
+    render ``Driver.java`` (:func:`~pipeline.sim.driver_authoring.render_quad_driver`), persist it
+    to ``<ledger_dir>/authored/<deck_id>/Driver.java`` (so P4 can read every driver), and run the
+    AC8 static guardrail screen. A CLEAN render advances the row to ``authored`` (recording the
+    spec archetype, fqcn, artifact path, driver uuid). A guardrail violation is NOT advanced — the
+    artifact is still written for inspection, the issue is recorded, and a ``guardrail-error`` flag
+    is set (a per-deck flag, never a batch abort).
+
+    THIN rows (``drive`` false — bare CP7, no in-deck win-combo) are advanced to ``authored`` as a
+    documented NO-OP with ``thin: true`` and NO artifact: a thin deck runs pure driverless CP7, so
+    there is nothing to render or compile.
+
+    Returns ``{'authored', 'thin', 'skipped', 'guardrail_failed'}`` counters.
+    """
+    from pipeline.sim.driver_authoring import (
+        GuardrailViolation,
+        check_quad_guardrails,
+        driver_fqcn,
+        render_quad_driver,
+        seed_quad_from_combo,
+    )
+
+    ledger = Ledger(Path(ledger_path))
+    target = stage_rank(target_stage)
+    authored = thin = skipped = guardrail_failed = 0
+    for row in ledger.rows():
+        stage = row.get('stage')
+        if stage is not None and stage_rank(stage) >= target:
+            skipped += 1
+            continue
+
+        deck = _deck_for_row(row)
+        duid = deck.uuid
+
+        if not row.get('drive'):
+            ledger.record({**row, 'stage': 'authored', 'thin': True, 'driver_uuid': duid})
+            thin += 1
+            continue
+
+        fqcn = driver_fqcn(deck)
+        spec = seed_quad_from_combo(_combo_from_row(row), archetype=str(row['archetype']))
+        source = render_quad_driver(deck, spec)
+
+        art = authored_dir(ledger_path, str(row['deck_id']))
+        art.mkdir(parents=True, exist_ok=True)
+        art_path = art / 'Driver.java'
+        art_path.write_text(source, encoding='utf-8')
+
+        try:
+            check_quad_guardrails(source)
+        except GuardrailViolation as exc:
+            ledger.record(
+                {
+                    **row,
+                    'driver_uuid': duid,
+                    'fqcn': fqcn,
+                    'archetype_spec': spec.archetype,
+                    'authored_path': str(art_path),
+                    'guardrail_ok': False,
+                    'guardrail_issue': str(exc),
+                    'flags': sorted({*row.get('flags', []), 'guardrail-error'}),
+                }
+            )
+            guardrail_failed += 1
+            continue
+
+        ledger.record(
+            {
+                **row,
+                'stage': 'authored',
+                'driver_uuid': duid,
+                'fqcn': fqcn,
+                'archetype_spec': spec.archetype,
+                'authored_path': str(art_path),
+                'guardrail_ok': True,
+            }
+        )
+        authored += 1
+    return {'authored': authored, 'thin': thin, 'skipped': skipped, 'guardrail_failed': guardrail_failed}
+
+
+def run_compile(
+    *,
+    ledger_path: str | os.PathLike[str],
+    data_dir: str | os.PathLike[str] | None = None,
+    target_stage: str = 'compiled',
+) -> dict[str, int]:
+    """Run the COMPILE stage (ECJ-only) over every DRIVE row at ``authored`` (restartable).
+
+    For each DRIVE row that is authored-or-later but not yet ``compiled``: re-seed the quad and
+    ECJ-compile it against the local dist via
+    :func:`pipeline.sim.driver_gate.compile_quad_driver` (render + guardrail + ECJ; NO XMage sim).
+    Success advances the row to ``compiled`` (recording ``classes_dir`` + ``fqcn``, clearing any
+    prior ``compile_error``/flag). An ECJ failure records the STRUCTURED diagnostics in the row,
+    sets a ``compile-error`` flag, leaves the row at ``authored``, and CONTINUES — a per-deck
+    failure is a flag, never a batch abort.
+
+    Returns ``{'compiled', 'failed', 'skipped'}`` counters. THIN rows carry no driver and are
+    skipped silently (not counted).
+    """
+    from pipeline.sim.driver_authoring import seed_quad_from_combo
+    from pipeline.sim.driver_compile import DriverCompileError
+    from pipeline.sim.driver_gate import compile_quad_driver
+
+    ledger = Ledger(Path(ledger_path))
+    target = stage_rank(target_stage)
+    authored_rank = stage_rank('authored')
+    compiled = failed = skipped = 0
+    for row in ledger.rows():
+        if not row.get('drive'):
+            continue  # THIN: bare CP7, nothing to compile.
+        stage = row.get('stage')
+        if stage is None or stage_rank(stage) < authored_rank:
+            skipped += 1  # not authored yet — run_author must land it first.
+            continue
+        if stage_rank(stage) >= target:
+            skipped += 1  # already compiled — restartable skip.
+            continue
+
+        deck = _deck_for_row(row)
+        spec = seed_quad_from_combo(_combo_from_row(row), archetype=str(row['archetype']))
+        try:
+            classes_dir, fqcn = compile_quad_driver(deck, spec, data_dir=data_dir)
+        except DriverCompileError as exc:
+            diags = [
+                {'file': d.file, 'line': d.line, 'severity': d.severity, 'message': d.message}
+                for d in exc.result.diagnostics
+            ]
+            cleaned = {k: v for k, v in row.items() if k != 'classes_dir'}
+            ledger.record(
+                {
+                    **cleaned,
+                    'stage': 'authored',
+                    'compile_error': {'diagnostics': diags, 'raw_stderr': exc.result.raw_stderr[:4000]},
+                    'flags': sorted({*row.get('flags', []), 'compile-error'}),
+                }
+            )
+            failed += 1
+            continue
+
+        cleaned = {k: v for k, v in row.items() if k != 'compile_error'}
+        ledger.record(
+            {
+                **cleaned,
+                'stage': 'compiled',
+                'classes_dir': classes_dir,
+                'fqcn': fqcn,
+                'flags': sorted(f for f in row.get('flags', []) if f != 'compile-error'),
+            }
+        )
+        compiled += 1
+    return {'compiled': compiled, 'failed': failed, 'skipped': skipped}
 
 
 def run_gate(*_args: object, **_kw: object) -> None:
