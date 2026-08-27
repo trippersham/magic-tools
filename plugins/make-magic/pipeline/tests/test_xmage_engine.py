@@ -415,6 +415,41 @@ def test_stage_private_db_copies_db_into_run_dir(tmp_path: Path) -> None:
     assert copied.read_bytes() == b'CARD DB BYTES'  # a real, independent copy.
 
 
+def test_cow_clone_is_independent_and_falls_back(tmp_path: Path) -> None:
+    """A COW clone of the ``db/`` yields an INDEPENDENT copy — writing to the clone does
+    not mutate the source (proving copy-on-write, not a hardlink/shared file) — and the
+    non-COW path still produces an independent full copy. The reflink is a near-free stage
+    on APFS; the fallback keeps correctness on any FS.
+    """
+    import pipeline.sim.engines.xmage as xe
+
+    reactor = tmp_path / 'reactor'
+    (reactor / 'db').mkdir(parents=True)
+    (reactor / 'db' / 'cards.h2.mv.db').write_bytes(b'ORIGINAL')
+
+    # Real reflink path (macOS `cp -Rc` / Linux `cp -a --reflink=auto`). On a non-reflink
+    # FS this still copies; either way the result must be an independent file.
+    run_a = tmp_path / 'runA'
+    run_a.mkdir()
+    _stage_private_db(_install(reactor), run_a)
+    clone = run_a / 'db' / 'cards.h2.mv.db'
+    assert clone.read_bytes() == b'ORIGINAL'
+    clone.write_bytes(b'MUTATED-IN-CLONE')  # a write breaks COW sharing (or hits the copy).
+    assert (reactor / 'db' / 'cards.h2.mv.db').read_bytes() == b'ORIGINAL'  # source intact.
+
+    # Forced fallback (simulate a non-COW volume): still an independent copy.
+    run_b = tmp_path / 'runB'
+    run_b.mkdir()
+    orig = xe._clone_tree_cow
+    try:
+        xe._clone_tree_cow = lambda src, dst: False  # type: ignore[assignment]
+        _stage_private_db(_install(reactor), run_b)
+    finally:
+        xe._clone_tree_cow = orig  # type: ignore[assignment]
+    copied = run_b / 'db' / 'cards.h2.mv.db'
+    assert copied.read_bytes() == b'ORIGINAL'
+
+
 def test_max_concurrency_serializes_on_non_cow(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A non-COW staging volume → cap 1 (serialize) so pool x 266MB copies can't
     exhaust disk (#61), and it WARNs once."""
