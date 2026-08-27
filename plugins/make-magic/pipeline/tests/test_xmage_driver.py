@@ -240,6 +240,20 @@ def test_parse_goldfish_summary_extracts_median_and_games() -> None:
     result = xe._parse_goldfish_summary(_SUMMARY)
     assert result.median_kills_own == 6.0
     assert result.games == 5
+    # maxTurn / bricks feed the gate's brick-cap validity guard (deckout/freeze-at-cap).
+    assert result.max_turn == 20
+    assert result.bricks == 1
+
+
+def test_parse_goldfish_summary_max_turn_absent_is_none() -> None:
+    """An older summary line without maxTurn parses cleanly with max_turn=None (the brick-cap
+    guard then no-ops rather than guessing a cap)."""
+    out = (
+        'GOLDFISH SUMMARY (OWN TURNS) deck=d.txt games=5 skill=6 '
+        'medianKillsOwn=6.0 distOwn=[6]\n'
+    )
+    result = xe._parse_goldfish_summary(out)
+    assert result.max_turn is None and result.bricks is None
 
 
 def test_parse_goldfish_summary_missing_line_raises() -> None:

@@ -107,10 +107,24 @@ class GoldfishResult:
     actually killed (the Java ``medianKillsOwn``); it is ``-1.0`` (the harness
     sentinel) when NO game killed — a real value the caller interprets, never a
     silently-zeroed miss. ``games`` is the number of solo games the summary covers.
+
+    ``max_turn`` is the harness's OWN-turn brick cap (``maxTurn`` in the summary: 20
+    constructed / 25 commander). It is the boundary of the brick-cap validity guard:
+    the harness counts a "kill" whenever the passer opponent LOSES for ANY reason —
+    including decking out or losing on a state-based technicality — and CLAMPS that
+    kill turn to ``max_turn`` (``killTurn = min(ownEndTurn, maxTurn)`` in
+    ``XMageBatch.runSolo``). So a ``median_kills_own`` sitting AT ``max_turn`` is not a
+    real fast kill but a clamp artifact — the opponent-deckout/freeze-at-cap "win" the
+    gate must reject (see :func:`~pipeline.sim.driver_gate.gate_driver`). ``bricks`` is
+    the count of games that reached the cap without the opponent losing at all (the
+    ``maxTurn+1`` sentinel bucket). Both are ``None`` when the summary omits the field
+    (older harness output); the validity guard is then skipped rather than guessing.
     """
 
     median_kills_own: float
     games: int
+    max_turn: int | None = None
+    bricks: int | None = None
 
 
 def _parse_goldfish_summary(output: str) -> GoldfishResult:
@@ -130,7 +144,17 @@ def _parse_goldfish_summary(output: str) -> GoldfishResult:
             raise XMageError(
                 f'GOLDFISH SUMMARY line missing medianKillsOwn/games field: {line!r}'
             )
-        return GoldfishResult(median_kills_own=float(median_m.group(1)), games=int(games_m.group(1)))
+        # maxTurn / bricks are the brick-cap validity signals (opponent-deckout /
+        # freeze-at-cap detection downstream). Optional: absent in older summary output
+        # → None, which makes the gate's brick-cap guard a no-op rather than guessing.
+        max_turn_m = re.search(r'\bmaxTurn=(\d+)', line)
+        bricks_m = re.search(r'\bbricks=(\d+)', line)
+        return GoldfishResult(
+            median_kills_own=float(median_m.group(1)),
+            games=int(games_m.group(1)),
+            max_turn=int(max_turn_m.group(1)) if max_turn_m else None,
+            bricks=int(bricks_m.group(1)) if bricks_m else None,
+        )
     raise XMageError(
         'no GOLDFISH SUMMARY (OWN TURNS) line in XMage --solo output '
         f'(run crashed / deck failed to load / was killed). Output tail:\n{output[-1000:]}'

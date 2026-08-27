@@ -83,8 +83,8 @@ def _store(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _res(median: float, games: int = 5) -> GoldfishResult:
-    return GoldfishResult(median_kills_own=median, games=games)
+def _res(median: float, games: int = 5, max_turn: int | None = None) -> GoldfishResult:
+    return GoldfishResult(median_kills_own=median, games=games, max_turn=max_turn)
 
 
 _REG = dg.DRIVER_REGISTERED_MARKER
@@ -313,6 +313,106 @@ def test_noncommander_deck_stays_constructed_fmt(_store: Path) -> None:
         spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
 
     assert eng.fmts == ['constructed', 'constructed']
+
+
+# --------------------------------------------------------------------------- #
+# 2c. brick-cap validity — deckout/freeze-at-cap is a BRICK, not a pass         #
+# --------------------------------------------------------------------------- #
+
+
+def test_deckout_at_cap_fails_the_brick_cap_validity_guard(_store: Path) -> None:
+    """THE BRICK-CAP GUARD (Jeleva-freeze pathology): the solo harness counts a "kill" whenever
+    the passer opponent LOSES for any reason — including decking out / an SBA technicality — and
+    CLAMPS that kill turn to maxTurn. So a driven median sitting AT maxTurn is NOT the deck's own
+    kill; it is the do-nothing opponent falling over at the cap. Even when registered + macro
+    fires + never-slower (driven==baseline==maxTurn), it must FAIL as a brick-cap invalidity, and
+    nothing is stamped."""
+    deck = _deck()
+    output = (
+        f'{_REG} p=1\n{_MACRO} pid=1\n{_REAL} name=A turn=20\n'
+        'GOLDFISH SUMMARY (OWN TURNS) ... maxTurn=20 ...\n'
+    )
+    # driven median AT the cap (20) — the "kills" are clamp artifacts (opponent deckout at cap).
+    # baseline also at the cap, so never-slower passes; ONLY the brick-cap guard can reject this.
+    eng = _FakeEngine(
+        driven=_res(20.0, max_turn=20), driven_output=output, baseline=_res(20.0, max_turn=20)
+    )
+
+    result = dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
+
+    assert result.passed is False
+    assert result.registered is True and result.macro_fired is True  # capability + relative both held…
+    assert 'brick-cap' in result.reason and 'maxTurn=20' in result.reason  # …brick-cap rejected it
+    assert drivers.read_meta(deck, data_dir=_store) is None
+    assert drivers.driver_valid(deck, data_dir=_store) is False
+
+
+def test_real_kill_below_cap_passes_brick_cap_guard(_store: Path) -> None:
+    """A real kill comfortably below the cap (driven median 6 < maxTurn 20) is NOT a clamp
+    artifact and clears the brick-cap guard — the guard fires only at/beyond the cap boundary."""
+    deck = _deck()
+    output = (
+        f'{_REG} p=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
+        'GOLDFISH SUMMARY (OWN TURNS) ... maxTurn=20 ...\n'
+    )
+    eng = _FakeEngine(
+        driven=_res(6.0, max_turn=20), driven_output=output, baseline=_res(8.0, max_turn=20)
+    )
+
+    result = dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
+
+    assert result.passed is True
+    assert drivers.driver_valid(deck, data_dir=_store) is True
+
+
+# --------------------------------------------------------------------------- #
+# 2d. pure-measurement invariant — no bracket/archetype/absolute-turn bar       #
+# --------------------------------------------------------------------------- #
+
+
+def test_gate_is_relative_not_absolute_two_decks_different_clocks_both_pass(_store: Path) -> None:
+    """PURE-MEASUREMENT INVARIANT: the ONLY numeric comparisons are (driven vs baseline+tol) and
+    (games vs the floor). There is NO constant turn bar keyed to a bracket/archetype/absolute
+    clock. Proof by structure: a FAST deck (driven 4 vs baseline 4) and a SLOW deck (driven 15 vs
+    baseline 15) BOTH pass — the identical driven==baseline relationship, at wildly different
+    absolute clocks, yields the same verdict. An absolute turn bar would pass one and fail the
+    other; a relative gate passes both."""
+    fast_out = (
+        f'{_REG} p=1\n{_MACRO} pid=1\n{_REAL} name=A turn=4\n'
+        'GOLDFISH SUMMARY (OWN TURNS) ... maxTurn=20 ...\n'
+    )
+    slow_out = (
+        f'{_REG} p=1\n{_MACRO} pid=1\n{_REAL} name=A turn=15\n'
+        'GOLDFISH SUMMARY (OWN TURNS) ... maxTurn=20 ...\n'
+    )
+    fast_deck = _deck('Fast Deck')
+    slow_deck = _deck('Slow Deck')
+
+    fast = dg.gate_driver(
+        fast_deck, ('D', 'dck'), spec=_proactive_spec(), install=object(), games=_GAMES,
+        engine=_FakeEngine(driven=_res(4.0, max_turn=20), driven_output=fast_out, baseline=_res(4.0, max_turn=20)),
+        data_dir=_store,
+    )
+    slow = dg.gate_driver(
+        slow_deck, ('D', 'dck'), spec=_proactive_spec(), install=object(), games=_GAMES,
+        engine=_FakeEngine(driven=_res(15.0, max_turn=20), driven_output=slow_out, baseline=_res(15.0, max_turn=20)),
+        data_dir=_store,
+    )
+
+    # Both pass: the verdict is driven<=baseline+tol, NOT any absolute turn threshold.
+    assert fast.passed is True and slow.passed is True
+    # And the mirror: a SLOW deck fails ONLY when it is slower than ITS OWN baseline — proving the
+    # bar is the same-deck baseline, never an absolute clock. (Fast baseline, slow driven → fail.)
+    slower_than_self = dg.gate_driver(
+        _deck('Regressed Deck'), ('D', 'dck'), spec=_proactive_spec(), install=object(), games=_GAMES,
+        engine=_FakeEngine(driven=_res(15.0, max_turn=20), driven_output=slow_out, baseline=_res(6.0, max_turn=20)),
+        data_dir=_store,
+    )
+    assert slower_than_self.passed is False and 'WORSE' in slower_than_self.reason
 
 
 # --------------------------------------------------------------------------- #

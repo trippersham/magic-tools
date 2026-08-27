@@ -249,17 +249,32 @@ def gate_driver(
 ) -> GateResult:
     """Run the dual-mode behavioral gate on ``deck``'s compiled quad; stamp on pass.
 
-    ``spec`` routes the mode: a quad WITH a macro is **proactive**, a Φ-only quad is
-    **reactive**. ``deck_ref`` is the ``(name, forge_dck_text)`` tuple the solo ``goldfish``
-    path consumes (kept explicit so the gate does not couple to the deck exporter / network).
-    Runs the DRIVEN solo (markers + median) then a throwaway DRIVERLESS CP7 baseline (median)
-    over ``games`` games each, then:
+    This is PURE MEASUREMENT — three signals, none of them a bracket/archetype/absolute-turn
+    expectation:
 
-      * requires the ``DRIVER_REGISTERED`` marker (both modes);
-      * PROACTIVE also requires ``MACRO_FIRE_REAL`` >=1x (the macro REALLY executed to win in the
-        real ``act()`` — NOT merely reachable in search) AND the never-slower own-turn check;
-      * REACTIVE requires ONLY the never-worse-solo floor (the same never-slower check) -- no
-        macro-fire; ``defended_lens=True`` is an opt-in note, never a blocker.
+      1. **capability** — does the quad do what its SHAPE claims? A quad WITH a macro must show
+         ``MACRO_FIRE_REAL`` >=1x (the macro REALLY executed to win in the real ``act()`` — NOT
+         merely reachable in search); a Φ-only quad requires no fire (a passive solo goldfish
+         gives it nothing to react to). Both modes require the ``DRIVER_REGISTERED`` marker.
+      2. **relative** — never-slower vs the SAME deck's bare-CP7 baseline
+         (``medianKillsOwn`` <= baseline + :data:`_DEFAULT_TOLERANCE`). The bar is the deck's own
+         driverless clock, run-matched; there is NO absolute turn number keyed to a bracket or
+         archetype. A ``-1.0`` no-kill sentinel maps to ``+inf`` (:func:`_kill_metric`) so a
+         non-killing driver always fails.
+      3. **brick-cap validity** — the counted "kill" must be the DECK's own kill, not the passer
+         opponent decking out / losing on a technicality at the turn cap (the Jeleva-freeze
+         pathology). The harness clamps any such loss to ``maxTurn``, so a driven median AT the
+         cap is a clamp artifact and FAILS. This reads the harness's own sentinel boundary, not
+         an archetype clock.
+
+    ``mode`` (``'proactive'``/``'reactive'``) is a CAPABILITY label derived purely from
+    ``spec.macro is not None`` (macro-present vs Φ-only) — it is NOT a posture, bracket, or
+    archetype tag; the strings are kept only for continuity of the meta stamp.
+
+    ``deck_ref`` is the ``(name, forge_dck_text)`` tuple the solo ``goldfish`` path consumes
+    (kept explicit so the gate does not couple to the deck exporter / network). Runs the DRIVEN
+    solo (markers + median) then a throwaway DRIVERLESS CP7 baseline (median) over ``games``
+    games each. ``defended_lens=True`` is an opt-in note, never a blocker.
 
     ``games`` must be >= :data:`_MIN_GATE_GAMES`; a smaller count raises ``ValueError`` (loud) —
     both modes' never-slower check is seedless-jitter-sensitive and flakes when underpowered.
@@ -317,6 +332,23 @@ def gate_driver(
     baseline_median = baseline.median_kills_own
     never_slower = _kill_metric(driven_median) <= _kill_metric(baseline_median) + tolerance
 
+    # BRICK-CAP VALIDITY (the Jeleva-freeze pathology). The solo harness counts a "kill"
+    # whenever the passer opponent LOSES for ANY reason — a life-total kill OR the passer
+    # decking out / losing on a state-based technicality — and CLAMPS that kill's own-turn
+    # to maxTurn (`killTurn = min(ownEndTurn, maxTurn)` in XMageBatch.runSolo). So a driven
+    # median sitting AT the cap is NOT the deck executing its own kill; it is the do-nothing
+    # opponent falling over at the turn cap — a brick masquerading as a pass. Reject it. This
+    # reads the harness's OWN sentinel boundary (maxTurn, straight off the summary line), NOT a
+    # bracket/archetype/absolute-turn expectation: it asks "is this counted kill real or a
+    # clamp artifact", never "did the deck meet an archetype clock". max_turn is None only for
+    # pre-maxTurn harness output, where the guard is a documented no-op (cannot validate).
+    driven_max_turn = driven.max_turn
+    brick_capped = (
+        driven_max_turn is not None
+        and driven_median >= 0  # a real (non-sentinel) counted-kill median…
+        and driven_median >= driven_max_turn  # …that sits at/beyond the brick cap = clamp artifact
+    )
+
     def _fail(reason: str) -> GateResult:
         return GateResult(
             passed=False,
@@ -355,6 +387,14 @@ def gate_driver(
             f'driven medianKillsOwn={driven_median} is WORSE than the CP7 baseline '
             f'{baseline_median} + tolerance {tolerance} ({floor}: a quad must never '
             'meaningfully slow the deck down)'
+        )
+    if brick_capped:
+        return _fail(
+            f'driven medianKillsOwn={driven_median} sits AT the brick cap '
+            f'maxTurn={driven_max_turn} (brick-cap validity): the counted "kills" are '
+            'clamp artifacts — the do-nothing passer opponent decked out / lost on a '
+            'state-based technicality at the turn cap, NOT the deck executing its own '
+            'kill. An opponent-deckout-at-cap "win" is a brick, not a pass'
         )
 
     extra: dict[str, object] = {
