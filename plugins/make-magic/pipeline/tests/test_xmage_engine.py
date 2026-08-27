@@ -8,6 +8,8 @@ behavioral evidence) + the telemetry drop-in in ``test_telemetry_xmage.py``.
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -530,3 +532,60 @@ def test_clone_tree_cow_uses_platform_reflink_and_never_raises(monkeypatch: pyte
 
     monkeypatch.setattr(xmage_engine.subprocess, 'run', _boom)
     assert _clone_tree_cow(tmp_path / 'a', tmp_path / 'b') is False
+
+
+# --------------------------------------------------------------------------- #
+# Per-game stall watchdog (the timeout-ceiling fix)                            #
+# --------------------------------------------------------------------------- #
+
+
+def _spawn(script: str) -> subprocess.Popen[str]:
+    return subprocess.Popen(
+        [sys.executable, '-u', '-c', script],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+
+
+def test_watchdog_kills_a_stalled_game_fast_not_after_the_batch_budget() -> None:
+    """A process that emits ONE heartbeat then hangs is killed at the per-game stall bound,
+    NOT after the (much larger) batch backstop — the ceiling-bug fix."""
+    import time
+
+    from pipeline.sim.engines.xmage import _run_with_watchdog
+
+    # Print one heartbeat, then sleep far past the stall bound with no further progress.
+    proc = _spawn("import time; print('GOLDFISH GAME 1/20 killed=false'); time.sleep(60)")
+    t0 = time.monotonic()
+    out, rc, state = _run_with_watchdog(
+        proc, heartbeat='GOLDFISH GAME', stall_timeout_s=2, backstop_s=600, poll_s=0.25
+    )
+    elapsed = time.monotonic() - t0
+    assert state.stalled is True
+    assert state.backstopped is False
+    assert 'GOLDFISH GAME 1/20' in out  # output captured up to the kill
+    assert elapsed < 15  # reaped in ~stall_bound, nowhere near the 600s batch backstop
+    assert rc != 0  # killed
+
+
+def test_watchdog_lets_a_steadily_progressing_run_finish() -> None:
+    """Regular heartbeats keep resetting the clock, so a healthy multi-game run completes."""
+    from pipeline.sim.engines.xmage import _run_with_watchdog
+
+    # Five quick "games", each a heartbeat well within the stall bound, then a clean exit.
+    proc = _spawn(
+        "import time\n"
+        "for g in range(1, 6):\n"
+        "    print(f'GOLDFISH GAME {g}/5 killed=true'); time.sleep(0.3)\n"
+        "print('GOLDFISH SUMMARY (OWN TURNS) medianKillsOwn=7.0')\n"
+    )
+    out, rc, state = _run_with_watchdog(
+        proc, heartbeat='GOLDFISH GAME', stall_timeout_s=2, backstop_s=600, poll_s=0.25
+    )
+    assert state.stalled is False
+    assert state.backstopped is False
+    assert rc == 0
+    assert out.count('GOLDFISH GAME') == 5
+    assert 'medianKillsOwn=7.0' in out

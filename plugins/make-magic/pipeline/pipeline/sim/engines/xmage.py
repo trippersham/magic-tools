@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import warnings
 from dataclasses import dataclass
 from functools import lru_cache
@@ -49,6 +50,11 @@ _DEFAULT_TIMEOUT_S = 240
 #: explicit ``timeout_s`` still overrides. The external kill budget stays a per-game
 #: bound (``_JVM_LOAD_HEADROOM_S + n*timeout_s``).
 _COMMANDER_TIMEOUT_S = 300
+#: Per-game heartbeat the goldfish loop prints once per game (``GOLDFISH GAME g/N ...``).
+#: The stall watchdog (:func:`_run_with_watchdog`) resets its clock on every occurrence,
+#: so ``timeout_s`` bounds the gap BETWEEN games (a single stuck game) rather than the
+#: whole batch — see :func:`_launch_xmage`'s ``stall_timeout_s``.
+_GOLDFISH_HEARTBEAT = 'GOLDFISH GAME'
 #: XMage CP7 (MAD minimax) clones full game states during search, so it needs more
 #: heap + a larger per-JVM RAM budget than Forge's 2 GiB — under-budgeting over-admits
 #: the pool and risks swap/jetsam (#63). The pool-sizing budget is the ``-Xmx`` heap
@@ -467,6 +473,10 @@ class XMageEngine:
         try:
             txt_a = _stage_txt(run_dir, 'deckA', _forge_dck_to_xmage_txt(text_a))
             _stage_private_db(handle, run_dir)
+            # The absolute backstop stays the batch bound; the PER-GAME stall watchdog
+            # (stall_timeout_s = the single-game budget) is the real ceiling — one hung game is
+            # reaped in ~timeout_s instead of consuming the whole games*timeout_s batch budget,
+            # which was the "50 min sit, zero ledger rows" pathology.
             external_timeout = runner._JVM_LOAD_HEADROOM_S + max(1, games) * timeout_s
             solo_args = [str(txt_a), '--solo', str(games), str(skill)]
             if fmt == 'commander':
@@ -481,6 +491,7 @@ class XMageEngine:
                 timeout_s=external_timeout,
                 what=f'{name_a} goldfish (games={games}, fmt={fmt})',
                 driver=driver,
+                stall_timeout_s=timeout_s,
             )
             if returncode != 0:
                 raise XMageError(
@@ -667,6 +678,72 @@ def _compose_launch_cmd(
     ]
 
 
+class _WatchdogState:
+    """Mutable shared state between the reader loop and the stall-watchdog thread."""
+
+    __slots__ = ('backstopped', 'last_progress', 'stalled', 'started')
+
+    def __init__(self) -> None:
+        now = time.monotonic()
+        self.last_progress = now
+        self.started = now
+        self.stalled = False
+        self.backstopped = False
+
+
+def _run_with_watchdog(
+    proc: subprocess.Popen[str],
+    *,
+    heartbeat: str,
+    stall_timeout_s: float,
+    backstop_s: float,
+    poll_s: float = 2.0,
+) -> tuple[str, int, _WatchdogState]:
+    """Stream ``proc``'s merged output, killing it if a game STALLS or the batch backstop trips.
+
+    Reads ``proc.stdout`` line-by-line on the calling thread and resets the progress clock on
+    every ``heartbeat`` line. A daemon watchdog thread kills the whole process group when either
+    the gap since the last heartbeat exceeds ``stall_timeout_s`` (a single stuck game — the real
+    ceiling fix; the OLD ``games * timeout_s`` product let one runaway game consume the whole
+    batch budget) or the total wall time exceeds ``backstop_s`` (an absolute ceiling for a process
+    that emits heartbeats forever). Returns ``(combined_output, returncode, state)``; the caller
+    inspects ``state.stalled`` / ``state.backstopped`` to raise the right :class:`XMageError`.
+    ``proc`` MUST be launched with ``stderr`` merged into ``stdout`` and ``start_new_session=True``
+    so the single stream carries every marker and the kill reaps the whole tree.
+    """
+    state = _WatchdogState()
+    lock = threading.Lock()
+
+    def _watch() -> None:
+        while proc.poll() is None:
+            now = time.monotonic()
+            with lock:
+                since_progress = now - state.last_progress
+                since_start = now - state.started
+            if stall_timeout_s and since_progress > stall_timeout_s:
+                state.stalled = True
+                runner._kill_process_group(proc)
+                return
+            if backstop_s and since_start > backstop_s:
+                state.backstopped = True
+                runner._kill_process_group(proc)
+                return
+            time.sleep(poll_s)
+
+    watcher = threading.Thread(target=_watch, name='xmage-stall-watchdog', daemon=True)
+    watcher.start()
+    lines: list[str] = []
+    assert proc.stdout is not None  # launched with stdout=PIPE.
+    for line in proc.stdout:
+        lines.append(line)
+        if heartbeat in line:
+            with lock:
+                state.last_progress = time.monotonic()
+    proc.wait()
+    watcher.join(timeout=poll_s * 2)
+    return ''.join(lines), proc.returncode, state
+
+
 def _launch_xmage(
     handle: XMageInstall,
     args: list[str],
@@ -675,6 +752,7 @@ def _launch_xmage(
     timeout_s: int,
     what: str,
     driver: tuple[str, str] | None = None,
+    stall_timeout_s: int | None = None,
 ) -> tuple[str, int]:
     """Launch ONE ``XMageBatch`` JVM and return ``(combined stdout+stderr, returncode)``.
 
@@ -689,31 +767,52 @@ def _launch_xmage(
     keeps the driverless argv unchanged.
     """
     cmd = _compose_launch_cmd(handle, args, heap=_XMAGE_HEAP, driver=driver)
+    # When a per-game stall bound is requested, MERGE stderr into stdout so the single stream
+    # carries both the GOLDFISH heartbeat (stdout) and the DRIVER_* markers (stderr) for the
+    # watchdog reader; otherwise keep the two pipes separate for the classic communicate() path.
+    watchdogged = stall_timeout_s is not None
     proc = subprocess.Popen(
         cmd,
         cwd=cwd,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.STDOUT if watchdogged else subprocess.PIPE,
         text=True,
         start_new_session=True,
     )
     runner._register_active(proc)  # let the governor's emergency abort reach this JVM.
+    state: _WatchdogState | None = None
     try:
-        try:
+        if watchdogged:
+            assert stall_timeout_s is not None
+            # The watchdog thread reaps the group itself on a stall/backstop (so no kill here);
+            # we raise the right error AFTER the finally, off the returned state.
+            combined, _rc, state = _run_with_watchdog(
+                proc,
+                heartbeat=_GOLDFISH_HEARTBEAT,
+                stall_timeout_s=stall_timeout_s,
+                backstop_s=timeout_s,
+            )
+        else:
             stdout, stderr = proc.communicate(timeout=timeout_s)
-        except subprocess.TimeoutExpired as exc:
-            runner._kill_process_group(proc)
-            raise XMageError(f'XMage {what} exceeded the external {timeout_s}s timeout and was killed.') from exc
-        except BaseException:
-            # Any other failure reading the pipes (e.g. MemoryError under the very RAM
-            # pressure this subsystem fights, KeyboardInterrupt, or the governor's
-            # emergency kill) must not orphan the session-leader JVM holding its full
-            # -Xmx heap. Kill the group, then re-raise.
-            runner._kill_process_group(proc)
-            raise
+            combined = (stdout or '') + (stderr or '')
+    except subprocess.TimeoutExpired as exc:
+        runner._kill_process_group(proc)
+        raise XMageError(f'XMage {what} exceeded the external {timeout_s}s timeout and was killed.') from exc
+    except BaseException:
+        # Any other failure reading the pipes (e.g. MemoryError under the very RAM pressure this
+        # subsystem fights, KeyboardInterrupt, or the governor's emergency kill) must not orphan
+        # the session-leader JVM holding its full -Xmx heap. Kill the group, then re-raise.
+        runner._kill_process_group(proc)
+        raise
     finally:
         runner._unregister_active(proc)
-    combined = (stdout or '') + (stderr or '')
+    if state is not None and state.stalled:
+        raise XMageError(
+            f'XMage {what} STALLED: no "{_GOLDFISH_HEARTBEAT}" progress for '
+            f'{stall_timeout_s}s — one game hung and was killed (per-game stall bound).'
+        )
+    if state is not None and state.backstopped:
+        raise XMageError(f'XMage {what} exceeded the {timeout_s}s absolute batch backstop and was killed.')
     # Defense-in-depth fail-loud: if a driver WAS requested but the run emitted no
     # DRIVER_REGISTERED line, the Driver never registered on PlayerA (a shadowed/stale
     # XMageBatch that ignored -Dmakemagic.driver, or a bad Driver class). The run then
