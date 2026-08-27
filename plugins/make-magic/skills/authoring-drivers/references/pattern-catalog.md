@@ -26,13 +26,16 @@ grow one into a `QuadSpec` when a specific deck's goldfish shows the miss.
 **Routing note (2026-08-27 combo-litmus pivot).** The `gate_mode` column below is the *old*
 solo/match label, and the old "proactive → macro-gate / reactive → Φ-only floor" split is
 **retired as a router**. The top-level classifier is now a **combo litmus**: a deck DRIVES iff
-`combos_in_deck` finds a concrete in-deck win-combo (all pieces in the 99, `result` is a
-game-win) — else it is **THIN** (bare CP7). There is **one** gate and it is **pure measurement**
-(`MACRO_FIRE_REAL` capability + never-slower vs the SAME deck on bare CP7 ±2 + brick-cap
-validity + `_MIN_GATE_GAMES=20`, commander-`fmt`) with **NO** bracket/archetype absolute turn
-bar. Proactive/reactive survives only as an **input to the rule-4 Φ-mode choice**
-(dedicated vs combo-capable), never as the route or the gate mode. Consequently the reactive/
-Φ-only rows below (hold-interaction, protect-commander) are **thin/flag** shapes — they did not
+`win_combos_in_deck` (= `combos_in_deck` filtered by `is_game_win_result`) finds a concrete
+in-deck win-combo (all pieces in the 99, `result` is a game-win) — else it is **THIN** (bare
+CP7, emitted via `QuadSpec.thin`). A DRIVE deck's quad is seeded deterministically from the
+chosen Combo with `seed_quad_from_combo(combo, archetype=...)` (archetype ∈ `ARCHETYPES` =
+`drive-dedicated` / `drive-capable` / `thin`). There is **one** gate and it is **pure
+measurement** (`MACRO_FIRE_REAL` capability + never-slower vs the SAME deck on bare CP7 ±2 +
+brick-cap validity + `_MIN_GATE_GAMES=20`, commander-`fmt`) with **NO** bracket/archetype
+absolute turn bar. Proactive/reactive survives only as an **input to the rule-4 Φ-mode choice**
+(`drive-dedicated` vs `drive-capable`), never as the route or the gate mode. Consequently the
+reactive/Φ-only rows below (hold-interaction, protect-commander) are **thin/flag** shapes — they did not
 measure as a win (see `research/gutcheck-defended-lens.md`, `prior-research-reconciliation.md`)
 — not a DRIVE route.
 

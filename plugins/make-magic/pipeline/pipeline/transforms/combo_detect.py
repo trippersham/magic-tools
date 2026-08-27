@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -130,6 +131,56 @@ def combos_in_deck(
 
 
 # --------------------------------------------------------------------------- #
+# The rule-1 win-result litmus (combo-litmus classifier front gate).
+# --------------------------------------------------------------------------- #
+
+#: Substring / word patterns (matched case-insensitively over the ``result`` string) that mark
+#: a combo's payoff as an actual GAME-WIN — a lethal / "win the game" outcome present in the 99.
+#: A ``result`` is a game-win iff ANY pattern matches (result strings are ``'; '``-joined feature
+#: names, so a combo producing both "Infinite mana" and "Win the game" qualifies on the latter).
+#: Bare resource loops ("Infinite mana / draw / tokens") match NOTHING here and are THIN by
+#: construction — no explicit negative list is needed. See design §5 rule 1.
+_WIN_RESULT_PATTERNS: tuple[str, ...] = (
+    r'win the game',
+    r'wins the game',
+    r'\bwin\b',
+    r'\bwins\b',
+    r'lose the game',
+    r'loses the game',
+    r'losing the game',
+    r'infinite damage',
+    r'\blethal\b',
+)
+_WIN_RESULT_RE = re.compile('|'.join(_WIN_RESULT_PATTERNS), re.IGNORECASE)
+
+
+def is_game_win_result(result: str) -> bool:
+    """Rule-1 predicate: does ``result`` describe an actual game-WIN payoff?
+
+    True for lethal / "win the game" / "each opponent loses the game" / "(deal) infinite damage"
+    style results; FALSE for a bare "infinite mana" / "infinite draw" / "infinite tokens" loop
+    with no lethal clause. The judgment is a pure substring/word match over the (case-folded)
+    ``'; '``-joined feature names (:data:`_WIN_RESULT_PATTERNS`) — a combo qualifies iff at least
+    one produced feature is a win/lethal payoff. Bare resource-infinite results match nothing and
+    are therefore THIN.
+    """
+    return bool(_WIN_RESULT_RE.search(result or ''))
+
+
+def win_combos_in_deck(
+    deck_identity: set[str],
+    combos: list[Combo],
+) -> list[Combo]:
+    """The rule-1 DRIVE gate: :func:`combos_in_deck` filtered to game-WIN combos only.
+
+    Returns every combo whose concrete pieces are all in ``deck_identity`` (oracle_id or name)
+    AND whose ``result`` is a game-win per :func:`is_game_win_result`. A non-empty return ⇒
+    DRIVE (seed the quad from the chosen combo); an empty return ⇒ THIN (bare CP7).
+    """
+    return [c for c in combos_in_deck(deck_identity, combos) if is_game_win_result(c.result)]
+
+
+# --------------------------------------------------------------------------- #
 # I/O — read raw variants, materialize normalized combos, load them back.
 # --------------------------------------------------------------------------- #
 
@@ -190,6 +241,28 @@ def load_combos() -> list[Combo]:
         )
         for vid, names, oids, result in rows
     ]
+
+
+def _combo_parquet_path() -> Path:
+    """The landed ``normalized/combo.parquet`` path (may not exist yet)."""
+    return store.StorePaths.resolve().parquet_path('normalized', NORMALIZED_TABLE, create=False)
+
+
+def ensure_combo_lake() -> Path:
+    """Guarantee the combo lake exists; return ``normalized/combo.parquet``.
+
+    If the parquet is present this is a cheap no-op (the common case — the lake ships
+    materialized). If it is MISSING, pull the Spellbook snapshot (``spellbook.sync()``) then
+    rebuild the normalized table (:func:`build`) so the combo-litmus front gate always has data.
+    """
+    path = _combo_parquet_path()
+    if path.is_file():
+        return path
+    from pipeline.sources import spellbook
+
+    log.info('combo lake missing at %s; syncing spellbook + rebuilding.', path)
+    spellbook.sync()
+    return build()
 
 
 def build() -> Path:

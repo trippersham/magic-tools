@@ -83,34 +83,38 @@ describe a deck. Nothing new to author — the primer is a *reading* of the sect
 it maps ~1:1 onto the sim Driver's quad `(Φ, P, macro, S)`. Authoring-drivers consumes this
 lens; distilling-strategy elicits with it.
 
-### The proactive/reactive call routes everything (read this FIRST)
+### The combo litmus routes everything (read this FIRST)
 
-Before anything else, the `PRIMARY STRATEGY` archetype answers one question: **does this deck
-enact its own win, or answer the opponent's?**
+Before anything else, the Driver classifier asks **one** question — a **combo litmus**, NOT a
+proactive/reactive call: **does the deck contain a concrete in-deck win-combo?** (Run
+`win_combos_in_deck` over the 99 — a concrete combo whose every piece is in the deck and whose
+`result` is a game-win.)
 
-- **Proactive** (aggro / combo / midrange / go-wide / voltron) — the deck has a **win it
-  executes**: a combo to fire, a board to develop and swing, a payoff to land. It gets a
-  **macro** (the win sequence) gated by **P** (the assembly precondition), plus **Φ** and
-  optional **S**. Gated in **macro-deck mode** (macro demonstrably fires + never-slower solo).
-- **Reactive** (control / stax / spellslinger-control) — the deck's job is to **answer**, hold
-  up interaction, and win late off inevitability. It has no proactive kill to script, so it is
-  **Φ-only**: potential toward a healthy reactive board, **no macro/P/S**. Gated in **Φ-only
-  mode** (never-worse-solo floor; reactive value measured only via an opt-in defended lens — a
-  passive goldfish gives a reactive deck nothing to react to).
+- **DRIVE** — yes: seed the quad deterministically from the detected `Combo`
+  (`seed_quad_from_combo`) — a **macro** (the win sequence) gated by **P**, plus **Φ** and **S**.
+- **THIN** — no: emit a neutral driver (`QuadSpec.thin`) — **Φ=0, no macro/P/S**, optional
+  mulligan. This is **bare CP7** (value / control / midrange / linear aggro all land here). It is
+  the honest default, not a fallback; a content-bearing Φ toward a non-racing plan *regresses*
+  the solo clock.
 
-This call is the machine router: **proactive ⇒ emit a macro; reactive ⇒ Φ-only.** Get it wrong
-and the whole Driver is the wrong shape.
+**Proactive/reactive is NOT the router** (the old "proactive ⇒ macro / reactive ⇒ Φ-only" spine
+is retired). The archetype survives only as one **input to the rule-4 Φ-mode choice** for a DRIVE
+deck: `drive-dedicated` (full combo-Φ staging — commander is a piece, or ≥3 dedicated tutors, or
+the Strategy names the combo primary) vs `drive-capable` (thin Φ=0 + macro/P/S, serendipitous
+capture). The gate is **pure measurement** — no gate-mode dial, no bracket/archetype turn bar.
 
-### The primer → quad map
+### The primer → quad map (a reading, not a route)
 
-| Primer reading (of the live sections) | Sim Driver slot |
+The lens **corroborates + refines** the litmus and informs the Φ-mode; it does not route.
+
+| Primer reading (of the live sections) | Role in Driver authoring |
 |---|---|
-| **Proactive or reactive? / archetype** (`PRIMARY STRATEGY`) | routes macro-deck vs Φ-only → **which gate mode** |
-| **Gameplan / identity** (`GAME PLAN`) | **Φ** — a bounded monotone potential toward the plan |
-| **Win condition(s)** (the payoff in `GAME PLAN` / a combo `KEY LINE`) | **macro** — the deterministic win sequence |
-| **Assembly / the combo turn** (when the win is executable) | **P** — the macro's `applicable` precondition |
-| **Key sequencing & choices** (`KEY LINES` `OWN:` clauses) | **S** — a selection steer + macro ordering |
-| **Mulligan / keepable hands** | a mulligan note (documented; no seam registry yet) |
+| **Gameplan / identity** (`GAME PLAN`) | informs the **Φ-mode** (dedicated staging vs neutral) |
+| **Win condition(s)** (the payoff in `GAME PLAN` / a combo `KEY LINE`) | corroborates the litmus + the **macro** seed |
+| **Assembly / the combo turn** (when the win is executable) | corroborates **P** — the macro's `applicable` precondition |
+| **Key sequencing & choices** (`KEY LINES` `OWN:` clauses) | refines **S** — a selection steer + macro ordering |
+| **Mulligan / keepable hands** | the OPTIONAL mulligan hook |
+| **Proactive or reactive? / archetype** (`PRIMARY STRATEGY`) | **input to the rule-4 Φ-mode choice only** — NOT the route |
 
 ### `KEY LINES` **is** the Sequencing subsection — the §7.1 intuitions live here
 
@@ -252,8 +256,12 @@ DOES NOT WANT:
 The live `World Reclaimer` Strategy above, read through the deck-primer lens for the Driver
 author (no new authoring — the same sections, re-organized):
 
-- **Proactive or reactive?** **Proactive** (lands-matter / sacrifice value engine — it *enacts*
-  a recursion loop). → macro-deck gate mode.
+- **Litmus (drive/thin)?** Run `win_combos_in_deck` over the 99. If a concrete in-deck win-combo
+  is present → **DRIVE** (seed from it); if not → **THIN** (bare CP7), and the readings below are
+  moot. This lands-matter engine drives only if it holds a concrete lethal combo; a bare
+  mass-recursion *value* swing with no in-deck game-win is THIN. Assume DRIVE for the reading
+  below. Its archetype (a proactive value engine, commander central) suggests the `drive-dedicated`
+  Φ-mode — an **input** to rule 4, not a route or gate mode.
 - **Gameplan / identity → Φ:** develop the land-recursion engine — reward a stocked graveyard of
   lands + a sacrifice outlet + a recursion effect in play. Φ rises as those pieces assemble.
 - **Win condition(s) → macro:** the explosive mass-recursion swing (Splendid Reclamation /

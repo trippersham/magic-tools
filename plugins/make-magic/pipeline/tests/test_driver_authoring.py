@@ -20,6 +20,7 @@ import pytest
 from pipeline.contracts.models import Deck, DeckCard
 from pipeline.sim import driver_authoring as da
 from pipeline.sim import driver_compile as dc
+from pipeline.transforms.combo_detect import Combo
 
 _REAL_ECJ = os.environ.get('MAKE_MAGIC_ECJ_JAR')
 _LOCAL_DIST = (
@@ -168,6 +169,78 @@ def test_phi_only_reactive_plus_mulligan_wires_only_phi_and_mulligan() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Combo-litmus additions (Phase 1): QuadSpec.thin / archetypes / seeding       #
+# --------------------------------------------------------------------------- #
+
+
+def test_quadspec_thin_is_neutral_bare_cp7() -> None:
+    """A thin QuadSpec renders a NEUTRAL driver: Φ=0, no macro/steer/mulligan classes,
+    and it passes the guardrails (it is behaviorally bare CP7 — registers a no-op Φ)."""
+    spec = da.QuadSpec.thin('some-value-deck')
+    assert spec.archetype == 'thin'
+    assert spec.macro is None
+    assert spec.steer is None
+    assert spec.mulligan is None
+    src = da.render_quad_driver(_deck(), spec)
+    assert 'private static int phi(Game game, UUID pid) {' in src
+    assert 'return 0;' in src
+    assert 'implements ComboMacro' not in src
+    assert 'implements SelectionSteer' not in src
+    assert 'implements MulliganSteer' not in src
+    da.check_quad_guardrails(src)  # must not raise
+
+
+def test_archetype_vocabulary_and_validation() -> None:
+    """The archetype vocabulary is the three combo-litmus values; an invalid one is rejected."""
+    assert da.ARCHETYPES == ('drive-dedicated', 'drive-capable', 'thin')
+    da.validate_archetype('drive-dedicated')
+    da.validate_archetype('drive-capable')
+    da.validate_archetype('thin')
+    with pytest.raises(ValueError):
+        da.validate_archetype('proactive')
+    with pytest.raises(ValueError):
+        da.QuadSpec.thin('x', archetype='reactive')
+
+
+def _win_combo() -> Combo:
+    return Combo(
+        variant_id='synthetic-1',
+        card_names=("Thassa's Oracle", 'Demonic Consultation'),
+        card_oracle_ids=('oid-a', 'oid-b'),
+        result='Each opponent loses the game',
+    )
+
+
+def test_seed_quad_from_combo_produces_drive_quad() -> None:
+    """Rule-3 seeding fills the fixed template from the Combo: P checks all piece names,
+    a Macro + Steer are emitted, and the archetype flows from the arg."""
+    spec = da.seed_quad_from_combo(_win_combo(), archetype='drive-capable')
+    assert spec.archetype == 'drive-capable'
+    assert spec.macro is not None
+    assert spec.steer is not None
+    src = da.render_quad_driver(_deck(), spec)
+    # every piece name is concretely generated into P (and S)
+    assert "Thassa's Oracle" in src
+    assert 'Demonic Consultation' in src
+    assert 'private static final class Macro implements ComboMacro {' in src
+    assert 'private static final class Steer implements SelectionSteer {' in src
+    da.check_quad_guardrails(src)
+
+
+def test_seed_quad_dedicated_stages_pieces_in_phi() -> None:
+    """A dedicated seed carries a piece-staging Φ; a capable seed is thin Φ=0."""
+    capable = da.seed_quad_from_combo(_win_combo(), archetype='drive-capable')
+    dedicated = da.seed_quad_from_combo(_win_combo(), archetype='drive-dedicated')
+    assert 'return 0;' in capable.phi_body
+    assert 'pieces' in dedicated.phi_body
+
+
+def test_seed_quad_rejects_bad_archetype() -> None:
+    with pytest.raises(ValueError):
+        da.seed_quad_from_combo(_win_combo(), archetype='thin')
+
+
+# --------------------------------------------------------------------------- #
 # ECJ compile — the load-bearing acceptance bar (proactive AND Φ-only)         #
 # --------------------------------------------------------------------------- #
 
@@ -245,3 +318,39 @@ def test_phi_only_reactive_quad_ecj_compiles_against_real_dist(
     assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}.class').is_file()
     assert not (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Macro.class').is_file()
     assert not (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Steer.class').is_file()
+
+
+@pytest.mark.integration
+def test_thin_quad_ecj_compiles_against_real_dist(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A THIN quad (Φ=0, no macro/steer/mull) ECJ-compiles against the real dist — bare CP7."""
+    result, pkg_rel = _compile_quad(da.QuadSpec.thin('thin-value-deck'), monkeypatch, tmp_path)
+    assert result.ok, result.raw_stderr
+    assert result.class_dir is not None
+    pkg = result.class_dir / pkg_rel
+    assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}.class').is_file()
+    assert not (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Macro.class').is_file()
+    assert not (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Steer.class').is_file()
+
+
+@pytest.mark.integration
+def test_combo_seeded_quad_ecj_compiles_against_real_dist(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A quad SEEDED from a Combo (rule-3 template) ECJ-compiles against the real dist for both
+    Φ-modes (the P precondition + S fetch are concretely generated from card_names)."""
+    combo = Combo(
+        variant_id='synthetic-1',
+        card_names=("Thassa's Oracle", 'Demonic Consultation'),
+        card_oracle_ids=('oid-a', 'oid-b'),
+        result='Each opponent loses the game',
+    )
+    for arch in ('drive-capable', 'drive-dedicated'):
+        spec = da.seed_quad_from_combo(combo, archetype=arch)
+        result, pkg_rel = _compile_quad(spec, monkeypatch, tmp_path / arch)
+        assert result.ok, result.raw_stderr
+        assert result.class_dir is not None
+        pkg = result.class_dir / pkg_rel
+        assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Macro.class').is_file()
+        assert (pkg / f'{da.DRIVER_SIMPLE_CLASS}$Steer.class').is_file()

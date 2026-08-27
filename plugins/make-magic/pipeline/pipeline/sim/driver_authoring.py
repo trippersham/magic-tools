@@ -46,9 +46,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pipeline.contracts import Deck
+    from pipeline.transforms.combo_detect import Combo
 
 __all__ = (
     # Names sorted (ruff RUF022).
+    'ARCHETYPES',
     'DRIVER_MACRO_FIRED_MARKER',
     'DRIVER_MULLIGAN_MARKER',
     'DRIVER_PACKAGE_ROOT',
@@ -66,7 +68,28 @@ __all__ = (
     'driver_fqcn',
     'driver_package',
     'render_quad_driver',
+    'seed_quad_from_combo',
+    'validate_archetype',
 )
+
+#: The combo-litmus archetype vocabulary (design §5 rules 1 + 4). ``'drive-dedicated'`` and
+#: ``'drive-capable'`` are the two DRIVE Φ-modes (full combo-Φ staging vs thin-Φ + macro/P/S);
+#: ``'thin'`` is bare CP7 (no in-deck win-combo). Replaces the retired proactive/reactive spine
+#: as the top-level classifier output.
+ARCHETYPES: tuple[str, ...] = ('drive-dedicated', 'drive-capable', 'thin')
+
+
+def validate_archetype(archetype: str) -> str:
+    """Return ``archetype`` if it is one of :data:`ARCHETYPES`, else raise ``ValueError``.
+
+    The combo-litmus factories (:meth:`QuadSpec.thin`, :func:`seed_quad_from_combo`) route every
+    archetype through this so a stray legacy value (e.g. ``'proactive'``) fails loudly. The free
+    :class:`QuadSpec` constructor is intentionally NOT validated — the worked-example reference
+    specs still carry their documentary ``'proactive'`` / ``'reactive'`` labels.
+    """
+    if archetype not in ARCHETYPES:
+        raise ValueError(f'archetype {archetype!r} is not one of {ARCHETYPES}')
+    return archetype
 
 #: The package prefix every generated driver lives under (per-deck leaf appended).
 DRIVER_PACKAGE_ROOT = 'makemagic.driver'
@@ -198,8 +221,11 @@ class QuadSpec:
     """
 
     name: str
-    #: 'proactive' or 'reactive' — the primer archetype call that routes gate mode. Purely
-    #: documentary in the emitter; the *presence of a macro* is the machine signal.
+    #: The combo-litmus archetype — one of :data:`ARCHETYPES` for combo-litmus-authored quads
+    #: (``'thin'`` / ``'drive-capable'`` / ``'drive-dedicated'``). Documentary in the emitter (it
+    #: rides in the ``DRIVER_REGISTERED`` breadcrumb); the *presence of a macro* is the machine
+    #: signal for DRIVE. (The worked-example reference specs keep legacy ``'proactive'`` /
+    #: ``'reactive'`` labels — the free constructor is unvalidated by design.)
     archetype: str
     phi_body: str
     macro: MacroSpec | None = None
@@ -208,6 +234,36 @@ class QuadSpec:
     helpers: str = ''
     imports: tuple[str, ...] = ()
     mulligan_note: str = ''
+
+    @classmethod
+    def thin(
+        cls,
+        name: str,
+        *,
+        archetype: str = 'thin',
+        mulligan: MulliganSpec | None = None,
+        mulligan_note: str = '',
+    ) -> QuadSpec:
+        """The THIN driver (combo-litmus rule 1: no in-deck win-combo) — bare CP7.
+
+        Renders a NEUTRAL quad: ``phi_body='return 0;'`` (a no-op Φ that adds nothing to any
+        leaf), NO macro and NO steer. An OPTIONAL mulligan slot may be supplied (the ablation
+        left it optional), but the default is a pure Φ=0 driver behaviorally identical to bare
+        CP7. ``archetype`` must be ``'thin'`` (validated); it is a keyword only so a mistaken
+        DRIVE value can't slip in positionally.
+        """
+        validate_archetype(archetype)
+        if archetype != 'thin':
+            raise ValueError(f"QuadSpec.thin requires archetype='thin', got {archetype!r}")
+        return cls(
+            name=name,
+            archetype=archetype,
+            phi_body='return 0;',
+            macro=None,
+            steer=None,
+            mulligan=mulligan,
+            mulligan_note=mulligan_note,
+        )
 
 
 def _indent(body: str, spaces: int) -> str:
@@ -427,6 +483,191 @@ def check_quad_guardrails(rendered_source: str) -> None:
     for pattern, message in _GUARDRAILS:
         if re.search(pattern, rendered_source):
             raise GuardrailViolation(message)
+
+
+# --------------------------------------------------------------------------- #
+# Rule-3 combo → quad seeding (DETERMINISTIC template fill).                    #
+#                                                                              #
+# From the chosen Combo: card_names → P (all pieces present + castable) + S     #
+# (fetch a still-missing piece via any tutor/search) + a staging Φ (dedicated); #
+# result → a bounded macro SCAFFOLD (the deterministic win enactment — a        #
+# clearly-marked TODO the deck author refines per-card downstream). The author   #
+# does NOT invent the line; the template is filled from the Combo verbatim.     #
+# --------------------------------------------------------------------------- #
+
+
+def _java_str(literal: str) -> str:
+    """A Python string → a safe Java double-quoted string literal (escapes ``\\`` and ``"``)."""
+    escaped = literal.replace('\\', '\\\\').replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _java_name_set(card_names: tuple[str, ...]) -> str:
+    """Render ``card_names`` as a ``java.util.Arrays.asList(...)`` argument list of literals."""
+    return ', '.join(_java_str(n) for n in card_names)
+
+
+def _seed_phi_body(card_names: tuple[str, ...], *, dedicated: bool) -> str:
+    """Φ body: a piece-staging potential (DEDICATED) or a neutral Φ=0 (CAPABLE, serendipitous)."""
+    if not dedicated:
+        # COMBO-CAPABLE: thin Φ=0 + macro/P/S (no distortion of the base plan).
+        return 'return 0;'
+    names = _java_name_set(card_names)
+    total = len(card_names)
+    return f'''\
+// DEDICATED combo-Φ (rule 4): a bounded, monotone potential toward assembling the win pieces.
+java.util.Set<String> want = new java.util.HashSet<>(java.util.Arrays.asList({names}));
+int pieces = 0;
+for (Card c : me.getHand().getCards(game)) {{
+    if (want.contains(c.getName())) {{
+        pieces++;
+    }}
+}}
+int score = pieces * 40000;
+if (pieces == {total}) {{
+    score += 700000;
+}}
+return score;'''
+
+
+def _seed_applicable_body(card_names: tuple[str, ...]) -> str:
+    """P body: all combo pieces present (hand or battlefield) & the kill is castable this turn."""
+    names = _java_name_set(card_names)
+    total = len(card_names)
+    return f'''\
+if (game.checkIfGameIsOver()) {{
+    return false;
+}}
+Player me = game.getPlayer(pid);
+if (me == null) {{
+    return false;
+}}
+if (!pid.equals(game.getActivePlayerId()) || !game.getStack().isEmpty()) {{
+    return false;
+}}
+// All combo pieces must be present (in hand or on the battlefield) to fire this turn.
+java.util.Set<String> want = new java.util.HashSet<>(java.util.Arrays.asList({names}));
+java.util.Set<String> have = new java.util.HashSet<>();
+for (Card c : me.getHand().getCards(game)) {{
+    if (want.contains(c.getName())) {{
+        have.add(c.getName());
+    }}
+}}
+for (Permanent p : game.getBattlefield().getAllActivePermanents(pid)) {{
+    if (want.contains(p.getName())) {{
+        have.add(p.getName());
+    }}
+}}
+return have.size() == {total};'''
+
+
+def _seed_apply_body(result: str) -> str:
+    """Macro body: a BOUNDED win-enactment SCAFFOLD (author refines the true per-card line).
+
+    The scaffold is structurally valid + ECJ-compiling and delivers the deterministic loss to
+    each opponent as the win payoff, with an explicit TODO naming the combo's ``result`` so the
+    deck author replaces it with the card-specific bounded resolution (moveCards / applyEffects /
+    a capped ``getStack().resolve``; never ``priority()`` / ``copy()``).
+    """
+    # result rides in a // comment — strip newlines so it can't break out of the line comment.
+    result_comment = ' '.join((result or '(unspecified win)').split())
+    return f'''\
+Player me = game.getPlayer(pid);
+if (me == null) {{
+    return;
+}}
+// TODO(author): replace this scaffold with the deck-specific BOUNDED resolution of the win —
+//   {result_comment}
+// using moveCards / applyEffects / a capped getStack().resolve(game) (<= ComboMacro.PROBE_MAX_STEPS);
+// NEVER priority()/copy() on the handed game. Until refined, the scaffold enacts the terminal
+// (each opponent loses) so the seam has a concrete, deterministic win to execute + measure.
+if (!game.checkIfGameIsOver()) {{
+    for (UUID opp : game.getOpponents(pid)) {{
+        Player o = game.getPlayer(opp);
+        if (o != null) {{
+            o.lost(game);
+        }}
+    }}
+    game.applyEffects();
+    game.checkStateAndTriggered();
+}}'''
+
+
+def _seed_steer_body(card_names: tuple[str, ...]) -> str:
+    """S body: steer MY OWN tutor/search toward any still-missing combo piece (category-agnostic
+    over the piece set — fetch whichever piece the hand lacks)."""
+    names = _java_name_set(card_names)
+    return f'''\
+if (source == null || cards == null || target == null) {{
+    return false;
+}}
+if (!pid.equals(source.getControllerId())) {{
+    return false;
+}}
+Player me = game.getPlayer(pid);
+if (me == null) {{
+    return false;
+}}
+// Fetch whichever combo piece is still MISSING from hand (any tutor/library search steer).
+java.util.Set<String> want = new java.util.HashSet<>(java.util.Arrays.asList({names}));
+for (Card c : me.getHand().getCards(game)) {{
+    want.remove(c.getName());
+}}
+if (want.isEmpty()) {{
+    return false;
+}}
+for (Card c : me.getLibrary().getCards(game)) {{
+    if (!want.contains(c.getName())) {{
+        continue;
+    }}
+    UUID id = c.getId();
+    if (!cards.contains(id)) {{
+        continue;
+    }}
+    if (!target.canTarget(pid, id, source, cards, game)) {{
+        continue;
+    }}
+    if (useAddTarget) {{
+        target.addTarget(id, source, game);
+    }} else {{
+        target.add(id, game);
+    }}
+    return true;
+}}
+return false;'''
+
+
+def seed_quad_from_combo(combo: Combo, *, archetype: str) -> QuadSpec:
+    """Rule-3 DETERMINISTIC seed: fill the fixed quad template from a detected win ``Combo``.
+
+    ``combo.card_names`` generate **P** (``applicable`` — all pieces present + castable this turn)
+    and **S** (steer a tutor/search to a still-missing piece); ``combo.result`` seeds the **macro**
+    (a bounded, ECJ-compiling win-enactment SCAFFOLD with a TODO for the true per-card line — the
+    author does NOT invent it here). Φ is a piece-staging potential when ``archetype`` is
+    ``'drive-dedicated'`` (rule 4 DEDICATED) or a neutral ``Φ=0`` when ``'drive-capable'``
+    (COMBO-CAPABLE — macro/P/S with no base-plan distortion). ``archetype`` must be a DRIVE value
+    (``'drive-dedicated'`` / ``'drive-capable'``); ``'thin'`` is rejected (a thin deck uses
+    :meth:`QuadSpec.thin`, not a seed).
+    """
+    validate_archetype(archetype)
+    if archetype == 'thin':
+        raise ValueError("seed_quad_from_combo needs a DRIVE archetype, not 'thin'")
+    dedicated = archetype == 'drive-dedicated'
+    return QuadSpec(
+        name=f'combo-{combo.variant_id}',
+        archetype=archetype,
+        phi_body=_seed_phi_body(combo.card_names, dedicated=dedicated),
+        macro=MacroSpec(
+            applicable_body=_seed_applicable_body(combo.card_names),
+            apply_body=_seed_apply_body(combo.result),
+        ),
+        steer=SteerSpec(apply_body=_seed_steer_body(combo.card_names)),
+        imports=(
+            'import mage.cards.Card;',
+            'import mage.game.permanent.Permanent;',
+        ),
+        mulligan_note=f'seeded from combo {combo.variant_id}: {", ".join(combo.card_names)}.',
+    )
 
 
 # --------------------------------------------------------------------------- #

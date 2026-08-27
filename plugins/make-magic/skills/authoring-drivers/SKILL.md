@@ -1,119 +1,142 @@
 ---
 name: authoring-drivers
 description: >
-  Derive an in-search QUAD sim Driver (Φ, P, macro, S) from a deck's deck-primer Strategy, emit
-  it as register-by-playerId Java, ECJ-compile it, and hand it to the ship gate. TRIGGER when:
-  user says "author a driver for [deck]", "make a sim pilot for this deck", "give this deck a
-  driver", "why does the AI misplay my combo", or the gauntlet needs a companion Driver per
-  deck. SKIP for distilling/eliciting the Strategy itself (distilling-strategy), for card
-  selection (refining-decks), or for running the gauntlet without authoring (the sim CLI).
+  Classify a deck by the COMBO LITMUS, then either seed an in-search QUAD sim Driver
+  (Φ, P, macro, S) deterministically from the detected win-combo (DRIVE) or emit a neutral
+  bare-CP7 driver (THIN), ECJ-compile it, and hand it to the ship gate. TRIGGER when: user says
+  "author a driver for [deck]", "make a sim pilot for this deck", "give this deck a driver", "why
+  does the AI misplay my combo", or the gauntlet needs a companion Driver per deck. SKIP for
+  distilling/eliciting the Strategy itself (distilling-strategy), for card selection
+  (refining-decks), or for running the gauntlet without authoring (the sim CLI).
 user-invocable: true
 ---
 
-# Authoring Drivers (the in-search quad)
+# Authoring Drivers (the in-search quad — combo litmus)
 
-Turn a deck's **deck-primer Strategy** into a **quad Driver** `(Φ, P, macro, S)` — pure
-functions the patched XMage minimax consults *inside its own search*, keyed by `playerId`.
-PlayerA stays a plain `ComputerPlayer7`; the Driver only **registers** its quad, so any
-unregistered seat is pure CP7 (the intelligence-preserving property). This is NOT the retired
-engine-replacement subclass — there is no `ComputerPlayer7` to extend and no `copy()` to
+Classify a deck by a **combo litmus**, then produce its Driver. A **quad Driver** `(Φ, P, macro,
+S)` is a set of pure functions the patched XMage minimax consults *inside its own search*, keyed
+by `playerId`. PlayerA stays a plain `ComputerPlayer7`; the Driver only **registers** its quad,
+so any unregistered seat is pure CP7 (the intelligence-preserving property). This is NOT the
+retired engine-replacement subclass — there is no `ComputerPlayer7` to extend and no `copy()` to
 override.
 
 <primary-constraint>
-**The proactive/reactive call routes the whole Driver — make it first.**
+**The combo litmus is the top-level classifier — run it FIRST, before deriving anything.**
 
-A **proactive** deck (aggro/combo/midrange/go-wide/voltron) *enacts a win*: it gets a **macro**
-(the deterministic win sequence) gated by **P** (assembly precondition), plus **Φ** and optional
-**S**. A **reactive** deck (control/stax/spellslinger-control) *answers*: it is **Φ-only** — no
-macro/P/S. Emit a macro for a reactive deck and the gate has nothing real to fire; omit one for
-a proactive combo deck and the AI never assembles the kill. Read `PRIMARY STRATEGY` and decide
-before deriving a single slot.
+Run `win_combos_in_deck(deck_identity, combos)` (from `pipeline.transforms.combo_detect`).
+
+- **DRIVE** — it returns ≥1 concrete win-combo (all pieces in the 99, `result` a GAME-WIN per
+  `is_game_win_result`). Seed the quad **deterministically from the chosen Combo** with
+  `seed_quad_from_combo(combo, archetype=...)`. You do NOT invent the line — the emitter fills a
+  fixed template (P + S generated from `card_names`, a bounded macro scaffold from `result`).
+- **THIN** — it returns `[]` (no concrete in-deck win-combo). Emit `QuadSpec.thin(name)` — a
+  NEUTRAL driver (Φ=0, no macro/P/S, optional real mulligan) that is behaviorally **bare CP7**.
+  Record "bare CP7" and stop.
+
+Proactive/reactive is NOT the router anymore. It survives only as one *input* to the rule-4
+Φ-mode choice (dedicated vs capable) below — never as the top-level route.
 </primary-constraint>
 
-## The quad, and where each slot comes from
+## The 4 load-bearing rules (design §5)
+
+1. **Litmus (drive/thin).** DRIVE iff `win_combos_in_deck` returns ≥1 combo whose `result` is a
+   game-win (`is_game_win_result` — a lethal / "win the game" / "each opponent loses" / "infinite
+   damage" payoff, NOT a bare "infinite mana/draw/tokens" loop with no in-deck finisher) and all
+   pieces are in the 99. Else THIN.
+2. **Tiebreak (multi-combo).** Among qualifying win-combos, seed from the **fewest-pieces** one,
+   preferring one the **commander participates in**. Two equally-central win lines → author the
+   primary + **flag** the second (its macro is a follow-up).
+3. **Seed the quad (deterministic).** `seed_quad_from_combo(combo, archetype=...)` fills the fixed
+   template from the Combo: `card_names` → **P** (`applicable` = all pieces present & castable
+   this turn) + **S** (steer a tutor/search to a still-missing piece); `result` → **macro** (a
+   bounded win-enactment **scaffold** — no `priority()`/`copy()`). The macro body is a
+   clearly-marked `TODO(author)` scaffold that enacts the terminal (each opponent loses) so the
+   seam has a concrete deterministic win to execute + measure; the **true card-specific
+   enactment is authored per-deck downstream** (moveCards / applyEffects / a capped
+   `getStack().resolve`). The P precondition and S fetch ARE concretely generated from
+   `card_names` — those are not scaffolds.
+4. **Φ-mode (auto).** Pass the archetype into the seeder:
+   - **`drive-dedicated`** (full combo-Φ staging assembly) iff the commander is a combo piece
+     **OR** ≥3 dedicated tutors for the pieces **OR** the Strategy names the combo as the primary
+     win. Φ becomes a piece-staging potential.
+   - **`drive-capable`** (serendipitous capture) otherwise — thin Φ=0 + macro/P/S, no distortion
+     of the base plan.
+   - Borderline → default `drive-capable` (thin-Φ) + **flag**. *(Proactive/reactive intuitions
+     inform this choice — they are an input here, not the top-level router.)*
+
+Optional **mulligan** slot (`MulliganSpec`) composes with either DRIVE mode or with THIN — a real
+slot, but OPTIONAL (ablation showed mulligan-in-isolation net-negative; the default is none).
+
+## The emitter API (what you actually call)
+
+`pipeline/pipeline/sim/driver_authoring.py` owns the ingestion contract — you never write the
+`register(UUID)` wiring.
+
+| Call | Returns / does |
+|---|---|
+| `combo_detect.ensure_combo_lake()` | guarantees `normalized/combo.parquet` (no-op if present; else `spellbook.sync()` + `build()`). Run before the litmus. |
+| `combo_detect.load_combos()` | the `list[Combo]` to pass to the litmus. |
+| `combo_detect.win_combos_in_deck(identity, combos)` | the **rule-1 DRIVE gate** — concrete win-combos in the deck. |
+| `combo_detect.is_game_win_result(result)` | the rule-1 win-result predicate (game-win vs bare-infinite). |
+| `driver_authoring.seed_quad_from_combo(combo, archetype=...)` | **rule-3 seed** → a `QuadSpec` (archetype ∈ `{'drive-dedicated','drive-capable'}`). |
+| `driver_authoring.QuadSpec.thin(name, mulligan=?)` | the **THIN** neutral quad (Φ=0, bare CP7). |
+| `driver_authoring.ARCHETYPES` / `validate_archetype(a)` | the vocabulary `('drive-dedicated','drive-capable','thin')` + its check. |
+| `driver_authoring.render_quad_driver(deck, spec)` | the compilable `Driver.java`. |
+| `driver_authoring.check_quad_guardrails(src)` | the §7.1 do-not-own static screen. |
+
+The reference specs `JELEVA_QUAD_SPEC` and `SHORIKAI_REACTIVE_QUAD_SPEC` remain as worked
+examples of hand-authored quads (they carry documentary legacy `proactive`/`reactive` labels);
+the combo-litmus path produces its quad through `seed_quad_from_combo` / `QuadSpec.thin`.
+
+## The deck-primer lens (a reading, not a router)
 
 Read the deck's Strategy through the **deck-primer lens** (see
-`building-decks/references/strategy-schema.md`, "The deck-primer lens"). Each primer reading
-maps to one quad slot:
+`building-decks/references/strategy-schema.md`, "The deck-primer lens"). The lens **corroborates
++ refines** the litmus and informs Φ-mode; it does NOT route and it does NOT set a gate mode:
 
-| Primer reading | Quad slot | Java shape (emitted by `driver_authoring.render_quad_driver`) |
-|---|---|---|
-| Gameplan / identity | **Φ** | `int phi(Game, UUID)` — a bounded (±1e6) monotone potential toward the plan, registered into `DriverBonus` |
-| Win condition(s) | **macro** | `ComboMacro.apply(Game, UUID)` — the deterministic win, driven with bounded state moves, registered into `MacroRegistry` |
-| Assembly / the combo turn | **P** | `ComboMacro.applicable(Game, UUID)` — "is the kill executable NOW?" |
-| Key sequencing & choices | **S** | `SelectionSteer.apply(...)` — a category-comprehensive selection steer, registered into `SelectionRegistry` |
-| Mulligan / keepable hands | **mulligan** | `MulliganSteer.shipHand(Game, UUID)` — the opening-hand keep/ship decision, registered into `MulliganRegistry` (a live slot since P5.5) |
-
-The emitter (`pipeline/pipeline/sim/driver_authoring.py`) owns the ingestion contract: you write
-each slot's **body**; it generates the `public static void register(UUID playerId)` that wires
-the (up to) four registries, the method/inner-class signatures, and the non-null `Player me`
-guard. The **mulligan** slot is OPTIONAL (`QuadSpec.mulligan=MulliganSpec(ship_body=...)`):
-present ⇒ the deck owns its keep/ship on the real opening hand; absent ⇒ CP7's default land-count
-heuristic (byte-identical to bare CP7). The reference implementation is
-`pipeline/pipeline/sim/reference_drivers/JelevaThoracleReferenceDriver.java`; the worked specs
-`JELEVA_QUAD_SPEC` (proactive) and `SHORIKAI_REACTIVE_QUAD_SPEC` (Φ-only) are your templates.
-
-## The §7.1 authoring intuitions (the hard-won discipline — do not lose these)
-
-These are load-bearing. Every quad must honor them; `check_quad_guardrails` enforces the
-mechanical ones and the never-worse gate (P5) is the ultimate arbiter.
-
-- **Own the noun, defer the verb.** The **real-seat slots** — **S**, the **macro's real
-  fire**, and the **mulligan** keep/ship — act on ONE owned decision (what to cast/target/keep)
-  and defer everything else. Never
-  own combat, land drops, attacker selection, or generic sequencing. Φ and the in-search
-  macro-fold run *inside* the search by design and cannot regress the real seat. This is the
-  core never-regress discipline: a Driver that re-pilots what CP7 already does well plays
-  *worse* than bare CP7.
-- **Category/mechanic altitude, not individual cards.** Write **S** to match a **comprehensive
-  predicate over a category** ("any top-of-library tutor," "any sacrifice outlet"), never one
-  card as a proxy for the category — that silently breaks on a swap and misses comparable
-  members. `getName()` matched against the **FULL member set** of a category is acceptable *when
-  that set is knowable at design time* (enumerated name-sets are drift-safe: a swap flips
-  `driver_valid`, re-authoring picks up the new member). A discrete infinite/deterministic combo
-  **is** its named pieces — name them (that is the macro's own precondition).
-- **The do-not-own guardrails.** Never own: attacker selection / force-attack; generic
-  combat/blocks (narrow exception: a condition-gated respond-only chump for a walker/commander);
-  land drops / curve; politics / goad / multi-opponent threat assessment (no ground truth in a
-  goldfish/1v1). And — specific to the quad — the macro's `apply` must **never call
-  `priority()` or `copy()`** on the handed game: drive the known outcome with explicit
-  `moveCards` / `applyEffects` / a capped `getStack().resolve` (bounded by
-  `ComboMacro.PROBE_MAX_STEPS`).
-- **The three-beat guard→act→defer shape** is the shape of every real-seat slot: **guard** on
-  "is this my owned decision now?" (S: `pid.equals(source.getControllerId())`; macro:
-  `applicable`; mulligan: the dist already guards it to the real opening hand, so `shipHand`
-  just reads the hand), **act** once, **defer** (`return false`) everywhere else so CP7 keeps
-  control. For **mulligan** specifically: own the keep/ship (ship no-land/flood, keep a hand
-  with a plan piece), defer WHICH cards to bottom (London) to CP — v1 is keep/ship only.
-
-## The seed patterns are examples, NOT a closed menu (open-ended authoring)
-
-The pattern catalog (`references/pattern-catalog.md`) and the combo package
-(`references/combo-package.md`) are a **starting vocabulary**, re-expressed as quad shapes:
-
-| Seed pattern | Quad shape |
+| Primer reading | Role in authoring |
 |---|---|
-| combo-loop / spell-combo | **macro + Φ** — the win sequence as `apply`, gated by `applicable` (P); Φ develops toward it. S if a tutor assembles it. |
-| reanimate-target / sac-selection / discard-selection | **S** — a category-comprehensive selection steer (the graveyard bomb, the expendable fodder, the off-plan pitch). |
-| hold-interaction / protect-commander | **Φ-only** (reactive) — Φ rewards holding interaction + mana open; no macro. |
-| gowide-payoff | **macro (light) + Φ** — Φ rewards a wide board; macro casts the payoff (never `selectAttackers`). |
-| mull-for-plan | the **mulligan** slot — `MulliganSpec.ship_body` returns keep/ship for the opening hand (ship screw/flood, keep a hand with a plan piece). |
+| Gameplan / identity | informs **Φ-mode** (dedicated staging vs neutral) |
+| Win condition(s) | corroborates the litmus + the **macro** seed (which combo to enact) |
+| Assembly / the combo turn | corroborates **P** (`applicable`) |
+| Key sequencing & choices | refines **S** (category-comprehensive) + macro ordering when you author the per-card line |
+| Mulligan / keepable hands | the OPTIONAL mulligan hook |
+| *Proactive or reactive? / archetype* | **input to the rule-4 Φ-mode choice only** — NOT the top-level route |
 
-When none fits, **compose a novel quad from the primitives** — the gate is what makes a novel
-line safe, not membership in a menu. A line that declares its win (macro fires) and does not
-regress the solo clock (never-worse) is a legal Driver regardless of which primitives it
-stitched together. Do NOT manufacture an ownable line for a CP7-fine deck (linear aggro /
-goodstuff): record an honest Φ-only or a thin Driver and stop.
+## The §7.1 authoring intuitions (do not lose these)
+
+Load-bearing when you refine the seeded macro's per-card line and the S steer.
+`check_quad_guardrails` enforces the mechanical ones; the never-worse gate (P6) is the ultimate
+arbiter.
+
+- **Own the noun, defer the verb.** The **real-seat slots** — **S**, the **macro's real fire**,
+  and the **mulligan** keep/ship — act on ONE owned decision (what to cast/target/keep) and defer
+  everything else. Never own combat, land drops, attacker selection, or generic sequencing. Φ and
+  the in-search macro-fold run *inside* the search by design and cannot regress the real seat. A
+  Driver that re-pilots what CP7 already does well plays *worse* than bare CP7.
+- **Category/mechanic altitude, not individual cards.** Write **S** to match a **comprehensive
+  predicate over a category** ("any top-of-library tutor," "any sacrifice outlet"), never one card
+  as a proxy. `getName()` matched against the **FULL member set** of a category is acceptable
+  *when knowable at design time*. A discrete combo **is** its named pieces — the seeder names them
+  (that is the macro's own precondition).
+- **The do-not-own guardrails.** Never own: attacker selection / force-attack; generic
+  combat/blocks; land drops / curve; politics / goad. And — specific to the quad — the macro's
+  `apply` must **never call `priority()` or `copy()`** on the handed game: drive the known outcome
+  with explicit `moveCards` / `applyEffects` / a capped `getStack().resolve` (bounded by
+  `ComboMacro.PROBE_MAX_STEPS`).
+- **The three-beat guard→act→defer shape** is the shape of every real-seat slot: **guard** on "is
+  this my owned decision now?", **act** once, **defer** (`return false`) everywhere else so CP7
+  keeps control.
 
 <reference file="references/xmage-api-primitives.md">
-The registration contract (the current seam) + the `mage.*` primitives the slot bodies call
-(read/query helpers, the tutor-search overloads, gotchas). The top section is authoritative for
-the quad; the lower §A/§B/§C idioms describe the retired subclass path — read them for the
-`mage.*` API surface, but express the logic as quad slots.
+The registration contract (the current seam) + the `mage.*` primitives the slot bodies call. The
+top section is authoritative for the quad; the lower §A/§B/§C idioms describe the retired subclass
+path — read them for the `mage.*` API surface, but express the logic as quad slots.
 </reference>
 <reference file="references/pattern-catalog.md">
-The ranked seed patterns + archetype→pattern selection + the DO-NOT-OWN list. Re-expressed as
-quad shapes per the table above.
+The seed patterns as quad SHAPES (selection → S; combo/loop → macro + Φ; mulligan → the optional
+mulligan hook). Subordinate to the combo litmus — reactive "hold-interaction / protect-commander"
+patterns survive only as THIN/flag cases, never a DRIVE route.
 </reference>
 <reference file="references/combo-package.md">
 The greedy-combo package (tutor-assemble + fire) — now expressed as **S** (tutor steer) +
@@ -122,41 +145,49 @@ The greedy-combo package (tutor-assemble + fire) — now expressed as **S** (tut
 
 ## The authoring flow
 
-1. **Read the Strategy + classify.** `collection get-deck "<deck>" --field strategy`. Make the
-   **proactive/reactive** call from `PRIMARY STRATEGY`. Proactive ⇒ a macro; reactive ⇒ Φ-only.
-2. **Derive the slots** from the primer readings (table above). For a proactive deck: Φ from the
-   Gameplan, `apply` (macro) from the Win Condition, `applicable` (P) from the Assembly turn, S
-   from the `KEY LINES` `OWN:` at category altitude. For a reactive deck: Φ only. Derive the
-   **mulligan** (`shipHand`) from the primer Mulligan section whenever the deck has a real
-   keep/ship intuition (ship screw/flood, keep a hand with a plan piece) — it composes with
-   either archetype (proactive + mulligan, or Φ-only reactive + mulligan); omit it for a deck
-   with no better-than-CP7 mulligan read.
-3. **Build the `QuadSpec`** (`driver_authoring.QuadSpec` / `MacroSpec` / `SteerSpec` /
-   `MulliganSpec`) and render with `render_quad_driver(deck, spec)`. `macro=None, steer=None` ⇒
-   a Φ-only reactive class; `mulligan=None` ⇒ CP7 default mulligan (byte-identical to bare CP7).
-4. **Guardrail-check.** `check_quad_guardrails(rendered)` — raises `GuardrailViolation` on a
-   `priority()`/`copy()`-in-macro, owned combat, or owned land drops. Fix and re-render.
-5. **ECJ-compile.** `driver_compile.compile_driver(source)` (or `compile_for_injection`) against
-   the effective dist jar; surface ECJ diagnostics into a repair loop. Cached on
-   (dist SHA, source hash).
-6. **Gate (P5).** Hand the compiled quad to the ship gate in its mode: proactive ⇒ macro fires +
-   never-slower solo; reactive ⇒ never-worse-solo floor + opt-in defended lens.
+1. **Ensure the combo lake + load combos.** `ensure_combo_lake()`; `combos = load_combos()`.
+2. **Run the litmus (rule 1).** Build the deck identity set (card names and/or oracle_ids);
+   `won = win_combos_in_deck(identity, combos)`.
+   - `won == []` → **THIN**: `spec = QuadSpec.thin("<deck>")`, record "bare CP7", skip to step 5.
+   - `won` non-empty → **DRIVE**: continue.
+3. **Tiebreak + Φ-mode (rules 2 + 4).** Pick the fewest-pieces win-combo (prefer commander
+   participation; flag a co-primary second line). Decide `archetype`: `drive-dedicated` if the
+   commander is a piece OR ≥3 dedicated tutors OR the Strategy names the combo primary; else
+   `drive-capable` (borderline → capable + flag).
+4. **Seed the quad (rule 3).** `spec = seed_quad_from_combo(combo, archetype=archetype)`.
+   Optionally attach a `MulliganSpec` when the deck has a real keep/ship read. (The macro body is
+   a `TODO(author)` scaffold — refine the true per-card bounded win line downstream, honoring the
+   §7.1 discipline; P + S are already concrete.)
+5. **Render + guardrail-check.** `src = render_quad_driver(deck, spec)`;
+   `check_quad_guardrails(src)` (raises `GuardrailViolation` on `priority()`/`copy()`-in-macro,
+   owned combat, or owned land drops). Fix and re-render.
+6. **ECJ-compile.** `driver_compile.compile_driver(source)` against the effective dist jar;
+   surface ECJ diagnostics into a repair loop. Cached on (dist SHA, source hash).
+7. **Gate (P6 — pure measurement).** DRIVE ⇒ `MACRO_FIRE_REAL` + never-slower-than-same-deck-CP7
+   (±2) + brick-cap valid. THIN ⇒ recorded as bare CP7 (CP7-both-sides control; not gated for a
+   macro it does not have).
 
 ## Verify
 
-- **Emit a compiling quad for one deck.** Author a `QuadSpec` from a real Strategy → render →
-  ECJ-compile succeeds against the local dist jar. `JELEVA_QUAD_SPEC` (proactive) and
-  `SHORIKAI_REACTIVE_QUAD_SPEC` (Φ-only) are the reference specs, proven by
-  `tests/test_driver_authoring.py::test_*_quad_ecj_compiles_against_real_dist`.
+- **THIN emits a compiling neutral quad.** `QuadSpec.thin("x")` → render → ECJ-compiles; Φ is
+  `return 0;`, no Macro/Steer/Mull inner class; passes `check_quad_guardrails`. Proven by
+  `tests/test_driver_authoring.py::test_quadspec_thin_is_neutral_bare_cp7` +
+  `::test_thin_quad_ecj_compiles_against_real_dist`.
+- **A combo seed compiles.** `seed_quad_from_combo(combo, archetype=...)` → render → ECJ-compiles
+  for both Φ-modes, with the piece names concretely in P/S. Proven by
+  `::test_seed_quad_from_combo_produces_drive_quad` +
+  `::test_combo_seeded_quad_ecj_compiles_against_real_dist`.
+- **The litmus is correct.** A Thoracle-style win-combo identity returns the combo; an
+  infinite-mana-only identity returns `[]`. Proven by
+  `tests/test_combo_litmus.py::test_win_combos_in_deck_*`.
 - **A guardrail violation is rejected** by `tests/test_driver_guardrails.py`
-  (`check_quad_guardrails`): a macro `apply` that calls `priority()`/`copy()` on the handed sim,
-  a quad that owns combat/attacker selection, or one that owns land drops. This is **AC8** —
-  keep it enforced by the test.
+  (`check_quad_guardrails`). This is **AC8** — keep it enforced.
 
 ## When NOT to use
 
 - **Eliciting the Strategy** — that is `distilling-strategy`; this skill CONSUMES a written
-  Strategy.
-- **A CP7-fine deck** (linear aggro / goodstuff / politics) — do not invent a line. Ship a Φ-only
-  or thin Driver, or defer. Politics/group-hug decks: flag and stop (no goldfish ground truth).
+  Strategy (as a corroborating lens on the litmus).
+- **A THIN deck** (no in-deck win-combo — value / control / midrange / linear aggro): do not
+  invent a line. Emit `QuadSpec.thin` and record bare CP7. This is the honest default, not a
+  fallback.
 - **Running the gauntlet** without new authoring — use the sim CLI with the pre-compiled Drivers.
