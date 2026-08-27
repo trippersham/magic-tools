@@ -653,7 +653,7 @@ def run(argv: list[str] | None = None) -> None:
     parser.add_argument('--batch-ledger', default=None, help='P3 author/compile ledger (default: <data_dir>/...).')
     parser.add_argument('--out-dir', default=str(_PLAN_DIR), help='Where the bucket table (json+md) is written.')
     parser.add_argument('--no-monitor', action='store_true', help='Do not start the resource monitor (tests/dev).')
-    args = parser.parse_args([] if argv is None else argv)
+    args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     run_set, run_set_json = _load_run_set(args.run_set)

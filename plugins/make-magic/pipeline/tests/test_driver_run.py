@@ -380,3 +380,24 @@ def test_smoke_full_pipeline_one_deck_real_jar(monkeypatch: pytest.MonkeyPatch, 
         gaunt = persisted['comparison']['gauntlet']
         assert len(gaunt['per_opponent']) == 1
         assert gaunt['per_opponent'][0]['opponent'] != 'mono-white__heliod-sun-crowned'
+
+
+def test_run_reads_sys_argv_when_argv_is_none(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Regression: main()/run(None) must honor the real CLI (sys.argv), not parse an empty list.
+
+    The original ``parse_args([] if argv is None else argv)`` discarded sys.argv, so ``--run``
+    (and every flag) was silently dropped when invoked as ``python -m ...`` — the corpus run
+    became a no-op that only emitted an empty bucket table. Here we prove a custom ``--out-dir``
+    passed via sys.argv is honored (aggregate-only path, no sims).
+    """
+    out = tmp_path / 'custom_out'
+    out.mkdir()
+    empty_ledger = tmp_path / 'run_ledger.jsonl'
+    empty_ledger.write_text('', encoding='utf-8')
+    monkeypatch.setattr(
+        'sys.argv',
+        ['driver-run', '--aggregate-only', '--out-dir', str(out), '--run-ledger', str(empty_ledger)],
+    )
+    dr.main()  # argv=None -> must read sys.argv
+    written = list(out.glob('driver-run-buckets.*'))
+    assert {p.suffix for p in written} == {'.json', '.md'}, f'custom --out-dir not honored: {written}'
