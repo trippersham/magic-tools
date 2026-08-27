@@ -23,9 +23,18 @@ Quad re-expression note above. The live emitter is `render_quad_driver(deck, Qua
 proactive spell-combo quad: Φ + macro + P + S). The other rows are coherent design shapes —
 grow one into a `QuadSpec` when a specific deck's goldfish shows the miss.
 
-The `gate_mode` column below is the *old* solo/match label; the Phase-5 gate now routes by the
-quad's shape — a macro-bearing quad is **proactive** (gated on macro-fire + never-slower), a
-Φ-only quad is **reactive** (gated on the never-worse-solo floor).
+**Routing note (2026-08-27 combo-litmus pivot).** The `gate_mode` column below is the *old*
+solo/match label, and the old "proactive → macro-gate / reactive → Φ-only floor" split is
+**retired as a router**. The top-level classifier is now a **combo litmus**: a deck DRIVES iff
+`combos_in_deck` finds a concrete in-deck win-combo (all pieces in the 99, `result` is a
+game-win) — else it is **THIN** (bare CP7). There is **one** gate and it is **pure measurement**
+(`MACRO_FIRE_REAL` capability + never-slower vs the SAME deck on bare CP7 ±2 + brick-cap
+validity + `_MIN_GATE_GAMES=20`, commander-`fmt`) with **NO** bracket/archetype absolute turn
+bar. Proactive/reactive survives only as an **input to the rule-4 Φ-mode choice**
+(dedicated vs combo-capable), never as the route or the gate mode. Consequently the reactive/
+Φ-only rows below (hold-interaction, protect-commander) are **thin/flag** shapes — they did not
+measure as a win (see `research/gutcheck-defended-lens.md`, `prior-research-reconciliation.md`)
+— not a DRIVE route.
 
 ---
 
@@ -52,6 +61,12 @@ lifegain/superfriends payoffs, mana-color sequencing. Each is real but either lo
 ---
 
 ## Archetype → pattern selection
+
+> **Subordinate to the combo litmus.** This map is a *within-DRIVE* guide for which S/macro/Φ
+> shapes a combo deck wants — it does NOT decide drive-vs-thin. The combo litmus decides that
+> first: no concrete in-deck win-combo ⇒ THIN (bare CP7), regardless of archetype. The
+> control/reanimator/voltron rows below whose value is reactive Φ-only are **thin/flag** unless a
+> concrete win-combo is also present.
 
 Match the deck's Strategy `PRIMARY STRATEGY:` line + its `Focus Otags`/`otag_buckets` to the
 pattern(s). Usually 1–2 patterns; `mull-for-plan` rides along on almost everything.
