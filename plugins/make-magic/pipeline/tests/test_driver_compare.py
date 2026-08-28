@@ -151,6 +151,50 @@ def test_gauntlet_winrate_delta_and_wilson_ci(_store: Path) -> None:
     assert opps['OppB'].winrate_driver_ci == wilson_ci(3, 5)
 
 
+def test_compare_persists_every_matchup(_store: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every compare matchup (both pilotings x every opponent) is written to the store.
+
+    The governed/sequential compare runners never cache, so without the EP4a wiring the
+    corpus matchups would only be in the run ledger, never sim_matchups. We capture the
+    store_matchup calls via a recorder and assert one write per (opponent, piloting)."""
+    import pipeline.sim.store as sim_store
+
+    calls: list[tuple[str, str, str]] = []  # (deck_a_hash, deck_b_hash, engine)
+
+    def _record(key, meta, result, features, *, data_dir=None):
+        calls.append((meta.deck_a_hash, meta.deck_b_hash, meta.engine))
+
+    monkeypatch.setattr(sim_store, 'store_matchup', _record)
+
+    class _Install:
+        version = 'xmage-test'
+
+    deck = _deck()
+    _stamp_valid_driver(deck, _store)
+    matchups = {
+        ('OppA', True): _mr(4, 1, raw_log=''),
+        ('OppA', False): _mr(2, 3, raw_log=''),
+        ('OppB', True): _mr(3, 2, raw_log=''),
+        ('OppB', False): _mr(1, 4, raw_log=''),
+    }
+    eng = _FakeEngine(driven_median=6.0, cp7_median=7.0, matchups=matchups)
+
+    dc.compare_pilotings(
+        deck,
+        _DECK_REF,
+        install=_Install(),
+        games=5,
+        gauntlet=[_OPP_A, _OPP_B],
+        engine=eng,
+        data_dir=_store,
+        run_matchups=dc._sequential_run_matchups,
+    )
+
+    # 2 opponents x 2 pilotings = 4 persisted matchups.
+    assert len(calls) == 4
+    assert all(engine == 'xmage' for _, _, engine in calls)
+
+
 def test_draws_excluded_from_decided_winrate(_store: Path) -> None:
     """Win-rate is on DECIDED games — a draw is neither a win nor a loss in the denominator."""
     deck = _deck()

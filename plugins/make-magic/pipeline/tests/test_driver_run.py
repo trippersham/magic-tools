@@ -268,6 +268,39 @@ def test_aggregation_ship_thin_and_ci_includes_zero() -> None:
     assert stats['all-driven'].n_decks == 3
 
 
+def _delta_p(deck_id, tightness, dw, dd, cw, cd, n) -> dr.DeckDelta:
+    return dr.DeckDelta(
+        deck_id=deck_id, keep='', archetype='drive-dedicated',
+        driver_wins=dw, driver_decided=dd, cp7_wins=cw, cp7_decided=cd,
+        n_matchups=n, p_tightness=tightness,
+    )
+
+
+def test_tight_and_loose_p_buckets_from_tightness() -> None:
+    """The v2 p_tightness tag routes decks into tight-P (headline) + loose-P buckets."""
+    deltas = [
+        _delta_p('a', 'tight', 90, 100, 20, 100, 40),
+        _delta_p('b', 'tight', 50, 100, 40, 100, 40),
+        _delta_p('c', 'loose', 30, 100, 60, 100, 40),
+    ]
+    stats = dr.aggregate_buckets(deltas)
+    assert 'tight-P' in stats and 'loose-P' in stats
+    assert stats['tight-P'].n_decks == 2 and stats['tight-P'].n_matchups == 80
+    assert stats['loose-P'].n_decks == 1
+    assert stats['all-driven'].n_decks == 3
+
+
+def test_run_set_from_batch_ledger_reads_drive_rows_and_tightness(_store: Path) -> None:
+    """The v2 run-set + tight/loose-P tags come straight off the batch ledger DRIVE rows."""
+    led = Ledger(_store / 'v2.jsonl')
+    led.record({'deck_id': 'commander/mid/x.dck', 'drive': True, 'stage': 'compiled', 'p_tightness': 'tight'})
+    led.record({'deck_id': 'commander/mid/y.dck', 'drive': True, 'stage': 'compiled', 'p_tightness': 'loose'})
+    led.record({'deck_id': 'commander/mid/z.dck', 'drive': False, 'stage': 'authored', 'p_tightness': None})
+    run_set, tightness = dr.run_set_from_batch_ledger(led)
+    assert run_set == ['commander/mid/x.dck', 'commander/mid/y.dck']
+    assert tightness == {'commander/mid/x.dck': 'tight', 'commander/mid/y.dck': 'loose'}
+
+
 def test_bucket_lift_ci_reuses_wilson_helper() -> None:
     """The pooled lift CI is interval arithmetic on the two reused Wilson intervals."""
     d = _delta('a', 'tight-keep', 'drive-dedicated', 80, 100, 30, 100, 30)

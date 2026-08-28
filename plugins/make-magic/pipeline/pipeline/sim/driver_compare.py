@@ -315,6 +315,56 @@ def _pop_result(pairs: list[tuple[MatchSpec, MatchResult]], spec: MatchSpec) -> 
     return None
 
 
+def _persist_matchup(
+    spec: MatchSpec,
+    result: MatchResult,
+    *,
+    engine: _CompareEngine,
+    install: EngineInstall,
+    data_dir: str | os.PathLike[str] | None,
+) -> None:
+    """BEST-EFFORT: persist one compare matchup to the queryable store; never raise.
+
+    Mirrors the cache path's write (:func:`~pipeline.sim.core.run_cached_matchups`) so a
+    corpus compare game lands in ``sim_matchups`` + ``sim_game_features`` +
+    ``sim_game_logs`` under the SAME content key it would cache-hit on later. Persistence
+    is a side-channel: any failure (a store error, a features parse) is logged and
+    swallowed so it can never break the live comparison — the delta is the product."""
+    try:
+        from pipeline.sim.store import MatchupMeta, deck_hash, matchup_key, store_matchup
+        from pipeline.sim.telemetry import extract_match_features
+
+        version = install.version
+        engine_name = getattr(engine, 'name', 'xmage')
+        key = matchup_key(
+            spec.deck_a[1],
+            spec.deck_b[1],
+            seed=spec.seed,
+            n_games=spec.n,
+            fmt=spec.fmt,
+            engine=engine_name,
+            engine_version=version,
+            driver=spec.driver,
+        )
+        features = extract_match_features(result.raw_log, deck_a=spec.deck_a[0], deck_b=spec.deck_b[0])
+        meta = MatchupMeta(
+            deck_a_hash=deck_hash(spec.deck_a[1]),
+            deck_b_hash=deck_hash(spec.deck_b[1]),
+            seed=spec.seed,
+            n_games=spec.n,
+            format=spec.fmt,
+            engine=engine_name,
+            engine_version=version,
+        )
+        store_matchup(key, meta, result, features, data_dir=data_dir)
+    except Exception as exc:  # side-channel: persistence never breaks the comparison.
+        import logging
+
+        logging.getLogger('make_magic.sim.driver_compare').warning(
+            'compare matchup persistence failed (non-fatal): %s', exc
+        )
+
+
 def _rates(wins: int, decided: int) -> tuple[float, tuple[float, float]]:
     """A win-rate + its Wilson CI on ``decided`` games (0.0 / (0,1) when none decided)."""
     rate = wins / decided if decided else 0.0
@@ -332,6 +382,7 @@ def compare_gauntlet(
     fmt: str,
     engine: _CompareEngine,
     run_matchups: Callable[[_CompareEngine, EngineInstall, list[MatchSpec]], PoolResult],
+    data_dir: str | os.PathLike[str] | None = None,
 ) -> _GauntletComparison:
     """Run BOTH pilotings against the shared opponent field; aggregate the delta.
 
@@ -358,6 +409,14 @@ def compare_gauntlet(
         cp7_spec = MatchSpec(deck_a=deck_ref, deck_b=opp, n=games, seed=opp_seed, fmt=fmt, driver=None)
         driven = _pop_result(remaining, driver_spec)
         cp7 = _pop_result(remaining, cp7_spec)
+        # Persist BOTH pilotings' matchups (sim_matchups + features + per-game logs) so
+        # every corpus game lands in the queryable store for retrospective analysis. The
+        # governed/sequential compare runners do NOT cache (they always run fresh), so
+        # without this the corpus matchups were only in the run ledger, never the store.
+        # BEST-EFFORT + non-fatal (see _persist_matchup).
+        for spec, res in ((driver_spec, driven), (cp7_spec, cp7)):
+            if res is not None:
+                _persist_matchup(spec, res, engine=engine, install=install, data_dir=data_dir)
         if driven is not None:
             driven_logs.append(driven.raw_log)
         dw, dd = (driven.wins_a, driven.wins_a + driven.wins_b) if driven is not None else (0, 0)
@@ -467,6 +526,7 @@ def compare_pilotings(
             fmt=fmt,
             engine=eng,
             run_matchups=runner,
+            data_dir=data_dir,
         )
         warnings.extend(gaunt.warnings)
 

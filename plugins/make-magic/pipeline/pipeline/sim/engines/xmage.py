@@ -507,7 +507,29 @@ class XMageEngine:
                 raise XMageError(
                     f'XMage goldfish for {name_a} exited {returncode}. Output tail:\n{output[-1000:]}'
                 )
-            return _parse_goldfish_summary(output), output
+            result = _parse_goldfish_summary(output)
+            # Persist the FULL solo goldfish run (summary + per-game telemetry + raw log)
+            # for retrospective analysis. BEST-EFFORT + non-fatal: a store failure is
+            # logged and swallowed inside persist_goldfish_run — the sim result is the
+            # product, persistence is a side-channel that must never break the sim. Every
+            # gate/compare goldfish (driven AND driverless) funnels through here, so this
+            # single call closes the solo-path persistence gap. ``driver[1]`` is the
+            # per-deck driver fqcn (None ⇒ the driverless CP7 baseline); alpha is not
+            # threaded this deep (the nudge magnitude is a batch-wide constant), so it is
+            # recorded as None here — the column stays available for a future wiring.
+            from pipeline.sim import store as _sim_store
+
+            _sim_store.persist_goldfish_run(
+                text_a,
+                driver_fqcn=driver[1] if driver is not None else None,
+                alpha=None,
+                fmt=fmt,
+                games=games,
+                result=result,
+                raw_log=output,
+                engine=self.name,
+            )
+            return result, output
         finally:
             shutil.rmtree(run_dir, ignore_errors=True)
 

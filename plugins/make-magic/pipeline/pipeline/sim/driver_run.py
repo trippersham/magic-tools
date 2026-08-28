@@ -107,10 +107,40 @@ def default_run_ledger_path(data_dir: str | os.PathLike[str] | None = None) -> P
 
 
 def default_batch_ledger_path(data_dir: str | os.PathLike[str] | None = None) -> Path:
-    """The P3 author/compile ledger the run reads compiled-driver rows from."""
+    """The P3 author/compile ledger the run reads compiled-driver rows from (legacy 32-driver)."""
     from pipeline.sim.driver_batch import default_ledger_path
 
     return default_ledger_path(data_dir)
+
+
+def default_batch_ledger_v2_path(data_dir: str | os.PathLike[str] | None = None) -> Path:
+    """The v2 batch ledger: ``<data_dir>/sim/driver_batch_v2/ledger.jsonl``.
+
+    The 47-DRIVER roster (widened win-predicate + light nudge), each row tagged with a
+    ``p_tightness`` of ``tight`` | ``loose``. This is the DEFAULT the corpus run reads —
+    NOT the legacy 32-driver :func:`default_batch_ledger_path`."""
+    from pipeline import store
+
+    root = Path(data_dir) if data_dir is not None else store.StorePaths.resolve().data_dir
+    return root / 'sim' / 'driver_batch_v2' / 'ledger.jsonl'
+
+
+def run_set_from_batch_ledger(batch_ledger: Ledger) -> tuple[list[str], dict[str, str]]:
+    """The DRIVE run-set + ``deck_id -> p_tightness`` map, read straight off a batch ledger.
+
+    The run-set is every ``drive`` row at/after ``compiled`` (a thin/uncompiled row has no
+    driver to run), in ledger order. The tightness map carries each row's ``p_tightness``
+    (``tight`` | ``loose``) for the tight-P/loose-P bucketing — a row missing the tag maps
+    to ``''`` (untagged, contributes only to the archetype buckets)."""
+    run_set: list[str] = []
+    tightness: dict[str, str] = {}
+    for row in batch_ledger.rows():
+        if not row.get('drive') or row.get('stage') not in ('compiled', 'gated'):
+            continue
+        deck_id = str(row['deck_id'])
+        run_set.append(deck_id)
+        tightness[deck_id] = str(row.get('p_tightness') or '')
+    return run_set, tightness
 
 
 # --------------------------------------------------------------------------- #
@@ -408,8 +438,19 @@ def run_corpus(
 
 #: A bucket ships driven only with at least this many matchups behind the pooled lift.
 _MIN_SHIP_MATCHUPS = 30
-#: The bucket set (headline = tight-keep). ``all-driven`` holds every compared deck.
-BUCKETS: tuple[str, ...] = ('all-driven', 'tight-keep', 'loose-keep', 'drive-dedicated', 'drive-capable')
+#: The bucket set (headline = tight-P). ``all-driven`` holds every compared deck.
+#: ``tight-P`` / ``loose-P`` come from the v2 ledger's ``p_tightness`` tag: tight-P is the
+#: honest-P headline; loose-P is reported separately (premature-firing caveat). The legacy
+#: ``tight-keep`` / ``loose-keep`` are retained for the old run-set-json path (back-compat).
+BUCKETS: tuple[str, ...] = (
+    'all-driven',
+    'tight-P',
+    'loose-P',
+    'tight-keep',
+    'loose-keep',
+    'drive-dedicated',
+    'drive-capable',
+)
 
 
 @dataclass(frozen=True)
@@ -430,6 +471,9 @@ class DeckDelta:
     cp7_wins: int
     cp7_decided: int
     n_matchups: int
+    #: The v2 ledger's ``p_tightness`` tag: ``'tight'`` | ``'loose'`` | ``''`` (untagged).
+    #: Drives the tight-P / loose-P buckets.
+    p_tightness: str = ''
 
 
 @dataclass(frozen=True)
@@ -471,6 +515,10 @@ class BucketStat:
 def _buckets_of(delta: DeckDelta) -> list[str]:
     """The buckets a deck belongs to: all-driven + its keep tag + its archetype."""
     tags = ['all-driven']
+    if delta.p_tightness == 'tight':
+        tags.append('tight-P')
+    elif delta.p_tightness == 'loose':
+        tags.append('loose-P')
     if delta.keep in ('tight-keep', 'loose-keep'):
         tags.append(delta.keep)
     if delta.archetype in ('drive-dedicated', 'drive-capable'):
@@ -565,9 +613,18 @@ def _keep_tags(run_set_json: dict[str, Any]) -> dict[str, str]:
     return out
 
 
-def deltas_from_ledger(run_ledger: Ledger, run_set_json: dict[str, Any]) -> list[DeckDelta]:
-    """Extract a :class:`DeckDelta` per ``compared`` run-ledger row (pooling per-opponent games)."""
+def deltas_from_ledger(
+    run_ledger: Ledger,
+    run_set_json: dict[str, Any],
+    *,
+    tightness: dict[str, str] | None = None,
+) -> list[DeckDelta]:
+    """Extract a :class:`DeckDelta` per ``compared`` run-ledger row (pooling per-opponent games).
+
+    ``tightness`` (``deck_id -> 'tight'|'loose'``) is the v2 ledger's ``p_tightness`` tag,
+    driving the tight-P / loose-P buckets; ``None`` keeps them empty (legacy run-set path)."""
     keep = _keep_tags(run_set_json)
+    tight = tightness or {}
     deltas: list[DeckDelta] = []
     for row in run_ledger.rows():
         if row.get('stage') != 'compared':
@@ -594,6 +651,7 @@ def deltas_from_ledger(run_ledger: Ledger, run_set_json: dict[str, Any]) -> list
                 cp7_wins=cw,
                 cp7_decided=cd,
                 n_matchups=len(per_opp),
+                p_tightness=tight.get(deck_id, ''),
             )
         )
     return deltas
@@ -609,10 +667,11 @@ def render_bucket_markdown(stats: dict[str, BucketStat], *, field_names: Sequenc
     lines = ['# Driver corpus bucket table (rule 8)', '']
     if field_names:
         lines += [f'Opponent field ({len(field_names)}): {", ".join(field_names)}', '']
-    headline = stats.get('tight-keep')
+    headline_bucket = 'tight-P' if 'tight-P' in stats else 'tight-keep'
+    headline = stats.get(headline_bucket)
     if headline:
         lines += [
-            f'**Headline (tight-keep):** {headline.verdict} — pooled lift '
+            f'**Headline ({headline_bucket}):** {headline.verdict} — pooled lift '
             f'{headline.pooled_lift:+.3f} (95% CI {headline.lift_ci[0]:+.3f}..{headline.lift_ci[1]:+.3f}), '
             f'n={headline.n_matchups} matchups.',
             '',
@@ -688,9 +747,18 @@ def run(argv: list[str] | None = None) -> None:
     parser.add_argument('--run', action='store_true', help='Execute the gate->compare corpus run.')
     parser.add_argument('--aggregate-only', action='store_true', help='Skip the run; rebuild the bucket table only.')
     parser.add_argument('--games', type=int, default=20, help='Games per gate + per matchup (>=20 for the gate).')
-    parser.add_argument('--run-set', default=None, help='Run-set JSON path (default: the plan-dir p5-run-set.json).')
+    parser.add_argument(
+        '--run-set',
+        default=None,
+        help='Run-set JSON path. DEFAULT (omitted): derive the run-set + tight/loose-P tags from the '
+        'v2 batch ledger DRIVE rows (the 47-driver roster).',
+    )
     parser.add_argument('--run-ledger', default=None, help='Run ledger path (default: <data_dir>/sim/driver_run/...).')
-    parser.add_argument('--batch-ledger', default=None, help='P3 author/compile ledger (default: <data_dir>/...).')
+    parser.add_argument(
+        '--batch-ledger',
+        default=None,
+        help='Author/compile ledger (default: the v2 ledger <data_dir>/sim/driver_batch_v2/ledger.jsonl).',
+    )
     parser.add_argument('--out-dir', default=str(_PLAN_DIR), help='Where the bucket table (json+md) is written.')
     parser.add_argument('--no-monitor', action='store_true', help='Do not start the resource monitor (tests/dev).')
     parser.add_argument('--limit', type=int, default=None, help='Run only the first N run-set decks (reduced run).')
@@ -704,7 +772,18 @@ def run(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
-    run_set, run_set_json = _load_run_set(args.run_set)
+    batch_ledger_path = Path(args.batch_ledger) if args.batch_ledger else default_batch_ledger_v2_path()
+    # Run-set source: an explicit --run-set json keeps the legacy p5 path; otherwise derive
+    # the DRIVE run-set + the tight/loose-P tags straight off the v2 batch ledger (47 drivers).
+    tightness: dict[str, str] = {}
+    if args.run_set:
+        run_set, run_set_json = _load_run_set(args.run_set)
+    else:
+        run_set, tightness = run_set_from_batch_ledger(Ledger(batch_ledger_path))
+        run_set_json = {}
+        log.info('v2 run-set: %d DRIVE decks (tight=%d loose=%d) from %s', len(run_set),
+                 sum(t == 'tight' for t in tightness.values()),
+                 sum(t == 'loose' for t in tightness.values()), batch_ledger_path)
     if args.limit is not None:
         run_set = run_set[: args.limit]
     run_ledger_path = Path(args.run_ledger) if args.run_ledger else default_run_ledger_path()
@@ -721,7 +800,7 @@ def run(argv: list[str] | None = None) -> None:
             run_set=run_set,
             install=install,
             games=args.games,
-            batch_ledger_path=args.batch_ledger,
+            batch_ledger_path=batch_ledger_path,
             run_ledger_path=run_ledger_path,
             engine=engine,
             monitor=monitor,
@@ -733,7 +812,7 @@ def run(argv: list[str] | None = None) -> None:
         log.info('run complete: %s', summary['counts'])
 
     run_ledger = Ledger(run_ledger_path)
-    deltas = deltas_from_ledger(run_ledger, run_set_json)
+    deltas = deltas_from_ledger(run_ledger, run_set_json, tightness=tightness)
     stats = aggregate_buckets(deltas)
     json_path, md_path = write_bucket_table(stats, out_dir=args.out_dir, field_names=field_names)
     print(render_bucket_markdown(stats, field_names=field_names))
