@@ -27,15 +27,43 @@ _WIN_RESULTS = (
     'Infinite damage to each opponent',
     'You win the game',
     'Each opponent loses the game at the beginning of your next upkeep',
+    # --- EP1 widened win-classes (mill / drain / poison / turns) --------------
+    'Infinite mill for target opponent',
+    'Infinite mill',
+    'Infinite mill for target opponent; Near-infinite mill',
+    'Infinite self-mill; Infinite mill for target opponent',  # opponent-mill clause present
+    'Infinite mill; Near-infinite self-mill',
+    'Infinite lifeloss',
+    'Near-infinite lifeloss',
+    'Infinite lifegain triggers; Infinite lifeloss; Infinite lifegain',  # lifeloss clause present
+    'Near-infinite lifeloss for target opponent',
+    'Infinite poison counters',
+    'Infinite turns; Lock',
+    'Near-infinite turns; Lock',
+    "Exile target opponent's library",
+    "Cast any number of spells from opponents' libraries; Exile each opponent's library",
 )
 
 _NON_WIN_RESULTS = (
     'Infinite mana',
+    'Infinite colorless mana',
+    'Infinite colored mana',
+    'Infinite green mana',
     'Infinite card draw',
+    'Infinite draw',
     'Infinite tokens',
     'Infinite mana; Infinite card draw',
     'Infinite creature tokens',
+    'Infinite creature ETB',
     'Infinite loot',
+    'Infinite storm count',
+    # --- EP1 must-stay-FALSE guards (payoff-less resource loops) --------------
+    'Infinite lifegain',
+    'Infinite lifegain triggers; Infinite lifegain',
+    'Infinite self-mill',
+    'Near-infinite self-mill',
+    'Infinite self-mill; Near-infinite self-discard triggers',
+    'Exile your library; Cast all spells in your library',  # SELF library, not a deck-out
     '',
 )
 
@@ -89,6 +117,65 @@ def test_win_combos_in_deck_empty_when_only_mana_combo() -> None:
     combos = [_mana_only()]
     identity = {'basalt monolith', 'rings of brighthearth'}
     assert cd.win_combos_in_deck(identity, combos) == []
+
+
+# --------------------------------------------------------------------------- #
+# EP1: infinite-mana + in-deck lethal sink promotion (deck-aware)             #
+# --------------------------------------------------------------------------- #
+
+
+def test_is_infinite_mana_result() -> None:
+    assert cd.is_infinite_mana_result('Infinite colorless mana') is True
+    assert cd.is_infinite_mana_result('Infinite green mana; Infinite untap') is True
+    assert cd.is_infinite_mana_result('Infinite mana Myr you control can produce') is True
+    assert cd.is_infinite_mana_result('Infinite card draw') is False
+    assert cd.is_infinite_mana_result('Win the game') is False
+
+
+def test_mana_only_combo_promoted_when_deck_has_sink() -> None:
+    combos = [_mana_only()]
+    identity = {'basalt monolith', 'rings of brighthearth', 'exsanguinate'}
+    won = cd.win_combos_in_deck(identity, combos)
+    assert [c.variant_id for c in won] == ['mana-1']
+
+
+def test_mana_only_combo_not_promoted_without_sink_can_be_disabled() -> None:
+    combos = [_mana_only()]
+    identity = {'basalt monolith', 'rings of brighthearth', 'exsanguinate'}
+    # allow_mana_sink=False keeps the pure result-only behavior
+    assert cd.win_combos_in_deck(identity, combos, allow_mana_sink=False) == []
+
+
+def test_deck_mana_sinks_detects_known_finishers() -> None:
+    identity = {'exsanguinate', 'sol ring', 'forest', 'walking ballista'}
+    sinks = cd.deck_mana_sinks(identity)
+    assert set(sinks) == {'Exsanguinate', 'Walking Ballista'}
+
+
+def test_analyze_flags_mana_combo_without_sink() -> None:
+    combos = [_thoracle_win(), _mana_only()]
+    identity = {
+        "thassa's oracle",
+        'demonic consultation',
+        'basalt monolith',
+        'rings of brighthearth',
+    }
+    analysis = cd.analyze_deck_win_combos(identity, combos)
+    assert [c.variant_id for c in analysis.wins] == ['win-1']
+    assert [c.variant_id for c in analysis.predicate_wins] == ['win-1']
+    assert analysis.mana_sink_wins == []
+    assert [c.variant_id for c in analysis.flagged_mana_combos] == ['mana-1']
+    assert analysis.mana_sinks_present == []
+
+
+def test_analyze_promotes_mana_combo_with_sink() -> None:
+    combos = [_mana_only()]
+    identity = {'basalt monolith', 'rings of brighthearth', 'walking ballista'}
+    analysis = cd.analyze_deck_win_combos(identity, combos)
+    assert [c.variant_id for c in analysis.mana_sink_wins] == ['mana-1']
+    assert [c.variant_id for c in analysis.wins] == ['mana-1']
+    assert analysis.flagged_mana_combos == []
+    assert analysis.mana_sinks_present == ['Walking Ballista']
 
 
 # --------------------------------------------------------------------------- #

@@ -39,7 +39,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from pipeline.transforms.combo_detect import Combo, _norm_name, win_combos_in_deck
+from pipeline.transforms.combo_detect import (
+    Combo,
+    _norm_name,
+    analyze_deck_win_combos,
+    is_game_win_result,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -216,11 +221,14 @@ def classify_deck(deck: CorpusDeck, combos: list[Combo]) -> dict[str, Any]:
     phi-mode-defaulted, ...).
     """
     identity = {*deck.card_names, *deck.commander_names}
-    win_combos = win_combos_in_deck(identity, combos)
+    analysis = analyze_deck_win_combos(identity, combos)
+    win_combos = analysis.wins
     flags: list[str] = []
 
     if not win_combos:
-        return {
+        # THIN. If the deck holds an infinite-mana combo with no recognized sink, FLAG it
+        # (record the borderline combo) so the orchestrator can add it to the review batch.
+        body: dict[str, Any] = {
             'drive': False,
             'archetype': 'thin',
             'detected_win_combos': [],
@@ -228,22 +236,33 @@ def classify_deck(deck: CorpusDeck, combos: list[Combo]) -> dict[str, Any]:
             'wincon_style': THIN_WINCON_STYLE,
             'flags': flags,
         }
+        if analysis.flagged_mana_combos:
+            flags.append('infinite-mana-no-sink')
+            body['flagged_mana_combos'] = [_combo_dict(c) for c in analysis.flagged_mana_combos]
+        return body
 
     chosen, multi = _choose_combo(win_combos, deck.commander_names)
     if multi:
         flags.append('multi-combo')
+    # Record HOW the chosen combo was promoted: the widened result predicate, or the
+    # deck-aware mana-sink rule (bare infinite mana + an in-deck lethal sink).
+    promotion = 'predicate' if is_game_win_result(chosen.result) else 'mana-sink'
     archetype, defaulted = _phi_mode(deck, chosen)
     if defaulted:
         flags.append('phi-mode-defaulted')
 
-    return {
+    result_body: dict[str, Any] = {
         'drive': True,
         'archetype': archetype,
         'detected_win_combos': [_combo_dict(c) for c in win_combos],
         'chosen_combo': _combo_dict(chosen),
+        'promotion_rule': promotion,
         'wincon_style': DRIVE_WINCON_STYLE,
         'flags': flags,
     }
+    if analysis.mana_sink_wins:
+        result_body['mana_sinks_present'] = analysis.mana_sinks_present
+    return result_body
 
 
 # --------------------------------------------------------------------------- #
