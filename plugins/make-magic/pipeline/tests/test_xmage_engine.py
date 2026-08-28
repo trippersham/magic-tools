@@ -143,10 +143,14 @@ def _run_matchup_capturing_launch(
         timeout_s: int,
         what: str,
         driver: tuple[str, str] | None = None,
+        stall_timeout_s: int | None = None,
+        heartbeat: str = 'GOLDFISH GAME',
     ) -> tuple[str, int]:
         seen['args'] = args
         seen['timeout_s'] = timeout_s
         seen['driver'] = driver
+        seen['stall_timeout_s'] = stall_timeout_s
+        seen['heartbeat'] = heartbeat
         return ('OK', 0)
 
     def _fake_parse(output: str, *, deck_a: str, deck_b: str) -> MatchResult:
@@ -191,6 +195,10 @@ def test_commander_is_accepted_and_passes_commander_token(monkeypatch: pytest.Mo
     assert isinstance(args, list)
     assert args[-1] == 'commander'  # the mode token appended for commander.
     assert len(args) == 5  # deckA, deckB, n, skill, mode.
+    # Parity: run_matchup wires the per-game stall watchdog (2x the per-game budget) on the
+    # match heartbeat — so a hung defended game is reaped, not run to the batch backstop.
+    assert seen['stall_timeout_s'] == 2 * _COMMANDER_TIMEOUT_S
+    assert seen['heartbeat'] == xmage_engine._MATCH_HEARTBEAT
 
 
 def test_constructed_passes_no_commander_token(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -589,3 +597,26 @@ def test_watchdog_lets_a_steadily_progressing_run_finish() -> None:
     assert rc == 0
     assert out.count('GOLDFISH GAME') == 5
     assert 'medianKillsOwn=7.0' in out
+
+
+def test_watchdog_covers_match_heartbeat_not_only_goldfish() -> None:
+    """Parity: the stall watchdog reaps a hung MATCH game (keyed on the match heartbeat
+    'XMAGEBATCH RESULT game=') just like a goldfish — one match heartbeat then a hang is killed
+    fast, while steady match heartbeats run to completion."""
+    from pipeline.sim.engines.xmage import _MATCH_HEARTBEAT, _run_with_watchdog
+
+    hung = _spawn(f"import time; print('{_MATCH_HEARTBEAT}1/12 winner=A'); time.sleep(60)")
+    _out, rc, state = _run_with_watchdog(
+        hung, heartbeat=_MATCH_HEARTBEAT, stall_timeout_s=2, backstop_s=600, poll_s=0.25
+    )
+    assert state.stalled is True and rc != 0
+
+    healthy = _spawn(
+        "import time\n"
+        f"for g in range(1, 5): print(f'{_MATCH_HEARTBEAT}{{g}}/4 winner=A'); time.sleep(0.3)\n"
+    )
+    out2, rc2, state2 = _run_with_watchdog(
+        healthy, heartbeat=_MATCH_HEARTBEAT, stall_timeout_s=2, backstop_s=600, poll_s=0.25
+    )
+    assert state2.stalled is False and rc2 == 0
+    assert out2.count(_MATCH_HEARTBEAT) == 4

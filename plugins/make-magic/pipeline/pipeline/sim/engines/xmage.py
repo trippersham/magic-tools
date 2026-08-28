@@ -55,6 +55,11 @@ _COMMANDER_TIMEOUT_S = 300
 #: so ``timeout_s`` bounds the gap BETWEEN games (a single stuck game) rather than the
 #: whole batch — see :func:`_launch_xmage`'s ``stall_timeout_s``.
 _GOLDFISH_HEARTBEAT = 'GOLDFISH GAME'
+#: Per-game heartbeat the MATCH loop prints once per completed game (``XMAGEBATCH RESULT
+#: game=g/N ...``). Lets the stall watchdog cover the defended/match path too — a game that
+#: hangs mid-search emits no new heartbeat and is reaped, instead of the whole matchup running
+#: to the per-batch backstop. A turn-capped game always terminates, so only a true hang trips it.
+_MATCH_HEARTBEAT = 'XMAGEBATCH RESULT game='
 #: XMage CP7 (MAD minimax) clones full game states during search, so it needs more
 #: heap + a larger per-JVM RAM budget than Forge's 2 GiB — under-budgeting over-admits
 #: the pool and risks swap/jetsam (#63). The pool-sizing budget is the ``-Xmx`` heap
@@ -385,6 +390,11 @@ class XMageEngine:
                 timeout_s=external_timeout,
                 what=f'{name_a} vs {name_b} (n={n})',
                 driver=driver,  # per-deck PlayerA driver seam; None keeps driverless argv
+                # Per-game stall watchdog on the MATCH path too (parity with goldfish). A turn-
+                # capped defended game always terminates, so a generous 2x per-game bound reaps
+                # only a true hang while never false-killing a legitimately slow (capped) game.
+                stall_timeout_s=2 * timeout_s,
+                heartbeat=_MATCH_HEARTBEAT,
             )
             result = runner.parse_match_log(output, deck_a=name_a, deck_b=name_b)
             if result.games != n:
@@ -753,6 +763,7 @@ def _launch_xmage(
     what: str,
     driver: tuple[str, str] | None = None,
     stall_timeout_s: int | None = None,
+    heartbeat: str = _GOLDFISH_HEARTBEAT,
 ) -> tuple[str, int]:
     """Launch ONE ``XMageBatch`` JVM and return ``(combined stdout+stderr, returncode)``.
 
@@ -788,7 +799,7 @@ def _launch_xmage(
             # we raise the right error AFTER the finally, off the returned state.
             combined, _rc, state = _run_with_watchdog(
                 proc,
-                heartbeat=_GOLDFISH_HEARTBEAT,
+                heartbeat=heartbeat,
                 stall_timeout_s=stall_timeout_s,
                 backstop_s=timeout_s,
             )
@@ -808,7 +819,7 @@ def _launch_xmage(
         runner._unregister_active(proc)
     if state is not None and state.stalled:
         raise XMageError(
-            f'XMage {what} STALLED: no "{_GOLDFISH_HEARTBEAT}" progress for '
+            f'XMage {what} STALLED: no "{heartbeat}" progress for '
             f'{stall_timeout_s}s — one game hung and was killed (per-game stall bound).'
         )
     if state is not None and state.backstopped:
