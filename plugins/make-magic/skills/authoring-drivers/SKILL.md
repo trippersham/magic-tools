@@ -55,14 +55,24 @@ Proactive/reactive is NOT the router anymore. It survives only as one *input* to
    enactment is authored per-deck downstream** (moveCards / applyEffects / a capped
    `getStack().resolve`). The P precondition and S fetch ARE concretely generated from
    `card_names` — those are not scaffolds.
-4. **Φ-mode (auto).** Pass the archetype into the seeder:
-   - **`drive-dedicated`** (full combo-Φ staging assembly) iff the commander is a combo piece
-     **OR** ≥3 dedicated tutors for the pieces **OR** the Strategy names the combo as the primary
-     win. Φ becomes a piece-staging potential.
-   - **`drive-capable`** (serendipitous capture) otherwise — thin Φ=0 + macro/P/S, no distortion
-     of the base plan.
-   - Borderline → default `drive-capable` (thin-Φ) + **flag**. *(Proactive/reactive intuitions
-     inform this choice — they are an input here, not the top-level router.)*
+4. **Φ = a SMALL opportunistic nudge (empirically calibrated — this is the default for EVERY
+   DRIVE deck).** Seed a small, bounded Φ nudge toward assembly with
+   `seed_nudge_quad(combo, alpha=2000)` — **not** a heavy staging Φ. A statistically-significant
+   sweep (`research/nudge-magnitude-sweep.md`; n=80 solo, n=90 defended over a 6-opponent field)
+   found driver win-rate, solo fire-rate, AND goldfish speed **all peak at a small α ≈ 2000**:
+   - **small nudge (α ≈ 2000) — the default.** Beats macro-only on defended win-rate (Heliod
+     +0.16, p=0.013; Marchesa +0.12, p=0.063 corroborated by its solo fire-rate peaking at the
+     same α) and is **never-slower** on the goldfish clock, so it passes the gate (neutral for
+     clean combos, ~1 turn *faster* for board-assembly combos).
+   - **thin Φ=0 (`alpha=0`, macro/P/S only) — the floor.** The macro carries the core 0→fires
+     capability; fall back to this only when a small nudge can't be expressed for the deck.
+   - **heavy dedicated-scale Φ (α ≈ 40000) — AVOID.** Never beat the small nudge in the sweep and
+     trends *worse* (it over-steers CP7 off its race — the original ladder regression, Karador 8→15).
+     "Dedicated heavy-Φ" is **not** a validated superior mode.
+   - Low-centrality decks whose combo rarely assembles (Ghave-style) → the nudge is inert →
+     effectively thin; that's fine, the macro still captures the combo on the rare turns it comes together.
+   - α ≈ 2000 is the sweep's optimum across 3 decks — a strong default, tunable per deck; the Φ
+     uses a cheap early-out (return 0 when no piece is live) so the nudge does not tax search.
 
 Optional **mulligan** slot (`MulliganSpec`) composes with either DRIVE mode or with THIN — a real
 slot, but OPTIONAL (ablation showed mulligan-in-isolation net-negative; the default is none).
@@ -78,8 +88,9 @@ slot, but OPTIONAL (ablation showed mulligan-in-isolation net-negative; the defa
 | `combo_detect.load_combos()` | the `list[Combo]` to pass to the litmus. |
 | `combo_detect.win_combos_in_deck(identity, combos)` | the **rule-1 DRIVE gate** — concrete win-combos in the deck. |
 | `combo_detect.is_game_win_result(result)` | the rule-1 win-result predicate (game-win vs bare-infinite). |
-| `driver_authoring.seed_quad_from_combo(combo, archetype=...)` | **rule-3 seed** → a `QuadSpec` (archetype ∈ `{'drive-dedicated','drive-capable'}`). |
-| `driver_authoring.QuadSpec.thin(name, mulligan=?)` | the **THIN** neutral quad (Φ=0, bare CP7). |
+| `driver_authoring.seed_nudge_quad(combo, alpha=2000)` | **rule-3 + rule-4 seed (PREFERRED for DRIVE)** → a `QuadSpec` with a small opportunistic Φ nudge (α≈2000 default; α=0 ≡ thin+macro). Empirically the best mode — see rule 4. |
+| `driver_authoring.seed_quad_from_combo(combo, archetype=...)` | the older archetype-routed seed (dedicated/capable Φ); **superseded** by `seed_nudge_quad` per the nudge sweep — keep only for the two-mode API. |
+| `driver_authoring.QuadSpec.thin(name, mulligan=?)` | the **THIN** neutral quad (Φ=0, bare CP7) — the no-combo path (or `seed_nudge_quad(..., alpha=0)`). |
 | `driver_authoring.ARCHETYPES` / `validate_archetype(a)` | the vocabulary `('drive-dedicated','drive-capable','thin')` + its check. |
 | `driver_authoring.render_quad_driver(deck, spec)` | the compilable `Driver.java`. |
 | `driver_authoring.check_quad_guardrails(src)` | the §7.1 do-not-own static screen. |
@@ -150,14 +161,14 @@ The greedy-combo package (tutor-assemble + fire) — now expressed as **S** (tut
    `won = win_combos_in_deck(identity, combos)`.
    - `won == []` → **THIN**: `spec = QuadSpec.thin("<deck>")`, record "bare CP7", skip to step 5.
    - `won` non-empty → **DRIVE**: continue.
-3. **Tiebreak + Φ-mode (rules 2 + 4).** Pick the fewest-pieces win-combo (prefer commander
-   participation; flag a co-primary second line). Decide `archetype`: `drive-dedicated` if the
-   commander is a piece OR ≥3 dedicated tutors OR the Strategy names the combo primary; else
-   `drive-capable` (borderline → capable + flag).
-4. **Seed the quad (rule 3).** `spec = seed_quad_from_combo(combo, archetype=archetype)`.
-   Optionally attach a `MulliganSpec` when the deck has a real keep/ship read. (The macro body is
-   a `TODO(author)` scaffold — refine the true per-card bounded win line downstream, honoring the
-   §7.1 discipline; P + S are already concrete.)
+3. **Tiebreak (rule 2).** Pick the fewest-pieces win-combo (prefer commander participation; flag a
+   co-primary second line).
+4. **Seed the quad with a small opportunistic nudge (rules 3 + 4).**
+   `spec = seed_nudge_quad(combo, alpha=2000)` — the empirically-best mode (small Φ nudge + macro +
+   P + S; see rule 4). Use `alpha=0` only if a nudge can't be expressed; never scale to the heavy
+   α≈40000 dedicated range (it regresses). Optionally attach a `MulliganSpec` when the deck has a
+   real keep/ship read. (The macro body is a `TODO(author)` scaffold — refine the true per-card
+   bounded win line downstream, honoring the §7.1 discipline; P + S are already concrete.)
 5. **Render + guardrail-check.** `src = render_quad_driver(deck, spec)`;
    `check_quad_guardrails(src)` (raises `GuardrailViolation` on `priority()`/`copy()`-in-macro,
    owned combat, or owned land drops). Fix and re-render.
