@@ -80,6 +80,27 @@ public class XMageBatch {
      */
     private static final String DRIVER_PROP = "makemagic.driver";
 
+    /**
+     * PER-DECISION AI think-time budget (wall seconds), applied to every seated
+     * {@link ComputerPlayer7} via {@code setMaxThinkTimeSecs}. XMage's real-play AI already
+     * bounds each top-level decision through {@code ComputerPlayer6.addActionsTimed()} —
+     * it runs the minimax in a {@code FutureTask} and does {@code future.get(maxThinkTimeSecs,
+     * SECONDS)}, then on timeout interrupts the worker (the search polls
+     * {@code Thread.isInterrupted()} and bails "AI game sim interrupted by timeout",
+     * returning the best move found so far). The default is {@code skill * 3} (= 18s at
+     * skill 6), which is fine for narrow boards but lets a SINGLE wide-board decision
+     * (40+ permanents, many Treasures/tokens ⇒ huge branching) burn the full 18s, and a
+     * wide-board turn grants priority dozens of times, so one legitimately-grinding TURN
+     * blows the 300s Python stall watchdog WITHOUT advancing a turn. Capping the per-decision
+     * budget lower bounds that pathological tail: each decision terminates with a rushed-but-
+     * valid best move instead of stalling. This is a pure DELIBERATION-TIME guard — it changes
+     * only how long the AI thinks, never the game rules, turn structure, or (beyond search-depth
+     * noise) the outcome. Overridable via {@code -Dmakemagic.maxThinkSecs=<n>}; {@code <=0}
+     * leaves XMage's default untouched.
+     */
+    private static final int MAX_THINK_TIME_SECS =
+            Integer.getInteger("makemagic.maxThinkSecs", 3);
+
     public static void main(String[] args) throws Exception {
         // Warm-up mode: build/verify the H2 card DB in a SINGLE process and exit.
         // The caller runs this ONCE, serialized, before launching the parallel game
@@ -317,7 +338,15 @@ public class XMageBatch {
         // does NOT replace the engine (that was the retired -Dmakemagic.driverA path); it
         // REGISTERS a quad by playerId below (see registerDriver), which the patched
         // minimax consults. Single construction point for every seat.
-        Player player = new ComputerPlayer7(name, range, skill);
+        ComputerPlayer7 player = new ComputerPlayer7(name, range, skill);
+        // Bound each top-level AI decision's wall time (see MAX_THINK_TIME_SECS). CP7's
+        // default is skill*3 (=18s at skill 6); we cap it lower so a single wide-board
+        // decision can't burn the whole budget and a grinding wide-board turn can't blow
+        // the Python stall watchdog. Pure time guard — best-move-so-far is returned on
+        // timeout; rules/outcomes are unchanged. <=0 keeps XMage's default.
+        if (MAX_THINK_TIME_SECS > 0) {
+            player.setMaxThinkTimeSecs(MAX_THINK_TIME_SECS);
+        }
         game.loadCards(deck.getCards(), player.getId());
         // The explicit sideboard load is REQUIRED in BOTH modes and is NOT redundant:
         // useDeck (via game.addPlayer -> player.useDeck) only puts the sideboard card
