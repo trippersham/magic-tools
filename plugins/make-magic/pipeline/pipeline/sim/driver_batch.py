@@ -71,6 +71,24 @@ def stage_rank(stage: str) -> int:
 DRIVE_WINCON_STYLE = 'combo'
 THIN_WINCON_STYLE = 'combat'
 
+#: The empirically-calibrated opportunistic nudge magnitude the AUTHOR + COMPILE stages seed every
+#: DRIVE quad with (:func:`pipeline.sim.driver_authoring.seed_nudge_quad`). alpha=2000 is the small,
+#: bounded tie-breaker toward assembling the win pieces (NOT a dominant staging Φ); alpha=0 would be
+#: byte-identical to a thin Φ=0 driver. See the assessing-decks SKILL rule 4.
+NUDGE_ALPHA = 2000
+
+#: The two P-tightness buckets EP4 splits the DRIVE roster on. ``'tight'`` decks (keep-nudge +
+#: reseed) have a vetted precondition; ``'loose'`` decks (p-tighten) carry a presence-only P that
+#: may fire prematurely — the recorded ``precondition`` names the real gate a human must still add.
+P_TIGHTNESS_VALUES: tuple[str, ...] = ('tight', 'loose')
+
+
+def validate_p_tightness(value: str) -> str:
+    """Return ``value`` if it is one of :data:`P_TIGHTNESS_VALUES`, else raise ``ValueError``."""
+    if value not in P_TIGHTNESS_VALUES:
+        raise ValueError(f'p_tightness {value!r} is not one of {P_TIGHTNESS_VALUES}')
+    return value
+
 #: A light rule-4 tutor heuristic: a card whose normalized name is in this set (or whose
 #: name contains "tutor") counts as a "dedicated tutor" for the combo pieces. This is a
 #: deliberately coarse, ALWAYS-AVAILABLE signal (no oracle text needed): the strong,
@@ -450,7 +468,7 @@ def run_author(
         check_quad_guardrails,
         driver_fqcn,
         render_quad_driver,
-        seed_quad_from_combo,
+        seed_nudge_quad,
     )
 
     ledger = Ledger(Path(ledger_path))
@@ -471,7 +489,9 @@ def run_author(
             continue
 
         fqcn = driver_fqcn(deck)
-        spec = seed_quad_from_combo(_combo_from_row(row), archetype=str(row['archetype']))
+        # DRIVE quads are seeded with the OPPORTUNISTIC nudge Φ (magnitude NUDGE_ALPHA) — the same
+        # rule-3 macro/P/S, plus a small bounded assembly tie-breaker (NOT a dominant staging Φ).
+        spec = seed_nudge_quad(_combo_from_row(row), alpha=NUDGE_ALPHA)
         source = render_quad_driver(deck, spec)
 
         art = authored_dir(ledger_path, str(row['deck_id']))
@@ -531,7 +551,7 @@ def run_compile(
     Returns ``{'compiled', 'failed', 'skipped'}`` counters. THIN rows carry no driver and are
     skipped silently (not counted).
     """
-    from pipeline.sim.driver_authoring import seed_quad_from_combo
+    from pipeline.sim.driver_authoring import seed_nudge_quad
     from pipeline.sim.driver_compile import DriverCompileError
     from pipeline.sim.driver_gate import compile_quad_driver
 
@@ -551,7 +571,7 @@ def run_compile(
             continue
 
         deck = _deck_for_row(row)
-        spec = seed_quad_from_combo(_combo_from_row(row), archetype=str(row['archetype']))
+        spec = seed_nudge_quad(_combo_from_row(row), alpha=NUDGE_ALPHA)
         try:
             classes_dir, fqcn = compile_quad_driver(deck, spec, data_dir=data_dir)
         except DriverCompileError as exc:

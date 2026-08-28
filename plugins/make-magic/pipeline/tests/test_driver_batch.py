@@ -290,7 +290,9 @@ def test_run_author_renders_clean_driver_and_advances(tmp_path: Path) -> None:
     row = reloaded.row('commander/cedh/x.dck')
     assert row['stage'] == 'authored'
     assert row['guardrail_ok'] is True
-    assert row['archetype_spec'] == 'drive-capable'
+    # The nudge seeder (alpha=NUDGE_ALPHA>0) carries an assembly gradient → documentary
+    # 'drive-dedicated' archetype on the rendered spec (see seed_nudge_quad).
+    assert row['archetype_spec'] == 'drive-dedicated'
     assert row['fqcn'].endswith('.Driver')
     # The rendered artifact P4 reads exists and is a real quad driver.
     art = Path(row['authored_path'])
@@ -298,6 +300,35 @@ def test_run_author_renders_clean_driver_and_advances(tmp_path: Path) -> None:
     src = art.read_text()
     assert src.startswith('package makemagic.driver.')
     assert 'public static void register(UUID' in src
+
+
+def test_run_author_seeds_nudge_quad_not_thin(tmp_path: Path) -> None:
+    """The AUTHOR stage now seeds the OPPORTUNISTIC nudge Φ (magnitude NUDGE_ALPHA), not the
+    legacy dedicated/capable seed. The rendered Φ carries the alpha=2000 nudge (a per-piece
+    ``* 2000`` score); alpha=0 would be byte-identical to a thin ``return 0;`` Φ."""
+    assert db.NUDGE_ALPHA == 2000
+    path = tmp_path / 'ledger.jsonl'
+    ledger = db.Ledger(path)
+    ledger.record(_drive_row())
+
+    result = db.run_author(ledger_path=path)
+    assert result['authored'] == 1
+
+    src = (db.authored_dir(path, 'commander/cedh/x.dck') / 'Driver.java').read_text()
+    # The nudge Φ is present (alpha marker + per-piece score), and it is NOT a thin Φ=0 body.
+    assert 'alpha=2000' in src
+    assert '* 2000' in src
+    # The macro/P/S rule-3 body still rides along (opportunistic = same macro, nudge Φ).
+    assert 'DRIVER_MACRO_FIRED' in src
+
+
+def test_validate_p_tightness() -> None:
+    import pytest
+
+    assert db.validate_p_tightness('tight') == 'tight'
+    assert db.validate_p_tightness('loose') == 'loose'
+    with pytest.raises(ValueError):
+        db.validate_p_tightness('medium')
 
 
 def test_run_author_marks_thin_row_as_noop(tmp_path: Path) -> None:
