@@ -52,8 +52,15 @@ ALPHAS: tuple[int, ...] = (0, 2000, 12000, 40000)
 
 # A small FIXED CP7 field for the defended lens (mid-power, varied colors; NOT the sweep decks).
 DEFENDED_OPPONENTS: tuple[str, ...] = (
+    # Stratified 6-deck power field (aggro / tempo / control-stax / combo-control / counters /
+    # aggro-combo) — replaces the original 2-deck field whose bare-CP7 arm swung ~0.42-0.63 at
+    # n=24/cell (a ~±0.2 noise floor). 6 opponents x n>=15 -> ~90 decided games/piloting/cell.
     'mid/gruul__xenagos.dck',
     'mid/izzet__niv-mizzet-parun.dck',
+    'mid/dimir__yuriko-the-tiger-s-shadow.dck',
+    'mid/abzan__anafenza-the-foremost.dck',
+    'mid/azorius__grand-arbiter-augustin-iv.dck',
+    'mid/boros__winota-joiner-of-forces.dck',
 )
 
 # Per-game parse of the harness's own solo line.
