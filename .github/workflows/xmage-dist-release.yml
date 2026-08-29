@@ -234,7 +234,12 @@ jobs:
           javac -cp dist.jar -d fresh $(find "$HARNESS/src" -name '*.java')
           ( cd committed && unzip -oq "$GITHUB_WORKSPACE/$HARNESS/make-magic-xmage.jar" '*.class' )
           rc=0
-          for c in mage/collectors/MakeMagicHooks.class org/makemagic/xmage/XMageBatch.class; do
+          # Diff EVERY produced .class: MakeMagicHooks + XMageBatch AND its nested classes
+          # (XMageBatch$Task/$Seat/$DriverSpec/$Result/$PassingPlayer). Globbing off the fresh
+          # build catches a nested-class drift the old two-name list silently missed.
+          classes=$( (cd fresh && find mage/collectors -name 'MakeMagicHooks*.class'; \
+                             find org/makemagic/xmage -name 'XMageBatch*.class') )
+          for c in $classes; do
             if cmp -s "fresh/$c" "committed/$c"; then
               echo "reproducible: $c"
             else

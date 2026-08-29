@@ -20,14 +20,13 @@ The run is PHASED so it also proves the per-game RESTART property end-to-end:
 
 Every acceptance criterion (1-7) is asserted against the real observed artifacts.
 
-**NOTE — corpus-path bug (STOP-and-report).** This test does NOT call the committed
-:func:`~pipeline.sim.driver_run.build_corpus_game_tasks` / ``run_corpus_queue``: those set the
-subject ``deck_path`` to a raw Forge ``.dck`` and the opponent ``deck_path`` to a bare deck
-NAME, but the P2 worker imports ``seat.deck`` as a file with NO Forge->XMage translation — a
-raw ``.dck`` loads as 0 cards (verified: ``deck too small (0 cards)``) and a bare name is not a
-path. So the committed corpus builder produces tasks the worker cannot run. This test stages
-translated XMage ``.txt`` decks and builds the task list directly, exercising the identical
-governor + pool + worker machinery; the builder bug is reported to the orchestrator to fix.
+**Two tests in this module.** ``test_queue_end_to_end_real_jar`` drives the governor + pool +
+worker directly (staging translated decks + calling ``build_game_tasks`` itself) and proves the
+per-game RESTART property. ``test_corpus_end_to_end_real_jar`` drives the REAL corpus entry
+point — :func:`~pipeline.sim.driver_run.build_corpus_game_tasks` +
+:func:`~pipeline.sim.driver_run.run_corpus_queue` — from actual v2 ledger DRIVE rows (their
+``/``-containing ``deck_id``\\s) + a real ``GauntletDeck`` opponent field, proving the corpus is
+launchable end-to-end (BUG-1 deck translation/staging + BUG-2 filename-safe task_id, both fixed).
 """
 
 from __future__ import annotations
@@ -320,3 +319,111 @@ def test_queue_end_to_end_real_jar(staged, tmp_path) -> None:
     print(f'[throughput] phaseA {len(result_a.done_results)}g/{wall_a:.0f}s, '
           f'phaseB {total_games}g/{wall_b:.0f}s; warm workers (max-games=500) never recycled '
           f'→ {_WORKERS} JVMs ran {len(result_a.done_results)}+{total_games} games with one startup each.')
+
+
+def _opponent_field(deck_ids):
+    """Resolve each ``commander/<bundle>/<stem>.dck`` opponent id to its real ``GauntletDeck``.
+
+    Loads the packaged bundle (``_bundle``) and picks the deck whose stem matches — the SAME
+    ``(name, dck_text)`` the corpus builder translates for the opponent seat. Proves the corpus
+    path resolves the opponent field from real sources, not pre-staged fixtures.
+    """
+    from pipeline.sim.gauntlet import _bundle
+
+    field = []
+    for did in deck_ids:
+        parts = did.split('/')  # commander/<bundle>/<stem>.dck
+        bundle, stem = parts[1], parts[2][: -len('.dck')]
+        match = next((g for g in _bundle('commander', bundle) if g.name == stem), None)
+        assert match is not None, f'opponent {did} not found in bundle {bundle!r}'
+        field.append(match)
+    return field
+
+
+def test_corpus_end_to_end_real_jar(staged, tmp_path) -> None:
+    """THE launch gate: drive the REAL corpus entry point (build_corpus_game_tasks +
+    run_corpus_queue) from actual v2 ledger rows + a real GauntletDeck opponent field, with the
+    ``/``-containing deck_ids/task_ids that broke it. Asserts both arms drain (no cp7 0/0), each
+    subject's PilotingComparison is populated, the bucket table emits, transcripts persisted to
+    sim_game_features/sim_game_logs, and zero orphan JVMs."""
+    from pipeline import store
+    from pipeline.sim import store as sim_store
+    from pipeline.sim.driver_batch import Ledger
+    from pipeline.sim.driver_run import (
+        DeckDelta,
+        aggregate_buckets,
+        default_batch_ledger_v2_path,
+        run_corpus_queue,
+        write_bucket_table,
+    )
+
+    data_dir = os.environ.get('MAKE_MAGIC_DATA_DIR')
+    ledger = Ledger(default_batch_ledger_v2_path())
+    rows = [ledger.row(did) for did in _SUBJECTS]  # real DRIVE rows: raw '/'-containing deck_ids
+    field = _opponent_field(list(_OPPONENTS))      # real GauntletDecks (name + dck_text)
+
+    pids_before = _own_java_pids()
+
+    # THE corpus entry point: builds the dual-driver task list (staging translated .txt decks
+    # for BOTH subjects + opponents under flat basenames), runs run_games, ingests transcripts.
+    result = run_corpus_queue(
+        rows=rows, field=field, games=_GAMES,
+        stall_timeout_s=_STALL_TIMEOUT_S, monitor=None, data_dir=data_dir,
+    )
+    pids_after = _own_java_pids()
+    print(f'\n[corpus] complete={result.complete} done={len(result.done_results)} '
+          f'failed={len(result.failed)} incomplete_cells={result.incomplete_cells} '
+          f'comparisons={sorted(result.comparisons)}')
+
+    # -------------------------------------------- Criterion: completeness + both arms drain #
+    assert result.complete, f'corpus run not complete; incomplete={result.incomplete_cells}'
+    assert not result.failed, f'retry-cap tripped on healthy games: {result.failed}'
+    # One subject per DRIVE row, keyed by its flat staged basename (seat_a.deck_path).
+    assert len(result.comparisons) == len(rows), f'expected {len(rows)} subjects, got {sorted(result.comparisons)}'
+    for subject, comp in result.comparisons.items():
+        assert comp.per_opponent, f'{subject}: no per-opponent rows'
+        agg_dd = sum(o.driver_decided for o in comp.per_opponent)
+        agg_cd = sum(o.cp7_decided for o in comp.per_opponent)
+        print(f'[corpus/arms] {subject}: driver {sum(o.driver_wins for o in comp.per_opponent)}/{agg_dd} '
+              f'cp7 {sum(o.cp7_wins for o in comp.per_opponent)}/{agg_cd} over {len(comp.per_opponent)} opps')
+        assert agg_dd > 0, f'{subject}: driven arm 0/0 (cp7-0/0 bug)'
+        assert agg_cd > 0, f'{subject}: baseline arm 0/0 (cp7-0/0 bug)'
+        assert len(comp.per_opponent) == len(field), f'{subject}: not all opponents populated'
+
+    # ---------------------------------------------------------- Criterion: bucket table emits #
+    deltas = [
+        DeckDelta(
+            deck_id=subject, keep='', archetype='',
+            driver_wins=sum(o.driver_wins for o in comp.per_opponent),
+            driver_decided=sum(o.driver_decided for o in comp.per_opponent),
+            cp7_wins=sum(o.cp7_wins for o in comp.per_opponent),
+            cp7_decided=sum(o.cp7_decided for o in comp.per_opponent),
+            n_matchups=len(comp.per_opponent),
+        )
+        for subject, comp in result.comparisons.items()
+    ]
+    stats = aggregate_buckets(deltas)
+    jpath, mpath = write_bucket_table(stats, out_dir=tmp_path / 'buckets', field_names=[g.name for g in field])
+    assert 'all-driven' in stats and jpath.is_file() and mpath.is_file()
+    print(f'[corpus/bucket] wrote {jpath.name}+{mpath.name}; all-driven lift_ci={stats["all-driven"].lift_ci}')
+
+    # ------------------------------------------- Criterion: transcripts persisted (by the path) #
+    # run_corpus_queue ingests internally; assert the rows landed for these cells.
+    db = sim_store._db_path(data_dir)
+    keys = {'|'.join(t.split('|', 3)[:3]) for t in result.done_results}
+    with store.connect(db) as conn:
+        ph = ','.join('?' for _ in keys)
+        kl = list(keys)
+        nf = conn.execute(f'SELECT count(*) FROM sim_game_features WHERE matchup_key IN ({ph})', kl).fetchone()[0]
+        nl = conn.execute(f'SELECT count(*) FROM sim_game_logs WHERE matchup_key IN ({ph})', kl).fetchone()[0]
+    print(f'[corpus/persist] sim_game_features={nf} sim_game_logs={nl} for {len(keys)} cells')
+    assert nf >= len(result.done_results) and nl >= len(result.done_results), 'not every drained game persisted'
+
+    # --------------------------------------------------------------- Criterion: zero orphan JVMs #
+    leaked = pids_after - pids_before
+    deadline = time.time() + 20
+    while leaked and time.time() < deadline:
+        time.sleep(0.5)
+        leaked = _own_java_pids() - pids_before
+    print(f'[corpus/orphans] before={len(pids_before)} after={len(pids_after)} leaked_after_drain={leaked}')
+    assert leaked == set(), f'orphan XMage JVMs at exit: {leaked}'

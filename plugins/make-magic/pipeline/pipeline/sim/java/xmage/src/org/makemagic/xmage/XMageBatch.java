@@ -141,7 +141,11 @@ public class XMageBatch {
             int maxGames = 500;
             for (int i = 1; i + 1 < args.length; i++) {
                 if ("--worker-max-games".equals(args[i])) {
-                    maxGames = Integer.parseInt(args[i + 1]);
+                    try {
+                        maxGames = Integer.parseInt(args[i + 1]);
+                    } catch (NumberFormatException nfe) {
+                        maxGames = 500; // a malformed count falls back to the documented default.
+                    }
                 }
             }
             runWorker(maxGames);
@@ -414,7 +418,7 @@ public class XMageBatch {
         // dir; defaults to <cwd>/logs (cwd already holds the H2 db/, per the run convention).
         String logDirProp = System.getProperty("makemagic.worker.logdir",
                 System.getenv().getOrDefault("MAKE_MAGIC_WORKER_LOGDIR", "logs"));
-        Path logsDir = Paths.get(logDirProp);
+        Path logsDir = Paths.get(logDirProp).toAbsolutePath();
         Files.createDirectories(logsDir);
 
         Gson gson = new Gson();
@@ -488,7 +492,11 @@ public class XMageBatch {
         final int matchMaxTurn = commander ? 25 : 20;
         final int skill = 6;
 
-        Path logFile = logsDir.resolve(task.id + ".log");
+        // Sanitize the task_id into a filesystem-safe basename before deriving the transcript
+        // filename: the id embeds the deck path and the '|' cell separators, so a raw resolve()
+        // would create nested/invalid path segments and throw FileNotFoundException. Replace
+        // [/|:\] with '_' (BUG-2).
+        Path logFile = logsDir.resolve(safeTaskName(task.id) + ".log");
         List<URLClassLoader> loaders = new ArrayList<>();
         UUID idA = null;
         UUID idB = null;
@@ -508,8 +516,13 @@ public class XMageBatch {
             Match match = new FreeForAllMatch(new MatchOptions("make-magic worker",
                     commander ? "Commander Duel" : "Two Player Duel", true));
             Player playerA = seatWorkerPlayer(game, match, "PlayerA", task.a, skill, range, loaders);
-            Player playerB = seatWorkerPlayer(game, match, "PlayerB", task.b, skill, range, loaders);
+            // Capture idA IMMEDIATELY — before seating B. seatWorkerPlayer(A) may already have
+            // registered A's quad and opened A's URLClassLoader, so if seating B then throws (a
+            // bad opponent deck), the finally-block registriesReset(idA) must still cover A's
+            // seam entries. Capturing idA only after BOTH seats leaks A's registry entries +
+            // classloader on a driven-A / failing-B task (error-path leak, MAJOR).
             idA = playerA.getId();
+            Player playerB = seatWorkerPlayer(game, match, "PlayerB", task.b, skill, range, loaders);
             idB = playerB.getId();
 
             GameOptions options = new GameOptions();
@@ -566,7 +579,7 @@ public class XMageBatch {
         result.winner = winner;
         result.kill_turn = killTurn;
         result.ms = ms;
-        result.log = logFile.toString();
+        result.log = logFile.toAbsolutePath().toString();
         List<String> markers = new ArrayList<>();
         markers.add("seatA=" + (task.a != null && task.a.driver != null ? "driven" : "cp7"));
         markers.add("seatB=" + (task.b != null && task.b.driver != null ? "driven" : "cp7"));
@@ -804,6 +817,17 @@ public class XMageBatch {
 
     private static String fmt(double d) {
         return d < 0 ? "-1" : String.format("%.2f", d);
+    }
+
+    /**
+     * Sanitize a task_id into a filesystem-safe transcript basename. The queue's task_id is
+     * {@code subject|opponent|piloting|game_index} and each of subject/opponent can carry a
+     * deck path, so the raw id may contain {@code / | : \} — none of which can appear in a
+     * single path segment. Replace each with {@code _} so {@code <logdir>/<name>.log} is always
+     * a valid, flat file (BUG-2). A null id maps to a stable placeholder.
+     */
+    private static String safeTaskName(String id) {
+        return (id == null ? "task" : id).replaceAll("[/|:\\\\]", "_");
     }
 
     /**
