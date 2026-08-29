@@ -22,7 +22,6 @@ from pipeline.sim import driver_authoring as da
 from pipeline.sim import driver_compile as dc
 from pipeline.transforms.combo_detect import Combo
 
-_REAL_ECJ = os.environ.get('MAKE_MAGIC_ECJ_JAR')
 _LOCAL_DIST = (
     Path(__file__).resolve().parents[1]
     / 'pipeline'
@@ -318,11 +317,11 @@ def _runnable_java() -> str | None:
 
 
 def _stage_real_ecj(data_dir: Path) -> None:
-    if not _REAL_ECJ or not Path(_REAL_ECJ).is_file():
-        pytest.skip('no real ECJ jar (set MAKE_MAGIC_ECJ_JAR to a pinned ecj-*.jar)')
-    tools = data_dir / 'xmage' / 'tools'
-    tools.mkdir(parents=True, exist_ok=True)
-    shutil.copy(Path(_REAL_ECJ), tools / dc._ECJ_JAR_NAME)
+    """Fetch the pinned REAL ECJ jar into the tools cache, or skip if it can't be reached."""
+    try:
+        dc.ensure_ecj(data_dir=data_dir)
+    except dc.DriverCompileToolError as exc:
+        pytest.skip(f'pinned ECJ jar unreachable (offline?): {exc}')
 
 
 def _compile_quad(

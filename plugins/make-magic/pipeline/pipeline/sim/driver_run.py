@@ -942,14 +942,17 @@ def _load_run_set(path: str | os.PathLike[str] | None) -> tuple[list[str], dict[
 def run(argv: list[str] | None = None) -> None:
     """CLI: ``python -m pipeline.sim.driver_run --run`` — the full monitored corpus run + aggregate.
 
-    Restartable (re-run skips ``compared`` decks). ``--aggregate-only`` skips the run and just
+    Restartable (re-run skips ``compared`` decks). Omitting ``--run`` skips the run and just
     (re)builds the bucket table from the existing run ledger.
     """
     import argparse
 
     parser = argparse.ArgumentParser(prog='driver-run', description='Corpus driver-vs-CP7 run + bucket aggregation.')
-    parser.add_argument('--run', action='store_true', help='Execute the gate->compare corpus run.')
-    parser.add_argument('--aggregate-only', action='store_true', help='Skip the run; rebuild the bucket table only.')
+    parser.add_argument(
+        '--run',
+        action='store_true',
+        help='Execute the gate->compare corpus run. Omit to skip the run and rebuild the bucket table only.',
+    )
     parser.add_argument('--games', type=int, default=20, help='Games per gate + per matchup (>=20 for the gate).')
     parser.add_argument(
         '--run-set',
@@ -1000,7 +1003,7 @@ def run(argv: list[str] | None = None) -> None:
     run_ledger_path = Path(args.run_ledger) if args.run_ledger else default_run_ledger_path()
 
     field_names: list[str] = []
-    if args.run and not args.aggregate_only:
+    if args.run:
         from pipeline.sim.engine import get_engine
         from pipeline.sim.monitor import ResourceMonitor
 

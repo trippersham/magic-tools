@@ -100,15 +100,13 @@ XMAGE_DIST_URL = f'https://github.com/trippersham/magic-tools/releases/download/
 #: build itself, not a local/dry-run rebuild). ``None`` re-arms fail-closed: ``ensure``
 #: refuses to fetch (``_download_verified`` rejects a missing checksum) — the state
 #: between bumping ``_DIST_TAG`` and pinning the newly-published ``.sha256``.
-# LOCAL-DEV (branch feat/shared-perdeck-driver): pinned to ``None`` on purpose. Phase 0
-# adds the ``-Dmakemagic.driver`` register-by-playerId seam + ``--solo`` mode to XMageBatch, which requires a
-# dist-jar rebuild whose shaded bytes are NOT reproducible — so there is no published
-# release to hash yet. ``None`` means "locally-built jar → skip SHA verification"
-# (``_verify_cached_jar_integrity`` returns early; a hand-placed jar under
-# ``<data_dir>/xmage/`` resolves as-is). NOTE: this also makes ``ensure`` refuse to
-# auto-download (fail-closed), which is correct here — the local jar must be built + placed
-# by hand. DEFERRED merge-time step: cut the real release, re-pin the published ``.sha256``.
-XMAGE_DIST_SHA256: str | None = None
+# Pinned to the ``make-magic-xmage-dist.jar.sha256`` asset published at :data:`_DIST_TAG`
+# (``xmage-dist-1.4.60-2``). The shaded jar's bytes are NOT reproducible across builds, so
+# this canonical hash comes from the release build itself, not a local rebuild. Re-pin from
+# the freshly-published ``.sha256`` whenever ``_DIST_TAG`` is bumped. (``None`` re-arms the
+# fail-closed gate: ``ensure`` refuses to fetch without a checksum — the transient state
+# between bumping the tag and pinning the new asset.)
+XMAGE_DIST_SHA256: str | None = '847f458796843f1010562667df809f42fc4d95e7316ccf96f2e7741fcae1930f'
 
 
 class XMageUnavailableError(RuntimeError):

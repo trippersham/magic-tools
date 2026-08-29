@@ -1,10 +1,10 @@
 """Tests for the ECJ fetch/pin + Driver compile-and-cache surface (Phase 2, 2.1-2.3).
 
 The fetch/pin unit tests are fully offline (download mocked). The real-compile tests
-run the ECJ jar on the provisioned JRE; they SKIP unless a real ECJ jar is reachable
-(``MAKE_MAGIC_ECJ_JAR``) and a runnable ``java`` is found (``MAKE_MAGIC_JAVA`` / PATH),
-so CI without the toolchain stays green. The ``@pytest.mark.integration`` variant
-additionally compiles against the REAL local dist jar.
+run the ECJ jar on the provisioned JRE; they SKIP unless the pinned ECJ jar can be
+fetched (``ensure_ecj`` → :data:`pipeline.sim.driver_compile.ECJ_URL`) and a runnable
+``java`` is found (``MAKE_MAGIC_JAVA`` / PATH), so CI without the toolchain stays green.
+The ``@pytest.mark.integration`` variant additionally compiles against the REAL local dist jar.
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ import pytest
 from pipeline.sim import driver_compile as dc
 from pipeline.sim import xmage_runtime as xr
 
-_REAL_ECJ = os.environ.get('MAKE_MAGIC_ECJ_JAR')
 _LOCAL_DIST = (
     Path(__file__).resolve().parents[1]
     / 'pipeline'
@@ -46,12 +45,11 @@ def _runnable_java() -> str | None:
 
 
 def _stage_real_ecj(data_dir: Path) -> None:
-    """Seed the tools cache with the REAL ECJ jar (offline) or skip the test."""
-    if not _REAL_ECJ or not Path(_REAL_ECJ).is_file():
-        pytest.skip('no real ECJ jar (set MAKE_MAGIC_ECJ_JAR to a pinned ecj-*.jar)')
-    tools = data_dir / 'xmage' / 'tools'
-    tools.mkdir(parents=True, exist_ok=True)
-    shutil.copy(Path(_REAL_ECJ), tools / dc._ECJ_JAR_NAME)
+    """Fetch the pinned REAL ECJ jar into the tools cache, or skip if it can't be reached."""
+    try:
+        dc.ensure_ecj(data_dir=data_dir)
+    except dc.DriverCompileToolError as exc:
+        pytest.skip(f'pinned ECJ jar unreachable (offline?): {exc}')
 
 
 def _empty_jar(path: Path, marker: bytes) -> Path:

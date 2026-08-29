@@ -139,6 +139,9 @@ def mock_resolve(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> Forg
     """
     monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)
     monkeypatch.setattr(forge_runtime, 'ensure', lambda **_: install)
+    # Pin the offline backend so deck/ab dispatch does not leak the real `airtable`
+    # default and SystemExit(1) on a box with no AIRTABLE_API_KEY (env-independent suite).
+    monkeypatch.setenv('MAKE_MAGIC_BACKEND', 'local')
     return install
 
 

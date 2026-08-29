@@ -605,12 +605,6 @@ def run_compile(
     return {'compiled': compiled, 'failed': failed, 'skipped': skipped}
 
 
-def run_gate(*_args: object, **_kw: object) -> None:
-    """Reserved GATE stage — goldfish-gate each compiled driver
-    (:func:`pipeline.sim.driver_gate.gate_driver`). Run later."""
-    raise NotImplementedError('gate stage runs later (staged, resource-monitored) — see module docstring')
-
-
 # --------------------------------------------------------------------------- #
 # Corpus enumeration (rule 7 subjects: inventory AND gauntlet).
 # --------------------------------------------------------------------------- #

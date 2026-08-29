@@ -421,7 +421,7 @@ def test_run_reads_sys_argv_when_argv_is_none(monkeypatch: pytest.MonkeyPatch, t
     The original ``parse_args([] if argv is None else argv)`` discarded sys.argv, so ``--run``
     (and every flag) was silently dropped when invoked as ``python -m ...`` — the corpus run
     became a no-op that only emitted an empty bucket table. Here we prove a custom ``--out-dir``
-    passed via sys.argv is honored (aggregate-only path, no sims).
+    passed via sys.argv is honored (aggregate path — no --run, no sims).
     """
     out = tmp_path / 'custom_out'
     out.mkdir()
@@ -429,7 +429,7 @@ def test_run_reads_sys_argv_when_argv_is_none(monkeypatch: pytest.MonkeyPatch, t
     empty_ledger.write_text('', encoding='utf-8')
     monkeypatch.setattr(
         'sys.argv',
-        ['driver-run', '--aggregate-only', '--out-dir', str(out), '--run-ledger', str(empty_ledger)],
+        ['driver-run', '--out-dir', str(out), '--run-ledger', str(empty_ledger)],
     )
     dr.main()  # argv=None -> must read sys.argv
     written = list(out.glob('driver-run-buckets.*'))
