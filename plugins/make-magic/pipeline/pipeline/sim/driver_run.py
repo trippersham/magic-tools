@@ -366,6 +366,82 @@ def _drive_rows_for_run_set(batch_ledger: Ledger, run_set: Sequence[str]) -> lis
     return rows
 
 
+def build_corpus_game_tasks(
+    rows: Sequence[dict[str, Any]],
+    field: Sequence[GauntletDeck],
+    *,
+    games: int,
+    data_dir: str | os.PathLike[str] | None = None,
+):
+    """Phase-3 opt-in: expand the compiled DRIVE ``rows`` x ``field`` into a flat
+    :class:`~pipeline.sim.game_tasks.GameTask` list for the persistent-worker queue.
+
+    Each subject seat carries its compiled driver ``(classes_dir, fqcn)`` (dual-driver
+    methodology); the opponent seats are the plain gauntlet decks (``driver=None`` — thin).
+    :func:`~pipeline.sim.game_tasks.build_game_tasks` enumerates BOTH pilotings per cell, so the
+    baseline arm is structurally guaranteed (the cp7 0/0 fix). ``deck_path`` is the packaged
+    ``.dck`` path for subjects and the opponent NAME for field decks — the stable identifier the
+    Phase-2 worker resolves deck content from. This is the queue substrate for
+    :func:`run_corpus_queue`; it runs NO games and needs no JVM."""
+    from pipeline.sim import drivers
+    from pipeline.sim.game_tasks import DriverRef, SeatSpec, build_game_tasks
+
+    subjects: list[SeatSpec] = []
+    for row in rows:
+        deck, _deck_ref = deck_and_ref_for_row(row)
+        driver = DriverRef(classpath=str(drivers.classes_dir(deck, data_dir=data_dir)), fqcn=str(row['fqcn']))
+        subjects.append(SeatSpec(deck_path=str(_gauntlet_dck_path(str(row['deck_id']))), driver=driver))
+    opponents = [SeatSpec(deck_path=g.name, driver=None) for g in field]
+    return build_game_tasks(subjects, opponents, games, fmt=_COMMANDER)
+
+
+def resolve_worker_cmd() -> list[str]:
+    """Resolve the persistent-worker launch command (``XMageBatch --worker``, Phase 2).
+
+    Kept as a seam so :func:`run_corpus_queue` is wireable now; the Phase-2 jar is not built
+    yet, so this raises a clear :class:`NotImplementedError` until it lands. Tests never call it
+    (the ``--queue`` flag defaults OFF and no JVM is spawned)."""
+    raise NotImplementedError(
+        'the persistent-worker command (XMageBatch --worker) is Phase 2 and not built yet; '
+        'the --queue path is wired but cannot execute until the Java worker lands.'
+    )
+
+
+def run_corpus_queue(
+    *,
+    rows: Sequence[dict[str, Any]],
+    field: Sequence[GauntletDeck],
+    games: int,
+    stall_timeout_s: float = 900.0,
+    monitor: ResourceMonitor | None = None,
+    done_set_path: str | os.PathLike[str] | None = None,
+    worker_cmd: Sequence[str] | None = None,
+    data_dir: str | os.PathLike[str] | None = None,
+) -> Any:
+    """Phase-3 opt-in corpus run over the persistent-worker queue (behind ``--queue``).
+
+    Builds the dual-driver :class:`GameTask` list (:func:`build_corpus_game_tasks`), resumes from
+    a per-game done-set sidecar if present, and drives :func:`~pipeline.sim.game_queue.run_games`.
+    The OLD :func:`run_corpus` (`run_matchups` over `MatchSpec`) stays the default/fallback — this
+    is invoked ONLY when the caller passes ``--queue``. ``worker_cmd`` defaults to
+    :func:`resolve_worker_cmd` (the Phase-2 JVM); tests inject a fake."""
+    from pipeline.sim.game_queue import load_done_set, run_games, save_done_set
+
+    tasks = build_corpus_game_tasks(rows, field, games=games, data_dir=data_dir)
+    done = load_done_set(done_set_path) if done_set_path else {}
+    cmd = list(worker_cmd) if worker_cmd is not None else resolve_worker_cmd()
+    result = run_games(
+        tasks,
+        worker_cmd=cmd,
+        stall_timeout_s=stall_timeout_s,
+        done_set=done,
+        monitor=monitor,
+    )
+    if done_set_path:
+        save_done_set(done_set_path, {**done, **result.done_results})
+    return result
+
+
 def run_corpus(
     *,
     run_set: Sequence[str],
@@ -769,6 +845,13 @@ def run(argv: list[str] | None = None) -> None:
         action='store_true',
         help='Bypass the per-deck solo gate (force-stamp a valid meta); reduced-run scope call, not a quality claim.',
     )
+    parser.add_argument(
+        '--queue',
+        action='store_true',
+        help='OPT-IN (Phase 3): run the compare over the persistent-worker game-queue (per-game '
+        'scheduling, dedup, retry-cap, per-game restart) instead of the default run_matchups path. '
+        'Requires the Phase-2 XMageBatch --worker (not built yet); DEFAULT OFF.',
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
@@ -796,20 +879,38 @@ def run(argv: list[str] | None = None) -> None:
         engine = get_engine('xmage')
         install = engine.resolve(provision=False)
         monitor = None if args.no_monitor else ResourceMonitor()
-        summary = run_corpus(
-            run_set=run_set,
-            install=install,
-            games=args.games,
-            batch_ledger_path=batch_ledger_path,
-            run_ledger_path=run_ledger_path,
-            engine=engine,
-            monitor=monitor,
-            compare_games=args.compare_games,
-            skip_gate=args.skip_gate,
-            field_size=args.field_size,
-        )
-        field_names = summary['field']
-        log.info('run complete: %s', summary['counts'])
+        if args.queue:
+            # OPT-IN Phase-3 game-queue path (per-game scheduling). Resolves the run-set DRIVE
+            # rows + opponent field exactly as run_corpus does, then drives run_games. Requires
+            # the Phase-2 worker (resolve_worker_cmd) — not built yet, so this raises a clear
+            # error rather than silently doing nothing. The default path below is untouched.
+            batch = Ledger(batch_ledger_path)
+            rows = _drive_rows_for_run_set(batch, run_set)
+            drive_ids = [
+                r['deck_id'] for r in batch.rows() if r.get('drive') and r.get('stage') in ('compiled', 'gated')
+            ]
+            field = build_opponent_field(drive_ids)
+            if args.field_size is not None:
+                field = list(field)[: args.field_size]
+            field_names = [g.name for g in field]
+            result = run_corpus_queue(rows=rows, field=field, games=args.games, monitor=monitor)
+            log.info('queue run complete: complete=%s failed=%d', result.complete, len(result.failed))
+            summary = None
+        else:
+            summary = run_corpus(
+                run_set=run_set,
+                install=install,
+                games=args.games,
+                batch_ledger_path=batch_ledger_path,
+                run_ledger_path=run_ledger_path,
+                engine=engine,
+                monitor=monitor,
+                compare_games=args.compare_games,
+                skip_gate=args.skip_gate,
+                field_size=args.field_size,
+            )
+            field_names = summary['field']
+            log.info('run complete: %s', summary['counts'])
 
     run_ledger = Ledger(run_ledger_path)
     deltas = deltas_from_ledger(run_ledger, run_set_json, tightness=tightness)

@@ -10,6 +10,9 @@ script drives every scheduling/fault scenario:
 * ``FAKE_SLOW_FIRST`` — if set, the FIRST task sleeps ``FAKE_SLOW_MS`` (backpressure test).
 * ``FAKE_SLOW_MS``    — the slow duration (default 3000).
 * ``FAKE_DIE_ON_TASK``— crash (``os._exit``) mid-first-task without emitting RESULT (death test).
+* ``FAKE_DIE_ON_TASK_ID`` — crash (``os._exit``) WHENEVER a task with this exact ``task_id`` is
+  received (no RESULT). A *poison task* that kills every worker that touches it — drives the
+  Phase-3 governor retry-cap test (unlike ``FAKE_DIE_ON_TASK`` this is keyed by id, not order).
 * ``FAKE_DIE_AFTER_RESULT`` — complete the FIRST task (emit RESULT) then crash BEFORE the
   next READY — i.e. die *between* tasks with no in-flight task (respawn/MINOR-2 test).
 * ``FAKE_SILENT``     — accept a task then go silent forever, no heartbeat/RESULT (stall test).
@@ -42,6 +45,7 @@ def main() -> None:
     slow_first = bool(os.environ.get('FAKE_SLOW_FIRST'))
     slow_ms = int(os.environ.get('FAKE_SLOW_MS', '3000'))
     die_on_task = bool(os.environ.get('FAKE_DIE_ON_TASK'))
+    die_on_task_id = os.environ.get('FAKE_DIE_ON_TASK_ID')
     die_after_result = bool(os.environ.get('FAKE_DIE_AFTER_RESULT'))
     silent = bool(os.environ.get('FAKE_SILENT'))
     silent_after_hb = bool(os.environ.get('FAKE_SILENT_AFTER_HEARTBEAT'))
@@ -69,6 +73,9 @@ def main() -> None:
 
         if die_on_task and task_number == 1:
             os._exit(137)  # simulate SIGKILL-style death mid-task, no RESULT.
+
+        if die_on_task_id is not None and task_id == die_on_task_id:
+            os._exit(137)  # poison task: die whenever THIS id is received (no RESULT).
 
         if silent:
             while True:  # accept the task, then never make progress.
