@@ -45,6 +45,7 @@ Phase-3 concerns (out of scope here — the governor owns them):
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import signal
 import subprocess
@@ -66,6 +67,8 @@ from pipeline.sim.game_tasks import GameTask
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+log = logging.getLogger('make_magic.sim.worker_pool')
 
 __all__ = ('WorkerPool',)
 
@@ -158,6 +161,21 @@ class WorkerPool:
         for w in workers:
             if w.reader is not None:
                 w.reader.join(timeout=grace_s)
+        # Deterministically reap each worker PROCESS before returning — a SIGKILL'd JVM takes a
+        # beat to actually terminate, and the reader thread's drain may return before the process
+        # is dead. proc.wait() only reaps the exit status (it does NOT read the pipe, so it is safe
+        # alongside the reader-owns-drain discipline); this closes the "orphan at drain" race where
+        # close() returned while a worker JVM was still dying. A worker that refuses to die after a
+        # re-kill is left to the ResourceMonitor reaper (logged), never silently leaked.
+        for w in workers:
+            try:
+                w.proc.wait(timeout=grace_s)
+            except subprocess.TimeoutExpired:
+                self._signal_kill_group(w.proc)  # re-kill the stubborn group, then wait once more.
+                try:
+                    w.proc.wait(timeout=grace_s)
+                except subprocess.TimeoutExpired:
+                    log.warning('worker pid %s survived close() — left to the reaper', w.proc.pid)
         if self._watchdog is not None:
             self._watchdog.join(timeout=self._poll_s * 2)
 

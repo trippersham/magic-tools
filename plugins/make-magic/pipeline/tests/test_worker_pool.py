@@ -269,3 +269,30 @@ def test_task_id_on_every_result() -> None:
     assert all(rid for rid in h.result_ids)  # no empty/None ids
     assert set(h.result_ids) == {f's|o|driven|{i}' for i in range(n)}
     _no_fake_procs_linger()
+
+
+def test_close_leaves_zero_live_workers_deterministically() -> None:
+    """Regression (orphan-at-drain race): close() must not return while a worker process is still
+    dying. A SIGKILL'd worker takes a beat to terminate; close() now proc.wait()s each worker, so
+    zero remain alive on return. Stressed over several iterations to catch the intermittent race."""
+    import subprocess as _sp
+
+    for _ in range(6):
+        h = _Harness([_task(i) for i in range(6)])
+        pool = WorkerPool(
+            _worker_cmd(),
+            workers=3,
+            next_task=h.next_task,
+            on_result=h.on_result,
+            requeue=h.requeue,
+            stall_timeout_s=30.0,
+        )
+        pool.start()
+        pool.join(timeout=30.0)
+        pids = [w.proc.pid for w in pool._workers]
+        pool.close(grace_s=5.0)
+        # Every worker process must be dead the instant close() returns — no lingering JVM/fake.
+        for pid in pids:
+            alive = _sp.run(['kill', '-0', str(pid)], capture_output=True).returncode == 0
+            assert not alive, f'worker pid {pid} still alive after close() — orphan-at-drain race'
+        _no_fake_procs_linger()
