@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""A fake echo-worker speaking the game-queue protocol — for WorkerPool tests (NO JVM).
+
+It stands in for the Phase-2 ``XMageBatch --worker`` JVM: print ``READY``, read a
+``TASK {json}`` line from stdin, (optionally) emit a ``GAME`` heartbeat, sleep, then
+print a canned ``RESULT`` + ``READY`` again. Behavior is tuned by env vars so a single
+script drives every scheduling/fault scenario:
+
+* ``FAKE_SLEEP_MS``   — per-task work time (default 0).
+* ``FAKE_SLOW_FIRST`` — if set, the FIRST task sleeps ``FAKE_SLOW_MS`` (backpressure test).
+* ``FAKE_SLOW_MS``    — the slow duration (default 3000).
+* ``FAKE_DIE_ON_TASK``— crash (``os._exit``) mid-first-task without emitting RESULT (death test).
+* ``FAKE_DIE_AFTER_RESULT`` — complete the FIRST task (emit RESULT) then crash BEFORE the
+  next READY — i.e. die *between* tasks with no in-flight task (respawn/MINOR-2 test).
+* ``FAKE_SILENT``     — accept a task then go silent forever, no heartbeat/RESULT (stall test).
+* ``FAKE_SILENT_AFTER_HEARTBEAT`` — accept the first task, emit ONE ``GAME`` heartbeat, then
+  go silent forever — so the reader thread is actively mid-stream when the watchdog reaps
+  (MAJOR-1 single-owner-pipe test).
+* ``FAKE_HEARTBEAT``  — if set, emit a ``GAME`` heartbeat before sleeping.
+* ``FAKE_FAULT_ONCE_FILE`` — makes ``FAKE_DIE_ON_TASK``/``FAKE_SILENT`` **one-shot**: the
+  first worker to touch this marker path faults; every respawn sees the marker and runs
+  normally (the replacement is not itself faulty — real workers are identical).
+
+All timing is coarse; tests assert structural outcomes, never exact timing.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+
+
+def _emit(line: str) -> None:
+    sys.stdout.write(line + '\n')
+    sys.stdout.flush()
+
+
+def main() -> None:
+    sleep_ms = int(os.environ.get('FAKE_SLEEP_MS', '0'))
+    slow_first = bool(os.environ.get('FAKE_SLOW_FIRST'))
+    slow_ms = int(os.environ.get('FAKE_SLOW_MS', '3000'))
+    die_on_task = bool(os.environ.get('FAKE_DIE_ON_TASK'))
+    die_after_result = bool(os.environ.get('FAKE_DIE_AFTER_RESULT'))
+    silent = bool(os.environ.get('FAKE_SILENT'))
+    silent_after_hb = bool(os.environ.get('FAKE_SILENT_AFTER_HEARTBEAT'))
+    heartbeat = bool(os.environ.get('FAKE_HEARTBEAT'))
+
+    # One-shot fault gate: only the FIRST worker to claim the marker faults; respawns run clean.
+    once_file = os.environ.get('FAKE_FAULT_ONCE_FILE')
+    if once_file and (die_on_task or silent or die_after_result or silent_after_hb):
+        try:
+            fd = os.open(once_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(fd)  # we claimed the fault.
+        except FileExistsError:
+            # a prior worker already faulted; run normally.
+            die_on_task = silent = die_after_result = silent_after_hb = False
+
+    task_number = 0
+    _emit('READY')
+    for raw in sys.stdin:
+        line = raw.strip()
+        if not line.startswith('TASK '):
+            continue
+        task_number += 1
+        task = json.loads(line[len('TASK ') :])
+        task_id = task['id']
+
+        if die_on_task and task_number == 1:
+            os._exit(137)  # simulate SIGKILL-style death mid-task, no RESULT.
+
+        if silent:
+            while True:  # accept the task, then never make progress.
+                time.sleep(3600)
+
+        if silent_after_hb and task_number == 1:
+            _emit(f'GAME {task_id} turn=1 ms=1')  # reader is now mid-stream ...
+            while True:  # ... then never make progress → watchdog reaps us live.
+                time.sleep(3600)
+
+        if heartbeat:
+            _emit(f'GAME {task_id} turn=1 ms=1')
+
+        this_sleep = slow_ms if (slow_first and task_number == 1) else sleep_ms
+        if this_sleep:
+            time.sleep(this_sleep / 1000.0)
+
+        result = {'id': task_id, 'winner': 'a', 'kill_turn': 3, 'ms': this_sleep, 'markers': [], 'log': None}
+        _emit('RESULT ' + json.dumps(result))
+
+        if die_after_result and task_number == 1:
+            os._exit(137)  # died BETWEEN tasks: RESULT seen, but no follow-up READY.
+
+        _emit('READY')
+
+
+if __name__ == '__main__':
+    main()
