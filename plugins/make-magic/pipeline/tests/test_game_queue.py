@@ -255,6 +255,122 @@ def test_restart_full_doneset_runs_nothing() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Incremental durability — the done-set is checkpointed per-subject DURING the run,
+# not once at the very end (a mid-run crash must not lose all progress).
+# --------------------------------------------------------------------------- #
+
+
+def test_incremental_done_set_checkpoint(tmp_path: Path, monkeypatch) -> None:
+    """With ``done_set_path`` set, the sidecar is written after the FIRST subject completes and
+    BEFORE the whole run returns — so a crash mid-run keeps the finished subjects."""
+    # Per-task sleep + single worker → strict subject-major drain, so there is a real window where
+    # s1 is done and s2 is still pending. monkeypatch auto-reverts the env after the test.
+    monkeypatch.setenv('FAKE_SLEEP_MS', '300')
+
+    subjects = _subjects(['s1', 's2'])
+    field = _subjects(['oa'])
+    games = 1  # 2 tasks/subject (driven + baseline); 4 tasks total.
+    tasks = build_game_tasks(subjects, field, games, fmt='commander')
+    s1_ids = {t.task_id for t in tasks if cell_key(t)[0] == _sid('s1')}
+    s2_ids = {t.task_id for t in tasks if cell_key(t)[0] == _sid('s2')}
+
+    sidecar = tmp_path / 'done.jsonl'
+    result_box: dict[str, RunGamesResult] = {}
+
+    def _run() -> None:
+        result_box['res'] = run_games(
+            tasks,
+            worker_cmd=_cmd(),
+            workers=1,
+            stall_timeout_s=30.0,
+            done_set_path=sidecar,
+        )
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+    # Poll for the mid-run snapshot: the sidecar exists, holds ALL of s1's ids, and does NOT yet
+    # hold all of s2's ids — proof it was flushed incrementally, before the run returned.
+    caught = False
+    deadline = time.time() + 25.0
+    while time.time() < deadline:
+        loaded = load_done_set(sidecar) if sidecar.is_file() else {}
+        present = set(loaded)
+        if s1_ids <= present and not (s2_ids <= present):
+            caught = True
+            break
+        if 'res' in result_box:  # run returned — stop polling.
+            break
+        time.sleep(0.02)
+
+    t.join(timeout=30.0)
+    assert not t.is_alive(), 'run did not finish'
+    assert caught, 'sidecar never showed s1-done-while-s2-pending → not checkpointed incrementally'
+    res = result_box['res']
+    assert res.complete
+    # Final sidecar holds every task.
+    final = load_done_set(sidecar)
+    assert set(final) == {t.task_id for t in tasks}
+    _no_orphans()
+
+
+def test_resume_from_incremental_checkpoint(tmp_path: Path) -> None:
+    """Seed a done-set as if a crash left subject-1 fully done; resume. Subject-1's tasks are NOT
+    re-dispatched (carried forward verbatim) and the final comparisons include BOTH subjects with
+    correct tallies (guards the P3 restart-comparison property under incremental checkpointing)."""
+    subjects = _subjects(['s1', 's2'])
+    field = _subjects(['oa'])
+    games = 2
+    tasks = build_game_tasks(subjects, field, games, fmt='commander')
+
+    # 1) Uninterrupted baseline — the source of truth for s1's comparison + winners.
+    base = run_games(tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0)
+    expected_s1 = base.comparisons[_sid('s1')]
+
+    # 2) Seed ONLY subject-1's games (winner-carrying), round-tripped through the sidecar, with a
+    #    distinctive ms so a re-dispatch (which the fake would answer with ms=0) is detectable.
+    s1_tasks = [t for t in tasks if cell_key(t)[0] == _sid('s1')]
+    seeded = {
+        t.task_id: GameResult(
+            task_id=t.task_id,
+            winner=base.done_results[t.task_id].winner,
+            kill_turn=3,
+            ms=999,
+            markers=[],
+            log_path=None,
+        )
+        for t in s1_tasks
+    }
+    sidecar = tmp_path / 'done.jsonl'
+    save_done_set(sidecar, seeded)
+    reloaded = load_done_set(sidecar)
+
+    res = run_games(
+        tasks,
+        worker_cmd=_cmd(),
+        workers=2,
+        stall_timeout_s=30.0,
+        done_set=reloaded,
+        done_set_path=sidecar,
+    )
+    assert res.complete
+    # Subject-1's tasks were NEVER re-dispatched: their ms is the seed's 999, not the fake's 0.
+    for t in s1_tasks:
+        assert res.done_results[t.task_id].ms == 999, f're-dispatched seeded task {t.task_id}'
+    # Both subjects present with correct tallies; s1 byte-equal to the uninterrupted run.
+    assert set(res.comparisons) == {_sid('s1'), _sid('s2')}
+    got_s1 = res.comparisons[_sid('s1')]
+    assert got_s1.per_opponent == expected_s1.per_opponent
+    assert got_s1.winrate_driver == expected_s1.winrate_driver
+    assert got_s1.winrate_cp7 == expected_s1.winrate_cp7
+    assert got_s1.winrate_delta == expected_s1.winrate_delta
+    # The final sidecar carries both subjects (incremental + final flush).
+    final = load_done_set(sidecar)
+    assert set(final) == {t.task_id for t in tasks}
+    _no_orphans()
+
+
+# --------------------------------------------------------------------------- #
 # Monitor pause — no tasks dispatched while paused; resumes after.
 # --------------------------------------------------------------------------- #
 

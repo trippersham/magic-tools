@@ -204,11 +204,19 @@ class _Governor:
         done_set: Mapping[str, GameResult] | set[str] | frozenset[str] | None,
         on_subject_complete: Callable[[str, PilotingComparison], None] | None,
         cond_poll_s: float,
+        done_set_path: str | os.PathLike[str] | None = None,
     ) -> None:
         self._retry_cap = retry_cap
         self._monitor = monitor
         self._on_subject_complete = on_subject_complete
         self._cond_poll_s = cond_poll_s
+        # Incremental durability: when set, the accumulated done-set is atomically re-saved after
+        # each subject crosses terminal (see _advance_subject_locked / _flush_checkpoint_if_pending)
+        # so a crash mid-run keeps the finished subjects instead of losing all progress.
+        self._done_set_path = done_set_path
+        # A consistent snapshot of self._results taken under the lock at a subject-complete point,
+        # written to disk OUTSIDE the lock by the pool-callback thread that staged it.
+        self._checkpoint_snapshot: dict[str, GameResult] | None = None
 
         self._cond = threading.Condition()
         self._task_by_id: dict[str, GameTask] = {t.task_id: t for t in tasks}
@@ -289,23 +297,29 @@ class _Governor:
         with self._cond:
             tid = msg.task_id
             if tid in self._done or tid in self._failed:
-                return  # dedup: a duplicate or a late result for an already-terminal task.
-            if isinstance(msg, GameError):
+                pass  # dedup: a duplicate or a late result for an already-terminal task.
+            elif isinstance(msg, GameError):
                 log.info('task %s ERROR: %s', tid, msg.exc)
                 self._retry_locked(tid, reason=f'game ERROR: {msg.exc}')
                 self._cond.notify_all()
-                return
-            self._mark_done(tid, msg)
-            self._cond.notify_all()
+            else:
+                self._mark_done(tid, msg)
+                self._cond.notify_all()
+        # A subject may have crossed terminal above → persist the checkpoint OUTSIDE the lock so
+        # file I/O never blocks next_task dispatch (the snapshot was taken under the lock).
+        self._flush_checkpoint_if_pending()
 
     def requeue(self, task: GameTask) -> None:
         """Return a dead/reaped worker's in-flight task — with the retry cap enforced."""
         with self._cond:
             tid = task.task_id
             if tid in self._done or tid in self._failed:
-                return  # already terminal (RESULT won the TOCTOU race) — drop the requeue.
-            self._retry_locked(tid, reason='worker died / stall-reaped')
-            self._cond.notify_all()
+                pass  # already terminal (RESULT won the TOCTOU race) — drop the requeue.
+            else:
+                # A requeue past the cap FAILS the task → its subject can cross terminal here.
+                self._retry_locked(tid, reason='worker died / stall-reaped')
+                self._cond.notify_all()
+        self._flush_checkpoint_if_pending()
 
     # -- internals (caller holds self._cond) ------------------------------- #
 
@@ -355,8 +369,25 @@ class _Governor:
             # result fires the callback inline for the subject-major incremental harvest.
             if seeded:
                 self._seeded_complete.append(subject)
-            elif self._on_subject_complete is not None:
-                self._on_subject_complete(subject, comp)
+            else:
+                # Stage a consistent done-set snapshot (taken here, under the lock) for the
+                # calling pool-callback thread to write to disk after it releases _cond.
+                if self._done_set_path is not None:
+                    self._checkpoint_snapshot = dict(self._results)
+                if self._on_subject_complete is not None:
+                    self._on_subject_complete(subject, comp)
+
+    def _flush_checkpoint_if_pending(self) -> None:
+        """Write the staged done-set snapshot (if any) OUTSIDE the lock. Atomically swaps the
+        snapshot slot under a brief lock so exactly one thread writes each staged snapshot; a
+        later snapshot supersedes an unwritten earlier one (results only grow → nothing lost)."""
+        if self._done_set_path is None:
+            return
+        with self._cond:
+            snap = self._checkpoint_snapshot
+            self._checkpoint_snapshot = None
+        if snap is not None:
+            save_done_set(self._done_set_path, snap)
 
     def _all_terminal_locked(self) -> bool:
         return (len(self._done) + len(self._failed)) >= len(self._task_by_id)
@@ -441,6 +472,7 @@ def run_games(
     workers: int | None = None,
     stall_timeout_s: float,
     done_set: Mapping[str, GameResult] | set[str] | frozenset[str] | None = None,
+    done_set_path: str | os.PathLike[str] | None = None,
     monitor: ResourceMonitor | None = None,
     retry_cap: int = 2,
     on_subject_complete: Callable[[str, PilotingComparison], None] | None = None,
@@ -459,6 +491,11 @@ def run_games(
     every task is terminal (done or failed). ``worker_cmd`` is the persistent worker (the fake
     echo worker in tests; ``XMageBatch --worker`` in production).
 
+    When ``done_set_path`` is set the accumulated done-set is atomically re-saved after EACH
+    subject completes (per-subject incremental checkpointing — ≤ one subject's in-flight games
+    lost on a crash), plus a final flush before returning. The snapshot is taken under the lock
+    but written OUTSIDE it so file I/O never stalls ``next_task`` dispatch.
+
     NOTE: the inline (drained-result) ``on_subject_complete`` harvest fires while the governor
     holds ``_cond`` — keep the callback FAST (the Wilson math it wraps is cheap), since a slow
     callback briefly blocks ``next_task`` dispatch. Callbacks for subjects fully covered by the
@@ -475,6 +512,7 @@ def run_games(
         done_set=done_set,
         on_subject_complete=on_subject_complete,
         cond_poll_s=cond_poll_s,
+        done_set_path=done_set_path,
     )
 
     # Fire the callbacks deferred while seeding the done-set (subjects fully covered by the
@@ -486,7 +524,10 @@ def run_games(
 
     # Nothing left to run (a full restart) — every subject already aggregated during seeding.
     if gov._all_terminal_locked():
-        return gov.result()
+        res = gov.result()
+        if done_set_path is not None:
+            save_done_set(done_set_path, res.done_results)
+        return res
 
     if monitor is not None:
         monitor.start()
@@ -505,7 +546,10 @@ def run_games(
         pool.close()
         if monitor is not None:
             monitor.stop()
-    return gov.result()
+    res = gov.result()
+    if done_set_path is not None:  # final flush (last-subject completion already checkpointed).
+        save_done_set(done_set_path, res.done_results)
+    return res
 
 
 # --------------------------------------------------------------------------- #

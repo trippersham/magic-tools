@@ -546,14 +546,21 @@ def run_corpus_queue(
         if worker_cmd is not None
         else resolve_worker_cmd(log_dir=log_dir, data_dir=data_dir, decks_dir=stage_dir)
     )
+    # Pass done_set_path INTO run_games so the done-set is checkpointed incrementally (per-subject)
+    # DURING the run — a crash in a ~12-15h corpus run then resumes from the last finished subject
+    # instead of re-running everything. On resume the seeded `done` carries each prior game's WINNER
+    # tally, which is the science the bucket table needs; the per-run transcript log_dir is a fresh
+    # mkdtemp, so a resumed run cannot ingest prior games' transcripts — that loss is acceptable
+    # (best-effort transcript ingest only; the win tallies / comparisons remain correct).
     result = run_games(
         tasks,
         worker_cmd=cmd,
         stall_timeout_s=stall_timeout_s,
         done_set=done,
+        done_set_path=done_set_path,
         monitor=monitor,
     )
-    if done_set_path:
+    if done_set_path:  # final flush (harmless; run_games already checkpointed incrementally).
         save_done_set(done_set_path, {**done, **result.done_results})
     # Ingest each drained game's transcript into sim_game_features / sim_game_logs (best-effort).
     try:
