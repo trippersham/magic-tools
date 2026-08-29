@@ -120,6 +120,7 @@ def save_done_set(path: str | os.PathLike[str], results: Mapping[str, GameResult
                     'ms': r.ms,
                     'markers': list(r.markers),
                     'log': r.log_path,
+                    'reason': r.reason,
                 },
                 sort_keys=True,
             )
@@ -158,6 +159,7 @@ def load_done_set(path: str | os.PathLike[str]) -> dict[str, GameResult]:
             ms=int(body.get('ms', 0)),
             markers=list(body.get('markers', [])),
             log_path=body.get('log'),
+            reason=body.get('reason'),
         )
     return out
 
@@ -171,7 +173,9 @@ def _winner_bucket(winner: str) -> str:
     """Normalise a ``GameResult.winner`` to ``'a'`` (subject) / ``'b'`` (opponent) / ``'draw'``.
 
     Draws are excluded from the Wilson denominator (the decided-games rule the existing
-    aggregation uses); anything unrecognised is treated as a draw (no win credited)."""
+    aggregation uses); anything unrecognised — including ``'none'`` (a non-decisive
+    wall-clock-timeout game, ``GameResult.reason == 'timeout'``) — is treated as a draw
+    (no win credited), so an engine-defective livelock never folds into the W/L rate."""
     w = winner.strip().lower()
     if w in ('a', 'subject', 'player_a', 'playera'):
         return 'a'

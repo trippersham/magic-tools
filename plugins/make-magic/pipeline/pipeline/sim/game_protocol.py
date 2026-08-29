@@ -63,6 +63,17 @@ class GameResult:
     ms: int
     markers: list[str]
     log_path: str | None
+    #: Non-decisive terminal reason, or ``None`` for an ordinary decided/undecided game.
+    #: ``'timeout'`` marks an engine-defective wall-clock livelock (base CP7 AI re-activating an
+    #: optional mana ability — a loop the Comprehensive Rules forbid, CR 104.4b / 720). Such a game
+    #: is TERMINAL (dedup / cell-done / no requeue) but EXCLUDED from W/L/D stats: its ``winner`` is
+    #: ``'none'`` so :func:`~pipeline.sim.game_queue._winner_bucket` credits neither seat.
+    reason: str | None = None
+
+    @property
+    def decisive(self) -> bool:
+        """False for a non-decisive terminal game (``reason`` set) — filter these from aggregation."""
+        return self.reason is None
 
 
 @dataclass(frozen=True)
@@ -133,6 +144,7 @@ def parse_line(line: str) -> ProtocolMsg:
             ms=int(body.get('ms', 0)),
             markers=list(body.get('markers', [])),
             log_path=body.get('log'),
+            reason=body.get('reason'),
         )
 
     if stripped.startswith('ERROR '):

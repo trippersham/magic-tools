@@ -114,6 +114,41 @@ public class XMageBatch {
     private static final int MAX_THINK_TIME_SECS =
             Integer.getInteger("makemagic.maxThinkSecs", 3);
 
+    /**
+     * HARD per-game absolute wall-clock deadline (seconds). Unlike {@link #MAX_THINK_TIME_SECS}
+     * (a per-AI-DECISION budget) and {@code setTurnCap} ({@code GameOptions.stopOnTurn}, checked
+     * ONLY at the top of each turn's untap), this bounds the TOTAL wall time one call to
+     * {@code game.start(...)} may consume — the ONLY cap that stops an INTRA-TURN livelock the AI
+     * never breaks (e.g. two {@code Blood Celebrant} copies oscillating a player's life around 0
+     * forever inside a single turn's state-based-action loop: never advances to the next untap, so
+     * {@code stopOnTurn} never fires; mandatory SBA/damage events, so no think budget applies; and
+     * {@code game.start()} never returns, so no terminal result is ever emitted). A lightweight
+     * daemon watcher started per game forces the game to end once the budget elapses — by calling
+     * {@code game.end()} AND interrupting the game thread, both of which XMage's inner play loops
+     * observe via {@code checkIfGameIsOver()} (which returns true on {@code state.isGameOver()} OR
+     * {@code Thread.currentThread().isInterrupted()} — the SANCTIONED third-party stop path). The
+     * timed-out game is scored as a LOSS for the active (looping) player. Resolved once at startup
+     * from {@code -Dmakemagic.maxGameWallclockSecs} (or env {@code MAKE_MAGIC_MAX_GAME_WALLCLOCK_SECS});
+     * DEFAULT 150; {@code <= 0} disables the watcher (unbounded — the prior behavior).
+     */
+    private static final long MAX_GAME_WALLCLOCK_SECS = resolveGameWallclockSecs();
+
+    /** Resolve the hard per-game deadline: sysprop, then env, then the 150s default. */
+    private static long resolveGameWallclockSecs() {
+        String raw = System.getProperty("makemagic.maxGameWallclockSecs");
+        if (raw == null || raw.isEmpty()) {
+            raw = System.getenv("MAKE_MAGIC_MAX_GAME_WALLCLOCK_SECS");
+        }
+        if (raw == null || raw.isEmpty()) {
+            return 150L;
+        }
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException nfe) {
+            return 150L; // a malformed budget falls back to the documented default.
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         // Warm-up mode: build/verify the H2 card DB in a SINGLE process and exit.
         // The caller runs this ONCE, serialized, before launching the parallel game
@@ -218,11 +253,24 @@ public class XMageBatch {
             game.setGameOptions(options);
 
             UUID starter = (g % 2 == 0) ? playerA.getId() : playerB.getId();
+            GameDeadline deadline = GameDeadline.arm(game, MAX_GAME_WALLCLOCK_SECS);
             long t0 = System.currentTimeMillis();
-            game.start(starter); // runs the entire game on this (main) thread; blocks until it ends.
+            try {
+                game.start(starter); // runs the entire game on this (main) thread; blocks until it ends.
+            } finally {
+                deadline.cancel();
+            }
             long ms = System.currentTimeMillis() - t0;
 
-            String winner = playerA.hasWon() ? "PlayerA" : playerB.hasWon() ? "PlayerB" : "DRAW/UNFINISHED";
+            // A wall-clock timeout is a NON-DECISIVE, engine-defective game (see MAX_GAME_WALLCLOCK_SECS):
+            // excluded from W/L/D, never a fabricated win for either seat.
+            String winner = deadline.timedOut() ? "TIMEOUT/NON-DECISIVE"
+                    : playerA.hasWon() ? "PlayerA" : playerB.hasWon() ? "PlayerB" : "DRAW/UNFINISHED";
+            if (deadline.timedOut()) {
+                System.out.println("XMAGEBATCH TIMEOUT reason=wallclock budgetSecs=" + MAX_GAME_WALLCLOCK_SECS
+                        + " activePlayer=" + deadline.loopingPlayerId()
+                        + " endTurn=" + game.getTurnNum());
+            }
             System.out.println("XMAGEBATCH RESULT game=" + (g + 1) + "/" + games
                     + " winner=" + winner
                     + " endTurn=" + game.getTurnNum()
@@ -308,11 +356,19 @@ public class XMageBatch {
                 setTurnCap(options, maxTurn);
                 game.setGameOptions(options);
 
+                // Same HARD per-game deadline (see MAX_GAME_WALLCLOCK_SECS): a livelocking goldfish
+                // is forced to return instead of hanging. A timeout leaves killed=false ⇒ the
+                // existing brick sentinel (maxTurn+1) — a non-decisive game the gate already excludes.
+                GameDeadline deadline = GameDeadline.arm(game, MAX_GAME_WALLCLOCK_SECS);
                 long t0 = System.currentTimeMillis();
-                game.start(playerA.getId()); // PlayerA ALWAYS on the play (solo goldfish convention).
+                try {
+                    game.start(playerA.getId()); // PlayerA ALWAYS on the play (solo goldfish convention).
+                } finally {
+                    deadline.cancel();
+                }
                 long ms = System.currentTimeMillis() - t0;
 
-                boolean killed = playerB.getLife() <= 0 || playerB.hasLost();
+                boolean killed = !deadline.timedOut() && (playerB.getLife() <= 0 || playerB.hasLost());
                 int globalTurn = game.getTurnNum();
                 // getTurnNum() is the GLOBAL turn counter (both players' turns). PlayerA is
                 // ALWAYS on the play, so its OWN turns are the ODD global turns (1,3,5,...):
@@ -389,6 +445,7 @@ public class XMageBatch {
         long ms;
         List<String> markers;
         String log;
+        String reason; // null for a normal decisive/undecided game; "timeout" for a forced deadline end.
     }
 
     /**
@@ -503,6 +560,7 @@ public class XMageBatch {
         String winner;
         Integer killTurn;
         long ms;
+        boolean timedOut = false;
 
         // Autoflushing, UTF-8 PrintStream: every println flushes, so the transcript grows live
         // and a tailer sees turn-by-turn progress. stdout+stderr share it → one interleaved file.
@@ -530,12 +588,35 @@ public class XMageBatch {
             setTurnCap(options, matchMaxTurn);
             game.setGameOptions(options);
 
+            // Arm the HARD per-game wall-clock deadline around this game.start() (see
+            // MAX_GAME_WALLCLOCK_SECS). cancel() in finally clears any interrupt it set so the
+            // deadline never bleeds into the NEXT game in this same worker.
+            GameDeadline deadline = GameDeadline.arm(game, MAX_GAME_WALLCLOCK_SECS);
             long t0 = System.currentTimeMillis();
-            game.start(playerA.getId()); // PlayerA (the subject) always on the play — deterministic.
+            try {
+                game.start(playerA.getId()); // PlayerA (the subject) always on the play — deterministic.
+            } finally {
+                deadline.cancel();
+            }
             ms = System.currentTimeMillis() - t0;
+            timedOut = deadline.timedOut();
+            UUID loopingId = timedOut ? deadline.loopingPlayerId() : null;
+
+            if (timedOut) {
+                // A wall-clock timeout is an ENGINE-DEFECTIVE, NON-DECISIVE game (the base CP7 AI
+                // livelocks on an optional mana ability — a loop the real Comprehensive Rules
+                // forbid, CR 104.4b / 720). It is NEITHER a draw NOR a loss for the looping seat;
+                // it is EXCLUDED from W/L/D stats. Emit a TERMINAL result (dedup / cell-done / no
+                // requeue) marked non-decisive: winner="none" (⇒ excluded from the Wilson W/L
+                // denominator) + reason=timeout so the Python side can filter it explicitly.
+                System.out.println("XMAGEBATCH TIMEOUT reason=wallclock budgetSecs=" + MAX_GAME_WALLCLOCK_SECS
+                        + " activePlayer=" + loopingId
+                        + " endTurn=" + game.getTurnNum());
+            }
 
             // P4-contract terminators INTO the transcript (where hasWon() is reliably set).
-            String batchWinner = playerA.hasWon() ? "PlayerA"
+            String batchWinner = timedOut ? "TIMEOUT/NON-DECISIVE"
+                    : playerA.hasWon() ? "PlayerA"
                     : playerB.hasWon() ? "PlayerB" : "DRAW/UNFINISHED";
             System.out.println("XMAGEBATCH RESULT game=1/1 winner=" + batchWinner
                     + " endTurn=" + game.getTurnNum()
@@ -544,16 +625,21 @@ public class XMageBatch {
                     + " lifeB=" + playerB.getLife()
                     + " ms=" + ms
                     + " :: " + game.getWinner());
-            if (playerA.hasWon()) {
+            if (!timedOut && playerA.hasWon()) {
                 System.out.printf("%nGame Result: Game 1 ended in %d ms. Ai(1)-PlayerA has won!%n%n", ms);
-            } else if (playerB.hasWon()) {
+            } else if (!timedOut && playerB.hasWon()) {
                 System.out.printf("%nGame Result: Game 1 ended in %d ms. Ai(2)-PlayerB has won!%n%n", ms);
+            } else if (timedOut) {
+                System.out.printf("%nGame Result: Game 1 ended NON-DECISIVE (wall-clock timeout) after %d ms.%n%n", ms);
             } else {
                 System.out.printf("%nGame Result: Game 1 ended in a Draw! Took %d ms.%n", ms);
             }
 
-            winner = playerA.hasWon() ? "A" : playerB.hasWon() ? "B" : "DRAW";
-            killTurn = (playerA.hasWon() || playerB.hasWon()) ? game.getTurnNum() : null;
+            // "none" ⇒ non-decisive; the Python _winner_bucket credits neither seat (excluded
+            // from the W/L denominator, exactly like a draw), so a livelock never fabricates a win.
+            winner = timedOut ? "none"
+                    : playerA.hasWon() ? "A" : playerB.hasWon() ? "B" : "DRAW";
+            killTurn = (!timedOut && (playerA.hasWon() || playerB.hasWon())) ? game.getTurnNum() : null;
         } finally {
             // ALWAYS restore the protocol streams first, then flush+close the transcript.
             System.setOut(realOut);
@@ -583,6 +669,13 @@ public class XMageBatch {
         List<String> markers = new ArrayList<>();
         markers.add("seatA=" + (task.a != null && task.a.driver != null ? "driven" : "cp7"));
         markers.add("seatB=" + (task.b != null && task.b.driver != null ? "driven" : "cp7"));
+        if (timedOut) {
+            // Non-decisive: reason threads onto the wire so the governor / done-set can EXCLUDE
+            // this game from W/L/D aggregation (the marker is a redundant, human-readable copy).
+            result.reason = "timeout";
+            markers.add("reason=timeout");
+            markers.add("decisive=false");
+        }
         result.markers = markers;
         return result;
     }
@@ -866,6 +959,112 @@ public class XMageBatch {
         @Override
         public boolean chooseMulligan(Game game) {
             return false; // always keep — a 60-basics hand is never a mulligan and this can't stall.
+        }
+    }
+
+    /**
+     * A HARD per-game wall-clock deadline watcher (see {@link #MAX_GAME_WALLCLOCK_SECS}). One is
+     * armed per game around a {@code game.start(...)} call; a daemon thread polls
+     * {@code System.nanoTime()} and, once the budget elapses while the game is still running,
+     * forces the game to return:
+     *
+     * <ol>
+     *   <li>records the ACTIVE (looping) player id — the timeout LOSER;</li>
+     *   <li>calls {@code game.end()} ({@code state.endGame()} ⇒ {@code checkIfGameIsOver()} true); and</li>
+     *   <li>interrupts the game thread — XMage's inner play loops
+     *       ({@code checkStateAndTriggered}, {@code play}, priority loops) all gate on
+     *       {@code checkIfGameIsOver()}, which returns true when
+     *       {@code Thread.currentThread().isInterrupted()} — the documented "third party tools /
+     *       AI timeout" stop path — so even an intra-turn SBA livelock breaks out.</li>
+     * </ol>
+     *
+     * <p>The watcher is a DAEMON (never blocks JVM exit) and is {@link #cancel() cancelled} in a
+     * finally per game, which also CLEARS the game thread's interrupt flag via
+     * {@code Thread.interrupted()} so a timeout in one game can never bleed into the next game run
+     * in the same {@code --worker} process. {@code budgetSecs <= 0} ⇒ {@link #arm} is a no-op
+     * (unbounded, prior behavior).</p>
+     */
+    static final class GameDeadline {
+        private final Game game;
+        private final Thread gameThread;
+        private final long budgetNanos;
+        private final Thread watcher;
+        private volatile boolean timedOut = false;
+        private volatile UUID loopingPlayerId = null;
+
+        private GameDeadline(Game game, long budgetSecs) {
+            this.game = game;
+            this.gameThread = Thread.currentThread();
+            this.budgetNanos = budgetSecs * 1_000_000_000L;
+            this.watcher = new Thread(this::run, "makemagic-game-deadline");
+            this.watcher.setDaemon(true);
+        }
+
+        /**
+         * Arm a deadline around the CURRENT thread's imminent {@code game.start(...)}. Returns a
+         * live watcher (already started) when {@code budgetSecs > 0}, else a disarmed no-op guard.
+         * Call {@link #cancel()} in a finally.
+         */
+        static GameDeadline arm(Game game, long budgetSecs) {
+            GameDeadline d = new GameDeadline(game, budgetSecs);
+            if (budgetSecs > 0) {
+                d.watcher.start();
+            }
+            return d;
+        }
+
+        private void run() {
+            long t0 = System.nanoTime();
+            try {
+                while (System.nanoTime() - t0 <= budgetNanos) {
+                    if (game.hasEnded()) {
+                        return; // game finished normally within budget — nothing to force.
+                    }
+                    Thread.sleep(250);
+                }
+            } catch (InterruptedException ie) {
+                return; // cancelled at game end — the normal per-game teardown.
+            }
+            if (game.hasEnded()) {
+                return;
+            }
+            // Budget exceeded and the game is still running → force it to return.
+            timedOut = true;
+            try {
+                loopingPlayerId = game.getActivePlayerId(); // the seat stuck in the loop = the loser.
+            } catch (RuntimeException ignored) {
+                // a racing read of active-player is best-effort; the interrupt below still stops it.
+            }
+            try {
+                game.end(); // state.endGame() → checkIfGameIsOver() sees isGameOver().
+            } catch (RuntimeException ignored) {
+                // end() touches game state from off-thread; if it throws, the interrupt still stops it.
+            }
+            gameThread.interrupt(); // the sanctioned stop: checkIfGameIsOver() sees isInterrupted().
+        }
+
+        boolean timedOut() {
+            return timedOut;
+        }
+
+        UUID loopingPlayerId() {
+            return loopingPlayerId;
+        }
+
+        /**
+         * Disarm the watcher after {@code game.start(...)} returns and CLEAR the game thread's
+         * interrupt flag (set by a timeout) so the next game in the same worker starts clean.
+         */
+        void cancel() {
+            watcher.interrupt();
+            try {
+                watcher.join(2000);
+            } catch (InterruptedException ie) {
+                // the game thread itself was interrupted by a timeout; cleared below.
+            }
+            // MUST run on the game thread: consumes any leftover interrupt so the NEXT game's
+            // checkIfGameIsOver() does not immediately short-circuit to "over".
+            Thread.interrupted();
         }
     }
 }
