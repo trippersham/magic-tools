@@ -1,0 +1,7 @@
+XMAGEBATCH opening_hand PlayerA (7): [Island;Ponder;Brainstorm;Island;Island;Counterspell;Island]
+Turn: Turn 1 (Ai(1)-PlayerA)
+HANDLOG turn=1 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=1 event=cast kind=spell castBy=Ai(1)-PlayerA source=Ponder UR_hand=[Island] UR_untapped_lands=0 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 3 (Ai(1)-PlayerA)
+HANDLOG turn=3 event=turnstart active=Ai(1)-Pland
