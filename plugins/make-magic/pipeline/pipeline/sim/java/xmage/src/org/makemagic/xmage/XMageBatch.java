@@ -18,12 +18,25 @@ import mage.game.match.MatchOptions;
 import mage.game.mulligan.MulliganType;
 import mage.player.ai.ComputerPlayer;
 import mage.player.ai.ComputerPlayer7;
+import mage.player.ai.score.DriverBonus;
+import mage.player.ai.score.MacroRegistry;
+import mage.player.ai.score.MulliganRegistry;
+import mage.player.ai.score.SelectionRegistry;
 import mage.players.Player;
 
+import com.google.gson.Gson;
+
+import java.io.BufferedReader;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -116,6 +129,25 @@ public class XMageBatch {
             System.out.flush();
             System.exit(0);
         }
+
+        // PERSISTENT-WORKER mode: `XMageBatch --worker [--worker-max-games N]`. A long-lived
+        // JVM that scans the card DB ONCE, then loops: print READY, read one `TASK {json}`
+        // line from stdin, run ONE game (each seat's driver loaded per-game via a fresh
+        // URLClassLoader, discarded after), print `RESULT {json}`, reset the seam registries,
+        // loop. EOF on stdin → clean exit; after --worker-max-games games → clean exit (the
+        // governor respawns). This SUPERSEDES the -Dmakemagic.driver-at-boot model for the
+        // queue path; the --solo / match / --warm paths (below) keep the -D seam intact.
+        if ("--worker".equals(args[0])) {
+            int maxGames = 500;
+            for (int i = 1; i + 1 < args.length; i++) {
+                if ("--worker-max-games".equals(args[i])) {
+                    maxGames = Integer.parseInt(args[i + 1]);
+                }
+            }
+            runWorker(maxGames);
+            return;
+        }
+
         if (args.length < 1) {
             System.err.println("usage: XMageBatch <deckA> <deckB> [games] [skill] [commander]  |  "
                     + "XMageBatch <deckA> --solo [games] [skill] [commander]  |  XMageBatch --warm");
@@ -322,6 +354,285 @@ public class XMageBatch {
         System.out.flush();
         System.exit(0);
     }
+
+    // ==================== PERSISTENT-WORKER (Phase 2) ==================== //
+
+    /** JSON DTO for one queued task line: {@code {id,fmt,a:{deck,driver:{cp,fqcn}?},b:{...}}}. */
+    static final class Task {
+        String id;
+        String fmt; // "commander" | "constructed"
+        Seat a;
+        Seat b;
+    }
+
+    /** One seat: a staged deck path + an optional nested driver ({@code null} ⇒ pure CP7). */
+    static final class Seat {
+        String deck;
+        DriverSpec driver; // nullable
+    }
+
+    /** A compiled driver: the classpath dir to load + the FQCN exposing {@code register(UUID)}. */
+    static final class DriverSpec {
+        String cp;
+        String fqcn;
+    }
+
+    /** JSON DTO for one {@code RESULT {json}} line (Gson serializes the field names verbatim). */
+    static final class Result {
+        String id;
+        String winner; // "A" | "B" | "DRAW"
+        Integer kill_turn; // null when undecided
+        long ms;
+        List<String> markers;
+        String log;
+    }
+
+    /**
+     * The persistent-worker loop. Scans the card DB ONCE at boot, then repeatedly prints
+     * {@code READY}, reads one {@code TASK {json}} line from stdin, runs a single game, and
+     * prints {@code RESULT {json}} (or {@code ERROR {json}} on a thrown game). Exits clean on
+     * stdin EOF or after {@code maxGames} games (the governor respawns for the next batch).
+     *
+     * <p>The worker→governor protocol lines (READY / RESULT / ERROR) go on the REAL stdout —
+     * the pipe the governor reads. The per-game TRANSCRIPT (every {@code System.out}/{@code
+     * System.err} line the harness + dist AI emit during a game) is redirected into a per-game
+     * file {@code <logdir>/<task_id>.log}; the two streams share ONE autoflushing PrintStream so
+     * stdout+stderr interleave (the P4 parser needs the {@code Turn:}/HANDLOG context around the
+     * driver-seam stderr markers) and the file grows live as the game plays.</p>
+     */
+    private static void runWorker(int maxGames) throws Exception {
+        MakeMagicHooks.install(); // ONE long-lived collector; it resets its per-game state onGameStart.
+        // The protocol pipe to the governor — captured before any per-game redirection.
+        final PrintStream realOut = System.out;
+        final PrintStream realErr = System.err;
+
+        realErr.println("XMAGEBATCH WORKER scanning card database (first run builds it)...");
+        realErr.flush();
+        CardScanner.scan(); // ONCE, before the loop (concurrency-safe read after a --warm cold build).
+
+        // Per-game transcripts land here. Overridable so the governor can point it at a staging
+        // dir; defaults to <cwd>/logs (cwd already holds the H2 db/, per the run convention).
+        String logDirProp = System.getProperty("makemagic.worker.logdir",
+                System.getenv().getOrDefault("MAKE_MAGIC_WORKER_LOGDIR", "logs"));
+        Path logsDir = Paths.get(logDirProp);
+        Files.createDirectories(logsDir);
+
+        Gson gson = new Gson();
+        BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
+
+        int played = 0;
+        while (played < maxGames) {
+            realOut.println("READY");
+            realOut.flush();
+
+            String line = in.readLine();
+            if (line == null) {
+                break; // stdin EOF → the governor closed the pipe; exit clean.
+            }
+            line = line.trim();
+            if (line.isEmpty()) {
+                continue;
+            }
+            if (!line.startsWith("TASK ")) {
+                realErr.println("XMAGEBATCH WORKER: expected 'TASK {json}', got: " + line);
+                realErr.flush();
+                continue;
+            }
+
+            Task task;
+            try {
+                task = gson.fromJson(line.substring("TASK ".length()), Task.class);
+            } catch (RuntimeException ex) {
+                realErr.println("XMAGEBATCH WORKER: malformed TASK json: " + ex);
+                realErr.flush();
+                continue;
+            }
+
+            played++;
+            try {
+                Result result = runWorkerGame(task, logsDir, realOut, realErr);
+                realOut.println("RESULT " + gson.toJson(result));
+                realOut.flush();
+            } catch (Exception ex) {
+                String tid = task != null && task.id != null ? task.id : "?";
+                Result err = new Result();
+                // Reuse the RESULT DTO fields for a compact ERROR line: {id, exc}.
+                java.util.Map<String, String> errBody = new java.util.HashMap<>();
+                errBody.put("id", tid);
+                errBody.put("exc", String.valueOf(ex));
+                realOut.println("ERROR " + gson.toJson(errBody));
+                realOut.flush();
+                realErr.println("XMAGEBATCH WORKER: game " + tid + " threw: " + ex);
+                ex.printStackTrace(realErr);
+                realErr.flush();
+            }
+        }
+
+        realErr.println("XMAGEBATCH WORKER exiting after " + played + " games (maxGames=" + maxGames + ").");
+        realErr.flush();
+        System.exit(0);
+    }
+
+    /**
+     * Run ONE game for the worker: seat both players (each seat's driver, if any, loaded from a
+     * fresh {@link URLClassLoader} and registered by playerId), redirect stdout+stderr into the
+     * per-game transcript file, play to a decisive result or the turn cap, then RESTORE the
+     * streams, DISCARD both classloaders, and RESET the seam registries for both seats (so a
+     * driverless game that follows a driven one shows ZERO {@code DRIVER_*} markers). Returns the
+     * {@link Result} to send on the protocol pipe.
+     */
+    private static Result runWorkerGame(Task task, Path logsDir, PrintStream realOut, PrintStream realErr)
+            throws Exception {
+        boolean commander = task.fmt != null && "commander".equalsIgnoreCase(task.fmt);
+        RangeOfInfluence range = commander ? RangeOfInfluence.ALL : RangeOfInfluence.ONE;
+        final int matchMaxTurn = commander ? 25 : 20;
+        final int skill = 6;
+
+        Path logFile = logsDir.resolve(task.id + ".log");
+        List<URLClassLoader> loaders = new ArrayList<>();
+        UUID idA = null;
+        UUID idB = null;
+        String winner;
+        Integer killTurn;
+        long ms;
+
+        // Autoflushing, UTF-8 PrintStream: every println flushes, so the transcript grows live
+        // and a tailer sees turn-by-turn progress. stdout+stderr share it → one interleaved file.
+        PrintStream fileStream = new PrintStream(new FileOutputStream(logFile.toFile(), false), true,
+                StandardCharsets.UTF_8);
+        try {
+            System.setOut(fileStream);
+            System.setErr(fileStream);
+
+            Game game = newGame(commander);
+            Match match = new FreeForAllMatch(new MatchOptions("make-magic worker",
+                    commander ? "Commander Duel" : "Two Player Duel", true));
+            Player playerA = seatWorkerPlayer(game, match, "PlayerA", task.a, skill, range, loaders);
+            Player playerB = seatWorkerPlayer(game, match, "PlayerB", task.b, skill, range, loaders);
+            idA = playerA.getId();
+            idB = playerB.getId();
+
+            GameOptions options = new GameOptions();
+            options.testMode = false; // real 7-card opening hands + the mulligan phase.
+            setTurnCap(options, matchMaxTurn);
+            game.setGameOptions(options);
+
+            long t0 = System.currentTimeMillis();
+            game.start(playerA.getId()); // PlayerA (the subject) always on the play — deterministic.
+            ms = System.currentTimeMillis() - t0;
+
+            // P4-contract terminators INTO the transcript (where hasWon() is reliably set).
+            String batchWinner = playerA.hasWon() ? "PlayerA"
+                    : playerB.hasWon() ? "PlayerB" : "DRAW/UNFINISHED";
+            System.out.println("XMAGEBATCH RESULT game=1/1 winner=" + batchWinner
+                    + " endTurn=" + game.getTurnNum()
+                    + " ended=" + game.hasEnded()
+                    + " lifeA=" + playerA.getLife()
+                    + " lifeB=" + playerB.getLife()
+                    + " ms=" + ms
+                    + " :: " + game.getWinner());
+            if (playerA.hasWon()) {
+                System.out.printf("%nGame Result: Game 1 ended in %d ms. Ai(1)-PlayerA has won!%n%n", ms);
+            } else if (playerB.hasWon()) {
+                System.out.printf("%nGame Result: Game 1 ended in %d ms. Ai(2)-PlayerB has won!%n%n", ms);
+            } else {
+                System.out.printf("%nGame Result: Game 1 ended in a Draw! Took %d ms.%n", ms);
+            }
+
+            winner = playerA.hasWon() ? "A" : playerB.hasWon() ? "B" : "DRAW";
+            killTurn = (playerA.hasWon() || playerB.hasWon()) ? game.getTurnNum() : null;
+        } finally {
+            // ALWAYS restore the protocol streams first, then flush+close the transcript.
+            System.setOut(realOut);
+            System.setErr(realErr);
+            fileStream.flush();
+            fileStream.close();
+            // Reset the seam registries for BOTH seats (they clear() by playerId) and discard
+            // each per-game classloader — the state-bleed + metaspace guard.
+            registriesReset(idA);
+            registriesReset(idB);
+            for (URLClassLoader cl : loaders) {
+                try {
+                    cl.close();
+                } catch (IOException ignored) {
+                    // best-effort; a leaked handle is preferable to aborting the worker.
+                }
+            }
+            loaders.clear();
+        }
+
+        Result result = new Result();
+        result.id = task.id;
+        result.winner = winner;
+        result.kill_turn = killTurn;
+        result.ms = ms;
+        result.log = logFile.toString();
+        List<String> markers = new ArrayList<>();
+        markers.add("seatA=" + (task.a != null && task.a.driver != null ? "driven" : "cp7"));
+        markers.add("seatB=" + (task.b != null && task.b.driver != null ? "driven" : "cp7"));
+        result.markers = markers;
+        return result;
+    }
+
+    /**
+     * Seat one worker player: a plain {@link ComputerPlayer7} on {@code seat.deck}, and — when
+     * {@code seat.driver} is non-null — load that driver's FQCN from a FRESH
+     * {@link URLClassLoader} over its classpath dir and reflectively invoke its
+     * {@code public static void register(UUID)} on the player's final id (the frozen seam
+     * convention). Unlike the -D {@link #registerDriver} path this seats BOTH seats and takes
+     * the driver from the task, not a boot sysprop. The classloader is recorded in
+     * {@code loaders} for post-game discard.
+     */
+    private static Player seatWorkerPlayer(Game game, Match match, String name, Seat seat, int skill,
+            RangeOfInfluence range, List<URLClassLoader> loaders) throws Exception {
+        if (seat == null || seat.deck == null) {
+            throw new IllegalArgumentException(name + " seat has no deck");
+        }
+        DeckCardLists list = DeckImporter.importDeckFromFile(seat.deck, true);
+        Deck deck = Deck.load(list, false, false);
+        if (deck.getMaindeckCards().size() < 40) {
+            throw new IllegalArgumentException(name + " deck too small (" + deck.getMaindeckCards().size()
+                    + " cards) — did it fail to load? path=" + seat.deck);
+        }
+        ComputerPlayer7 player = new ComputerPlayer7(name, range, skill);
+        if (MAX_THINK_TIME_SECS > 0) {
+            player.setMaxThinkTimeSecs(MAX_THINK_TIME_SECS);
+        }
+        game.loadCards(deck.getCards(), player.getId());
+        game.loadCards(deck.getSideboard(), player.getId());
+        game.addPlayer(player, deck);
+        match.addPlayer(player, deck);
+
+        if (seat.driver != null) {
+            if (seat.driver.cp == null || seat.driver.fqcn == null) {
+                throw new IllegalArgumentException(name + " driver missing cp/fqcn");
+            }
+            URL[] urls = {Paths.get(seat.driver.cp).toUri().toURL()};
+            URLClassLoader cl = new URLClassLoader(urls, XMageBatch.class.getClassLoader());
+            loaders.add(cl); // recorded for post-game discard even if register() throws.
+            Class<?> driverClass = cl.loadClass(seat.driver.fqcn);
+            driverClass.getMethod("register", UUID.class).invoke(null, player.getId());
+            System.out.println("DRIVER_REGISTERED fqcn=" + seat.driver.fqcn + " playerId=" + player.getId());
+        }
+        return player;
+    }
+
+    /**
+     * Reset the four seam registries for {@code playerId} (each exposes a per-id
+     * {@code clear(UUID)}). Called after every worker game for both seats so a subsequent
+     * driverless game cannot observe a prior game's registered quad — the state-bleed guard.
+     */
+    private static void registriesReset(UUID playerId) {
+        if (playerId == null) {
+            return;
+        }
+        DriverBonus.clear(playerId);
+        MacroRegistry.clear(playerId);
+        SelectionRegistry.clear(playerId);
+        MulliganRegistry.clear(playerId);
+    }
+
+    // ==================================================================== //
 
     private static Player addPlayer(Game game, Match match, String name, String deckPath, int skill,
             RangeOfInfluence range) throws Exception {
