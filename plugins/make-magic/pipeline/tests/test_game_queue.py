@@ -445,15 +445,15 @@ def _run_parser(driver_run: object):
     return p
 
 
-def test_resolve_worker_cmd_is_phase2_stub() -> None:
+def test_resolve_worker_cmd_returns_bootstrap_command() -> None:
+    """Phase 5.0: the stub is replaced by the game_worker COW-staging bootstrap argv (no JVM)."""
+    import sys
+
     from pipeline.sim.driver_run import resolve_worker_cmd
 
-    try:
-        resolve_worker_cmd()
-    except NotImplementedError as exc:
-        assert 'Phase 2' in str(exc) or 'XMageBatch' in str(exc)
-    else:
-        raise AssertionError('resolve_worker_cmd should raise until the Phase-2 worker lands')
+    cmd = resolve_worker_cmd(max_games=500)
+    assert cmd[:3] == [sys.executable, '-m', 'pipeline.sim.game_worker']
+    assert cmd[3:5] == ['--worker-max-games', '500']
 
 
 def test_run_corpus_queue_drives_run_games(monkeypatch, tmp_path: Path) -> None:

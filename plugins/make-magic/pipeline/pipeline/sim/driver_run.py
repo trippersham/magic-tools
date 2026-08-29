@@ -41,6 +41,8 @@ import json
 import logging
 import os
 import random
+import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -366,11 +368,26 @@ def _drive_rows_for_run_set(batch_ledger: Ledger, run_set: Sequence[str]) -> lis
     return rows
 
 
+def _flat_deck_basename(prefix: str, ident: str) -> str:
+    """A ``/``- and ``|``-free ``.txt`` basename for a staged deck.
+
+    ``ident`` (a deck_id like ``commander/casual/x.dck`` or an opponent name) is sanitized so the
+    derived ``deck_path`` carries no path/id separator — the task_id stays a valid filename for
+    ``<logdir>/<task_id>.log`` (BUG-2's Python-side guarantee) and never trips
+    :func:`~pipeline.sim.game_tasks._ident`'s ``|`` check. ``prefix`` (``s``/``o``) keeps a subject
+    and an opponent that sanitize to the same string distinct."""
+    import re
+
+    safe = re.sub(r'[^A-Za-z0-9._-]', '_', ident)
+    return f'{prefix}_{safe}.txt'
+
+
 def build_corpus_game_tasks(
     rows: Sequence[dict[str, Any]],
     field: Sequence[GauntletDeck],
     *,
     games: int,
+    stage_dir: str | os.PathLike[str],
     data_dir: str | os.PathLike[str] | None = None,
 ):
     """Phase-3 opt-in: expand the compiled DRIVE ``rows`` x ``field`` into a flat
@@ -379,32 +396,118 @@ def build_corpus_game_tasks(
     Each subject seat carries its compiled driver ``(classes_dir, fqcn)`` (dual-driver
     methodology); the opponent seats are the plain gauntlet decks (``driver=None`` — thin).
     :func:`~pipeline.sim.game_tasks.build_game_tasks` enumerates BOTH pilotings per cell, so the
-    baseline arm is structurally guaranteed (the cp7 0/0 fix). ``deck_path`` is the packaged
-    ``.dck`` path for subjects and the opponent NAME for field decks — the stable identifier the
-    Phase-2 worker resolves deck content from. This is the queue substrate for
-    :func:`run_corpus_queue`; it runs NO games and needs no JVM."""
+    baseline arm is structurally guaranteed (the cp7 0/0 fix).
+
+    **Deck translation (BUG-1).** The P2 worker loads ``seat.deck`` as an XMage ``.txt`` deck file
+    it finds by bare basename in its cwd (linked there from ``--decks-dir``). A raw Forge ``.dck``
+    loads as 0 cards and a bare opponent NAME is not a path. So this builder STAGES every subject
+    and opponent deck as a translated XMage ``.txt`` (via
+    :func:`~pipeline.sim.engines.xmage._forge_dck_to_xmage_txt`) into ``stage_dir`` under a
+    flat ``/``-free basename, and puts that basename in ``deck_path``. The caller points the
+    workers at ``stage_dir`` via ``resolve_worker_cmd(decks_dir=...)``. Runs NO games, needs no
+    JVM. Returns the task list; the staged files live in ``stage_dir``."""
     from pipeline.sim import drivers
+    from pipeline.sim.engines import xmage as xe
     from pipeline.sim.game_tasks import DriverRef, SeatSpec, build_game_tasks
+
+    stage = Path(stage_dir)
+    stage.mkdir(parents=True, exist_ok=True)
 
     subjects: list[SeatSpec] = []
     for row in rows:
         deck, _deck_ref = deck_and_ref_for_row(row)
+        deck_id = str(row['deck_id'])
+        name = _flat_deck_basename('s', deck_id)
+        dck_text = _gauntlet_dck_path(deck_id).read_text(encoding='utf-8')
+        (stage / name).write_text(xe._forge_dck_to_xmage_txt(dck_text), encoding='utf-8')
         driver = DriverRef(classpath=str(drivers.classes_dir(deck, data_dir=data_dir)), fqcn=str(row['fqcn']))
-        subjects.append(SeatSpec(deck_path=str(_gauntlet_dck_path(str(row['deck_id']))), driver=driver))
-    opponents = [SeatSpec(deck_path=g.name, driver=None) for g in field]
+        subjects.append(SeatSpec(deck_path=name, driver=driver))
+
+    opponents: list[SeatSpec] = []
+    for g in field:
+        name = _flat_deck_basename('o', g.name)
+        (stage / name).write_text(xe._forge_dck_to_xmage_txt(g.dck_text), encoding='utf-8')
+        opponents.append(SeatSpec(deck_path=name, driver=None))
+
     return build_game_tasks(subjects, opponents, games, fmt=_COMMANDER)
 
 
-def resolve_worker_cmd() -> list[str]:
-    """Resolve the persistent-worker launch command (``XMageBatch --worker``, Phase 2).
+def resolve_worker_cmd(
+    *,
+    max_games: int = 500,
+    log_dir: str | os.PathLike[str] | None = None,
+    data_dir: str | os.PathLike[str] | None = None,
+    decks_dir: str | os.PathLike[str] | None = None,
+) -> list[str]:
+    """The persistent-worker launch command — the COW-staging bootstrap around ``XMageBatch
+    --worker`` (Phase 2).
 
-    Kept as a seam so :func:`run_corpus_queue` is wireable now; the Phase-2 jar is not built
-    yet, so this raises a clear :class:`NotImplementedError` until it lands. Tests never call it
-    (the ``--queue`` flag defaults OFF and no JVM is spawned)."""
-    raise NotImplementedError(
-        'the persistent-worker command (XMageBatch --worker) is Phase 2 and not built yet; '
-        'the --queue path is wired but cannot execute until the Java worker lands.'
-    )
+    Returns the argv the :class:`~pipeline.sim.worker_pool.WorkerPool` spawns for each worker:
+    :mod:`pipeline.sim.game_worker` run as ``python -m``. That shim mints a PRIVATE copy-on-write
+    card-DB per worker (reusing :func:`~pipeline.sim.engines.xmage._stage_private_db` /
+    ``_clone_tree_cow`` under :func:`~pipeline.sim.runner.staging_root`), ``chdir``\\s in, and
+    ``exec``\\s the real JVM in place (so the pool's stdin/stdout wire-protocol pipes flow straight
+    to the JVM). The staged JVM argv itself is
+    :func:`pipeline.sim.game_worker.build_worker_java_argv` — ``[java, -Xmx3g, …headless JVM
+    args…, -cp, <harness_jar>:<dist_jar>, org.makemagic.xmage.XMageBatch, --worker,
+    --worker-max-games, N]`` — reusing :func:`~pipeline.sim.engines.xmage._compose_launch_cmd`.
+
+    **COW/logs staging choice: ONCE PER WORKER, self-staged.** ``run_games`` / ``WorkerPool``
+    spawn every worker from ONE shared argv with no per-worker ``cwd`` and do not thread
+    ``env_for_worker``, so the governor cannot "stage a dir per worker and pass it" without
+    touching the P1/P3 core. So each worker self-stages at startup: one COW clone per worker
+    (not per game — the worker is long-lived across ``max_games`` games). ``log_dir`` (absolute)
+    points every worker's transcripts at ONE shared dir so the governor can ingest by ``task_id``
+    afterward; ``None`` uses each worker's private ``<staging>/logs``.
+
+    The canonical warm db must already exist (a single ``XMageBatch --warm`` before the pool —
+    the cold ``CardScanner.scan`` is not concurrency-safe)."""
+    cmd = [sys.executable, '-m', 'pipeline.sim.game_worker', '--worker-max-games', str(max_games)]
+    if log_dir is not None:
+        cmd += ['--log-dir', str(Path(log_dir).resolve())]
+    if data_dir is not None:
+        cmd += ['--data-dir', str(data_dir)]
+    if decks_dir is not None:
+        cmd += ['--decks-dir', str(Path(decks_dir).resolve())]
+    return cmd
+
+
+def ingest_queue_transcripts(
+    result: Any,
+    *,
+    data_dir: str | os.PathLike[str] | None = None,
+    policy: str = 'all',
+    cleanup: bool = False,
+) -> int:
+    """Ingest every drained game's transcript into ``sim_game_features`` / ``sim_game_logs``.
+
+    The queue governor (:func:`~pipeline.sim.game_queue.run_games`) tallies wins but does NOT
+    ingest transcripts — this thin glue closes that gap. For each completed ``task_id`` in
+    ``result.done_results`` it splits the id into the ``(subject|opponent|piloting)`` cell key +
+    the integer game index, and calls :func:`~pipeline.sim.transcript_parser.ingest_transcript`
+    on the RESULT's ``log_path``. Best-effort per row (a missing/bad log is skipped, never
+    fatal). Returns the number of rows written. ``cleanup=False`` keeps the transcript files
+    (the e2e re-reads them); a production run may pass ``True`` to reclaim disk."""
+    from pipeline.sim.transcript_parser import ingest_transcript
+
+    written = 0
+    for task_id, res in result.done_results.items():
+        log_path = getattr(res, 'log_path', None)
+        if not log_path:
+            continue
+        parts = str(task_id).split('|')
+        if len(parts) != 4:
+            log.warning('queue ingest: malformed task_id %r — skipped', task_id)
+            continue
+        cell = '|'.join(parts[:3])
+        try:
+            game_index = int(parts[3])
+        except ValueError:
+            log.warning('queue ingest: non-integer game index in %r — skipped', task_id)
+            continue
+        if ingest_transcript(data_dir, cell, game_index, log_path, policy=policy, cleanup=cleanup):
+            written += 1
+    return written
 
 
 def run_corpus_queue(
@@ -425,11 +528,24 @@ def run_corpus_queue(
     The OLD :func:`run_corpus` (`run_matchups` over `MatchSpec`) stays the default/fallback — this
     is invoked ONLY when the caller passes ``--queue``. ``worker_cmd`` defaults to
     :func:`resolve_worker_cmd` (the Phase-2 JVM); tests inject a fake."""
+    from pipeline.sim import runner
     from pipeline.sim.game_queue import load_done_set, run_games, save_done_set
 
-    tasks = build_corpus_game_tasks(rows, field, games=games, data_dir=data_dir)
+    # Stage translated decks + shared transcript dir under the staging root (swept by
+    # reap_stale_staging). The workers load decks by bare basename from decks_dir and write
+    # transcripts into log_dir so the governor can ingest by task_id afterward.
+    staging = runner.staging_root()
+    staging.mkdir(parents=True, exist_ok=True)
+    stage_dir = Path(tempfile.mkdtemp(prefix='corpus-decks-', dir=staging))
+    log_dir = Path(tempfile.mkdtemp(prefix='corpus-logs-', dir=staging))
+
+    tasks = build_corpus_game_tasks(rows, field, games=games, stage_dir=stage_dir, data_dir=data_dir)
     done = load_done_set(done_set_path) if done_set_path else {}
-    cmd = list(worker_cmd) if worker_cmd is not None else resolve_worker_cmd()
+    cmd = (
+        list(worker_cmd)
+        if worker_cmd is not None
+        else resolve_worker_cmd(log_dir=log_dir, data_dir=data_dir, decks_dir=stage_dir)
+    )
     result = run_games(
         tasks,
         worker_cmd=cmd,
@@ -439,6 +555,11 @@ def run_corpus_queue(
     )
     if done_set_path:
         save_done_set(done_set_path, {**done, **result.done_results})
+    # Ingest each drained game's transcript into sim_game_features / sim_game_logs (best-effort).
+    try:
+        ingest_queue_transcripts(result, data_dir=data_dir)
+    except Exception:
+        log.warning('queue transcript ingestion failed (non-fatal)', exc_info=True)
     return result
 
 
