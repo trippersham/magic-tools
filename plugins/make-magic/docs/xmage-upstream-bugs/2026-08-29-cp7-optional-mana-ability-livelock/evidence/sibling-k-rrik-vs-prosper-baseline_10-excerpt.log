@@ -1,0 +1,141 @@
+# Sibling transcript excerpt (near-miss of the livelock)
+# source: staging/corpus-logs-7zii0uam/s_commander_cedh_mono-black__k-rrik-son-of-yawgmoth.dck.txt_o_rakdos__prosper.txt_baseline_10.log
+# arm: _baseline_  (plain CP7 both seats, NO make-magic driver) — same K'rrik-vs-Prosper matchup as the deleted 84MB runaway
+# This game TERMINATED (winner=PlayerB, endTurn=34): it has ONE Blood Celebrant on the
+# battlefield, so the optional life-payment mana ability drains monotonically to a loss
+# instead of oscillating. The deleted runaway had TWO Blood Celebrants + a second
+# aristocrats life-gain source, which turned the same optional ability into an
+# unbreakable 1->0->1 loop. Mechanism is identical; only the second source differs.
+# --- representative window (orig lines 99-230) ---
+Life: Life: Ai(1)-PlayerA 16 > 8
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Chrome Mox UR_hand=[Snuff Out;Pestilence;Bolas's Citadel;Swamp;Wishclaw Talisman;Mox Diamond;Deadly Rollick;Lake of the Dead;Orcish Bowmasters;Corpse Dance;Swamp;Vampiric Tutor;Sheoldred, the Apocalypse;Dauthi Voidwalker;Sensei's Divining Top;Sheoldred's Edict;Necropotence;Skirge Familiar;Blood Pet;Swamp;Swamp;Swamp;Lotus Petal;Dance of the Dead;Fleshwrither;Lion's Eye Diamond;Thoughtseize;Swamp;Swamp;Mana Vault;Gemstone Caverns;The One Ring;Swamp;Diabolic Tutor;Swamp;Cavern of Souls;Carrion Feeder;Gray Merchant of Asphodel;Swamp;Swamp;Blood Celebrant;Arcane Signet] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=2 UR_life=8 opp_life=36
+Life: Life: Ai(1)-PlayerA 8 > 10
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Lion's Eye Diamond UR_hand=[Snuff Out;Pestilence;Bolas's Citadel;Swamp;Wishclaw Talisman;Mox Diamond;Deadly Rollick;Lake of the Dead;Orcish Bowmasters;Corpse Dance;Swamp;Vampiric Tutor;Dauthi Voidwalker;Sensei's Divining Top;Sheoldred's Edict;Necropotence;Skirge Familiar;Blood Pet;Swamp;Swamp;Swamp;Lotus Petal;Dance of the Dead;Fleshwrither;Thoughtseize;Swamp;Swamp;Mana Vault;Gemstone Caverns;The One Ring;Swamp;Diabolic Tutor;Swamp;Cavern of Souls;Carrion Feeder;Gray Merchant of Asphodel;Swamp;Swamp;Blood Celebrant;Arcane Signet] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=2 UR_life=10 opp_life=36
+Life: Life: Ai(1)-PlayerA 10 > 13
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Sheoldred's Edict UR_hand=[Snuff Out;Pestilence;Bolas's Citadel;Swamp;Wishclaw Talisman;Mox Diamond;Deadly Rollick;Lake of the Dead;Orcish Bowmasters;Corpse Dance;Swamp;Vampiric Tutor;Dauthi Voidwalker;Sensei's Divining Top;Necropotence;Skirge Familiar;Blood Pet;Swamp;Swamp;Swamp;Lotus Petal;Dance of the Dead;Fleshwrither;Thoughtseize;Swamp;Swamp;Mana Vault;Gemstone Caverns;The One Ring;Swamp;Diabolic Tutor;Swamp;Cavern of Souls;Carrion Feeder;Gray Merchant of Asphodel;Swamp;Swamp;Blood Celebrant;Arcane Signet] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=2 UR_life=13 opp_life=36
+Life: Life: Ai(1)-PlayerA 13 > 17
+Damage: Mayhem Devil [112] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 17 > 16
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Mox Diamond UR_hand=[Snuff Out;Pestilence;Bolas's Citadel;Swamp;Wishclaw Talisman;Deadly Rollick;Lake of the Dead;Orcish Bowmasters;Corpse Dance;Swamp;Vampiric Tutor;Dauthi Voidwalker;Sensei's Divining Top;Necropotence;Skirge Familiar;Blood Pet;Swamp;Swamp;Swamp;Lotus Petal;Dance of the Dead;Fleshwrither;Thoughtseize;Swamp;Swamp;Mana Vault;Gemstone Caverns;The One Ring;Swamp;Diabolic Tutor;Swamp;Cavern of Souls;Carrion Feeder;Gray Merchant of Asphodel;Swamp;Swamp;Blood Celebrant;Arcane Signet] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=16 opp_life=36
+Life: Life: Ai(1)-PlayerA 16 > 21
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Blood Celebrant UR_hand=[Snuff Out;Pestilence;Bolas's Citadel;Swamp;Wishclaw Talisman;Deadly Rollick;Lake of the Dead;Orcish Bowmasters;Corpse Dance;Swamp;Vampiric Tutor;Dauthi Voidwalker;Sensei's Divining Top;Necropotence;Skirge Familiar;Blood Pet;Swamp;Swamp;Swamp;Lotus Petal;Dance of the Dead;Fleshwrither;Thoughtseize;Swamp;Swamp;Mana Vault;Gemstone Caverns;The One Ring;Swamp;Diabolic Tutor;Swamp;Carrion Feeder;Gray Merchant of Asphodel;Swamp;Swamp;Arcane Signet] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=21 opp_life=36
+Life: Life: Ai(1)-PlayerA 21 > 27
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Lotus Petal UR_hand=[Snuff Out;Pestilence;Bolas's Citadel;Swamp;Wishclaw Talisman;Deadly Rollick;Lake of the Dead;Orcish Bowmasters;Corpse Dance;Swamp;Vampiric Tutor;Dauthi Voidwalker;Sensei's Divining Top;Necropotence;Skirge Familiar;Blood Pet;Swamp;Swamp;Swamp;Dance of the Dead;Fleshwrither;Thoughtseize;Swamp;Swamp;Mana Vault;Gemstone Caverns;The One Ring;Swamp;Diabolic Tutor;Swamp;Carrion Feeder;Gray Merchant of Asphodel;Swamp;Swamp;Arcane Signet] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=27 opp_life=36
+Life: Life: Ai(1)-PlayerA 27 > 34
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Sensei's Divining Top UR_hand=[Snuff Out;Pestilence;Bolas's Citadel;Swamp;Wishclaw Talisman;Deadly Rollick;Lake of the Dead;Orcish Bowmasters;Corpse Dance;Swamp;Vampiric Tutor;Dauthi Voidwalker;Necropotence;Skirge Familiar;Blood Pet;Swamp;Swamp;Swamp;Dance of the Dead;Fleshwrither;Thoughtseize;Swamp;Swamp;Mana Vault;Gemstone Caverns;The One Ring;Swamp;Diabolic Tutor;Swamp;Carrion Feeder;Gray Merchant of Asphodel;Swamp;Swamp;Arcane Signet] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=34 opp_life=36
+Damage: Mayhem Devil [112] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 34 > 33
+Life: Life: Ai(1)-PlayerA 33 > 41
+Turn: Turn 20 (Ai(2)-PlayerB)
+HANDLOG turn=20 event=turnstart active=Ai(2)-PlayerB UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Swamp] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=41 opp_life=36
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(2)-PlayerB source=Light Up the Stage UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Swamp] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=41 opp_life=36
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(2)-PlayerB source=Sol Ring UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Swamp] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=41 opp_life=36
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(2)-PlayerB source=Laelia, the Blade Reforged UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Swamp] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=41 opp_life=36
+Damage: Mayhem Devil [112] deals 3 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 41 > 38
+Damage: Laelia, the Blade Reforged [1e3] deals 3 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 38 > 35
+Turn: Turn 21 (Ai(1)-PlayerA)
+HANDLOG turn=21 event=turnstart active=Ai(1)-PlayerA UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Grim Tutor] UR_untapped_lands=6 UR_total_lands=6 opp_creatures=2 UR_life=35 opp_life=36
+Land: Ai(1)-PlayerA played a land
+Damage: Ancient Tomb [138] deals 2 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 35 > 33
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 33 > 32
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 32 > 31
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 31 > 30
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 30 > 29
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 29 > 28
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 28 > 27
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 27 > 26
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 26 > 25
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 25 > 24
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 24 > 23
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 23 > 22
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 22 > 21
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 21 > 20
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 20 > 19
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 19 > 18
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 18 > 17
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 17 > 16
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 16 > 15
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 15 > 14
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 14 > 13
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 13 > 12
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 12 > 11
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 11 > 10
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 10 > 9
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 9 > 8
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 8 > 7
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 7 > 6
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 6 > 5
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 5 > 4
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 4 > 3
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 3 > 2
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 2 > 1
+Damage: Blood Celebrant [8ba] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 1 > 0
+Life: Life: Ai(1)-PlayerA 0 > 5
+Life: Life: Ai(1)-PlayerA 5 > 9
+Life: Life: Ai(1)-PlayerA 9 > 13
+Life: Life: Ai(1)-PlayerA 13 > 17
+Life: Life: Ai(1)-PlayerA 17 > 21
+Life: Life: Ai(1)-PlayerA 21 > 26
+Life: Life: Ai(1)-PlayerA 26 > 31
+HANDLOG turn=21 event=cast kind=spell castBy=Ai(1)-PlayerA source=Vilis, Broker of Blood UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Grim Tutor] UR_untapped_lands=0 UR_total_lands=6 opp_creatures=2 UR_life=31 opp_life=36
+Damage: Mayhem Devil [112] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 31 > 30
+Life: Life: Ai(1)-PlayerA 30 > 31
+Damage: Vilis, Broker of Blood [2d3] deals 2 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 31 > 29
+HANDLOG turn=21 event=cast kind=spell castBy=Ai(1)-PlayerA source=Kaya's Ghostform UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Grim Tutor;Chainer, Dementia Master] UR_untapped_lands=0 UR_total_lands=6 opp_creatures=2 UR_life=29 opp_life=36
+Life: Life: Ai(1)-PlayerA 29 > 31
+Turn: Turn 22 (Ai(2)-PlayerB)
+HANDLOG turn=22 event=turnstart active=Ai(2)-PlayerB UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Chainer, Dementia Master] UR_untapped_lands=0 UR_total_lands=6 opp_creatures=2 UR_life=31 opp_life=36
+HANDLOG turn=22 event=cast kind=spell castBy=Ai(2)-PlayerB source=Delayed Blast Fireball UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Chainer, Dementia Master] UR_untapped_lands=0 UR_total_lands=6 opp_creatures=2 UR_life=31 opp_life=36
+Damage: Delayed Blast Fireball [b98] deals 2 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 31 > 29
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=22 event=cast kind=spell castBy=Ai(2)-PlayerB source=Storm-Kiln Artist UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Chainer, Dementia Master;Insatiable Avarice;Demonic Tutor] UR_untapped_lands=0 UR_total_lands=6 opp_creatures=2 UR_life=29 opp_life=36
+Turn: Turn 23 (Ai(1)-PlayerA)
+HANDLOG turn=23 event=turnstart active=Ai(1)-PlayerA UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Chainer, Dementia Master;Insatiable Avarice;Demonic Tutor;Beseech the Mirror] UR_untapped_lands=6 UR_total_lands=6 opp_creatures=3 UR_life=29 opp_life=36
+Damage: Vilis, Broker of Blood [2d3] deals 2 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 29 > 27
+Damage: Ancient Tomb [138] deals 2 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 27 > 25
+HANDLOG turn=23 event=cast kind=spell castBy=Ai(1)-PlayerA source=Dark Ritual UR_hand=[Lake of the Dead;Swamp;Swamp;Gemstone Caverns;Swamp;Swamp;Chainer, Dementia Master;Insatiable Avarice;Demonic Tutor;Beseech the Mirror;Jet Medallion;Mastermind's Acquisition;Crystal Vein] UR_untapped_lands=3 UR_total_lands=6 opp_creatures=3 UR_life=25 opp_life=36
+Life: Life: Ai(1)-PlayerA 25 > 26
+Damage: Vilis, Broker of Blood [2d3] deals 2 damage to Ai(1)-PlayerA.
