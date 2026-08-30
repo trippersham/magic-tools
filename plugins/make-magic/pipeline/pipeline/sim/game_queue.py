@@ -58,11 +58,46 @@ if TYPE_CHECKING:
 log = logging.getLogger('make_magic.sim.game_queue')
 
 __all__ = (
+    'BAILOUT_HARD_FLOOR_MS',
+    'BAILOUT_SUSPICIOUS_MS',
     'RunGamesResult',
+    'bailout_reason',
     'load_done_set',
     'run_games',
     'save_done_set',
 )
+
+#: Wall-clock floor (ms) below which a reported game is physically impossible for a real
+#: multi-turn Commander game (the audit found sub-2s "turn-12 wins" — engine bailouts scored as
+#: fake wins). A game under this floor is a HARD DROP: marked non-decisive ``reason=bailout`` and
+#: excluded from W/L/D (see :func:`bailout_reason`). Audit-calibrated; confirm against a real
+#: timing distribution in A4.1.
+BAILOUT_HARD_FLOOR_MS = 2000
+
+#: Wall-clock floor (ms) below which a game is SUSPICIOUSLY fast — kept in W/L (decisive) but
+#: logged so the coverage report can flag it. Not an exclusion (a genuinely fast game is possible).
+BAILOUT_SUSPICIOUS_MS = 10000
+
+#: Transcript markers that independently signal a non-decisive engine bailout (mulligan-to-
+#: nothing / concede / engine error), regardless of wall-clock.
+_BAILOUT_MARKERS = frozenset({'concede', 'conceded', 'mulligan_to_nothing', 'engine_error', 'engine-error'})
+
+
+def bailout_reason(result: GameResult, *, hard_floor_ms: int = BAILOUT_HARD_FLOOR_MS) -> str | None:
+    """Return ``'bailout'`` for an implausibly-fast / engine-bailed game, else ``None``.
+
+    A game is a bailout when its wall-clock is below ``hard_floor_ms`` OR it carries a
+    concede/mulligan-to-nothing/engine-error marker. A bailout is non-decisive: it must NEVER be
+    credited as a win (the fix for the audit's 24 % fake-win rate). Already-non-decisive games
+    (``reason`` set) are left as-is (returns ``None`` — the caller keeps the existing reason)."""
+    if result.reason is not None:
+        return None
+    if result.ms < hard_floor_ms:
+        return 'bailout'
+    lowered = {m.strip().lower() for m in result.markers}
+    if lowered & _BAILOUT_MARKERS:
+        return 'bailout'
+    return None
 
 #: A goldfish own-turn lens is not run on the queue (gauntlet) path — the ``PilotingComparison``
 #: own-turn fields carry the harness's "never killed / not measured" sentinel + a warning.
@@ -83,15 +118,19 @@ class RunGamesResult:
     ``task_id``\\s that burned their retry budget (terminal, cell under-filled). ``comparisons``
     is the per-subject :class:`~pipeline.sim.driver_compare.PilotingComparison` built as each
     subject completed (incremental harvest). ``incomplete_cells`` lists any
-    ``(subject, opponent, piloting)`` cell that did not reach its needed game count (only ever
-    non-empty when tasks failed). ``complete`` is true iff every task ended done (none failed).
+    ``(subject, opponent, piloting)`` cell that did not reach its needed count of VALID games
+    (non-empty when tasks failed OR games were non-decisive/bailout). ``failed_cells`` is the
+    subset of ``incomplete_cells`` left under-filled specifically by failed or non-decisive games
+    (vs still in-flight). ``complete`` is true iff every cell reached ``needed`` valid games — a
+    cell filled only by bailouts/failures is NOT complete.
     """
 
     done_results: dict[str, GameResult]
     failed: set[str]
     comparisons: dict[str, PilotingComparison]
-    cells: dict[tuple[str, str, str], tuple[int, int]]  # cell -> (done, needed)
+    cells: dict[tuple[str, str, str], tuple[int, int]]  # cell -> (valid_fills, needed)
     incomplete_cells: list[tuple[str, str, str]]
+    failed_cells: list[tuple[str, str, str]]
     complete: bool
 
 
@@ -185,15 +224,28 @@ def _winner_bucket(winner: str) -> str:
 
 
 class _Cell:
-    """One ``(subject, opponent, piloting)`` cell's live tally."""
+    """One ``(subject, opponent, piloting)`` cell's live tally.
 
-    __slots__ = ('done', 'needed', 'wins_a', 'wins_b')
+    Completeness distinguishes VALID fills (``ok`` — a decisive/undecided real game that passed
+    the plausibility gate) from bad fills (``nondecisive`` bailout/timeout games; ``failed``
+    tasks that burned their retry budget). A cell is "complete" only when ``ok >= needed`` — a
+    cell filled solely by bailouts or failures is surfaced as incomplete, never silently 100 %.
+    """
+
+    __slots__ = ('failed', 'needed', 'nondecisive', 'ok', 'wins_a', 'wins_b')
 
     def __init__(self, needed: int) -> None:
         self.needed = needed
-        self.done = 0  # terminal tasks (done + failed) — for completeness.
+        self.ok = 0  # valid terminal games (gate-passed) — the completeness numerator.
+        self.nondecisive = 0  # bailout/timeout games: counted in coverage, excluded from W/L.
+        self.failed = 0  # tasks that burned their retry budget (no result).
         self.wins_a = 0
         self.wins_b = 0
+
+    @property
+    def terminal(self) -> int:
+        """Every task that reached a terminal state (valid + non-decisive + failed)."""
+        return self.ok + self.nondecisive + self.failed
 
 
 class _Governor:
@@ -209,9 +261,14 @@ class _Governor:
         on_subject_complete: Callable[[str, PilotingComparison], None] | None,
         cond_poll_s: float,
         done_set_path: str | os.PathLike[str] | None = None,
+        bailout_floor_ms: int = 0,
     ) -> None:
         self._retry_cap = retry_cap
         self._monitor = monitor
+        # Plausibility gate: a game under this wall-clock floor is reclassified non-decisive
+        # (reason=bailout) at ingestion. 0 disables the gate (the fake-worker test harness emits
+        # ms=0/1); production passes BAILOUT_HARD_FLOOR_MS.
+        self._bailout_floor_ms = bailout_floor_ms
         self._on_subject_complete = on_subject_complete
         self._cond_poll_s = cond_poll_s
         # Incremental durability: when set, the accumulated done-set is atomically re-saved after
@@ -344,7 +401,7 @@ class _Governor:
             reason,
         )
         subject, opp, piloting = self._task_by_id[tid].task_id.split('|')[:3]
-        self._cells[(subject, opp, piloting)].done += 1
+        self._cells[(subject, opp, piloting)].failed += 1
         self._advance_subject_locked(self._subject_of[tid])
 
     def _mark_done(self, tid: str, res: GameResult | None, *, seeded: bool = False) -> None:
@@ -353,8 +410,16 @@ class _Governor:
             self._results[tid] = res
         subject, opp, piloting = self._task_by_id[tid].task_id.split('|')[:3]
         cell = self._cells[(subject, opp, piloting)]
-        cell.done += 1
-        if res is not None:  # a seeded (winner-less) task counts for completeness only.
+        if res is None:
+            # A seeded (winner-less) restart marker: a real game DID complete, we just lack its
+            # winner. Counts as a valid fill for completeness (excluded from W/L — no winner).
+            cell.ok += 1
+        elif not res.decisive or bailout_reason(res, hard_floor_ms=self._bailout_floor_ms) is not None:
+            # Non-decisive (reason already set) OR gate-classified bailout: counted in COVERAGE
+            # only. Credits NEITHER seat (the audit's fake-win fix) and does NOT fill the cell.
+            cell.nondecisive += 1
+        else:
+            cell.ok += 1
             bucket = _winner_bucket(res.winner)
             if bucket == 'a':
                 cell.wins_a += 1
@@ -405,8 +470,11 @@ class _Governor:
         tot_dw = tot_dd = tot_cw = tot_cd = 0
         warnings: list[str] = []
         for opp in self._subject_opponents[subject]:
-            driven = self._cells[(subject, opp, 'driven')]
-            baseline = self._cells[(subject, opp, 'baseline')]
+            # A normally-built run always carries BOTH arms per opponent (build_game_tasks), but a
+            # replay of a partially-recorded done-set can miss one arm — finalize with a zero cell
+            # + a warning rather than crashing (the subject must still finalize; §A1.1).
+            driven = self._cells.get((subject, opp, 'driven')) or _Cell(0)
+            baseline = self._cells.get((subject, opp, 'baseline')) or _Cell(0)
             dw, dd = driven.wins_a, driven.wins_a + driven.wins_b
             cw, cd = baseline.wins_a, baseline.wins_a + baseline.wins_b
             tot_dw += dw
@@ -430,8 +498,11 @@ class _Governor:
                 )
             )
             for pil, c in (('driven', driven), ('baseline', baseline)):
-                if c.done < c.needed:
-                    warnings.append(f'cell ({subject},{opp},{pil}) under-filled: {c.done}/{c.needed} games')
+                if c.ok < c.needed:
+                    warnings.append(
+                        f'cell ({subject},{opp},{pil}) under-filled: {c.ok}/{c.needed} valid games '
+                        f'({c.nondecisive} non-decisive, {c.failed} failed)'
+                    )
         d_rate, d_ci = _rates(tot_dw, tot_dd)
         c_rate, c_ci = _rates(tot_cw, tot_cd)
         warnings.append('own-turn (goldfish) lens not run on the queue path (winrate lens only)')
@@ -457,15 +528,21 @@ class _Governor:
 
     def result(self) -> RunGamesResult:
         with self._cond:
-            cells = {k: (c.done, c.needed) for k, c in self._cells.items()}
-            incomplete = [k for k, c in self._cells.items() if c.done < c.needed]
+            # A cell reports (valid-fills, needed): ``ok`` is the completeness numerator, so a
+            # cell filled by bailouts/failures shows ok < needed and cannot look "complete".
+            cells = {k: (c.ok, c.needed) for k, c in self._cells.items()}
+            incomplete = [k for k, c in self._cells.items() if c.ok < c.needed]
+            failed_cells = [
+                k for k, c in self._cells.items() if c.ok < c.needed and (c.failed or c.nondecisive)
+            ]
             return RunGamesResult(
                 done_results=dict(self._results),
                 failed=set(self._failed),
                 comparisons=dict(self._comparisons),
                 cells=cells,
                 incomplete_cells=incomplete,
-                complete=not self._failed and not incomplete,
+                failed_cells=failed_cells,
+                complete=not incomplete,
             )
 
 
@@ -482,6 +559,7 @@ def run_games(
     on_subject_complete: Callable[[str, PilotingComparison], None] | None = None,
     cond_poll_s: float = 0.05,
     join_timeout_s: float | None = None,
+    bailout_floor_ms: int = 0,
 ) -> RunGamesResult:
     """Run every game in ``tasks`` across a persistent :class:`WorkerPool`; return the tallies.
 
@@ -517,6 +595,7 @@ def run_games(
         on_subject_complete=on_subject_complete,
         cond_poll_s=cond_poll_s,
         done_set_path=done_set_path,
+        bailout_floor_ms=bailout_floor_ms,
     )
 
     # Fire the callbacks deferred while seeding the done-set (subjects fully covered by the

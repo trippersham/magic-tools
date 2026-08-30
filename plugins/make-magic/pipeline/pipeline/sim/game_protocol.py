@@ -39,6 +39,30 @@ class ProtocolError(ValueError):
     """A worker→governor line (or a field within it) could not be parsed."""
 
 
+#: The winner tokens the aggregation understands (case-insensitive), mirroring
+#: :func:`~pipeline.sim.game_queue._winner_bucket`. ``'none'`` is the non-decisive sentinel a
+#: ``reason``-set game reports. Any OTHER value is a VALIDATION FAILURE — never a silent draw.
+_VALID_WINNERS = frozenset(
+    {'a', 'subject', 'player_a', 'playera', 'b', 'opponent', 'player_b', 'playerb', 'draw', 'none'}
+)
+
+
+def _validate_winner(raw: object, line: str) -> str:
+    """Return the ``winner`` string, or raise :class:`ProtocolError` for a missing/unknown token.
+
+    Replaces the old silent ``str(body.get('winner', ''))`` default (which folded every
+    malformed/unknown winner into a draw): an unrecognised outcome is a hard parse failure so a
+    codec drift can never masquerade as a no-credit draw."""
+    if raw is None:
+        msg = f'missing winner in {line!r}'
+        raise ProtocolError(msg)
+    winner = str(raw)
+    if winner.strip().lower() not in _VALID_WINNERS:
+        msg = f'unknown winner {winner!r} in {line!r} (expected one of A/B/DRAW/none)'
+        raise ProtocolError(msg)
+    return winner
+
+
 @dataclass(frozen=True)
 class Ready:
     """The worker is idle and pulling for the next task (backpressure signal)."""
@@ -139,7 +163,7 @@ def parse_line(line: str) -> ProtocolMsg:
         body = _json_body(stripped, 'RESULT ')
         return GameResult(
             task_id=str(_require(body, 'id', line)),
-            winner=str(body.get('winner', '')),
+            winner=_validate_winner(body.get('winner'), line),
             kill_turn=body.get('kill_turn'),
             ms=int(body.get('ms', 0)),
             markers=list(body.get('markers', [])),

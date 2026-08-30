@@ -552,6 +552,8 @@ def run_corpus_queue(
     # tally, which is the science the bucket table needs; the per-run transcript log_dir is a fresh
     # mkdtemp, so a resumed run cannot ingest prior games' transcripts — that loss is acceptable
     # (best-effort transcript ingest only; the win tallies / comparisons remain correct).
+    from pipeline.sim.game_queue import BAILOUT_HARD_FLOOR_MS
+
     result = run_games(
         tasks,
         worker_cmd=cmd,
@@ -559,6 +561,9 @@ def run_corpus_queue(
         done_set=done,
         done_set_path=done_set_path,
         monitor=monitor,
+        # Arm the plausibility gate on the production path: sub-2s "wins" are engine bailouts
+        # (audit) → non-decisive, excluded from W/L, surfaced in coverage.
+        bailout_floor_ms=BAILOUT_HARD_FLOOR_MS,
     )
     if done_set_path:  # final flush (harmless; run_games already checkpointed incrementally).
         save_done_set(done_set_path, {**done, **result.done_results})

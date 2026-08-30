@@ -93,7 +93,11 @@ def main() -> None:
         if this_sleep:
             time.sleep(this_sleep / 1000.0)
 
-        result = {'id': task_id, 'winner': 'a', 'kill_turn': 3, 'ms': this_sleep, 'markers': [], 'log': None}
+        # Report a realistic game length (not the scheduling-sleep): a bare ms=0 would trip the
+        # production plausibility gate (bailout floor). ``this_sleep`` models wall-time for the
+        # pool's scheduling tests; the game itself reports a plausible duration.
+        game_ms = this_sleep if this_sleep >= 2000 else 60000
+        result = {'id': task_id, 'winner': 'a', 'kill_turn': 3, 'ms': game_ms, 'markers': [], 'log': None}
         _emit('RESULT ' + json.dumps(result))
 
         if die_after_result and task_number == 1:

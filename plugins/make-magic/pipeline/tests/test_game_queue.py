@@ -139,12 +139,14 @@ def test_retry_cap_poison_task_fails_and_terminates() -> None:
     assert ok, 'run hung — poison task looped forever'
     assert poison in res.failed, res.failed
     assert gov._retries[poison] == 3, gov._retries[poison]  # 2 re-queues + the fatal 3rd.
-    # The poison's cell is under-filled (surfaced, never silently 100%).
+    # The poison's cell is under-filled (surfaced, never silently 100%). A1.1: a FAILED task is
+    # NOT a valid fill — the cell reports ok < needed and is flagged incomplete-by-failure, so no
+    # failed/quarantined cell can ever masquerade as "complete."
     subject, opp, piloting = cell_key(tasks[0])
-    done, needed = res.cells[(subject, opp, piloting)]
-    assert done == needed  # terminal (failed counts toward done) ...
-    # ... but a decided-games tally shows the missing game: the driven cell has < needed wins.
-    assert (subject, opp, piloting) not in res.incomplete_cells or done < needed
+    ok, needed = res.cells[(subject, opp, piloting)]
+    assert ok < needed  # the failed game left one valid fill short of the target.
+    assert (subject, opp, piloting) in res.incomplete_cells
+    assert (subject, opp, piloting) in res.failed_cells
     # The OTHER (non-poison) tasks all completed.
     assert len(res.done_results) == len(tasks) - 1
     assert not res.complete  # a failure means the run is not clean.
