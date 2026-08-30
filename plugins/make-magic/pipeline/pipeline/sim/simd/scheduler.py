@@ -31,10 +31,12 @@ from typing import TYPE_CHECKING
 from pipeline.sim.game_protocol import GameError, GameResult
 from pipeline.sim.game_queue import bailout_reason
 from pipeline.sim.game_tasks import cell_key
+from pipeline.sim.simd.governor import Admission
 
 if TYPE_CHECKING:
     from pipeline.sim.game_tasks import GameTask
     from pipeline.sim.monitor import ResourceMonitor
+    from pipeline.sim.simd.governor import DiskGovernor
     from pipeline.sim.simd.ops_store import OpsStore
 
 log = logging.getLogger('make_magic.sim.simd.scheduler')
@@ -96,12 +98,17 @@ class SimdScheduler:
         monitor: ResourceMonitor | None = None,
         bailout_floor_ms: int = 0,
         cond_poll_s: float = 0.05,
+        disk_governor: DiskGovernor | None = None,
     ) -> None:
         self._ops = ops
         self._attempt_cap = attempt_cap
         self._monitor = monitor
         self._bailout_floor_ms = bailout_floor_ms
         self._cond_poll_s = cond_poll_s
+        #: A2.5 immediate disk-floor admission control. A HARD breach halts admission (drains the
+        #: pool) after reaping in-flight workers — a resumable exit, not a paused-forever wedge.
+        self._disk_governor = disk_governor
+        self._disk_halted = False
 
         self._cond = threading.Condition()
         self._task_by_id: dict[str, GameTask] = {t.task_id: t for t in tasks}
@@ -154,6 +161,16 @@ class SimdScheduler:
             while True:
                 if self._all_terminal_locked():
                     return None
+                if self._disk_governor is not None:
+                    decision = self._disk_governor.check()
+                    if decision is Admission.HALT:
+                        # HARD floor: in-flight already reaped by the governor. Stop admitting →
+                        # the pool drains → run exits RESUMABLE (committed state is in ops.duckdb).
+                        self._disk_halted = True
+                        return None
+                    if decision is Admission.PAUSE:
+                        self._cond.wait(timeout=self._cond_poll_s)
+                        continue
                 if self._monitor is not None and self._monitor.poll_pause():
                     self._cond.wait(timeout=self._cond_poll_s)
                     continue

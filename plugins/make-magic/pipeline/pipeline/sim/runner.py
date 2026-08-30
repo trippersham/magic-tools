@@ -359,11 +359,20 @@ _STAGING_MAX_AGE_S = 3600.0
 
 
 def _staging_owner_pid(name: str) -> int | None:
-    """The creator PID encoded in a ``run-<pid>-<rand>`` / ``xmage-<pid>-<rand>`` staging
-    dir name, or ``None`` if it doesn't parse (e.g. a legacy PID-less dir)."""
+    """The creator PID encoded in a staging dir name, or ``None`` if it doesn't parse.
+
+    The prefix segment count VARIES: ``run-<pid>-<rand>`` and ``xmage-<pid>-<rand>`` carry the
+    pid in field 1, but ``xmage-worker-<pid>-<rand>`` / ``xmage-solo-<pid>-<rand>`` carry a
+    two-word prefix so the pid is in field 2. The old ``parts[1]`` rule mis-read the literal
+    ``worker``/``solo`` word as the owner and returned ``None`` — which, once mid-run GC uses a
+    short age gate, could GC a LIVE worker's dir (its owner looked unknown). Take the FIRST
+    all-digit field after the leading prefix word instead — the pid always precedes the mkdtemp
+    random suffix, so this reads the true owner for every prefix shape.
+    """
     parts = name.split('-')
-    if len(parts) >= 3 and parts[1].isdigit():
-        return int(parts[1])
+    for part in parts[1:]:
+        if part.isdigit():
+            return int(part)
     return None
 
 
@@ -391,11 +400,17 @@ def reap_stale_staging(max_age_s: float = _STAGING_MAX_AGE_S) -> int:
     NEVER raises (reaping must not break a run). Touches only this module's own
     ``run-*`` / ``xmage-*`` staging dirs.
 
-    Two reap conditions, so a crash-loop that restarts within the hour still gets
-    cleaned (the finding the age-gate-only version missed): a dir whose creator PID is
-    no longer alive is a definite orphan and is reaped IMMEDIATELY; otherwise (PID
-    still alive, or a legacy PID-less name) the age cutoff applies, which keeps a
-    concurrent sim's in-flight dirs safe.
+    Three reap conditions, ordered so that mid-run GC (called with a SHORT ``max_age_s``) can
+    never GC a LIVE worker's dir — the correctness the ``xmage-worker-<pid>`` PID-parse fix
+    unlocks:
+
+    * a dir whose creator PID is **still alive** (its own worker) is KEPT UNCONDITIONALLY,
+      regardless of age — so ``reap_stale_staging`` is safe to call mid-run while workers hold
+      their dirs (before the fix a mis-parsed live owner fell through to the age gate and a short
+      cutoff would have deleted an in-use card-DB copy out from under a running JVM);
+    * a dir whose creator PID is **dead** is a definite orphan and is reaped IMMEDIATELY;
+    * a dir with a **legacy / unparseable** name falls back to the age cutoff, which keeps a
+      concurrent sim's fresh dirs safe.
     """
     root = staging_root()
     try:
@@ -403,15 +418,18 @@ def reap_stale_staging(max_age_s: float = _STAGING_MAX_AGE_S) -> int:
     except OSError:
         return 0
     now = time.time()
-    own_pid = os.getpid()
     reaped = 0
     for entry in entries:
         if not (entry.name.startswith('run-') or entry.name.startswith('xmage-')):
             continue
         pid = _staging_owner_pid(entry.name)
-        dead_owner = pid is not None and pid != own_pid and not _pid_is_alive(pid)
-        if not dead_owner:
-            # Alive owner, our own PID, or unparseable -> fall back to the age gate.
+        if pid is not None:
+            # Parseable owner: liveness is authoritative — a LIVE owner's dir is NEVER reaped
+            # (even under a 0s mid-run cutoff); a DEAD owner's dir is reaped immediately.
+            if _pid_is_alive(pid):
+                continue
+        else:
+            # Legacy / unparseable name: no owner to check → the age cutoff is the only guard.
             try:
                 if now - entry.stat().st_mtime < max_age_s:
                     continue

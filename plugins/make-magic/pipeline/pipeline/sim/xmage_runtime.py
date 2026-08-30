@@ -129,14 +129,29 @@ class XMageInstall:
 
 
 def _resolve_java() -> Path:
-    """The JRE launcher: ``MAKE_MAGIC_JAVA`` if set (+ validated), else PATH ``java``."""
+    """The JRE launcher: ``MAKE_MAGIC_JAVA`` if set (+ validated), else PATH ``java`` (resolved).
+
+    NEVER returns a bare, unresolved ``Path('java')``: that silent fallback deferred a
+    missing-Java failure to an opaque per-worker JVM crash (every worker died the same way and the
+    crash-loop respawner flooded staging). Instead resolve ``java`` on ``PATH`` up front and raise
+    an ACTIONABLE :class:`XMageUnavailableError` when it is absent, so the boot preflight
+    (:func:`pipeline.sim.simd.preflight.preflight_java`) can version-gate a REAL launcher path.
+    """
     override = os.environ.get(ENV_JAVA)
     if override:
         java = Path(override)
         if not java.is_file():
             raise XMageUnavailableError(f'{ENV_JAVA}={override!r} is not an executable java launcher.')
         return java
-    return Path('java')
+    import shutil
+
+    found = shutil.which('java')
+    if found is None:
+        raise XMageUnavailableError(
+            f'no `java` on PATH and {ENV_JAVA} is unset. Set {ENV_JAVA} to a JRE {XMAGE_VERSION}-'
+            'compatible (Java 21+) launcher, or install one on PATH.'
+        )
+    return Path(found)
 
 
 def _dist_override() -> Path | None:

@@ -68,6 +68,8 @@ from pipeline.sim.game_tasks import GameTask
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from pipeline.sim.simd.circuit_breaker import CrashLoopBreaker as _CrashLoopBreaker
+
 log = logging.getLogger('make_magic.sim.worker_pool')
 
 __all__ = ('WorkerPool',)
@@ -76,7 +78,10 @@ __all__ = ('WorkerPool',)
 class _Worker:
     """One live worker subprocess + its reader thread + stall bookkeeping."""
 
-    __slots__ = ('idx', 'in_flight', 'last_progress', 'lock', 'proc', 'reader', 'retiring')
+    __slots__ = (
+        'idx', 'in_flight', 'last_progress', 'lock', 'proc', 'reader', 'retiring',
+        'saw_ready', 'spawned_at',
+    )
 
     def __init__(self, idx: int, proc: subprocess.Popen[str]) -> None:
         self.idx = idx
@@ -85,6 +90,8 @@ class _Worker:
         self.in_flight: GameTask | None = None
         self.last_progress: float = time.monotonic()
         self.retiring = False  # got a `None` task → draining out cleanly (EOF is expected).
+        self.saw_ready = False  # reached its first READY → a mid-game death is a retry, not a boot fail.
+        self.spawned_at: float = time.monotonic()  # for the pre-READY boot deadline.
         self.lock = threading.Lock()
 
 
@@ -102,6 +109,10 @@ class WorkerPool:
         stall_timeout_s: float,
         poll_s: float = 1.0,
         env_for_worker: Callable[[int], dict[str, str]] | None = None,
+        breaker: _CrashLoopBreaker | None = None,
+        boot_deadline_s: float | None = None,
+        boot_backoff_base_s: float = 0.0,
+        boot_backoff_cap_s: float = 10.0,
     ) -> None:
         self._cmd = list(worker_cmd)
         self._n = workers
@@ -111,6 +122,14 @@ class WorkerPool:
         self._stall_timeout_s = stall_timeout_s
         self._poll_s = poll_s
         self._env_for_worker = env_for_worker
+        #: A2.4 crash-loop breaker (pre-READY death → boot fail). ``None`` = legacy behavior
+        #: (respawn every death unconditionally — the old game_queue path A3 will retire).
+        self._breaker = breaker
+        #: A worker that has not emitted READY within this many seconds is presumed a hung boot
+        #: and reaped (→ a pre-READY death that feeds the breaker). ``None`` disables the deadline.
+        self._boot_deadline_s = boot_deadline_s
+        self._boot_backoff_base_s = boot_backoff_base_s
+        self._boot_backoff_cap_s = boot_backoff_cap_s
 
         self._closing = threading.Event()
         self._state_lock = threading.Lock()
@@ -118,6 +137,9 @@ class WorkerPool:
         self._live = 0  # workers not yet retired (drained or gone-for-good).
         self._retired = threading.Condition(self._state_lock)
         self._watchdog: threading.Thread | None = None
+        #: Set when the breaker trips: the pool stops respawning and unblocks join(); the engine
+        #: raises a BootFailure. Distinct from a clean drain (which also unblocks join).
+        self.boot_failed = threading.Event()
 
     # ------------------------------------------------------------------ #
     # Lifecycle
@@ -227,6 +249,10 @@ class WorkerPool:
 
     def _handle(self, worker: _Worker, msg: object) -> None:
         if isinstance(msg, Ready):
+            if not worker.saw_ready:
+                worker.saw_ready = True  # first READY: this worker booted OK.
+                if self._breaker is not None:
+                    self._breaker.record_ready()
             self._feed(worker)
         elif isinstance(msg, Heartbeat):
             with worker.lock:
@@ -273,10 +299,26 @@ class WorkerPool:
             in_flight = worker.in_flight
             worker.in_flight = None
             retiring = worker.retiring
+            saw_ready = worker.saw_ready
         # Unexpected = not a deliberate retire (close()) and not a clean drain (None task).
         # Respawn on ANY such death — whether or not a task was in flight — so a crash
         # BETWEEN tasks (in_flight is None) does not silently shrink the pool (MINOR-2).
         if not retiring and not self._closing.is_set():
+            # A2.4: a PRE-READY death (the worker died before ever signalling it was up) is a
+            # DETERMINISTIC boot failure, not a transient mid-game fault. Feed it to the
+            # crash-loop breaker; if it trips, STOP respawning (bounding total spawns — and thus
+            # staging dirs) and unblock join so the engine can raise a BootFailure.
+            if self._breaker is not None and not saw_ready:
+                if self._breaker.record_pre_ready_death():
+                    self.boot_failed.set()
+                    self._closing.set()
+                    with self._state_lock:
+                        if worker in self._workers:
+                            self._workers.remove(worker)
+                        self._live -= 1
+                        self._retired.notify_all()
+                    return
+                self._boot_backoff(self._breaker.total_pre_ready_deaths)
             if in_flight is not None:
                 self._requeue(in_flight)  # only requeue when there was actually a task.
             with self._state_lock:
@@ -307,12 +349,35 @@ class WorkerPool:
                         and not w.retiring
                         and (now - w.last_progress) > self._stall_timeout_s
                     )
-                if stalled and w.proc.poll() is None:
+                    # A2.4 boot deadline: a worker that has not reached READY within the deadline
+                    # is a hung boot. Reap it (→ a pre-READY death that feeds the breaker) so a
+                    # worker that spawns but never comes up cannot silently hold a pool slot.
+                    boot_hung = (
+                        self._boot_deadline_s is not None
+                        and not w.saw_ready
+                        and not w.retiring
+                        and w.in_flight is None
+                        and (now - w.spawned_at) > self._boot_deadline_s
+                    )
+                if (stalled or boot_hung) and w.proc.poll() is None:
                     # Signal-only kill → the reader thread hits EOF with in_flight set,
                     # wait()s the proc itself, then requeues + respawns (MAJOR-1: single
                     # owner per pipe — no cross-thread communicate() racing the reader).
                     self._signal_kill_group(w.proc)
             time.sleep(self._poll_s)
+
+    def _boot_backoff(self, consecutive_deaths: int) -> None:
+        """Exponential backoff between boot respawns so a crash-loop does not spin hot.
+
+        ``base * 2**(deaths-1)`` capped at ``boot_backoff_cap_s``; a zero base (the test default)
+        is a no-op so the fast loop stays fast. Runs on the dying reader thread, before its
+        replacement is spawned.
+        """
+        base = self._boot_backoff_base_s
+        if base <= 0 or consecutive_deaths <= 0:
+            return
+        delay = min(self._boot_backoff_cap_s, base * (2 ** (consecutive_deaths - 1)))
+        time.sleep(delay)
 
     @staticmethod
     def _signal_kill_group(proc: subprocess.Popen[str]) -> None:

@@ -58,6 +58,23 @@ def main() -> None:
     silent = bool(os.environ.get('FAKE_SILENT'))
     silent_after_hb = bool(os.environ.get('FAKE_SILENT_AFTER_HEARTBEAT'))
     heartbeat = bool(os.environ.get('FAKE_HEARTBEAT'))
+    # A2.4 boot-failure modes: die / hang BEFORE ever emitting READY (a pre-READY death →
+    # crash-loop breaker / boot-deadline tests). ``FAKE_SPAWNLOG`` records EVERY process start
+    # (one line per spawn) so a test can assert the breaker BOUNDED total spawns (no staging flood).
+    exit_before_ready = bool(os.environ.get('FAKE_EXIT_BEFORE_READY'))
+    never_ready = bool(os.environ.get('FAKE_NEVER_READY'))
+    spawnlog = os.environ.get('FAKE_SPAWNLOG')
+
+    if spawnlog:
+        fd = os.open(spawnlog, os.O_CREAT | os.O_WRONLY | os.O_APPEND)
+        os.write(fd, (str(os.getpid()) + '\n').encode())
+        os.close(fd)
+
+    if exit_before_ready:
+        os._exit(1)  # deterministic boot failure: crash before signalling READY.
+    if never_ready:
+        while True:  # spawn, but never come up → the boot deadline must reap us.
+            time.sleep(3600)
 
     # One-shot fault gate: only the FIRST worker to claim the marker faults; respawns run clean.
     once_file = os.environ.get('FAKE_FAULT_ONCE_FILE')

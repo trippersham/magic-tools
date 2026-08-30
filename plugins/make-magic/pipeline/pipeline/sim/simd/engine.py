@@ -13,9 +13,12 @@ The bailout gate (A1) is opt-in via ``bailout_floor_ms`` (0 disables it; product
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 from pipeline.sim.simd.ops_store import OpsStore
+from pipeline.sim.simd.preflight import BootFailure
+from pipeline.sim.simd.reaper import SingletonLock, reap_orphan_tree, write_pidfile
 from pipeline.sim.simd.scheduler import SimdRunResult, SimdScheduler
 from pipeline.sim.worker_pool import WorkerPool
 
@@ -25,8 +28,10 @@ if TYPE_CHECKING:
 
     from pipeline.sim.game_tasks import GameTask
     from pipeline.sim.monitor import ResourceMonitor
+    from pipeline.sim.simd.circuit_breaker import CrashLoopBreaker
+    from pipeline.sim.simd.governor import DiskGovernor
 
-__all__ = ('SimdRunResult', 'run_games_simd')
+__all__ = ('BootFailure', 'SimdRunResult', 'run_games_simd')
 
 
 def run_games_simd(
@@ -42,6 +47,14 @@ def run_games_simd(
     env_for_worker: Callable[[int], dict[str, str]] | None = None,
     cond_poll_s: float = 0.05,
     join_timeout_s: float | None = None,
+    preflight: Callable[[], None] | None = None,
+    breaker: CrashLoopBreaker | None = None,
+    boot_deadline_s: float | None = None,
+    boot_backoff_base_s: float = 0.0,
+    disk_governor: DiskGovernor | None = None,
+    singleton_lock_path: str | os.PathLike[str] | None = None,
+    pidfile_path: str | os.PathLike[str] | None = None,
+    own_pgroup: bool = False,
 ) -> SimdRunResult:
     """Run every game in ``tasks`` on a fair, crash-safe simd pool; return the coverage tally.
 
@@ -52,43 +65,87 @@ def run_games_simd(
     the per-task dispatch budget before a persistent quarantine latch. ``bailout_floor_ms`` arms
     the A1 plausibility gate (0 = disabled). ``env_for_worker`` injects per-worker env (the test
     fake-worker hooks; production driver env in A3).
+
+    A2b RESILIENCE (all opt-in — the legacy A2a call is byte-identical with them unset):
+
+    * ``preflight`` runs ONCE before ANY staging/spawn (e.g. version-gate Java). It raises
+      :class:`BootFailure` on a deterministic config failure so the run aborts with ZERO workers
+      and ZERO staging dirs — never the silent crash-loop that flooded staging.
+    * ``breaker`` + ``boot_deadline_s`` + ``boot_backoff_base_s`` arm the pool's crash-loop
+      circuit breaker: ``N`` pre-``READY`` worker deaths trip it, and the run raises
+      :class:`BootFailure` instead of respawning unboundedly (so staging stays bounded).
+    * ``disk_governor`` applies immediate soft/hard disk floors to admission; a HARD breach reaps
+      in-flight workers and drains the pool for a RESUMABLE exit.
+    * ``singleton_lock_path`` takes an ``flock`` so a 2nd concurrent simd launch refuses;
+      ``pidfile_path`` reaps a crashed predecessor's orphan JVM tree BEFORE this run starts and
+      records this run's own pid/pgid. ``own_pgroup`` makes this process a group leader first (so
+      a future reaper can killpg its whole tree) — production sets it; library/test callers leave
+      it False so the caller's own process group is untouched.
     """
     if workers is None:
         from pipeline.sim.governor import derive_pool_size
 
         workers = derive_pool_size()
 
-    with OpsStore(ops_db_path) as ops:
-        ops.register_tasks(tasks)
-        sched = SimdScheduler(
-            tasks,
-            ops=ops,
-            attempt_cap=attempt_cap,
-            monitor=monitor,
-            bailout_floor_ms=bailout_floor_ms,
-            cond_poll_s=cond_poll_s,
-        )
+    # 1. PREFLIGHT — fail LOUD before any staging/spawn (zero workers, zero staging on failure).
+    if preflight is not None:
+        preflight()
 
-        # A full restart: everything already terminal in the store — nothing left to run.
-        if sched._all_terminal_locked():
-            return sched.result()
+    with contextlib.ExitStack() as stack:
+        # 2. SINGLETON — a 2nd concurrent simd launch refuses (raises AlreadyRunning).
+        if singleton_lock_path is not None:
+            stack.enter_context(SingletonLock(singleton_lock_path))
+        # 3. ORPHAN REAP — a crashed predecessor's whole JVM tree is killed before we start, then
+        #    we record our own pid/pgid so OUR successor can reap us if we crash.
+        if pidfile_path is not None:
+            reap_orphan_tree(pidfile_path)
+            write_pidfile(pidfile_path, setpgrp=own_pgroup)
 
-        if monitor is not None:
-            monitor.start()
-        pool = WorkerPool(
-            worker_cmd,
-            workers=workers,
-            next_task=sched.next_task,
-            on_result=sched.on_result,
-            requeue=sched.requeue,
-            stall_timeout_s=stall_timeout_s,
-            env_for_worker=env_for_worker,
-        )
-        try:
-            pool.start()
-            pool.join(timeout=join_timeout_s)
-        finally:
-            pool.close()
+        with OpsStore(ops_db_path) as ops:
+            ops.register_tasks(tasks)
+            sched = SimdScheduler(
+                tasks,
+                ops=ops,
+                attempt_cap=attempt_cap,
+                monitor=monitor,
+                bailout_floor_ms=bailout_floor_ms,
+                cond_poll_s=cond_poll_s,
+                disk_governor=disk_governor,
+            )
+
+            # A full restart: everything already terminal in the store — nothing left to run.
+            if sched._all_terminal_locked():
+                return sched.result()
+
             if monitor is not None:
-                monitor.stop()
-        return sched.result()
+                monitor.start()
+            pool = WorkerPool(
+                worker_cmd,
+                workers=workers,
+                next_task=sched.next_task,
+                on_result=sched.on_result,
+                requeue=sched.requeue,
+                stall_timeout_s=stall_timeout_s,
+                env_for_worker=env_for_worker,
+                breaker=breaker,
+                boot_deadline_s=boot_deadline_s,
+                boot_backoff_base_s=boot_backoff_base_s,
+            )
+            try:
+                pool.start()
+                pool.join(timeout=join_timeout_s)
+            finally:
+                pool.close()
+                if monitor is not None:
+                    monitor.stop()
+
+            # The crash-loop breaker tripped: abort LOUD rather than report a half-empty tally as
+            # if the run merely under-filled — the config can never make progress.
+            if pool.boot_failed.is_set() or (breaker is not None and breaker.tripped):
+                raise BootFailure(
+                    f'crash-loop circuit breaker tripped after {breaker.total_pre_ready_deaths if breaker else "?"} '
+                    'pre-READY worker deaths — workers are dying before they come up (broken '
+                    'classpath / incompatible runtime / unsatisfiable config). Aborting instead '
+                    'of respawning into an unbounded staging flood.'
+                )
+            return sched.result()

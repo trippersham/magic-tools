@@ -7,8 +7,26 @@ live path through :func:`~pipeline.sim.simd.engine.run_games_simd` and retires t
 
 from __future__ import annotations
 
+from pipeline.sim.simd.circuit_breaker import CrashLoopBreaker
 from pipeline.sim.simd.engine import SimdRunResult, run_games_simd
+from pipeline.sim.simd.governor import Admission, DiskGovernor, stable_pool_size
 from pipeline.sim.simd.ops_store import OpsStore
+from pipeline.sim.simd.preflight import BootFailure, preflight_java
+from pipeline.sim.simd.reaper import AlreadyRunning, SingletonLock, reap_orphan_tree
 from pipeline.sim.simd.scheduler import SimdScheduler
 
-__all__ = ('OpsStore', 'SimdRunResult', 'SimdScheduler', 'run_games_simd')
+__all__ = (
+    'Admission',
+    'AlreadyRunning',
+    'BootFailure',
+    'CrashLoopBreaker',
+    'DiskGovernor',
+    'OpsStore',
+    'SimdRunResult',
+    'SimdScheduler',
+    'SingletonLock',
+    'preflight_java',
+    'reap_orphan_tree',
+    'run_games_simd',
+    'stable_pool_size',
+)
