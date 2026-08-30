@@ -1,6 +1,8 @@
-"""Phase A1 — correctness-core unit tests (pure logic, no JVM, no pool).
+"""Phase A1/A3 — the shared aggregation correctness core (ported from the retired
+``test_queue_correctness`` when ``game_queue._Governor`` was deleted at the A3 cutover).
 
-Covers the three data-integrity fixes:
+The A1 data-integrity invariants now live against :mod:`pipeline.sim.aggregate` — the single
+owner both the old and the simd paths shared:
 
 * A1.1 completeness — a cell filled only with FAILED/BAILOUT tasks must NOT report complete,
   yet its subject must still FINALIZE (aggregated + excluded from W/L, surfaced in coverage).
@@ -14,34 +16,21 @@ from __future__ import annotations
 
 import pytest
 
+from pipeline.sim.aggregate import BAILOUT_HARD_FLOOR_MS, RunAggregator, bailout_reason
+from pipeline.sim.core import wilson_ci
 from pipeline.sim.game_protocol import GameResult, ProtocolError, parse_line
-from pipeline.sim.game_queue import (
-    BAILOUT_HARD_FLOOR_MS,
-    _Governor,
-    bailout_reason,
-)
-from pipeline.sim.game_tasks import GameTask, SeatSpec
-
-
-def _seat(name: str) -> SeatSpec:
-    return SeatSpec(deck_path=f'/d/{name}.dck', driver=None)
-
-
-def _task(subject: str, opp: str, piloting: str, game: int) -> GameTask:
-    return GameTask(
-        task_id=f'{subject}|{opp}|{piloting}|{game}',
-        fmt='commander',
-        seat_a=_seat(subject),
-        seat_b=_seat(opp),
-    )
 
 
 def _result(tid: str, winner: str, *, ms: int = 60000, reason: str | None = None) -> GameResult:
     return GameResult(task_id=tid, winner=winner, kill_turn=8, ms=ms, markers=[], log_path=None, reason=reason)
 
 
+def _ids(*ids: str) -> list[str]:
+    return list(ids)
+
+
 # --------------------------------------------------------------------------- #
-# A1.2 — strict outcome validation.
+# A1.2 — strict outcome validation (game_protocol codec, unchanged at cutover).
 # --------------------------------------------------------------------------- #
 
 
@@ -78,37 +67,42 @@ def test_bailout_reason_real_game_ok() -> None:
 
 
 def test_bailout_reason_marker() -> None:
-    r = GameResult(
-        task_id='t', winner='A', kill_turn=2, ms=60000, markers=['concede'], log_path=None
-    )
+    r = GameResult(task_id='t', winner='A', kill_turn=2, ms=60000, markers=['concede'], log_path=None)
     assert bailout_reason(r) == 'bailout'
 
 
 # --------------------------------------------------------------------------- #
-# A1.2 — non-decisive exclusion through the governor tally.
+# A1.2 — non-decisive exclusion through the aggregator tally.
 # --------------------------------------------------------------------------- #
 
 
 def test_reason_set_game_credits_neither_seat() -> None:
-    # One driven cell, 2 games: one decided (A wins), one reason=timeout (winner claims A).
-    tasks = [_task('S', 'O', 'driven', 0), _task('S', 'O', 'driven', 1),
-             _task('S', 'O', 'baseline', 0), _task('S', 'O', 'baseline', 1)]
-    gov = _Governor(
-        tasks, retry_cap=2, monitor=None, done_set=None,
-        on_subject_complete=None, cond_poll_s=0.0,
-    )
-    gov.on_result(_result('S|O|driven|0', 'A'))
-    gov.on_result(_result('S|O|driven|1', 'A', reason='timeout'))  # non-decisive
-    gov.on_result(_result('S|O|baseline|0', 'B'))
-    gov.on_result(_result('S|O|baseline|1', 'B'))
-    res = gov.result()
-    comp = res.comparisons['S']
+    ids = _ids('S|O|driven|0', 'S|O|driven|1', 'S|O|baseline|0', 'S|O|baseline|1')
+    agg = RunAggregator(ids)
+    agg.add_result(_result('S|O|driven|0', 'A'))
+    agg.add_result(_result('S|O|driven|1', 'A', reason='timeout'))  # non-decisive
+    agg.add_result(_result('S|O|baseline|0', 'B'))
+    agg.add_result(_result('S|O|baseline|1', 'B'))
+    comp = agg.comparisons()['S']
     opp = comp.per_opponent[0]
     # driven: only the ONE decided game counts (1 win / 1 decided), the timeout is excluded.
     assert opp.driver_wins == 1
     assert opp.driver_decided == 1
     # the timeout game is surfaced in coverage: its cell is NOT complete (1 ok / 2 needed).
-    assert ('S', 'O', 'driven') in res.incomplete_cells
+    assert ('S', 'O', 'driven') in agg.incomplete_cells()
+
+
+def test_draws_excluded_from_denominator() -> None:
+    ids = _ids(*(f'S|O|driven|{i}' for i in range(4)), *(f'S|O|baseline|{i}' for i in range(4)))
+    agg = RunAggregator(ids)
+    for i, w in enumerate(['a', 'a', 'draw', 'b']):
+        agg.add_result(_result(f'S|O|driven|{i}', w))
+    for i in range(4):
+        agg.add_result(_result(f'S|O|baseline|{i}', 'draw'))
+    opp = agg.comparisons()['S'].per_opponent[0]
+    assert (opp.driver_wins, opp.driver_decided) == (2, 3)  # the draw is NOT in the denominator.
+    assert (opp.cp7_wins, opp.cp7_decided) == (0, 0)
+    assert opp.winrate_driver_ci == wilson_ci(2, 3)
 
 
 # --------------------------------------------------------------------------- #
@@ -117,19 +111,12 @@ def test_reason_set_game_credits_neither_seat() -> None:
 
 
 def test_bailout_game_excluded_when_gate_armed() -> None:
-    tasks = [_task('S', 'O', 'driven', 0), _task('S', 'O', 'baseline', 0)]
-    gov = _Governor(
-        tasks, retry_cap=2, monitor=None, done_set=None,
-        on_subject_complete=None, cond_poll_s=0.0,
-        bailout_floor_ms=BAILOUT_HARD_FLOOR_MS,
-    )
-    gov.on_result(_result('S|O|driven|0', 'A', ms=800))  # implausibly fast → bailout
-    gov.on_result(_result('S|O|baseline|0', 'B', ms=60000))
-    res = gov.result()
-    comp = res.comparisons['S']
-    opp = comp.per_opponent[0]
+    agg = RunAggregator(_ids('S|O|driven|0', 'S|O|baseline|0'), bailout_floor_ms=BAILOUT_HARD_FLOOR_MS)
+    agg.add_result(_result('S|O|driven|0', 'A', ms=800))  # implausibly fast → bailout
+    agg.add_result(_result('S|O|baseline|0', 'B', ms=60000))
+    opp = agg.comparisons()['S'].per_opponent[0]
     assert opp.driver_decided == 0  # the bailout credited nothing
-    assert ('S', 'O', 'driven') in res.incomplete_cells
+    assert ('S', 'O', 'driven') in agg.incomplete_cells()
 
 
 # --------------------------------------------------------------------------- #
@@ -138,38 +125,22 @@ def test_bailout_game_excluded_when_gate_armed() -> None:
 
 
 def test_all_failed_cell_finalizes_but_incomplete() -> None:
-    from pipeline.sim.game_protocol import GameError
-
-    tasks = [_task('S', 'O', 'driven', 0), _task('S', 'O', 'baseline', 0)]
-    gov = _Governor(
-        tasks, retry_cap=1, monitor=None, done_set=None,
-        on_subject_complete=None, cond_poll_s=0.0,
-    )
-    # Drive the driven task past its retry cap → FAILED (terminal).
-    gov.on_result(GameError(task_id='S|O|driven|0', exc='boom'))
-    gov.on_result(GameError(task_id='S|O|driven|0', exc='boom'))
-    gov.on_result(_result('S|O|baseline|0', 'B'))
-    res = gov.result()
+    agg = RunAggregator(_ids('S|O|driven|0', 'S|O|baseline|0'))
+    agg.add_failed('S|O|driven|0')  # burned its budget / quarantined — terminal, no result.
+    agg.add_result(_result('S|O|baseline|0', 'B'))
     # Subject FINALIZED (aggregated) despite the failed cell.
-    assert 'S' in res.comparisons
+    assert 'S' in agg.comparisons()
     # The failed cell is flagged incomplete (0 ok / 1 needed) and NOT reported complete.
-    assert ('S', 'O', 'driven') in res.incomplete_cells
-    assert ('S', 'O', 'driven') in res.failed_cells
-    assert not res.complete
-    ok, needed = res.cells[('S', 'O', 'driven')]
+    assert ('S', 'O', 'driven') in agg.incomplete_cells()
+    assert ('S', 'O', 'driven') in agg.failed_cells()
+    assert not agg.complete()
+    ok, needed = agg.cells()[('S', 'O', 'driven')]
     assert ok == 0 and needed == 1
 
 
 def test_all_bailout_cell_not_complete() -> None:
-    tasks = [_task('S', 'O', 'driven', 0), _task('S', 'O', 'baseline', 0)]
-    gov = _Governor(
-        tasks, retry_cap=2, monitor=None, done_set=None,
-        on_subject_complete=None, cond_poll_s=0.0,
-        bailout_floor_ms=BAILOUT_HARD_FLOOR_MS,
-    )
-    gov.on_result(_result('S|O|driven|0', 'A', ms=500))  # bailout
-    gov.on_result(_result('S|O|baseline|0', 'B', ms=60000))
-    res = gov.result()
-    # the driven cell's ONLY fill is a bailout → must NOT report complete.
-    assert ('S', 'O', 'driven') in res.incomplete_cells
-    assert not res.complete
+    agg = RunAggregator(_ids('S|O|driven|0', 'S|O|baseline|0'), bailout_floor_ms=BAILOUT_HARD_FLOOR_MS)
+    agg.add_result(_result('S|O|driven|0', 'A', ms=500))  # bailout
+    agg.add_result(_result('S|O|baseline|0', 'B', ms=60000))
+    assert ('S', 'O', 'driven') in agg.incomplete_cells()
+    assert not agg.complete()

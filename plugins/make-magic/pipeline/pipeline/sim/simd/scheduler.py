@@ -28,8 +28,8 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from pipeline.sim.aggregate import bailout_reason
 from pipeline.sim.game_protocol import GameError, GameResult
-from pipeline.sim.game_queue import bailout_reason
 from pipeline.sim.game_tasks import cell_key
 from pipeline.sim.simd.governor import Admission
 

@@ -43,7 +43,6 @@ import os
 import random
 import sys
 import tempfile
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -51,7 +50,6 @@ from typing import TYPE_CHECKING, Any
 from pipeline.sim.core import wilson_ci
 from pipeline.sim.driver_batch import (
     Ledger,
-    _combo_from_row,
     _driver_uuid,
     _parse_dck,
 )
@@ -60,7 +58,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
     from pipeline.contracts.models import Deck
-    from pipeline.sim.engine import EngineInstall
     from pipeline.sim.gauntlet import GauntletDeck
     from pipeline.sim.monitor import ResourceMonitor
 
@@ -71,21 +68,8 @@ __all__ = (
     'DeckDelta',
     'aggregate_buckets',
     'build_opponent_field',
-    'default_run_ledger_path',
-    'run_corpus',
+    'run_corpus_queue',
 )
-
-# --------------------------------------------------------------------------- #
-# Run-ledger vocabulary (a SIBLING of the driver_batch ledger — this is the RUN).
-# --------------------------------------------------------------------------- #
-
-#: Terminal per-deck run statuses. ``gated`` -> ``compared`` is the happy path; a deck that
-#: fails its ship gate lands ``gate-failed`` (excluded from compare) and one that errors lands
-#: ``error`` — every deck ends with exactly one of these, never a silent drop. Ordered so a
-#: restart skips a deck already at/after its target (``compared``).
-RUN_STAGES: tuple[str, ...] = ('gated', 'compared')
-_RUN_STAGE_RANK = {name: i for i, name in enumerate(RUN_STAGES)}
-_TERMINAL_FAIL = ('gate-failed', 'error')
 
 #: The deterministic opponent-field strata: (bundle-dir, count). Order is load-bearing (the
 #: single ``random.Random(42)`` is consumed strata-in-order for a reproducible field).
@@ -97,15 +81,6 @@ _PLAN_DIR = Path(
         '~/.claude/plans/trippersham/magic-tools/2026-08-24-productionize-driver-authoring'
     )
 )
-_RUN_SET_PATH = _PLAN_DIR / 'research' / 'p4-review' / 'p5-run-set.json'
-
-
-def default_run_ledger_path(data_dir: str | os.PathLike[str] | None = None) -> Path:
-    """The default RUN ledger path: ``<data_dir>/sim/driver_run/ledger.jsonl``."""
-    from pipeline import store
-
-    root = Path(data_dir) if data_dir is not None else store.StorePaths.resolve().data_dir
-    return root / 'sim' / 'driver_run' / 'ledger.jsonl'
 
 
 def default_batch_ledger_path(data_dir: str | os.PathLike[str] | None = None) -> Path:
@@ -216,136 +191,8 @@ def deck_and_ref_for_row(row: dict[str, Any]) -> tuple[Deck, tuple[str, str]]:
 
 
 # --------------------------------------------------------------------------- #
-# The restartable per-deck run (gate -> compare).
+# Run-set resolution.
 # --------------------------------------------------------------------------- #
-
-
-def _wait_for_clear(monitor: ResourceMonitor | None, *, max_wait_s: float, poll_s: float) -> None:
-    """Block while the monitor's cooperative pause flag is raised (bounded by ``max_wait_s``).
-
-    Honors :meth:`~pipeline.sim.monitor.ResourceMonitor.poll_pause`; logs the current
-    :meth:`~pipeline.sim.monitor.ResourceMonitor.read_alarm` payload. A ``None`` monitor is a
-    no-op (unit tests / no-infra runs). Returns after the pause clears or the max wait elapses
-    — it never bypasses the flag silently.
-    """
-    if monitor is None:
-        return
-    waited = 0.0
-    while monitor.poll_pause() and waited < max_wait_s:
-        alarm = monitor.read_alarm()
-        log.warning('monitor PAUSE in effect (alarm=%s); waiting %.0fs…', alarm, poll_s)
-        time.sleep(poll_s)
-        waited += poll_s
-
-
-def run_one_deck(
-    row: dict[str, Any],
-    *,
-    field: Sequence[GauntletDeck],
-    install: EngineInstall,
-    games: int,
-    ledger: Ledger,
-    engine: object | None = None,
-    data_dir: str | os.PathLike[str] | None = None,
-    compare_games: int | None = None,
-    skip_gate: bool = False,
-) -> str:
-    """Gate then (on pass) compare ONE compiled DRIVE deck; record + return its terminal status.
-
-    Reconstructs the deck identity + quad spec, runs
-    :func:`~pipeline.sim.driver_gate.gate_driver` (records PASS/FAIL medians), and — only on a
-    PASS — runs :func:`~pipeline.sim.driver_compare.compare_pilotings` against ``field``,
-    persisting the full :class:`~pipeline.sim.driver_compare.PilotingComparison`. Returns one of
-    ``'compared'`` | ``'gate-failed'`` | ``'error'``; the same value is stamped in the ledger.
-    A per-deck exception is caught + recorded (``error``) — never a batch abort.
-
-    ``games`` drives BOTH the gate and the compare in the production run (both 20). The gate has
-    a hard >=20 floor (its never-slower check flakes when underpowered); ``compare_games``
-    overrides ONLY the compare game-count (the gate always runs at ``games``) so a tiny
-    end-to-end SMOKE can gate at 20 yet compare at 2.
-    """
-    from pipeline.sim.driver_authoring import driver_fqcn, seed_quad_from_combo
-    from pipeline.sim.driver_compare import compare_pilotings
-    from pipeline.sim.driver_gate import gate_driver
-
-    deck_id = str(row['deck_id'])
-    base = {
-        'deck_id': deck_id,
-        'name': row.get('name', deck_id),
-        'source': row.get('source', 'gauntlet'),
-        'archetype': row.get('archetype'),
-        'driver_uuid': row.get('driver_uuid'),
-        'fqcn': row.get('fqcn'),
-    }
-    try:
-        deck, deck_ref = deck_and_ref_for_row(row)
-        spec = seed_quad_from_combo(_combo_from_row(row), archetype=str(row['archetype']))
-        if skip_gate:
-            # DEMO/reduced-run path: the 24 subjects are P4-vetted and the gate mechanism is
-            # smoke-proven; the per-deck solo gate (2 sequential commander goldfish ~= 100 min on
-            # a shared box) is the run's dominant cost. Force-stamp a valid meta so compare runs,
-            # and record that the gate was BYPASSED (not a quality claim — an execution scope call).
-            from pipeline.sim import drivers as _drivers
-
-            _drivers.write_meta(
-                deck,
-                _drivers.DriverMeta(
-                    deck_version=_drivers.version(deck),
-                    harness_version=_drivers.harness_version(data_dir=data_dir),
-                    fqcn=str(row.get('fqcn') or driver_fqcn(deck)),
-                    gates_passed=True,
-                    gate_mode='skipped',
-                    extra={'gate': 'skipped-for-reduced-run'},
-                ),
-                data_dir=data_dir,
-            )
-            gate_body = {'gate_passed': None, 'gate_mode': 'skipped', 'gate_reason': 'bypassed (reduced run)'}
-        else:
-            gate = gate_driver(
-                deck,
-                deck_ref,
-                spec=spec,
-                install=install,
-                games=games,
-                engine=engine,  # type: ignore[arg-type]
-                data_dir=data_dir,
-            )
-            gate_body = {
-                'gate_passed': gate.passed,
-                'gate_mode': gate.mode,
-                'gate_reason': gate.reason,
-                'gate_driven_median': gate.driven_median,
-                'gate_baseline_median': gate.baseline_median,
-                'gate_markers': sorted(gate.markers_seen),
-            }
-            if not gate.passed:
-                ledger.record({**base, **gate_body, 'stage': 'gate-failed'})
-                log.info('%s: GATE FAILED — %s', deck_id, gate.reason)
-                return 'gate-failed'
-
-        comparison = compare_pilotings(
-            deck,
-            deck_ref,
-            install=install,
-            games=compare_games if compare_games is not None else games,
-            gauntlet=field,
-            fmt='commander',
-            engine=engine,  # type: ignore[arg-type]
-            data_dir=data_dir,
-        )
-        ledger.record({**base, **gate_body, 'stage': 'compared', 'comparison': comparison.as_dict()})
-        log.info(
-            '%s: COMPARED — winrate_delta=%.3f (driver %.3f vs cp7 %.3f)',
-            deck_id,
-            comparison.winrate_delta or 0.0,
-            comparison.winrate_driver or 0.0,
-            comparison.winrate_cp7 or 0.0,
-        )
-        return 'compared'
-    except Exception as exc:  # a per-deck failure is recorded + skipped, never fatal.
-        ledger.record({**base, 'stage': 'error', 'error': f'{type(exc).__name__}: {exc}'})
-        log.exception('%s: ERROR — %s', deck_id, exc)
-        return 'error'
 
 
 def _drive_rows_for_run_set(batch_ledger: Ledger, run_set: Sequence[str]) -> list[dict[str, Any]]:
@@ -481,9 +328,9 @@ def ingest_queue_transcripts(
 ) -> int:
     """Ingest every drained game's transcript into ``sim_game_features`` / ``sim_game_logs``.
 
-    The queue governor (:func:`~pipeline.sim.game_queue.run_games`) tallies wins but does NOT
-    ingest transcripts — this thin glue closes that gap. For each completed ``task_id`` in
-    ``result.done_results`` it splits the id into the ``(subject|opponent|piloting)`` cell key +
+    The simd engine (:func:`~pipeline.sim.simd.engine.run_games_simd`) tallies coverage but does
+    NOT ingest transcripts — this thin glue closes that gap. For each completed ``task_id`` in
+    ``result.results`` it splits the id into the ``(subject|opponent|piloting)`` cell key +
     the integer game index, and calls :func:`~pipeline.sim.transcript_parser.ingest_transcript`
     on the RESULT's ``log_path``. Best-effort per row (a missing/bad log is skipped, never
     fatal). Returns the number of rows written. ``cleanup=False`` keeps the transcript files
@@ -491,7 +338,7 @@ def ingest_queue_transcripts(
     from pipeline.sim.transcript_parser import ingest_transcript
 
     written = 0
-    for task_id, res in result.done_results.items():
+    for task_id, res in result.results.items():
         log_path = getattr(res, 'log_path', None)
         if not log_path:
             continue
@@ -510,6 +357,14 @@ def ingest_queue_transcripts(
     return written
 
 
+def default_ops_db_path(data_dir: str | os.PathLike[str] | None = None) -> Path:
+    """The default per-run ``ops.duckdb`` operational store path (simd's crash-safe done-set)."""
+    from pipeline import store
+
+    root = Path(data_dir) if data_dir is not None else store.StorePaths.resolve().data_dir
+    return root / 'sim' / 'driver_run_queue' / 'ops.duckdb'
+
+
 def run_corpus_queue(
     *,
     rows: Sequence[dict[str, Any]],
@@ -517,128 +372,75 @@ def run_corpus_queue(
     games: int,
     stall_timeout_s: float = 900.0,
     monitor: ResourceMonitor | None = None,
-    done_set_path: str | os.PathLike[str] | None = None,
+    ops_db_path: str | os.PathLike[str] | None = None,
     worker_cmd: Sequence[str] | None = None,
     data_dir: str | os.PathLike[str] | None = None,
+    preflight: Any = None,
+    disk_governor: Any = None,
+    breaker: Any = None,
+    boot_deadline_s: float | None = None,
+    own_pgroup: bool = True,
 ) -> Any:
-    """Phase-3 opt-in corpus run over the persistent-worker queue (behind ``--queue``).
+    """The LIVE corpus run over the simd engine (the ONE owner after the A3 cutover).
 
-    Builds the dual-driver :class:`GameTask` list (:func:`build_corpus_game_tasks`), resumes from
-    a per-game done-set sidecar if present, and drives :func:`~pipeline.sim.game_queue.run_games`.
-    The OLD :func:`run_corpus` (`run_matchups` over `MatchSpec`) stays the default/fallback — this
-    is invoked ONLY when the caller passes ``--queue``. ``worker_cmd`` defaults to
-    :func:`resolve_worker_cmd` (the Phase-2 JVM); tests inject a fake."""
+    Builds the dual-driver :class:`GameTask` list (:func:`build_corpus_game_tasks`) and drives
+    :func:`~pipeline.sim.simd.engine.run_games_simd` — fair round-robin scheduling, per-cell
+    attempt-cap + persistent quarantine, and a crash-safe ``ops.duckdb`` operational store that
+    RESUMES a torn run with zero completed-game loss (the JSONL done-set is retired). ``worker_cmd``
+    defaults to :func:`resolve_worker_cmd` (the Phase-2 JVM); tests inject a fake.
+
+    Production carry-forwards armed here: the A1 plausibility gate (``bailout_floor_ms =
+    BAILOUT_HARD_FLOOR_MS`` — sub-2s "wins" are engine bailouts, non-decisive, surfaced in
+    coverage), the ``flock`` singleton + orphan-reaping pidfile (a 2nd launch refuses; a crashed
+    predecessor's JVM tree is reaped first), and ``own_pgroup=True`` so a future reaper can killpg
+    this run's whole tree. ``preflight`` / ``disk_governor`` / ``breaker`` / ``boot_deadline_s``
+    are the A2b resilience hooks (opt-in; the production CLI wires the Java preflight + breaker)."""
     from pipeline.sim import runner
-    from pipeline.sim.game_queue import load_done_set, run_games, save_done_set
+    from pipeline.sim.aggregate import BAILOUT_HARD_FLOOR_MS
+    from pipeline.sim.simd.engine import run_games_simd
 
     # Stage translated decks + shared transcript dir under the staging root (swept by
     # reap_stale_staging). The workers load decks by bare basename from decks_dir and write
-    # transcripts into log_dir so the governor can ingest by task_id afterward.
+    # transcripts into log_dir so the ingest-by-task_id pass can find them afterward.
     staging = runner.staging_root()
     staging.mkdir(parents=True, exist_ok=True)
     stage_dir = Path(tempfile.mkdtemp(prefix='corpus-decks-', dir=staging))
     log_dir = Path(tempfile.mkdtemp(prefix='corpus-logs-', dir=staging))
 
     tasks = build_corpus_game_tasks(rows, field, games=games, stage_dir=stage_dir, data_dir=data_dir)
-    done = load_done_set(done_set_path) if done_set_path else {}
     cmd = (
         list(worker_cmd)
         if worker_cmd is not None
         else resolve_worker_cmd(log_dir=log_dir, data_dir=data_dir, decks_dir=stage_dir)
     )
-    # Pass done_set_path INTO run_games so the done-set is checkpointed incrementally (per-subject)
-    # DURING the run — a crash in a ~12-15h corpus run then resumes from the last finished subject
-    # instead of re-running everything. On resume the seeded `done` carries each prior game's WINNER
-    # tally, which is the science the bucket table needs; the per-run transcript log_dir is a fresh
-    # mkdtemp, so a resumed run cannot ingest prior games' transcripts — that loss is acceptable
-    # (best-effort transcript ingest only; the win tallies / comparisons remain correct).
-    from pipeline.sim.game_queue import BAILOUT_HARD_FLOOR_MS
+    ops_db = Path(ops_db_path) if ops_db_path is not None else default_ops_db_path(data_dir)
+    lock_path = ops_db.parent / 'simd.lock'
+    pidfile = ops_db.parent / 'simd.pid'
 
-    result = run_games(
+    result = run_games_simd(
         tasks,
         worker_cmd=cmd,
+        ops_db_path=ops_db,
         stall_timeout_s=stall_timeout_s,
-        done_set=done,
-        done_set_path=done_set_path,
         monitor=monitor,
         # Arm the plausibility gate on the production path: sub-2s "wins" are engine bailouts
         # (audit) → non-decisive, excluded from W/L, surfaced in coverage.
         bailout_floor_ms=BAILOUT_HARD_FLOOR_MS,
+        preflight=preflight,
+        disk_governor=disk_governor,
+        breaker=breaker,
+        boot_deadline_s=boot_deadline_s,
+        # Singleton + orphan reaping + own process group — the production isolation carry-forwards.
+        singleton_lock_path=lock_path,
+        pidfile_path=pidfile,
+        own_pgroup=own_pgroup,
     )
-    if done_set_path:  # final flush (harmless; run_games already checkpointed incrementally).
-        save_done_set(done_set_path, {**done, **result.done_results})
     # Ingest each drained game's transcript into sim_game_features / sim_game_logs (best-effort).
     try:
         ingest_queue_transcripts(result, data_dir=data_dir)
     except Exception:
         log.warning('queue transcript ingestion failed (non-fatal)', exc_info=True)
     return result
-
-
-def run_corpus(
-    *,
-    run_set: Sequence[str],
-    install: EngineInstall,
-    games: int = 20,
-    batch_ledger_path: str | os.PathLike[str] | None = None,
-    run_ledger_path: str | os.PathLike[str] | None = None,
-    engine: object | None = None,
-    monitor: ResourceMonitor | None = None,
-    field: Sequence[GauntletDeck] | None = None,
-    data_dir: str | os.PathLike[str] | None = None,
-    max_pause_wait_s: float = 3600.0,
-    pause_poll_s: float = 30.0,
-    compare_games: int | None = None,
-    skip_gate: bool = False,
-    field_size: int | None = None,
-) -> dict[str, Any]:
-    """Run the whole gate->compare pipeline over ``run_set`` under the monitor; return a summary.
-
-    Restartable: a deck already ``compared`` in the run ledger is SKIPPED. Before admitting each
-    deck's work the harness honors the monitor's cooperative pause flag
-    (:func:`_wait_for_clear`). The opponent ``field`` is resolved once (excluding the whole
-    compiled DRIVE set) unless supplied. The monitor (when given) is STARTED before the loop and
-    STOPPED in a ``finally``. Returns ``{'field': [...names], 'counts': {...}, 'run_ledger': path}``.
-    """
-    batch = Ledger(Path(batch_ledger_path) if batch_ledger_path else default_batch_ledger_path(data_dir))
-    run_ledger = Ledger(Path(run_ledger_path) if run_ledger_path else default_run_ledger_path(data_dir))
-
-    rows = _drive_rows_for_run_set(batch, run_set)
-    if field is None:
-        drive_ids = [r['deck_id'] for r in batch.rows() if r.get('drive') and r.get('stage') in ('compiled', 'gated')]
-        field = build_opponent_field(drive_ids)
-    if field_size is not None:
-        field = list(field)[:field_size]
-    field_names = [g.name for g in field]
-    log.info('opponent field (%d): %s', len(field_names), ', '.join(field_names))
-
-    counts = {'compared': 0, 'gate-failed': 0, 'error': 0, 'skipped': 0}
-    if monitor is not None:
-        monitor.start()
-    try:
-        for row in rows:
-            deck_id = str(row['deck_id'])
-            existing = run_ledger.stage_of(deck_id)
-            if existing == 'compared':
-                counts['skipped'] += 1
-                continue
-            _wait_for_clear(monitor, max_wait_s=max_pause_wait_s, poll_s=pause_poll_s)
-            status = run_one_deck(
-                row,
-                field=field,
-                install=install,
-                games=games,
-                ledger=run_ledger,
-                engine=engine,
-                data_dir=data_dir,
-                compare_games=compare_games,
-                skip_gate=skip_gate,
-            )
-            counts[status] = counts.get(status, 0) + 1
-    finally:
-        if monitor is not None:
-            monitor.stop()
-    return {'field': field_names, 'counts': counts, 'run_ledger': str(run_ledger.path)}
 
 
 # --------------------------------------------------------------------------- #
@@ -808,65 +610,6 @@ def aggregate_buckets(deltas: Iterable[DeckDelta]) -> dict[str, BucketStat]:
 
 
 # --------------------------------------------------------------------------- #
-# Extract DeckDeltas from a compared run-ledger + the run-set keep tags.
-# --------------------------------------------------------------------------- #
-
-
-def _keep_tags(run_set_json: dict[str, Any]) -> dict[str, str]:
-    """Map deck_id -> ``tight-keep`` | ``loose-keep`` from the P5 run-set json."""
-    out: dict[str, str] = {}
-    for deck_id in run_set_json.get('tight_keep', []):
-        out[deck_id] = 'tight-keep'
-    for deck_id in run_set_json.get('loose_keep', []):
-        out.setdefault(deck_id, 'loose-keep')
-    return out
-
-
-def deltas_from_ledger(
-    run_ledger: Ledger,
-    run_set_json: dict[str, Any],
-    *,
-    tightness: dict[str, str] | None = None,
-) -> list[DeckDelta]:
-    """Extract a :class:`DeckDelta` per ``compared`` run-ledger row (pooling per-opponent games).
-
-    ``tightness`` (``deck_id -> 'tight'|'loose'``) is the v2 ledger's ``p_tightness`` tag,
-    driving the tight-P / loose-P buckets; ``None`` keeps them empty (legacy run-set path)."""
-    keep = _keep_tags(run_set_json)
-    tight = tightness or {}
-    deltas: list[DeckDelta] = []
-    for row in run_ledger.rows():
-        if row.get('stage') != 'compared':
-            continue
-        comp = row.get('comparison') or {}
-        gaunt = comp.get('gauntlet') or {}
-        per_opp = gaunt.get('per_opponent') or []
-        dw = dd = cw = cd = 0
-        for o in per_opp:
-            drec = str(o.get('driver_record', '0/0')).split('/')
-            crec = str(o.get('cp7_record', '0/0')).split('/')
-            dw += int(drec[0])
-            dd += int(drec[1])
-            cw += int(crec[0])
-            cd += int(crec[1])
-        deck_id = str(row['deck_id'])
-        deltas.append(
-            DeckDelta(
-                deck_id=deck_id,
-                keep=keep.get(deck_id, ''),
-                archetype=str(row.get('archetype') or ''),
-                driver_wins=dw,
-                driver_decided=dd,
-                cp7_wins=cw,
-                cp7_decided=cd,
-                n_matchups=len(per_opp),
-                p_tightness=tight.get(deck_id, ''),
-            )
-        )
-    return deltas
-
-
-# --------------------------------------------------------------------------- #
 # Bucket-table rendering (JSON + readable markdown).
 # --------------------------------------------------------------------------- #
 
@@ -938,34 +681,23 @@ def write_bucket_table(
 # --------------------------------------------------------------------------- #
 
 
-def _load_run_set(path: str | os.PathLike[str] | None) -> tuple[list[str], dict[str, Any]]:
-    p = Path(path) if path else _RUN_SET_PATH
-    data = json.loads(p.read_text(encoding='utf-8'))
-    return list(data.get('p5_driven_set', [])), data
-
-
 def run(argv: list[str] | None = None) -> None:
-    """CLI: ``python -m pipeline.sim.driver_run --run`` — the full monitored corpus run + aggregate.
+    """CLI: ``python -m pipeline.sim.driver_run --run`` — the LIVE simd corpus run + aggregate.
 
-    Restartable (re-run skips ``compared`` decks). Omitting ``--run`` skips the run and just
-    (re)builds the bucket table from the existing run ledger.
+    The single owner after the A3 cutover: the run drives :func:`run_corpus_queue` (simd engine —
+    fair scheduling, attempt-cap/quarantine, crash-safe ``ops.duckdb`` resume) and folds the
+    committed results into the rule-8 bucket table via :func:`~pipeline.sim.aggregate`. Omitting
+    ``--run`` re-derives the run-set/tags only (a dry preview — no games).
     """
     import argparse
 
-    parser = argparse.ArgumentParser(prog='driver-run', description='Corpus driver-vs-CP7 run + bucket aggregation.')
+    parser = argparse.ArgumentParser(prog='driver-run', description='Corpus driver-vs-CP7 simd run + buckets.')
     parser.add_argument(
         '--run',
         action='store_true',
-        help='Execute the gate->compare corpus run. Omit to skip the run and rebuild the bucket table only.',
+        help='Execute the simd corpus run. Omit to only re-derive the run-set/tags (no games).',
     )
-    parser.add_argument('--games', type=int, default=20, help='Games per gate + per matchup (>=20 for the gate).')
-    parser.add_argument(
-        '--run-set',
-        default=None,
-        help='Run-set JSON path. DEFAULT (omitted): derive the run-set + tight/loose-P tags from the '
-        'v2 batch ledger DRIVE rows (the 47-driver roster).',
-    )
-    parser.add_argument('--run-ledger', default=None, help='Run ledger path (default: <data_dir>/sim/driver_run/...).')
+    parser.add_argument('--games', type=int, default=20, help='Games per matchup arm.')
     parser.add_argument(
         '--batch-ledger',
         default=None,
@@ -973,88 +705,95 @@ def run(argv: list[str] | None = None) -> None:
     )
     parser.add_argument('--out-dir', default=str(_PLAN_DIR), help='Where the bucket table (json+md) is written.')
     parser.add_argument('--no-monitor', action='store_true', help='Do not start the resource monitor (tests/dev).')
-    parser.add_argument('--limit', type=int, default=None, help='Run only the first N run-set decks (reduced run).')
-    parser.add_argument('--compare-games', type=int, default=None, help='Games/matchup in compare (default --games).')
-    parser.add_argument('--field-size', type=int, default=None, help='Cap the opponent field to the first K decks.')
-    parser.add_argument(
-        '--skip-gate',
-        action='store_true',
-        help='Bypass the per-deck solo gate (force-stamp a valid meta); reduced-run scope call, not a quality claim.',
-    )
-    parser.add_argument(
-        '--queue',
-        action='store_true',
-        help='OPT-IN (Phase 3): run the compare over the persistent-worker game-queue (per-game '
-        'scheduling, dedup, retry-cap, per-game restart) instead of the default run_matchups path. '
-        'Requires the Phase-2 XMageBatch --worker (not built yet); DEFAULT OFF.',
-    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     batch_ledger_path = Path(args.batch_ledger) if args.batch_ledger else default_batch_ledger_v2_path()
-    # Run-set source: an explicit --run-set json keeps the legacy p5 path; otherwise derive
-    # the DRIVE run-set + the tight/loose-P tags straight off the v2 batch ledger (47 drivers).
-    tightness: dict[str, str] = {}
-    if args.run_set:
-        run_set, run_set_json = _load_run_set(args.run_set)
-    else:
-        run_set, tightness = run_set_from_batch_ledger(Ledger(batch_ledger_path))
-        run_set_json = {}
-        log.info('v2 run-set: %d DRIVE decks (tight=%d loose=%d) from %s', len(run_set),
-                 sum(t == 'tight' for t in tightness.values()),
-                 sum(t == 'loose' for t in tightness.values()), batch_ledger_path)
-    if args.limit is not None:
-        run_set = run_set[: args.limit]
-    run_ledger_path = Path(args.run_ledger) if args.run_ledger else default_run_ledger_path()
+    # Derive the DRIVE run-set + the tight/loose-P tags straight off the v2 batch ledger (47 drivers).
+    batch = Ledger(batch_ledger_path)
+    run_set, tightness = run_set_from_batch_ledger(batch)
+    log.info('v2 run-set: %d DRIVE decks (tight=%d loose=%d) from %s', len(run_set),
+             sum(t == 'tight' for t in tightness.values()),
+             sum(t == 'loose' for t in tightness.values()), batch_ledger_path)
 
-    field_names: list[str] = []
-    if args.run:
-        from pipeline.sim.engine import get_engine
-        from pipeline.sim.monitor import ResourceMonitor
+    if not args.run:
+        print(f'run-set: {len(run_set)} DRIVE decks (dry preview — pass --run to execute)')
+        return
 
-        engine = get_engine('xmage')
-        install = engine.resolve(provision=False)
-        monitor = None if args.no_monitor else ResourceMonitor()
-        if args.queue:
-            # OPT-IN Phase-3 game-queue path (per-game scheduling). Resolves the run-set DRIVE
-            # rows + opponent field exactly as run_corpus does, then drives run_games. Requires
-            # the Phase-2 worker (resolve_worker_cmd) — not built yet, so this raises a clear
-            # error rather than silently doing nothing. The default path below is untouched.
-            batch = Ledger(batch_ledger_path)
-            rows = _drive_rows_for_run_set(batch, run_set)
-            drive_ids = [
-                r['deck_id'] for r in batch.rows() if r.get('drive') and r.get('stage') in ('compiled', 'gated')
-            ]
-            field = build_opponent_field(drive_ids)
-            if args.field_size is not None:
-                field = list(field)[: args.field_size]
-            field_names = [g.name for g in field]
-            result = run_corpus_queue(rows=rows, field=field, games=args.games, monitor=monitor)
-            log.info('queue run complete: complete=%s failed=%d', result.complete, len(result.failed))
-            summary = None
-        else:
-            summary = run_corpus(
-                run_set=run_set,
-                install=install,
-                games=args.games,
-                batch_ledger_path=batch_ledger_path,
-                run_ledger_path=run_ledger_path,
-                engine=engine,
-                monitor=monitor,
-                compare_games=args.compare_games,
-                skip_gate=args.skip_gate,
-                field_size=args.field_size,
-            )
-            field_names = summary['field']
-            log.info('run complete: %s', summary['counts'])
+    from pipeline.sim.aggregate import BAILOUT_HARD_FLOOR_MS, aggregate_results
+    from pipeline.sim.monitor import ResourceMonitor
+    from pipeline.sim.simd.preflight import preflight_java
 
-    run_ledger = Ledger(run_ledger_path)
-    deltas = deltas_from_ledger(run_ledger, run_set_json, tightness=tightness)
-    stats = aggregate_buckets(deltas)
+    rows = _drive_rows_for_run_set(batch, run_set)
+    drive_ids = [r['deck_id'] for r in batch.rows() if r.get('drive') and r.get('stage') in ('compiled', 'gated')]
+    field = build_opponent_field(drive_ids)
+    field_names = [g.name for g in field]
+    log.info('opponent field (%d): %s', len(field_names), ', '.join(field_names))
+
+    monitor = None if args.no_monitor else ResourceMonitor()
+    # Production carry-forwards: Java preflight (fail-loud, version-gated) + crash-loop breaker are
+    # wired here; run_corpus_queue arms the bailout gate, flock singleton, orphan reaper, own_pgroup.
+    from pipeline.sim.simd.circuit_breaker import CrashLoopBreaker
+
+    result = run_corpus_queue(
+        rows=rows,
+        field=field,
+        games=args.games,
+        monitor=monitor,
+        preflight=preflight_java,
+        breaker=CrashLoopBreaker(),
+        boot_deadline_s=120.0,
+    )
+    log.info('simd run complete=%s quarantined=%d incomplete_cells=%d',
+             result.complete, len(result.quarantined), len(result.incomplete_cells))
+
+    # Fold the committed results into per-subject comparisons, remapping the tag maps from deck_id
+    # to the staged subject basename the tasks carry.
+    subject_of = {_flat_deck_basename('s', str(r['deck_id'])): str(r['deck_id']) for r in rows}
+    tight_by_subject = {sub: tightness.get(did, '') for sub, did in subject_of.items()}
+    arche_by_subject = {
+        _flat_deck_basename('s', str(r['deck_id'])): str(r.get('archetype') or '') for r in rows
+    }
+    all_task_ids = list(result.results) + [t for t in result.quarantined if t not in result.results]
+    agg = aggregate_results(
+        all_task_ids, result.results, quarantined=result.quarantined, bailout_floor_ms=BAILOUT_HARD_FLOOR_MS
+    )
+    comparisons = agg.comparisons()
+    stats = aggregate_buckets(_deltas_from_comparisons(comparisons, arche_by_subject, tight_by_subject))
     json_path, md_path = write_bucket_table(stats, out_dir=args.out_dir, field_names=field_names)
     print(render_bucket_markdown(stats, field_names=field_names))
     print(f'buckets: {json_path}')
     print(f'buckets: {md_path}')
+
+
+def _deltas_from_comparisons(
+    comparisons: dict[str, Any],
+    archetypes: dict[str, str],
+    tightness: dict[str, str],
+) -> list[DeckDelta]:
+    """Pool each subject's :class:`PilotingComparison` into a :class:`DeckDelta` (bucket input)."""
+    deltas: list[DeckDelta] = []
+    for subject, comp in comparisons.items():
+        dw = dd = cw = cd = 0
+        for o in comp.per_opponent:
+            dw += o.driver_wins
+            dd += o.driver_decided
+            cw += o.cp7_wins
+            cd += o.cp7_decided
+        deltas.append(
+            DeckDelta(
+                deck_id=subject,
+                keep='',
+                archetype=archetypes.get(subject, ''),
+                driver_wins=dw,
+                driver_decided=dd,
+                cp7_wins=cw,
+                cp7_decided=cd,
+                n_matchups=len(comp.per_opponent),
+                p_tightness=tightness.get(subject, ''),
+            )
+        )
+    return deltas
 
 
 def main(argv: list[str] | None = None) -> None:
