@@ -94,6 +94,31 @@ def test_forge_dck_commander_zone_becomes_sideboard_line() -> None:
     assert 'Kaervek the Merciless' in out and out.count('Kaervek') == 1  # commander appears once.
 
 
+def test_forge_dck_strips_set_and_collector_suffix() -> None:
+    # Forge .dck card lines can carry a `Name|SET|num` set/collector suffix (and a `+`/`*`
+    # foil marker). XMage's TxtDeckImporter does NOT parse that suffix, so an un-stripped
+    # `Betor, Ancestor's Voice|TDC|1` resolves to NOTHING -> the whole deck loads 0 cards
+    # (the precon-opponent blocker). The translation must reduce each card line to a bare
+    # `N Name` so it resolves against the base card DB.
+    dck = (
+        '[metadata]\n'
+        'Name=Abzan Armor\n'
+        '[Commander]\n'
+        '1 Felothar the Steadfast|TDC|1\n'
+        '[Main]\n'
+        "1 Betor, Ancestor's Voice|TDC|1\n"
+        '1 Vrondiss, Rage of Ancients+|AFC\n'
+        '1 Kaalia of the Vast|COM\n'
+    )
+    out = _forge_dck_to_xmage_txt(dck)
+    assert 'SB: 1 Felothar the Steadfast\n' in out
+    assert "1 Betor, Ancestor's Voice\n" in out
+    assert '1 Vrondiss, Rage of Ancients\n' in out  # foil `+` and single-pipe suffix stripped.
+    assert '1 Kaalia of the Vast\n' in out
+    # No Forge annotation leaks through.
+    assert '|' not in out and '+' not in out
+
+
 def test_forge_dck_constructed_unchanged_no_sideboard_prefix() -> None:
     # A constructed .dck (no [Commander] zone) is byte-identical to before — no SB:.
     dck = '[metadata]\nName=T\n[Main]\n4 Lightning Bolt\n20 Mountain\n[Sideboard]\n2 Duress\n'

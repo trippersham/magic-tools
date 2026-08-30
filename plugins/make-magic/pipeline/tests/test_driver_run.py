@@ -55,6 +55,97 @@ def test_field_excludes_drive_decks() -> None:
     assert len(refield) == 8
 
 
+def _precon_names() -> set[str]:
+    from pipeline.sim.gauntlet import _bundle
+
+    return {g.name for g in _bundle('commander', 'precons')}
+
+
+def test_default_field_never_seats_a_zero_card_opponent() -> None:
+    """Every opponent in the default (structural) field translates to >= 1 loadable card."""
+    from pipeline.sim.engines import xmage as xe
+
+    field = dr.build_opponent_field(drive_deck_ids=[])
+    for g in field:
+        n = sum(1 for ln in xe._forge_dck_to_xmage_txt(g.dck_text).splitlines() if ln.strip())
+        assert n >= dr._MIN_LOADABLE_CARDS, f'{g.name} translated to only {n} cards'
+
+
+def test_field_excludes_unloadable_and_stays_deterministic() -> None:
+    """An injected loadability predicate drops rejected decks; the field is stable + all-loadable."""
+    reject = _precon_names()  # pretend every precon fails to load (the real A4 blocker)
+    loads = lambda g: g.name not in reject  # noqa: E731
+    a = dr.build_opponent_field(drive_deck_ids=[], loads=loads)
+    b = dr.build_opponent_field(drive_deck_ids=[], loads=loads)
+    assert [g.name for g in a] == [g.name for g in b]  # deterministic
+    assert len(a) == 8
+    assert all(loads(g) for g in a)  # NO rejected deck survives
+    assert not ({g.name for g in a} & reject)
+
+
+def test_field_redistributes_stratum_slot_when_all_precons_unloadable() -> None:
+    """When the whole precon stratum is unloadable the field still fills to 8 from the fallback."""
+    reject = _precon_names()
+    field = dr.build_opponent_field(drive_deck_ids=[], loads=lambda g: g.name not in reject)
+    assert len(field) == 8
+    assert not ({g.name for g in field} & reject)
+
+
+def test_field_fails_loud_when_it_cannot_be_filled() -> None:
+    """If nothing loads, the builder RAISES rather than seat a degenerate field."""
+    with pytest.raises(ValueError, match='opponent field'):
+        dr.build_opponent_field(drive_deck_ids=[], loads=lambda _g: False)
+
+
+def _precon_deck(stem: str) -> GauntletDeck:
+    from pipeline.sim.gauntlet import _bundle
+
+    for g in _bundle('commander', 'precons'):
+        if g.name == stem:
+            return g
+    raise AssertionError(f'precon {stem} not packaged')
+
+
+@pytest.mark.integration
+def test_xmage_deck_loads_rejects_unreleased_precon_accepts_clean_one() -> None:
+    """Real base-DB oracle: a clean precon seats; an unreleased-set (Marvel) precon does NOT.
+
+    ``WakandaForever_2026`` references a card absent from the base card DB (``Kimoyo Beads`` —
+    an unreleased Marvel-set printing) so it seats 0 cards / aborts; ``AbzanArmor_2025`` is a
+    fully-resolvable precon. Proves the residual A4 blocker the JVM-free structural check cannot
+    see is caught by :func:`~pipeline.sim.driver_run.xmage_deck_loads`, and that the whole field
+    excludes the unreleased deck. Self-skips without a resolvable XMage install + JRE + card DB.
+    """
+    import subprocess
+
+    try:
+        install = xr.resolve()
+    except Exception as exc:
+        pytest.skip(f'XMage install unresolved: {exc}')
+    try:
+        subprocess.run([str(install.java), '-version'], capture_output=True, check=True)
+    except Exception as exc:
+        pytest.skip(f'no runnable JRE (set MAKE_MAGIC_JAVA): {exc}')
+    if not (install.mage_tests_dir / 'db').is_dir():
+        pytest.skip('base card DB not built (run XMageBatch --warm)')
+
+    assert dr.xmage_deck_loads(_precon_deck('AbzanArmor_2025'), install=install) is True
+    assert dr.xmage_deck_loads(_precon_deck('WakandaForever_2026'), install=install) is False
+
+    # Bound the JVM checks to the precon bundle (as run() does); the curated bundles use the
+    # cheap structural default so the field build stays a handful of load-checks, not dozens.
+    from pipeline.sim.gauntlet import _bundle
+
+    precon_names = {g.name for g in _bundle('commander', 'precons')}
+
+    def loads(g: GauntletDeck) -> bool:
+        return dr.xmage_deck_loads(g, install=install) if g.name in precon_names else dr._default_loads(g)
+
+    field = dr.build_opponent_field(drive_deck_ids=[], loads=loads)
+    assert len(field) == 8
+    assert 'WakandaForever_2026' not in [g.name for g in field]
+
+
 # --------------------------------------------------------------------------- #
 # 2. rule-8 bucket aggregation                                                 #
 # --------------------------------------------------------------------------- #
@@ -170,7 +261,9 @@ def _stub_run_setup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str
     monkeypatch.setattr(dr, 'Ledger', lambda _p: SimpleNamespace(rows=lambda: []))
     monkeypatch.setattr(dr, 'run_set_from_batch_ledger', lambda _b: ([], {}))
     monkeypatch.setattr(dr, '_drive_rows_for_run_set', lambda _b, _rs: [])
-    monkeypatch.setattr(dr, 'build_opponent_field', lambda _ids: [])
+    monkeypatch.setattr(dr, 'build_opponent_field', lambda _ids, **_kw: [])
+    # run() resolves an XMage install to build the real base-DB load-check; keep the stub offline.
+    monkeypatch.setattr(xr, 'resolve', lambda *a, **k: (_ for _ in ()).throw(xr.XMageUnavailableError('stub')))
     monkeypatch.setattr(dr, 'run_corpus_queue', _fake_queue)
     return captured
 

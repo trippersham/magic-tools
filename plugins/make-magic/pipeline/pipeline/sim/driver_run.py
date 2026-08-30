@@ -55,7 +55,7 @@ from pipeline.sim.driver_batch import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Callable, Iterable, Sequence
 
     from pipeline.contracts.models import Deck
     from pipeline.sim.gauntlet import GauntletDeck
@@ -69,12 +69,24 @@ __all__ = (
     'aggregate_buckets',
     'build_opponent_field',
     'run_corpus_queue',
+    'xmage_deck_loads',
 )
 
 #: The deterministic opponent-field strata: (bundle-dir, count). Order is load-bearing (the
 #: single ``random.Random(42)`` is consumed strata-in-order for a reproducible field).
 _FIELD_STRATA: tuple[tuple[str, int], ...] = (('cedh', 2), ('mid', 3), ('casual', 2), ('precons', 1))
 _COMMANDER = 'commander'
+
+#: The bundle order a redistributed (unfillable) stratum slot is back-filled from. Order is
+#: load-bearing (deterministic): a slot the ``precons`` stratum can't fill with a LOADABLE deck
+#: is redistributed here (casual first, then the mid/cedh pools), never left as a 0-card seat.
+_FALLBACK_BUNDLES: tuple[str, ...] = ('casual', 'mid', 'cedh')
+
+#: An opponent deck must translate to at least this many loadable cards to be seated. A commander
+#: deck is ~99 cards; a deck that translates to fewer is broken (empty/garbage/format-unhandled)
+#: and would seat a degenerate 0-/few-card opponent — the A4 precon blocker. Used by the JVM-free
+#: default loadability check :func:`_structural_card_count`.
+_MIN_LOADABLE_CARDS = 60
 
 _PLAN_DIR = Path(
     os.path.expanduser(
@@ -125,10 +137,32 @@ def run_set_from_batch_ledger(batch_ledger: Ledger) -> tuple[list[str], dict[str
 # --------------------------------------------------------------------------- #
 
 
+def _structural_card_count(g: GauntletDeck) -> int:
+    """The number of loadable card lines ``g`` translates to (JVM-free loadability proxy).
+
+    Runs the SAME Forge->XMage translation the worker stages
+    (:func:`~pipeline.sim.engines.xmage._forge_dck_to_xmage_txt`) and counts the non-empty
+    ``N Name`` lines. A deck that translates to 0 (empty/garbage/format-unhandled) is exactly the
+    A4 precon blocker — a 0-card opponent that produces degenerate games. This is deterministic
+    and offline; it CANNOT see a well-formed name that is simply absent from the base card DB (an
+    unreleased-set card), which is why :func:`build_opponent_field` accepts an injectable ``loads``
+    so the live corpus run can pass the stronger real-DB check (:func:`xmage_deck_loads`).
+    """
+    from pipeline.sim.engines import xmage as xe
+
+    return sum(1 for line in xe._forge_dck_to_xmage_txt(g.dck_text).splitlines() if line.strip())
+
+
+def _default_loads(g: GauntletDeck) -> bool:
+    """The default loadability predicate: ``g`` translates to >= :data:`_MIN_LOADABLE_CARDS`."""
+    return _structural_card_count(g) >= _MIN_LOADABLE_CARDS
+
+
 def build_opponent_field(
     drive_deck_ids: Iterable[str],
     *,
     seed: int = 42,
+    loads: Callable[[GauntletDeck], bool] | None = None,
 ) -> list[GauntletDeck]:
     """Resolve the deterministic 8-deck stratified commander opponent field.
 
@@ -138,21 +172,170 @@ def build_opponent_field(
     bundle-relative ``deck_id`` (``commander/<bundle>/<stem>.dck``) is in ``drive_deck_ids``
     is EXCLUDED first (no subject faces itself). The returned list is stable across runs for
     a fixed ``seed`` + drive set.
+
+    **Loadability guard (the A4 precon blocker).** A candidate is seated only if ``loads(g)`` is
+    True. ``loads`` defaults to :func:`_default_loads` (a JVM-free structural card-count check that
+    guarantees no 0-card seat); the live corpus run injects the stronger real base-card-DB check
+    (:func:`xmage_deck_loads`) so a deck referencing an UNRELEASED-set card absent from the base DB
+    (which loads 0 cards / aborts the game at seat time) is dropped too. A stratum that cannot fill
+    its ``k`` slots with LOADABLE decks contributes what it can; the shortfall is REDISTRIBUTED,
+    deterministically, from the :data:`_FALLBACK_BUNDLES` pool (loadable, not already seated). If
+    the whole field still cannot reach 8 loadable opponents the builder RAISES — it never seats a
+    0-card opponent, and it never silently ships a short field.
     """
     from pipeline.sim.gauntlet import _bundle
 
+    loads = loads or _default_loads
     drive = set(drive_deck_ids)
     rng = random.Random(seed)
-    field: list[GauntletDeck] = []
-    for bundle, k in _FIELD_STRATA:
+
+    def _eligible(bundle: str) -> list[GauntletDeck]:
         candidates = sorted(_bundle(_COMMANDER, bundle), key=lambda g: g.name)
-        eligible = [g for g in candidates if f'{_COMMANDER}/{bundle}/{g.name}.dck' not in drive]
-        if len(eligible) < k:
-            raise ValueError(
-                f'opponent-field stratum {bundle!r} has {len(eligible)} eligible decks < {k} requested'
+        return [
+            g
+            for g in candidates
+            if f'{_COMMANDER}/{bundle}/{g.name}.dck' not in drive and loads(g)
+        ]
+
+    field: list[GauntletDeck] = []
+    seated: set[str] = set()
+    shortfall = 0
+    for bundle, k in _FIELD_STRATA:
+        eligible = _eligible(bundle)
+        take = min(k, len(eligible))
+        chosen = rng.sample(eligible, take) if take else []
+        field.extend(chosen)
+        seated.update(g.name for g in chosen)
+        shortfall += k - take
+        if take < k:
+            log.warning(
+                'opponent-field stratum %r filled %d/%d loadable decks — redistributing %d slot(s)',
+                bundle, take, k, k - take,
             )
-        field.extend(rng.sample(eligible, k))
+
+    if shortfall:
+        pool: list[GauntletDeck] = []
+        pool_names: set[str] = set()
+        for bundle in _FALLBACK_BUNDLES:
+            for g in _eligible(bundle):
+                if g.name in seated or g.name in pool_names:
+                    continue
+                pool_names.add(g.name)
+                pool.append(g)
+        if len(pool) < shortfall:
+            raise ValueError(
+                f'opponent field cannot be built: {shortfall} slot(s) unfilled and only '
+                f'{len(pool)} loadable fallback deck(s) available (all others are unloadable or '
+                'already seated). Refusing to seat a 0-card opponent.'
+            )
+        field.extend(rng.sample(pool, shortfall))
+
+    # Defense-in-depth: NO seated opponent may fail the loadability guard.
+    assert all(loads(g) for g in field), 'build_opponent_field seated an unloadable deck'
     return field
+
+
+#: The command-zone passer PlayerB the load-check seats opposite the candidate: a legal 1v1 EDH
+#: deck of base-set cards, so any "deck too small" / "Card not found" the run reports is the
+#: CANDIDATE's fault, never PlayerB's.
+_LOADCHECK_PASSER_TXT = '99 Forest\nSB: 1 Yargle, Glutton of Urborg\n'
+
+
+def xmage_deck_loads(
+    g: GauntletDeck,
+    *,
+    install: Any = None,
+    data_dir: str | os.PathLike[str] | None = None,
+    boot_timeout_s: float = 300.0,
+    seat_grace_s: float = 12.0,
+) -> bool:
+    """True iff ``g`` SEATS against the REAL base XMage card DB with no missing card.
+
+    The stronger loadability oracle :func:`build_opponent_field` accepts as ``loads`` for the live
+    corpus run: it stages ``g`` through the SAME translation the worker uses
+    (:func:`~pipeline.sim.engines.xmage._forge_dck_to_xmage_txt`), gives the JVM a PRIVATE
+    copy-on-write card-DB clone (the H2 parallel-init discipline), and launches one ``XMageBatch``
+    commander game against a base-set passer. A candidate that references a card ABSENT from the
+    base DB (an UNRELEASED-set precon card — the residual A4 blocker the JVM-free structural check
+    cannot see) makes XMage throw ``deck too small (0 cards)`` / ``Card not found`` SYNCHRONOUSLY at
+    seat time, right after the ``card db ready`` banner; a loadable deck instead proceeds into the
+    (long) game. So the check STREAMS the JVM's output and decides the moment seating resolves —
+    a load error -> ``False``; ``seat_grace_s`` elapsing past the ready banner with no error ->
+    ``True`` (seating succeeded) — then KILLS the JVM without playing the game out. Requires a
+    resolvable XMage install + runnable JRE + built card DB; raises
+    :class:`~pipeline.sim.xmage_runtime.XMageUnavailableError` when they are absent so the caller
+    can decide (the live run degrades to the structural default).
+    """
+    import queue
+    import shutil
+    import subprocess
+    import threading
+    import time
+
+    from pipeline.sim import runner, xmage_runtime
+    from pipeline.sim.engines import xmage as xe
+
+    if install is None:
+        install = xmage_runtime.resolve(data_dir=data_dir)
+
+    staging = runner.staging_root()
+    staging.mkdir(parents=True, exist_ok=True)
+    run_dir = Path(tempfile.mkdtemp(prefix='xmage-loadcheck-', dir=staging))
+    proc: subprocess.Popen[str] | None = None
+    try:
+        xe._stage_private_db(install, run_dir)
+        cand = xe._stage_txt(run_dir, 'cand', xe._forge_dck_to_xmage_txt(g.dck_text))
+        passer = xe._stage_txt(run_dir, 'passer', _LOADCHECK_PASSER_TXT)
+        cmd = xe._compose_launch_cmd(
+            install, [str(cand), str(passer), '1', '7', 'commander'], heap='3g'
+        )
+        proc = subprocess.Popen(
+            cmd, cwd=run_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+        )
+        assert proc.stdout is not None
+        # A reader thread drains stdout into a queue so a SILENT JVM (a loadable deck mid-game
+        # emits nothing after the ready banner) can't wedge the grace/boot deadlines.
+        lines: queue.Queue[str | None] = queue.Queue()
+        threading.Thread(target=_drain, args=(proc.stdout, lines), daemon=True).start()
+
+        boot_deadline = time.monotonic() + boot_timeout_s
+        seat_deadline: float | None = None
+        while True:
+            if seat_deadline is not None and time.monotonic() >= seat_deadline:
+                return True  # ready banner + no load error within grace -> seated OK.
+            if time.monotonic() >= boot_deadline:
+                raise xe.XMageError(
+                    f'load-check for {g.name} never seated within {boot_timeout_s:.0f}s'
+                )
+            try:
+                line = lines.get(timeout=1.0)
+            except queue.Empty:
+                continue
+            if line is None:
+                # Stream closed (process exited): seated iff the DB was ready and no error was seen
+                # (a clean short game on a loadable deck can end this way).
+                return seat_deadline is not None
+            if 'deck too small' in line or 'Card not found' in line:
+                log.info('load-check REJECT %s: %s', g.name, line.strip())
+                return False
+            if seat_deadline is None and 'card db ready' in line.lower():
+                # Seating throws synchronously right after this banner; give it a brief grace
+                # window to surface a load error before we call the deck seated.
+                seat_deadline = time.monotonic() + seat_grace_s
+    finally:
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def _drain(stream: Any, out: Any) -> None:
+    """Feed each line of ``stream`` into the queue ``out``; enqueue ``None`` at EOF."""
+    try:
+        for line in stream:
+            out.put(line)
+    finally:
+        out.put(None)
 
 
 # --------------------------------------------------------------------------- #
@@ -727,7 +910,30 @@ def run(argv: list[str] | None = None) -> None:
 
     rows = _drive_rows_for_run_set(batch, run_set)
     drive_ids = [r['deck_id'] for r in batch.rows() if r.get('drive') and r.get('stage') in ('compiled', 'gated')]
-    field = build_opponent_field(drive_ids)
+    # The live run validates every opponent against the REAL base card DB (so an unreleased-set
+    # precon card that seats 0 cards / aborts the game is dropped + the slot redistributed), and
+    # degrades to the JVM-free structural default if XMage can't be resolved here.
+    from pipeline.sim import xmage_runtime as xr
+    from pipeline.sim.gauntlet import _bundle
+    from pipeline.sim.xmage_runtime import XMageUnavailableError
+
+    try:
+        install = xr.resolve()
+        # The curated cedh/mid/casual bundles are known-loadable; only the precon bundle carries
+        # unreleased-set risk, so spend the (JVM) base-DB check ONLY there and keep the cheap
+        # structural check for the rest — the field-build stays a handful of load-checks, not dozens.
+        precon_names = {g.name for g in _bundle(_COMMANDER, 'precons')}
+
+        def field_loads(g: GauntletDeck) -> bool:
+            if g.name in precon_names:
+                return xmage_deck_loads(g, install=install)
+            return _default_loads(g)
+
+        loads_fn: Callable[[GauntletDeck], bool] | None = field_loads
+    except XMageUnavailableError as exc:
+        log.warning('base-DB load-check unavailable (%s) — using the structural loadability default', exc)
+        loads_fn = None
+    field = build_opponent_field(drive_ids, loads=loads_fn)
     field_names = [g.name for g in field]
     log.info('opponent field (%d): %s', len(field_names), ', '.join(field_names))
 

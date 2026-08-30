@@ -211,10 +211,26 @@ def _forge_dck_to_xmage_txt(text: str) -> str:
         if not stripped:
             continue
         if section == '[main]':
-            lines.append(stripped)
+            lines.append(_strip_forge_annotations(stripped))
         elif section == '[commander]':
-            lines.append(f'SB: {stripped}')
+            lines.append(f'SB: {_strip_forge_annotations(stripped)}')
     return '\n'.join(lines) + '\n'
+
+
+def _strip_forge_annotations(card_line: str) -> str:
+    """Reduce a Forge ``N Name[+]|SET[|num]`` card line to the bare ``N Name`` XMage wants.
+
+    Newer Forge ``.dck`` exports (e.g. the packaged commander precons) annotate every card
+    line with a ``|SET|collector`` set/printing suffix and sometimes a ``+``/``*`` foil marker
+    (``Betor, Ancestor's Voice|TDC|1``, ``Vrondiss, Rage of Ancients+|AFC``). XMage's
+    ``TxtDeckImporter`` does NOT understand that suffix — it treats the whole string as the card
+    name, which resolves to NOTHING, so the entire deck imports as **0 cards** (the precon-opponent
+    blocker: A4's deterministic field seated a 0-card opponent -> degenerate games). Cut the line
+    at the first ``|`` (dropping the set/collector annotation) and strip a trailing foil marker so
+    the name matches the base card DB. A line with no annotation is returned unchanged.
+    """
+    name = card_line.split('|', 1)[0].rstrip()
+    return name.rstrip('+*').rstrip()
 
 
 class XMageEngine:
