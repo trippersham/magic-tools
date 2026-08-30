@@ -149,6 +149,39 @@ public class XMageBatch {
         }
     }
 
+    /**
+     * HARD per-game transcript BYTE CAP (bytes) — a defense-in-depth DISK backstop on the per-game
+     * transcript file (see {@link TranscriptCappingOutputStream}). The T2 wall-clock deadline
+     * ({@link #MAX_GAME_WALLCLOCK_SECS}) bounds transcript growth INDIRECTLY (it ends the game at
+     * ~budget), but there is no EXPLICIT ceiling on the FILE: a base livelock once wrote an
+     * 84 MB / 1.7M-line transcript, and a slow-but-legal long game — or any future loop the
+     * deadline is slow to catch — can still pressure disk. Once a game's transcript writes STRICTLY
+     * exceed this many bytes, one truncation-marker line is written and further transcript bytes are
+     * DISCARDED; the game keeps PLAYING to its RESULT unchanged (capping the log never ends the game
+     * or alters the outcome). The counter resets PER GAME. Resolved once at startup from
+     * {@code -Dmakemagic.maxTranscriptBytes} (or env {@code MAKE_MAGIC_MAX_TRANSCRIPT_BYTES});
+     * DEFAULT 64 MiB — comfortably above any real game's transcript, small enough to bound a
+     * pathological one. {@code <= 0} disables the cap (unbounded — the prior behavior; the stream is
+     * left UNWRAPPED, byte-identical to before).
+     */
+    private static final long MAX_TRANSCRIPT_BYTES = resolveMaxTranscriptBytes();
+
+    /** Resolve the per-game transcript byte cap: sysprop, then env, then the 64 MiB default. */
+    private static long resolveMaxTranscriptBytes() {
+        String raw = System.getProperty("makemagic.maxTranscriptBytes");
+        if (raw == null || raw.isEmpty()) {
+            raw = System.getenv("MAKE_MAGIC_MAX_TRANSCRIPT_BYTES");
+        }
+        if (raw == null || raw.isEmpty()) {
+            return 64L * 1024 * 1024; // 64 MiB default.
+        }
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException nfe) {
+            return 64L * 1024 * 1024; // a malformed budget falls back to the documented default.
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         // Warm-up mode: build/verify the H2 card DB in a SINGLE process and exit.
         // The caller runs this ONCE, serialized, before launching the parallel game
@@ -564,8 +597,15 @@ public class XMageBatch {
 
         // Autoflushing, UTF-8 PrintStream: every println flushes, so the transcript grows live
         // and a tailer sees turn-by-turn progress. stdout+stderr share it → one interleaved file.
-        PrintStream fileStream = new PrintStream(new FileOutputStream(logFile.toFile(), false), true,
-                StandardCharsets.UTF_8);
+        // T3: a fresh per-game transcript byte cap wraps the FileOutputStream so a pathological
+        // game cannot write an unbounded transcript (disk backstop). capForBudget returns the raw
+        // FileOutputStream unwrapped when the cap is <= 0 (byte-identical prior behavior). The
+        // wrapper is created per game, so the byte counter resets per game; closing the
+        // PrintStream closes the cap which closes the FileOutputStream, so teardown is unchanged.
+        PrintStream fileStream = new PrintStream(
+                TranscriptCappingOutputStream.capForBudget(
+                        new FileOutputStream(logFile.toFile(), false), MAX_TRANSCRIPT_BYTES),
+                true, StandardCharsets.UTF_8);
         try {
             System.setOut(fileStream);
             System.setErr(fileStream);
