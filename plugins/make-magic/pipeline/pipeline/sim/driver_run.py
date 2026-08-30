@@ -723,6 +723,7 @@ def run(argv: list[str] | None = None) -> None:
     from pipeline.sim.aggregate import BAILOUT_HARD_FLOOR_MS, aggregate_results
     from pipeline.sim.monitor import ResourceMonitor
     from pipeline.sim.simd.preflight import preflight_java
+    from pipeline.sim.xmage_runtime import _resolve_java
 
     rows = _drive_rows_for_run_set(batch, run_set)
     drive_ids = [r['deck_id'] for r in batch.rows() if r.get('drive') and r.get('stage') in ('compiled', 'gated')]
@@ -735,12 +736,15 @@ def run(argv: list[str] | None = None) -> None:
     # wired here; run_corpus_queue arms the bailout gate, flock singleton, orphan reaper, own_pgroup.
     from pipeline.sim.simd.circuit_breaker import CrashLoopBreaker
 
+    # The simd engine calls ``preflight()`` with ZERO args, but ``preflight_java`` needs the
+    # ``java`` launcher. Wire a zero-arg closure that resolves the runtime Java path (fail-loud if
+    # missing) and version-gates it — F-1: passing the bare ``preflight_java`` TypeError'd at boot.
     result = run_corpus_queue(
         rows=rows,
         field=field,
         games=args.games,
         monitor=monitor,
-        preflight=preflight_java,
+        preflight=lambda: preflight_java(_resolve_java()),
         breaker=CrashLoopBreaker(),
         boot_deadline_s=120.0,
     )

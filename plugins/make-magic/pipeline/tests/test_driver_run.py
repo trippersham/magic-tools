@@ -13,6 +13,7 @@ covered by the simd + parity suites). What remains here is the still-live domain
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -140,6 +141,76 @@ def test_bucket_lift_ci_reuses_wilson_helper() -> None:
     c_lo, c_hi = wilson_ci(30, 100)
     assert s.lift_ci == (d_lo - c_hi, d_hi - c_lo)
     assert s.pooled_lift == pytest.approx(0.5)
+
+
+# --------------------------------------------------------------------------- #
+# 3. F-1: the shipped --run CLI wires a ZERO-ARG preflight that resolves+gates Java #
+# --------------------------------------------------------------------------- #
+
+
+def _stub_run_setup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, object]:
+    """Stub the ledger/field derivation and capture ``run_corpus_queue``'s kwargs.
+
+    ``run_corpus_queue`` is replaced with a sentinel-raising capture so ``dr.run`` is exercised
+    exactly through the preflight wiring, then short-circuits before any real games.
+    """
+    from types import SimpleNamespace
+
+    captured: dict[str, object] = {}
+
+    class _Sentinel(Exception):
+        pass
+
+    def _fake_queue(**kwargs: object) -> object:
+        captured.update(kwargs)
+        raise _Sentinel
+
+    captured['_Sentinel'] = _Sentinel
+    monkeypatch.setattr(dr, 'default_batch_ledger_v2_path', lambda: tmp_path / 'ledger.jsonl')
+    monkeypatch.setattr(dr, 'Ledger', lambda _p: SimpleNamespace(rows=lambda: []))
+    monkeypatch.setattr(dr, 'run_set_from_batch_ledger', lambda _b: ([], {}))
+    monkeypatch.setattr(dr, '_drive_rows_for_run_set', lambda _b, _rs: [])
+    monkeypatch.setattr(dr, 'build_opponent_field', lambda _ids: [])
+    monkeypatch.setattr(dr, 'run_corpus_queue', _fake_queue)
+    return captured
+
+
+def test_run_wires_zero_arg_preflight_that_boots(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """F-1: the shipped ``--run`` wiring passes a ZERO-ARG ``preflight`` the engine can call.
+
+    Regression: ``preflight=preflight_java`` (needs a ``java`` positional) → the engine's
+    ``preflight()`` zero-arg call raised ``TypeError`` at boot. The fix wires a zero-arg closure
+    that resolves the runtime Java path and version-gates it. With a good launcher + injected
+    probe the closure returns the path — proving the CLI boots PAST preflight.
+    """
+    import pipeline.sim.simd.preflight as pf_mod
+
+    captured = _stub_run_setup(monkeypatch, tmp_path)
+    # A real, executable file to satisfy _resolve_java's is_file() gate; probe fakes a 21 banner.
+    monkeypatch.setenv('MAKE_MAGIC_JAVA', str(sys.executable))
+    monkeypatch.setattr(pf_mod, 'default_java_probe', lambda _java: 'openjdk version "21.0.3" 2024-04-16')
+
+    with pytest.raises(captured['_Sentinel']):  # type: ignore[arg-type]
+        dr.run(['--run', '--no-monitor'])
+
+    preflight = captured['preflight']
+    assert callable(preflight)
+    # The engine calls preflight() with ZERO args — must not TypeError, must return a Java path.
+    result = preflight()  # type: ignore[operator]
+    assert Path(result) == Path(sys.executable)
+
+
+def test_run_preflight_still_fails_loud_on_bad_java(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """F-1: the zero-arg wiring still FAILS LOUD on a missing/non-executable Java (not TypeError)."""
+    captured = _stub_run_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv('MAKE_MAGIC_JAVA', '/nonexistent/definitely/not/java')
+
+    with pytest.raises(captured['_Sentinel']):  # type: ignore[arg-type]
+        dr.run(['--run', '--no-monitor'])
+
+    preflight = captured['preflight']
+    with pytest.raises(xr.XMageUnavailableError):
+        preflight()  # type: ignore[operator]
 
 
 def test_bucket_markdown_renders_headline() -> None:

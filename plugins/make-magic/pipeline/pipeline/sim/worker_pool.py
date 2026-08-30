@@ -113,6 +113,7 @@ class WorkerPool:
         boot_deadline_s: float | None = None,
         boot_backoff_base_s: float = 0.0,
         boot_backoff_cap_s: float = 10.0,
+        on_spawn: Callable[[int], None] | None = None,
     ) -> None:
         self._cmd = list(worker_cmd)
         self._n = workers
@@ -130,6 +131,10 @@ class WorkerPool:
         self._boot_deadline_s = boot_deadline_s
         self._boot_backoff_base_s = boot_backoff_base_s
         self._boot_backoff_cap_s = boot_backoff_cap_s
+        #: Called with each spawned worker's pgid (== pid; ``start_new_session`` makes every worker
+        #: its own group leader). The engine records it so a successor's orphan reaper can killpg
+        #: the worker tree of a crashed leader (workers are outside the leader's own group).
+        self._on_spawn = on_spawn
 
         self._closing = threading.Event()
         self._state_lock = threading.Lock()
@@ -220,6 +225,12 @@ class WorkerPool:
             env=env,
         )
         runner._register_active(proc)
+        # start_new_session=True → this worker is its own process-group leader (pgid == proc.pid).
+        # Record it so a crashed leader's successor can reap the worker tree (F-2), NOT rely on the
+        # worker noticing stdin-EOF (which lags to the game deadline mid-game).
+        if self._on_spawn is not None:
+            with contextlib.suppress(Exception):
+                self._on_spawn(proc.pid)
         worker = _Worker(idx, proc)
         worker.reader = threading.Thread(
             target=self._read_loop, args=(worker,), name=f'worker-{idx}-reader', daemon=True

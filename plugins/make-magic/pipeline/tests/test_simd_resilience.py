@@ -40,6 +40,7 @@ from pipeline.sim.simd.reaper import (
     AlreadyRunning,
     SingletonLock,
     reap_orphan_tree,
+    record_worker_pgid,
     write_pidfile,
 )
 from pipeline.sim.simd.scheduler import SimdScheduler
@@ -325,6 +326,42 @@ def test_gate4_reaper_kills_real_sigterm_ignoring_tree(tmp_path) -> None:
         assert not pf.exists()  # handled pidfile is cleared.
     finally:
         for p in (child, control):
+            if p.poll() is None:
+                p.kill()
+                p.wait()
+
+
+def test_gate4_reaper_kills_start_new_session_worker_tree(tmp_path) -> None:
+    """F-2: a crashed leader's workers live in their OWN process groups (``start_new_session``).
+
+    The leader's own group is empty on crash, so the old ``killpg(leader_pgid)`` reaper never
+    reached the workers — cleanup fell back to slow stdin-EOF self-exit. The reaper must reap the
+    RECORDED worker pgids: a real child in its own session, referenced only via
+    ``record_worker_pgid``, is KILLED on the next startup (zero survivors), NOT left to self-exit.
+    """
+    pf = tmp_path / 'pid'
+    # A dead leader whose OWN process group has no members (its child is in a separate session).
+    dead = subprocess.Popen([sys.executable, '-c', ''])
+    dead.wait()
+    # A worker exactly like WorkerPool spawns: own session/group (pgid == pid), ignores SIGTERM.
+    worker = subprocess.Popen(
+        [sys.executable, '-c', 'import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)'],
+        start_new_session=True,
+    )
+    # A control worker, own group, NOT recorded — must survive (own-lineage only, never broad kill).
+    control = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(60)'], start_new_session=True)
+    try:
+        # Leader pidfile records only the (empty) leader group — reproducing the F-2 gap.
+        pf.write_text(f'{dead.pid} {dead.pid}\n')
+        record_worker_pgid(pf, worker.pid)  # the reparented worker's own pgid.
+        reaped = reap_orphan_tree(pf, grace_s=0.5, poll_s=0.02)
+        assert reaped is not None
+        # The recorded worker group was actually reaped (SIGTERM-ignoring → escalated to SIGKILL).
+        assert worker.wait(timeout=5) is not None
+        assert control.poll() is None  # the unrecorded control worker is untouched.
+        assert not pf.exists()  # pidfile + its worker sidecar are cleared once handled.
+    finally:
+        for p in (worker, control):
             if p.poll() is None:
                 p.kill()
                 p.wait()

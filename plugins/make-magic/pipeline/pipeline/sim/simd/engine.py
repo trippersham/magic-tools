@@ -18,7 +18,12 @@ from typing import TYPE_CHECKING
 
 from pipeline.sim.simd.ops_store import OpsStore
 from pipeline.sim.simd.preflight import BootFailure
-from pipeline.sim.simd.reaper import SingletonLock, reap_orphan_tree, write_pidfile
+from pipeline.sim.simd.reaper import (
+    SingletonLock,
+    reap_orphan_tree,
+    record_worker_pgid,
+    write_pidfile,
+)
 from pipeline.sim.simd.scheduler import SimdRunResult, SimdScheduler
 from pipeline.sim.worker_pool import WorkerPool
 
@@ -97,9 +102,14 @@ def run_games_simd(
             stack.enter_context(SingletonLock(singleton_lock_path))
         # 3. ORPHAN REAP — a crashed predecessor's whole JVM tree is killed before we start, then
         #    we record our own pid/pgid so OUR successor can reap us if we crash.
+        on_spawn: Callable[[int], None] | None = None
         if pidfile_path is not None:
             reap_orphan_tree(pidfile_path)
             write_pidfile(pidfile_path, setpgrp=own_pgroup)
+            # Workers spawn in their OWN sessions (start_new_session), outside our group — record
+            # each worker pgid so our successor's reaper can killpg the whole worker tree if we
+            # crash, instead of leaking JVMs until stdin-EOF self-exit (F-2).
+            on_spawn = lambda pid: record_worker_pgid(pidfile_path, pid)  # noqa: E731
 
         with OpsStore(ops_db_path) as ops:
             ops.register_tasks(tasks)
@@ -130,6 +140,7 @@ def run_games_simd(
                 breaker=breaker,
                 boot_deadline_s=boot_deadline_s,
                 boot_backoff_base_s=boot_backoff_base_s,
+                on_spawn=on_spawn,
             )
             try:
                 pool.start()
