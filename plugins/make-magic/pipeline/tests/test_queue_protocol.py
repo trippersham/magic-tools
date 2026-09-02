@@ -107,3 +107,47 @@ def test_parse_error() -> None:
 def test_malformed_line_raises(line: str) -> None:
     with pytest.raises(ProtocolError):
         parse_line(line)
+
+
+# --- Sol HIGH 1: strict typed fields --------------------------------------- #
+
+
+def test_result_missing_ms_raises() -> None:
+    """``ms`` is REQUIRED and typed — a missing ms is no longer defaulted to 0."""
+    with pytest.raises(ProtocolError, match='ms'):
+        parse_line('RESULT {"id": "s|o|driven|0", "winner": "a"}')
+
+
+@pytest.mark.parametrize('ms', ['"soon"', '-1', '1.5', 'true', 'null'])
+def test_result_non_int_or_negative_ms_raises(ms: str) -> None:
+    with pytest.raises(ProtocolError, match='ms'):
+        parse_line(f'RESULT {{"id": "s|o|driven|0", "winner": "a", "ms": {ms}}}')
+
+
+def test_heartbeat_negative_ms_raises() -> None:
+    with pytest.raises(ProtocolError, match='ms'):
+        parse_line('GAME s1|o1|driven|0 turn=5 ms=-3')
+
+
+@pytest.mark.parametrize('reason', ['bailout', 'timeout', 'driver-rejected'])
+def test_result_known_reason_accepted(reason: str) -> None:
+    msg = parse_line(f'RESULT {{"id": "s|o|driven|0", "winner": "none", "ms": 60000, "reason": "{reason}"}}')
+    assert isinstance(msg, GameResult)
+    assert msg.reason == reason
+
+
+def test_result_unknown_reason_raises() -> None:
+    with pytest.raises(ProtocolError, match='reason'):
+        parse_line('RESULT {"id": "s|o|driven|0", "winner": "none", "ms": 60000, "reason": "made-up"}')
+
+
+def test_result_string_markers_is_rejected_not_iterated_as_chars() -> None:
+    """A bare-string ``markers`` value must ERROR — never silently become a per-character list."""
+    with pytest.raises(ProtocolError, match='markers'):
+        parse_line('RESULT {"id": "s|o|driven|0", "winner": "a", "ms": 60000, "markers": "abc"}')
+
+
+def test_result_list_markers_ok() -> None:
+    msg = parse_line('RESULT {"id": "s|o|driven|0", "winner": "a", "ms": 60000, "markers": ["X", "Y"]}')
+    assert isinstance(msg, GameResult)
+    assert msg.markers == ['X', 'Y']

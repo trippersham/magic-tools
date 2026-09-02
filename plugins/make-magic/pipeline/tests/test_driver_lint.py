@@ -77,3 +77,65 @@ def test_lint_driver_dir_clean_ok(tmp_path: Path) -> None:
     result = driver_lint.lint_driver_classes(tmp_path)
     assert result.ok
     assert result.warn_findings  # moveCards recorded as WARN
+
+
+# --- Sol HIGH 2: subclass owners, reflection, fail-closed ------------------ #
+
+
+def test_subclass_owner_terminal_call_fails() -> None:
+    """A terminal method called on a CONCRETE mage subclass whose name does NOT contain the
+    ``Game``/``Player`` substring (e.g. ``mage/game/CommanderFreeForAll.end``) still FAILs — owner
+    substring denylisting alone missed these; the ``mage/`` namespace rule catches them."""
+    findings = driver_lint.lint_class_bytes(_class_bytes('subclass', 'SubclassDriver'), name='SubclassDriver')
+    fails = [f.detail for f in findings if f.severity == 'FAIL']
+    assert any('CommanderFreeForAll.end' in m for m in fails), fails
+    assert any('HumanControlled.lost' in m for m in fails), fails
+
+
+def test_reflection_escape_hatch_fails() -> None:
+    """Any driver reaching for reflective invocation (``Method.invoke`` /
+    ``Class.getDeclaredMethod`` / method handles) FAILs — drivers have no legitimate reflection."""
+    findings = driver_lint.lint_class_bytes(_class_bytes('reflect', 'ReflectDriver'), name='ReflectDriver')
+    fails = [f.detail for f in findings if f.severity == 'FAIL']
+    assert any('invoke' in m or 'getDeclaredMethod' in m for m in fails), fails
+
+
+def test_compiler_bootstrap_refs_are_not_reflection() -> None:
+    """Lambda / string-concat invokedynamic bootstraps (``LambdaMetafactory.metafactory``,
+    ``StringConcatFactory.makeConcatWithConstants``) are compiler-generated and must NOT be flagged
+    as reflection — the ``lambda`` fixture uses both and stays ok."""
+    findings = driver_lint.lint_class_bytes(_class_bytes('lambda', 'LambdaDriver'), name='LambdaDriver')
+    assert [f for f in findings if f.severity == 'FAIL'] == [], findings
+
+
+def test_truncated_constant_pool_fails_closed(tmp_path: Path) -> None:
+    """A malformed / truncated ``.class`` cannot be proven clean → it FAILs (fail-closed), never a
+    silent skip that would let an unscannable driver load."""
+    dest = tmp_path / 'org' / 'makemagic' / 'driver'
+    dest.mkdir(parents=True)
+    (dest / 'TruncatedDriver.class').write_bytes(_class_bytes('truncated', 'TruncatedDriver'))
+    result = driver_lint.lint_driver_classes(tmp_path)
+    assert not result.ok
+    assert result.fail_findings
+    assert any('scan' in f.detail.lower() for f in result.fail_findings), result.fail_findings
+
+
+def test_unreadable_class_fails_closed(tmp_path: Path) -> None:
+    """An unreadable ``.class`` file is a scan error → FAIL, not a skip."""
+    dest = tmp_path / 'org' / 'makemagic' / 'driver'
+    dest.mkdir(parents=True)
+    bad = dest / 'NoRead.class'
+    bad.write_bytes(_class_bytes('clean', 'CleanDriver'))
+    bad.chmod(0o000)
+    try:
+        result = driver_lint.lint_driver_classes(tmp_path)
+    finally:
+        bad.chmod(0o644)
+    assert not result.ok, 'an unreadable class must fail closed, not pass'
+
+
+def _write_one(base: Path, variant: str, name: str) -> Path:
+    dest = base / 'org' / 'makemagic' / 'driver'
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / f'{name}.class').write_bytes(_class_bytes(variant, name))
+    return base

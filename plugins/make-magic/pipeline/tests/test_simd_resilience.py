@@ -198,50 +198,73 @@ def test_stable_pool_size_is_deterministic_from_probes() -> None:
 
 
 def test_disk_governor_soft_and_hard_thresholds() -> None:
-    calls = {'n': 0}
-
-    def reaper() -> int:
-        calls['n'] += 1
-        return 3
-
+    # M2: check() is a PURE decision — no reaper, no process side effects on any thread.
     # OK above soft.
-    g = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: 20.0, reaper=reaper)
+    g = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: 20.0)
     assert g.check() is Admission.OK
-    # PAUSE between hard and soft (no reap).
-    g = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: 7.0, reaper=reaper)
+    # PAUSE between hard and soft.
+    g = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: 7.0)
     assert g.check() is Admission.PAUSE
-    assert calls['n'] == 0
-    # HALT below hard → reap fires ONCE, and stays halted.
-    g = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: 1.0, reaper=reaper)
+    assert not g.halted
+    # HALT below hard, and STAYS halted.
+    g = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: 1.0)
     assert g.check() is Admission.HALT
     assert g.halted
-    assert g.check() is Admission.HALT  # stays halted ...
-    assert calls['n'] == 1  # ... and does not re-reap.
+    assert g.check() is Admission.HALT  # stays halted (resumable exit, not oscillating).
 
 
-def test_gate3_disk_hard_floor_halts_admission_and_reaps(tmp_path) -> None:
+def test_disk_governor_check_has_no_reaper_param() -> None:
+    """M2 regression: the governor takes no process ``reaper`` — reaping is the engine/pool's job,
+    never a pipe-touching call from the scheduler thread."""
+    import inspect
+
+    params = inspect.signature(DiskGovernor.__init__).parameters
+    assert 'reaper' not in params
+
+
+def test_gate3_disk_hard_floor_halts_admission(tmp_path) -> None:
     db = tmp_path / 'ops.duckdb'
-    calls = {'n': 0}
     tasks = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 2, fmt='commander')
-    gov = DiskGovernor(
-        soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: 1.0,
-        reaper=lambda: calls.__setitem__('n', calls['n'] + 1) or 0,
-    )
+    gov = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: 1.0)
     with OpsStore(db) as ops:
         ops.register_tasks(tasks)
         sched = SimdScheduler(tasks, ops=ops, disk_governor=gov, cond_poll_s=0.01)
-        # Admission is HALTED immediately: next_task drains (returns None) rather than wedging.
+        # Admission HALTS immediately: next_task drains (None) rather than wedging, and exposes
+        # disk_halted so the engine reaps in-flight through the pool (never the scheduler thread).
         assert sched.next_task() is None
+        assert sched.disk_halted
     assert gov.halted
-    assert calls['n'] == 1  # in-flight reaped exactly once on the HALT transition.
+
+
+def test_gate3_disk_halt_requeue_is_non_charging(tmp_path) -> None:
+    """M3: a worker reaped because the disk HALTED is a NON-ATTEMPT — its in-flight task is neither
+    charged toward the attempt cap nor quarantined (healthy task, failed disk), left non-terminal
+    for a resumable re-run."""
+    db = tmp_path / 'ops.duckdb'
+    tasks = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 2, fmt='commander')
+    # Probe stays OK for the first admission, then drops below the hard floor.
+    seq = iter([20.0, 1.0])
+    gov = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: next(seq, 1.0))
+    with OpsStore(db) as ops:
+        ops.register_tasks(tasks)
+        sched = SimdScheduler(tasks, ops=ops, disk_governor=gov, cond_poll_s=0.01, attempt_cap=1)
+        task = sched.next_task()  # admit one (disk OK)
+        assert task is not None
+        assert sched.next_task() is None  # now halted
+        assert sched.disk_halted
+        # The reaped worker returns its in-flight task. With attempt_cap=1 the NORMAL path would
+        # quarantine on the first requeue; the disk-HALT guard must NOT.
+        sched.requeue(task)
+        assert task.task_id not in sched.result().quarantined
 
 
 def test_gate3_engine_resumable_exit_under_disk_halt(tmp_path) -> None:
     """A HARD disk breach from the start → the run drains and exits RESUMABLE (incomplete, not
-    wedged); its ops.duckdb holds whatever committed so a later relaunch can resume."""
+    wedged); its ops.duckdb holds whatever committed so a later relaunch can resume. The engine
+    reaps in-flight through the pool's own close() (M2), not the scheduler thread."""
     db = tmp_path / 'ops.duckdb'
     tasks = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 2, fmt='commander')
-    gov = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: 1.0, reaper=lambda: 0)
+    gov = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: 1.0)
     res = run_games_simd(
         tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0, ops_db_path=db,
         disk_governor=gov, join_timeout_s=30.0,
@@ -380,7 +403,84 @@ def test_write_pidfile_records_pid_and_pgid(tmp_path) -> None:
     pf = tmp_path / 'pid'
     rec = write_pidfile(pf, setpgrp=False)  # setpgrp=False: never detach the test runner's group.
     assert rec.pid == os.getpid()
-    assert pf.read_text().split() == [str(rec.pid), str(rec.pgid)]
+    first_two = pf.read_text().split()[:2]
+    assert first_two == [str(rec.pid), str(rec.pgid)]
+
+
+# ===================================================================================== #
+# Sol HIGH 3 — reaper process IDENTITY (PID reuse can't be reaped on integers alone).
+# ===================================================================================== #
+
+
+def test_write_pidfile_records_start_token_and_nonce(tmp_path) -> None:
+    pf = tmp_path / 'pid'
+    rec = write_pidfile(pf, setpgrp=False, nonce='run-xyz')
+    fields = pf.read_text().split()
+    assert fields[0] == str(rec.pid)
+    assert fields[1] == str(rec.pgid)
+    assert rec.token  # a non-empty per-process start token was recorded ...
+    assert fields[2] == rec.token  # ... and persisted to the pidfile.
+    assert fields[3] == 'run-xyz'
+
+
+def test_write_pidfile_raises_when_setpgrp_fails(tmp_path, monkeypatch) -> None:
+    """FAIL LOUD: if os.setpgrp() fails, write_pidfile must RAISE — never silently record the
+    caller's inherited process group (a later reaper would then killpg a broader group)."""
+    import pipeline.sim.simd.reaper as reaper_mod
+
+    def boom() -> None:
+        raise OSError('setpgrp denied')
+
+    monkeypatch.setattr(reaper_mod.os, 'setpgrp', boom)
+    with pytest.raises(OSError, match='setpgrp'):
+        write_pidfile(tmp_path / 'pid', setpgrp=True)
+
+
+def test_reaper_skips_reused_pid_with_mismatched_start_token(tmp_path) -> None:
+    """PID reuse: the pidfile records a leader pid + start token; that pid is DEAD but its integer
+    is now reused by an UNRELATED live process (a different start token). The reaper must NOT
+    signal it — identity (pid AND start-token), not the bare integer, gates the kill."""
+    pf = tmp_path / 'pid'
+    # A live stand-in for "the unrelated process that reused the pid": our own process. Record its
+    # pid but a DELIBERATELY WRONG start token, as if a now-dead predecessor had that pid earlier.
+    reused_pid = os.getpid()
+    pf.write_text(f'{reused_pid} {reused_pid} STALE_TOKEN_FROM_DEAD_LEADER run-old\n')
+
+    signals: list[tuple[int, int]] = []
+
+    def fake_killpg(pgid: int, sig: int) -> None:
+        signals.append((pgid, sig))
+
+    reaped = reap_orphan_tree(pf, grace_s=0.1, poll_s=0.01, killpg=fake_killpg, sleep=lambda _s: None)
+    assert reaped is None, 'reaped a reused/mismatched pid — identity check failed'
+    assert signals == [], f'signalled an unrelated reused pid: {signals}'
+
+
+def test_reaper_leaves_live_leader_with_matching_token_alone(tmp_path) -> None:
+    """A pidfile whose leader pid is alive AND whose recorded start token still matches is a
+    healthy live owner — not reaped (the flock owns concurrency)."""
+    pf = tmp_path / 'pid'
+    write_pidfile(pf, setpgrp=False, nonce='run-live')  # our own live process, real token.
+    signals: list[int] = []
+    reaped = reap_orphan_tree(
+        pf, grace_s=0.1, poll_s=0.01, killpg=lambda _g, s: signals.append(s), sleep=lambda _s: None
+    )
+    assert reaped is None
+    assert signals == []
+    assert pf.exists()
+
+
+def test_remove_worker_pgid_drops_entry_on_normal_retire(tmp_path) -> None:
+    """A worker that retires normally is removed from the sidecar, so a later reaper never targets
+    its (possibly reused) group."""
+    from pipeline.sim.simd.reaper import _read_worker_pgids, remove_worker_pgid
+
+    pf = tmp_path / 'pid'
+    record_worker_pgid(pf, 4321)
+    record_worker_pgid(pf, 8765)
+    assert set(_read_worker_pgids(pf)) == {4321, 8765}
+    remove_worker_pgid(pf, 4321)
+    assert set(_read_worker_pgids(pf)) == {8765}
 
 
 # ===================================================================================== #

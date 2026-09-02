@@ -87,6 +87,38 @@ _FAIL_DENYLIST: tuple[tuple[str, frozenset[str]], ...] = (
 #: Owner substrings whose ``moveCard*`` methods are zone-fabrication (WARN — recorded).
 _ZONE_OWNERS: tuple[str, ...] = ('mage/game/Game', 'mage/players/Player')
 
+#: Terminal/victory-assertion method names forbidden on ANY owner in the ``mage/`` package
+#: namespace (Sol HIGH 2). Owner-substring denylisting missed a call compiled against a concrete
+#: subclass whose name lacks the ``Game``/``Player`` substring (e.g. ``mage/game/CommanderFreeForAll``
+#: or ``mage/players/HumanControlled``); scoping by the ``mage/`` namespace catches every such
+#: subclass while leaving a NON-mage owner that coincidentally shares a method name allowed.
+_MAGE_TERMINAL_METHODS: frozenset[str] = frozenset(
+    {'lost', 'won', 'leave', 'quit', 'setLosses', 'setWins', 'setWinner'}
+)
+#: ``end`` is a common method name, so it is scoped to the ``mage/game/`` package specifically
+#: (a game's terminal API) rather than the whole ``mage/`` namespace, to avoid flagging an
+#: unrelated ``.end()`` elsewhere in mage while still catching every Game subclass.
+_MAGE_GAME_PACKAGE = 'mage/game/'
+
+#: Reflective / dynamic-invocation escape hatches (Sol HIGH 2): a driver has no legitimate need
+#: for reflection, and reflection defeats every static owner/method check. FAIL on:
+#:   * ``java/lang/reflect/Method.invoke``
+#:   * any ``java/lang/invoke/MethodHandle*`` invocation
+#:   * ``java/lang/Class.{getMethod,getDeclaredMethod}`` (resolving a method by name at run time)
+#: NOTE: the compiler-generated invokedynamic bootstraps ``LambdaMetafactory.metafactory`` and
+#: ``StringConcatFactory.makeConcatWithConstants`` are NOT these owners and stay allowed.
+_REFLECT_CLASS_METHODS: frozenset[str] = frozenset({'getMethod', 'getDeclaredMethod'})
+
+
+def _is_reflection(owner: str, method: str) -> bool:
+    if owner == 'java/lang/reflect/Method' and method == 'invoke':
+        return True
+    if owner.startswith('java/lang/invoke/MethodHandle') and method in (
+        'invoke', 'invokeExact', 'invokeWithArguments',
+    ):
+        return True
+    return owner == 'java/lang/Class' and method in _REFLECT_CLASS_METHODS
+
 
 @dataclass(frozen=True)
 class ClassScan:
@@ -155,6 +187,25 @@ def scan_class_bytes(data: bytes) -> ClassScan:
 
     off = 10
     i = 1
+    try:
+        return _walk_pool(data, count, utf8, class_name_idx, name_and_type, methodrefs, off, i)
+    except (struct.error, IndexError) as exc:
+        # A truncated / malformed pool cannot be proven clean — fail CLOSED by raising, so the
+        # caller records a FAIL rather than silently treating a half-parsed class as benign.
+        msg = f'truncated or malformed constant pool: {exc}'
+        raise ClassParseError(msg) from exc
+
+
+def _walk_pool(
+    data: bytes,
+    count: int,
+    utf8: dict[int, str],
+    class_name_idx: dict[int, int],
+    name_and_type: dict[int, tuple[int, int]],
+    methodrefs: list[tuple[int, int]],
+    off: int,
+    i: int,
+) -> ClassScan:
     while i < count:
         tag = data[off]
         off += 1
@@ -206,6 +257,15 @@ def _classify(owner: str, method: str) -> tuple[str, str] | None:
     for sub, methods in _FAIL_DENYLIST:
         if sub in owner and method in methods:
             return 'FAIL', 'terminal'
+    # Subclass owners (Sol HIGH 2): a terminal method on ANY mage/ owner, so a call compiled
+    # against a concrete subclass whose name lacks the Game/Player substring is still caught.
+    if owner.startswith('mage/'):
+        if method in _MAGE_TERMINAL_METHODS:
+            return 'FAIL', 'terminal-subclass'
+        if method == 'end' and owner.startswith(_MAGE_GAME_PACKAGE):
+            return 'FAIL', 'terminal-subclass'
+    if _is_reflection(owner, method):
+        return 'FAIL', 'reflection'
     if method == 'concede':
         # FAIL, not WARN: a driver forcing the OPPONENT to concede yields an engine-legitimate,
         # aggregator-credited decisive win (concede is a rules-legal loss). Drivers may not concede
@@ -245,7 +305,22 @@ def lint_driver_classes(classes_dir: str | Path) -> LintResult:
     root = Path(classes_dir)
     all_findings: list[Finding] = []
     for cls in sorted(root.rglob('*.class')):
-        all_findings.extend(lint_class_bytes(cls.read_bytes(), name=cls.stem))
+        try:
+            data = cls.read_bytes()
+            all_findings.extend(lint_class_bytes(data, name=cls.stem))
+        except (ClassParseError, OSError) as exc:
+            # Fail CLOSED (Sol HIGH 2): an unreadable or malformed/truncated .class cannot be
+            # proven free of terminal-API calls, so it is a FAIL — never a silent skip that would
+            # let an unscannable driver load.
+            all_findings.append(
+                Finding(
+                    severity='FAIL',
+                    class_name=cls.stem,
+                    owner='<unscannable>',
+                    method='<scan-error>',
+                    detail=f'{cls.stem}: FAIL scan-error (fail-closed) — {exc}',
+                )
+            )
     fails = tuple(f for f in all_findings if f.severity == 'FAIL')
     warns = tuple(f for f in all_findings if f.severity == 'WARN')
     if fails:

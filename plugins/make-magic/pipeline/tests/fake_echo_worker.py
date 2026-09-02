@@ -70,6 +70,12 @@ def main() -> None:
     die_after_result = bool(os.environ.get('FAKE_DIE_AFTER_RESULT'))
     silent = bool(os.environ.get('FAKE_SILENT'))
     silent_after_hb = bool(os.environ.get('FAKE_SILENT_AFTER_HEARTBEAT'))
+    # Sol HIGH 1 protocol-failure modes (one-shot via FAKE_FAULT_ONCE_FILE): after accepting the
+    # first task, commit a protocol violation instead of a clean RESULT, then block (the pool must
+    # treat the violation as a worker/task failure — kill + requeue — not silently continue).
+    bad_result = bool(os.environ.get('FAKE_BAD_RESULT'))  # emit an unparseable RESULT line.
+    ready_while_inflight = bool(os.environ.get('FAKE_READY_WHILE_INFLIGHT'))  # READY with a task held.
+    wrong_id_result = bool(os.environ.get('FAKE_WRONG_ID_RESULT'))  # RESULT for a foreign task id.
     heartbeat = bool(os.environ.get('FAKE_HEARTBEAT'))
     # A2.4 boot-failure modes: die / hang BEFORE ever emitting READY (a pre-READY death →
     # crash-loop breaker / boot-deadline tests). ``FAKE_SPAWNLOG`` records EVERY process start
@@ -91,13 +97,18 @@ def main() -> None:
 
     # One-shot fault gate: only the FIRST worker to claim the marker faults; respawns run clean.
     once_file = os.environ.get('FAKE_FAULT_ONCE_FILE')
-    if once_file and (die_on_task or silent or die_after_result or silent_after_hb):
+    _faulty = (
+        die_on_task or silent or die_after_result or silent_after_hb
+        or bad_result or ready_while_inflight or wrong_id_result
+    )
+    if once_file and _faulty:
         try:
             fd = os.open(once_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             os.close(fd)  # we claimed the fault.
         except FileExistsError:
             # a prior worker already faulted; run normally.
             die_on_task = silent = die_after_result = silent_after_hb = False
+            bad_result = ready_while_inflight = wrong_id_result = False
 
     task_number = 0
     _emit('READY')
@@ -125,6 +136,19 @@ def main() -> None:
         if silent_after_hb and task_number == 1:
             _emit(f'GAME {task_id} turn=1 ms=1')  # reader is now mid-stream ...
             while True:  # ... then never make progress → watchdog reaps us live.
+                time.sleep(3600)
+
+        if (bad_result or ready_while_inflight or wrong_id_result) and task_number == 1:
+            if bad_result:
+                _emit('RESULT {not valid json at all')  # unparseable while a task is in flight.
+            elif ready_while_inflight:
+                _emit('READY')  # backpressure signal while still holding a task — a violation.
+            else:  # wrong_id_result
+                _emit('RESULT ' + json.dumps(
+                    {'id': 'FOREIGN|task|driven|9', 'winner': 'a', 'kill_turn': 3,
+                     'ms': 60000, 'markers': [], 'log': None}
+                ))
+            while True:  # the pool must kill us + requeue the held task; we make no more progress.
                 time.sleep(3600)
 
         if heartbeat:

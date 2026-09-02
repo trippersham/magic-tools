@@ -250,6 +250,70 @@ def test_death_between_tasks_respawns_and_drains(tmp_path: Path) -> None:
     _no_fake_procs_linger()
 
 
+def _protocol_failure_case(env_flag: str, tmp_path: Path, poll_s: float = 0.1) -> None:
+    """Shared harness: worker 0 commits one protocol violation on its first task; the pool must
+    kill+requeue (never silent-continue), and every task still drains on a replacement."""
+    n = 4
+    h = _Harness([_task(i) for i in range(n)])
+    marker = str(tmp_path / f'{env_flag}.marker')
+    pool = WorkerPool(
+        _worker_cmd(),
+        workers=2,
+        next_task=h.next_task,
+        on_result=h.on_result,
+        requeue=h.requeue,
+        stall_timeout_s=30.0,
+        poll_s=poll_s,
+        env_for_worker=lambda idx: ({env_flag: '1', 'FAKE_FAULT_ONCE_FILE': marker} if idx == 0 else {}),
+    )
+    pool.start()
+    assert pool.join(timeout=30.0), f'{env_flag}: pool wedged — a lost in-flight task never requeued'
+    pool.close()
+    assert h.unique_result_ids() == {f's|o|driven|{i}' for i in range(n)}, env_flag
+    _no_fake_procs_linger()
+
+
+def test_malformed_result_in_flight_requeues_not_silent_continue(tmp_path: Path) -> None:
+    """Sol HIGH 1: an unparseable line while a task is IN FLIGHT is a worker/task failure — the
+    worker is killed, its task requeued through the cap, and the run does NOT wedge (the old code
+    silently `continue`d, stranding the in-flight task forever)."""
+    _protocol_failure_case('FAKE_BAD_RESULT', tmp_path)
+
+
+def test_ready_while_task_in_flight_is_a_violation(tmp_path: Path) -> None:
+    """A READY emitted while a task is still in flight is a protocol violation → kill + requeue,
+    never a silent `in_flight` overwrite that loses the task's terminal."""
+    _protocol_failure_case('FAKE_READY_WHILE_INFLIGHT', tmp_path)
+
+
+def test_result_id_mismatch_is_a_violation(tmp_path: Path) -> None:
+    """A RESULT whose id does not match the worker's assigned task must NOT clear in_flight —
+    the mismatch is a failure that requeues the real task."""
+    _protocol_failure_case('FAKE_WRONG_ID_RESULT', tmp_path)
+
+
+def test_on_retire_called_for_normally_drained_workers() -> None:
+    """A worker that drains cleanly fires on_retire (so the caller can drop it from the orphan
+    sidecar); a reused pid must never linger as a reaper target."""
+    n = 4
+    h = _Harness([_task(i) for i in range(n)])
+    retired: list[int] = []
+    pool = WorkerPool(
+        _worker_cmd(),
+        workers=2,
+        next_task=h.next_task,
+        on_result=h.on_result,
+        requeue=h.requeue,
+        stall_timeout_s=30.0,
+        on_retire=retired.append,
+    )
+    pool.start()
+    pool.join(timeout=30.0)
+    pool.close()
+    assert len(retired) >= 2, f'clean-drained workers did not fire on_retire: {retired}'
+    _no_fake_procs_linger()
+
+
 def test_task_id_on_every_result() -> None:
     """Dedup is Phase 3; here we only guarantee task_id fidelity on every surfaced result."""
     n = 6

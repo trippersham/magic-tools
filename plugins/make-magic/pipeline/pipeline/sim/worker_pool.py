@@ -114,6 +114,7 @@ class WorkerPool:
         boot_backoff_base_s: float = 0.0,
         boot_backoff_cap_s: float = 10.0,
         on_spawn: Callable[[int], None] | None = None,
+        on_retire: Callable[[int], None] | None = None,
     ) -> None:
         self._cmd = list(worker_cmd)
         self._n = workers
@@ -135,6 +136,11 @@ class WorkerPool:
         #: its own group leader). The engine records it so a successor's orphan reaper can killpg
         #: the worker tree of a crashed leader (workers are outside the leader's own group).
         self._on_spawn = on_spawn
+        #: Called with a worker's pgid (== pid) when it retires NORMALLY (clean drain / shutdown),
+        #: so the caller can drop it from the orphan-reaper sidecar — a retired worker's pid is free
+        #: to be reused and must never remain a reaper target. NOT called on a crash/reap (that
+        #: worker's group is exactly what a successor reaper must still be able to kill).
+        self._on_retire = on_retire
 
         self._closing = threading.Event()
         self._state_lock = threading.Lock()
@@ -252,27 +258,78 @@ class WorkerPool:
                 try:
                     msg = parse_line(line)
                 except ProtocolError:
-                    continue  # ignore stray/non-protocol output (JVM noise, banners).
-                self._handle(worker, msg)
+                    # A malformed line WHILE A TASK IS IN FLIGHT is a worker/task failure, not
+                    # ignorable JVM noise: if we silently continued, the worker's next READY would
+                    # overwrite in_flight and the task's terminal would be lost forever (the run can
+                    # then wedge on a stranded task). Kill the worker → its EOF path requeues the
+                    # in-flight task through the attempt cap and respawns. With NO task in flight a
+                    # malformed line is genuine banner/JVM noise → ignore it (backwards-compatible).
+                    with worker.lock:
+                        has_task = worker.in_flight is not None
+                    if has_task:
+                        self._fail_worker(worker)
+                        break
+                    continue
+                if not self._handle(worker, msg):
+                    break  # a protocol violation was detected + the worker signalled for kill.
         finally:
             worker.proc.wait()
             self._on_worker_exit(worker)
 
-    def _handle(self, worker: _Worker, msg: object) -> None:
+    def _fail_worker(self, worker: _Worker) -> None:
+        """Signal-kill a worker that violated the protocol while holding a task.
+
+        The worker's own reader loop is the caller; after this returns it breaks, hits the finally
+        (``proc.wait`` + :meth:`_on_worker_exit`), and — because ``in_flight`` is left SET and the
+        pool is not retiring/closing — the exit path requeues the held task and respawns. Exactly
+        the dead-worker recovery path, reached deterministically on a codec violation."""
+        if worker.proc.poll() is None:
+            self._signal_kill_group(worker.proc)
+
+    def _handle(self, worker: _Worker, msg: object) -> bool:
+        """Dispatch one parsed message. Returns ``False`` iff a protocol VIOLATION was detected
+        (the worker has been signalled for kill and the reader must stop)."""
         if isinstance(msg, Ready):
+            # A READY while a task is still in flight is a protocol violation: the worker cannot be
+            # idle-and-pulling and mid-game at once. Treating it as normal would overwrite in_flight
+            # via _feed and strand the running task. Fail the worker (requeue the held task).
+            with worker.lock:
+                has_task = worker.in_flight is not None
+            if has_task:
+                self._fail_worker(worker)
+                return False
             if not worker.saw_ready:
                 worker.saw_ready = True  # first READY: this worker booted OK.
                 if self._breaker is not None:
                     self._breaker.record_ready()
             self._feed(worker)
-        elif isinstance(msg, Heartbeat):
+            return True
+        if isinstance(msg, Heartbeat):
             with worker.lock:
+                if not self._id_matches_locked(worker, msg.task_id):
+                    self._fail_worker(worker)
+                    return False
                 worker.last_progress = time.monotonic()
-        elif isinstance(msg, (GameResult, GameError)):
+            return True
+        if isinstance(msg, (GameResult, GameError)):
             with worker.lock:
+                # Validate the terminal id against the assigned task BEFORE clearing in_flight —
+                # a mismatched (or unexpected, in_flight=None) terminal must not clear the real
+                # task's slot. On mismatch, leave in_flight set so the fail path requeues it.
+                if not self._id_matches_locked(worker, msg.task_id):
+                    self._fail_worker(worker)
+                    return False
                 worker.in_flight = None
                 worker.last_progress = time.monotonic()
             self._on_result(msg)
+            return True
+        return True
+
+    @staticmethod
+    def _id_matches_locked(worker: _Worker, task_id: str) -> bool:
+        """Whether ``task_id`` matches the worker's currently assigned task (caller holds the lock).
+        A worker with NO task in flight matches nothing (an unexpected terminal is a violation)."""
+        return worker.in_flight is not None and worker.in_flight.task_id == task_id
 
     def _feed(self, worker: _Worker) -> None:
         """On READY: pull the next task and write it, or close stdin to drain the worker out."""
@@ -337,7 +394,11 @@ class WorkerPool:
                 self._live -= 1  # retire the dead worker ...
                 self._spawn_locked(worker.idx)  # ... its replacement re-adds one (net steady).
             return
-        # Clean drain or shutdown: this worker is gone for good.
+        # Clean drain or shutdown: this worker is gone for good — drop it from the reaper sidecar
+        # (its pid is now free to be reused; a future reaper must not target it).
+        if self._on_retire is not None:
+            with contextlib.suppress(Exception):
+                self._on_retire(worker.proc.pid)
         with self._state_lock:
             if worker in self._workers:
                 self._workers.remove(worker)

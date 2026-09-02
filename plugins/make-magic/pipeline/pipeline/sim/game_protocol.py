@@ -47,6 +47,58 @@ _VALID_WINNERS = frozenset(
 )
 
 
+#: The non-decisive terminal ``reason`` tokens the pipeline understands. ``'timeout'`` /
+#: ``'driver-rejected'`` are emitted by the Java worker; ``'bailout'`` is the sub-floor /
+#: deadline stand-in. ``None`` (absent) is an ordinary decided game. Any OTHER token is a
+#: VALIDATION FAILURE — a codec drift must never smuggle an unrecognised terminal reason
+#: (which the aggregator would treat as non-decisive) past the wire.
+_VALID_REASONS = frozenset({'timeout', 'driver-rejected', 'bailout'})
+
+
+def _require_ms(raw: object, line: str) -> int:
+    """Return the typed non-negative ``ms``, or raise :class:`ProtocolError`.
+
+    ``ms`` is REQUIRED and must be a non-negative integer — the old lenient
+    ``int(body.get('ms', 0))`` silently invented a duration for a malformed/missing field,
+    which the plausibility floor then read as a real (implausibly short) game."""
+    if raw is None:
+        msg = f'missing ms in {line!r}'
+        raise ProtocolError(msg)
+    # bool is an int subclass — reject it explicitly; only real ints are a duration.
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        msg = f'non-integer ms {raw!r} in {line!r}'
+        raise ProtocolError(msg)
+    if raw < 0:
+        msg = f'negative ms {raw!r} in {line!r}'
+        raise ProtocolError(msg)
+    return raw
+
+
+def _validate_reason(raw: object, line: str) -> str | None:
+    """Return the ``reason`` string (or ``None`` when absent), or raise for an unknown token."""
+    if raw is None:
+        return None
+    reason = str(raw)
+    if reason not in _VALID_REASONS:
+        msg = f'unknown reason {reason!r} in {line!r} (expected one of {sorted(_VALID_REASONS)})'
+        raise ProtocolError(msg)
+    return reason
+
+
+def _validate_markers(raw: object, line: str) -> list[str]:
+    """Return the ``markers`` list, or raise for a non-list value.
+
+    A bare STRING markers value is the pathology this guards: ``list("abc")`` would silently
+    iterate it into ``['a', 'b', 'c']`` and corrupt ``end_cause=`` extraction. Only an actual
+    JSON array is accepted; an absent markers is an empty list."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        msg = f'markers must be a JSON array, got {type(raw).__name__} in {line!r}'
+        raise ProtocolError(msg)
+    return [str(m) for m in raw]
+
+
 def _validate_winner(raw: object, line: str) -> str:
     """Return the ``winner`` string, or raise :class:`ProtocolError` for a missing/unknown token.
 
@@ -179,15 +231,15 @@ def parse_line(line: str) -> ProtocolMsg:
 
     if stripped.startswith('RESULT '):
         body = _json_body(stripped, 'RESULT ')
-        markers = list(body.get('markers', []))
+        markers = _validate_markers(body.get('markers'), line)
         return GameResult(
             task_id=str(_require(body, 'id', line)),
             winner=_validate_winner(body.get('winner'), line),
             kill_turn=body.get('kill_turn'),
-            ms=int(body.get('ms', 0)),
+            ms=_require_ms(body.get('ms'), line),
             markers=markers,
             log_path=body.get('log'),
-            reason=body.get('reason'),
+            reason=_validate_reason(body.get('reason'), line),
             end_cause=_end_cause_from_markers(markers),
         )
 
@@ -211,4 +263,7 @@ def _parse_heartbeat(stripped: str) -> Heartbeat:
     except ValueError as exc:
         msg = f'non-integer field in GAME heartbeat: {stripped!r}'
         raise ProtocolError(msg) from exc
+    if ms < 0:
+        msg = f'negative ms in GAME heartbeat: {stripped!r}'
+        raise ProtocolError(msg)
     return Heartbeat(task_id=parts[1], turn=turn, ms=ms)

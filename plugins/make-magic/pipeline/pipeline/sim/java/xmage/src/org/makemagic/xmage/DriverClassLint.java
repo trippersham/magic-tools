@@ -41,10 +41,65 @@ final class DriverClassLint {
     /** owner-substring -> forbidden method names (terminal-state / victory-assertion APIs). */
     private static final Map<String, Set<String>> FAIL_DENYLIST = new TreeMap<>();
 
+    /**
+     * Terminal/victory method names forbidden on ANY owner in the {@code mage/} package namespace
+     * (Sol HIGH 2): catches a call compiled against a concrete subclass whose name lacks the
+     * {@code Game}/{@code Player} substring (e.g. {@code mage/game/CommanderFreeForAll},
+     * {@code mage/players/HumanControlled}). {@code end} is scoped to the {@code mage/game/} package
+     * (a common method name) rather than the whole namespace.
+     */
+    private static final Set<String> MAGE_TERMINAL_METHODS =
+            new TreeSet<>(Set.of("lost", "won", "leave", "quit", "setLosses", "setWins", "setWinner"));
+    private static final String MAGE_NS = "mage/";
+    private static final String MAGE_GAME_PACKAGE = "mage/game/";
+
     static {
         FAIL_DENYLIST.put("mage/players/Player",
                 new TreeSet<>(Set.of("lost", "won", "leave", "quit", "setLosses", "setWins")));
         FAIL_DENYLIST.put("mage/game/Game", new TreeSet<>(Set.of("end", "setWinner")));
+    }
+
+    /**
+     * Reflective / dynamic-invocation escape hatches (Sol HIGH 2): a driver has no legitimate need
+     * for reflection, which defeats every static owner/method check. The compiler-generated
+     * invokedynamic bootstraps {@code LambdaMetafactory.metafactory} /
+     * {@code StringConcatFactory.makeConcatWithConstants} are NOT these owners and stay allowed.
+     */
+    private static boolean isReflection(String owner, String method) {
+        if ("java/lang/reflect/Method".equals(owner) && "invoke".equals(method)) {
+            return true;
+        }
+        if (owner.startsWith("java/lang/invoke/MethodHandle")
+                && (method.equals("invoke") || method.equals("invokeExact")
+                    || method.equals("invokeWithArguments"))) {
+            return true;
+        }
+        return "java/lang/Class".equals(owner)
+                && (method.equals("getMethod") || method.equals("getDeclaredMethod"));
+    }
+
+    /** Whether {@code owner.method} is a forbidden terminal / concede / reflection reference. */
+    private static boolean isForbidden(String owner, String method) {
+        for (Map.Entry<String, Set<String>> e : FAIL_DENYLIST.entrySet()) {
+            if (owner.contains(e.getKey()) && e.getValue().contains(method)) {
+                return true;
+            }
+        }
+        // Subclass owners: a terminal method on ANY mage/ owner (end scoped to mage/game/).
+        if (owner.startsWith(MAGE_NS)) {
+            if (MAGE_TERMINAL_METHODS.contains(method)) {
+                return true;
+            }
+            if ("end".equals(method) && owner.startsWith(MAGE_GAME_PACKAGE)) {
+                return true;
+            }
+        }
+        if (isReflection(owner, method)) {
+            return true;
+        }
+        // concede is FAIL on ANY owner: a driver forcing the OPPONENT to concede yields an
+        // engine-legitimate, aggregator-CREDITED decisive win (a concession is a rules-legal loss).
+        return "concede".equals(method);
     }
 
     // Constant-pool tags (JVMS 4.4).
@@ -86,7 +141,10 @@ final class DriverClassLint {
                 try {
                     data = Files.readAllBytes(cls);
                 } catch (IOException ioe) {
-                    continue; // an unreadable .class is not a lint pass, but cannot be scanned here.
+                    // Fail CLOSED (Sol HIGH 2): an unreadable .class cannot be proven clean → a
+                    // finding, so the worker REFUSES the driver rather than loading it unscanned.
+                    findings.add(cls.getFileName() + ": <scan-error> unreadable (" + ioe + ")");
+                    continue;
                 }
                 String name = cls.getFileName().toString();
                 if (name.endsWith(".class")) {
@@ -109,12 +167,17 @@ final class DriverClassLint {
         return slash < 0 ? internal : internal.substring(slash + 1);
     }
 
-    /** Parse one {@code .class} blob's constant pool → the forbidden {@code {owner, method}} refs. */
+    private static final String SCAN_ERROR = "<scan-error>";
+
+    /** Parse one {@code .class} blob's constant pool → the forbidden {@code {owner, method}} refs.
+     *  On a malformed/truncated/unknown pool it returns a single {@code {<scan-error>, ...}} sentinel
+     *  so the caller FAILS CLOSED (a class that cannot be proven clean must be refused). */
     private static List<String[]> forbiddenRefs(byte[] d) {
         List<String[]> out = new ArrayList<>();
         if (d.length < 10 || (d[0] & 0xFF) != 0xCA || (d[1] & 0xFF) != 0xFE
                 || (d[2] & 0xFF) != 0xBA || (d[3] & 0xFF) != 0xBE) {
-            return out; // not a .class (bad magic) — nothing to scan.
+            out.add(new String[] {SCAN_ERROR, "bad-magic-or-too-short"});
+            return out; // not a valid .class — fail closed rather than treat as clean.
         }
         int count = u2(d, 8);
         Map<Integer, String> utf8 = new TreeMap<>();
@@ -171,12 +234,18 @@ final class DriverClassLint {
                         off += 3;
                         break;
                     default:
-                        return out; // unknown tag — cannot safely walk further; scanned what we could.
+                        // Unknown tag — cannot safely walk further, cannot prove the class clean.
+                        out.add(new String[] {SCAN_ERROR, "unknown-tag-" + tag});
+                        return out;
                 }
                 i += 1;
             }
-        } catch (ArrayIndexOutOfBoundsException aioobe) {
-            return out; // truncated/malformed pool — scanned what parsed cleanly.
+        } catch (RuntimeException ex) {
+            // Truncated/malformed pool (index/string/number overruns) — cannot be proven clean →
+            // fail closed. Catches ArrayIndexOutOfBounds AND StringIndexOutOfBounds (a UTF8 length
+            // field running past the buffer) and any other parse-time RuntimeException.
+            out.add(new String[] {SCAN_ERROR, "truncated-pool"});
+            return out;
         }
 
         for (int[] mr : methodrefs) {
@@ -187,15 +256,7 @@ final class DriverClassLint {
             if (owner == null || method == null) {
                 continue;
             }
-            for (Map.Entry<String, Set<String>> e : FAIL_DENYLIST.entrySet()) {
-                if (owner.contains(e.getKey()) && e.getValue().contains(method)) {
-                    out.add(new String[] {owner, method});
-                }
-            }
-            // concede is FAIL on ANY owner: a driver forcing the OPPONENT to concede yields an
-            // engine-legitimate, aggregator-CREDITED decisive win (a concession is a rules-legal
-            // loss). Drivers may not concede at all — safety wins over the theoretical self-concede.
-            if ("concede".equals(method)) {
+            if (isForbidden(owner, method)) {
                 out.add(new String[] {owner, method});
             }
         }
