@@ -32,6 +32,7 @@ import fcntl
 import os
 import signal
 import subprocess
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -184,6 +185,14 @@ def _worker_sidecar(pidfile: Path) -> Path:
     return pidfile.with_suffix(pidfile.suffix + '.workers')
 
 
+#: Serializes read-modify-write of the worker sidecar. The engine calls :func:`record_worker_pgid`
+#: (on spawn) and :func:`remove_worker_pgid` (on retire) from separate pool reader threads; without
+#: this, two threads' read-modify-write cycles interleave and lose an update (a lost ``record``
+#: strands an orphan pgid that is never reaped). CROSS-PROCESS mutation is NOT a concern: only the
+#: owning daemon ever writes its OWN sidecar, so a same-process lock fully covers the contention.
+_SIDECAR_LOCK = threading.Lock()
+
+
 def record_worker_pgid(
     pidfile: str | os.PathLike[str], pgid: int, *, token: str | None = None
 ) -> None:
@@ -199,7 +208,7 @@ def record_worker_pgid(
     """
     p = _worker_sidecar(Path(pidfile))
     line = f'{pgid} {token}\n' if token else f'{pgid}\n'
-    with contextlib.suppress(OSError):
+    with _SIDECAR_LOCK, contextlib.suppress(OSError):
         p.parent.mkdir(parents=True, exist_ok=True)
         with p.open('a') as fh:
             fh.write(line)
@@ -212,7 +221,7 @@ def remove_worker_pgid(pidfile: str | os.PathLike[str], pgid: int) -> None:
     in the sidecar would let a later reaper target whatever unrelated process next holds that pid.
     Rewrites the sidecar without ``pgid``'s lines (atomic replace). Never raises."""
     sc = _worker_sidecar(Path(pidfile))
-    with contextlib.suppress(OSError):
+    with _SIDECAR_LOCK, contextlib.suppress(OSError):
         records = _read_worker_records(Path(pidfile))
         kept = [(g, t) for (g, t) in records if g != pgid]
         if not kept:

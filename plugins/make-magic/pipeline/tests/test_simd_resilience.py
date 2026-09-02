@@ -500,6 +500,50 @@ def test_remove_worker_pgid_drops_entry_on_normal_retire(tmp_path) -> None:
     assert set(_read_worker_pgids(pf)) == {8765}
 
 
+def test_concurrent_worker_pgid_mutations_lose_nothing(tmp_path) -> None:
+    """Concurrent record/remove from many threads must not lose any survivor pgid.
+
+    ``remove_worker_pgid`` does a read-modify-write of the sidecar; without serialization a churn
+    thread can read the sidecar, then have a survivor thread append a pgid, then write its stale
+    snapshot back — silently dropping the just-appended survivor (an orphan pgid that is then never
+    reaped). This exercises heavy record/remove interleave and asserts every survivor survives.
+    Pre-fix this fails flakily; the module-level lock makes it deterministic.
+    """
+    import threading
+
+    from pipeline.sim.simd.reaper import _read_worker_pgids, record_worker_pgid, remove_worker_pgid
+
+    for _ in range(40):
+        pf = tmp_path / 'pid'
+        _worker_sidecar = pf.with_suffix(pf.suffix + '.workers')
+        _worker_sidecar.unlink(missing_ok=True)
+
+        n_survivors = 16
+        survivors = list(range(1000, 1000 + n_survivors))
+        churn_pgids = list(range(9000, 9000 + 8))
+        start = threading.Barrier(n_survivors + len(churn_pgids))
+
+        def survive(g: int, pf: Path = pf, start: threading.Barrier = start) -> None:
+            start.wait()
+            record_worker_pgid(pf, g)
+
+        def churn(g: int, pf: Path = pf, start: threading.Barrier = start) -> None:
+            start.wait()
+            for _ in range(20):
+                record_worker_pgid(pf, g)
+                remove_worker_pgid(pf, g)
+
+        threads = [threading.Thread(target=survive, args=(g,)) for g in survivors]
+        threads += [threading.Thread(target=churn, args=(g,)) for g in churn_pgids]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        got = set(_read_worker_pgids(pf))
+        assert set(survivors) <= got, f'lost survivor pgids: {set(survivors) - got}'
+
+
 # ===================================================================================== #
 # GATE 5 — staging GC correctness: dead xmage-worker dir GC'd, live worker dir survives.
 # ===================================================================================== #
