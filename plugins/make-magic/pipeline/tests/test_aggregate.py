@@ -92,6 +92,28 @@ def test_reason_set_game_credits_neither_seat() -> None:
     assert ('S', 'O', 'driven') in agg.incomplete_cells()
 
 
+def test_concede_is_decisive_credited_and_surfaced() -> None:
+    # A concession (end_cause=concede) is a rules-legal loss: DECISIVE, credited to the winner, and
+    # counted in the concede breakdown so concede-heavy matchups are visible.
+    ids = _ids('S|O|driven|0', 'S|O|baseline|0')
+    agg = RunAggregator(ids)
+    agg.add_result(GameResult(
+        task_id='S|O|driven|0', winner='A', kill_turn=6, ms=60000,
+        markers=['end_cause=concede'], log_path=None, end_cause='concede',
+    ))
+    agg.add_result(_result('S|O|baseline|0', 'B'))
+    opp = agg.comparisons()['S'].per_opponent[0]
+    # The concede is credited to the winner (seat A) exactly like any decisive cause.
+    assert (opp.driver_wins, opp.driver_decided) == (1, 1)
+    # It FILLS its cell (no top-up owed) — the driven cell is complete, never incomplete.
+    assert ('S', 'O', 'driven') not in agg.incomplete_cells()
+    ok, needed = agg.cells()[('S', 'O', 'driven')]
+    assert ok == needed == 1
+    # And it is surfaced in the cause breakdown (the data-quality signal).
+    assert agg.concede_count() == 1
+    assert ('S', 'O', 'driven') in agg.concede_cells()
+
+
 def test_draws_excluded_from_denominator() -> None:
     ids = _ids(*(f'S|O|driven|{i}' for i in range(4)), *(f'S|O|baseline|{i}' for i in range(4)))
     agg = RunAggregator(ids)

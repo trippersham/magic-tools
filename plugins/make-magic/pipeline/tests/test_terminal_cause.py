@@ -15,6 +15,7 @@ from pipeline.sim.aggregate import (
     BAILOUT_HARD_FLOOR_MS,
     Validity,
     classify_validity,
+    is_concede,
     is_fast_game,
 )
 from pipeline.sim.game_protocol import GameResult, parse_line
@@ -56,6 +57,20 @@ def test_timeout_cause_nondecisive() -> None:
 def test_driver_rejected_reason_nondecisive() -> None:
     # driver-rejected returns before a game runs → no end_cause, but reason drives exclusion.
     assert classify_validity(_r(winner='none', reason='driver-rejected', ms=0)) is Validity.NONDECISIVE
+
+
+def test_concede_is_decisive() -> None:
+    # A concession is a rules-legal loss (CR 104.3a) — a decided outcome, NOT invalid data. XMage's
+    # CP7 AI concedes hopeless positions on ordinary games, so it must fill its cell as decisive.
+    assert classify_validity(_r(winner='A', end_cause='concede')) is Validity.DECISIVE
+
+
+def test_concede_flag() -> None:
+    # is_concede surfaces concessions in coverage (a data-quality signal), independent of decisiveness.
+    assert is_concede(_r(winner='A', end_cause='concede')) is True
+    assert is_concede(_r(winner='A', end_cause='CONCEDE')) is True
+    assert is_concede(_r(winner='A', end_cause='lethal_damage')) is False
+    assert is_concede(_r(winner='A', end_cause=None)) is False
 
 
 def test_unknown_cause_on_decisive_claim_is_invalid() -> None:

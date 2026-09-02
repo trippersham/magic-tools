@@ -49,6 +49,7 @@ __all__ = (
     'bailout_reason',
     'bucket_table_from_comparisons',
     'classify_validity',
+    'is_concede',
     'is_fast_game',
 )
 
@@ -113,9 +114,25 @@ class Validity(Enum):
 #: Terminal causes that are legitimate decided/drawn outcomes → a VALID cell fill (``DECISIVE``).
 #: ``draw_game`` is a valid fill whose winner (``DRAW``/``none``) credits neither seat — excluded
 #: from the W/L denominator exactly like today, but NOT topped up (the cell is filled).
+#: ``concede`` is a rules-legal loss (CR 104.3a — the conceder is the loser, the winner credited
+#: normally); XMage's CP7 AI concedes hopeless positions on ordinary games, so a concession is a
+#: decisive cell fill (NOT invalid data), tracked separately as a data-quality signal.
 _DECISIVE_CAUSES = frozenset(
-    {'lethal_damage', 'commander_damage', 'draw_empty_library', 'poison', 'rule_loss', 'state_loss', 'draw_game'}
+    {
+        'lethal_damage',
+        'commander_damage',
+        'draw_empty_library',
+        'poison',
+        'rule_loss',
+        'state_loss',
+        'draw_game',
+        'concede',
+    }
 )
+
+#: The terminal cause emitted for a concession (a rules-legal loss). Decisive (in ``_DECISIVE_CAUSES``)
+#: yet surfaced in coverage: a matchup that concedes a lot is a data-quality signal worth monitoring.
+_CONCEDE_CAUSE = 'concede'
 
 #: Terminal causes that are non-decisive (excluded from W/L + a top-up dispatched).
 _NONDECISIVE_CAUSES = frozenset({'timeout'})
@@ -148,6 +165,15 @@ def classify_validity(result: GameResult, *, hard_floor_ms: int = BAILOUT_HARD_F
     return Validity.INVALID
 
 
+def is_concede(result: GameResult) -> bool:
+    """True for a concession (``end_cause=concede``) — a decisive game surfaced as a data-quality flag.
+
+    A concession is a rules-legal loss (CR 104.3a) counted in W/L like any decisive cause; this flag
+    only makes concede-heavy matchups visible in coverage (an AI that concedes a lot is a signal)."""
+    cause = result.end_cause
+    return cause is not None and cause.strip().lower() == _CONCEDE_CAUSE
+
+
 def is_fast_game(result: GameResult) -> bool:
     """True for a suspiciously-fast (< hard floor) game — an INFORMATIONAL triage flag only.
 
@@ -173,7 +199,7 @@ def _winner_bucket(winner: str) -> str:
 class _Cell:
     """One ``(subject, opponent, piloting)`` cell's tally (valid fills vs bad fills)."""
 
-    __slots__ = ('failed', 'fast', 'invalid', 'needed', 'nondecisive', 'ok', 'wins_a', 'wins_b')
+    __slots__ = ('concede', 'failed', 'fast', 'invalid', 'needed', 'nondecisive', 'ok', 'wins_a', 'wins_b')
 
     def __init__(self) -> None:
         self.needed = 0
@@ -181,6 +207,7 @@ class _Cell:
         self.nondecisive = 0  # timeout/legacy-bailout/INVALID games: in coverage, excluded from W/L.
         self.invalid = 0  # subset of nondecisive: a decisive claim with NO legal cause (loud alarm).
         self.fast = 0  # informational: DECISIVE games under the fast-game floor (a genuinely fast kill).
+        self.concede = 0  # subset of ok: decisive concessions (data-quality signal, still counted in W/L).
         self.failed = 0  # tasks that burned their budget / were quarantined (no result).
         self.wins_a = 0
         self.wins_b = 0
@@ -225,6 +252,8 @@ class RunAggregator:
         cell.ok += 1
         if is_fast_game(res):
             cell.fast += 1
+        if is_concede(res):
+            cell.concede += 1
         bucket = _winner_bucket(res.winner)
         if bucket == 'a':
             cell.wins_a += 1
@@ -325,6 +354,17 @@ class RunAggregator:
     def fast_count(self) -> int:
         """Total DECISIVE games under the fast-game floor (informational triage flag)."""
         return sum(c.fast for c in self._cells.values())
+
+    def concede_count(self) -> int:
+        """Total decisive concessions across all cells (a data-quality signal in the cause breakdown).
+
+        Concessions are counted in W/L like any decisive cause; this surfaces concede-heavy matchups
+        (an AI that concedes a lot is worth monitoring) without excluding them."""
+        return sum(c.concede for c in self._cells.values())
+
+    def concede_cells(self) -> list[tuple[str, str, str]]:
+        """Cells that saw at least one decisive concession — surfaced so concede-heavy matchups show."""
+        return [k for k, c in self._cells.items() if c.concede]
 
     def complete(self) -> bool:
         return not self.incomplete_cells()
