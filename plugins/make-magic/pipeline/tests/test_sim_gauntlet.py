@@ -53,6 +53,29 @@ def test_curated_commander_loads_bundled_decks() -> None:
         assert '[Commander]' in deck.dck_text
 
 
+def _commander_dck_files() -> list[Path]:
+    """Every bundled commander gauntlet ``.dck`` (recursively), as absolute paths."""
+    root = Path(__file__).resolve().parents[1] / 'pipeline' / 'data' / 'gauntlet' / 'commander'
+    return sorted(root.rglob('*.dck'))
+
+
+@pytest.mark.parametrize('dck', _commander_dck_files(), ids=lambda p: p.stem)
+def test_every_commander_gauntlet_deck_is_legal_size(dck: Path) -> None:
+    """Every bundled commander gauntlet ``.dck`` stages to a legal 100-card size.
+
+    Guards against a short/bloated SUBJECT deck silently seating with a thinner (or
+    padded) library and biasing the consistency data — the size class the ``<40`` Java
+    floor is far too weak to catch. This is JVM-free (structural translation + count),
+    so it runs in the default suite. Loadability against the base card DB is a separate,
+    heavier check (``xmage_deck_loads``); the documented known-unloadable Marvel precons
+    are excluded from LOADABILITY only, never from this SIZE invariant.
+    """
+    from pipeline.sim.engines.xmage import _forge_dck_to_xmage_txt, commander_deck_ok
+
+    txt = _forge_dck_to_xmage_txt(dck.read_text())
+    assert commander_deck_ok(txt), f'{dck.name} is not a legal 100-card commander deck'
+
+
 def test_curated_unknown_format_is_empty() -> None:
     """An unknown format resolves to no curated decks (no dir -> empty, no raise)."""
     assert resolve_gauntlet('curated', 'pauper') == []
