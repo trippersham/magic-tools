@@ -158,9 +158,12 @@ class MacroSpec:
     ``applicable_body`` (P, from the primer **Assembly** section) is the body of
     ``boolean applicable(Game game, UUID pid)`` — return whether the kill is executable NOW.
     ``apply_body`` (the macro, from **Win Condition**) is the body of
-    ``void apply(Game game, UUID pid)`` — drive the known outcome with BOUNDED explicit state
-    moves (``moveCards`` / ``applyEffects`` / a capped ``getStack().resolve``); NEVER call
-    ``priority()`` or ``copy()`` on the handed game. Both bodies see ``game`` and ``pid``.
+    ``void apply(Game game, UUID pid)`` — drive the known outcome PRIORITY-FAIRLY: cast ONE legal
+    piece through the engine (``chooseAbilityForCast`` + ``cast`` + ``applyEffects``) then YIELD
+    (``pass(game)``), letting the engine's normal priority pass resolve the stack (the opponent
+    gets a priority window — held counters stay live). NEVER force-resolve (``getStack().resolve``)
+    and NEVER call ``priority()`` or ``copy()`` on the handed game. Both bodies see ``game`` and
+    ``pid``.
     """
 
     applicable_body: str
@@ -614,7 +617,17 @@ return score;'''
 
 
 def _seed_applicable_body(card_names: tuple[str, ...]) -> str:
-    """P body: all combo pieces present (hand or battlefield) & the kill is castable this turn."""
+    """P body: gate the priority-fair, one-piece-per-priority macro line.
+
+    Fires only when the stack is empty on the driver's own priority AND every combo piece is
+    ACCOUNTED FOR in an owned zone (hand, battlefield, graveyard, or exile — so a piece that has
+    already resolved this turn still counts) AND at least one piece is still IN HAND to cast. The
+    accounted-for check keeps the line firing ACROSS priority steps (the macro casts one piece and
+    yields; on the driver's next priority the resolved piece has left hand but is still accounted
+    for, so P re-fires to cast the next). The in-hand check STOPS the line once the last piece has
+    been cast (no piece left in hand -> false -> no spin), and a countered piece that lands in the
+    graveyard leaves nothing new to cast, so the line winds down cleanly rather than retry-looping.
+    """
     names = _java_name_set(card_names)
     total = len(card_names)
     return f'''\
@@ -628,34 +641,53 @@ if (me == null) {{
 if (!pid.equals(game.getActivePlayerId()) || !game.getStack().isEmpty()) {{
     return false;
 }}
-// All combo pieces must be present (in hand or on the battlefield) to fire this turn.
+// Every combo piece must be ACCOUNTED FOR (hand/battlefield/graveyard/exile) and at least one
+// still IN HAND to cast — the one-piece-per-priority line resumes across steps and stops when
+// the hand is out of pieces (no spin).
 java.util.Set<String> want = new java.util.HashSet<>(java.util.Arrays.asList({names}));
-java.util.Set<String> have = new java.util.HashSet<>();
+java.util.Set<String> accounted = new java.util.HashSet<>();
+int inHand = 0;
 for (Card c : me.getHand().getCards(game)) {{
     if (want.contains(c.getName())) {{
-        have.add(c.getName());
+        accounted.add(c.getName());
+        inHand++;
     }}
 }}
 for (Permanent p : game.getBattlefield().getAllActivePermanents(pid)) {{
     if (want.contains(p.getName())) {{
-        have.add(p.getName());
+        accounted.add(p.getName());
     }}
 }}
-return have.size() == {total};'''
+for (Card c : me.getGraveyard().getCards(game)) {{
+    if (want.contains(c.getName())) {{
+        accounted.add(c.getName());
+    }}
+}}
+for (Card c : game.getExile().getAllCards(game)) {{
+    if (pid.equals(c.getOwnerId()) && want.contains(c.getName())) {{
+        accounted.add(c.getName());
+    }}
+}}
+return accounted.size() == {total} && inHand >= 1;'''
 
 
 def _seed_apply_body(result: str, card_names: tuple[str, ...]) -> str:
-    """Macro body: a BOUNDED, LEGAL-ACTIONS-ONLY win enactment (author refines the cast order).
+    """Macro body: a BOUNDED, LEGAL-ACTIONS-ONLY, PRIORITY-FAIR win enactment (author refines
+    the cast order).
 
     The no-terminal-API rule (enforced by :mod:`pipeline.sim.driver_lint` at gate + load time):
     a driver may ONLY enqueue LEGAL game actions — every terminal state must come from the rules
-    engine. So the scaffold PLAYS the line — it casts each combo piece it holds through the
-    engine's real cast path (``chooseAbilityForCast`` + ``cast``), then resolves the stack in a
-    BOUNDED loop — and NEVER calls ``lost()``/``won()``/``setWinner()``/``end()`` or
-    ``moveCards``-fabricates a zone. Because the spells go on the stack, the opponent gets
-    priority (the line is CONTESTABLE — a held counterspell can answer it); the win, if it comes,
-    is the engine's, not an assertion. An unrefined line that fails to actually win simply won't
-    emit ``MACRO_FIRE_REAL`` and the gate rejects it — the honest outcome, not a fake pass.
+    engine. The priority-fairness rule (this seed): the macro casts exactly ONE combo piece per
+    priority opportunity and then YIELDS priority back to the engine (``me.pass(game)``) — it does
+    NOT force-resolve the stack. Yielding hands the engine's normal priority pass control: the
+    opponent receives priority with the freshly-cast spell on the stack (a held counterspell —
+    Force of Will, Swan Song — can answer it), and the stack resolves only when all players pass.
+    The line then RESUMES on the driver's next priority (``applicable`` re-fires once the piece
+    has resolved) and ABORTS cleanly when a piece was countered (the piece is no longer castable,
+    so ``applicable`` goes false — no retry-loop spam). The macro NEVER calls
+    ``lost()``/``won()``/``setWinner()``/``end()`` or ``moveCards``-fabricates a zone. An
+    unrefined line that fails to win simply won't emit ``MACRO_FIRE_REAL`` and the gate rejects
+    it — the honest outcome, not a fake pass.
     """
     # result rides in a // comment — strip newlines so it can't break out of the line comment.
     result_comment = ' '.join((result or '(unspecified win)').split())
@@ -665,11 +697,15 @@ Player me = game.getPlayer(pid);
 if (me == null) {{
     return;
 }}
-// LEGAL-ACTIONS-ONLY win enactment (no-terminal-API rule): cast each combo piece from hand
-// through the rules engine, then resolve the stack BOUNDED (<= ComboMacro.PROBE_MAX_STEPS).
-// The line is PLAYED and CONTESTABLE (spells hit the stack; the opponent gets priority) — the
-// terminal comes from the engine, never from lost()/won()/setWinner() or moveCards-fabrication.
-// TODO(author): refine the cast ORDER + any targeting for this specific line — {result_comment}
+// PRIORITY-FAIR, LEGAL-ACTIONS-ONLY win enactment: cast exactly ONE combo piece this priority
+// through the rules engine (chooseAbilityForCast + cast), then YIELD (me.pass(game)) so the
+// engine's normal priority pass runs — the opponent gets priority with the spell on the stack
+// (a held counterspell can answer it) and the stack resolves only when all players pass. The
+// line RESUMES on the next priority (applicable re-fires once this piece resolves) and ABORTS
+// when a piece is countered (it is no longer castable -> applicable goes false). The terminal
+// comes from the engine, never from lost()/won()/setWinner() or moveCards-fabrication.
+// TODO(author): refine the cast ORDER (+ any mid-line applicable() detection & targeting) for
+// this specific line — {result_comment}
 java.util.Set<String> pieces = new java.util.HashSet<>(java.util.Arrays.asList({names}));
 for (Card c : new java.util.ArrayList<>(me.getHand().getCards(game))) {{
     if (!pieces.contains(c.getName())) {{
@@ -680,16 +716,13 @@ for (Card c : new java.util.ArrayList<>(me.getHand().getCards(game))) {{
         me.cast(sa, game, false, null);
         game.applyEffects();
     }}
-    int guard = 0;
-    while (!game.getStack().isEmpty() && guard++ < ComboMacro.PROBE_MAX_STEPS) {{
-        game.getStack().resolve(game);
-        game.applyEffects();
-        game.checkStateAndTriggered();
-        if (game.checkIfGameIsOver()) {{
-            return;
-        }}
-    }}
-}}'''
+    // Cast ONE piece, then yield: pass priority back to the engine's normal loop. The opponent
+    // now gets priority; resolution happens through the engine, never inside this macro.
+    me.pass(game);
+    return;
+}}
+// No castable piece remained in hand this priority — yield so the step can advance (no spin).
+me.pass(game);'''
 
 
 def _seed_steer_body(card_names: tuple[str, ...]) -> str:
@@ -895,15 +928,24 @@ Player me = game.getPlayer(pid);
 if (me == null) {
     return;
 }
-// LEGAL-ACTIONS-ONLY win enactment (no-terminal-API rule): PLAY the Consultation→Oracle line
-// through the rules engine — cast the exile-your-library spell (Demonic Consultation / Tainted
-// Pact) so its resolution empties the library, then cast Thassa's Oracle so ITS enters-the-
-// battlefield trigger wins on an empty library. Every step goes on the stack (the opponent gets
-// priority — a held counterspell can answer it) and the terminal is the ENGINE's. NEVER call
-// lost()/won()/setWinner() or moveCards-fabricate a zone (see pipeline.sim.driver_lint).
+// PRIORITY-FAIR, LEGAL-ACTIONS-ONLY win enactment: PLAY the Consultation->Oracle line ONE cast
+// per priority, then YIELD. On the first priority (library non-empty) cast the exile-your-
+// library spell (Demonic Consultation / Tainted Pact); on the next (library emptied by its
+// resolution) cast Thassa's Oracle so its enters-the-battlefield trigger wins on an empty
+// library. After each cast we me.pass(game) so the ENGINE's normal priority pass runs — the
+// opponent gets priority with the spell on the stack (a held Force of Will / Swan Song can
+// answer it) and the stack resolves only when all players pass. The line RESUMES on the next
+// priority (_JELEVA_MACRO_APPLICABLE re-fires: oracle in hand & library empty) and ABORTS when
+// a piece is countered (it leaves hand -> applicable goes false). The terminal is the ENGINE's:
+// NEVER call lost()/won()/setWinner() or moveCards-fabricate a zone (see pipeline.sim.driver_lint).
 java.util.List<String> castOrder = java.util.Arrays.asList(
         "Demonic Consultation", "Tainted Pact", "Thassa's Oracle");
 for (String want : castOrder) {
+    // Hold Thassa's Oracle until the library is actually empty (its win condition); casting it
+    // over a non-empty library would deck the caller out on resolution.
+    if ("Thassa's Oracle".equals(want) && me.getLibrary().size() > 0) {
+        continue;
+    }
     Card inHand = null;
     for (Card c : new ArrayList<>(me.getHand().getCards(game))) {
         if (want.equals(c.getName())) {
@@ -919,16 +961,13 @@ for (String want : castOrder) {
         me.cast(sa, game, false, null);
         game.applyEffects();
     }
-    int guard = 0;
-    while (!game.getStack().isEmpty() && guard++ < ComboMacro.PROBE_MAX_STEPS) {
-        game.getStack().resolve(game);
-        game.applyEffects();
-        game.checkStateAndTriggered();
-        if (game.checkIfGameIsOver()) {
-            return;
-        }
-    }
-}'''
+    // Cast ONE piece, then yield: pass priority back to the engine's normal loop so the opponent
+    // can respond and the stack resolves through the engine, never inside this macro.
+    me.pass(game);
+    return;
+}
+// Nothing castable this priority — yield so the step can advance (no spin).
+me.pass(game);'''
 
 _JELEVA_STEER = '''\
 if (source == null || cards == null || target == null) {

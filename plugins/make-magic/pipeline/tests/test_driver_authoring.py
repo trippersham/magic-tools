@@ -247,6 +247,32 @@ def test_seed_macro_generates_no_forbidden_terminal_calls() -> None:
         assert '.cast(' in src, f'{spec.name}: macro must PLAY the line via cast()'
 
 
+def test_seed_macro_is_priority_fair_no_force_resolve() -> None:
+    """Priority-fairness rule: the macro must NEVER force-resolve the stack inside apply()
+    (``getStack().resolve``). A force-resolve robs the opponent of the priority window between
+    a combo piece's cast and its resolution (a held Force of Will could never answer). Instead
+    the macro casts ONE piece per priority opportunity and YIELDS (``pass(game)``), letting the
+    engine's normal priority pass run — the opponent gets priority, and the stack resolves only
+    when all players pass. Assert across every seeded macro + the Jeleva positive control."""
+    specs = [
+        da.seed_quad_from_combo(_win_combo(), archetype='drive-capable'),
+        da.seed_quad_from_combo(_win_combo(), archetype='drive-dedicated'),
+        da.seed_nudge_quad(_win_combo(), alpha=3),
+        da.JELEVA_QUAD_SPEC,
+    ]
+    for spec in specs:
+        assert spec.macro is not None
+        apply_src = spec.macro.apply_body
+        assert 'getStack().resolve' not in apply_src, (
+            f'{spec.name}: macro still force-resolves the stack (robs opponent priority)'
+        )
+        # positive: the macro casts the line AND yields priority back to the engine.
+        assert '.cast(' in apply_src, f'{spec.name}: macro must PLAY the line via cast()'
+        assert '.pass(' in apply_src, (
+            f'{spec.name}: macro must YIELD priority via pass() after a cast'
+        )
+
+
 def test_seed_quad_dedicated_stages_pieces_in_phi() -> None:
     """A dedicated seed carries a piece-staging Φ; a capable seed is thin Φ=0."""
     capable = da.seed_quad_from_combo(_win_combo(), archetype='drive-capable')
