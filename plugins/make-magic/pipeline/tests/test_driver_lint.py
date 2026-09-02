@@ -7,9 +7,12 @@ parses the constant pool of every compiled ``.class`` in a driver's ``classes_di
 Python — no ``javap``) and flags forbidden ``Methodref`` owners+methods:
 
   * FAIL — terminal calls: ``mage.players.Player.{lost,won,leave,quit,setLosses,setWins}``
-    and ``mage.game.Game.{end,setWinner}``. A driver referencing any of these is rejected.
-  * WARN — zone-fabrication (``moveCards*`` on Game/Player) and ``concede`` on the driver's
-    own seat: rules-legal / part of the sanctioned bounded-resolution pattern, but recorded.
+    and ``mage.game.Game.{end,setWinner}``; ``concede`` (any owner); and zone-fabrication
+    (``moveCard*`` on any ``mage/`` owner — ``moveCards`` / ``moveCardToExile*`` / …). A driver
+    referencing any of these is rejected: it mutates a zone without paying costs or passing
+    priority (the ``moveCards``-exile-library + drop-Thassa's-Oracle fabrication).
+  * A driver acts ONLY through casts / activations / choices; every terminal state and every
+    zone change comes from the rules engine, never from a direct owner-API call.
 
 The fixtures are tiny ``.class`` files compiled against stub ``mage.*`` types, so the owner
 names in the constant pool are the real forbidden owners without needing the XMage jar.
@@ -41,12 +44,23 @@ def test_scan_class_bytes_catches_terminal_calls() -> None:
     assert any('Game.setWinner' in m for m in fail_msgs), fail_msgs
 
 
-def test_scan_clean_class_has_no_fail() -> None:
-    """A class touching only benign reads (plus a WARN-level moveCards) raises no FAIL."""
+def test_scan_clean_class_has_no_findings() -> None:
+    """A class touching only benign reads (``getName`` / ``checkIfGameIsOver``) raises nothing."""
     findings = driver_lint.lint_class_bytes(_class_bytes('clean', 'CleanDriver'), name='CleanDriver')
-    assert [f for f in findings if f.severity == 'FAIL'] == []
-    # moveCards is the sanctioned bounded-resolution move → WARN, not FAIL.
-    assert any(f.severity == 'WARN' and 'moveCards' in f.detail for f in findings), findings
+    assert findings == (), findings
+
+
+def test_zone_move_is_fail() -> None:
+    """``moveCards`` / ``moveCardTo*`` on a ``mage/`` owner is now a FAIL (zone-fabrication): a
+    driver moving cards between zones without casting/paying/priority manufactures a terminal
+    (the exile-library + drop-Thassa's-Oracle deck-out). It is NOT a WARN — the sanctioned line
+    is casts + engine resolution, never a direct ``moveCards``."""
+    findings = driver_lint.lint_class_bytes(_class_bytes('zonemove', 'ZoneMoveDriver'), name='ZoneMoveDriver')
+    fails = [f for f in findings if f.severity == 'FAIL']
+    assert any('moveCards' in f.detail for f in fails), findings
+    assert any('moveCardToExile' in f.detail for f in fails), findings
+    # No lingering WARN severity for zone moves — the split for these is gone.
+    assert not any(f.severity == 'WARN' and 'moveCard' in f.detail for f in findings), findings
 
 
 def test_concede_is_fail() -> None:
@@ -70,13 +84,24 @@ def test_lint_driver_dir_bad_fails(tmp_path: Path) -> None:
 
 
 def test_lint_driver_dir_clean_ok(tmp_path: Path) -> None:
-    """A clean classes_dir returns ok=True with the WARN recorded but not blocking."""
+    """A clean classes_dir (benign reads only) returns ok=True with no findings at all."""
     dest = tmp_path / 'org' / 'makemagic' / 'driver'
     dest.mkdir(parents=True)
     (dest / 'CleanDriver.class').write_bytes(_class_bytes('clean', 'CleanDriver'))
     result = driver_lint.lint_driver_classes(tmp_path)
     assert result.ok
-    assert result.warn_findings  # moveCards recorded as WARN
+    assert result.findings == ()
+
+
+def test_lint_driver_dir_zonemove_fails(tmp_path: Path) -> None:
+    """A classes_dir whose driver zone-fabricates via ``moveCards`` is REJECTED (ok=False)."""
+    dest = tmp_path / 'org' / 'makemagic' / 'driver'
+    dest.mkdir(parents=True)
+    (dest / 'ZoneMoveDriver.class').write_bytes(_class_bytes('zonemove', 'ZoneMoveDriver'))
+    result = driver_lint.lint_driver_classes(tmp_path)
+    assert not result.ok
+    assert result.fail_findings
+    assert 'moveCards' in result.summary
 
 
 # --- Sol HIGH 2: subclass owners, reflection, fail-closed ------------------ #
@@ -132,6 +157,27 @@ def test_unreadable_class_fails_closed(tmp_path: Path) -> None:
     finally:
         bad.chmod(0o644)
     assert not result.ok, 'an unreadable class must fail closed, not pass'
+
+
+_REFERENCE_DRIVERS = sorted(
+    (Path(__file__).parents[1] / 'pipeline' / 'sim' / 'reference_drivers').glob('*.java')
+)
+
+
+def test_checked_in_reference_drivers_ship_no_forbidden_api() -> None:
+    """Every checked-in reference/example driver must ship a CLEAN example — no direct terminal,
+    concede, reflection, or zone-move call. The repo cannot ship a forbidden pattern that an
+    author would copy (the old Jeleva reference used ``me.moveCards(...)`` + ``o.lost(game)``).
+    A textual guard (the sources are not compiled in CI) over the call-site tokens the lint FAILs."""
+    assert _REFERENCE_DRIVERS, 'expected at least one reference driver to guard'
+    forbidden = ('.moveCards(', '.moveCardTo', '.lost(', '.won(', '.setWinner(', '.concede(', '.end(')
+    offenders: dict[str, list[str]] = {}
+    for src in _REFERENCE_DRIVERS:
+        text = src.read_text(encoding='utf-8')
+        hits = [tok for tok in forbidden if tok in text]
+        if hits:
+            offenders[src.name] = hits
+    assert not offenders, f'reference driver(s) ship a forbidden call: {offenders}'
 
 
 def _write_one(base: Path, variant: str, name: str) -> Path:

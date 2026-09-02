@@ -301,8 +301,10 @@ def gate_driver(
     # LEGAL game actions; every terminal state must come from the rules engine. Scan the
     # compiled .class constant pools for terminal / state-fabrication references BEFORE running
     # a single JVM game — a driver that calls Player.lost/won/... or Game.setWinner/end is
-    # asserting a win it never played (the MACRO_FIRE_REAL→gameOver on turn 1 pathology). FAIL
-    # hard; zone-fabrication (moveCards*) and concede are WARN, recorded in meta (never block).
+    # asserting a win it never played (the MACRO_FIRE_REAL→gameOver on turn 1 pathology). Terminal
+    # APIs, concede, AND zone-fabrication (moveCard* on a mage/ owner) all FAIL hard — a driver acts
+    # only through casts/activations/choices; the engine owns every terminal state and zone change.
+    # (warn_findings is retained for API stability but no rule emits WARN any more.)
     lint = driver_lint.lint_driver_classes(classes)
     lint_warnings = [f.detail for f in lint.warn_findings]
     if not lint.ok:

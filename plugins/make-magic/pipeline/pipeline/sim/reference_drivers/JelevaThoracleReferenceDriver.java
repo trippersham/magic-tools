@@ -1,15 +1,12 @@
 package makemagic.driver.reference;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 import mage.MageObject;
 import mage.abilities.Ability;
 import mage.cards.Card;
 import mage.cards.Cards;
-import mage.cards.CardsImpl;
-import mage.constants.Zone;
 import mage.game.Game;
 import mage.game.permanent.Permanent;
 import mage.player.ai.score.ComboMacro;
@@ -137,8 +134,10 @@ public final class JelevaThoracleReferenceDriver {
      * The Jeleva deterministic-execution macro. Precondition P (= {@link #applicable}): the
      * Thoracle kill is executable NOW (Oracle in hand + an exile-your-library piece + mana, on
      * my turn with an empty stack; or the library already empty + Oracle in hand).
-     * {@link #apply} drives the known outcome on whatever game it is handed (a search copy or
-     * the real game) with BOUNDED state moves — never {@code priority()} on the copy.
+     * {@link #apply} enacts the known line on whatever game it is handed (a search copy or the
+     * real game) purely through LEGAL actions — it casts ONE combo piece per priority and yields
+     * ({@code me.pass(game)}) to the engine's priority pass, never moving cards between zones or
+     * asserting a terminal directly. The deck-out comes from the engine resolving those casts.
      */
     private static final class JelevaMacro implements ComboMacro {
         @Override
@@ -184,50 +183,39 @@ public final class JelevaThoracleReferenceDriver {
             if (me == null) {
                 return;
             }
-            // (1) Demonic Consultation naming an off-deck card -> exile the WHOLE library.
-            List<Card> lib = new ArrayList<>(me.getLibrary().getCards(game));
-            if (!lib.isEmpty()) {
-                me.moveCards(new CardsImpl(lib), Zone.EXILED, null, game);
-                game.applyEffects();
-            }
-            // (2) Put Thassa's Oracle onto the battlefield -> its empty-library ETB wins.
-            Card oracle = null;
-            for (Card c : me.getHand().getCards(game)) {
-                if ("Thassa's Oracle".equals(c.getName())) {
-                    oracle = c;
-                    break;
-                }
-            }
-            if (oracle != null) {
-                me.moveCards(oracle, Zone.BATTLEFIELD, null, game);
-                game.applyEffects();
-                game.checkStateAndTriggered();
-                int guard = 0;
-                while (!game.getStack().isEmpty() && guard++ < ComboMacro.PROBE_MAX_STEPS) {
-                    game.getStack().resolve(game);
-                    game.applyEffects();
-                    game.checkStateAndTriggered();
-                    if (game.checkIfGameIsOver()) {
-                        break;
+            // PRIORITY-FAIR, LEGAL-ACTIONS-ONLY enactment: cast exactly ONE combo piece this
+            // priority through the rules engine (chooseAbilityForCast + cast), then YIELD
+            // (me.pass(game)) so the engine's normal priority pass runs — the opponent receives
+            // priority with the freshly-cast spell on the stack (a held counterspell can answer
+            // it) and the stack resolves only when all players pass. The line RESUMES on the next
+            // priority (applicable() re-fires once the piece has resolved) and ABORTS cleanly when
+            // a piece is countered (it is no longer castable -> applicable goes false). The Thoracle
+            // deck-out — exile-your-library piece first (Demonic Consultation / Tainted Pact), then
+            // Thassa's Oracle into an empty library — is produced ENTIRELY by the engine resolving
+            // those casts. This macro NEVER moveCards-fabricates a zone or calls lost()/setWinner();
+            // an unrefined line that fails to win simply won't emit MACRO_FIRE_REAL and the gate
+            // rejects it (the honest outcome). See pipeline.sim.driver_lint.
+            String[] order = me.getLibrary().size() > 0
+                    ? new String[]{"Demonic Consultation", "Tainted Pact", "Thassa's Oracle"}
+                    : new String[]{"Thassa's Oracle"};
+            for (String want : order) {
+                for (Card c : new ArrayList<>(me.getHand().getCards(game))) {
+                    if (!want.equals(c.getName())) {
+                        continue;
                     }
-                }
-            }
-            if (game.checkIfGameIsOver()) {
-                System.err.println("MACRO_ORACLE_ETB_WIN pid=" + pid + " libEmpty=true");
-            } else {
-                // The empty-library + Oracle-in-play outcome is deterministically a win; if the
-                // headless ETB win-check did not flip game-over, concede opponents so the terminal
-                // is an unambiguous WIN (logged distinctly for honest reporting).
-                System.err.println("MACRO_ORACLE_ETB_no_gameover pid=" + pid + " -> direct opp-loss fallback");
-                for (UUID opp : game.getOpponents(pid)) {
-                    Player o = game.getPlayer(opp);
-                    if (o != null) {
-                        o.lost(game);
+                    mage.abilities.SpellAbility sa = me.chooseAbilityForCast(c, game, false);
+                    if (sa != null) {
+                        me.cast(sa, game, false, null);
+                        game.applyEffects();
                     }
+                    // Cast ONE piece, then yield: pass priority back to the engine's normal loop.
+                    // Resolution (and any resulting deck-out win) happens through the engine.
+                    me.pass(game);
+                    return;
                 }
-                game.applyEffects();
-                game.checkStateAndTriggered();
             }
+            // No castable piece remained in hand this priority — yield so the step can advance.
+            me.pass(game);
         }
     }
 

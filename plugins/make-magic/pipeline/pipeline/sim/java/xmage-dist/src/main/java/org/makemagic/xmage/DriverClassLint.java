@@ -29,6 +29,11 @@ import java.util.stream.Stream;
  *   <li>{@code mage/game/Game}.{end, setWinner}</li>
  *   <li>{@code concede} (any owner) — a driver-forced opponent concession is an
  *       engine-legitimate, aggregator-credited decisive win; drivers may not concede at all.</li>
+ *   <li>{@code moveCard*} (e.g. {@code moveCards}, {@code moveCardToExile*}) on ANY {@code mage/}
+ *       owner — a direct zone move mutates state without paying costs or passing priority (the
+ *       {@code moveCards}-exile-library + drop-Thassa's-Oracle fabrication). A driver acts only
+ *       through casts/activations/choices; the engine owns every zone change, so a zone move has
+ *       no safe driver use.</li>
  * </ul>
  * A forbidden reference makes the worker REFUSE to load the driver and emit a terminal
  * {@code RESULT reason=driver-rejected} (non-decisive, no requeue) rather than crash-looping.</p>
@@ -95,6 +100,14 @@ final class DriverClassLint {
             }
         }
         if (isReflection(owner, method)) {
+            return true;
+        }
+        // Zone-fabrication: any moveCard* (moveCards / moveCardToExile* / moveCardToGraveyard* / …)
+        // on a mage/ owner is FAIL — a direct zone move mutates state without paying costs or passing
+        // priority (the moveCards-exile-library + drop-Thassa's-Oracle fabrication). A driver acts
+        // only through casts/activations/choices; the engine owns every zone change. Scoped to the
+        // mage/ namespace so a concrete impl/subclass owner (e.g. mage/players/PlayerImpl) is caught.
+        if (owner.startsWith(MAGE_NS) && method.startsWith("moveCard")) {
             return true;
         }
         // concede is FAIL on ANY owner: a driver forcing the OPPONENT to concede yields an

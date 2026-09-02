@@ -60,7 +60,16 @@ def _harness_has_lint(jar: Path) -> bool:
 
 
 @pytest.mark.integration
-def test_worker_rejects_forbidden_driver(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ('variant', 'driver_cls'),
+    [
+        # terminal-API fabrication (Player.lost / Game.setWinner)
+        ('bad', 'BadDriver'),
+        # zone-fabrication (moveCards / moveCardToExile*) — must be REFUSED at load time too.
+        ('zonemove', 'ZoneMoveDriver'),
+    ],
+)
+def test_worker_rejects_forbidden_driver(tmp_path: Path, variant: str, driver_cls: str) -> None:
     from pipeline.sim import xmage_runtime as xr
     from pipeline.sim.engines import xmage as xe
 
@@ -90,12 +99,12 @@ def test_worker_rejects_forbidden_driver(tmp_path: Path) -> None:
     deck = run_dir / 'quick.txt'
     deck.write_text('99 Swamp\nSB: 1 Yargle, Glutton of Urborg\n', encoding='utf-8')
 
-    # Stage the BAD fixture (references Player.lost / Game.setWinner) as PlayerA's driver.
+    # Stage the forbidden fixture (terminal-API or zone-fabrication) as PlayerA's driver.
     bad_cp = run_dir / 'bad_driver'
     dest = bad_cp / 'org' / 'makemagic' / 'driver'
     dest.mkdir(parents=True)
-    (dest / 'BadDriver.class').write_bytes(
-        (_FIX / 'bad' / 'org' / 'makemagic' / 'driver' / 'BadDriver.class').read_bytes()
+    (dest / f'{driver_cls}.class').write_bytes(
+        (_FIX / variant / 'org' / 'makemagic' / 'driver' / f'{driver_cls}.class').read_bytes()
     )
 
     cmd = xe._compose_launch_cmd(install, ['--worker', '--worker-max-games', '1'], heap='3g')  # type: ignore[attr-defined]
@@ -109,7 +118,7 @@ def test_worker_rejects_forbidden_driver(tmp_path: Path) -> None:
 
     task = {
         'id': 'lint-reject-1', 'fmt': 'commander',
-        'a': {'deck': str(deck), 'driver': {'cp': str(bad_cp), 'fqcn': 'org.makemagic.driver.BadDriver'}},
+        'a': {'deck': str(deck), 'driver': {'cp': str(bad_cp), 'fqcn': f'org.makemagic.driver.{driver_cls}'}},
         'b': {'deck': str(deck), 'driver': None},
     }
     try:

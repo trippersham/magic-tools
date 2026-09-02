@@ -24,21 +24,20 @@ Two severities:
       Self-concession was only ever a theoretical nicety, so drivers may not concede at all —
       safety wins.
 
-    These directly fabricate a terminal state / assert victory without playing the line.
+    - zone-fabrication: ``moveCards`` / ``moveCardTo*`` (any ``moveCard*``) on a ``mage/`` owner.
+      These move cards between zones WITHOUT paying costs or passing priority — the buggy macro
+      used them to exile the library and drop Thassa's Oracle into play, manufacturing a credited
+      deck-out. A driver's only legal levers are casts / activations / choices; the rules engine
+      owns every zone change, so a direct ``moveCard*`` has NO safe driver use and FAILs. (The
+      bounded combo-resolution line is expressed as ``cast`` + yield priority to the engine, never
+      as a direct zone move — see the priority-fair authoring seed.)
 
-  * **WARN** — recorded in gate metadata, never blocks:
+    These directly fabricate a terminal state / zone / victory without playing the line.
 
-    - zone-fabrication: ``moveCards`` / ``moveCardTo*`` on a ``Game``/``Player`` owner. These
-      move cards without paying costs or passing priority, and the buggy macro used them to
-      exile the library and drop Thassa's Oracle into play. BUT they are also the sanctioned
-      primitive of the bounded combo-resolution pattern (``moveCards`` + ``applyEffects`` +
-      capped ``getStack().resolve``), so distinguishing a legitimate bounded move from a
-      fabrication is undecidable from bytecode alone → WARN, not FAIL.
-
-The FAIL/WARN split is deliberate: the terminal + concede APIs have NO safe driver use (the rules
-engine owns every terminal state, and a driver-forced concession fabricates a credited win), so
-they FAIL hard; the zone APIs have legitimate uses that bytecode cannot cleanly separate from
-abuse, so they WARN.
+All forbidden APIs FAIL hard: the rules engine owns every terminal state AND every zone change, a
+driver-forced concession fabricates a credited win, and a direct zone move fabricates the board a
+line never legally produced. There is no WARN tier — a driver either acts only through legal
+actions or it is rejected.
 """
 
 from __future__ import annotations
@@ -83,9 +82,6 @@ _FAIL_DENYLIST: tuple[tuple[str, frozenset[str]], ...] = (
     ('mage/players/Player', frozenset({'lost', 'won', 'leave', 'quit', 'setLosses', 'setWins'})),
     ('mage/game/Game', frozenset({'end', 'setWinner'})),
 )
-
-#: Owner substrings whose ``moveCard*`` methods are zone-fabrication (WARN — recorded).
-_ZONE_OWNERS: tuple[str, ...] = ('mage/game/Game', 'mage/players/Player')
 
 #: Terminal/victory-assertion method names forbidden on ANY owner in the ``mage/`` package
 #: namespace (Sol HIGH 2). Owner-substring denylisting missed a call compiled against a concrete
@@ -271,8 +267,16 @@ def _classify(owner: str, method: str) -> tuple[str, str] | None:
         # aggregator-credited decisive win (concede is a rules-legal loss). Drivers may not concede
         # at all — self-concession was only ever a theoretical nicety, so safety wins.
         return 'FAIL', 'concede'
-    if method.startswith('moveCard') and any(z in owner for z in _ZONE_OWNERS):
-        return 'WARN', 'zone-fabrication'
+    if method.startswith('moveCard') and owner.startswith('mage/'):
+        # FAIL, not WARN: a driver moving cards between zones directly (``moveCards`` /
+        # ``moveCardToExile*`` / ``moveCardToGraveyard*`` / …) mutates state WITHOUT paying
+        # costs or passing priority — the exact ``moveCards``-exile-library + drop-Thassa's-Oracle
+        # fabrication that manufactures a credited deck-out. A driver's only legal levers are
+        # casts / activations / choices; the engine owns every zone change. The old WARN split
+        # (a "sanctioned bounded-resolution move") is retired — there is no safe direct zone move.
+        # Scoped to the ``mage/`` namespace so a call compiled against a concrete impl/subclass
+        # (e.g. ``mage/players/PlayerImpl``) is caught too.
+        return 'FAIL', 'zone-fabrication'
     return None
 
 
