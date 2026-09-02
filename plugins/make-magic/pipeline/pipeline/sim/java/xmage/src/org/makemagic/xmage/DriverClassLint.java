@@ -27,6 +27,8 @@ import java.util.stream.Stream;
  * <ul>
  *   <li>{@code mage/players/Player}.{lost, won, leave, quit, setLosses, setWins}</li>
  *   <li>{@code mage/game/Game}.{end, setWinner}</li>
+ *   <li>{@code concede} (any owner) — a driver-forced opponent concession is an
+ *       engine-legitimate, aggregator-credited decisive win; drivers may not concede at all.</li>
  * </ul>
  * A forbidden reference makes the worker REFUSE to load the driver and emit a terminal
  * {@code RESULT reason=driver-rejected} (non-decisive, no requeue) rather than crash-looping.</p>
@@ -189,6 +191,12 @@ final class DriverClassLint {
                 if (owner.contains(e.getKey()) && e.getValue().contains(method)) {
                     out.add(new String[] {owner, method});
                 }
+            }
+            // concede is FAIL on ANY owner: a driver forcing the OPPONENT to concede yields an
+            // engine-legitimate, aggregator-CREDITED decisive win (a concession is a rules-legal
+            // loss). Drivers may not concede at all — safety wins over the theoretical self-concede.
+            if ("concede".equals(method)) {
+                out.add(new String[] {owner, method});
             }
         }
         return out;

@@ -82,6 +82,13 @@ class SimdRunResult:
     #: Total decisive concessions (``end_cause=concede``) — a rules-legal loss counted in W/L like any
     #: decisive cause, surfaced so concede-heavy matchups are visible (a data-quality signal).
     concede_games: int
+    #: The ORIGINAL registered task universe (every task_id the scheduler was built with, plus any
+    #: resumed top-ups) — passed into post-hoc aggregation so never-run tasks surface as incomplete
+    #: coverage instead of silently vanishing from a results-only universe (Sol BLOCKER 1).
+    task_ids: list[str]
+    #: True IFF every cell reached ``ok >= needed`` — a genuine completeness predicate with NO
+    #: exhaustion exception. An exhausted-by-cap cell is terminal-but-incomplete (surfaced in
+    #: ``exhausted_cells``), so ``complete`` stays False and partial science can never be blessed.
     complete: bool
 
 
@@ -384,7 +391,10 @@ class SimdScheduler:
         return cell_key(self._task_by_id[tid])[0]
 
     def _all_terminal_locked(self) -> bool:
-        return (len(self._done) + len(self._quarantined)) >= len(self._task_by_id)
+        # Set INCLUSION over the CURRENT-run task universe — never a cardinality compare. A stale
+        # done/quarantine id from another universe can no longer make the run look drained; the run
+        # is terminal iff every live task id is itself done or quarantined.
+        return all(tid in self._done or tid in self._quarantined for tid in self._task_by_id)
 
     # ------------------------------------------------------------------ #
     # Result extraction.
@@ -398,14 +408,14 @@ class SimdScheduler:
                 k for k, c in self._cells.items() if c.ok < c.needed and (c.quarantined or c.nondecisive)
             ]
             # A cell is exhausted-by-cap iff it is still short AND its top-up budget is spent — every
-            # replacement it was allowed also failed to resolve decisively. Flagged distinctly so it
-            # is never silently counted complete, and it does NOT block ``complete``.
+            # replacement it was allowed also failed to resolve decisively. Flagged distinctly so the
+            # caller can tell "terminated by top-up cap" from "still running", but it is STILL
+            # incomplete: it does NOT get subtracted from the completeness predicate (Sol BLOCKER 1 —
+            # ``complete`` means all cells ok>=needed, no exhaustion exception).
             exhausted = [
                 k for k, c in self._cells.items()
                 if c.ok < c.needed and c.topups >= self._topup_cap * c.needed
             ]
-            exhausted_set = set(exhausted)
-            blocking = [k for k in incomplete if k not in exhausted_set]
             invalid_cells = [k for k, c in self._cells.items() if c.invalid]
             fast_games = sum(c.fast for c in self._cells.values())
             concede_games = sum(c.concede for c in self._cells.values())
@@ -419,5 +429,6 @@ class SimdScheduler:
                 invalid_cells=invalid_cells,
                 fast_games=fast_games,
                 concede_games=concede_games,
-                complete=not blocking,
+                task_ids=list(self._task_by_id),
+                complete=not incomplete,
             )

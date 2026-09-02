@@ -49,11 +49,13 @@ def test_scan_clean_class_has_no_fail() -> None:
     assert any(f.severity == 'WARN' and 'moveCards' in f.detail for f in findings), findings
 
 
-def test_concede_is_warn_not_fail() -> None:
-    """``concede`` on the own seat is rules-legal but delta-biasing → WARN, never FAIL."""
+def test_concede_is_fail() -> None:
+    """``concede`` is a FAIL — a driver may not concede at all (forcing the OPPONENT to concede
+    fabricates a credited decisive win; self-concession is only a theoretical nicety). Safety wins."""
     findings = driver_lint.lint_class_bytes(_class_bytes('concede', 'ConcedeDriver'), name='ConcedeDriver')
-    assert [f for f in findings if f.severity == 'FAIL'] == []
-    assert any(f.severity == 'WARN' and 'concede' in f.detail for f in findings), findings
+    fails = [f for f in findings if f.severity == 'FAIL']
+    assert any('concede' in f.detail for f in fails), findings
+    assert not any(f.severity == 'WARN' and 'concede' in f.detail for f in findings), findings
 
 
 def test_lint_driver_dir_bad_fails(tmp_path: Path) -> None:

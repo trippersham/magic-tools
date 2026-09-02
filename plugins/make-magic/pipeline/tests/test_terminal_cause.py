@@ -73,6 +73,39 @@ def test_concede_flag() -> None:
     assert is_concede(_r(winner='A', end_cause=None)) is False
 
 
+# --------------------------------------------------------------------------- #
+# Cross-field (cause <-> winner <-> reason) consistency — a mismatch is INVALID,
+# never silently counted. Applies to the NEW end_cause path (legacy rows keep the ms-floor).
+# --------------------------------------------------------------------------- #
+
+
+def test_decisive_cause_without_credited_winner_is_invalid() -> None:
+    # end_cause=lethal_damage but winner=none → a silent draw the classifier would have credited to
+    # neither seat; a decisive cause REQUIRES a credited winner → INVALID.
+    assert classify_validity(_r(winner='none', end_cause='lethal_damage')) is Validity.INVALID
+
+
+def test_draw_game_with_credited_winner_is_invalid() -> None:
+    # end_cause=draw_game but winner=A → a draw becoming a win → INVALID.
+    assert classify_validity(_r(winner='A', end_cause='draw_game')) is Validity.INVALID
+
+
+def test_nondecisive_reason_with_credited_winner_is_invalid() -> None:
+    # A non-decisive reason (timeout) must credit no winner; winner=A with reason=timeout → INVALID.
+    assert classify_validity(_r(winner='A', end_cause='timeout', reason='timeout')) is Validity.INVALID
+
+
+def test_timeout_cause_with_credited_winner_is_invalid() -> None:
+    # end_cause=timeout (non-decisive) paired with a credited winner → INVALID.
+    assert classify_validity(_r(winner='B', end_cause='timeout')) is Validity.INVALID
+
+
+def test_concede_without_credited_winner_is_invalid() -> None:
+    # concede is decisive; the conceder is the loser, so a credited winner is required. winner=none
+    # with end_cause=concede is inconsistent → INVALID.
+    assert classify_validity(_r(winner='none', end_cause='concede')) is Validity.INVALID
+
+
 def test_unknown_cause_on_decisive_claim_is_invalid() -> None:
     assert classify_validity(_r(winner='A', end_cause='unknown')) is Validity.INVALID
 

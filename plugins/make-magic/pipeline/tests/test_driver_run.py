@@ -306,6 +306,60 @@ def test_run_preflight_still_fails_loud_on_bad_java(monkeypatch: pytest.MonkeyPa
         preflight()  # type: ignore[operator]
 
 
+def _incomplete_result() -> object:
+    """A terminal-but-incomplete simd result: one never-run cell + one INVALID cell, complete=False."""
+    from pipeline.sim.simd.scheduler import SimdRunResult
+
+    return SimdRunResult(
+        results={},
+        quarantined=set(),
+        cells={('S', 'O', 'driven'): (0, 20), ('S', 'O', 'baseline'): (0, 20)},
+        incomplete_cells=[('S', 'O', 'driven'), ('S', 'O', 'baseline')],
+        quarantined_cells=[],
+        exhausted_cells=[('S', 'O', 'baseline')],
+        invalid_cells=[('S', 'O', 'driven')],
+        fast_games=0,
+        concede_games=0,
+        complete=False,
+        task_ids=['S|O|driven|0', 'S|O|baseline|0'],
+    )
+
+
+def test_run_refuses_final_publish_on_incomplete_and_writes_partial(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """E2E: an all-timeout/all-invalid run TERMINATES but is incomplete → the CLI refuses to write the
+    final ``driver-run-buckets.{json,md}``, writes only an explicitly PARTIAL coverage artifact, and
+    exits nonzero. Publication is gated on genuine completeness + zero invalid cells (Sol BLOCKER 1)."""
+    from types import SimpleNamespace
+
+    out_dir = tmp_path / 'out'
+    monkeypatch.setattr(dr, 'default_batch_ledger_v2_path', lambda: tmp_path / 'ledger.jsonl')
+    monkeypatch.setattr(dr, 'Ledger', lambda _p: SimpleNamespace(rows=lambda: []))
+    monkeypatch.setattr(dr, 'run_set_from_batch_ledger', lambda _b: (['deck'], {'deck': 'tight'}))
+    monkeypatch.setattr(dr, '_drive_rows_for_run_set', lambda _b, _rs: [])
+    monkeypatch.setattr(dr, 'build_opponent_field', lambda _ids, **_kw: [])
+    monkeypatch.setattr(dr, 'run_corpus_queue', lambda **_kw: _incomplete_result())
+
+    with pytest.raises(SystemExit) as exc:
+        dr.run(['--run', '--no-monitor', '--out-dir', str(out_dir)])
+    assert exc.value.code != 0
+
+    assert not (out_dir / 'driver-run-buckets.json').exists()
+    assert not (out_dir / 'driver-run-buckets.md').exists()
+    partial = out_dir / 'driver-run-buckets.PARTIAL.json'
+    assert partial.exists()
+    import json as _json
+
+    payload = _json.loads(partial.read_text())
+    cov = payload['coverage']
+    assert cov['complete'] is False
+    assert ['S', 'O', 'driven'] in cov['invalid_cells']
+    assert ['S', 'O', 'driven'] in cov['incomplete_cells']
+    # A never-run task (in the registered universe, absent from results/quarantine) is surfaced.
+    assert 'S|O|driven|0' in cov['never_run_tasks']
+
+
 def test_bucket_markdown_renders_headline() -> None:
     """The markdown table names the tight-keep headline + a row per populated bucket."""
     stats = dr.aggregate_buckets([_delta('a', 'tight-keep', 'drive-dedicated', 90, 100, 20, 100, 40)])

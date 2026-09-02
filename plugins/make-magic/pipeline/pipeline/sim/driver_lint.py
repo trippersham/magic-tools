@@ -19,6 +19,10 @@ Two severities:
     - ``mage.players.Player``.{``lost``, ``won``, ``leave``, ``quit``, ``setLosses``,
       ``setWins``}
     - ``mage.game.Game``.{``end``, ``setWinner``}
+    - ``concede`` (on any owner) — a driver forcing the OPPONENT to concede yields an
+      engine-legitimate, aggregator-CREDITED decisive win (a concession is a rules-legal loss).
+      Self-concession was only ever a theoretical nicety, so drivers may not concede at all —
+      safety wins.
 
     These directly fabricate a terminal state / assert victory without playing the line.
 
@@ -30,12 +34,11 @@ Two severities:
       primitive of the bounded combo-resolution pattern (``moveCards`` + ``applyEffects`` +
       capped ``getStack().resolve``), so distinguishing a legitimate bounded move from a
       fabrication is undecidable from bytecode alone → WARN, not FAIL.
-    - ``concede`` — rules-legal self-concession, but it biases the driven-baseline delta, so
-      it is flagged (WARN) and recorded, never silently accepted.
 
-The FAIL/WARN split is deliberate: the terminal APIs have NO legitimate driver use (the rules
-engine owns every terminal state), so they FAIL hard; the zone/concede APIs have legitimate
-uses that bytecode cannot cleanly separate from abuse, so they WARN.
+The FAIL/WARN split is deliberate: the terminal + concede APIs have NO safe driver use (the rules
+engine owns every terminal state, and a driver-forced concession fabricates a credited win), so
+they FAIL hard; the zone APIs have legitimate uses that bytecode cannot cleanly separate from
+abuse, so they WARN.
 """
 
 from __future__ import annotations
@@ -204,7 +207,10 @@ def _classify(owner: str, method: str) -> tuple[str, str] | None:
         if sub in owner and method in methods:
             return 'FAIL', 'terminal'
     if method == 'concede':
-        return 'WARN', 'concede'
+        # FAIL, not WARN: a driver forcing the OPPONENT to concede yields an engine-legitimate,
+        # aggregator-credited decisive win (concede is a rules-legal loss). Drivers may not concede
+        # at all — self-concession was only ever a theoretical nicety, so safety wins.
+        return 'FAIL', 'concede'
     if method.startswith('moveCard') and any(z in owner for z in _ZONE_OWNERS):
         return 'WARN', 'zone-fabrication'
     return None

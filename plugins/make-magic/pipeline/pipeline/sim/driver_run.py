@@ -856,6 +856,40 @@ def _write_json(path: Path, payload: Any) -> None:
         raise
 
 
+def _write_partial_coverage(
+    result: Any,
+    never_run: Sequence[str],
+    *,
+    out_dir: str | os.PathLike[str],
+    field_names: Sequence[str] | None = None,
+) -> Path:
+    """Write the explicitly-named PARTIAL coverage artifact for an incomplete/invalid run.
+
+    This is NOT the final ``driver-run-buckets.json`` W/L table (that publication is REFUSED for an
+    incomplete run — Sol BLOCKER 1); it is a distinct ``driver-run-buckets.PARTIAL.json`` whose
+    ``coverage`` block names every incomplete / exhausted / invalid cell and every never-run task, so
+    the missing science is loudly visible instead of silently blessed."""
+    out = Path(out_dir)
+    partial_path = out / 'driver-run-buckets.PARTIAL.json'
+    _write_json(
+        partial_path,
+        {
+            'field': list(field_names or []),
+            'partial': True,
+            'coverage': {
+                'complete': result.complete,
+                'incomplete_cells': [list(c) for c in result.incomplete_cells],
+                'exhausted_cells': [list(c) for c in result.exhausted_cells],
+                'quarantined_cells': [list(c) for c in result.quarantined_cells],
+                'invalid_cells': [list(c) for c in result.invalid_cells],
+                'never_run_tasks': list(never_run),
+                'cells': {'|'.join(k): list(v) for k, v in result.cells.items()},
+            },
+        },
+    )
+    return partial_path
+
+
 def write_bucket_table(
     stats: dict[str, BucketStat],
     *,
@@ -980,6 +1014,7 @@ def run(argv: list[str] | None = None) -> None:
         result.complete, len(result.quarantined), len(result.incomplete_cells),
         result.fast_games, result.concede_games, len(result.invalid_cells),
     )
+    out_dir = args.out_dir
     if result.invalid_cells:
         # INVALID = a decisive claim with NO legal terminal cause (macro-game-over / unknown). This
         # must be near-zero; a nonzero count is a loud data-integrity alarm (a driver fabricating a
@@ -988,20 +1023,36 @@ def run(argv: list[str] | None = None) -> None:
                     'terminal cause) — excluded + topped up + flagged: %s',
                     len(result.invalid_cells), result.invalid_cells)
 
+    # PUBLICATION REFUSAL (Sol BLOCKER 1): the final bucket table is science that gates ship/no-ship,
+    # so it is written ONLY when the run is genuinely complete (every cell ok>=needed) AND saw zero
+    # INVALID cells. An incomplete/exhausted/invalid run TERMINATES but must NOT publish final buckets:
+    # it writes an explicitly-named PARTIAL coverage artifact and exits nonzero instead.
+    never_run = [t for t in result.task_ids if t not in result.results and t not in result.quarantined]
+    if not result.complete or result.invalid_cells:
+        partial_path = _write_partial_coverage(result, never_run, out_dir=out_dir, field_names=field_names)
+        log.error(
+            'REFUSING to publish final buckets: complete=%s invalid_cells=%d incomplete_cells=%d '
+            'exhausted_cells=%d never_run_tasks=%d — wrote PARTIAL coverage artifact: %s',
+            result.complete, len(result.invalid_cells), len(result.incomplete_cells),
+            len(result.exhausted_cells), len(never_run), partial_path,
+        )
+        print(f'PARTIAL (incomplete run — final buckets refused): {partial_path}')
+        raise SystemExit(1)
+
     # Fold the committed results into per-subject comparisons, remapping the tag maps from deck_id
-    # to the staged subject basename the tasks carry.
+    # to the staged subject basename the tasks carry. Aggregation runs over the ORIGINAL registered
+    # task universe (``result.task_ids``) so any never-run task surfaces as coverage, never vanishes.
     subject_of = {_flat_deck_basename('s', str(r['deck_id'])): str(r['deck_id']) for r in rows}
     tight_by_subject = {sub: tightness.get(did, '') for sub, did in subject_of.items()}
     arche_by_subject = {
         _flat_deck_basename('s', str(r['deck_id'])): str(r.get('archetype') or '') for r in rows
     }
-    all_task_ids = list(result.results) + [t for t in result.quarantined if t not in result.results]
     agg = aggregate_results(
-        all_task_ids, result.results, quarantined=result.quarantined, bailout_floor_ms=BAILOUT_HARD_FLOOR_MS
+        result.task_ids, result.results, quarantined=result.quarantined, bailout_floor_ms=BAILOUT_HARD_FLOOR_MS
     )
     comparisons = agg.comparisons()
     stats = aggregate_buckets(_deltas_from_comparisons(comparisons, arche_by_subject, tight_by_subject))
-    json_path, md_path = write_bucket_table(stats, out_dir=args.out_dir, field_names=field_names)
+    json_path, md_path = write_bucket_table(stats, out_dir=out_dir, field_names=field_names)
     print(render_bucket_markdown(stats, field_names=field_names))
     print(f'buckets: {json_path}')
     print(f'buckets: {md_path}')

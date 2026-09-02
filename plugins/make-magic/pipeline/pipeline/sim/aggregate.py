@@ -141,26 +141,43 @@ _NONDECISIVE_CAUSES = frozenset({'timeout'})
 def classify_validity(result: GameResult, *, hard_floor_ms: int = BAILOUT_HARD_FLOOR_MS) -> Validity:
     """Bucket one game by its terminal cause — the correctness predicate replacing the ms floor.
 
-    * An explicit non-decisive ``reason`` (``timeout`` / ``driver-rejected``) → ``NONDECISIVE``.
     * A ``None`` ``end_cause`` is a LEGACY row predating the terminal-cause jar — fall back to the
       OLD ms-floor heuristic (:func:`bailout_reason`) so replaying legacy data still works
-      (backward compat: the real-2265 replay reproduces its exact expectations).
-    * A known decisive cause → ``DECISIVE``; ``timeout`` → ``NONDECISIVE``; any other/``unknown``
-      cause on a game claiming a winner → ``INVALID`` (near-zero; a loud data-integrity alarm).
+      (backward compat: the real-2265 replay reproduces its exact expectations). The legacy path is
+      LEFT EXACTLY AS-IS (reason → non-decisive, else ms-floor) — the cross-field invariants below
+      apply only to the NEW terminal-cause path so the locked replay is untouched.
+    * NEW terminal-cause path — enforce cross-field (cause ↔ winner ↔ reason) consistency, so a
+      worker/driver misbehaving on ONE field can never slip a fabricated credit past the classifier:
+      a credited winner (``A``/``B``) REQUIRES a decisive cause and no ``reason``; a ``draw_game``
+      credits neither seat; a non-decisive ``reason``/``timeout`` must credit no winner. A known
+      decisive cause with a credited winner → ``DECISIVE``; ``timeout`` (no credit) → ``NONDECISIVE``;
+      any inconsistency, unknown cause, or macro-game-over → ``INVALID`` (a loud data-integrity alarm).
     """
-    if result.reason is not None:
-        return Validity.NONDECISIVE
-    cause = result.end_cause
-    if cause is None:
-        # Legacy row: no terminal cause emitted — the OLD ms-floor heuristic still governs it.
+    if result.end_cause is None:
+        # Legacy row: no terminal cause emitted — the OLD ms-floor heuristic still governs it, byte
+        # for byte (no cross-field change), so the frozen 2265-game replay reproduces exactly.
+        if result.reason is not None:
+            return Validity.NONDECISIVE
         if bailout_reason(result, hard_floor_ms=hard_floor_ms) is not None:
             return Validity.NONDECISIVE
         return Validity.DECISIVE
-    c = cause.strip().lower()
+
+    credited = _winner_bucket(result.winner) in ('a', 'b')
+    if result.reason is not None:
+        # A non-decisive reason (timeout / driver-rejected) must credit NO winner; a credited winner
+        # paired with a non-decisive reason is a cross-field contradiction → INVALID.
+        return Validity.INVALID if credited else Validity.NONDECISIVE
+    c = result.end_cause.strip().lower()
     if c in _NONDECISIVE_CAUSES:
-        return Validity.NONDECISIVE
+        # timeout: non-decisive, must credit no winner.
+        return Validity.INVALID if credited else Validity.NONDECISIVE
     if c in _DECISIVE_CAUSES:
-        return Validity.DECISIVE
+        if c == 'draw_game':
+            # A draw credits neither seat; a credited winner on a draw cause → INVALID.
+            return Validity.INVALID if credited else Validity.DECISIVE
+        # Every other decisive cause REQUIRES a credited winner (a decisive cause with winner=none is
+        # a silent draw the classifier would otherwise fold in with no credit).
+        return Validity.DECISIVE if credited else Validity.INVALID
     # A decisive claim with no legal terminal cause (macro-game-over) or an unknown cause.
     return Validity.INVALID
 

@@ -579,17 +579,18 @@ def test_gate_rejects_driver_with_terminal_api(_store: Path) -> None:
     assert drivers.driver_valid(deck, data_dir=_store) is False
 
 
-def test_gate_records_concede_as_warn_not_fail(_store: Path) -> None:
-    """A concede-only driver is not rejected by the lint; the WARN is recorded in gate meta."""
+def test_gate_rejects_concede_driver(_store: Path) -> None:
+    """A concede-referencing driver is REJECTED by the lint (concede is FAIL, not WARN): forcing the
+    opponent to concede fabricates a credited decisive win, so drivers may not concede at all."""
     deck = _deck('Lint Concede')
     _stage_class(drivers.classes_dir(deck, data_dir=_store), 'concede', 'ConcedeDriver')
-    output = f'{_REG} fqcn=x playerId=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
-    eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
+    eng = _FakeEngine(driven=_res(6.0), driven_output='', baseline=_res(8.0))
 
     result = dg.gate_driver(
         deck, ('D', 'dck'),
         spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
 
-    assert result.passed is True
-    assert eng.calls == ['driven', 'baseline']  # got past the lint to the real run
-    assert any('concede' in w for w in result.extra.get('gate_lint_warnings', []))
+    assert result.passed is False
+    assert 'concede' in result.reason.lower()
+    assert eng.calls == []  # rejected before any game ran
+    assert drivers.driver_valid(deck, data_dir=_store) is False

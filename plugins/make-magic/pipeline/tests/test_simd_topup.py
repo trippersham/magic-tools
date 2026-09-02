@@ -121,9 +121,11 @@ def test_integration_all_bailout_cell_terminates_at_cap(tmp_path) -> None:
         ok, need = res.cells[cell]
         assert ok == 0 and need == needed, cell
         assert cell in res.exhausted_cells, cell
-    # ``complete`` = every cell ok>=needed OR exhausted-by-cap, so the run reads complete — but the
-    # exhausted cells are flagged DISTINCTLY (never silently folded in as filled).
-    assert res.complete
+    # ``complete`` means EVERY cell reached ok>=needed — no exhaustion exception. An exhausted cell
+    # is terminal-but-incomplete: the run TERMINATES (bounded top-up) yet reports complete=False, and
+    # the exhausted cells are surfaced DISTINCTLY so partial science can never be blessed as complete.
+    assert not res.complete
+    assert set(res.incomplete_cells) >= set(sa_cells)
     assert res.exhausted_cells and set(res.exhausted_cells) == set(sa_cells)
     # Bounded: each exhausted cell ran at most needed + cap*needed tasks.
     for cell in sa_cells:
