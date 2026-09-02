@@ -1,8 +1,16 @@
 """Phase A2.3 — the crash-safe ``ops.duckdb`` operational store (single-writer).
 
-The operational counterpart to the lake's :mod:`pipeline.sim.store` cache: a **per-run** DuckDB
-file that holds enough committed state to REPLAY a run on restart — the universe of tasks, every
-completed game's result, the per-task attempt log, and the persistent quarantine latch. It
+The operational counterpart to the lake's :mod:`pipeline.sim.store` cache: a DuckDB file that
+holds enough committed state to REPLAY a run on restart — the universe of tasks, every completed
+game's result, the per-task attempt log, and the persistent quarantine latch. It
+
+**Run scoping.** One ops file may hold MANY runs; every row carries a ``run_id`` (the ``simd_runs``
+manifest table records each run + its config fingerprint) and every query filters by it, so two
+runs sharing a file never see each other's tasks/results/quarantine and one run's committed rows
+can never prematurely "drain" another. Each task row also stores an immutable ``fingerprint`` (deck
+basenames + driver classpath/fqcn + format); re-registering a task_id under a CHANGED fingerprint is
+refused (mixed-universe resume). A pre-run_id (legacy) file is migrated on open: its rows are
+rebuilt under the ``legacy`` run so historical fixtures/endurance resumes keep reading. It
 REPLACES the per-subject JSONL done-set (:func:`pipeline.sim.game_queue.save_done_set`), which
 checkpointed only at subject boundaries and therefore lost the whole in-flight subject on every
 crash. Here every completed game is committed the instant it drains, so a mid-subject restart
@@ -34,7 +42,9 @@ restart to replay committed state.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os.path
 import threading
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -51,30 +61,51 @@ if TYPE_CHECKING:
 
 __all__ = ('OpsStore',)
 
+#: The run_id assigned to rows migrated in from a pre-run_id (legacy) ops file — historical data
+#: that predates run scoping. Opening a legacy store under this run replays those rows unchanged.
+LEGACY_RUN_ID = 'legacy'
+
+#: The run_id used when a caller opens a store without naming one (single-run files + the direct
+#: round-trip tests). A production run always passes an explicit config-derived run_id.
+DEFAULT_RUN_ID = 'default'
+
+_RUNS_DDL = """
+CREATE TABLE IF NOT EXISTS simd_runs (
+    run_id     TEXT PRIMARY KEY,
+    created_at TIMESTAMP,
+    config     TEXT
+)
+"""
+
 _TASKS_DDL = """
 CREATE TABLE IF NOT EXISTS simd_tasks (
-    task_id  TEXT PRIMARY KEY,
-    subject  TEXT NOT NULL,
-    opponent TEXT NOT NULL,
-    piloting TEXT NOT NULL,
-    fmt      TEXT NOT NULL
+    run_id      TEXT NOT NULL,
+    task_id     TEXT NOT NULL,
+    subject     TEXT NOT NULL,
+    opponent    TEXT NOT NULL,
+    piloting    TEXT NOT NULL,
+    fmt         TEXT NOT NULL,
+    fingerprint TEXT,
+    PRIMARY KEY (run_id, task_id)
 )
 """
 
 _ATTEMPTS_DDL = """
 CREATE TABLE IF NOT EXISTS simd_attempts (
+    run_id     TEXT NOT NULL,
     task_id    TEXT NOT NULL,
     attempt    INTEGER NOT NULL,
     outcome    TEXT NOT NULL,
     detail     TEXT,
     created_at TIMESTAMP,
-    PRIMARY KEY (task_id, attempt, outcome)
+    PRIMARY KEY (run_id, task_id, attempt, outcome)
 )
 """
 
 _RESULTS_DDL = """
 CREATE TABLE IF NOT EXISTS simd_results (
-    task_id    TEXT PRIMARY KEY,
+    run_id     TEXT NOT NULL,
+    task_id    TEXT NOT NULL,
     winner     TEXT NOT NULL,
     kill_turn  INTEGER,
     ms         INTEGER NOT NULL,
@@ -82,30 +113,53 @@ CREATE TABLE IF NOT EXISTS simd_results (
     log_path   TEXT,
     reason     TEXT,
     end_cause  TEXT,
-    created_at TIMESTAMP
+    created_at TIMESTAMP,
+    PRIMARY KEY (run_id, task_id)
 )
 """
 
-#: Additive migration for a store created before the terminal-cause gate: add ``end_cause`` if the
-#: table predates it. DuckDB tolerates ``ADD COLUMN IF NOT EXISTS``; old rows read back as ``None``
-#: (a legacy row the classifier routes through the ms-floor fallback).
-_RESULTS_MIGRATE = 'ALTER TABLE simd_results ADD COLUMN IF NOT EXISTS end_cause TEXT'
-
 _QUARANTINE_DDL = """
 CREATE TABLE IF NOT EXISTS simd_quarantine (
-    task_id    TEXT PRIMARY KEY,
+    run_id     TEXT NOT NULL,
+    task_id    TEXT NOT NULL,
     subject    TEXT NOT NULL,
     opponent   TEXT NOT NULL,
     piloting   TEXT NOT NULL,
     attempts   INTEGER NOT NULL,
     reason     TEXT,
-    created_at TIMESTAMP
+    created_at TIMESTAMP,
+    PRIMARY KEY (run_id, task_id)
 )
 """
 
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def _driver_ident(seat: object) -> tuple[str, str] | None:
+    drv = getattr(seat, 'driver', None)
+    if drv is None:
+        return None
+    return (drv.classpath, drv.fqcn)
+
+
+def task_fingerprint(t: GameTask) -> str:
+    """A stable hash binding a task_id to its immutable science: deck basenames + driver
+    classpath/fqcn + format. Staging dirs are relocated every run, so only the deck BASENAME is
+    fingerprinted (the full path is not stable across resumes). Re-registering a task_id whose
+    fingerprint changed means the underlying deck/driver/config was swapped under a reused id —
+    :meth:`OpsStore.register_tasks` refuses that mixed-universe resume.
+    """
+    payload = {
+        'fmt': t.fmt,
+        'a_deck': os.path.basename(t.seat_a.deck_path),
+        'a_driver': _driver_ident(t.seat_a),
+        'b_deck': os.path.basename(t.seat_b.deck_path),
+        'b_driver': _driver_ident(t.seat_b),
+    }
+    blob = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+    return hashlib.sha256(blob.encode('utf-8')).hexdigest()
 
 
 class OpsStore:
@@ -115,19 +169,127 @@ class OpsStore:
     the same path after a crash replays every committed row — that is the resume contract.
     """
 
-    def __init__(self, path: str | os.PathLike[str]) -> None:
+    def __init__(
+        self,
+        path: str | os.PathLike[str],
+        *,
+        run_id: str = DEFAULT_RUN_ID,
+        config_fingerprint: str | None = None,
+    ) -> None:
         from pathlib import Path
 
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
+        self._run_id = run_id
         self._lock = threading.Lock()
         self._conn = duckdb.connect(str(p))
         with self._lock:
+            self._migrate_legacy_locked()
+            self._conn.execute(_RUNS_DDL)
             self._conn.execute(_TASKS_DDL)
             self._conn.execute(_ATTEMPTS_DDL)
             self._conn.execute(_RESULTS_DDL)
-            self._conn.execute(_RESULTS_MIGRATE)
             self._conn.execute(_QUARANTINE_DDL)
+            self._open_run_locked(run_id, config_fingerprint)
+
+    def _open_run_locked(self, run_id: str, config_fingerprint: str | None) -> None:
+        """Create this run's manifest row, or verify a resume against the stored config fingerprint.
+
+        Resuming a run_id whose stored config fingerprint differs from ``config_fingerprint`` is a
+        mixed-universe resume (``--games``/attempt-cap/bailout/format changed under the same run) and
+        is REFUSED loudly. A stored ``NULL`` fingerprint (a row created by a bare open) is adopted by
+        the first real fingerprint; a ``None`` incoming fingerprint never triggers the guard.
+        """
+        row = self._conn.execute(
+            'SELECT config FROM simd_runs WHERE run_id = ?', [run_id]
+        ).fetchone()
+        if row is None:
+            self._conn.execute(
+                'INSERT INTO simd_runs (run_id, created_at, config) VALUES (?, ?, ?) '
+                'ON CONFLICT (run_id) DO NOTHING',
+                [run_id, _now(), config_fingerprint],
+            )
+            return
+        stored = row[0]
+        if config_fingerprint is None:
+            return  # a bare open (inspection/round-trip) — never re-fingerprints or guards.
+        if stored is None:
+            self._conn.execute(
+                'UPDATE simd_runs SET config = ? WHERE run_id = ?', [config_fingerprint, run_id]
+            )
+            return
+        if stored != config_fingerprint:
+            msg = (
+                f'run {run_id!r} resumed with a CHANGED config fingerprint (stored {stored!r}, '
+                f'incoming {config_fingerprint!r}): the format / attempt-cap / top-up-cap / bailout '
+                'floor changed under the same run — mixed-universe resume refused. Use a fresh run_id '
+                '(or ops file) for a changed run configuration.'
+            )
+            raise ValueError(msg)
+
+    # -- migration --------------------------------------------------------- #
+
+    def _table_columns_locked(self, table: str) -> set[str]:
+        rows = self._conn.execute(
+            'SELECT column_name FROM information_schema.columns WHERE table_name = ?', [table]
+        ).fetchall()
+        return {r[0] for r in rows}
+
+    def _migrate_legacy_locked(self) -> None:
+        """Backfill a pre-run_id ops file: rebuild each table with a ``run_id`` (+ ``fingerprint``
+        on tasks) and stamp every existing row with :data:`LEGACY_RUN_ID`, so historical fixtures
+        and endurance-run resumes keep reading. A file that already has run_id (or is brand new) is
+        left untouched — every rebuild is guarded by the column's absence.
+        """
+        cols = self._table_columns_locked('simd_tasks')
+        if not cols or 'run_id' in cols:
+            return  # brand-new file, or already migrated — nothing to backfill.
+
+        legacy = LEGACY_RUN_ID
+        # simd_results may predate the end_cause column; add it before copying.
+        self._conn.execute('ALTER TABLE simd_results ADD COLUMN IF NOT EXISTS end_cause TEXT')
+
+        self._conn.execute('BEGIN TRANSACTION')
+        try:
+            self._conn.execute('ALTER TABLE simd_tasks RENAME TO simd_tasks_legacy')
+            self._conn.execute(_TASKS_DDL)
+            self._conn.execute(
+                'INSERT INTO simd_tasks (run_id, task_id, subject, opponent, piloting, fmt, fingerprint) '
+                f"SELECT '{legacy}', task_id, subject, opponent, piloting, fmt, NULL FROM simd_tasks_legacy"
+            )
+            self._conn.execute('DROP TABLE simd_tasks_legacy')
+
+            self._conn.execute('ALTER TABLE simd_results RENAME TO simd_results_legacy')
+            self._conn.execute(_RESULTS_DDL)
+            self._conn.execute(
+                'INSERT INTO simd_results '
+                '(run_id, task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause, created_at) '
+                f"SELECT '{legacy}', task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause, "
+                'created_at FROM simd_results_legacy'
+            )
+            self._conn.execute('DROP TABLE simd_results_legacy')
+
+            self._conn.execute('ALTER TABLE simd_quarantine RENAME TO simd_quarantine_legacy')
+            self._conn.execute(_QUARANTINE_DDL)
+            self._conn.execute(
+                'INSERT INTO simd_quarantine '
+                '(run_id, task_id, subject, opponent, piloting, attempts, reason, created_at) '
+                f"SELECT '{legacy}', task_id, subject, opponent, piloting, attempts, reason, created_at "
+                'FROM simd_quarantine_legacy'
+            )
+            self._conn.execute('DROP TABLE simd_quarantine_legacy')
+
+            self._conn.execute('ALTER TABLE simd_attempts RENAME TO simd_attempts_legacy')
+            self._conn.execute(_ATTEMPTS_DDL)
+            self._conn.execute(
+                'INSERT INTO simd_attempts (run_id, task_id, attempt, outcome, detail, created_at) '
+                f"SELECT '{legacy}', task_id, attempt, outcome, detail, created_at FROM simd_attempts_legacy"
+            )
+            self._conn.execute('DROP TABLE simd_attempts_legacy')
+            self._conn.execute('COMMIT')
+        except Exception:
+            self._conn.execute('ROLLBACK')
+            raise
 
     # -- lifecycle --------------------------------------------------------- #
 
@@ -144,36 +306,59 @@ class OpsStore:
     # -- writes (each is one autocommitted statement) ---------------------- #
 
     def register_tasks(self, tasks: Iterable[GameTask]) -> None:
-        """Record the run's task universe (idempotent — re-registering a task is a no-op)."""
+        """Record the run's task universe, binding each task_id to an immutable fingerprint.
+
+        Idempotent for an unchanged task (same fingerprint → no-op). A task_id re-registered with a
+        DIFFERENT fingerprint (deck/driver/format swapped under a reused id) raises loudly — a
+        mixed-universe resume is refused, never silently adopted as the old task.
+        """
         from pipeline.sim.game_tasks import cell_key
 
         with self._lock:
             for t in tasks:
                 subject, opp, pil = cell_key(t)
+                fp = task_fingerprint(t)
+                prior = self._conn.execute(
+                    'SELECT fingerprint FROM simd_tasks WHERE run_id = ? AND task_id = ?',
+                    [self._run_id, t.task_id],
+                ).fetchone()
+                if prior is not None and prior[0] is not None and prior[0] != fp:
+                    msg = (
+                        f'task {t.task_id!r} re-registered under run {self._run_id!r} with a CHANGED '
+                        f'fingerprint (stored {prior[0][:12]}…, incoming {fp[:12]}…): the deck/driver/'
+                        'format bound to this id changed — mixed-universe resume refused. Use a fresh '
+                        'run_id (or ops file) for a changed task universe.'
+                    )
+                    raise ValueError(msg)
                 self._conn.execute(
-                    'INSERT INTO simd_tasks (task_id, subject, opponent, piloting, fmt) '
-                    'VALUES (?, ?, ?, ?, ?) ON CONFLICT (task_id) DO NOTHING',
-                    [t.task_id, subject, opp, pil, t.fmt],
+                    'INSERT INTO simd_tasks (run_id, task_id, subject, opponent, piloting, fmt, fingerprint) '
+                    'VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (run_id, task_id) DO NOTHING',
+                    [self._run_id, t.task_id, subject, opp, pil, t.fmt, fp],
                 )
 
     def record_attempt(self, task_id: str, attempt: int, outcome: str, detail: str | None = None) -> None:
         """Append one dispatch-log row (``ON CONFLICT DO NOTHING`` — replay-safe)."""
         with self._lock:
             self._conn.execute(
-                'INSERT INTO simd_attempts (task_id, attempt, outcome, detail, created_at) '
-                'VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
-                [task_id, attempt, outcome, detail, _now()],
+                'INSERT INTO simd_attempts (run_id, task_id, attempt, outcome, detail, created_at) '
+                'VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+                [self._run_id, task_id, attempt, outcome, detail, _now()],
             )
 
     def record_result(self, res: GameResult) -> None:
-        """Commit one completed game (upsert by task_id → re-recording never dups a row)."""
+        """Commit one completed game as ONE atomic upsert (single statement → a crash mid-write can
+        never erase the previously committed terminal row; the old DELETE+INSERT pair could)."""
         with self._lock:
-            self._conn.execute('DELETE FROM simd_results WHERE task_id = ?', [res.task_id])
             self._conn.execute(
                 'INSERT INTO simd_results '
-                '(task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause, created_at) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                '(run_id, task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause, created_at) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                'ON CONFLICT (run_id, task_id) DO UPDATE SET '
+                'winner = excluded.winner, kill_turn = excluded.kill_turn, ms = excluded.ms, '
+                'markers = excluded.markers, log_path = excluded.log_path, reason = excluded.reason, '
+                'end_cause = excluded.end_cause, created_at = excluded.created_at',
                 [
+                    self._run_id,
                     res.task_id,
                     res.winner,
                     res.kill_turn,
@@ -189,14 +374,17 @@ class OpsStore:
     def quarantine(
         self, task_id: str, subject: str, opponent: str, piloting: str, *, attempts: int, reason: str | None
     ) -> None:
-        """Persist a poison-latched task (upsert by task_id) so a restart never re-attempts it."""
+        """Persist a poison-latched task as ONE atomic upsert so a restart never re-attempts it (and
+        a crash mid-write can never erase an already-committed quarantine latch)."""
         with self._lock:
-            self._conn.execute('DELETE FROM simd_quarantine WHERE task_id = ?', [task_id])
             self._conn.execute(
                 'INSERT INTO simd_quarantine '
-                '(task_id, subject, opponent, piloting, attempts, reason, created_at) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [task_id, subject, opponent, piloting, attempts, reason, _now()],
+                '(run_id, task_id, subject, opponent, piloting, attempts, reason, created_at) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?) '
+                'ON CONFLICT (run_id, task_id) DO UPDATE SET '
+                'subject = excluded.subject, opponent = excluded.opponent, piloting = excluded.piloting, '
+                'attempts = excluded.attempts, reason = excluded.reason, created_at = excluded.created_at',
+                [self._run_id, task_id, subject, opponent, piloting, attempts, reason, _now()],
             )
 
     # -- reads (replay) ---------------------------------------------------- #
@@ -205,7 +393,8 @@ class OpsStore:
         """``{task_id: (subject, opponent, piloting, fmt)}`` — the registered universe."""
         with self._lock:
             rows = self._conn.execute(
-                'SELECT task_id, subject, opponent, piloting, fmt FROM simd_tasks'
+                'SELECT task_id, subject, opponent, piloting, fmt FROM simd_tasks WHERE run_id = ?',
+                [self._run_id],
             ).fetchall()
         return {r[0]: (r[1], r[2], r[3], r[4]) for r in rows}
 
@@ -213,7 +402,9 @@ class OpsStore:
         """``{task_id: GameResult}`` for every committed game — the done-set replacement."""
         with self._lock:
             rows = self._conn.execute(
-                'SELECT task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause FROM simd_results'
+                'SELECT task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause '
+                'FROM simd_results WHERE run_id = ?',
+                [self._run_id],
             ).fetchall()
         out: dict[str, GameResult] = {}
         for r in rows:
@@ -232,7 +423,9 @@ class OpsStore:
     def load_quarantine(self) -> set[str]:
         """The set of terminally quarantined task_ids (skipped on restart)."""
         with self._lock:
-            rows = self._conn.execute('SELECT task_id FROM simd_quarantine').fetchall()
+            rows = self._conn.execute(
+                'SELECT task_id FROM simd_quarantine WHERE run_id = ?', [self._run_id]
+            ).fetchall()
         return {r[0] for r in rows}
 
     def load_attempts(self) -> dict[str, int]:
@@ -243,6 +436,8 @@ class OpsStore:
         """
         with self._lock:
             rows = self._conn.execute(
-                "SELECT task_id, count(*) FROM simd_attempts WHERE outcome = 'dispatch' GROUP BY task_id"
+                "SELECT task_id, count(*) FROM simd_attempts "
+                "WHERE outcome = 'dispatch' AND run_id = ? GROUP BY task_id",
+                [self._run_id],
             ).fetchall()
         return {r[0]: int(r[1]) for r in rows}

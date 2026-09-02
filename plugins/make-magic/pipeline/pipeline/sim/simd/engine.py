@@ -16,7 +16,7 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING
 
-from pipeline.sim.simd.ops_store import OpsStore
+from pipeline.sim.simd.ops_store import DEFAULT_RUN_ID, OpsStore
 from pipeline.sim.simd.preflight import BootFailure
 from pipeline.sim.simd.reaper import (
     SingletonLock,
@@ -37,6 +37,21 @@ if TYPE_CHECKING:
     from pipeline.sim.simd.governor import DiskGovernor
 
 __all__ = ('BootFailure', 'SimdRunResult', 'run_games_simd')
+
+
+def _config_fingerprint(fmt: str, attempt_cap: int, topup_cap: int, bailout_floor_ms: int) -> str:
+    """A stable, short hash of the run's science config — the default run_id. Two invocations that
+    agree on these knobs (regardless of task-set size) share a run and resume each other; a changed
+    knob yields a distinct run scoped to its own rows in a shared ops file."""
+    import hashlib
+    import json
+
+    blob = json.dumps(
+        {'fmt': fmt, 'attempt_cap': attempt_cap, 'topup_cap': topup_cap, 'bailout_floor_ms': bailout_floor_ms},
+        sort_keys=True,
+        separators=(',', ':'),
+    )
+    return 'run-' + hashlib.sha256(blob.encode('utf-8')).hexdigest()[:16]
 
 
 def run_games_simd(
@@ -61,6 +76,7 @@ def run_games_simd(
     singleton_lock_path: str | os.PathLike[str] | None = None,
     pidfile_path: str | os.PathLike[str] | None = None,
     own_pgroup: bool = False,
+    run_id: str | None = None,
 ) -> SimdRunResult:
     """Run every game in ``tasks`` on a fair, crash-safe simd pool; return the coverage tally.
 
@@ -97,6 +113,17 @@ def run_games_simd(
 
         workers = derive_pool_size()
 
+    # Run scoping: an ops.duckdb file may hold many runs, each isolated by ``run_id``. A caller that
+    # keeps distinct science in one file passes an explicit ``run_id``; the default single-run file
+    # uses :data:`DEFAULT_RUN_ID`. The run's SCIENCE CONFIG (format + attempt/top-up caps + bailout
+    # floor) is fingerprinted into the ``simd_runs`` manifest row: resuming the SAME run_id with a
+    # CHANGED config is refused loudly by :class:`OpsStore` (mixed-universe resume), while an expanded
+    # task universe under an unchanged config resumes cleanly. Per-task fingerprint binding (in
+    # ``register_tasks``) independently refuses a changed deck/driver under a reused task id.
+    fmt = tasks[0].fmt if tasks else 'commander'
+    config_fingerprint = _config_fingerprint(fmt, attempt_cap, topup_cap, bailout_floor_ms)
+    resolved_run_id = run_id if run_id is not None else DEFAULT_RUN_ID
+
     # 1. PREFLIGHT — fail LOUD before any staging/spawn (zero workers, zero staging on failure).
     if preflight is not None:
         preflight()
@@ -116,7 +143,7 @@ def run_games_simd(
             # crash, instead of leaking JVMs until stdin-EOF self-exit (F-2).
             on_spawn = lambda pid: record_worker_pgid(pidfile_path, pid)  # noqa: E731
 
-        with OpsStore(ops_db_path) as ops:
+        with OpsStore(ops_db_path, run_id=resolved_run_id, config_fingerprint=config_fingerprint) as ops:
             ops.register_tasks(tasks)
             sched = SimdScheduler(
                 tasks,
