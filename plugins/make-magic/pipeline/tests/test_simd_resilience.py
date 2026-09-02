@@ -39,6 +39,7 @@ from pipeline.sim.simd.preflight import (
 from pipeline.sim.simd.reaper import (
     AlreadyRunning,
     SingletonLock,
+    _read_worker_records,
     reap_orphan_tree,
     record_worker_pgid,
     write_pidfile,
@@ -276,6 +277,22 @@ def test_gate3_engine_resumable_exit_under_disk_halt(tmp_path) -> None:
 # ===================================================================================== #
 # GATE 4 — singleton flock + crash-safe orphan-tree reaping.
 # ===================================================================================== #
+
+
+def test_cleanly_retired_worker_pgid_leaves_sidecar(tmp_path) -> None:
+    """A worker that RETIRES NORMALLY has its pgid dropped from the reaper sidecar (on_retire),
+    so a later crash-reaper never killpg's a pgid the OS has since recycled."""
+    db = tmp_path / 'ops.duckdb'
+    pidfile = tmp_path / 'simd.pid'
+    tasks = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 1, fmt='commander')
+    # One worker → one reader thread → its clean retire drops its own pgid from the sidecar with no
+    # concurrent-writer contention. Without the engine's on_retire wiring the pgid would linger.
+    res = run_games_simd(
+        tasks, worker_cmd=_cmd(), workers=1, stall_timeout_s=30.0, ops_db_path=db,
+        pidfile_path=pidfile, join_timeout_s=30.0,
+    )
+    assert res.complete
+    assert _read_worker_records(pidfile) == []
 
 
 def test_gate4_singleton_flock_refuses_second_launch(tmp_path) -> None:

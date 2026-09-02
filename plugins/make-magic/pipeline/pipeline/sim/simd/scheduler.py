@@ -143,8 +143,9 @@ class SimdScheduler:
         self._monitor = monitor
         self._bailout_floor_ms = bailout_floor_ms
         self._cond_poll_s = cond_poll_s
-        #: A2.5 immediate disk-floor admission control. A HARD breach halts admission (drains the
-        #: pool) after reaping in-flight workers — a resumable exit, not a paused-forever wedge.
+        #: A2.5 immediate disk-floor admission control. A HARD breach halts admission; the ENGINE
+        #: observes :attr:`disk_halted` and reaps in-flight workers through the pool's own
+        #: signal-kill drain (M2) — a resumable exit, not a paused-forever wedge.
         self._disk_governor = disk_governor
         self._disk_halted = False
 
@@ -215,6 +216,12 @@ class SimdScheduler:
         for key in self._cells:
             self._ensure_topups_locked(key)
 
+    @property
+    def disk_halted(self) -> bool:
+        """True once a disk HARD-floor breach has latched admission off (engine reaps + exits)."""
+        with self._cond:
+            return self._disk_halted
+
     # ------------------------------------------------------------------ #
     # Pool callbacks.
     # ------------------------------------------------------------------ #
@@ -277,13 +284,26 @@ class SimdScheduler:
             self._cond.notify_all()
 
     def requeue(self, task: GameTask) -> None:
-        """A dead/reaped worker's in-flight task returns — retry or quarantine past the cap."""
+        """A dead/reaped worker's in-flight task returns — retry or quarantine past the cap.
+
+        M3: a task whose worker was reaped BECAUSE the disk HARD floor halted the run is a
+        NON-ATTEMPT — it must not be charged toward the attempt cap nor quarantined (the task is
+        healthy; only the disk failed). It is left NON-TERMINAL (dropped from in-flight, not
+        re-enqueued into this dying run) so a later resume re-runs it cleanly. The normal pool
+        shutdown path (``close()`` → ``_closing`` set) does not requeue at all; this guard covers
+        the race where a worker dies on its own between the HALT latch and the engine's reap.
+        """
         with self._cond:
             tid = task.task_id
             subject = self._subject_of(tid)
             if tid in self._done or tid in self._quarantined:
                 return
             self._in_flight[subject] = max(0, self._in_flight[subject] - 1)
+            if self._disk_halted:
+                # Disk-HALT reap: not the task's fault. Don't debit the attempt budget / quarantine;
+                # leave it non-terminal for a resumable re-run.
+                self._cond.notify_all()
+                return
             self._ops.record_attempt(tid, self._attempts[tid], 'requeue')
             self._retry_or_quarantine_locked(tid, reason='worker died / stall-reaped')
             self._cond.notify_all()

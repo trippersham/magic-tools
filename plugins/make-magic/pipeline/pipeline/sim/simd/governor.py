@@ -10,10 +10,18 @@ Two failures a real corpus hit that this module fixes:
   crash-loop can fill a disk in seconds; a sustained-window watchdog reacts far too late. The
   :class:`DiskGovernor` applies IMMEDIATE soft/hard floors on a single sample: below the SOFT
   floor it PAUSES admission (back-pressure, recoverable); below the HARD floor it HALTS — new
-  admission stops AND in-flight workers are reaped — so the run exits fast and RESUMABLE (its
-  committed state is in ``ops.duckdb``) instead of wedging paused forever or crashing the host.
+  admission stops so the run exits fast and RESUMABLE (its committed state is in ``ops.duckdb``)
+  instead of wedging paused forever or crashing the host.
 
-Probes + reaper + clock are injectable so the floors are unit-testable without touching the host.
+**HALT reaping is the POOL's job, not the governor's (M2).** ``check()`` is a PURE admission
+decision with no side effects on any process — it never reads a worker pipe. The governor is called
+from the scheduler thread (inside ``next_task``), and the pool's single-owner-pipe discipline
+forbids any other thread touching a worker's stdout. So a HARD breach only latches ``halted``; the
+simd engine observes ``scheduler.disk_halted`` and reaps in-flight workers through the POOL's own
+signal-kill drain (:meth:`~pipeline.sim.worker_pool.WorkerPool.close` — ``killpg`` only, no pipe
+read), which also suppresses respawn (M3). The engine, not the governor, owns process lifecycle.
+
+Probes + clock are injectable so the floors are unit-testable without touching the host.
 """
 
 from __future__ import annotations
@@ -22,7 +30,6 @@ import enum
 from typing import TYPE_CHECKING
 
 from pipeline.sim.governor import derive_pool_size, free_disk_gib
-from pipeline.sim.runner import kill_active_matchup_processes
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -67,11 +74,17 @@ class Admission(enum.Enum):
 
     OK = 'ok'  # above the soft floor — admit new work.
     PAUSE = 'pause'  # below soft, above hard — back off (recoverable).
-    HALT = 'halt'  # below hard — stop admitting AND reap in-flight (resumable exit).
+    HALT = 'halt'  # below hard — stop admitting; the ENGINE reaps in-flight (resumable exit).
 
 
 class DiskGovernor:
-    """Immediate soft/hard disk-floor admission control (single-sample, no sustained window)."""
+    """Immediate soft/hard disk-floor admission control (single-sample, no sustained window).
+
+    A PURE decision object: :meth:`check` samples free disk and returns an :class:`Admission`
+    with NO process side effects (M2). It never touches a worker pipe, so it is safe to call from
+    the scheduler thread. Reaping the in-flight workers on a HARD breach belongs to the engine +
+    pool (see the module docstring), which the engine triggers off :attr:`halted`.
+    """
 
     def __init__(
         self,
@@ -80,7 +93,6 @@ class DiskGovernor:
         hard_floor_gib: float = DEFAULT_DISK_HARD_FLOOR_GIB,
         disk_probe: Callable[[Path | None], float] | None = None,
         disk_path: Path | None = None,
-        reaper: Callable[[], int] | None = None,
     ) -> None:
         if hard_floor_gib > soft_floor_gib:
             msg = f'hard_floor_gib ({hard_floor_gib}) must be <= soft_floor_gib ({soft_floor_gib})'
@@ -89,7 +101,6 @@ class DiskGovernor:
         self._hard = hard_floor_gib
         self._probe = disk_probe or free_disk_gib
         self._disk_path = disk_path
-        self._reaper = reaper or kill_active_matchup_processes
         self._halted = False
 
     @property
@@ -98,19 +109,19 @@ class DiskGovernor:
         return self._halted
 
     def check(self) -> Admission:
-        """Sample free disk ONCE and decide admission; on a HARD breach, reap in-flight workers.
+        """Sample free disk ONCE and decide admission — a PURE decision, NO process side effects.
 
         Once halted the governor STAYS halted (returns :attr:`Admission.HALT`) — the run is
-        exiting resumably, not oscillating. The reaper (default
-        :func:`~pipeline.sim.runner.kill_active_matchup_processes`) fires exactly once on the
-        transition into HALT so in-flight JVMs stop consuming the disk they are exhausting.
+        exiting resumably, not oscillating. It does NOT reap anything: touching a worker's pipe
+        from this (scheduler) thread would race the pool's single-owner-pipe discipline (M2). The
+        engine observes :attr:`halted` (via ``scheduler.disk_halted``) and reaps in-flight workers
+        through the pool's own signal-kill drain.
         """
         if self._halted:
             return Admission.HALT
         free = self._probe(self._disk_path)
         if free < self._hard:
             self._halted = True
-            self._reaper()
             return Admission.HALT
         if free < self._soft:
             return Admission.PAUSE

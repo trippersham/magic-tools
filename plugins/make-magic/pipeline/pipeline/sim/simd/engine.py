@@ -22,6 +22,7 @@ from pipeline.sim.simd.reaper import (
     SingletonLock,
     reap_orphan_tree,
     record_worker_pgid,
+    remove_worker_pgid,
     write_pidfile,
 )
 from pipeline.sim.simd.scheduler import SimdRunResult, SimdScheduler
@@ -135,6 +136,7 @@ def run_games_simd(
         # 3. ORPHAN REAP — a crashed predecessor's whole JVM tree is killed before we start, then
         #    we record our own pid/pgid so OUR successor can reap us if we crash.
         on_spawn: Callable[[int], None] | None = None
+        on_retire: Callable[[int], None] | None = None
         if pidfile_path is not None:
             reap_orphan_tree(pidfile_path)
             write_pidfile(pidfile_path, setpgrp=own_pgroup)
@@ -142,6 +144,9 @@ def run_games_simd(
             # each worker pgid so our successor's reaper can killpg the whole worker tree if we
             # crash, instead of leaking JVMs until stdin-EOF self-exit (F-2).
             on_spawn = lambda pid: record_worker_pgid(pidfile_path, pid)  # noqa: E731
+            # And DROP a cleanly-retired worker's pgid from the sidecar so a later crash-reaper
+            # never killpg's a pgid that has since been recycled by the OS (stale-sidecar hygiene).
+            on_retire = lambda pid: remove_worker_pgid(pidfile_path, pid)  # noqa: E731
 
         with OpsStore(ops_db_path, run_id=resolved_run_id, config_fingerprint=config_fingerprint) as ops:
             ops.register_tasks(tasks)
@@ -174,10 +179,29 @@ def run_games_simd(
                 boot_deadline_s=boot_deadline_s,
                 boot_backoff_base_s=boot_backoff_base_s,
                 on_spawn=on_spawn,
+                on_retire=on_retire,
             )
             try:
                 pool.start()
-                pool.join(timeout=join_timeout_s)
+                if disk_governor is None:
+                    # Legacy path — byte-identical to the pre-A2.5 call.
+                    pool.join(timeout=join_timeout_s)
+                else:
+                    # A2.5 disk-HALT reaping (M2/M3): the scheduler latches ``disk_halted`` on a
+                    # HARD breach (a pure decision, no reap on the scheduler thread). This main
+                    # thread observes it and drives ``pool.close()`` — the pool's OWN signal-kill
+                    # drain (``killpg`` only, no pipe read) — so in-flight JVMs are reaped promptly
+                    # for a RESUMABLE exit instead of waiting out long games under disk pressure.
+                    # ``close()`` sets ``_closing`` first, so the reaped workers take the pool's
+                    # clean-drain exit path: NOT respawned and NOT requeued/quarantined (M3).
+                    import time as _time
+
+                    deadline = None if join_timeout_s is None else _time.monotonic() + join_timeout_s
+                    while not pool.join(timeout=cond_poll_s):
+                        if sched.disk_halted:
+                            break
+                        if deadline is not None and _time.monotonic() >= deadline:
+                            break
             finally:
                 pool.close()
                 if monitor is not None:

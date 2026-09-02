@@ -223,15 +223,20 @@ def test_run_set_from_batch_ledger_reads_drive_rows_and_tightness(_store: Path) 
     assert tightness == {'commander/mid/x.dck': 'tight', 'commander/mid/y.dck': 'loose'}
 
 
-def test_bucket_lift_ci_reuses_wilson_helper() -> None:
-    """The pooled lift CI is interval arithmetic on the two reused Wilson intervals."""
+def test_bucket_lift_ci_is_newcombe_diff_interval() -> None:
+    """The pooled lift CI is Newcombe's method-10 difference-of-proportions interval, not endpoint
+    subtraction of the two per-arm Wilson intervals."""
+    from pipeline.sim.core import newcombe_diff_ci
+
     d = _delta('a', 'tight-keep', 'drive-dedicated', 80, 100, 30, 100, 30)
     stats = dr.aggregate_buckets([d])
     s = stats['tight-keep']
+    assert s.lift_ci == newcombe_diff_ci(80, 100, 30, 100)
+    assert s.pooled_lift == pytest.approx(0.5)
+    # And it is NOT the old naive endpoint subtraction.
     d_lo, d_hi = wilson_ci(80, 100)
     c_lo, c_hi = wilson_ci(30, 100)
-    assert s.lift_ci == (d_lo - c_hi, d_hi - c_lo)
-    assert s.pooled_lift == pytest.approx(0.5)
+    assert s.lift_ci != (d_lo - c_hi, d_hi - c_lo)
 
 
 # --------------------------------------------------------------------------- #
@@ -407,3 +412,116 @@ def _mk_dck(main_qty: int, commander: str = '1 Yargle, Glutton of Urborg') -> st
     """A synthetic Forge .dck with ``main_qty`` distinct maindeck cards + one commander."""
     lines = '\n'.join(f'1 Card {i:03d}' for i in range(main_qty))
     return f'[metadata]\nName=x\n[Commander]\n{commander}\n[Main]\n{lines}\n'
+
+
+# --------------------------------------------------------------------------- #
+# Sol BLOCKER 3 — protection BEFORE staging + guaranteed corpus-* cleanup.      #
+# (CLI/run_corpus_queue level, not the engine level.)                          #
+# --------------------------------------------------------------------------- #
+
+
+def _corpus_staging_entries(data_dir: Path) -> list[str]:
+    """Names of any ``corpus-*`` dirs currently under the run's staging root."""
+    staging = data_dir / 'sim' / 'staging'
+    if not staging.exists():
+        return []
+    return [p.name for p in staging.iterdir() if p.name.startswith('corpus-')]
+
+
+def test_run_corpus_queue_preflight_fails_with_zero_staging(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Missing Java (a failing preflight) aborts BEFORE any deck is staged — zero corpus-* dirs."""
+    monkeypatch.setenv('MAKE_MAGIC_DATA_DIR', str(tmp_path))
+    built = {'n': 0}
+    monkeypatch.setattr(dr, 'build_corpus_game_tasks', lambda *a, **k: built.__setitem__('n', built['n'] + 1))
+
+    class _NoJava(Exception):
+        pass
+
+    def _preflight() -> None:
+        raise _NoJava('java missing')
+
+    with pytest.raises(_NoJava):
+        dr.run_corpus_queue(
+            rows=[], field=[], games=2, ops_db_path=tmp_path / 'ops.duckdb',
+            worker_cmd=['x'], preflight=_preflight,
+        )
+    assert built['n'] == 0
+    assert _corpus_staging_entries(tmp_path) == []
+
+
+def test_run_corpus_queue_second_launch_refuses_with_zero_staging(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A second concurrent launch hits the singleton flock and refuses BEFORE staging — zero dirs."""
+    from pipeline.sim.simd.reaper import AlreadyRunning, SingletonLock
+
+    monkeypatch.setenv('MAKE_MAGIC_DATA_DIR', str(tmp_path))
+    ops_db = tmp_path / 'q' / 'ops.duckdb'
+    ops_db.parent.mkdir(parents=True)
+    held = SingletonLock(ops_db.parent / 'simd.lock').acquire()  # simulate a first launch holding it.
+    try:
+        built = {'n': 0}
+        monkeypatch.setattr(dr, 'build_corpus_game_tasks', lambda *a, **k: built.__setitem__('n', built['n'] + 1))
+        with pytest.raises(AlreadyRunning):
+            dr.run_corpus_queue(rows=[], field=[], games=2, ops_db_path=ops_db, worker_cmd=['x'])
+        assert built['n'] == 0
+        assert _corpus_staging_entries(tmp_path) == []
+    finally:
+        held.release()
+
+
+def test_run_corpus_queue_cleans_staging_on_normal_and_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Both a normal return and a mid-run error leave NO corpus-* staging dirs behind."""
+    from types import SimpleNamespace
+
+    import pipeline.sim.simd.engine as engine_mod
+
+    monkeypatch.setenv('MAKE_MAGIC_DATA_DIR', str(tmp_path))
+
+    def _fake_build(rows, field, *, games, stage_dir, data_dir=None):  # type: ignore[no-untyped-def]
+        # Prove real files got staged (so cleanup has something to remove).
+        (Path(stage_dir) / 's_x.txt').write_text('99 Forest\n', encoding='utf-8')
+        return []
+
+    monkeypatch.setattr(dr, 'build_corpus_game_tasks', _fake_build)
+    monkeypatch.setattr(dr, 'ingest_queue_transcripts', lambda *a, **k: 0)
+
+    # Normal exit.
+    monkeypatch.setattr(engine_mod, 'run_games_simd', lambda *a, **k: SimpleNamespace(results={}))
+    dr.run_corpus_queue(
+        rows=[{'deck_id': 'd'}], field=[], games=2, ops_db_path=tmp_path / 'ops.duckdb', worker_cmd=['x'],
+    )
+    assert _corpus_staging_entries(tmp_path) == []
+
+    # Error exit mid-run.
+    def _boom(*a: object, **k: object) -> object:
+        raise RuntimeError('mid-run failure')
+
+    monkeypatch.setattr(engine_mod, 'run_games_simd', _boom)
+    with pytest.raises(RuntimeError):
+        dr.run_corpus_queue(
+            rows=[{'deck_id': 'd'}], field=[], games=2, ops_db_path=tmp_path / 'ops.duckdb', worker_cmd=['x'],
+        )
+    assert _corpus_staging_entries(tmp_path) == []
+
+
+def test_run_wires_disk_governor_and_boot_backoff(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Fable M6: the shipped ``--run`` CLI wires a production DiskGovernor + nonzero boot backoff."""
+    from pipeline.sim.simd.governor import DiskGovernor
+
+    captured = _stub_run_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv('MAKE_MAGIC_JAVA', str(sys.executable))
+    import pipeline.sim.simd.preflight as pf_mod
+
+    monkeypatch.setattr(pf_mod, 'default_java_probe', lambda _java: 'openjdk version "21.0.3" 2024-04-16')
+
+    with pytest.raises(captured['_Sentinel']):  # type: ignore[arg-type]
+        dr.run(['--run', '--no-monitor'])
+
+    assert isinstance(captured['disk_governor'], DiskGovernor)
+    assert isinstance(captured['boot_backoff_base_s'], float)
+    assert captured['boot_backoff_base_s'] > 0.0

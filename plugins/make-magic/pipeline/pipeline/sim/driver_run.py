@@ -47,7 +47,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from pipeline.sim.core import wilson_ci
+from pipeline.sim.core import newcombe_diff_ci
 from pipeline.sim.driver_batch import (
     Ledger,
     _driver_uuid,
@@ -578,6 +578,7 @@ def run_corpus_queue(
     disk_governor: Any = None,
     breaker: Any = None,
     boot_deadline_s: float | None = None,
+    boot_backoff_base_s: float = 0.0,
     own_pgroup: bool = True,
 ) -> Any:
     """The LIVE corpus run over the simd engine (the ONE owner after the A3 cutover).
@@ -588,58 +589,99 @@ def run_corpus_queue(
     RESUMES a torn run with zero completed-game loss (the JSONL done-set is retired). ``worker_cmd``
     defaults to :func:`resolve_worker_cmd` (the Phase-2 JVM); tests inject a fake.
 
+    **Protection BEFORE staging (Sol BLOCKER 3).** The Java/runtime ``preflight`` and the singleton
+    ``flock`` are acquired FIRST — before any deck is staged — so a missing-Java launch or a refused
+    second launch fails LOUD with ZERO staging artifacts. Only then are the ``corpus-decks-*`` /
+    ``corpus-logs-*`` dirs created, inside a ``try/finally`` that sweeps them on BOTH normal and
+    error exit (the drained transcripts are ingested into the durable store first, then the
+    ephemeral files are removed). :func:`~pipeline.sim.runner.reap_stale_staging` is called at
+    startup to reclaim a crashed predecessor's orphaned staging dirs (the ``corpus-`` prefix is now
+    in the sweeper's filter — Fable M7).
+
     Production carry-forwards armed here: the A1 plausibility gate (``bailout_floor_ms =
     BAILOUT_HARD_FLOOR_MS`` — sub-2s "wins" are engine bailouts, non-decisive, surfaced in
-    coverage), the ``flock`` singleton + orphan-reaping pidfile (a 2nd launch refuses; a crashed
-    predecessor's JVM tree is reaped first), and ``own_pgroup=True`` so a future reaper can killpg
-    this run's whole tree. ``preflight`` / ``disk_governor`` / ``breaker`` / ``boot_deadline_s``
-    are the A2b resilience hooks (opt-in; the production CLI wires the Java preflight + breaker)."""
+    coverage), the singleton ``flock`` (held across the whole run) + orphan-reaping pidfile (a
+    crashed predecessor's JVM tree is reaped first), and ``own_pgroup=True`` so a future reaper can
+    killpg this run's whole tree. ``preflight`` / ``disk_governor`` / ``breaker`` /
+    ``boot_deadline_s`` / ``boot_backoff_base_s`` are the A2b resilience hooks (opt-in; the
+    production CLI wires the Java preflight + a default ``DiskGovernor`` + the crash-loop breaker)."""
+    import contextlib
+    import shutil
+
     from pipeline.sim import runner
     from pipeline.sim.aggregate import BAILOUT_HARD_FLOOR_MS
     from pipeline.sim.simd.engine import run_games_simd
+    from pipeline.sim.simd.reaper import SingletonLock
 
-    # Stage translated decks + shared transcript dir under the staging root (swept by
-    # reap_stale_staging). The workers load decks by bare basename from decks_dir and write
-    # transcripts into log_dir so the ingest-by-task_id pass can find them afterward.
-    staging = runner.staging_root()
-    staging.mkdir(parents=True, exist_ok=True)
-    stage_dir = Path(tempfile.mkdtemp(prefix='corpus-decks-', dir=staging))
-    log_dir = Path(tempfile.mkdtemp(prefix='corpus-logs-', dir=staging))
-
-    tasks = build_corpus_game_tasks(rows, field, games=games, stage_dir=stage_dir, data_dir=data_dir)
-    cmd = (
-        list(worker_cmd)
-        if worker_cmd is not None
-        else resolve_worker_cmd(log_dir=log_dir, data_dir=data_dir, decks_dir=stage_dir)
-    )
     ops_db = Path(ops_db_path) if ops_db_path is not None else default_ops_db_path(data_dir)
     lock_path = ops_db.parent / 'simd.lock'
     pidfile = ops_db.parent / 'simd.pid'
+    ops_db.parent.mkdir(parents=True, exist_ok=True)  # the flock + pidfile need the dir to exist.
 
-    result = run_games_simd(
-        tasks,
-        worker_cmd=cmd,
-        ops_db_path=ops_db,
-        stall_timeout_s=stall_timeout_s,
-        monitor=monitor,
-        # Arm the plausibility gate on the production path: sub-2s "wins" are engine bailouts
-        # (audit) → non-decisive, excluded from W/L, surfaced in coverage.
-        bailout_floor_ms=BAILOUT_HARD_FLOOR_MS,
-        preflight=preflight,
-        disk_governor=disk_governor,
-        breaker=breaker,
-        boot_deadline_s=boot_deadline_s,
-        # Singleton + orphan reaping + own process group — the production isolation carry-forwards.
-        singleton_lock_path=lock_path,
-        pidfile_path=pidfile,
-        own_pgroup=own_pgroup,
-    )
-    # Ingest each drained game's transcript into sim_game_features / sim_game_logs (best-effort).
-    try:
-        ingest_queue_transcripts(result, data_dir=data_dir)
-    except Exception:
-        log.warning('queue transcript ingestion failed (non-fatal)', exc_info=True)
-    return result
+    # Startup GC: sweep orphaned staging dirs a crashed predecessor left behind, BEFORE we stage
+    # (Sol BLOCKER 3 + Fable M7). Best-effort — reaping must never break a run.
+    with contextlib.suppress(Exception):
+        runner.reap_stale_staging()
+
+    with contextlib.ExitStack() as stack:
+        # PROTECTION BEFORE STAGING (Sol BLOCKER 3). The Java/runtime preflight and the singleton
+        # flock run FIRST, so a missing-Java launch or a refused second launch fails LOUD with ZERO
+        # staging artifacts — the engine used to run these only AFTER this function had already
+        # staged corpus-decks-*/corpus-logs-* dirs.
+        # 1. PREFLIGHT — fail loud (BootFailure/XMageUnavailable) before any staging/spawn.
+        if preflight is not None:
+            preflight()
+        # 2. SINGLETON flock — a 2nd concurrent simd launch raises AlreadyRunning, zero staging.
+        stack.enter_context(SingletonLock(lock_path))
+
+        # 3. NOW stage translated decks + the shared transcript dir under the staging root, wrapped
+        # so NORMAL and ERROR exits both clean them (no leaked corpus-* dirs). The pid is encoded
+        # in the prefix so mid-run staging GC's liveness check never reaps a live run's dir.
+        staging = runner.staging_root()
+        staging.mkdir(parents=True, exist_ok=True)
+        stage_dir = Path(tempfile.mkdtemp(prefix=f'corpus-decks-{os.getpid()}-', dir=staging))
+        log_dir = Path(tempfile.mkdtemp(prefix=f'corpus-logs-{os.getpid()}-', dir=staging))
+        try:
+            tasks = build_corpus_game_tasks(rows, field, games=games, stage_dir=stage_dir, data_dir=data_dir)
+            cmd = (
+                list(worker_cmd)
+                if worker_cmd is not None
+                else resolve_worker_cmd(log_dir=log_dir, data_dir=data_dir, decks_dir=stage_dir)
+            )
+            result = run_games_simd(
+                tasks,
+                worker_cmd=cmd,
+                ops_db_path=ops_db,
+                stall_timeout_s=stall_timeout_s,
+                monitor=monitor,
+                # Arm the plausibility gate on the production path: sub-2s "wins" are engine bailouts
+                # (audit) → non-decisive, excluded from W/L, surfaced in coverage.
+                bailout_floor_ms=BAILOUT_HARD_FLOOR_MS,
+                # preflight + singleton ALREADY done above (pre-staging). Passing them again would
+                # double-run preflight and self-deadlock the flock (same process, second fd).
+                preflight=None,
+                singleton_lock_path=None,
+                disk_governor=disk_governor,
+                breaker=breaker,
+                boot_deadline_s=boot_deadline_s,
+                boot_backoff_base_s=boot_backoff_base_s,
+                # Orphan reaping + own process group still carry through the engine's pidfile path.
+                pidfile_path=pidfile,
+                own_pgroup=own_pgroup,
+            )
+            # Ingest each drained game's transcript into the durable sim_game_features /
+            # sim_game_logs store (best-effort) BEFORE the ephemeral log dir is swept — the science
+            # is retained in the DB, only the transcript files are transient.
+            try:
+                ingest_queue_transcripts(result, data_dir=data_dir)
+            except Exception:
+                log.warning('queue transcript ingestion failed (non-fatal)', exc_info=True)
+            return result
+        finally:
+            # Clean the corpus staging dirs on NORMAL and ERROR exit (Sol BLOCKER 3) — the ingest
+            # above already persisted the transcripts we keep.
+            shutil.rmtree(stage_dir, ignore_errors=True)
+            shutil.rmtree(log_dir, ignore_errors=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -688,7 +730,11 @@ class DeckDelta:
 
 @dataclass(frozen=True)
 class BucketStat:
-    """One bucket's pooled lift ± 95% Wilson CI + the rule-8 ship/thin verdict."""
+    """One bucket's pooled lift ± 95% Newcombe CI + the rule-8 ship/thin verdict.
+
+    ``lift_ci`` is Newcombe's Wilson-score interval for the difference of two independent
+    proportions (method 10). The estimand is a POOLED GAME-LEVEL difference assuming the two arms'
+    games are independent (no deck/opponent clustering modelled)."""
 
     bucket: str
     n_decks: int
@@ -740,10 +786,13 @@ def _bucket_stat(bucket: str, members: list[DeckDelta]) -> BucketStat:
     """Pool ``members`` into one :class:`BucketStat` — the rule-8 lift CI + ship/thin call.
 
     The pooled lift is ``driver_rate - cp7_rate`` on the pooled DECIDED games. Its 95% CI is
-    built from the two proportions' Wilson intervals (reusing :func:`wilson_ci`) by interval
-    arithmetic — ``(driver_lo - cp7_hi, driver_hi - cp7_lo)`` — a conservative CI for the
-    difference that EXCLUDES 0 (positive) exactly when the driven Wilson interval sits strictly
-    above the CP7 one. Ships iff that CI excludes 0 AND ``n_matchups >= 30``.
+    **Newcombe's Wilson-score interval for the difference of two independent proportions** (method
+    10 — the square-and-add of the two per-arm Wilson intervals; :func:`newcombe_diff_ci`), which
+    carries a stated ~95% coverage guarantee — unlike the old naive endpoint subtraction
+    ``(driver_lo - cp7_hi, driver_hi - cp7_lo)``, which had none. The estimand is a POOLED
+    GAME-LEVEL difference of proportions assuming the two arms' games are INDEPENDENT (clustering by
+    deck/opponent is not modelled). Ships iff that CI excludes 0 (lower bound > 0) AND
+    ``n_matchups >= 30``.
     """
     dw = sum(m.driver_wins for m in members)
     dd = sum(m.driver_decided for m in members)
@@ -753,10 +802,9 @@ def _bucket_stat(bucket: str, members: list[DeckDelta]) -> BucketStat:
 
     d_rate = dw / dd if dd else 0.0
     c_rate = cw / cd if cd else 0.0
-    d_lo, d_hi = wilson_ci(dw, dd)
-    c_lo, c_hi = wilson_ci(cw, cd)
     lift = d_rate - c_rate
-    lift_ci = (d_lo - c_hi, d_hi - c_lo)
+    # Newcombe method 10 — Wilson-score CI for a difference of two independent proportions.
+    lift_ci = newcombe_diff_ci(dw, dd, cw, cd)
 
     excludes_zero = lift_ci[0] > 0.0
     enough = n_matchups >= _MIN_SHIP_MATCHUPS
@@ -816,6 +864,12 @@ def aggregate_buckets(deltas: Iterable[DeckDelta]) -> dict[str, BucketStat]:
 def render_bucket_markdown(stats: dict[str, BucketStat], *, field_names: Sequence[str] | None = None) -> str:
     """A readable markdown bucket table (headline = tight-keep) for the plan dir."""
     lines = ['# Driver corpus bucket table (rule 8)', '']
+    lines += [
+        '_Lift 95% CI = Newcombe method-10 Wilson-score interval for a difference of two '
+        'independent proportions; estimand = pooled game-level difference (independence assumed, '
+        'no deck/opponent clustering modelled)._',
+        '',
+    ]
     if field_names:
         lines += [f'Opponent field ({len(field_names)}): {", ".join(field_names)}', '']
     headline_bucket = 'tight-P' if 'tight-P' in stats else 'tight-keep'
@@ -995,18 +1049,25 @@ def run(argv: list[str] | None = None) -> None:
     # Production carry-forwards: Java preflight (fail-loud, version-gated) + crash-loop breaker are
     # wired here; run_corpus_queue arms the bailout gate, flock singleton, orphan reaper, own_pgroup.
     from pipeline.sim.simd.circuit_breaker import CrashLoopBreaker
+    from pipeline.sim.simd.governor import DiskGovernor
 
     # The simd engine calls ``preflight()`` with ZERO args, but ``preflight_java`` needs the
     # ``java`` launcher. Wire a zero-arg closure that resolves the runtime Java path (fail-loud if
     # missing) and version-gates it — F-1: passing the bare ``preflight_java`` TypeError'd at boot.
+    # A2.5 disk protection (Fable M6): wire a production DiskGovernor with default floors so a
+    # missing-Java crash-loop filling the disk HALTS the run resumably (previously the CLI passed
+    # no governor, leaving the advertised soft/hard disk floors dead on the shipped path). A nonzero
+    # boot-backoff base staggers respawns so a transient boot failure does not tight-loop staging.
     result = run_corpus_queue(
         rows=rows,
         field=field,
         games=args.games,
         monitor=monitor,
         preflight=lambda: preflight_java(_resolve_java()),
+        disk_governor=DiskGovernor(),
         breaker=CrashLoopBreaker(),
         boot_deadline_s=120.0,
+        boot_backoff_base_s=0.5,
     )
     log.info(
         'simd run complete=%s quarantined=%d incomplete_cells=%d fast_games=%d concede_games=%d '

@@ -398,7 +398,9 @@ def reap_stale_staging(max_age_s: float = _STAGING_MAX_AGE_S) -> int:
     across crashed runs and compound disk pressure — the very failure the per-run
     private-db staging exists to prevent. Called at batch start; best-effort and
     NEVER raises (reaping must not break a run). Touches only this module's own
-    ``run-*`` / ``xmage-*`` staging dirs.
+    ``run-*`` / ``xmage-*`` / ``corpus-*`` staging dirs (the ``corpus-decks-*`` /
+    ``corpus-logs-*`` dirs the simd corpus run stages under :func:`staging_root` — omitting the
+    ``corpus-`` prefix here made the sweeper a no-op on the live corpus path, Fable M7).
 
     Three reap conditions, ordered so that mid-run GC (called with a SHORT ``max_age_s``) can
     never GC a LIVE worker's dir — the correctness the ``xmage-worker-<pid>`` PID-parse fix
@@ -420,7 +422,7 @@ def reap_stale_staging(max_age_s: float = _STAGING_MAX_AGE_S) -> int:
     now = time.time()
     reaped = 0
     for entry in entries:
-        if not (entry.name.startswith('run-') or entry.name.startswith('xmage-')):
+        if not entry.name.startswith(('run-', 'xmage-', 'corpus-')):
             continue
         pid = _staging_owner_pid(entry.name)
         if pid is not None:
