@@ -134,6 +134,70 @@ CREATE TABLE IF NOT EXISTS simd_quarantine (
 """
 
 
+#: Per-game durable transcript record (run-scoped). One row per completed game, upserted the
+#: instant the RESULT commits (same crash-safety discipline as ``simd_results``) so a game's
+#: historical transcript/feature record NEVER depends on a clean run exit. ``missing_transcript``
+#: flags a game whose transcript file was absent/unreadable at drain time (recorded, never
+#: silently skipped). Keyed by ``(run_id, task_id)`` — the reproducible task identity that the
+#: lake roll-in re-keys from (fixing the old queue-ingest ``matchup_key`` mismatch).
+_GAME_LOGS_DDL = """
+CREATE TABLE IF NOT EXISTS simd_game_logs (
+    run_id             TEXT NOT NULL,
+    task_id            TEXT NOT NULL,
+    subject            TEXT NOT NULL,
+    opponent           TEXT NOT NULL,
+    piloting           TEXT NOT NULL,
+    game_index         TEXT NOT NULL,
+    raw_log            TEXT,
+    missing_transcript BOOLEAN NOT NULL,
+    created_at         TIMESTAMP,
+    PRIMARY KEY (run_id, task_id)
+)
+"""
+
+_GAME_FEATURES_DDL = """
+CREATE TABLE IF NOT EXISTS simd_game_features (
+    run_id              TEXT NOT NULL,
+    task_id             TEXT NOT NULL,
+    subject             TEXT NOT NULL,
+    opponent            TEXT NOT NULL,
+    piloting            TEXT NOT NULL,
+    game_index          TEXT NOT NULL,
+    winner              TEXT,
+    kill_turn           INTEGER,
+    win_margin_life     INTEGER,
+    wincon              TEXT,
+    mulligans_a         INTEGER,
+    mulligans_b         INTEGER,
+    game_length_ms      INTEGER,
+    assembled_turn      INTEGER,
+    fired_turn          INTEGER,
+    driver_registered   BOOLEAN,
+    macro_reachable     BOOLEAN,
+    steer_fired         BOOLEAN,
+    storm_count         INTEGER,
+    life_swing          INTEGER,
+    disruption_survived BOOLEAN,
+    incomplete          BOOLEAN,
+    timeout             BOOLEAN,
+    missing_transcript  BOOLEAN NOT NULL,
+    created_at          TIMESTAMP,
+    PRIMARY KEY (run_id, task_id)
+)
+"""
+
+
+def _split_task_id(task_id: str) -> tuple[str, str, str, str]:
+    """``(subject, opponent, piloting, game_index)`` from a ``subject|opponent|piloting|index``
+    task_id. ``game_index`` is kept a STRING (an original's is an integer; a top-up's is
+    ``topup-<n>``). A malformed id (wrong field count) degrades to the whole id as the subject and
+    empty remaining fields — a drain must record SOMETHING, never raise."""
+    parts = task_id.split('|')
+    if len(parts) != 4:
+        return (task_id, '', '', '')
+    return (parts[0], parts[1], parts[2], parts[3])
+
+
 def _now() -> datetime:
     return datetime.now(UTC)
 
@@ -220,6 +284,11 @@ class OpsStore:
             self._conn.execute(_ATTEMPTS_DDL)
             self._conn.execute(_RESULTS_DDL)
             self._conn.execute(_QUARANTINE_DDL)
+            # Per-game durable transcript/feature tables (run-scoped). CREATE IF NOT EXISTS is
+            # additive + migration-tolerant: an ops file that predates the per-game drain simply
+            # gains the two tables on open; existing rows are untouched.
+            self._conn.execute(_GAME_LOGS_DDL)
+            self._conn.execute(_GAME_FEATURES_DDL)
             # Additive, migration-tolerant: a results table created before the first-player-seat
             # work has no ``starter`` column and CREATE TABLE IF NOT EXISTS never adds one. Add it
             # unconditionally (no-op when already present) so both a fresh and a pre-existing ops
@@ -408,6 +477,138 @@ class OpsStore:
                     _now(),
                 ],
             )
+
+    def drain_game(self, res: GameResult, *, cleanup: bool = True) -> bool:
+        """PER-GAME durable transcript/feature drain — the crash-safe historical record.
+
+        Called the instant a game's RESULT commits (from the scheduler, right after
+        :meth:`record_result`), so the transcript/feature record is durable the moment the result
+        is — never dependent on a clean run exit (the end-of-run ``ingest_queue_transcripts`` that
+        lost 1,369 games across three generation deaths). Parses ``res.log_path`` with the SAME
+        transcript parser the lake ingest uses and upserts one run-scoped row into ``simd_game_logs``
+        (full transcript text) + ``simd_game_features`` (parsed metrics), keyed by ``(run_id,
+        task_id)``. Each table is one atomic upsert (single autocommitted statement — result-parity
+        crash-safety).
+
+        If the transcript file is MISSING/unreadable at drain time a row is still written with
+        ``missing_transcript=True`` (winner carried from the result) — a game is NEVER silently
+        skipped. Returns ``True`` iff a real transcript was parsed + persisted; ``False`` for a
+        flagged missing/unreadable/parse-failed row.
+
+        On a SUCCESSFUL drain the per-game transcript FILE is deleted (``cleanup=True``) — freeing
+        disk continuously and, crucially, guaranteeing the staging GC never races an UNDRAINED
+        committed transcript (the file only survives while its game is still in flight, i.e.
+        uncommitted, or when the drain FAILED, in which case it is deliberately KEPT for re-drain).
+        """
+        subject, opp, pil, gidx = _split_task_id(res.task_id)
+        text: str | None = None
+        path = res.log_path
+        if path:
+            try:
+                with open(path, encoding='utf-8', errors='replace') as fh:
+                    text = fh.read()
+            except OSError:
+                text = None
+        if text is None:
+            self._record_missing_game(res, subject, opp, pil, gidx)
+            return False
+
+        from pipeline.sim.transcript_parser import parse_transcript
+
+        try:
+            feat = parse_transcript(text)
+        except Exception:  # pragma: no cover — parse_transcript is total; defensive.
+            self._record_missing_game(res, subject, opp, pil, gidx)
+            return False
+
+        with self._lock:
+            self._conn.execute(
+                'INSERT INTO simd_game_logs '
+                '(run_id, task_id, subject, opponent, piloting, game_index, raw_log, '
+                'missing_transcript, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                'ON CONFLICT (run_id, task_id) DO UPDATE SET '
+                'raw_log = excluded.raw_log, missing_transcript = excluded.missing_transcript, '
+                'created_at = excluded.created_at',
+                [self._run_id, res.task_id, subject, opp, pil, gidx, text, False, _now()],
+            )
+            self._conn.execute(
+                'INSERT INTO simd_game_features '
+                '(run_id, task_id, subject, opponent, piloting, game_index, winner, kill_turn, '
+                'win_margin_life, wincon, mulligans_a, mulligans_b, game_length_ms, assembled_turn, '
+                'fired_turn, driver_registered, macro_reachable, steer_fired, storm_count, '
+                'life_swing, disruption_survived, incomplete, timeout, missing_transcript, created_at) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                'ON CONFLICT (run_id, task_id) DO UPDATE SET '
+                'winner = excluded.winner, kill_turn = excluded.kill_turn, '
+                'win_margin_life = excluded.win_margin_life, wincon = excluded.wincon, '
+                'mulligans_a = excluded.mulligans_a, mulligans_b = excluded.mulligans_b, '
+                'game_length_ms = excluded.game_length_ms, assembled_turn = excluded.assembled_turn, '
+                'fired_turn = excluded.fired_turn, driver_registered = excluded.driver_registered, '
+                'macro_reachable = excluded.macro_reachable, steer_fired = excluded.steer_fired, '
+                'storm_count = excluded.storm_count, life_swing = excluded.life_swing, '
+                'disruption_survived = excluded.disruption_survived, incomplete = excluded.incomplete, '
+                'timeout = excluded.timeout, missing_transcript = excluded.missing_transcript, '
+                'created_at = excluded.created_at',
+                [
+                    self._run_id, res.task_id, subject, opp, pil, gidx, feat.winner, feat.kill_turn,
+                    feat.win_margin_life, feat.wincon, feat.mulligans_a, feat.mulligans_b,
+                    feat.game_length_ms, feat.assembled_turn, feat.fired_turn, feat.driver_registered,
+                    feat.macro_reachable, feat.steer_fired, feat.storm_count, feat.life_swing,
+                    feat.disruption_survived, feat.incomplete, feat.timeout, False, _now(),
+                ],
+            )
+        if cleanup and path:
+            import contextlib
+
+            with contextlib.suppress(OSError):
+                os.remove(path)  # best-effort disk reclaim — a stuck file must never fail a game.
+        return True
+
+    def _record_missing_game(
+        self, res: GameResult, subject: str, opp: str, pil: str, gidx: str
+    ) -> None:
+        """Write a ``missing_transcript=True`` row for a game whose transcript was absent/unreadable
+        — a flagged record, never a silent skip. The transcript file (if any) is deliberately KEPT
+        so a later standalone re-drain can still recover it."""
+        with self._lock:
+            self._conn.execute(
+                'INSERT INTO simd_game_logs '
+                '(run_id, task_id, subject, opponent, piloting, game_index, raw_log, '
+                'missing_transcript, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                'ON CONFLICT (run_id, task_id) DO UPDATE SET '
+                'missing_transcript = excluded.missing_transcript, created_at = excluded.created_at',
+                [self._run_id, res.task_id, subject, opp, pil, gidx, None, True, _now()],
+            )
+            self._conn.execute(
+                'INSERT INTO simd_game_features '
+                '(run_id, task_id, subject, opponent, piloting, game_index, winner, '
+                'missing_transcript, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                'ON CONFLICT (run_id, task_id) DO UPDATE SET '
+                'winner = excluded.winner, missing_transcript = excluded.missing_transcript, '
+                'created_at = excluded.created_at',
+                [self._run_id, res.task_id, subject, opp, pil, gidx, res.winner, True, _now()],
+            )
+
+    def load_game_logs(self) -> dict[str, tuple[str, str, str, str, str | None, bool]]:
+        """``{task_id: (subject, opponent, piloting, game_index, raw_log, missing_transcript)}`` for
+        this run — the durable per-game transcript record the lake roll-in reads."""
+        with self._lock:
+            rows = self._conn.execute(
+                'SELECT task_id, subject, opponent, piloting, game_index, raw_log, missing_transcript '
+                'FROM simd_game_logs WHERE run_id = ?',
+                [self._run_id],
+            ).fetchall()
+        return {r[0]: (r[1], r[2], r[3], r[4], r[5], bool(r[6])) for r in rows}
+
+    def load_game_features(self) -> dict[str, dict[str, object]]:
+        """``{task_id: {feature-column: value}}`` for this run's drained games (roll-in source)."""
+        with self._lock:
+            cur = self._conn.execute(
+                'SELECT * FROM simd_game_features WHERE run_id = ?', [self._run_id]
+            )
+            cols = [d[0] for d in cur.description]
+            rows = cur.fetchall()
+        return {dict(zip(cols, r, strict=True))['task_id']: dict(zip(cols, r, strict=True)) for r in rows}
 
     def quarantine(
         self, task_id: str, subject: str, opponent: str, piloting: str, *, attempts: int, reason: str | None

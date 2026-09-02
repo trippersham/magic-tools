@@ -610,7 +610,7 @@ def test_run_corpus_queue_cleans_staging_on_normal_and_error(
         return []
 
     monkeypatch.setattr(dr, 'build_corpus_game_tasks', _fake_build)
-    monkeypatch.setattr(dr, 'ingest_queue_transcripts', lambda *a, **k: 0)
+    monkeypatch.setattr(dr, 'rollup_to_lake', lambda *a, **k: 0)
 
     # Normal exit.
     monkeypatch.setattr(engine_mod, 'run_games_simd', lambda *a, **k: SimpleNamespace(results={}))
@@ -691,7 +691,7 @@ def _capture_corpus_run_id(
         return build_game_tasks(subjects, opponents, games, fmt='commander')
 
     monkeypatch.setattr(dr, 'build_corpus_game_tasks', _fake_build)
-    monkeypatch.setattr(dr, 'ingest_queue_transcripts', lambda *a, **k: 0)
+    monkeypatch.setattr(dr, 'rollup_to_lake', lambda *a, **k: 0)
 
     captured: dict[str, str] = {}
 

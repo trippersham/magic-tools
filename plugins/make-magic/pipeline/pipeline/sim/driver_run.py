@@ -37,6 +37,7 @@ tight-keep.
 
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import logging
 import os
@@ -69,6 +70,7 @@ __all__ = (
     'aggregate_buckets',
     'build_opponent_field',
     'publish_corpus_results',
+    'rollup_to_lake',
     'run_corpus_queue',
     'xmage_deck_loads',
 )
@@ -543,41 +545,175 @@ def resolve_worker_cmd(
     return cmd
 
 
-def ingest_queue_transcripts(
-    result: Any,
+#: A top-up replacement game's lake ``game_index`` is offset past any plausible original index so a
+#: cell's originals (0..needed) and its top-ups never collide on the ``(matchup_key, game_index)``
+#: grain. Top-up ``topup-<n>`` → ``_TOPUP_INDEX_BASE + n``.
+_TOPUP_INDEX_BASE = 100_000
+
+
+def _lake_matchup_key(subject: str, opponent: str, piloting: str) -> str:
+    """A STABLE, reproducible lake ``matchup_key`` for a simd cell.
+
+    THE (c) KEYING FIX. The retired ``ingest_queue_transcripts`` wrote ``sim_game_features`` /
+    ``sim_game_logs`` rows keyed by the raw cell STRING while creating no ``sim_matchups`` parent
+    row — so every lake reader that ``JOIN sim_matchups USING (matchup_key)`` (``feature_stats`` /
+    ``find_matchups``) matched NOTHING, and the whole queue corpus never landed in the lake. The
+    roll-in now derives a deterministic hashed key from the cell identity AND writes the matching
+    ``sim_matchups`` parent, so queue-run games are joinable exactly like a Forge/XMage matchup.
+    Deterministic → re-running the roll-in reproduces the same key (idempotent replace)."""
+    import hashlib
+
+    payload = '\x00'.join(('simd-cell', subject, opponent, piloting)).encode('utf-8')
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _lake_game_index(raw_index: str) -> int:
+    """The lake INTEGER ``game_index`` for an ops ``game_index`` field (original ``<n>`` or
+    ``topup-<n>``). A top-up is offset by :data:`_TOPUP_INDEX_BASE` so it never collides with an
+    original on the ``(matchup_key, game_index)`` grain; an unparseable field falls back to 0."""
+    if raw_index.startswith('topup-'):
+        try:
+            return _TOPUP_INDEX_BASE + int(raw_index[len('topup-') :])
+        except ValueError:
+            return _TOPUP_INDEX_BASE
+    try:
+        return int(raw_index)
+    except ValueError:
+        return 0
+
+
+def _winner_ab(winner: str | None) -> str:
+    w = (winner or '').strip().lower()
+    if w in ('a', 'subject', 'player_a', 'playera'):
+        return 'a'
+    if w in ('b', 'opponent', 'player_b', 'playerb'):
+        return 'b'
+    return 'draw'
+
+
+def rollup_to_lake(
+    ops_db_path: str | os.PathLike[str],
     *,
     data_dir: str | os.PathLike[str] | None = None,
-    policy: str = 'all',
-    cleanup: bool = False,
+    run_id: str | None = None,
 ) -> int:
-    """Ingest every drained game's transcript into ``sim_game_features`` / ``sim_game_logs``.
+    """Roll the per-game durable ops records into the lake — REPRODUCIBLE + idempotent.
 
-    The simd engine (:func:`~pipeline.sim.simd.engine.run_games_simd`) tallies coverage but does
-    NOT ingest transcripts — this thin glue closes that gap. For each completed ``task_id`` in
-    ``result.results`` it splits the id into the ``(subject|opponent|piloting)`` cell key +
-    the integer game index, and calls :func:`~pipeline.sim.transcript_parser.ingest_transcript`
-    on the RESULT's ``log_path``. Best-effort per row (a missing/bad log is skipped, never
-    fatal). Returns the number of rows written. ``cleanup=False`` keeps the transcript files
-    (the e2e re-reads them); a production run may pass ``True`` to reclaim disk."""
-    from pipeline.sim.transcript_parser import ingest_transcript
+    Reads ``simd_game_logs`` / ``simd_game_features`` from the crash-safe ``ops.duckdb`` (NOT the
+    filesystem — the transient transcript files are already drained + deleted) and writes correctly
+    KEYED rows into the lake's ``sim_matchups`` / ``sim_game_features`` / ``sim_game_logs`` so the
+    queue corpus actually lands there (the (c) fix — see :func:`_lake_matchup_key`). One
+    ``sim_matchups`` parent row per simd cell (pooled W/L tally over the cell's drained games) makes
+    every lake reader's ``JOIN sim_matchups`` resolve.
+
+    Runs at end-of-run from :func:`run_corpus_queue`, AND ships as a standalone re-drain path: call
+    it anytime over an ops file to (re)do a crashed run's lake roll-in. IDEMPOTENT — each cell's lake
+    rows are fully replaced from the ops state, so a re-run yields no duplicates. ``run_id`` scopes
+    the roll-in to one run; ``None`` rolls in every run in the file. Rows flagged
+    ``missing_transcript`` contribute their W/L (from the recorded winner) but carry no raw log.
+    Returns the number of games rolled in. Brief-exclusive lake writes (one connection, one batch).
+    """
+    from pathlib import Path as _Path
+
+    from pipeline import store
+    from pipeline.sim import store as sim_store
+    from pipeline.sim import transcript_parser as tp
+    from pipeline.sim.simd.ops_store import OpsStore
+
+    ops_path = _Path(ops_db_path)
+    if not ops_path.is_file():
+        return 0
+
+    # Which runs to roll in.
+    if run_id is not None:
+        run_ids = [run_id]
+    else:
+        import duckdb
+
+        conn = duckdb.connect(str(ops_path), read_only=True)
+        try:
+            run_ids = [
+                r[0] for r in conn.execute('SELECT DISTINCT run_id FROM simd_game_logs').fetchall()
+            ]
+        finally:
+            conn.close()
+    if not run_ids:
+        return 0
+
+    # Gather every drained game across the requested run(s) from the durable ops tables.
+    logs: dict[str, tuple[str, str, str, str, str | None, bool]] = {}
+    feats: dict[str, dict[str, object]] = {}
+    for rid in run_ids:
+        with OpsStore(ops_path, run_id=rid) as ops:
+            logs.update(ops.load_game_logs())
+            feats.update(ops.load_game_features())
+    if not logs:
+        return 0
+
+    # Group by cell → the lake matchup_key + parent-row tally.
+    from collections import defaultdict
+
+    by_cell: dict[tuple[str, str, str], list[str]] = defaultdict(list)
+    for tid, (subject, opp, pil, _gidx, _raw, _missing) in logs.items():
+        by_cell[(subject, opp, pil)].append(tid)
 
     written = 0
-    for task_id, res in result.results.items():
-        log_path = getattr(res, 'log_path', None)
-        if not log_path:
-            continue
-        parts = str(task_id).split('|')
-        if len(parts) != 4:
-            log.warning('queue ingest: malformed task_id %r — skipped', task_id)
-            continue
-        cell = '|'.join(parts[:3])
-        try:
-            game_index = int(parts[3])
-        except ValueError:
-            log.warning('queue ingest: non-integer game index in %r — skipped', task_id)
-            continue
-        if ingest_transcript(data_dir, cell, game_index, log_path, policy=policy, cleanup=cleanup):
-            written += 1
+    db_path = sim_store._db_path(os.fspath(data_dir) if data_dir is not None else None)
+    with store.connect(db_path) as conn:
+        sim_store._ensure_tables(conn)
+        tp._ensure_transcript_columns(conn)
+        for (subject, opp, pil), tids in by_cell.items():
+            key = _lake_matchup_key(subject, opp, pil)
+            # Idempotent replace: clear any prior roll-in of this cell first.
+            conn.execute('DELETE FROM sim_game_logs WHERE matchup_key = ?', [key])
+            conn.execute('DELETE FROM sim_game_features WHERE matchup_key = ?', [key])
+            conn.execute('DELETE FROM sim_matchups WHERE matchup_key = ?', [key])
+            wins_a = wins_b = draws = 0
+            for tid in tids:
+                _s, _o, _p, raw_index, raw_log, _missing = logs[tid]
+                gi = _lake_game_index(raw_index)
+                f = feats.get(tid, {})
+                bucket = _winner_ab(f.get('winner') if f else None)  # type: ignore[arg-type]
+                if bucket == 'a':
+                    wins_a += 1
+                elif bucket == 'b':
+                    wins_b += 1
+                else:
+                    draws += 1
+                if raw_log is not None:
+                    conn.execute(
+                        'INSERT INTO sim_game_logs (matchup_key, game_index, raw_log) VALUES (?, ?, ?)',
+                        [key, gi, raw_log],
+                    )
+                conn.execute(
+                    'INSERT INTO sim_game_features '
+                    '(matchup_key, game_index, winner, kill_turn, win_margin_life, wincon, '
+                    'mulligans_a, mulligans_b, game_length_ms, assembled_turn, fired_turn, '
+                    'driver_registered, macro_reachable, steer_fired, storm_count, life_swing, '
+                    'disruption_survived, incomplete, timeout) '
+                    'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        key, gi, f.get('winner'), f.get('kill_turn'), f.get('win_margin_life'),
+                        f.get('wincon'), f.get('mulligans_a'), f.get('mulligans_b'),
+                        f.get('game_length_ms'), f.get('assembled_turn'), f.get('fired_turn'),
+                        f.get('driver_registered'), f.get('macro_reachable'), f.get('steer_fired'),
+                        f.get('storm_count'), f.get('life_swing'), f.get('disruption_survived'),
+                        f.get('incomplete'), f.get('timeout'),
+                    ],
+                )
+                written += 1
+            # The parent row makes the lake JOINs resolve (the (c) fix). Deck hashes carry the staged
+            # subject/opponent basenames (the cell's stable identity); engine tags the simd source.
+            conn.execute(
+                'INSERT INTO sim_matchups '
+                '(matchup_key, deck_a_hash, deck_b_hash, seed, n_games, format, engine, '
+                'engine_version, wins_a, wins_b, draws, created_at) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    key, subject, opp, 0, len(tids), _COMMANDER, 'xmage', 'simd',
+                    wins_a, wins_b, draws, _dt.datetime.now(_dt.UTC),
+                ],
+            )
     return written
 
 
@@ -724,12 +860,9 @@ def run_corpus_queue(
     ``boot_deadline_s`` / ``boot_backoff_base_s`` are the A2b resilience hooks (opt-in; the
     production CLI wires the Java preflight + a default ``DiskGovernor`` + the crash-loop breaker)."""
     import contextlib
-    import shutil
+    import signal
 
     from pipeline.sim import runner
-    from pipeline.sim.aggregate import BAILOUT_HARD_FLOOR_MS
-    from pipeline.sim.simd.engine import run_games_simd
-    from pipeline.sim.simd.reaper import SingletonLock
 
     ops_db = Path(ops_db_path) if ops_db_path is not None else default_ops_db_path(data_dir)
     lock_path = ops_db.parent / 'simd.lock'
@@ -740,6 +873,76 @@ def run_corpus_queue(
     # (Sol BLOCKER 3 + Fable M7). Best-effort — reaping must never break a run.
     with contextlib.suppress(Exception):
         runner.reap_stale_staging()
+
+    # SIGTERM handler: a resource watchdog / orchestrator kill must not SIGKILL Python without
+    # running teardown (the post-mortem's failure (a): a raw TERM skipped ``finally`` → no roll-in
+    # + the next run's staging GC reaped the un-drained corpus). Trapping TERM turns it into a
+    # normal exception so the ExitStack + the staging ``finally`` DO run, the flock is released, and
+    # the run exits nonzero + RESUMABLE. Per-game drain already made every committed game durable in
+    # ops.duckdb, so a TERM loses ZERO transcripts. Only installable on the main thread; a library
+    # caller on a worker thread degrades to the prior (untrapped) behaviour.
+    class _Terminated(BaseException):
+        """Raised in-process when SIGTERM is trapped, to unwind through the teardown path."""
+
+    _prev_term: Any = None
+    _term_installed = False
+
+    def _on_term(_signum: int, _frame: Any) -> None:
+        raise _Terminated
+
+    try:
+        _prev_term = signal.signal(signal.SIGTERM, _on_term)
+        _term_installed = True
+    except (ValueError, OSError):
+        _term_installed = False  # not the main thread — leave the default disposition.
+
+    try:
+        return _run_corpus_queue_body(
+            rows=rows, field=field, games=games, thin_rows=thin_rows, stall_timeout_s=stall_timeout_s,
+            monitor=monitor, worker_cmd=worker_cmd, data_dir=data_dir, preflight=preflight,
+            disk_governor=disk_governor, breaker=breaker, boot_deadline_s=boot_deadline_s,
+            boot_backoff_base_s=boot_backoff_base_s, own_pgroup=own_pgroup, ops_db=ops_db,
+            lock_path=lock_path, pidfile=pidfile,
+        )
+    except _Terminated:
+        log.error('SIGTERM received — teardown ran (staging swept, flock released); every committed '
+                  'game is durable in ops.duckdb. Exiting nonzero + RESUMABLE.')
+        raise SystemExit(1) from None
+    finally:
+        if _term_installed:
+            with contextlib.suppress(ValueError, OSError):
+                signal.signal(signal.SIGTERM, _prev_term)
+
+
+def _run_corpus_queue_body(
+    *,
+    rows: Sequence[dict[str, Any]],
+    field: Sequence[GauntletDeck],
+    games: int,
+    thin_rows: Sequence[dict[str, Any]],
+    stall_timeout_s: float,
+    monitor: ResourceMonitor | None,
+    worker_cmd: Sequence[str] | None,
+    data_dir: str | os.PathLike[str] | None,
+    preflight: Any,
+    disk_governor: Any,
+    breaker: Any,
+    boot_deadline_s: float | None,
+    boot_backoff_base_s: float,
+    own_pgroup: bool,
+    ops_db: Path,
+    lock_path: Path,
+    pidfile: Path,
+) -> Any:
+    """The staging + engine-drive body of :func:`run_corpus_queue` (extracted so the SIGTERM trap
+    wraps it cleanly). See :func:`run_corpus_queue` for the contract."""
+    import contextlib
+    import shutil
+
+    from pipeline.sim import runner
+    from pipeline.sim.aggregate import BAILOUT_HARD_FLOOR_MS
+    from pipeline.sim.simd.engine import run_games_simd
+    from pipeline.sim.simd.reaper import SingletonLock
 
     with contextlib.ExitStack() as stack:
         # PROTECTION BEFORE STAGING (Sol BLOCKER 3). The Java/runtime preflight and the singleton
@@ -803,17 +1006,20 @@ def run_corpus_queue(
                 pidfile_path=pidfile,
                 own_pgroup=own_pgroup,
             )
-            # Ingest each drained game's transcript into the durable sim_game_features /
-            # sim_game_logs store (best-effort) BEFORE the ephemeral log dir is swept — the science
-            # is retained in the DB, only the transcript files are transient.
+            # REPRODUCIBLE lake roll-in from the durable ops tables (NOT the filesystem — the
+            # per-game drain already persisted + deleted each transcript at result-commit). This
+            # re-keys the queue corpus onto joinable lake matchup rows (the (c) fix) and is
+            # idempotent + re-runnable standalone via :func:`rollup_to_lake`. Best-effort — a lake
+            # hiccup must never fail a completed run (the science is already durable in ops).
             try:
-                ingest_queue_transcripts(result, data_dir=data_dir)
+                rollup_to_lake(ops_db, data_dir=data_dir, run_id=run_id)
             except Exception:
-                log.warning('queue transcript ingestion failed (non-fatal)', exc_info=True)
+                log.warning('lake roll-in failed (non-fatal — ops holds the durable record)', exc_info=True)
             return result
         finally:
-            # Clean the corpus staging dirs on NORMAL and ERROR exit (Sol BLOCKER 3) — the ingest
-            # above already persisted the transcripts we keep.
+            # Clean the corpus staging dirs on NORMAL and ERROR exit (Sol BLOCKER 3) — every
+            # committed game's transcript is already drained into ops.duckdb (per-game, at
+            # result-commit), so sweeping the ephemeral log dir loses NOTHING.
             shutil.rmtree(stage_dir, ignore_errors=True)
             shutil.rmtree(log_dir, ignore_errors=True)
 

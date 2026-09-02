@@ -323,6 +323,14 @@ class SimdScheduler:
                 self._results[tid] = msg
                 self._ops.record_result(msg)
                 self._ops.record_attempt(tid, self._attempts[tid], 'result')
+                # PER-GAME durable drain (A2.3 parity for the transcript record): parse + persist
+                # this game's transcript/features into ops.duckdb the instant its result commits,
+                # then delete the transcript file. Non-fatal — a drain hiccup must never break the
+                # run (the file is KEPT on failure so a later re-drain can recover it).
+                try:
+                    self._ops.drain_game(msg)
+                except Exception:  # pragma: no cover - drain is defensive/total; belt-and-suspenders.
+                    log.warning('per-game transcript drain failed for %s (non-fatal)', tid, exc_info=True)
                 self._apply_result_tally(tid, msg)
                 # A non-decisive commit consumed a slot without incrementing ``ok`` — enqueue a
                 # bounded replacement so the cell can still reach completeness (no-op for a
