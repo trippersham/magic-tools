@@ -793,17 +793,34 @@ public class XMageBatch {
      * <ul>
      *   <li>{@code timeout} — the wall-clock deadline fired (engine-defective livelock).</li>
      *   <li>{@code draw_game} — no winner (a real draw OR an unfinished turn-cap game).</li>
-     *   <li>{@code concede} — the loser left the game (concede/leave sets {@code hasLeft()}).</li>
      *   <li>{@code draw_empty_library} — the loser drew from an empty library.</li>
      *   <li>{@code poison} — the loser holds >= 10 poison counters.</li>
      *   <li>{@code commander_damage} — some commander dealt the loser > 20 combat damage
      *       (checked BEFORE life, since a commander-damage loser is usually alive on life).</li>
      *   <li>{@code lethal_damage} — the loser is at <= 0 life (combat/burn/drain collapse here —
      *       the engine does not retain the discriminator).</li>
-     *   <li>{@code state_loss} — any other rule/effect loss (unpaid Pact, "you lose" effects) —
-     *       the discriminator is not retained, so these collapse honestly.</li>
+     *   <li>{@code state_loss} — any other rule/effect loss (unpaid Pact, "you lose" effects,
+     *       AND a genuine mid-game concession) — the discriminator is not retained, so these
+     *       collapse honestly.</li>
      *   <li>{@code unknown} — ended but the loser matches none of the above (must be rare).</li>
      * </ul>
+     *
+     * <p><b>Why {@code concede} is NOT derivable in 1.4.60 (and MUST be checked last).</b> The
+     * {@code hasLeft()} flag does NOT distinguish a genuine mid-game concession from an ordinary
+     * terminal loss: EVERY loser ends up "left". The chain is
+     * {@code GameImpl.checkStateBasedActions} (life<=0 / empty-library / poison) →
+     * {@code PlayerImpl.lost} → {@code lostForced} (which, since {@code !hasLeft()}, calls
+     * {@code game.setConcedingPlayer(id)} — enqueuing the loser) → {@code GameImpl.checkConcede}
+     * polls the queue → {@code GameImpl.leave(id)} → {@code PlayerImpl.leave()} sets
+     * {@code left=true} (verified in the pinned {@code xmage_1.4.60V3} reactor:
+     * {@code Mage/.../players/PlayerImpl.java} {@code leave()} L2768, {@code lostForced()} L2792,
+     * {@code concede()} L2703; {@code Mage/.../game/GameImpl.java} {@code checkConcede()} L900,
+     * {@code checkStateBasedActions()} L2387, {@code leave(UUID)} L3368). So checking
+     * {@code hasLeft()} FIRST shadowed every real terminal cause (the 1362/1369 "concede" batch).
+     * The substantive end-state — {@code getLife()}, {@code isEmptyDraw()}, poison counters — SURVIVES
+     * {@code leave()} ({@code leave()} clears the library LIST but {@code Library.clear()} does not
+     * reset the {@code emptyDraw} flag, and life/counters are untouched), so it is read FIRST. A
+     * genuine concession leaves NO retained discriminator and honestly collapses to {@code state_loss}.
      */
     private static String deriveEndCause(Game game, Player playerA, Player playerB, boolean timedOut,
             boolean commander) {
@@ -824,9 +841,8 @@ public class XMageBatch {
      *  throws collapses to {@code state_loss} so cause derivation NEVER fails a real result. */
     private static String causeOfLoss(Game game, Player loser, boolean commander) {
         try {
-            if (loser.hasLeft()) {
-                return "concede";
-            }
+            // SUBSTANTIVE causes FIRST — all survive the engine's leave-at-loss (see the class
+            // doc: 1.4.60 marks EVERY loser hasLeft(), so a hasLeft()-first check shadowed these).
             if (loser.getLibrary().isEmptyDraw()) {
                 return "draw_empty_library";
             }
@@ -839,7 +855,9 @@ public class XMageBatch {
             if (loser.getLife() <= 0) {
                 return "lethal_damage";
             }
-            if (loser.hasLost()) {
+            // Any other rule/effect loss — INCLUDING a genuine mid-game concession, which 1.4.60
+            // does not distinguish from an ordinary rule loss (hasLeft() is set for every loser).
+            if (loser.hasLost() || loser.hasLeft()) {
                 return "state_loss";
             }
         } catch (RuntimeException ex) {
