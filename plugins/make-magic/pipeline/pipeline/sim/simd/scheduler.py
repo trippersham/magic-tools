@@ -43,6 +43,21 @@ log = logging.getLogger('make_magic.sim.simd.scheduler')
 __all__ = ('SimdRunResult', 'SimdScheduler')
 
 
+#: The game-index field prefix that marks a dynamically-created top-up replacement task
+#: (``subject|opponent|piloting|topup-<n>``). Originals carry a plain integer index.
+_TOPUP_PREFIX = 'topup-'
+
+
+def _is_topup_id(task_id: str) -> bool:
+    """True iff ``task_id`` is a dynamically-created top-up (its game-index field is ``topup-<n>``).
+
+    Top-ups are minted at runtime (never by ``build_game_tasks``), so a stored top-up absent from a
+    resume's supplied universe is legitimately reconstructed; a stored ORIGINAL absent from it is a
+    universe mismatch (Sol BLOCKER 1) — the caller refuses rather than guessing it is a top-up."""
+    parts = task_id.split('|')
+    return len(parts) == 4 and parts[3].startswith(_TOPUP_PREFIX)
+
+
 def _winner_bucket(winner: str) -> str:
     w = winner.strip().lower()
     if w in ('a', 'subject', 'player_a', 'playera'):
@@ -188,9 +203,25 @@ class SimdScheduler:
         # Resume: reconstruct prior top-up tasks committed to ops.duckdb but ABSENT from the passed
         # task universe (top-ups are created dynamically, never by build_game_tasks). Each is rebuilt
         # from its cell's seat template so a still-pending replacement can re-run identically.
+        #
+        # A stored task absent from the supplied universe is reconstructed ONLY if it is an explicit
+        # top-up (``…|topup-<n>`` id). A stored ORIGINAL absent from the universe is NEVER guessed to
+        # be a top-up (Sol BLOCKER 1): originals are DETERMINISTIC, so an absent one means the task
+        # universe SHRANK/CHANGED under a reused run_id (e.g. ``--games`` reduced, field changed) —
+        # refuse loudly instead of silently retaining stale rows and reporting the run complete. In
+        # production every universe change already yields a fresh content-complete run_id (so those
+        # stale rows are invisible under the new id); this guard is the store-level backstop.
         for tid, (subject, opp, pil, fmt) in ops.load_tasks().items():
             if tid in self._task_by_id:
                 continue  # an original — already registered.
+            if not _is_topup_id(tid):
+                msg = (
+                    f'stored task {tid!r} is absent from the supplied task universe and is NOT a '
+                    'top-up: an original task vanished, so the universe shrank/changed under a reused '
+                    'run_id (games reduced / field changed / deck removed) — mixed-universe resume '
+                    'refused. Use a fresh run_id (or ops file) for a changed task universe.'
+                )
+                raise ValueError(msg)
             key = (subject, opp, pil)
             template = self._cell_template.get(key)
             if template is None:
@@ -306,6 +337,29 @@ class SimdScheduler:
                 return
             self._ops.record_attempt(tid, self._attempts[tid], 'requeue')
             self._retry_or_quarantine_locked(tid, reason='worker died / stall-reaped')
+            self._cond.notify_all()
+
+    def on_halt_reap(self, task: GameTask) -> None:
+        """A disk-HALT reap of an IN-FLIGHT task: persistently NON-CHARGING (Sol HIGH 4 / Fable M3).
+
+        The engine drives this (via :meth:`WorkerPool.close`) for every still-in-flight task when a
+        disk HARD-floor breach halted the run. Unlike :meth:`requeue`, this is reached even on the
+        normal ``close()`` shutdown path (where ``_closing`` suppresses requeue entirely), so it is
+        the ONLY place the persisted dispatch charge is undone. The task's ``dispatch`` attempt row
+        is DELETED from the ops log so a resume restores its FULL attempt budget — the task is
+        healthy; only the disk failed. The task is left NON-TERMINAL (not requeued into this dying
+        run, not quarantined) for a clean re-run on resume. Idempotent against an already-terminal
+        task (a game that completed during the close grace window)."""
+        with self._cond:
+            tid = task.task_id
+            if tid in self._done or tid in self._quarantined:
+                return  # completed (or latched) during the close grace window — nothing to undo.
+            subject = self._subject_of(tid)
+            self._in_flight[subject] = max(0, self._in_flight[subject] - 1)
+            attempt = self._attempts.get(tid, 0)
+            if attempt > 0:
+                self._ops.neutralize_dispatch(tid, attempt)
+                self._attempts[tid] = attempt - 1
             self._cond.notify_all()
 
     # ------------------------------------------------------------------ #

@@ -259,6 +259,55 @@ def test_gate3_disk_halt_requeue_is_non_charging(tmp_path) -> None:
         assert task.task_id not in sched.result().quarantined
 
 
+def test_gate3_engine_halt_reap_neutralizes_dispatch_charge(tmp_path) -> None:
+    """Sol HIGH 4 / Fable M3 on the ENGINE path: a task admitted just before a disk HARD-floor HALT
+    is reaped by ``pool.close()``. Because ``close()`` sets ``_closing`` (suppressing requeue), the
+    engine must hand the in-flight task to the scheduler's NON-CHARGING halt-reap so its persisted
+    ``dispatch`` attempt is neutralized — otherwise the charge survives (attempts=1) and erodes the
+    resume budget of a healthy task. After the run the ops store must show ZERO dispatch attempts:
+    the task retains its FULL budget on resume."""
+    db = tmp_path / 'ops.duckdb'
+    tasks = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 2, fmt='commander')
+    # Probe OK for the first admission, then below the hard floor for the next check → HALT with a
+    # task already in flight (the worker that got it goes silent and holds it through the halt).
+    seq = iter([20.0, 1.0])
+    gov = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: next(seq, 1.0))
+
+    def env_for(_idx: int) -> dict[str, str]:
+        return {'FAKE_SILENT': '1'}  # accept the task, then never emit RESULT (held in flight).
+
+    res = run_games_simd(
+        tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0, ops_db_path=db,
+        disk_governor=gov, attempt_cap=1, env_for_worker=env_for, join_timeout_s=30.0,
+    )
+    assert not res.complete  # incomplete but RETURNED (resumable, no wedge).
+    assert gov.halted
+    # The one in-flight task's dispatch attempt was neutralized — no charged attempts persist, so a
+    # resume restores the FULL attempt budget (with attempt_cap=1 a surviving charge would quarantine
+    # the healthy task on its very first resume dispatch).
+    with OpsStore(db) as ops:
+        assert ops.load_attempts() == {}, ops.load_attempts()
+
+
+def test_gate3_engine_normal_close_still_charges_dispatch(tmp_path) -> None:
+    """Guard the halt-reap is HALT-ONLY: a normal (non-disk) close must NOT neutralize a real
+    dispatch. A poison subject that quarantines charges its attempts as before."""
+    db = tmp_path / 'ops.duckdb'
+    poison = '/d/sa.dck'
+    tasks = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 1, fmt='commander')
+
+    def env_for(_idx: int) -> dict[str, str]:
+        return {'FAKE_DIE_ON_SUBJECT': poison}
+
+    run_games_simd(
+        tasks, worker_cmd=_cmd(), workers=1, stall_timeout_s=30.0, ops_db_path=db,
+        attempt_cap=2, env_for_worker=env_for, join_timeout_s=60.0,
+    )
+    with OpsStore(db) as ops:
+        # No disk halt → real dispatch charges are retained (the poison task burned its cap).
+        assert any(v > 0 for v in ops.load_attempts().values()), ops.load_attempts()
+
+
 def test_gate3_engine_resumable_exit_under_disk_halt(tmp_path) -> None:
     """A HARD disk breach from the start → the run drains and exits RESUMABLE (incomplete, not
     wedged); its ops.duckdb holds whatever committed so a later relaunch can resume. The engine
@@ -471,6 +520,54 @@ def test_reaper_skips_reused_pid_with_mismatched_start_token(tmp_path) -> None:
     reaped = reap_orphan_tree(pf, grace_s=0.1, poll_s=0.01, killpg=fake_killpg, sleep=lambda _s: None)
     assert reaped is None, 'reaped a reused/mismatched pid — identity check failed'
     assert signals == [], f'signalled an unrelated reused pid: {signals}'
+
+
+def test_engine_records_worker_sidecar_with_start_token(tmp_path, monkeypatch) -> None:
+    """Sol HIGH 3 on the ENGINE path: the production worker-spawn callback must record each worker
+    with its per-process START TOKEN (not a bare pgid). A bare record is admitted by group-number
+    liveness alone, so a reused pgid held by an unrelated process could be signalled. Spy the
+    record calls the engine makes and assert every one carries a non-``None`` token."""
+    import pipeline.sim.simd.engine as engine_mod
+
+    recorded: list[tuple[int, str | None]] = []
+    real = engine_mod.record_worker_pgid
+
+    def spy(pidfile: object, pgid: int, *, token: str | None = None) -> None:
+        recorded.append((pgid, token))
+        real(pidfile, pgid, token=token)
+
+    monkeypatch.setattr(engine_mod, 'record_worker_pgid', spy)
+    db = tmp_path / 'ops.duckdb'
+    pidfile = tmp_path / 'simd.pid'
+    tasks = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 1, fmt='commander')
+    run_games_simd(
+        tasks, worker_cmd=_cmd(), workers=1, stall_timeout_s=30.0, ops_db_path=db,
+        pidfile_path=pidfile, join_timeout_s=30.0,
+    )
+    assert recorded, 'the engine recorded no worker sidecar entry'
+    assert all(token is not None for _pgid, token in recorded), \
+        f'a worker was recorded with a BARE pgid (no start token): {recorded}'
+
+
+def test_reaper_skips_reused_worker_pgid_with_mismatched_token(tmp_path) -> None:
+    """The other half of HIGH 3: a tokenized WORKER sidecar entry whose pgid is now held by an
+    unrelated LIVE process (mismatched start token) is never signalled — identity, not the bare
+    pgid, gates the kill. Extends the reviewer's untokened-reused-worker simulation to the tokened
+    record the engine now writes."""
+    pf = tmp_path / 'pid'
+    dead = subprocess.Popen([sys.executable, '-c', ''])
+    dead.wait()  # a dead leader so the reaper acts.
+    pf.write_text(f'{dead.pid} {dead.pid}\n')
+    # Record a worker pgid == our OWN live pid, but with a STALE token (as if a now-dead worker held
+    # it and its pid was recycled by us). The reaper must refuse to signal this live stranger.
+    record_worker_pgid(pf, os.getpid(), token='STALE_WORKER_TOKEN_FROM_DEAD_WORKER')
+
+    signals: list[tuple[int, int]] = []
+    reaped = reap_orphan_tree(
+        pf, grace_s=0.1, poll_s=0.01, killpg=lambda g, s: signals.append((g, s)), sleep=lambda _s: None
+    )
+    assert signals == [], f'signalled a reused worker pgid despite a mismatched token: {signals}'
+    assert reaped is None
 
 
 def test_reaper_leaves_live_leader_with_matching_token_alone(tmp_path) -> None:

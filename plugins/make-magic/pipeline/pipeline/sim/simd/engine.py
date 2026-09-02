@@ -20,6 +20,7 @@ from pipeline.sim.simd.ops_store import DEFAULT_RUN_ID, OpsStore
 from pipeline.sim.simd.preflight import BootFailure
 from pipeline.sim.simd.reaper import (
     SingletonLock,
+    proc_start_token,
     reap_orphan_tree,
     record_worker_pgid,
     remove_worker_pgid,
@@ -143,7 +144,14 @@ def run_games_simd(
             # Workers spawn in their OWN sessions (start_new_session), outside our group — record
             # each worker pgid so our successor's reaper can killpg the whole worker tree if we
             # crash, instead of leaking JVMs until stdin-EOF self-exit (F-2).
-            on_spawn = lambda pid: record_worker_pgid(pidfile_path, pid)  # noqa: E731
+            # Record each worker with its per-process START TOKEN (Sol HIGH 3), not a bare pgid: a
+            # successor reaper verifies the token before signalling, so a reused worker pid/pgid is
+            # never killed. FAIL SAFE — if identity capture fails (``proc_start_token`` → None) we
+            # record the ``'-'`` sentinel, which can NEVER match a live process's real token, so the
+            # reaper refuses to signal that group rather than risk killing an unrelated one.
+            on_spawn = lambda pid: record_worker_pgid(  # noqa: E731
+                pidfile_path, pid, token=proc_start_token(pid) or '-'
+            )
             # And DROP a cleanly-retired worker's pgid from the sidecar so a later crash-reaper
             # never killpg's a pgid that has since been recycled by the OS (stale-sidecar hygiene).
             on_retire = lambda pid: remove_worker_pgid(pidfile_path, pid)  # noqa: E731
@@ -203,7 +211,13 @@ def run_games_simd(
                         if deadline is not None and _time.monotonic() >= deadline:
                             break
             finally:
-                pool.close()
+                # On a disk HARD-floor HALT, hand each still-in-flight task to the scheduler's
+                # NON-CHARGING reap so its persisted dispatch attempt is neutralized (Sol HIGH 4 /
+                # Fable M3) — otherwise the clean-drain close path (``_closing`` set → no requeue)
+                # leaves the dispatch charge persisted and erodes the task's resume budget. On a
+                # normal (non-halt) close no reap callback is passed.
+                halted = sched.disk_halted
+                pool.close(on_halt_reap=sched.on_halt_reap if halted else None)
                 if monitor is not None:
                     monitor.stop()
 

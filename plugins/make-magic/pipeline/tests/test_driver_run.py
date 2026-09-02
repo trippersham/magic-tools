@@ -525,3 +525,118 @@ def test_run_wires_disk_governor_and_boot_backoff(monkeypatch: pytest.MonkeyPatc
     assert isinstance(captured['disk_governor'], DiskGovernor)
     assert isinstance(captured['boot_backoff_base_s'], float)
     assert captured['boot_backoff_base_s'] > 0.0
+
+
+# --------------------------------------------------------------------------- #
+# Sol BLOCKER 1 — CONTENT-COMPLETE run identity at the production entry point.  #
+# run_corpus_queue derives run_id from an immutable manifest of the whole       #
+# science; ANY change (games, field, deck bytes) → a DIFFERENT run_id → a fresh #
+# run whose ops rows never mix with the incompatible prior universe.            #
+# --------------------------------------------------------------------------- #
+
+
+def _capture_corpus_run_id(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    tag: str,
+    subject_names: list[str],
+    opp_names: list[str],
+    games: int,
+    deck_bytes,
+) -> str:
+    """Drive ``run_corpus_queue`` with a fake staging build (real deck files under stage_dir) and a
+    stub engine that captures the ``run_id`` kwarg. Returns the derived run_id."""
+    from types import SimpleNamespace
+
+    import pipeline.sim.simd.engine as engine_mod
+    from pipeline.sim.game_tasks import SeatSpec, build_game_tasks
+
+    monkeypatch.setenv('MAKE_MAGIC_DATA_DIR', str(tmp_path))
+
+    def _fake_build(rows, field, *, games, stage_dir, data_dir=None):  # type: ignore[no-untyped-def]
+        stage = Path(stage_dir)
+        subjects = []
+        for n in subject_names:
+            base = f's_{n}.txt'
+            (stage / base).write_text(deck_bytes(n), encoding='utf-8')
+            subjects.append(SeatSpec(deck_path=base, driver=None))
+        opponents = []
+        for n in opp_names:
+            base = f'o_{n}.txt'
+            (stage / base).write_text(deck_bytes(n), encoding='utf-8')
+            opponents.append(SeatSpec(deck_path=base, driver=None))
+        return build_game_tasks(subjects, opponents, games, fmt='commander')
+
+    monkeypatch.setattr(dr, 'build_corpus_game_tasks', _fake_build)
+    monkeypatch.setattr(dr, 'ingest_queue_transcripts', lambda *a, **k: 0)
+
+    captured: dict[str, str] = {}
+
+    def _fake_simd(tasks, **kw):  # type: ignore[no-untyped-def]
+        captured['run_id'] = kw['run_id']
+        return SimpleNamespace(results={})
+
+    monkeypatch.setattr(engine_mod, 'run_games_simd', _fake_simd)
+    dr.run_corpus_queue(
+        rows=[{'deck_id': 'd'}], field=[], games=games,
+        ops_db_path=tmp_path / f'ops-{tag}.duckdb', worker_cmd=['x'],
+    )
+    return captured['run_id']
+
+
+def _same_bytes(n: str) -> str:
+    return f'99 Forest\n# deck {n}\n'
+
+
+def test_corpus_run_id_stable_for_same_universe_and_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Same universe + same config → the SAME run_id → a resume replays committed state."""
+    kw = {'subject_names': ['sa'], 'opp_names': ['oa'], 'games': 2, 'deck_bytes': _same_bytes}
+    a = _capture_corpus_run_id(monkeypatch, tmp_path, tag='a', **kw)
+    b = _capture_corpus_run_id(monkeypatch, tmp_path, tag='b', **kw)
+    assert a == b and a.startswith('run-')
+
+
+def test_corpus_run_id_changes_when_games_shrinks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Sol's changed-``--games`` repro: a reduced game count is a DIFFERENT universe → new run_id."""
+    two = _capture_corpus_run_id(
+        monkeypatch, tmp_path, tag='g2', subject_names=['sa'], opp_names=['oa'], games=2, deck_bytes=_same_bytes
+    )
+    one = _capture_corpus_run_id(
+        monkeypatch, tmp_path, tag='g1', subject_names=['sa'], opp_names=['oa'], games=1, deck_bytes=_same_bytes
+    )
+    assert two != one
+
+
+def test_corpus_run_id_changes_when_field_changes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A changed opponent field is a different task universe → a different run_id."""
+    base = _capture_corpus_run_id(
+        monkeypatch, tmp_path, tag='f1', subject_names=['sa'], opp_names=['oa'], games=2, deck_bytes=_same_bytes
+    )
+    changed = _capture_corpus_run_id(
+        monkeypatch, tmp_path, tag='f2', subject_names=['sa'], opp_names=['oa', 'ob'], games=2, deck_bytes=_same_bytes
+    )
+    assert base != changed
+
+
+def test_corpus_run_id_changes_on_same_name_different_content(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Same deck BASENAMES but different staged BYTES → a different run_id (content binding, not
+    names): the exact same-name-different-content collision Sol reproduced at the fingerprint level
+    can no longer mix incompatible science under one identity."""
+    v1 = _capture_corpus_run_id(
+        monkeypatch, tmp_path, tag='c1', subject_names=['sa'], opp_names=['oa'], games=2,
+        deck_bytes=lambda n: f'99 Forest\n# v1 {n}\n',
+    )
+    v2 = _capture_corpus_run_id(
+        monkeypatch, tmp_path, tag='c2', subject_names=['sa'], opp_names=['oa'], games=2,
+        deck_bytes=lambda n: f'98 Forest 1 Island\n# v2 {n}\n',  # DIFFERENT bytes, same basenames
+    )
+    assert v1 != v2

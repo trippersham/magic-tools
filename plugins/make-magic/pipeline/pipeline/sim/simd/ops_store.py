@@ -137,19 +137,48 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def _driver_ident(seat: object) -> tuple[str, str] | None:
+def dir_content_digest(path: str | os.PathLike[str]) -> str:
+    """A stable content digest of every file under ``path`` (relative-name + bytes), or a sentinel.
+
+    Binds a fingerprint to the actual BYTES of a directory tree — a driver's compiled ``.class``
+    files, say — so replacing a class under an UNCHANGED classpath busts the fingerprint (the old
+    name-only hash could not see that). A missing/unreadable dir yields the ``'missing'`` sentinel
+    (stable, so a fingerprint over a not-yet-compiled classpath is still deterministic). Never
+    raises — fingerprinting must not break a register/resume path."""
+    from pathlib import Path
+
+    root = Path(path)
+    if not root.is_dir():
+        return 'missing'
+    h = hashlib.sha256()
+    try:
+        for f in sorted(p for p in root.rglob('*') if p.is_file()):
+            h.update(f.relative_to(root).as_posix().encode('utf-8'))
+            h.update(b'\0')
+            h.update(f.read_bytes())
+            h.update(b'\0')
+    except OSError:
+        return 'unreadable'
+    return h.hexdigest()
+
+
+def _driver_ident(seat: object) -> tuple[str, str, str] | None:
     drv = getattr(seat, 'driver', None)
     if drv is None:
         return None
-    return (drv.classpath, drv.fqcn)
+    # classpath + fqcn + a digest of the classpath dir's BYTES: a class swapped under the SAME
+    # classpath path changes the digest (name-only binding could not detect that — Sol BLOCKER 1).
+    return (drv.classpath, drv.fqcn, dir_content_digest(drv.classpath))
 
 
 def task_fingerprint(t: GameTask) -> str:
     """A stable hash binding a task_id to its immutable science: deck basenames + driver
-    classpath/fqcn + format. Staging dirs are relocated every run, so only the deck BASENAME is
-    fingerprinted (the full path is not stable across resumes). Re-registering a task_id whose
-    fingerprint changed means the underlying deck/driver/config was swapped under a reused id —
-    :meth:`OpsStore.register_tasks` refuses that mixed-universe resume.
+    classpath/fqcn/CLASS-BYTES + format. Staging dirs are relocated every run, so only the deck
+    BASENAME is fingerprinted here (the deck's byte content is bound at the run-manifest level,
+    which has the stage dir — see ``driver_run``); the driver's compiled class bytes ARE bound here
+    via :func:`dir_content_digest`. Re-registering a task_id whose fingerprint changed means the
+    underlying deck/driver/config was swapped under a reused id — :meth:`OpsStore.register_tasks`
+    refuses that mixed-universe resume.
     """
     payload = {
         'fmt': t.fmt,
@@ -385,6 +414,20 @@ class OpsStore:
                 'subject = excluded.subject, opponent = excluded.opponent, piloting = excluded.piloting, '
                 'attempts = excluded.attempts, reason = excluded.reason, created_at = excluded.created_at',
                 [self._run_id, task_id, subject, opponent, piloting, attempts, reason, _now()],
+            )
+
+    def neutralize_dispatch(self, task_id: str, attempt: int) -> None:
+        """Delete the ``dispatch`` log row for ``(task_id, attempt)`` — a NON-CHARGING un-dispatch.
+
+        Used when an in-flight task is reaped by a disk HARD-floor HALT (Sol HIGH 4 / Fable M3):
+        the task is healthy — only the disk failed — so its dispatch attempt must not survive to
+        erode the resume budget. Removing the ``dispatch`` row restores the FULL attempt budget on
+        the next :meth:`load_attempts` (which counts ``dispatch`` rows). One atomic statement."""
+        with self._lock:
+            self._conn.execute(
+                'DELETE FROM simd_attempts WHERE run_id = ? AND task_id = ? AND attempt = ? '
+                "AND outcome = 'dispatch'",
+                [self._run_id, task_id, attempt],
             )
 
     # -- reads (replay) ---------------------------------------------------- #

@@ -564,6 +564,98 @@ def default_ops_db_path(data_dir: str | os.PathLike[str] | None = None) -> Path:
     return root / 'sim' / 'driver_run_queue' / 'ops.duckdb'
 
 
+def _task_content_fingerprint(task: Any, stage_dir: Path) -> str:
+    """A content-complete fingerprint of ONE staged task: the BYTES of both staged deck files +
+    the driver's fqcn + a digest of its compiled class-dir bytes. Unlike
+    :func:`~pipeline.sim.simd.ops_store.task_fingerprint` (deck BASENAMES), this binds the actual
+    deck content — the decks are staged right here in ``stage_dir``, so a same-name-different-content
+    swap yields a different fingerprint (Sol BLOCKER 1)."""
+    import hashlib
+
+    from pipeline.sim.simd.ops_store import dir_content_digest
+
+    h = hashlib.sha256()
+    h.update(task.fmt.encode('utf-8'))
+    for seat in (task.seat_a, task.seat_b):
+        h.update(b'\0deck\0')
+        deck_file = stage_dir / seat.deck_path
+        try:
+            h.update(deck_file.read_bytes())
+        except OSError:
+            h.update(b'MISSING')
+        drv = getattr(seat, 'driver', None)
+        h.update(b'\0drv\0')
+        if drv is not None:
+            h.update(drv.fqcn.encode('utf-8'))
+            h.update(b'\0')
+            h.update(dir_content_digest(drv.classpath).encode('utf-8'))
+    return h.hexdigest()
+
+
+def _content_run_id(
+    tasks: Sequence[Any],
+    stage_dir: str | os.PathLike[str],
+    *,
+    games: int,
+    attempt_cap: int,
+    topup_cap: int,
+    bailout_floor_ms: int,
+    data_dir: str | os.PathLike[str] | None = None,
+) -> str:
+    """Derive a CONTENT-COMPLETE run identity from an immutable manifest (Sol BLOCKER 1).
+
+    The run_id is a hash of EVERY input that defines the science: format, games/needed, attempt/
+    top-up caps, bailout floor, the harness + dist jar shas (the runtime that produces the results),
+    and — the universe itself — the sorted ``{task_id: content_fingerprint}`` map (each fingerprint
+    binds the staged deck BYTES + driver class bytes, not names/paths). Same universe + same config
+    → same run_id → a resume replays committed state. ANY change — ``--games`` shrunk, a field deck
+    added/removed, a deck's or driver's bytes swapped, the jar rebuilt — yields a DIFFERENT run_id,
+    so the old run's rows are invisible under the new id and can never mix incompatible science into
+    a nominally-complete result. Config drift within a fixed run_id still raises via the manifest."""
+    import hashlib
+
+    stage = Path(stage_dir)
+    manifest = {
+        'fmt': tasks[0].fmt if tasks else _COMMANDER,
+        'games': games,
+        'attempt_cap': attempt_cap,
+        'topup_cap': topup_cap,
+        'bailout_floor_ms': bailout_floor_ms,
+        'harness_jar': _harness_jar_sha(),
+        'dist_jar': _dist_jar_sha(data_dir),
+        'tasks': {t.task_id: _task_content_fingerprint(t, stage) for t in tasks},
+    }
+    blob = json.dumps(manifest, sort_keys=True, separators=(',', ':'))
+    return 'run-' + hashlib.sha256(blob.encode('utf-8')).hexdigest()[:24]
+
+
+def _harness_jar_sha() -> str:
+    """The committed XMage harness jar's content sha (``'unknown'`` if unresolvable) — a harness
+    rebuild busts the run identity so results from a different harness never resume-mix."""
+    try:
+        from pipeline.sim.engines import xmage as xe
+
+        return xe._harness_jarhash()
+    except Exception:
+        return 'unknown'
+
+
+def _dist_jar_sha(data_dir: str | os.PathLike[str] | None) -> str:
+    """The cached XMage dist jar's content sha if resolvable, else ``'unknown'`` (never raises) — a
+    dist-jar swap busts the run identity."""
+    import hashlib
+
+    try:
+        from pipeline.sim import xmage_runtime as xr
+
+        dist_jar = xr._dist_dir(data_dir) / xr._DIST_JAR_NAME
+        if dist_jar.is_file() and dist_jar.stat().st_size > 0:
+            return hashlib.sha256(dist_jar.read_bytes()).hexdigest()[:16]
+    except Exception:
+        return 'unknown'
+    return 'unknown'
+
+
 def run_corpus_queue(
     *,
     rows: Sequence[dict[str, Any]],
@@ -648,12 +740,26 @@ def run_corpus_queue(
                 if worker_cmd is not None
                 else resolve_worker_cmd(log_dir=log_dir, data_dir=data_dir, decks_dir=stage_dir)
             )
+            # CONTENT-COMPLETE run identity (Sol BLOCKER 1): derive the run_id from an immutable
+            # manifest of the whole science (games, task universe, staged deck bytes, driver class
+            # bytes, caps, bailout floor, harness/dist jar shas). Same universe+config → same run_id
+            # → a resume replays committed state; ANY change → a DIFFERENT run_id → a fresh run whose
+            # ops.duckdb rows never mix with the incompatible prior universe. The attempt/top-up caps
+            # baked into the id are the ones passed to run_games_simd below (its defaults).
+            attempt_cap, topup_cap = 2, 2
+            run_id = _content_run_id(
+                tasks, stage_dir, games=games, attempt_cap=attempt_cap, topup_cap=topup_cap,
+                bailout_floor_ms=BAILOUT_HARD_FLOOR_MS, data_dir=data_dir,
+            )
             result = run_games_simd(
                 tasks,
                 worker_cmd=cmd,
                 ops_db_path=ops_db,
                 stall_timeout_s=stall_timeout_s,
                 monitor=monitor,
+                attempt_cap=attempt_cap,
+                topup_cap=topup_cap,
+                run_id=run_id,
                 # Arm the plausibility gate on the production path: sub-2s "wins" are engine bailouts
                 # (audit) → non-decisive, excluded from W/L, surfaced in coverage.
                 bailout_floor_ms=BAILOUT_HARD_FLOOR_MS,

@@ -177,8 +177,21 @@ class WorkerPool:
                 self._retired.wait(timeout=remaining)
             return True
 
-    def close(self, grace_s: float = 5.0) -> None:
-        """Stop feeding, let in-flight games finish (bounded), then reap + join. No orphans."""
+    def close(
+        self,
+        grace_s: float = 5.0,
+        *,
+        on_halt_reap: Callable[[GameTask], None] | None = None,
+    ) -> None:
+        """Stop feeding, let in-flight games finish (bounded), then reap + join. No orphans.
+
+        ``on_halt_reap`` (set by the engine ONLY on a disk HARD-floor HALT) is invoked once per
+        still-in-flight task BEFORE it is signal-killed, so the scheduler can NON-CHARGINGLY
+        neutralize that task's persisted dispatch attempt (Sol HIGH 4 / Fable M3). Without it the
+        clean-drain exit path (``_closing`` set → no requeue) leaves the dispatch charge persisted,
+        eroding the resume budget of a task that only failed because the disk did. A task that
+        completed during the grace window above has already cleared its ``in_flight`` and is skipped.
+        """
         self._closing.set()
         deadline = time.monotonic() + grace_s
         # Give in-flight workers a bounded window to finish and exit on their own.
@@ -186,6 +199,16 @@ class WorkerPool:
             while self._live > 0 and time.monotonic() < deadline:
                 self._retired.wait(timeout=max(0.0, deadline - time.monotonic()))
             workers = list(self._workers)
+        # HALT non-charging reap (M3): before killing, report each still-in-flight task through the
+        # explicit non-attempt path so its persisted dispatch charge is neutralized (a resume then
+        # restores the full attempt budget). Only on the disk-HALT close; the normal close passes None.
+        if on_halt_reap is not None:
+            for w in workers:
+                with w.lock:
+                    held = w.in_flight
+                if held is not None:
+                    with contextlib.suppress(Exception):
+                        on_halt_reap(held)
         # Reap anything still alive (own-lineage), then join reader threads.
         # Signal-only: the worker's own reader thread owns draining + wait() (MAJOR-1).
         for w in workers:

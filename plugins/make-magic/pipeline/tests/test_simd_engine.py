@@ -19,6 +19,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 from pipeline.sim.game_protocol import GameResult
 from pipeline.sim.game_tasks import SeatSpec, build_game_tasks, cell_key
 from pipeline.sim.simd.engine import SimdRunResult, run_games_simd
@@ -76,6 +78,46 @@ def test_ops_store_quarantine_persists(tmp_path) -> None:
         ops.quarantine(tid, s, o, p, attempts=2, reason='poison')
     with OpsStore(db) as ops2:
         assert ops2.load_quarantine() == {tid}
+
+
+# --------------------------------------------------------------------------- #
+# Sol BLOCKER 1 — a SHRUNK/CHANGED task universe under a reused run_id is REFUSED,
+# never silently reconstructed as top-ups (which reported a mixed run "complete").
+# --------------------------------------------------------------------------- #
+
+
+def test_scheduler_refuses_shrunk_universe_with_absent_original(tmp_path) -> None:
+    """Sol's changed-``--games`` repro at the store level: a 2-game universe is committed, then a
+    1-game universe (the ``|1`` originals now ABSENT) is resumed under the SAME run_id. The absent
+    originals must NOT be guessed to be top-ups (which retained stale rows and reported complete) —
+    the mismatch is refused loudly so a fresh run_id (production's content-complete id) is required.
+    """
+    db = tmp_path / 'ops.duckdb'
+    big = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 2, fmt='commander')  # ids …|0, …|1
+    with OpsStore(db) as ops:
+        ops.register_tasks(big)
+        small = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 1, fmt='commander')  # only …|0
+        with pytest.raises(ValueError, match='absent from the supplied task universe'):
+            SimdScheduler(small, ops=ops)
+
+
+def test_scheduler_resumes_stored_topups_but_not_absent_originals(tmp_path) -> None:
+    """A stored TOP-UP absent from the supplied universe IS reconstructed (top-ups are minted at
+    runtime, never by build_game_tasks); only absent ORIGINALS are refused. Proves the guard keys on
+    the explicit ``topup-`` id, not merely on presence in the supplied list."""
+    db = tmp_path / 'ops.duckdb'
+    tasks = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 1, fmt='commander')
+    subject, opp, pil = cell_key(tasks[0])
+    topup_id = '|'.join((subject, opp, pil, 'topup-0'))
+    topup = SeatSpec(deck_path=_sid('sa'), driver=None)  # any seat; id carries the cell
+    from pipeline.sim.game_tasks import GameTask
+
+    stored_topup = GameTask(task_id=topup_id, fmt='commander', seat_a=topup, seat_b=_seat('oa'))
+    with OpsStore(db) as ops:
+        ops.register_tasks([*tasks, stored_topup])  # commit the original + a runtime top-up
+        # Resume with ONLY the originals: the stored top-up is reconstructed, no refusal.
+        sched = SimdScheduler(tasks, ops=ops)
+        assert topup_id in sched.result().task_ids
 
 
 # --------------------------------------------------------------------------- #
