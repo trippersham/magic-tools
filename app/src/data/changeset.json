@@ -1,0 +1,53 @@
+{
+  "schema": "v2",
+  "adds": [
+    { "name": "Tome of Legends", "cut": "Silent Arbiter", "reason": "Repeatable draw — page counter whenever a commander enters or attacks. Fills the #1 gap (0 repeatable draw)." },
+    { "name": "Goldvein Pick", "cut": "Exploding Barrel", "reason": "+1/+1 and a Treasure on combat damage — repeatable ramp/advantage off your evasive carrier." },
+    { "name": "With Great Power . . .", "cut": "Gold Myr", "reason": "+2/+2 for EACH aura/equipment attached — the literal Ardenn mass-attach payoff; scales the one-shot kill. Also completes a soft-lock with Anti-Venom." },
+    { "name": "Twinblade Blessing", "cut": "Iron Myr", "reason": "Flash double strike — doubles commander damage on the loaded carrier; Ardenn can relocate it." },
+    { "name": "Hero's Blade", "cut": "Serum Tank", "reason": "+3/+2 and auto-attaches free whenever a legendary enters — your commanders trigger it." },
+    { "name": "Gift of Immortality", "cut": "Fanatical Devotion", "reason": "True recursion — the carrier dies and returns. Fills the no-recursion Losing hole." },
+    { "name": "Holy Mantle", "cut": "Indomitable Will", "reason": "+2/+2 and protection from creatures — unblockable-by-creatures plus dodges creature removal. Evasion + protection in one." },
+    { "name": "Samwise the Stouthearted", "cut": "Chimeric Coils", "reason": "Flash-return a permanent that died this turn (including Equipment) — an instant-speed save for a killed carrier or blown-up artifact." },
+    { "name": "Together Forever", "cut": "Hawkeye's Bow", "reason": "Repeatable recursion engine — return a creature each turn. Grind insurance." },
+    { "name": "Super Speed", "cut": "Kyoshi Battle Fan", "reason": "{R} flash Aura granting first strike — cheap combat trick / toolbox piece, and an Aura for With Great Power. Replaced Squire's Lightblade (physical copy not found)." },
+    { "name": "Vibranium Energy Daggers", "cut": "Coldsteel Heart", "reason": "Indestructible +2/+2 stat-stick — survives board wipes and turns Dead-Iron Sledge one-sided; Ardenn can shuffle it between carriers." },
+    { "name": "Spirited Companion", "cut": "Pteron Ghost", "reason": "Enchantment-creature body with ETB draw — replaces itself and is an extra attach target." },
+    { "name": "Errand-Rider of Gondor", "cut": "Quiet Purity", "reason": "{2}{W} ETB draw a card — with your commanders on the board there's no downside; a body that refills the hand. Replaced Inspiring Overseer (physical copy not found)." },
+    { "name": "Hero in Training", "cut": "Terashi's Verdict", "reason": "{2}{W} ETB draw a card (+2 life with another Hero) — immediate card advantage. Replaced Novice Inspector (physical copy not found)." },
+    { "name": "Swiftfoot Boots", "cut": "Leonin Scimitar", "reason": "Hexproof + haste — cheap, reusable carrier protection, replacing a vanilla +1/+1 stick." },
+    { "name": "The Black Arrow", "cut": "Soul Nova", "reason": "Flash equip +1/+1 with an ETB ping — a cheaper, flexible interactive equip / attach target vs mv5 removal." },
+    { "name": "Sol Ring", "cut": "Shadowfax, Lord of Horses", "reason": "The format's best accelerant ({1} → {C}{C}) — deploys the equipment toolbox a full turn early, the Development axis a low-curve voltron deck most wants. Owned (avail 5); replaced Evolving Wilds after the physical copy couldn't be found." },
+    { "name": "Anti-Venom, Horrifying Healer", "cut": "Meteor Sword", "reason": "Recursion body (ETB: return a creature card from your graveyard) — fills the Losing/recursion gap. Also completes a soft-lock with With Great Power (all damage to you redirects to Anti-Venom, who prevents it and grows). On-color, owned; replaces the mv7 curve outlier." }
+  ],
+  "drops": [
+    { "name": "Silent Arbiter", "reason": "Anti-synergy stax — caps you to one attacker, kills Moraug's extra combats. A stated does-not-want." },
+    { "name": "Exploding Barrel", "reason": "Durdly {8} one-shot removal on a slow rock." },
+    { "name": "Fanatical Devotion", "reason": "Regeneration needs a sac-fodder board this deck doesn't build; Anti-Venom / Gift of Immortality do the recursion job better." },
+    { "name": "Indomitable Will", "reason": "Vanilla +1/+2 aura — no evasion or protection." },
+    { "name": "Chimeric Coils", "reason": "Marginal {1} mana-sink ({X}{1}: become an X/X, then sac) — off the voltron axis. (This is the card the Airtable record was drifted on; now reconciled and cut.)" },
+    { "name": "Hawkeye's Bow", "reason": "Marginal +1/+0 reach pinger." },
+    { "name": "Kyoshi Battle Fan", "reason": "Makes a 1/1 token — off the single-carrier plan." },
+    { "name": "Pteron Ghost", "reason": "Narrow 1/1 sac-to-regenerate filler." },
+    { "name": "Quiet Purity", "reason": "Dead-narrow — destroy enchantment only." },
+    { "name": "Terashi's Verdict", "reason": "Narrow — attacker with power 3 or less." },
+    { "name": "Shadowfax, Lord of Horses", "reason": "Benched — NOT an extra-combat engine (I mislabeled it). It only cheats one power-≤3 creature into the attack, AFTER Ardenn's begin-combat attach window, so it comes in naked; 'Horses have haste' is dead (no other Horses); mv5 off-axis. Cut for Sol Ring." },
+    { "name": "Meteor Sword", "reason": "mv7 Equipment — the single worst curve outlier in a low-curve deck; almost never hard-cast." },
+    { "name": "Soul Nova", "reason": "mv5 removal — redundant in a 17-piece removal suite; trimming the most expensive one costs nothing." },
+    { "name": "Leonin Scimitar", "reason": "mv1 +1/+1 vanilla equip — pure filler now that Hero's Blade, Goldvein Pick, and Vibranium Energy Daggers are joining." },
+    { "name": "Gold Myr", "reason": "2-mana W mana dork — the mana base is healthy at 36 lands, so dead ramp that dies to any wipe. Cut to fund keeping Chimil/Slagwurm/Dead-Iron/Myr Retriever." },
+    { "name": "Iron Myr", "reason": "2-mana R mana dork — same: redundant ramp with a healthy land base." },
+    { "name": "Serum Tank", "reason": "mv3 charge-counter draw engine — far too slow ({3}{T}, remove a counter for one card). Durdle off-plan." },
+    { "name": "Coldsteel Heart", "reason": "mv2 enters-tapped rock — redundant fixing the deck doesn't need with 36 lands." }
+  ],
+  "considerations": [
+    { "name": "Web-Shooters", "reason": "Taps a blocker on attack (pseudo-evasion) + reach — marginal against tighter equipment slots." },
+    { "name": "Whispersilk Cloak", "reason": "Unblockable + shroud — strong carrier tech; held only because protection/evasion is already covered (Holy Mantle, Vibranium, Swiftfoot)." },
+    { "name": "Talisman of Conviction", "reason": "RW mana rock — deprioritized once we confirmed the mana base is healthy at 36 lands." },
+    { "name": "Fellwar Stone", "reason": "Cheap any-color rock — same ramp-not-needed reason." },
+    { "name": "Arcane Signet", "reason": "2-mana any-color rock — ramp deprioritized." },
+    { "name": "Ragged Short Spear", "reason": "Discard-to-draw-two + 2/0 — card filtering stapled to an equip." },
+    { "name": "Crown of Fury", "reason": "First strike + sacrifice-for-a-swing — niche combat trick." },
+    { "name": "Forgotten Cave", "reason": "Cycling land / flood insurance — deprioritized (land base healthy)." }
+  ]
+}

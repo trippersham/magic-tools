@@ -1,0 +1,161 @@
+---
+import { stats, delta, CURVE_BUCKETS, type Stats, type StatsDelta } from '../lib/metadata';
+import type { TaggedCard } from '../lib/types';
+
+interface Props {
+  current: TaggedCard[];
+  proposed: TaggedCard[];
+  adds: TaggedCard[];
+  drops: TaggedCard[];
+}
+const { current, proposed, adds, drops } = Astro.props;
+
+const cur = stats(current);
+const prop = stats(proposed);
+const net = delta(cur, prop);
+const addStats = stats(adds);
+const dropStats = stats(drops);
+
+const PIP_ORDER = ['W', 'U', 'B', 'R', 'G', 'C'] as const;
+const PIP_LABEL: Record<string, string> = { W: 'W', U: 'U', B: 'B', R: 'R', G: 'G', C: 'C' };
+
+function sign(n: number): string {
+  const r = Math.round(n * 100) / 100;
+  return r > 0 ? `+${r}` : `${r}`;
+}
+function maxCurve(...ss: Stats[]): number {
+  let m = 1;
+  for (const s of ss) for (const b of CURVE_BUCKETS) m = Math.max(m, s.curve[b] ?? 0);
+  return m;
+}
+
+// A negated stats view for the drops-only (subtractive) panel.
+function negate(s: Stats): StatsDelta {
+  const curve: Record<string, number> = {};
+  for (const b of CURVE_BUCKETS) curve[b] = -(s.curve[b] ?? 0);
+  const pips = { W: -s.pips.W, U: -s.pips.U, B: -s.pips.B, R: -s.pips.R, G: -s.pips.G, C: -s.pips.C };
+  const typeCounts: Record<string, number> = {};
+  for (const k of Object.keys(s.typeCounts)) typeCounts[k] = -s.typeCounts[k];
+  return { curve, pips, typeCounts, landCount: -s.landCount, avgCmc: -s.avgCmc, total: -s.total };
+}
+// Additive view for adds-only.
+function positive(s: Stats): StatsDelta {
+  return { ...s, avgCmc: s.avgCmc } as unknown as StatsDelta;
+}
+
+const curveMax = maxCurve(cur, prop);
+const panels = ['all', 'current', 'proposed', 'adds', 'drops', 'changes'] as const;
+---
+
+<section class="metadata-band mb-4 rounded-lg border border-zinc-700 bg-zinc-900/60 p-3">
+  {/* ALL — before/after + delta */}
+  <div data-panel="all" class="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+    <div>
+      <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">Current</h3>
+      <dl class="stat-grid">
+        <div><dt>Cards</dt><dd>{cur.total}</dd></div>
+        <div><dt>Lands</dt><dd>{cur.landCount}</dd></div>
+        <div><dt>Avg CMC</dt><dd>{cur.avgCmc}</dd></div>
+      </dl>
+      <div class="curve mt-2">
+        {CURVE_BUCKETS.map((b) => (
+          <div class="curve-col">
+            <div class="bar bg-zinc-500" style={`height:${((cur.curve[b] ?? 0) / curveMax) * 56}px`}></div>
+            <span class="clabel">{b}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div>
+      <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-400">Proposed</h3>
+      <dl class="stat-grid">
+        <div><dt>Cards</dt><dd>{prop.total}</dd></div>
+        <div><dt>Lands</dt><dd>{prop.landCount}</dd></div>
+        <div><dt>Avg CMC</dt><dd>{prop.avgCmc}</dd></div>
+      </dl>
+      <div class="curve mt-2">
+        {CURVE_BUCKETS.map((b) => (
+          <div class="curve-col">
+            <div class="bar bg-emerald-500" style={`height:${((prop.curve[b] ?? 0) / curveMax) * 56}px`}></div>
+            <span class="clabel">{b}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div class="delta-col">
+      <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">Δ</h3>
+      <dl class="stat-grid">
+        <div><dt>Cards</dt><dd class={net.total >= 0 ? 'pos' : 'neg'}>{sign(net.total)}</dd></div>
+        <div><dt>Lands</dt><dd class={net.landCount >= 0 ? 'pos' : 'neg'}>{sign(net.landCount)}</dd></div>
+        <div><dt>Avg CMC</dt><dd class={net.avgCmc >= 0 ? 'pos' : 'neg'}>{sign(net.avgCmc)}</dd></div>
+      </dl>
+      <div class="pips mt-2">
+        {PIP_ORDER.map((p) => net.pips[p] !== 0 && (
+          <span class={`pip ${net.pips[p] >= 0 ? 'pos' : 'neg'}`}>{PIP_LABEL[p]} {sign(net.pips[p])}</span>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  {/* Absolute panels: current, proposed */}
+  {[['current', cur, 'Current deck'], ['proposed', prop, 'Proposed deck']].map(([key, s, label]) => (
+    <div data-panel={key} hidden>
+      <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">{label}</h3>
+      <div class="flex flex-wrap items-end gap-6">
+        <dl class="stat-grid">
+          <div><dt>Cards</dt><dd>{(s as Stats).total}</dd></div>
+          <div><dt>Lands</dt><dd>{(s as Stats).landCount}</dd></div>
+          <div><dt>Avg CMC</dt><dd>{(s as Stats).avgCmc}</dd></div>
+        </dl>
+        <div class="curve">
+          {CURVE_BUCKETS.map((b) => (
+            <div class="curve-col">
+              <div class="bar bg-zinc-500" style={`height:${(((s as Stats).curve[b] ?? 0) / curveMax) * 56}px`}></div>
+              <span class="clabel">{b}</span>
+            </div>
+          ))}
+        </div>
+        <div class="pips">
+          {PIP_ORDER.map((p) => (s as Stats).pips[p] > 0 && (
+            <span class="pip">{PIP_LABEL[p]} {(s as Stats).pips[p]}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  ))}
+
+  {/* Delta panels: adds (additive), drops (subtractive), changes (net) */}
+  {([
+    ['adds', positive(addStats), 'Adds — additive contribution'],
+    ['drops', negate(dropStats), 'Drops — subtractive contribution'],
+    ['changes', net, 'All changes — net delta'],
+  ] as const).map(([key, d, label]) => (
+    <div data-panel={key} hidden>
+      <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">{label}</h3>
+      <div class="flex flex-wrap items-end gap-6">
+        <dl class="stat-grid">
+          <div><dt>Cards</dt><dd class={d.total >= 0 ? 'pos' : 'neg'}>{sign(d.total)}</dd></div>
+          <div><dt>Lands</dt><dd class={d.landCount >= 0 ? 'pos' : 'neg'}>{sign(d.landCount)}</dd></div>
+          <div><dt>Avg CMC</dt><dd class={d.avgCmc >= 0 ? 'pos' : 'neg'}>{sign(d.avgCmc)}</dd></div>
+        </dl>
+        <div class="curve">
+          {CURVE_BUCKETS.map((b) => {
+            const v = d.curve[b] ?? 0;
+            const h = (Math.abs(v) / curveMax) * 56;
+            return (
+              <div class="curve-col">
+                <div class={`bar ${v >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`} style={`height:${h}px`}></div>
+                <span class="clabel">{b}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div class="pips">
+          {PIP_ORDER.map((p) => d.pips[p] !== 0 && (
+            <span class={`pip ${d.pips[p] >= 0 ? 'pos' : 'neg'}`}>{PIP_LABEL[p]} {sign(d.pips[p])}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  ))}
+</section>

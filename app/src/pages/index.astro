@@ -1,0 +1,215 @@
+---
+import '../styles/global.css';
+import Card from '../components/Card.astro';
+import MetadataBand from '../components/MetadataBand.astro';
+import { toColumns } from '../lib/grouping';
+import type { EnrichedData, TaggedCard, Membership } from '../lib/types';
+import enrichedData from '../data/enriched.json';
+
+const data = enrichedData as unknown as EnrichedData;
+const dropSet = new Set(data.changeset.drops);
+
+// Tag every card with its baseline diff membership. Reasons/prices ride along
+// on each enriched card and are surfaced by the floating info pane.
+const deckTagged: TaggedCard[] = data.deck.map((c) => ({
+  ...c,
+  membership: (dropSet.has(c.name) ? 'drop' : 'untouched') as Membership,
+}));
+const addsTagged: TaggedCard[] = data.adds.map((c) => ({ ...c, membership: 'add' as Membership }));
+const considTagged: TaggedCard[] = (data.considerations ?? []).map((c) => ({
+  ...c,
+  membership: 'consideration' as Membership,
+}));
+
+const untouched = deckTagged.filter((c) => c.membership === 'untouched');
+const drops = deckTagged.filter((c) => c.membership === 'drop');
+const adds = addsTagged;
+
+// Superset rendered once (deck + adds); the client script filters per view.
+const superset: TaggedCard[] = [...untouched, ...drops, ...adds];
+const columns = toColumns(superset);
+const considColumns = toColumns(considTagged);
+
+const current = [...untouched, ...drops];
+const proposed = [...untouched, ...adds];
+
+const VIEWS = [
+  ['all', 'All'],
+  ['current', 'Current'],
+  ['proposed', 'Proposed'],
+  ['adds', 'Adds'],
+  ['drops', 'Drops'],
+  ['changes', 'Changes'],
+] as const;
+
+const deckName = 'Ardenn + Rográkh';
+
+// Column header counts are quantity-weighted so a basic-land pile (Plains x15)
+// counts as 15, not one tile.
+const colQty = (cards: TaggedCard[]) => cards.reduce((a, c) => a + (c.qty ?? 1), 0);
+
+// Slim per-card stat data for the client-side live metadata band (recomputed on
+// every curation change). Covers deck + adds + considerations.
+const cardsData = [...deckTagged, ...addsTagged, ...considTagged].map((c) => ({
+  name: c.name,
+  qty: c.qty,
+  cmc: c.cmc,
+  mana_cost: c.mana_cost ?? null,
+  type_line: c.type_line,
+}));
+
+// Baseline the client store keys off (deck name + hash of this changeset).
+const baseline = {
+  deckName,
+  changeset: {
+    adds: data.changeset.adds,
+    drops: data.changeset.drops,
+    considerations: data.changeset.considerations ?? [],
+  },
+};
+---
+
+<html lang="en" data-active-view="all" data-mode="image" data-density="art">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Deck Diff — {deckName}</title>
+  </head>
+  <body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
+    <div class="mx-auto max-w-[1600px] px-4 py-6">
+      <header class="mb-4 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight">{deckName}</h1>
+          <p class="text-sm text-zinc-400">
+            Proposed refinement — <span class="text-red-400">{drops.length} drops</span> /
+            <span class="text-emerald-400">{adds.length} adds</span> /
+            <span class="text-zinc-300">{considTagged.length} considerations</span>. Hover for
+            details; drag a card to re-tag it.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-4">
+          <div class="segmented" role="group" aria-label="Group by">
+            <button type="button" data-group-btn="type" class="seg-btn is-active">Type</button>
+            <button type="button" data-group-btn="color" class="seg-btn">Color</button>
+          </div>
+          <div class="segmented" role="group" aria-label="Density">
+            <button type="button" data-density-btn="art" class="seg-btn is-active">Art</button>
+            <button type="button" data-density-btn="compact" class="seg-btn">Compact</button>
+          </div>
+          <label class="flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
+            <input type="checkbox" data-text-toggle class="accent-emerald-500" />
+            Text view
+          </label>
+          <button type="button" data-export class="action-btn">Export curation</button>
+          <button type="button" data-reset class="action-btn action-btn-ghost">Reset to proposed</button>
+        </div>
+      </header>
+
+      <nav class="segmented mb-4" aria-label="View switcher">
+        {
+          VIEWS.map(([key, label]) => (
+            <button type="button" data-view-btn={key} aria-pressed={key === 'all'} class="seg-btn">
+              {label}
+            </button>
+          ))
+        }
+      </nav>
+
+      <MetadataBand current={current} proposed={proposed} adds={adds} drops={drops} />
+
+      {/* Image stacks view */}
+      <div class="stacks-view flex flex-wrap items-start gap-5">
+        {
+          columns.map((col) => (
+            <section class="column" data-column={col.group}>
+              <h2 class="column-title">
+                {col.group} <span class="count">{colQty(col.cards)}</span>
+              </h2>
+              <div class="stack">
+                {col.cards.map((card) => (
+                  <Card card={card} />
+                ))}
+              </div>
+            </section>
+          ))
+        }
+      </div>
+
+      {/* Considerations — evaluated but not proposed; source pool for drag-to-add. */}
+      {
+        considTagged.length > 0 && (
+          <section class="considerations-section mt-8" data-considerations>
+            <h2 class="section-heading">
+              Considerations
+              <span class="section-sub">owned & evaluated — not proposed</span>
+            </h2>
+            <div class="stacks-view flex flex-wrap items-start gap-5">
+              {considColumns.map((col) => (
+                <section class="column" data-column={col.group}>
+                  <h2 class="column-title">
+                    {col.group} <span class="count">{colQty(col.cards)}</span>
+                  </h2>
+                  <div class="stack">
+                    {col.cards.map((card) => (
+                      <Card card={card} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </section>
+        )
+      }
+
+      {/* Text view */}
+      <div class="text-view">
+        {
+          columns.map((col) => (
+            <section class="text-column" data-column={col.group}>
+              <h2 class="column-title">
+                {col.group} <span class="count">{colQty(col.cards)}</span>
+              </h2>
+              <ul>
+                {col.cards.map((card) => (
+                  <li class={`text-row ${card.membership}`} data-membership={card.membership}>
+                    <span class="tr-qty">{card.qty > 1 ? `${card.qty}×` : ''}</span>
+                    <span class="tr-name">{card.name}</span>
+                    <span class="tr-cost">{card.mana_cost ?? ''}</span>
+                    <span class="tr-cmc">{card.cmc}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))
+        }
+      </div>
+    </div>
+
+    {/* Floating info pane (v2.3) — one at a time, positioned by the client. */}
+    <div id="info-pane" hidden role="tooltip">
+      <div class="ip-reason"></div>
+      <div class="ip-cost">
+        <span class="ip-mana"></span>
+        <span class="ip-price"></span>
+      </div>
+    </div>
+
+    {/* Drag donut (v2.6) — rendered/positioned by drag.ts on drag start. */}
+    <div id="drag-donut" hidden aria-hidden="true"></div>
+
+    {/* Note input popover (v2.6 annotate) */}
+    <div id="note-popover" hidden>
+      <label class="np-label">Note</label>
+      <textarea class="np-input" rows="3" placeholder="Add a note or question…"></textarea>
+      <div class="np-actions">
+        <button type="button" class="np-save action-btn">Save</button>
+        <button type="button" class="np-cancel action-btn action-btn-ghost">Cancel</button>
+      </div>
+    </div>
+
+    <script type="application/json" id="baseline-data" set:html={JSON.stringify(baseline)}></script>
+    <script type="application/json" id="cards-data" set:html={JSON.stringify(cardsData)}></script>
+
+    <script src="../scripts/main.ts"></script>
+  </body>
+</html>

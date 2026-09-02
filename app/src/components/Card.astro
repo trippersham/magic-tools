@@ -1,0 +1,56 @@
+---
+import type { TaggedCard } from '../lib/types';
+interface Props {
+  card: TaggedCard;
+}
+const { card } = Astro.props;
+function borderOf(m: string): string {
+  if (m === 'add') return 'add';
+  if (m === 'drop') return 'drop';
+  if (m === 'consideration') return 'consideration';
+  return 'neutral';
+}
+const borderClass = borderOf(card.membership);
+---
+
+<div
+  class={`card ${borderClass} relative`}
+  data-membership={card.membership}
+  data-name={card.name}
+  data-qty={card.qty}
+  data-cmc={card.cmc}
+  data-colors={(card.colors ?? []).join(',')}
+  data-type-line={card.type_line}
+  data-role={card.role ?? ''}
+  data-reason={card.reason ?? ''}
+  data-usd={card.usd == null ? '' : String(card.usd)}
+  data-mana-cost={card.mana_cost ?? ''}
+  data-cut={card.cut ?? ''}
+  title={card.name}
+>
+  {
+    card.qty > 1 && (
+      <span class="qty-badge absolute left-1 top-1 z-10 rounded bg-black/85 px-1.5 py-0.5 text-xs font-bold text-white ring-1 ring-white/25">
+        ×{card.qty}
+      </span>
+    )
+  }
+  <span class="state-chip" aria-hidden="true"></span>
+  {
+    card.image_normal ? (
+      <img
+        class="card-img"
+        src={card.image_normal}
+        alt={card.name}
+        loading="lazy"
+        width="488"
+        height="680"
+        draggable="false"
+      />
+    ) : (
+      <div class="card-img flex aspect-[488/680] items-center justify-center bg-zinc-800 p-2 text-center text-xs text-zinc-300">
+        {card.name}
+      </div>
+    )
+  }
+</div>
