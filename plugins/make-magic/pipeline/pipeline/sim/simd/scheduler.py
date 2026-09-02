@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING
 
 from pipeline.sim.aggregate import Validity, classify_validity, is_concede, is_fast_game
 from pipeline.sim.game_protocol import GameError, GameResult
-from pipeline.sim.game_tasks import GameTask, cell_key
+from pipeline.sim.game_tasks import GameTask, cell_key, starter_for_index
 from pipeline.sim.simd.governor import Admission
 
 if TYPE_CHECKING:
@@ -56,6 +56,21 @@ def _is_topup_id(task_id: str) -> bool:
     universe mismatch (Sol BLOCKER 1) — the caller refuses rather than guessing it is a top-up."""
     parts = task_id.split('|')
     return len(parts) == 4 and parts[3].startswith(_TOPUP_PREFIX)
+
+
+def _starter_of_id(task_id: str) -> str:
+    """The deterministic first-turn seat for a task_id (original OR top-up).
+
+    An original's 4th field is the integer game index; a top-up's is ``topup-<ordinal>``. Both use
+    the SAME parity rule (:func:`starter_for_index`) so a reconstructed top-up on resume rebinds to
+    the identical starter it was created with — even index/ordinal → A, odd → B. A malformed field
+    falls back to the legacy 'A' (subject on the play), never raising in the resume path."""
+    field = task_id.split('|')[3]
+    ordinal = field[len(_TOPUP_PREFIX) :] if field.startswith(_TOPUP_PREFIX) else field
+    try:
+        return starter_for_index(int(ordinal))
+    except ValueError:
+        return 'A'
 
 
 def _winner_bucket(winner: str) -> str:
@@ -227,7 +242,8 @@ class SimdScheduler:
             if template is None:
                 continue  # a top-up for a cell not in this run's universe — skip (out of scope).
             self._task_by_id[tid] = GameTask(
-                task_id=tid, fmt=fmt, seat_a=template.seat_a, seat_b=template.seat_b
+                task_id=tid, fmt=fmt, seat_a=template.seat_a, seat_b=template.seat_b,
+                starter=_starter_of_id(tid),
             )
             self._cells[key].topups += 1
 
@@ -420,7 +436,10 @@ class SimdScheduler:
         template = self._cell_template[key]
         new_id = '|'.join((subject, opp, pil, f'topup-{cell.topups}'))
         task = GameTask(
-            task_id=new_id, fmt=template.fmt, seat_a=template.seat_a, seat_b=template.seat_b
+            task_id=new_id, fmt=template.fmt, seat_a=template.seat_a, seat_b=template.seat_b,
+            # Top-ups continue the cell's alternation by TOP-UP ORDINAL parity (cell.topups): even
+            # ordinal → A, odd → B, matching the original games' index-parity schedule.
+            starter=starter_for_index(cell.topups),
         )
         cell.topups += 1
         self._task_by_id[new_id] = task

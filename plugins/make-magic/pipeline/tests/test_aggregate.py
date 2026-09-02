@@ -25,6 +25,37 @@ def _result(tid: str, winner: str, *, ms: int = 60000, reason: str | None = None
     return GameResult(task_id=tid, winner=winner, kill_turn=8, ms=ms, markers=[], log_path=None, reason=reason)
 
 
+def _result_starter(tid: str, winner: str, starter: str | None) -> GameResult:
+    return GameResult(
+        task_id=tid, winner=winner, kill_turn=8, ms=60000, markers=[], log_path=None,
+        reason=None, starter=starter,
+    )
+
+
+def test_starter_split_measures_first_player_effect() -> None:
+    """The per-arm starter split counts A-started vs B-started decided games + the subject's
+    win rate in each, so the first-player seat effect is measurable (the confound's readout)."""
+    ids = _ids(
+        's|o|driven|0', 's|o|driven|1', 's|o|driven|2', 's|o|driven|3',
+        's|o|baseline|0', 's|o|baseline|1',
+    )
+    agg = RunAggregator(ids)
+    # driven: A-started games 0,2 → subject wins both; B-started games 1,3 → subject loses both.
+    agg.add_result(_result_starter('s|o|driven|0', 'A', 'A'))
+    agg.add_result(_result_starter('s|o|driven|2', 'A', 'A'))
+    agg.add_result(_result_starter('s|o|driven|1', 'B', 'B'))
+    agg.add_result(_result_starter('s|o|driven|3', 'B', 'B'))
+    # baseline: one legacy (unmarked) game lands in 'unknown'.
+    agg.add_result(_result_starter('s|o|baseline|0', 'A', 'A'))
+    agg.add_result(_result_starter('s|o|baseline|1', 'B', None))
+
+    split = agg.starter_split()
+    assert split['driven']['A'] == {'subject_wins': 2, 'opponent_wins': 0, 'decided': 2, 'winrate': 1.0}
+    assert split['driven']['B'] == {'subject_wins': 0, 'opponent_wins': 2, 'decided': 2, 'winrate': 0.0}
+    assert split['baseline']['A']['decided'] == 1
+    assert split['baseline']['unknown']['decided'] == 1  # legacy game isolated, not in A/B split
+
+
 def _ids(*ids: str) -> list[str]:
     return list(ids)
 

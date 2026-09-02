@@ -129,6 +129,45 @@ def test_changed_config_fingerprint_resume_refused(tmp_path) -> None:
 # --------------------------------------------------------------------------- #
 
 
+def test_starter_persists_and_round_trips(tmp_path) -> None:
+    """A committed result's ``starter`` (who took the first turn) survives the store round-trip."""
+    db = tmp_path / 'ops.duckdb'
+    tasks = _tasks('sa', 'oa', 2)
+    with OpsStore(db, run_id='r1') as ops:
+        ops.register_tasks(tasks)
+        ops.record_result(
+            GameResult(task_id=tasks[0].task_id, winner='a', kill_turn=3, ms=60000,
+                       markers=['starter=B'], log_path=None, starter='B')
+        )
+    with OpsStore(db, run_id='r1') as ops2:
+        loaded = ops2.load_results()
+        assert loaded[tasks[0].task_id].starter == 'B'
+
+
+def test_pre_starter_runid_file_gains_column(tmp_path) -> None:
+    """A run_id-scoped results table predating the starter column gains it on open (additive,
+    migration-tolerant): existing rows read back with starter=None, new writes persist it."""
+    db = tmp_path / 'ops.duckdb'
+    con = duckdb.connect(str(db))
+    # A modern run_id schema but WITHOUT the starter column (the pre-work shape).
+    con.execute(
+        'CREATE TABLE simd_results (run_id TEXT NOT NULL, task_id TEXT NOT NULL, winner TEXT NOT NULL, '
+        'kill_turn INTEGER, ms INTEGER NOT NULL, markers TEXT, log_path TEXT, reason TEXT, '
+        'end_cause TEXT, created_at TIMESTAMP, PRIMARY KEY (run_id, task_id))'
+    )
+    con.execute("INSERT INTO simd_results (run_id, task_id, winner, ms) VALUES ('r1', 'sa|oa|driven|0', 'a', 60000)")
+    con.close()
+
+    with OpsStore(db, run_id='r1') as ops:
+        loaded = ops.load_results()
+        assert loaded['sa|oa|driven|0'].starter is None  # pre-existing row: unrecorded starter.
+        ops.record_result(
+            GameResult(task_id='sa|oa|driven|1', winner='b', kill_turn=3, ms=60000,
+                       markers=['starter=A'], log_path=None, starter='A')
+        )
+        assert ops.load_results()['sa|oa|driven|1'].starter == 'A'
+
+
 def test_legacy_file_loads_under_legacy_run(tmp_path) -> None:
     db = tmp_path / 'ops.duckdb'
     # Hand-build the OLD schema (no run_id anywhere) and commit a task + a result.

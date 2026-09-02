@@ -460,6 +460,10 @@ public class XMageBatch {
         String fmt; // "commander" | "constructed"
         Seat a;
         Seat b;
+        // WHO TAKES THE FIRST TURN: "A" | "B" (nullable — absent ⇒ legacy "A", subject on the play).
+        // NOT a seat/deck swap: seat A stays the subject with its deck+driver; only the first-turn
+        // choice alternates so the first-player seat bonus no longer lands permanently on seat A.
+        String starter;
     }
 
     /** One seat: a staged deck path + an optional nested driver ({@code null} ⇒ pure CP7). */
@@ -674,10 +678,17 @@ public class XMageBatch {
             // Arm the HARD per-game wall-clock deadline around this game.start() (see
             // MAX_GAME_WALLCLOCK_SECS). cancel() in finally clears any interrupt it set so the
             // deadline never bleeds into the NEXT game in this same worker.
+            // WHO TAKES THE FIRST TURN, chosen from the task (default "A" for backward compat). This
+            // is NOT a seat/deck swap: seat A stays the subject; only the first-turn choice alternates
+            // (game_tasks alternates it by game index) so the first-player bonus no longer lands
+            // permanently on the subject. Reuses the SAME game.start(UUID) choosing-player mechanism
+            // the non-worker match path uses to alternate (see runMatch's `starter`).
+            boolean startB = task.starter != null && "B".equalsIgnoreCase(task.starter.trim());
+            UUID starterId = startB ? playerB.getId() : playerA.getId();
             GameDeadline deadline = GameDeadline.arm(game, MAX_GAME_WALLCLOCK_SECS);
             long t0 = System.currentTimeMillis();
             try {
-                game.start(playerA.getId()); // PlayerA (the subject) always on the play — deterministic.
+                game.start(starterId); // the chosen seat is on the play (A default / B alternated).
             } finally {
                 deadline.cancel();
             }
@@ -754,6 +765,10 @@ public class XMageBatch {
         List<String> markers = new ArrayList<>();
         markers.add("seatA=" + (task.a != null && task.a.driver != null ? "driven" : "cp7"));
         markers.add("seatB=" + (task.b != null && task.b.driver != null ? "driven" : "cp7"));
+        // Record WHO ACTUALLY TOOK THE FIRST TURN on every result (default "A" — subject on the
+        // play — when the task omits starter), so the first-player seat is measurable per game and
+        // the Python side can split absolute win rates by starter.
+        markers.add("starter=" + (task.starter != null && "B".equalsIgnoreCase(task.starter.trim()) ? "B" : "A"));
         // The terminal-cause marker (same marker-list pattern as reason=/decisive=). The Python
         // classify_validity gate buckets on this: a legal decided/drawn cause is DECISIVE (even a
         // 22ms lethal kill), timeout is non-decisive, and an unknown cause on a decisive claim is

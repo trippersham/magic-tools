@@ -214,9 +214,17 @@ def _winner_bucket(winner: str) -> str:
 
 
 class _Cell:
-    """One ``(subject, opponent, piloting)`` cell's tally (valid fills vs bad fills)."""
+    """One ``(subject, opponent, piloting)`` cell's tally (valid fills vs bad fills).
 
-    __slots__ = ('concede', 'failed', 'fast', 'invalid', 'needed', 'nondecisive', 'ok', 'wins_a', 'wins_b')
+    The ``*_sa`` / ``*_sb`` / ``*_su`` counters split the decisive W/L by WHO TOOK THE FIRST TURN
+    (``sa`` = subject seat A started, ``sb`` = opponent seat B started, ``su`` = starter unknown /
+    a legacy row) so the first-player effect is measurable per arm.
+    """
+
+    __slots__ = (
+        'concede', 'failed', 'fast', 'invalid', 'needed', 'nondecisive', 'ok',
+        'wins_a', 'wins_a_sa', 'wins_a_sb', 'wins_a_su', 'wins_b', 'wins_b_sa', 'wins_b_sb', 'wins_b_su',
+    )
 
     def __init__(self) -> None:
         self.needed = 0
@@ -228,6 +236,13 @@ class _Cell:
         self.failed = 0  # tasks that burned their budget / were quarantined (no result).
         self.wins_a = 0
         self.wins_b = 0
+        # Decisive W/L split by starter seat: A-started (sa), B-started (sb), unknown/legacy (su).
+        self.wins_a_sa = 0
+        self.wins_a_sb = 0
+        self.wins_a_su = 0
+        self.wins_b_sa = 0
+        self.wins_b_sb = 0
+        self.wins_b_su = 0
 
 
 class RunAggregator:
@@ -272,10 +287,16 @@ class RunAggregator:
         if is_concede(res):
             cell.concede += 1
         bucket = _winner_bucket(res.winner)
+        # Which starter-seat suffix this game contributes to (sa/sb/su): 'A' → sa, 'B' → sb,
+        # None/legacy → su. Kept separate so a legacy (unmarked) game never pollutes the A/B split.
+        st = (res.starter or '').strip().upper()
+        suffix = 'sa' if st == 'A' else 'sb' if st == 'B' else 'su'
         if bucket == 'a':
             cell.wins_a += 1
+            setattr(cell, f'wins_a_{suffix}', getattr(cell, f'wins_a_{suffix}') + 1)
         elif bucket == 'b':
             cell.wins_b += 1
+            setattr(cell, f'wins_b_{suffix}', getattr(cell, f'wins_b_{suffix}') + 1)
 
     def add_failed(self, task_id: str) -> None:
         """Record a task that burned its budget / was quarantined (leaves its cell under-filled)."""
@@ -382,6 +403,35 @@ class RunAggregator:
     def concede_cells(self) -> list[tuple[str, str, str]]:
         """Cells that saw at least one decisive concession — surfaced so concede-heavy matchups show."""
         return [k for k, c in self._cells.items() if c.concede]
+
+    def starter_split(self) -> dict[str, dict[str, dict[str, float | int]]]:
+        """Per-arm first-player split so the first-player-seat effect is measurable.
+
+        Returns ``{piloting: {'A': stats, 'B': stats, 'unknown': stats}}`` where ``piloting`` is
+        the arm (``driven`` / ``baseline``), each key is WHO TOOK THE FIRST TURN, and ``stats`` is
+        ``{'subject_wins', 'opponent_wins', 'decided', 'winrate'}`` — the SUBJECT's decisive win
+        count / rate among games that seat started. ``'unknown'`` collects legacy (unmarked) games.
+        A first-player advantage shows as ``A``'s subject winrate exceeding ``B``'s within an arm;
+        because both arms share an index-matched starter schedule, the two arms are comparable.
+        """
+        # suffix → the starter bucket it feeds in the output.
+        buckets = (('sa', 'A'), ('sb', 'B'), ('su', 'unknown'))
+        out: dict[str, dict[str, dict[str, float | int]]] = {}
+        for (_subject, _opp, pil), cell in self._cells.items():
+            arm = out.setdefault(
+                pil, {label: {'subject_wins': 0, 'opponent_wins': 0, 'decided': 0} for _s, label in buckets}
+            )
+            for suffix, label in buckets:
+                sw = getattr(cell, f'wins_a_{suffix}')
+                ow = getattr(cell, f'wins_b_{suffix}')
+                arm[label]['subject_wins'] += sw
+                arm[label]['opponent_wins'] += ow
+                arm[label]['decided'] += sw + ow
+        for arm in out.values():
+            for stats in arm.values():
+                decided = stats['decided']
+                stats['winrate'] = (stats['subject_wins'] / decided) if decided else 0.0
+        return out
 
     def complete(self) -> bool:
         return not self.incomplete_cells()

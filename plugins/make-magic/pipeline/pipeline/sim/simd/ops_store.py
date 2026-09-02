@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS simd_results (
     log_path   TEXT,
     reason     TEXT,
     end_cause  TEXT,
+    starter    TEXT,
     created_at TIMESTAMP,
     PRIMARY KEY (run_id, task_id)
 )
@@ -219,6 +220,11 @@ class OpsStore:
             self._conn.execute(_ATTEMPTS_DDL)
             self._conn.execute(_RESULTS_DDL)
             self._conn.execute(_QUARANTINE_DDL)
+            # Additive, migration-tolerant: a results table created before the first-player-seat
+            # work has no ``starter`` column and CREATE TABLE IF NOT EXISTS never adds one. Add it
+            # unconditionally (no-op when already present) so both a fresh and a pre-existing ops
+            # file expose the column — older rows simply carry NULL (a legacy, unrecorded starter).
+            self._conn.execute('ALTER TABLE simd_results ADD COLUMN IF NOT EXISTS starter TEXT')
             self._open_run_locked(run_id, config_fingerprint)
 
     def _open_run_locked(self, run_id: str, config_fingerprint: str | None) -> None:
@@ -380,12 +386,14 @@ class OpsStore:
         with self._lock:
             self._conn.execute(
                 'INSERT INTO simd_results '
-                '(run_id, task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause, created_at) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
+                '(run_id, task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause, '
+                'starter, created_at) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) '
                 'ON CONFLICT (run_id, task_id) DO UPDATE SET '
                 'winner = excluded.winner, kill_turn = excluded.kill_turn, ms = excluded.ms, '
                 'markers = excluded.markers, log_path = excluded.log_path, reason = excluded.reason, '
-                'end_cause = excluded.end_cause, created_at = excluded.created_at',
+                'end_cause = excluded.end_cause, starter = excluded.starter, '
+                'created_at = excluded.created_at',
                 [
                     self._run_id,
                     res.task_id,
@@ -396,6 +404,7 @@ class OpsStore:
                     res.log_path,
                     res.reason,
                     res.end_cause,
+                    res.starter,
                     _now(),
                 ],
             )
@@ -445,7 +454,7 @@ class OpsStore:
         """``{task_id: GameResult}`` for every committed game — the done-set replacement."""
         with self._lock:
             rows = self._conn.execute(
-                'SELECT task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause '
+                'SELECT task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause, starter '
                 'FROM simd_results WHERE run_id = ?',
                 [self._run_id],
             ).fetchall()
@@ -460,6 +469,7 @@ class OpsStore:
                 log_path=r[5],
                 reason=r[6],
                 end_cause=r[7],
+                starter=r[8],
             )
         return out
 

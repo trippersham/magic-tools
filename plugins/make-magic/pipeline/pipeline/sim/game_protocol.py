@@ -151,6 +151,11 @@ class GameResult:
     #: classify_validity` buckets on this instead of wall-clock; ``None`` marks a LEGACY row that
     #: predates the terminal-cause jar (classifier falls back to the old ms-floor heuristic).
     end_cause: str | None = None
+    #: WHO ACTUALLY TOOK THE FIRST TURN (``'A'`` / ``'B'``), extracted from the worker's
+    #: ``starter=`` RESULT marker so every result records the first-player seat (the confound the
+    #: per-game alternation removes). ``None`` marks a LEGACY row from a worker that predates the
+    #: marker (the aggregation's starter split simply omits such a game).
+    starter: str | None = None
 
     @property
     def decisive(self) -> bool:
@@ -182,6 +187,9 @@ def encode_task(task: GameTask) -> str:
         'fmt': task.fmt,
         'a': _seat_json(task.seat_a),
         'b': _seat_json(task.seat_b),
+        # WHO TAKES THE FIRST TURN ('A'/'B') — NOT a seat swap. A worker that predates this field
+        # (or a TASK without it) defaults to 'A' (legacy: subject always on the play).
+        'starter': task.starter,
     }
     return 'TASK ' + json.dumps(payload, separators=(',', ':'))
 
@@ -207,6 +215,23 @@ def _end_cause_from_markers(markers: list[str]) -> str | None:
     for m in markers:
         if isinstance(m, str) and m.startswith(_END_CAUSE_PREFIX):
             return m[len(_END_CAUSE_PREFIX) :]
+    return None
+
+
+_STARTER_PREFIX = 'starter='
+
+
+def _starter_from_markers(markers: list[str], line: str) -> str | None:
+    """Extract the ``starter=<A|B>`` first-player marker (the worker emits it in the marker list,
+    same pattern as ``end_cause=``), or ``None`` when absent (a legacy worker). A present-but-
+    unknown value is a hard parse failure — a codec drift must never smuggle a bogus starter."""
+    for m in markers:
+        if isinstance(m, str) and m.startswith(_STARTER_PREFIX):
+            val = m[len(_STARTER_PREFIX) :].strip().upper()
+            if val not in ('A', 'B'):
+                msg = f'unknown starter {val!r} in {line!r} (expected A or B)'
+                raise ProtocolError(msg)
+            return val
     return None
 
 
@@ -241,6 +266,7 @@ def parse_line(line: str) -> ProtocolMsg:
             log_path=body.get('log'),
             reason=_validate_reason(body.get('reason'), line),
             end_cause=_end_cause_from_markers(markers),
+            starter=_starter_from_markers(markers, line),
         )
 
     if stripped.startswith('ERROR '):

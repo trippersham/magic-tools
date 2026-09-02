@@ -14,6 +14,7 @@ from pipeline.sim.game_tasks import (
     SeatSpec,
     build_game_tasks,
     cell_key,
+    starter_for_index,
 )
 
 
@@ -95,6 +96,38 @@ def test_cell_key_derives_from_task_id() -> None:
 def test_fmt_field_flows_onto_tasks() -> None:
     tasks = build_game_tasks([_subject('s1')], [_subject('o1')], 1, fmt='constructed')
     assert all(t.fmt == 'constructed' for t in tasks)
+
+
+def test_starter_for_index_alternates_by_parity() -> None:
+    assert [starter_for_index(i) for i in range(4)] == ['A', 'B', 'A', 'B']
+
+
+def test_starter_split_is_6_6_per_12_game_cell() -> None:
+    """A 12-game cell alternates the first-turn seat 6/6 by game index (removes the seat confound)."""
+    tasks = build_game_tasks([_subject('s1')], [_subject('o1')], 12)
+    by_cell: dict[tuple[str, str, str], list[str]] = {}
+    for t in tasks:
+        by_cell.setdefault(cell_key(t), []).append(t.starter)
+    for starters in by_cell.values():
+        assert starters.count('A') == 6
+        assert starters.count('B') == 6
+
+
+def test_driven_and_baseline_arms_share_identical_starter_schedule() -> None:
+    """The delta's internal validity requires the two arms to be index-matched: game i has the
+    SAME starter in driven and baseline, so the first-player effect cancels within the delta."""
+    tasks = build_game_tasks([_subject('s1')], [_subject('o1')], 12)
+    driven = {t.task_id.rsplit('|', 1)[1]: t.starter for t in tasks if cell_key(t)[2] == 'driven'}
+    baseline = {t.task_id.rsplit('|', 1)[1]: t.starter for t in tasks if cell_key(t)[2] == 'baseline'}
+    assert driven == baseline
+    # and it actually alternates (not a degenerate all-A schedule).
+    assert set(driven.values()) == {'A', 'B'}
+
+
+def test_starter_default_is_a() -> None:
+    """A GameTask constructed without an explicit starter defaults to legacy 'A' (subject on play)."""
+    tasks = build_game_tasks([_subject('s1')], [_subject('o1')], 1)
+    assert all(t.starter == 'A' for t in tasks)  # game index 0 → A in both arms
 
 
 def test_colliding_deck_path_raises_completeness_error() -> None:

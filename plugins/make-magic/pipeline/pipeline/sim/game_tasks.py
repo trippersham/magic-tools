@@ -25,6 +25,7 @@ __all__ = (
     'SeatSpec',
     'build_game_tasks',
     'cell_key',
+    'starter_for_index',
 )
 
 #: The two pilotings enumerated per cell. ``driven`` = subject runs its own driver;
@@ -60,12 +61,31 @@ class GameTask:
     ``task_id`` is ``f"{subject}|{opponent}|{piloting}|{game_index}"`` — deterministic and
     unique across a run. ``fmt`` is ``"commander"`` or ``"constructed"`` (single field;
     maps to the Java boolean). ``seat_a`` is the subject, ``seat_b`` the opponent.
+
+    ``starter`` (``'A'`` / ``'B'``) is WHO TAKES THE FIRST TURN — NOT a seat/deck swap: the
+    subject always stays seat A with its deck + driver; only the first-turn choice alternates so
+    the first-player seat bonus no longer lands permanently on the subject. It is assigned by
+    game-index parity (see :func:`starter_for_index`) so the driven and baseline arms share an
+    IDENTICAL, index-matched starter schedule (the delta's internal validity is preserved). The
+    default ``'A'`` is the legacy behavior (subject always on the play).
     """
 
     task_id: str
     fmt: str
     seat_a: SeatSpec
     seat_b: SeatSpec
+    starter: str = 'A'
+
+
+def starter_for_index(index: int) -> str:
+    """The deterministic starting seat for a game/top-up ordinal: even → ``'A'``, odd → ``'B'``.
+
+    A 12-game cell therefore splits 6/6, and because the driven and baseline arms enumerate the
+    SAME ``range(games)`` (and top-ups reuse the same parity by ordinal), the two arms carry
+    identical, index-matched starter schedules — the confound cancels within the delta AND the
+    absolute per-arm rates become unbiased.
+    """
+    return 'A' if index % 2 == 0 else 'B'
 
 
 def _ident(seat: SeatSpec) -> str:
@@ -110,7 +130,15 @@ def build_game_tasks(
                 seat_b = SeatSpec(deck_path=opponent.deck_path, driver=opponent.driver)
                 for game_index in range(games):
                     task_id = _SEP.join((s_id, o_id, piloting, str(game_index)))
-                    tasks.append(GameTask(task_id=task_id, fmt=fmt, seat_a=seat_a, seat_b=seat_b))
+                    tasks.append(
+                        GameTask(
+                            task_id=task_id,
+                            fmt=fmt,
+                            seat_a=seat_a,
+                            seat_b=seat_b,
+                            starter=starter_for_index(game_index),
+                        )
+                    )
 
     # Completeness contract: task_ids must be unique, else a game silently overwrites
     # another's tally. Two subjects (or a subject/opponent) sharing a deck_path collide
