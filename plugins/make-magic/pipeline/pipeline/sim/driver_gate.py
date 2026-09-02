@@ -47,7 +47,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
 from pipeline.decks.version import version
-from pipeline.sim import driver_compile, drivers
+from pipeline.sim import driver_compile, driver_lint, drivers
 from pipeline.sim.driver_authoring import (
     DRIVER_MACRO_FIRED_MARKER,
     DRIVER_MULLIGAN_MARKER,
@@ -297,6 +297,27 @@ def gate_driver(
     is_proactive = spec.macro is not None
     mode = 'proactive' if is_proactive else 'reactive'
 
+    # LAYER 1 — forbidden-API bytecode scan (no-terminal-API rule). A driver may only enqueue
+    # LEGAL game actions; every terminal state must come from the rules engine. Scan the
+    # compiled .class constant pools for terminal / state-fabrication references BEFORE running
+    # a single JVM game — a driver that calls Player.lost/won/... or Game.setWinner/end is
+    # asserting a win it never played (the MACRO_FIRE_REAL→gameOver on turn 1 pathology). FAIL
+    # hard; zone-fabrication (moveCards*) and concede are WARN, recorded in meta (never block).
+    lint = driver_lint.lint_driver_classes(classes)
+    lint_warnings = [f.detail for f in lint.warn_findings]
+    if not lint.ok:
+        return GateResult(
+            passed=False,
+            mode=mode,
+            reason=(
+                f'driver bytecode references forbidden terminal-state API(s) — {lint.summary}. '
+                'A driver may only enqueue LEGAL game actions; every terminal state must come '
+                'from the rules engine (re-author the macro to play the line, not assert the win)'
+            ),
+            fqcn=fqcn,
+            extra={'gate_lint_warnings': lint_warnings, 'gate_lint_fail': lint.summary},
+        )
+
     # Commander decks MUST run the commander-native solo goldfish (CommanderDuel, 40 life
     # + command zone) so the commander is actually seated — a commander-dependent macro
     # can never fire in the constructed 60-basics goldfish (the P6.2 Yawgmoth VETO). The
@@ -405,6 +426,7 @@ def gate_driver(
         'gate_defended_lens': defended_lens,
         'gate_mulligan_fired': mulligan_fired,
         'gate_markers_seen': sorted(markers_seen),
+        'gate_lint_warnings': lint_warnings,
     }
     drivers.write_meta(
         deck,

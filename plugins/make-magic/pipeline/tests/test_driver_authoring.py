@@ -226,6 +226,27 @@ def test_seed_quad_from_combo_produces_drive_quad() -> None:
     da.check_quad_guardrails(src)
 
 
+def test_seed_macro_generates_no_forbidden_terminal_calls() -> None:
+    """No-terminal-API rule: the authoring seed must NEVER generate a macro that calls a
+    game/player terminal or zone-fabrication API. Every seeded macro (plain + nudge) and the
+    worked Jeleva positive control must be free of lost()/won()/setWinner()/end() and
+    moveCards-fabrication — the win is PLAYED via cast(), not asserted."""
+    forbidden = ('.lost(', '.won(', '.leave(', '.quit(', '.setLosses(', '.setWins(',
+                 '.setWinner(', '.moveCards(', '.moveCardTo')
+    specs = [
+        da.seed_quad_from_combo(_win_combo(), archetype='drive-capable'),
+        da.seed_quad_from_combo(_win_combo(), archetype='drive-dedicated'),
+        da.seed_nudge_quad(_win_combo(), alpha=3),
+        da.JELEVA_QUAD_SPEC,
+    ]
+    for spec in specs:
+        src = da.render_quad_driver(_deck(), spec)
+        for bad in forbidden:
+            assert bad not in src, f'{spec.name}: seed still generates forbidden {bad!r}'
+        # positive: the seed casts the line through the rules engine (legal, contestable).
+        assert '.cast(' in src, f'{spec.name}: macro must PLAY the line via cast()'
+
+
 def test_seed_quad_dedicated_stages_pieces_in_phi() -> None:
     """A dedicated seed carries a piece-staging Φ; a capable seed is thin Φ=0."""
     capable = da.seed_quad_from_combo(_win_combo(), archetype='drive-capable')

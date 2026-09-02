@@ -1,0 +1,257 @@
+"""Layer-1 forbidden-API bytecode scan for in-search quad drivers.
+
+A make-magic quad driver may ONLY enqueue LEGAL game actions (cast / activate / choose /
+target / priority decisions). Every terminal state MUST come from the rules engine. A driver
+that reaches for a game/player TERMINAL or STATE-FABRICATION API is asserting a win it never
+played — the ``MACRO_FIRE_REAL → gameOver=true`` on turn 1 pathology where the opponent
+(holding counterspells) never got priority. That data is synthetic and must be rejected.
+
+This module enforces the rule STATICALLY at gate/compile time by parsing the constant pool of
+every compiled ``.class`` in a driver's ``classes_dir`` — in pure Python, reading the
+``Methodref`` / ``InterfaceMethodref`` entries (class name + method name) directly. It does NOT
+shell to ``javap`` (that would add a fragile toolchain dependency); the ``.class`` constant
+pool format is simple and self-describing.
+
+Two severities:
+
+  * **FAIL** — a driver referencing any of these is REJECTED by the gate:
+
+    - ``mage.players.Player``.{``lost``, ``won``, ``leave``, ``quit``, ``setLosses``,
+      ``setWins``}
+    - ``mage.game.Game``.{``end``, ``setWinner``}
+
+    These directly fabricate a terminal state / assert victory without playing the line.
+
+  * **WARN** — recorded in gate metadata, never blocks:
+
+    - zone-fabrication: ``moveCards`` / ``moveCardTo*`` on a ``Game``/``Player`` owner. These
+      move cards without paying costs or passing priority, and the buggy macro used them to
+      exile the library and drop Thassa's Oracle into play. BUT they are also the sanctioned
+      primitive of the bounded combo-resolution pattern (``moveCards`` + ``applyEffects`` +
+      capped ``getStack().resolve``), so distinguishing a legitimate bounded move from a
+      fabrication is undecidable from bytecode alone → WARN, not FAIL.
+    - ``concede`` — rules-legal self-concession, but it biases the driven-baseline delta, so
+      it is flagged (WARN) and recorded, never silently accepted.
+
+The FAIL/WARN split is deliberate: the terminal APIs have NO legitimate driver use (the rules
+engine owns every terminal state), so they FAIL hard; the zone/concede APIs have legitimate
+uses that bytecode cannot cleanly separate from abuse, so they WARN.
+"""
+
+from __future__ import annotations
+
+import struct
+from dataclasses import dataclass, field
+from pathlib import Path
+
+__all__ = (
+    'ClassScan',
+    'Finding',
+    'LintResult',
+    'lint_class_bytes',
+    'lint_driver_classes',
+    'scan_class_bytes',
+)
+
+# Constant-pool tags (JVMS §4.4). Only the ones we must walk to size entries correctly.
+_TAG_UTF8 = 1
+_TAG_INTEGER = 3
+_TAG_FLOAT = 4
+_TAG_LONG = 5
+_TAG_DOUBLE = 6
+_TAG_CLASS = 7
+_TAG_STRING = 8
+_TAG_FIELDREF = 9
+_TAG_METHODREF = 10
+_TAG_INTERFACE_METHODREF = 11
+_TAG_NAME_AND_TYPE = 12
+_TAG_METHOD_HANDLE = 15
+_TAG_METHOD_TYPE = 16
+_TAG_DYNAMIC = 17
+_TAG_INVOKE_DYNAMIC = 18
+_TAG_MODULE = 19
+_TAG_PACKAGE = 20
+
+#: Terminal-state / victory-assertion APIs — no legitimate driver use → FAIL. Keyed by an
+#: owner-class-name SUBSTRING (bytecode uses ``/`` separators, e.g. ``mage/players/Player``;
+#: a substring also catches concrete subclasses like ``mage/game/GameImpl``) to a set of method
+#: names.
+_FAIL_DENYLIST: tuple[tuple[str, frozenset[str]], ...] = (
+    ('mage/players/Player', frozenset({'lost', 'won', 'leave', 'quit', 'setLosses', 'setWins'})),
+    ('mage/game/Game', frozenset({'end', 'setWinner'})),
+)
+
+#: Owner substrings whose ``moveCard*`` methods are zone-fabrication (WARN — recorded).
+_ZONE_OWNERS: tuple[str, ...] = ('mage/game/Game', 'mage/players/Player')
+
+
+@dataclass(frozen=True)
+class ClassScan:
+    """The extracted references of one parsed ``.class``.
+
+    ``this_class`` is the internal binary name of the class itself (``a/b/C``). ``method_refs``
+    is every ``Methodref`` / ``InterfaceMethodref`` as ``(owner_internal_name, method_name)``.
+    """
+
+    this_class: str
+    method_refs: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True)
+class Finding:
+    """One forbidden-API hit. ``severity`` is ``'FAIL'`` or ``'WARN'``; ``detail`` names the
+    class + the forbidden ``Owner.method`` reference in human form."""
+
+    severity: str
+    class_name: str
+    owner: str
+    method: str
+    detail: str
+
+
+@dataclass(frozen=True)
+class LintResult:
+    """The aggregate verdict over a driver's classes_dir.
+
+    ``ok`` is False iff any FAIL finding exists. ``fail_findings`` / ``warn_findings`` split the
+    findings by severity. ``summary`` is a one-line human message naming the FAIL refs (empty on
+    a clean pass).
+    """
+
+    ok: bool
+    findings: tuple[Finding, ...] = ()
+    fail_findings: tuple[Finding, ...] = field(default_factory=tuple)
+    warn_findings: tuple[Finding, ...] = field(default_factory=tuple)
+    summary: str = ''
+
+
+class ClassParseError(ValueError):
+    """A ``.class`` blob was too short / malformed to parse its constant pool."""
+
+
+def _short_owner(internal: str) -> str:
+    """``mage/players/Player`` → ``Player`` for readable messages."""
+    return internal.rsplit('/', 1)[-1]
+
+
+def scan_class_bytes(data: bytes) -> ClassScan:
+    """Parse ``data`` (one ``.class`` file) and return its class name + method references.
+
+    Reads the constant pool per JVMS §4.4 in pure Python: every ``Methodref`` /
+    ``InterfaceMethodref`` resolves through its ``Class`` and ``NameAndType`` to
+    ``(owner_internal_name, method_name)``. ``Long``/``Double`` occupy two pool slots (§4.4.5).
+    """
+    if len(data) < 10 or data[:4] != b'\xca\xfe\xba\xbe':
+        raise ClassParseError('not a .class file (bad magic or too short)')
+    count = struct.unpack_from('>H', data, 8)[0]  # constant_pool_count
+    # Pass 1: record each entry's raw shape, indexed 1..count-1.
+    utf8: dict[int, str] = {}
+    class_name_idx: dict[int, int] = {}  # Class entry index -> name_index (Utf8)
+    name_and_type: dict[int, tuple[int, int]] = {}  # index -> (name_index, descriptor_index)
+    methodrefs: list[tuple[int, int]] = []  # (class_index, name_and_type_index)
+
+    off = 10
+    i = 1
+    while i < count:
+        tag = data[off]
+        off += 1
+        if tag == _TAG_UTF8:
+            (length,) = struct.unpack_from('>H', data, off)
+            off += 2
+            utf8[i] = data[off:off + length].decode('utf-8', 'replace')
+            off += length
+        elif tag in (_TAG_INTEGER, _TAG_FLOAT, _TAG_FIELDREF, _TAG_DYNAMIC, _TAG_INVOKE_DYNAMIC):
+            off += 4
+        elif tag in (_TAG_METHODREF, _TAG_INTERFACE_METHODREF):
+            cls_idx, nt_idx = struct.unpack_from('>HH', data, off)
+            methodrefs.append((cls_idx, nt_idx))
+            off += 4
+        elif tag == _TAG_NAME_AND_TYPE:
+            n_idx, d_idx = struct.unpack_from('>HH', data, off)
+            name_and_type[i] = (n_idx, d_idx)
+            off += 4
+        elif tag in (_TAG_LONG, _TAG_DOUBLE):
+            off += 8
+            i += 1  # 8-byte constants take two pool slots (JVMS §4.4.5).
+        elif tag == _TAG_CLASS:
+            (name_idx,) = struct.unpack_from('>H', data, off)
+            class_name_idx[i] = name_idx
+            off += 2
+        elif tag in (_TAG_STRING, _TAG_METHOD_TYPE, _TAG_MODULE, _TAG_PACKAGE):
+            off += 2
+        elif tag == _TAG_METHOD_HANDLE:
+            off += 3
+        else:
+            raise ClassParseError(f'unknown constant-pool tag {tag} at index {i}')
+        i += 1
+
+    this_class_idx = struct.unpack_from('>H', data, off + 2)[0]  # access_flags(2), this_class(2)
+    this_class = utf8.get(class_name_idx.get(this_class_idx, -1), '<unknown>')
+
+    refs: list[tuple[str, str]] = []
+    for cls_idx, nt_idx in methodrefs:
+        owner = utf8.get(class_name_idx.get(cls_idx, -1), '')
+        n_idx, _d = name_and_type.get(nt_idx, (-1, -1))
+        method = utf8.get(n_idx, '')
+        if owner and method:
+            refs.append((owner, method))
+    return ClassScan(this_class=this_class, method_refs=tuple(refs))
+
+
+def _classify(owner: str, method: str) -> tuple[str, str] | None:
+    """Return ``(severity, kind)`` for a forbidden ref, or ``None`` if benign."""
+    for sub, methods in _FAIL_DENYLIST:
+        if sub in owner and method in methods:
+            return 'FAIL', 'terminal'
+    if method == 'concede':
+        return 'WARN', 'concede'
+    if method.startswith('moveCard') and any(z in owner for z in _ZONE_OWNERS):
+        return 'WARN', 'zone-fabrication'
+    return None
+
+
+def lint_class_bytes(data: bytes, *, name: str) -> tuple[Finding, ...]:
+    """Return the forbidden-API findings for one ``.class`` blob (FAIL + WARN)."""
+    scan = scan_class_bytes(data)
+    findings: list[Finding] = []
+    seen: set[tuple[str, str]] = set()
+    for owner, method in scan.method_refs:
+        if (owner, method) in seen:
+            continue
+        seen.add((owner, method))
+        verdict = _classify(owner, method)
+        if verdict is None:
+            continue
+        severity, kind = verdict
+        pretty = f'{_short_owner(owner)}.{method}'
+        detail = f'{name}: {severity} {kind} call to {pretty} ({owner}.{method})'
+        findings.append(Finding(severity=severity, class_name=name, owner=owner, method=method, detail=detail))
+    return tuple(findings)
+
+
+def lint_driver_classes(classes_dir: str | Path) -> LintResult:
+    """Scan every ``.class`` under ``classes_dir`` and return the aggregate verdict.
+
+    A FAIL finding anywhere makes ``ok`` False. WARN findings are recorded but never block.
+    The scan is recursive (drivers compile into a package subtree). A missing/empty dir yields
+    a clean pass (nothing to reject) — the compile gate already fails loud on a missing tree.
+    """
+    root = Path(classes_dir)
+    all_findings: list[Finding] = []
+    for cls in sorted(root.rglob('*.class')):
+        all_findings.extend(lint_class_bytes(cls.read_bytes(), name=cls.stem))
+    fails = tuple(f for f in all_findings if f.severity == 'FAIL')
+    warns = tuple(f for f in all_findings if f.severity == 'WARN')
+    if fails:
+        summary = 'forbidden terminal-API references: ' + '; '.join(
+            f'{f.class_name} → {_short_owner(f.owner)}.{f.method}' for f in fails
+        )
+    else:
+        summary = ''
+    return LintResult(
+        ok=not fails,
+        findings=tuple(all_findings),
+        fail_findings=fails,
+        warn_findings=warns,
+        summary=summary,
+    )

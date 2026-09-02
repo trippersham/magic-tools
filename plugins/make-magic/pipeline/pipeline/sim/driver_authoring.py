@@ -644,35 +644,51 @@ for (Permanent p : game.getBattlefield().getAllActivePermanents(pid)) {{
 return have.size() == {total};'''
 
 
-def _seed_apply_body(result: str) -> str:
-    """Macro body: a BOUNDED win-enactment SCAFFOLD (author refines the true per-card line).
+def _seed_apply_body(result: str, card_names: tuple[str, ...]) -> str:
+    """Macro body: a BOUNDED, LEGAL-ACTIONS-ONLY win enactment (author refines the cast order).
 
-    The scaffold is structurally valid + ECJ-compiling and delivers the deterministic loss to
-    each opponent as the win payoff, with an explicit TODO naming the combo's ``result`` so the
-    deck author replaces it with the card-specific bounded resolution (moveCards / applyEffects /
-    a capped ``getStack().resolve``; never ``priority()`` / ``copy()``).
+    The no-terminal-API rule (enforced by :mod:`pipeline.sim.driver_lint` at gate + load time):
+    a driver may ONLY enqueue LEGAL game actions — every terminal state must come from the rules
+    engine. So the scaffold PLAYS the line — it casts each combo piece it holds through the
+    engine's real cast path (``chooseAbilityForCast`` + ``cast``), then resolves the stack in a
+    BOUNDED loop — and NEVER calls ``lost()``/``won()``/``setWinner()``/``end()`` or
+    ``moveCards``-fabricates a zone. Because the spells go on the stack, the opponent gets
+    priority (the line is CONTESTABLE — a held counterspell can answer it); the win, if it comes,
+    is the engine's, not an assertion. An unrefined line that fails to actually win simply won't
+    emit ``MACRO_FIRE_REAL`` and the gate rejects it — the honest outcome, not a fake pass.
     """
     # result rides in a // comment — strip newlines so it can't break out of the line comment.
     result_comment = ' '.join((result or '(unspecified win)').split())
+    names = _java_name_set(card_names)
     return f'''\
 Player me = game.getPlayer(pid);
 if (me == null) {{
     return;
 }}
-// TODO(author): replace this scaffold with the deck-specific BOUNDED resolution of the win —
-//   {result_comment}
-// using moveCards / applyEffects / a capped getStack().resolve(game) (<= ComboMacro.PROBE_MAX_STEPS);
-// NEVER priority()/copy() on the handed game. Until refined, the scaffold enacts the terminal
-// (each opponent loses) so the seam has a concrete, deterministic win to execute + measure.
-if (!game.checkIfGameIsOver()) {{
-    for (UUID opp : game.getOpponents(pid)) {{
-        Player o = game.getPlayer(opp);
-        if (o != null) {{
-            o.lost(game);
+// LEGAL-ACTIONS-ONLY win enactment (no-terminal-API rule): cast each combo piece from hand
+// through the rules engine, then resolve the stack BOUNDED (<= ComboMacro.PROBE_MAX_STEPS).
+// The line is PLAYED and CONTESTABLE (spells hit the stack; the opponent gets priority) — the
+// terminal comes from the engine, never from lost()/won()/setWinner() or moveCards-fabrication.
+// TODO(author): refine the cast ORDER + any targeting for this specific line — {result_comment}
+java.util.Set<String> pieces = new java.util.HashSet<>(java.util.Arrays.asList({names}));
+for (Card c : new java.util.ArrayList<>(me.getHand().getCards(game))) {{
+    if (!pieces.contains(c.getName())) {{
+        continue;
+    }}
+    mage.abilities.SpellAbility sa = me.chooseAbilityForCast(c, game, false);
+    if (sa != null) {{
+        me.cast(sa, game, false, null);
+        game.applyEffects();
+    }}
+    int guard = 0;
+    while (!game.getStack().isEmpty() && guard++ < ComboMacro.PROBE_MAX_STEPS) {{
+        game.getStack().resolve(game);
+        game.applyEffects();
+        game.checkStateAndTriggered();
+        if (game.checkIfGameIsOver()) {{
+            return;
         }}
     }}
-    game.applyEffects();
-    game.checkStateAndTriggered();
 }}'''
 
 
@@ -742,7 +758,7 @@ def seed_quad_from_combo(combo: Combo, *, archetype: str) -> QuadSpec:
         phi_body=_seed_phi_body(combo.card_names, dedicated=dedicated),
         macro=MacroSpec(
             applicable_body=_seed_applicable_body(combo.card_names),
-            apply_body=_seed_apply_body(combo.result),
+            apply_body=_seed_apply_body(combo.result, combo.card_names),
         ),
         steer=SteerSpec(apply_body=_seed_steer_body(combo.card_names)),
         imports=(
@@ -775,7 +791,7 @@ def seed_nudge_quad(combo: Combo, *, alpha: int) -> QuadSpec:
         phi_body=_nudge_phi_body(combo.card_names, alpha=alpha),
         macro=MacroSpec(
             applicable_body=_seed_applicable_body(combo.card_names),
-            apply_body=_seed_apply_body(combo.result),
+            apply_body=_seed_apply_body(combo.result, combo.card_names),
         ),
         steer=SteerSpec(apply_body=_seed_steer_body(combo.card_names)),
         imports=(
@@ -879,41 +895,39 @@ Player me = game.getPlayer(pid);
 if (me == null) {
     return;
 }
-List<Card> lib = new ArrayList<>(me.getLibrary().getCards(game));
-if (!lib.isEmpty()) {
-    me.moveCards(new CardsImpl(lib), Zone.EXILED, null, game);
-    game.applyEffects();
-}
-Card oracle = null;
-for (Card c : me.getHand().getCards(game)) {
-    if ("Thassa's Oracle".equals(c.getName())) {
-        oracle = c;
-        break;
+// LEGAL-ACTIONS-ONLY win enactment (no-terminal-API rule): PLAY the Consultation→Oracle line
+// through the rules engine — cast the exile-your-library spell (Demonic Consultation / Tainted
+// Pact) so its resolution empties the library, then cast Thassa's Oracle so ITS enters-the-
+// battlefield trigger wins on an empty library. Every step goes on the stack (the opponent gets
+// priority — a held counterspell can answer it) and the terminal is the ENGINE's. NEVER call
+// lost()/won()/setWinner() or moveCards-fabricate a zone (see pipeline.sim.driver_lint).
+java.util.List<String> castOrder = java.util.Arrays.asList(
+        "Demonic Consultation", "Tainted Pact", "Thassa's Oracle");
+for (String want : castOrder) {
+    Card inHand = null;
+    for (Card c : new ArrayList<>(me.getHand().getCards(game))) {
+        if (want.equals(c.getName())) {
+            inHand = c;
+            break;
+        }
     }
-}
-if (oracle != null) {
-    me.moveCards(oracle, Zone.BATTLEFIELD, null, game);
-    game.applyEffects();
-    game.checkStateAndTriggered();
+    if (inHand == null) {
+        continue;
+    }
+    mage.abilities.SpellAbility sa = me.chooseAbilityForCast(inHand, game, false);
+    if (sa != null) {
+        me.cast(sa, game, false, null);
+        game.applyEffects();
+    }
     int guard = 0;
     while (!game.getStack().isEmpty() && guard++ < ComboMacro.PROBE_MAX_STEPS) {
         game.getStack().resolve(game);
         game.applyEffects();
         game.checkStateAndTriggered();
         if (game.checkIfGameIsOver()) {
-            break;
+            return;
         }
     }
-}
-if (!game.checkIfGameIsOver()) {
-    for (UUID opp : game.getOpponents(pid)) {
-        Player o = game.getPlayer(opp);
-        if (o != null) {
-            o.lost(game);
-        }
-    }
-    game.applyEffects();
-    game.checkStateAndTriggered();
 }'''
 
 _JELEVA_STEER = '''\
@@ -1005,8 +1019,6 @@ JELEVA_QUAD_SPEC = QuadSpec(
         'import java.util.List;',
         '',
         'import mage.cards.Card;',
-        'import mage.cards.CardsImpl;',
-        'import mage.constants.Zone;',
         'import mage.game.permanent.Permanent;',
     ),
     mulligan_note='keep any hand with a combo half + a tutor and >=3 lands; ship no-landers.',

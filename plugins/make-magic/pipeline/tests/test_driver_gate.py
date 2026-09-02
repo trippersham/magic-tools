@@ -545,3 +545,51 @@ def test_jeleva_positive_control_and_nonfiring_rejection(monkeypatch: pytest.Mon
     assert good.macro_fired is True, f'macro never fired: {good.reason}'
     assert good.passed is True, f'positive control failed: {good.reason}'
     assert drivers.driver_valid(good_deck, data_dir=_DATA_DIR) is True
+
+
+# --------------------------------------------------------------------------- #
+# Layer-1 lint at the gate — forbidden terminal-API bytecode is rejected       #
+# BEFORE any JVM game runs (defense at compile/gate time).                      #
+# --------------------------------------------------------------------------- #
+
+_LINT_FIX = Path(__file__).parent / 'fixtures' / 'driver_lint'
+
+
+def _stage_class(classes_dir: Path, variant: str, name: str) -> None:
+    dest = classes_dir / 'org' / 'makemagic' / 'driver'
+    dest.mkdir(parents=True, exist_ok=True)
+    src = _LINT_FIX / variant / 'org' / 'makemagic' / 'driver' / f'{name}.class'
+    (dest / f'{name}.class').write_bytes(src.read_bytes())
+
+
+def test_gate_rejects_driver_with_terminal_api(_store: Path) -> None:
+    """A driver whose compiled bytecode references Player.lost / Game.setWinner FAILS the gate
+    with a message naming the forbidden ref — and the JVM engine is NEVER called."""
+    deck = _deck('Lint Bad')
+    _stage_class(drivers.classes_dir(deck, data_dir=_store), 'bad', 'BadDriver')
+    eng = _FakeEngine(driven=_res(6.0), driven_output='', baseline=_res(8.0))
+
+    result = dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
+
+    assert result.passed is False
+    assert ('Player.lost' in result.reason) or ('Game.setWinner' in result.reason)
+    assert eng.calls == []  # rejected before any game ran
+    assert drivers.driver_valid(deck, data_dir=_store) is False
+
+
+def test_gate_records_concede_as_warn_not_fail(_store: Path) -> None:
+    """A concede-only driver is not rejected by the lint; the WARN is recorded in gate meta."""
+    deck = _deck('Lint Concede')
+    _stage_class(drivers.classes_dir(deck, data_dir=_store), 'concede', 'ConcedeDriver')
+    output = f'{_REG} fqcn=x playerId=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
+    eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
+
+    result = dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
+
+    assert result.passed is True
+    assert eng.calls == ['driven', 'baseline']  # got past the lint to the real run
+    assert any('concede' in w for w in result.extra.get('gate_lint_warnings', []))

@@ -590,6 +590,41 @@ public class XMageBatch {
         List<URLClassLoader> loaders = new ArrayList<>();
         UUID idA = null;
         UUID idB = null;
+
+        // LAYER 2 — load-time forbidden-API scan (defense in depth; the Python gate is layer 1).
+        // A driver may only enqueue LEGAL game actions; every terminal state must come from the
+        // rules engine. BEFORE seating (no game runs, no classloader opens), scan each seat's
+        // driver classpath for terminal-state references (Player.lost/won/... , Game.setWinner/
+        // end). A hit REFUSES the driver and returns a TERMINAL non-decisive RESULT
+        // (winner=none, reason=driver-rejected) — deduped + excluded from W/L/D, never requeued,
+        // so a deterministically-bad driver cannot crash-loop the worker (contrast an ERROR,
+        // which the governor's retry-counter may re-offer). Mirrors the existing timeout reason.
+        List<String> lintHits = new ArrayList<>();
+        for (Seat seat : new Seat[] {task.a, task.b}) {
+            if (seat != null && seat.driver != null && seat.driver.cp != null) {
+                lintHits.addAll(DriverClassLint.scanDir(Paths.get(seat.driver.cp)));
+            }
+        }
+        if (!lintHits.isEmpty()) {
+            String detail = String.join("; ", lintHits);
+            realErr.println("XMAGEBATCH WORKER: driver-rejected (forbidden terminal-state API) "
+                    + task.id + " :: " + detail);
+            realErr.flush();
+            Result rejected = new Result();
+            rejected.id = task.id;
+            rejected.winner = "none";
+            rejected.kill_turn = null;
+            rejected.ms = 0;
+            rejected.log = null;
+            rejected.reason = "driver-rejected";
+            List<String> rmarkers = new ArrayList<>();
+            rmarkers.add("reason=driver-rejected");
+            rmarkers.add("decisive=false");
+            rmarkers.add("forbidden=" + detail);
+            rejected.markers = rmarkers;
+            return rejected;
+        }
+
         String winner;
         Integer killTurn;
         long ms;
