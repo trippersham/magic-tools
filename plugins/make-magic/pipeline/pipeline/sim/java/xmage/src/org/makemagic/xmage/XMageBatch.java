@@ -6,8 +6,10 @@ import mage.cards.decks.DeckCardLists;
 import mage.cards.decks.importer.DeckImporter;
 import mage.cards.repository.CardScanner;
 import mage.collectors.MakeMagicHooks;
+import mage.constants.CommanderCardType;
 import mage.constants.MultiplayerAttackOption;
 import mage.constants.RangeOfInfluence;
+import mage.counters.CounterType;
 import mage.game.CommanderDuel;
 import mage.game.FreeForAllMatch;
 import mage.game.Game;
@@ -23,6 +25,7 @@ import mage.player.ai.score.MacroRegistry;
 import mage.player.ai.score.MulliganRegistry;
 import mage.player.ai.score.SelectionRegistry;
 import mage.players.Player;
+import mage.watchers.common.CommanderInfoWatcher;
 
 import com.google.gson.Gson;
 
@@ -40,6 +43,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -629,6 +633,10 @@ public class XMageBatch {
         Integer killTurn;
         long ms;
         boolean timedOut = false;
+        // The TERMINAL CAUSE of this game, derived from the engine end-state AFTER game.start()
+        // returns (see deriveEndCause). Emitted as an ``end_cause=`` marker so the Python
+        // classify_validity gate buckets on the cause, not on wall-clock. Default until derived.
+        String endCause = "unknown";
 
         // Autoflushing, UTF-8 PrintStream: every println flushes, so the transcript grows live
         // and a tailer sees turn-by-turn progress. stdout+stderr share it → one interleaved file.
@@ -715,6 +723,8 @@ public class XMageBatch {
             winner = timedOut ? "none"
                     : playerA.hasWon() ? "A" : playerB.hasWon() ? "B" : "DRAW";
             killTurn = (!timedOut && (playerA.hasWon() || playerB.hasWon())) ? game.getTurnNum() : null;
+            // Derive the terminal cause from the end-state while game/players are still in scope.
+            endCause = deriveEndCause(game, playerA, playerB, timedOut, commander);
         } finally {
             // ALWAYS restore the protocol streams first, then flush+close the transcript.
             System.setOut(realOut);
@@ -744,6 +754,11 @@ public class XMageBatch {
         List<String> markers = new ArrayList<>();
         markers.add("seatA=" + (task.a != null && task.a.driver != null ? "driven" : "cp7"));
         markers.add("seatB=" + (task.b != null && task.b.driver != null ? "driven" : "cp7"));
+        // The terminal-cause marker (same marker-list pattern as reason=/decisive=). The Python
+        // classify_validity gate buckets on this: a legal decided/drawn cause is DECISIVE (even a
+        // 22ms lethal kill), timeout is non-decisive, and an unknown cause on a decisive claim is
+        // flagged INVALID. Emitted for EVERY game (endCause="timeout" on the deadline path).
+        markers.add("end_cause=" + endCause);
         if (timedOut) {
             // Non-decisive: reason threads onto the wire so the governor / done-set can EXCLUDE
             // this game from W/L/D aggregation (the marker is a redundant, human-readable copy).
@@ -753,6 +768,88 @@ public class XMageBatch {
         }
         result.markers = markers;
         return result;
+    }
+
+    /**
+     * Derive the TERMINAL CAUSE of a finished game from the engine end-state (the Player boolean
+     * flags + life + poison + empty-library + the CommanderInfoWatcher), for the {@code end_cause}
+     * marker. XMage 1.4.60 retains NO loss-reason enum (the SBA {@code lostReason} is a discarded
+     * local), so the honest, state-derivable taxonomy is:
+     * <ul>
+     *   <li>{@code timeout} — the wall-clock deadline fired (engine-defective livelock).</li>
+     *   <li>{@code draw_game} — no winner (a real draw OR an unfinished turn-cap game).</li>
+     *   <li>{@code concede} — the loser left the game (concede/leave sets {@code hasLeft()}).</li>
+     *   <li>{@code draw_empty_library} — the loser drew from an empty library.</li>
+     *   <li>{@code poison} — the loser holds >= 10 poison counters.</li>
+     *   <li>{@code commander_damage} — some commander dealt the loser > 20 combat damage
+     *       (checked BEFORE life, since a commander-damage loser is usually alive on life).</li>
+     *   <li>{@code lethal_damage} — the loser is at <= 0 life (combat/burn/drain collapse here —
+     *       the engine does not retain the discriminator).</li>
+     *   <li>{@code state_loss} — any other rule/effect loss (unpaid Pact, "you lose" effects) —
+     *       the discriminator is not retained, so these collapse honestly.</li>
+     *   <li>{@code unknown} — ended but the loser matches none of the above (must be rare).</li>
+     * </ul>
+     */
+    private static String deriveEndCause(Game game, Player playerA, Player playerB, boolean timedOut,
+            boolean commander) {
+        if (timedOut) {
+            return "timeout";
+        }
+        boolean aWon = playerA.hasWon();
+        boolean bWon = playerB.hasWon();
+        if (!aWon && !bWon) {
+            // No winner: a real draw or an unfinished turn-cap game — excluded from W/L either way.
+            return "draw_game";
+        }
+        Player loser = aWon ? playerB : playerA;
+        return causeOfLoss(game, loser, commander);
+    }
+
+    /** Classify WHY {@code loser} lost, from its retained end-state. Best-effort: any lookup that
+     *  throws collapses to {@code state_loss} so cause derivation NEVER fails a real result. */
+    private static String causeOfLoss(Game game, Player loser, boolean commander) {
+        try {
+            if (loser.hasLeft()) {
+                return "concede";
+            }
+            if (loser.getLibrary().isEmptyDraw()) {
+                return "draw_empty_library";
+            }
+            if (loser.getCountersCount(CounterType.POISON) >= 10) {
+                return "poison";
+            }
+            if (commander && dealtLethalCommanderDamage(game, loser.getId())) {
+                return "commander_damage";
+            }
+            if (loser.getLife() <= 0) {
+                return "lethal_damage";
+            }
+            if (loser.hasLost()) {
+                return "state_loss";
+            }
+        } catch (RuntimeException ex) {
+            return "state_loss";
+        }
+        return "unknown";
+    }
+
+    /** True iff any player's commander dealt {@code loserId} > 20 combat damage (CR 903.14a),
+     *  read from the per-commander {@link CommanderInfoWatcher} still on the game state. */
+    private static boolean dealtLethalCommanderDamage(Game game, UUID loserId) {
+        for (Player p : game.getPlayers().values()) {
+            for (UUID cid : game.getCommandersIds(p, CommanderCardType.COMMANDER_OR_OATHBREAKER, false)) {
+                CommanderInfoWatcher w = game.getState().getWatcher(CommanderInfoWatcher.class, cid);
+                if (w == null) {
+                    continue;
+                }
+                Map<UUID, Integer> dmg = w.getDamageToPlayer();
+                Integer dealt = dmg == null ? null : dmg.get(loserId);
+                if (dealt != null && dealt > 20) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

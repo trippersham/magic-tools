@@ -93,6 +93,12 @@ class GameResult:
     #: is TERMINAL (dedup / cell-done / no requeue) but EXCLUDED from W/L/D stats: its ``winner`` is
     #: ``'none'`` so :func:`~pipeline.sim.game_queue._winner_bucket` credits neither seat.
     reason: str | None = None
+    #: The TERMINAL CAUSE the worker derived from the engine end-state (``lethal_damage`` /
+    #: ``commander_damage`` / ``draw_empty_library`` / ``poison`` / ``state_loss`` / ``draw_game`` /
+    #: ``timeout`` / ``unknown``). The correctness predicate :func:`~pipeline.sim.aggregate.
+    #: classify_validity` buckets on this instead of wall-clock; ``None`` marks a LEGACY row that
+    #: predates the terminal-cause jar (classifier falls back to the old ms-floor heuristic).
+    end_cause: str | None = None
 
     @property
     def decisive(self) -> bool:
@@ -140,6 +146,18 @@ def _json_body(line: str, prefix: str) -> dict[str, Any]:
     return body
 
 
+_END_CAUSE_PREFIX = 'end_cause='
+
+
+def _end_cause_from_markers(markers: list[str]) -> str | None:
+    """Extract the ``end_cause=<value>`` terminal-cause marker (the worker emits it in the marker
+    list, same pattern as ``reason=``/``decisive=``), or ``None`` when absent (a legacy row)."""
+    for m in markers:
+        if isinstance(m, str) and m.startswith(_END_CAUSE_PREFIX):
+            return m[len(_END_CAUSE_PREFIX) :]
+    return None
+
+
 def _require(body: dict[str, Any], key: str, line: str) -> Any:
     if key not in body:
         msg = f'missing {key!r} in {line!r}'
@@ -161,14 +179,16 @@ def parse_line(line: str) -> ProtocolMsg:
 
     if stripped.startswith('RESULT '):
         body = _json_body(stripped, 'RESULT ')
+        markers = list(body.get('markers', []))
         return GameResult(
             task_id=str(_require(body, 'id', line)),
             winner=_validate_winner(body.get('winner'), line),
             kill_turn=body.get('kill_turn'),
             ms=int(body.get('ms', 0)),
-            markers=list(body.get('markers', [])),
+            markers=markers,
             log_path=body.get('log'),
             reason=body.get('reason'),
+            end_cause=_end_cause_from_markers(markers),
         )
 
     if stripped.startswith('ERROR '):

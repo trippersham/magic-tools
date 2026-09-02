@@ -17,6 +17,7 @@ the bucket rollup is :func:`pipeline.sim.driver_run.aggregate_buckets`. The simd
 from __future__ import annotations
 
 from collections import defaultdict
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from pipeline.sim.driver_compare import OpponentComparison, PilotingComparison, _rates
@@ -43,9 +44,12 @@ __all__ = (
     'BAILOUT_HARD_FLOOR_MS',
     'BAILOUT_SUSPICIOUS_MS',
     'RunAggregator',
+    'Validity',
     'aggregate_results',
     'bailout_reason',
     'bucket_table_from_comparisons',
+    'classify_validity',
+    'is_fast_game',
 )
 
 #: Wall-clock floor (ms) below which a reported game is physically impossible for a real
@@ -84,6 +88,74 @@ def bailout_reason(result: GameResult, *, hard_floor_ms: int = BAILOUT_HARD_FLOO
     return None
 
 
+class Validity(Enum):
+    """The terminal-cause validity bucket a game's outcome falls into.
+
+    Supersedes the ``ms<2000`` wall-clock proxy as the correctness predicate: time is *triage*, not
+    correctness (all 76 sub-2s games in the endurance corpus had assignable terminal causes — real
+    fast kills + unpaid-Pact rule losses the floor wrongly excluded, and synthetic macro wins a
+    legal cause rejects). See the three-model bailout synthesis.
+    """
+
+    #: A legitimate decided or drawn outcome (lethal/commander-damage/deck-out/poison/rule loss, or
+    #: a real draw) — a VALID cell fill counted toward completeness; the winner credits the seat
+    #: (a draw credits neither). The fast real kills + unpaid-Pact losses come BACK into the data.
+    DECISIVE = 'decisive'
+    #: Excluded from W/L and TOPPED UP: an engine-defective livelock (``timeout``) or a refused
+    #: driver (``driver-rejected``) — no legal terminal event, so the cell needs a replacement.
+    NONDECISIVE = 'nondecisive'
+    #: Excluded, topped up, AND flagged loudly: a decisive claim with NO legal terminal cause
+    #: (macro-game-over) or an ``unknown``/unclassifiable cause on a game that claims a winner. Must
+    #: be near-zero; a nonzero count is a data-integrity alarm (a driver fabricating a win).
+    INVALID = 'invalid'
+
+
+#: Terminal causes that are legitimate decided/drawn outcomes → a VALID cell fill (``DECISIVE``).
+#: ``draw_game`` is a valid fill whose winner (``DRAW``/``none``) credits neither seat — excluded
+#: from the W/L denominator exactly like today, but NOT topped up (the cell is filled).
+_DECISIVE_CAUSES = frozenset(
+    {'lethal_damage', 'commander_damage', 'draw_empty_library', 'poison', 'rule_loss', 'state_loss', 'draw_game'}
+)
+
+#: Terminal causes that are non-decisive (excluded from W/L + a top-up dispatched).
+_NONDECISIVE_CAUSES = frozenset({'timeout'})
+
+
+def classify_validity(result: GameResult, *, hard_floor_ms: int = BAILOUT_HARD_FLOOR_MS) -> Validity:
+    """Bucket one game by its terminal cause — the correctness predicate replacing the ms floor.
+
+    * An explicit non-decisive ``reason`` (``timeout`` / ``driver-rejected``) → ``NONDECISIVE``.
+    * A ``None`` ``end_cause`` is a LEGACY row predating the terminal-cause jar — fall back to the
+      OLD ms-floor heuristic (:func:`bailout_reason`) so replaying legacy data still works
+      (backward compat: the real-2265 replay reproduces its exact expectations).
+    * A known decisive cause → ``DECISIVE``; ``timeout`` → ``NONDECISIVE``; any other/``unknown``
+      cause on a game claiming a winner → ``INVALID`` (near-zero; a loud data-integrity alarm).
+    """
+    if result.reason is not None:
+        return Validity.NONDECISIVE
+    cause = result.end_cause
+    if cause is None:
+        # Legacy row: no terminal cause emitted — the OLD ms-floor heuristic still governs it.
+        if bailout_reason(result, hard_floor_ms=hard_floor_ms) is not None:
+            return Validity.NONDECISIVE
+        return Validity.DECISIVE
+    c = cause.strip().lower()
+    if c in _NONDECISIVE_CAUSES:
+        return Validity.NONDECISIVE
+    if c in _DECISIVE_CAUSES:
+        return Validity.DECISIVE
+    # A decisive claim with no legal terminal cause (macro-game-over) or an unknown cause.
+    return Validity.INVALID
+
+
+def is_fast_game(result: GameResult) -> bool:
+    """True for a suspiciously-fast (< hard floor) game — an INFORMATIONAL triage flag only.
+
+    No longer a correctness predicate (that is :func:`classify_validity`); surfaced in coverage so a
+    genuinely-fast decisive kill is visible without being excluded."""
+    return result.ms < BAILOUT_HARD_FLOOR_MS
+
+
 def _winner_bucket(winner: str) -> str:
     """Normalise a ``GameResult.winner`` to ``'a'`` (subject) / ``'b'`` (opponent) / ``'draw'``.
 
@@ -101,12 +173,14 @@ def _winner_bucket(winner: str) -> str:
 class _Cell:
     """One ``(subject, opponent, piloting)`` cell's tally (valid fills vs bad fills)."""
 
-    __slots__ = ('failed', 'needed', 'nondecisive', 'ok', 'wins_a', 'wins_b')
+    __slots__ = ('failed', 'fast', 'invalid', 'needed', 'nondecisive', 'ok', 'wins_a', 'wins_b')
 
     def __init__(self) -> None:
         self.needed = 0
-        self.ok = 0  # valid terminal games (gate-passed) — the completeness numerator.
-        self.nondecisive = 0  # bailout/timeout games: counted in coverage, excluded from W/L.
+        self.ok = 0  # valid terminal games (cause-classified DECISIVE) — the completeness numerator.
+        self.nondecisive = 0  # timeout/legacy-bailout/INVALID games: in coverage, excluded from W/L.
+        self.invalid = 0  # subset of nondecisive: a decisive claim with NO legal cause (loud alarm).
+        self.fast = 0  # informational: DECISIVE games under the fast-game floor (a genuinely fast kill).
         self.failed = 0  # tasks that burned their budget / were quarantined (no result).
         self.wins_a = 0
         self.wins_b = 0
@@ -142,10 +216,15 @@ class RunAggregator:
         """Tally one completed game (non-decisive/bailout → coverage only, credits neither seat)."""
         subject, opp, pil = _cell_of(res.task_id)
         cell = self._cells[(subject, opp, pil)]
-        if not res.decisive or bailout_reason(res, hard_floor_ms=self._bailout_floor_ms) is not None:
+        validity = classify_validity(res, hard_floor_ms=self._bailout_floor_ms)
+        if validity is not Validity.DECISIVE:
             cell.nondecisive += 1
+            if validity is Validity.INVALID:
+                cell.invalid += 1
             return
         cell.ok += 1
+        if is_fast_game(res):
+            cell.fast += 1
         bucket = _winner_bucket(res.winner)
         if bucket == 'a':
             cell.wins_a += 1
@@ -231,6 +310,21 @@ class RunAggregator:
     def failed_cells(self) -> list[tuple[str, str, str]]:
         """Cells left under-filled specifically by failed/quarantined or non-decisive games."""
         return [k for k, c in self._cells.items() if c.ok < c.needed and (c.failed or c.nondecisive)]
+
+    def invalid_cells(self) -> list[tuple[str, str, str]]:
+        """Cells that saw at least one INVALID game (a decisive claim with no legal terminal cause).
+
+        Should be near-empty; a nonzero list is a loud data-integrity alarm (a driver fabricating a
+        win, or an ``unknown`` cause on a game claiming a winner) — surfaced in coverage."""
+        return [k for k, c in self._cells.items() if c.invalid]
+
+    def invalid_count(self) -> int:
+        """Total INVALID games across all cells (the coverage alarm counter)."""
+        return sum(c.invalid for c in self._cells.values())
+
+    def fast_count(self) -> int:
+        """Total DECISIVE games under the fast-game floor (informational triage flag)."""
+        return sum(c.fast for c in self._cells.values())
 
     def complete(self) -> bool:
         return not self.incomplete_cells()

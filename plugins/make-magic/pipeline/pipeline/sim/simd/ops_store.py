@@ -81,9 +81,15 @@ CREATE TABLE IF NOT EXISTS simd_results (
     markers    TEXT,
     log_path   TEXT,
     reason     TEXT,
+    end_cause  TEXT,
     created_at TIMESTAMP
 )
 """
+
+#: Additive migration for a store created before the terminal-cause gate: add ``end_cause`` if the
+#: table predates it. DuckDB tolerates ``ADD COLUMN IF NOT EXISTS``; old rows read back as ``None``
+#: (a legacy row the classifier routes through the ms-floor fallback).
+_RESULTS_MIGRATE = 'ALTER TABLE simd_results ADD COLUMN IF NOT EXISTS end_cause TEXT'
 
 _QUARANTINE_DDL = """
 CREATE TABLE IF NOT EXISTS simd_quarantine (
@@ -120,6 +126,7 @@ class OpsStore:
             self._conn.execute(_TASKS_DDL)
             self._conn.execute(_ATTEMPTS_DDL)
             self._conn.execute(_RESULTS_DDL)
+            self._conn.execute(_RESULTS_MIGRATE)
             self._conn.execute(_QUARANTINE_DDL)
 
     # -- lifecycle --------------------------------------------------------- #
@@ -164,8 +171,8 @@ class OpsStore:
             self._conn.execute('DELETE FROM simd_results WHERE task_id = ?', [res.task_id])
             self._conn.execute(
                 'INSERT INTO simd_results '
-                '(task_id, winner, kill_turn, ms, markers, log_path, reason, created_at) '
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                '(task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause, created_at) '
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     res.task_id,
                     res.winner,
@@ -174,6 +181,7 @@ class OpsStore:
                     json.dumps(list(res.markers)),
                     res.log_path,
                     res.reason,
+                    res.end_cause,
                     _now(),
                 ],
             )
@@ -205,7 +213,7 @@ class OpsStore:
         """``{task_id: GameResult}`` for every committed game — the done-set replacement."""
         with self._lock:
             rows = self._conn.execute(
-                'SELECT task_id, winner, kill_turn, ms, markers, log_path, reason FROM simd_results'
+                'SELECT task_id, winner, kill_turn, ms, markers, log_path, reason, end_cause FROM simd_results'
             ).fetchall()
         out: dict[str, GameResult] = {}
         for r in rows:
@@ -217,6 +225,7 @@ class OpsStore:
                 markers=list(json.loads(r[4])) if r[4] else [],
                 log_path=r[5],
                 reason=r[6],
+                end_cause=r[7],
             )
         return out
 

@@ -28,7 +28,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from pipeline.sim.aggregate import bailout_reason
+from pipeline.sim.aggregate import Validity, classify_validity, is_fast_game
 from pipeline.sim.game_protocol import GameError, GameResult
 from pipeline.sim.game_tasks import GameTask, cell_key
 from pipeline.sim.simd.governor import Admission
@@ -74,16 +74,27 @@ class SimdRunResult:
     #: replacement game also resolved non-decisive). These are flagged DISTINCTLY — they are
     #: incomplete-by-exhaustion, never silently folded into ``complete``.
     exhausted_cells: list[tuple[str, str, str]]
+    #: Cells that saw at least one INVALID game (a decisive claim with no legal terminal cause).
+    #: Should be near-empty; a nonzero list is a loud data-integrity alarm surfaced in coverage.
+    invalid_cells: list[tuple[str, str, str]]
+    #: Total DECISIVE games under the fast-game floor (informational triage flag; no longer excluded).
+    fast_games: int
     complete: bool
 
 
 class _Cell:
-    __slots__ = ('needed', 'nondecisive', 'ok', 'quarantined', 'topups', 'wins_a', 'wins_b')
+    __slots__ = ('fast', 'invalid', 'needed', 'nondecisive', 'ok', 'quarantined', 'topups', 'wins_a', 'wins_b')
 
     def __init__(self) -> None:
         self.needed = 0
         self.ok = 0
         self.nondecisive = 0
+        #: Subset of nondecisive: a decisive claim with NO legal terminal cause (macro-game-over) or
+        #: an ``unknown`` cause — INVALID data. Topped up like a non-decisive game AND flagged loudly.
+        self.invalid = 0
+        #: Informational: DECISIVE games under the fast-game floor (a genuinely fast kill, no longer
+        #: excluded by the retired ms proxy).
+        self.fast = 0
         self.quarantined = 0
         #: Top-up replacement tasks EVER created for this cell (originals excluded). Bounds the
         #: per-cell top-up budget and seeds the next replacement's game-index (``topup-<n>``).
@@ -332,10 +343,23 @@ class SimdScheduler:
     def _apply_result_tally(self, tid: str, res: GameResult) -> None:
         subject, opp, pil = cell_key(self._task_by_id[tid])
         cell = self._cells[(subject, opp, pil)]
-        if not res.decisive or bailout_reason(res, hard_floor_ms=self._bailout_floor_ms) is not None:
+        validity = classify_validity(res, hard_floor_ms=self._bailout_floor_ms)
+        if validity is not Validity.DECISIVE:
+            # timeout / legacy-bailout / INVALID — excluded from W/L and topped up (the caller's
+            # _ensure_topups_locked fires off this same nondecisive increment). INVALID is flagged.
             cell.nondecisive += 1
+            if validity is Validity.INVALID:
+                cell.invalid += 1
+                subj, o, p = cell_key(self._task_by_id[tid])
+                log.warning(
+                    'task %s INVALID (end_cause=%r, winner=%r) — decisive claim with no legal '
+                    'terminal cause; excluded + topped up; cell (%s,%s,%s) flagged',
+                    tid, res.end_cause, res.winner, subj, o, p,
+                )
             return
         cell.ok += 1
+        if is_fast_game(res):
+            cell.fast += 1
         bucket = _winner_bucket(res.winner)
         if bucket == 'a':
             cell.wins_a += 1
@@ -372,6 +396,8 @@ class SimdScheduler:
             ]
             exhausted_set = set(exhausted)
             blocking = [k for k in incomplete if k not in exhausted_set]
+            invalid_cells = [k for k, c in self._cells.items() if c.invalid]
+            fast_games = sum(c.fast for c in self._cells.values())
             return SimdRunResult(
                 results=dict(self._results),
                 quarantined=set(self._quarantined),
@@ -379,5 +405,7 @@ class SimdScheduler:
                 incomplete_cells=incomplete,
                 quarantined_cells=quarantined_cells,
                 exhausted_cells=exhausted,
+                invalid_cells=invalid_cells,
+                fast_games=fast_games,
                 complete=not blocking,
             )

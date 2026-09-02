@@ -974,8 +974,16 @@ def run(argv: list[str] | None = None) -> None:
         breaker=CrashLoopBreaker(),
         boot_deadline_s=120.0,
     )
-    log.info('simd run complete=%s quarantined=%d incomplete_cells=%d',
-             result.complete, len(result.quarantined), len(result.incomplete_cells))
+    log.info('simd run complete=%s quarantined=%d incomplete_cells=%d fast_games=%d invalid_cells=%d',
+             result.complete, len(result.quarantined), len(result.incomplete_cells),
+             result.fast_games, len(result.invalid_cells))
+    if result.invalid_cells:
+        # INVALID = a decisive claim with NO legal terminal cause (macro-game-over / unknown). This
+        # must be near-zero; a nonzero count is a loud data-integrity alarm (a driver fabricating a
+        # win). Surfaced distinctly so it is never mistaken for an ordinary non-decisive game.
+        log.warning('DATA-INTEGRITY ALARM: %d cell(s) saw INVALID games (decisive claim, no legal '
+                    'terminal cause) — excluded + topped up + flagged: %s',
+                    len(result.invalid_cells), result.invalid_cells)
 
     # Fold the committed results into per-subject comparisons, remapping the tag maps from deck_id
     # to the staged subject basename the tasks carry.
