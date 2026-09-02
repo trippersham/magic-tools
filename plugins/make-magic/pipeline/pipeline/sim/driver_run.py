@@ -154,8 +154,17 @@ def _structural_card_count(g: GauntletDeck) -> int:
 
 
 def _default_loads(g: GauntletDeck) -> bool:
-    """The default loadability predicate: ``g`` translates to >= :data:`_MIN_LOADABLE_CARDS`."""
-    return _structural_card_count(g) >= _MIN_LOADABLE_CARDS
+    """The default loadability + integrity predicate (JVM-free, deterministic).
+
+    A commander opponent is seated only if it translates to a LEGAL commander size — exactly 100
+    cards total with a 1-2 card command zone (:func:`~pipeline.sim.engines.xmage.commander_deck_ok`)
+    - tightening the historical non-zero card-count check (the A4 precon blocker) so a short-staged
+    opponent (e.g. the 95-card Kenrith / 98-card K'rrik gauntlet sources) is EXCLUDED the same way a
+    0-card opponent is, rather than silently seating a thinner library.
+    """
+    from pipeline.sim.engines import xmage as xe
+
+    return xe.commander_deck_ok(xe._forge_dck_to_xmage_txt(g.dck_text))
 
 
 def build_opponent_field(
@@ -449,14 +458,21 @@ def build_corpus_game_tasks(
         deck_id = str(row['deck_id'])
         name = _flat_deck_basename('s', deck_id)
         dck_text = _gauntlet_dck_path(deck_id).read_text(encoding='utf-8')
-        (stage / name).write_text(xe._forge_dck_to_xmage_txt(dck_text), encoding='utf-8')
+        xtxt = xe._forge_dck_to_xmage_txt(dck_text)
+        # Fail LOUD before any JVM: a wrong-size SUBJECT must never silently seat into a real game.
+        main, commander = xe.validate_commander_deck(xtxt, deck_name=deck_id)
+        (stage / name).write_text(xe.audit_header(main, commander) + xtxt, encoding='utf-8')
         driver = DriverRef(classpath=str(drivers.classes_dir(deck, data_dir=data_dir)), fqcn=str(row['fqcn']))
         subjects.append(SeatSpec(deck_path=name, driver=driver))
 
     opponents: list[SeatSpec] = []
     for g in field:
         name = _flat_deck_basename('o', g.name)
-        (stage / name).write_text(xe._forge_dck_to_xmage_txt(g.dck_text), encoding='utf-8')
+        xtxt = xe._forge_dck_to_xmage_txt(g.dck_text)
+        # The field builder already EXCLUDED undersized opponents; re-validate as defense-in-depth
+        # (an undersized opponent that reached here is a builder bug, not a silent thin seat).
+        main, commander = xe.validate_commander_deck(xtxt, deck_name=g.name)
+        (stage / name).write_text(xe.audit_header(main, commander) + xtxt, encoding='utf-8')
         opponents.append(SeatSpec(deck_path=name, driver=None))
 
     return build_game_tasks(subjects, opponents, games, fmt=_COMMANDER)
@@ -925,9 +941,13 @@ def run(argv: list[str] | None = None) -> None:
         precon_names = {g.name for g in _bundle(_COMMANDER, 'precons')}
 
         def field_loads(g: GauntletDeck) -> bool:
+            # Structural size/integrity gate first (JVM-free), for EVERY bundle — so an undersized
+            # opponent is excluded even on the precon path that spends the real base-DB check.
+            if not _default_loads(g):
+                return False
             if g.name in precon_names:
                 return xmage_deck_loads(g, install=install)
-            return _default_loads(g)
+            return True
 
         loads_fn: Callable[[GauntletDeck], bool] | None = field_loads
     except XMageUnavailableError as exc:

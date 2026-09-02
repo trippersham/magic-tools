@@ -645,3 +645,81 @@ def test_watchdog_covers_match_heartbeat_not_only_goldfish() -> None:
     )
     assert state2.stalled is False and rc2 == 0
     assert out2.count(_MATCH_HEARTBEAT) == 4
+
+
+# --------------------------------------------------------------------------- #
+# Commander deck-size / integrity validation (fail LOUD at staging).            #
+# --------------------------------------------------------------------------- #
+
+
+def _dck(main_lines: list[str], commander: str = '1 Kenrith, the Returned King') -> str:
+    """A minimal Forge .dck with the given [Main] lines and one [Commander]."""
+    body = '\n'.join(main_lines)
+    return f'[metadata]\nName=x\n[Commander]\n{commander}\n[Main]\n{body}\n'
+
+
+def test_count_xmage_deck_sums_quantity_multipliers() -> None:
+    """Card QUANTITIES are summed (the ``N`` multiplier), not lines: 30 Swamp == 30 cards."""
+    from pipeline.sim.engines.xmage import count_xmage_deck
+
+    txt = '30 Swamp\n1 Sol Ring\nSB: 1 K\'rrik, Son of Yawgmoth\n'
+    assert count_xmage_deck(txt) == (31, 1)
+
+
+def test_validate_commander_deck_passes_99_plus_1() -> None:
+    """A legal 99 main + 1 commander deck validates and returns its counts."""
+    from pipeline.sim.engines.xmage import _forge_dck_to_xmage_txt, validate_commander_deck
+
+    dck = _dck([f'1 Card {i:02d}' for i in range(1, 99)] + ['1 Swamp'])
+    txt = _forge_dck_to_xmage_txt(dck)
+    assert validate_commander_deck(txt, deck_name='legal') == (99, 1)
+
+
+def test_validate_commander_deck_passes_partner_98_plus_2() -> None:
+    """A legal partner pair (98 main + 2 commanders = 100 total) validates."""
+    from pipeline.sim.engines.xmage import _forge_dck_to_xmage_txt, validate_commander_deck
+
+    dck = _dck(
+        [f'1 Card {i:02d}' for i in range(1, 98)] + ['1 Swamp'],
+        commander='1 Ardenn, Intrepid Archaeologist\n1 Rograkh, Son of Rohgahh',
+    )
+    txt = _forge_dck_to_xmage_txt(dck)
+    assert validate_commander_deck(txt, deck_name='partners') == (98, 2)
+
+
+def test_validate_commander_deck_fails_short_95_names_deck_and_counts() -> None:
+    """A 95-card deck fails LOUD; the message names the deck AND the offending counts."""
+    from pipeline.sim.engines.xmage import (
+        DeckSizeError,
+        _forge_dck_to_xmage_txt,
+        validate_commander_deck,
+    )
+
+    dck = _dck([f'1 Card {i:02d}' for i in range(1, 95)] + ['1 Swamp'])  # 95 main + 1 commander
+    txt = _forge_dck_to_xmage_txt(dck)
+    with pytest.raises(DeckSizeError) as exc:
+        validate_commander_deck(txt, deck_name='short-deck')
+    msg = str(exc.value)
+    assert 'short-deck' in msg and '95' in msg
+
+
+def test_translation_keeps_split_and_slash_names() -> None:
+    """A split-card / ``//`` name is NOT dropped by translation (counted, annotation stripped)."""
+    from pipeline.sim.engines.xmage import _forge_dck_to_xmage_txt, count_xmage_deck
+
+    dck = _dck(['1 Fire // Ice|MH2|290', '2 Wear // Tear'] + [f'1 Card {i:02d}' for i in range(1, 97)])
+    txt = _forge_dck_to_xmage_txt(dck)
+    assert 'Fire // Ice' in txt and 'Wear // Tear' in txt
+    assert '|MH2|' not in txt  # set/collector annotation stripped
+    main, commander = count_xmage_deck(txt)
+    assert (main, commander) == (99, 1)
+
+
+def test_audit_header_is_an_inert_comment_line() -> None:
+    """The audit header is a single ``//`` comment (skipped by the importer) recording counts."""
+    from pipeline.sim.engines.xmage import audit_header, count_xmage_deck
+
+    header = audit_header(99, 1)
+    assert header.startswith('// audit: main=99 commander=1')
+    # Prepended to a deck it must not change the counted cards (comment is ignored).
+    assert count_xmage_deck(header + '99 Swamp\nSB: 1 Yargle, Glutton of Urborg\n') == (99, 1)

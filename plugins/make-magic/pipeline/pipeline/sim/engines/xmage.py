@@ -233,6 +233,93 @@ def _strip_forge_annotations(card_line: str) -> str:
     return name.rstrip('+*').rstrip()
 
 
+# --------------------------------------------------------------------------- #
+# Commander deck-size / integrity validation (fail LOUD at staging).
+# --------------------------------------------------------------------------- #
+
+#: A legal commander (EDH) deck is exactly 100 cards total across the maindeck + command zone,
+#: with the command zone holding 1 commander — or 2 for a legal partner/background pair (98 + 2).
+#: A short-staged deck (e.g. a 95-card source) plays with a thinner library, biasing the
+#: consistency data with nothing surfacing it — the ``<40`` Java floor (``XMageBatch.java``) is
+#: far too weak to catch it. These constants drive the Python-side staging guard.
+COMMANDER_DECK_TOTAL = 100
+#: Legal command-zone sizes: a lone commander, or a partner/background pair.
+_COMMANDER_ZONE_SIZES = frozenset({1, 2})
+
+
+class DeckSizeError(ValueError):
+    """A staged deck violates its format's deck-size / integrity invariant.
+
+    Raised LOUD at staging (before any JVM) so a wrong-size SUBJECT deck can never silently
+    seat into a real game — see :func:`validate_commander_deck`.
+    """
+
+
+def count_xmage_deck(txt: str) -> tuple[int, int]:
+    """``(main_qty, commander_qty)`` for a translated XMage ``.txt`` — summing the ``N`` multipliers.
+
+    Counts actual card QUANTITIES (the leading ``N`` on each ``N Name`` line), NOT lines, so a
+    basic-land stack (``30 Swamp``) contributes 30. ``SB:``-prefixed lines are the command zone
+    (XMage's ``TxtDeckImporter`` moves them into the commander seat). ``//`` comment lines and
+    blank lines are ignored, mirroring the importer.
+    """
+    main = commander = 0
+    for raw in txt.splitlines():
+        line = raw.strip()
+        if not line or line.startswith('//'):
+            continue
+        is_commander = line.startswith('SB:')
+        if is_commander:
+            line = line[len('SB:'):].strip()
+        match = re.match(r'(\d+)\s+', line)
+        qty = int(match.group(1)) if match else 1
+        if is_commander:
+            commander += qty
+        else:
+            main += qty
+    return main, commander
+
+
+def commander_deck_ok(txt: str) -> bool:
+    """True iff ``txt`` stages to a legal commander size (JVM-free integrity predicate).
+
+    Legal = exactly :data:`COMMANDER_DECK_TOTAL` cards total (maindeck + command zone) with a
+    1- or 2-card command zone (a lone commander, or a legal partner/background pair). Used by the
+    deterministic opponent-field builder to EXCLUDE an undersized/oversized opponent the same way
+    a 0-card opponent is excluded.
+    """
+    main, commander = count_xmage_deck(txt)
+    return commander in _COMMANDER_ZONE_SIZES and main + commander == COMMANDER_DECK_TOTAL
+
+
+def validate_commander_deck(txt: str, *, deck_name: str) -> tuple[int, int]:
+    """Assert a translated commander ``.txt`` is a legal size; return its ``(main, commander)`` counts.
+
+    Raises :class:`DeckSizeError` — naming the deck and the offending counts — when the deck is not
+    exactly :data:`COMMANDER_DECK_TOTAL` cards total with a 1-2 card command zone. This is the loud
+    staging-time guard that stops a short-staged SUBJECT deck (e.g. the 95-card Kenrith source) from
+    reaching a real game with a thinner library and silently biasing the data.
+    """
+    main, commander = count_xmage_deck(txt)
+    if commander not in _COMMANDER_ZONE_SIZES or main + commander != COMMANDER_DECK_TOTAL:
+        raise DeckSizeError(
+            f'commander deck {deck_name!r} fails deck-size integrity: {main} main-deck card(s) + '
+            f'{commander} commander(s) = {main + commander} total '
+            f'(expected {COMMANDER_DECK_TOTAL} total with a 1- or 2-card command zone)'
+        )
+    return main, commander
+
+
+def audit_header(main: int, commander: int) -> str:
+    """A single ``//`` comment line recording the validated ``(main, commander)`` counts.
+
+    Prepended to every staged deck so a later audit can read the counts WITHOUT re-parsing the
+    source ``.dck``. ``//`` lines are comments to XMage's ``TxtDeckImporter`` (skipped before any
+    card is read), so this is inert to the loader.
+    """
+    return f'// audit: main={main} commander={commander}\n'
+
+
 class XMageEngine:
     """A :class:`~pipeline.sim.engine.SimEngine` that runs matchups via XMage CP7."""
 

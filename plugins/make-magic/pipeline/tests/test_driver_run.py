@@ -313,3 +313,43 @@ def test_bucket_markdown_renders_headline() -> None:
     assert 'Headline (tight-keep)' in md
     assert '| tight-keep |' in md
     assert 'Opp1, Opp2' in md
+
+
+# --------------------------------------------------------------------------- #
+# Commander deck-size / integrity guard at the field + staging boundaries.      #
+# --------------------------------------------------------------------------- #
+
+
+def test_default_loads_excludes_undersized_commander_opponent() -> None:
+    """The JVM-free default predicate rejects a short (95/98-card) commander deck, accepts a 99+1."""
+    short = GauntletDeck(name='short', dck_text=_mk_dck(95))
+    legal = GauntletDeck(name='legal', dck_text=_mk_dck(99))
+    assert dr._default_loads(legal) is True
+    assert dr._default_loads(short) is False
+
+
+def test_default_field_all_legal_commander_size() -> None:
+    """Every opponent in the DEFAULT (structural) field is a legal 100-card commander deck."""
+    from pipeline.sim.engines import xmage as xe
+
+    field = dr.build_opponent_field(drive_deck_ids=[])
+    assert len(field) == 8
+    for g in field:
+        assert xe.commander_deck_ok(xe._forge_dck_to_xmage_txt(g.dck_text)), g.name
+
+
+def test_field_excludes_a_known_undersized_deck_deterministically() -> None:
+    """An undersized candidate injected into a stratum is never seated; the field stays 8 + stable."""
+    a = dr.build_opponent_field(drive_deck_ids=[])
+    b = dr.build_opponent_field(drive_deck_ids=[])
+    names_a = [g.name for g in a]
+    assert names_a == [g.name for g in b]
+    # The two known-short cedh sources must not appear (they translate to 96/99 total).
+    assert 'Kenrith, the Returned King' not in names_a
+    assert "K'rrik, Son of Yawgmoth" not in names_a
+
+
+def _mk_dck(main_qty: int, commander: str = '1 Yargle, Glutton of Urborg') -> str:
+    """A synthetic Forge .dck with ``main_qty`` distinct maindeck cards + one commander."""
+    lines = '\n'.join(f'1 Card {i:03d}' for i in range(main_qty))
+    return f'[metadata]\nName=x\n[Commander]\n{commander}\n[Main]\n{lines}\n'
