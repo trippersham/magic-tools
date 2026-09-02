@@ -47,6 +47,7 @@ def run_games_simd(
     workers: int | None = None,
     stall_timeout_s: float,
     attempt_cap: int = 2,
+    topup_cap: int = 2,
     monitor: ResourceMonitor | None = None,
     bailout_floor_ms: int = 0,
     env_for_worker: Callable[[int], dict[str, str]] | None = None,
@@ -67,7 +68,11 @@ def run_games_simd(
     operational store. On construction the scheduler seeds its done/quarantine/attempt state from
     that file, so pointing a fresh call at an existing store RESUMES the run: committed games are
     never re-run and quarantined cells are never re-attempted. ``attempt_cap`` (K, default 2) is
-    the per-task dispatch budget before a persistent quarantine latch. ``bailout_floor_ms`` arms
+    the per-task dispatch budget before a persistent quarantine latch. ``topup_cap`` (default 2) is
+    the per-cell top-up multiplier: a non-decisive game (bailout/timeout) enqueues a fresh
+    REPLACEMENT task for its cell so completeness ("``needed`` DECISIVE games per cell") is
+    reachable, bounded at ``topup_cap * needed`` replacements so an all-non-decisive cell still
+    terminates (flagged exhausted). ``bailout_floor_ms`` arms
     the A1 plausibility gate (0 = disabled). ``env_for_worker`` injects per-worker env (the test
     fake-worker hooks; production driver env in A3).
 
@@ -117,6 +122,7 @@ def run_games_simd(
                 tasks,
                 ops=ops,
                 attempt_cap=attempt_cap,
+                topup_cap=topup_cap,
                 monitor=monitor,
                 bailout_floor_ms=bailout_floor_ms,
                 cond_poll_s=cond_poll_s,

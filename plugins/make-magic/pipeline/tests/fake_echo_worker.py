@@ -16,6 +16,14 @@ script drives every scheduling/fault scenario:
 * ``FAKE_DIE_ON_SUBJECT`` — crash (``os._exit``) WHENEVER a task's SUBJECT (``task_id`` first
   ``|``-field) equals this value (no RESULT). A *poison subject* whose every game fails forever —
   drives the simd fairness + persistent-quarantine tests (a whole subject that can never complete).
+* ``FAKE_BAILOUT_ON_INDEX`` — comma-separated ``game_index`` values (``task_id`` 4th ``|``-field);
+  a task whose index is listed completes with a NON-DECISIVE result (``winner=none``,
+  ``reason=bailout``) instead of a decisive win. Models the Java deadline/sub-2s gate producing a
+  game that consumes a slot without incrementing ``ok`` — drives the top-up-dispatch tests.
+* ``FAKE_BAILOUT_ALL`` — every task completes non-decisive (``reason=bailout``); a cell whose games
+  never resolve decisively, to prove top-up dispatch TERMINATES at the cap (never loops).
+* ``FAKE_BAILOUT_ON_SUBJECT`` — every task of this SUBJECT completes non-decisive (bailout); a
+  bailout-heavy subject for the top-up fairness test (its top-ups must not starve other subjects).
 * ``FAKE_RUNLOG`` — a file path; every task run to COMPLETION (RESULT emitted) appends its
   ``task_id`` (O_APPEND, one per line). A cross-restart re-run of a committed game shows the same
   ``task_id`` twice — the simd crash-safe-resume test asserts this never happens (zero re-run).
@@ -53,6 +61,11 @@ def main() -> None:
     die_on_task = bool(os.environ.get('FAKE_DIE_ON_TASK'))
     die_on_task_id = os.environ.get('FAKE_DIE_ON_TASK_ID')
     die_on_subject = os.environ.get('FAKE_DIE_ON_SUBJECT')
+    bailout_indices = frozenset(
+        v for v in os.environ.get('FAKE_BAILOUT_ON_INDEX', '').split(',') if v
+    )
+    bailout_all = bool(os.environ.get('FAKE_BAILOUT_ALL'))
+    bailout_on_subject = os.environ.get('FAKE_BAILOUT_ON_SUBJECT')
     runlog = os.environ.get('FAKE_RUNLOG')
     die_after_result = bool(os.environ.get('FAKE_DIE_AFTER_RESULT'))
     silent = bool(os.environ.get('FAKE_SILENT'))
@@ -131,7 +144,21 @@ def main() -> None:
             fd = os.open(runlog, os.O_CREAT | os.O_WRONLY | os.O_APPEND)
             os.write(fd, (task_id + '\n').encode())
             os.close(fd)
-        result = {'id': task_id, 'winner': 'a', 'kill_turn': 3, 'ms': game_ms, 'markers': [], 'log': None}
+        index = task_id.split('|')[3] if task_id.count('|') >= 3 else ''
+        bail = (
+            bailout_all
+            or index in bailout_indices
+            or (bailout_on_subject is not None and task_id.split('|', 1)[0] == bailout_on_subject)
+        )
+        if bail:
+            # Non-decisive: consumes the slot without crediting either seat (models the Java
+            # deadline / sub-2s gate). ``ok`` will NOT increment → the cell must be topped up.
+            result = {
+                'id': task_id, 'winner': 'none', 'kill_turn': None, 'ms': game_ms,
+                'markers': [], 'log': None, 'reason': 'bailout',
+            }
+        else:
+            result = {'id': task_id, 'winner': 'a', 'kill_turn': 3, 'ms': game_ms, 'markers': [], 'log': None}
         _emit('RESULT ' + json.dumps(result))
 
         if die_after_result and task_number == 1:

@@ -30,11 +30,10 @@ from typing import TYPE_CHECKING
 
 from pipeline.sim.aggregate import bailout_reason
 from pipeline.sim.game_protocol import GameError, GameResult
-from pipeline.sim.game_tasks import cell_key
+from pipeline.sim.game_tasks import GameTask, cell_key
 from pipeline.sim.simd.governor import Admission
 
 if TYPE_CHECKING:
-    from pipeline.sim.game_tasks import GameTask
     from pipeline.sim.monitor import ResourceMonitor
     from pipeline.sim.simd.governor import DiskGovernor
     from pipeline.sim.simd.ops_store import OpsStore
@@ -71,17 +70,24 @@ class SimdRunResult:
     cells: dict[tuple[str, str, str], tuple[int, int]]
     incomplete_cells: list[tuple[str, str, str]]
     quarantined_cells: list[tuple[str, str, str]]
+    #: Cells left short specifically because their bounded top-up budget was exhausted (every
+    #: replacement game also resolved non-decisive). These are flagged DISTINCTLY — they are
+    #: incomplete-by-exhaustion, never silently folded into ``complete``.
+    exhausted_cells: list[tuple[str, str, str]]
     complete: bool
 
 
 class _Cell:
-    __slots__ = ('needed', 'nondecisive', 'ok', 'quarantined', 'wins_a', 'wins_b')
+    __slots__ = ('needed', 'nondecisive', 'ok', 'quarantined', 'topups', 'wins_a', 'wins_b')
 
     def __init__(self) -> None:
         self.needed = 0
         self.ok = 0
         self.nondecisive = 0
         self.quarantined = 0
+        #: Top-up replacement tasks EVER created for this cell (originals excluded). Bounds the
+        #: per-cell top-up budget and seeds the next replacement's game-index (``topup-<n>``).
+        self.topups = 0
         self.wins_a = 0
         self.wins_b = 0
 
@@ -95,6 +101,7 @@ class SimdScheduler:
         *,
         ops: OpsStore,
         attempt_cap: int = 2,
+        topup_cap: int = 2,
         monitor: ResourceMonitor | None = None,
         bailout_floor_ms: int = 0,
         cond_poll_s: float = 0.05,
@@ -102,6 +109,11 @@ class SimdScheduler:
     ) -> None:
         self._ops = ops
         self._attempt_cap = attempt_cap
+        #: Per-cell top-up multiplier: a cell needing N decisive games gets at most ``topup_cap * N``
+        #: replacement tasks before it is declared exhausted. Default 2x keeps a pathological
+        #: all-non-decisive cell bounded (terminates) while giving realistic bailout rates ample
+        #: headroom to reach completeness.
+        self._topup_cap = topup_cap
         self._monitor = monitor
         self._bailout_floor_ms = bailout_floor_ms
         self._cond_poll_s = cond_poll_s
@@ -130,6 +142,9 @@ class SimdScheduler:
         self._pending: dict[str, deque[GameTask]] = {}
         self._in_flight: dict[str, int] = defaultdict(int)
         self._cells: dict[tuple[str, str, str], _Cell] = {}
+        #: Per-cell seat template (any original task's seats) — the blueprint a top-up clones so a
+        #: replacement game runs the identical (subject, opponent, arm) matchup.
+        self._cell_template: dict[tuple[str, str, str], GameTask] = {}
         self._rr = 0  # round-robin rotation pointer into _subject_order.
 
         for t in tasks:
@@ -138,18 +153,41 @@ class SimdScheduler:
             if subject not in self._pending:
                 self._subject_order.append(subject)
                 self._pending[subject] = deque()
-            self._cells.setdefault(key, _Cell())
+            if key not in self._cells:
+                self._cells[key] = _Cell()
+                self._cell_template[key] = t
             self._cells[key].needed += 1
 
-        # Fold seeded results into the cell tallies, then enqueue only the still-runnable tasks.
-        for t in tasks:
-            tid = t.task_id
+        # Resume: reconstruct prior top-up tasks committed to ops.duckdb but ABSENT from the passed
+        # task universe (top-ups are created dynamically, never by build_game_tasks). Each is rebuilt
+        # from its cell's seat template so a still-pending replacement can re-run identically.
+        for tid, (subject, opp, pil, fmt) in ops.load_tasks().items():
+            if tid in self._task_by_id:
+                continue  # an original — already registered.
+            key = (subject, opp, pil)
+            template = self._cell_template.get(key)
+            if template is None:
+                continue  # a top-up for a cell not in this run's universe — skip (out of scope).
+            self._task_by_id[tid] = GameTask(
+                task_id=tid, fmt=fmt, seat_a=template.seat_a, seat_b=template.seat_b
+            )
+            self._cells[key].topups += 1
+
+        # Fold seeded results into the cell tallies, then enqueue only the still-runnable tasks
+        # (originals AND reconstructed top-ups).
+        for tid, t in self._task_by_id.items():
             if tid in seeded_quarantine:
                 self._apply_quarantine_tally(tid)
             elif tid in seeded_results:
                 self._apply_result_tally(tid, seeded_results[tid])
             else:
                 self._pending[cell_key(t)[0]].append(t)
+
+        # Reconcile top-ups over the seeded state: any cell left short by committed non-decisive
+        # games (endurance resume) enqueues exactly the missing replacements now — bounded, and
+        # never double-counting top-ups already present from a prior run.
+        for key in self._cells:
+            self._ensure_topups_locked(key)
 
     # ------------------------------------------------------------------ #
     # Pool callbacks.
@@ -206,6 +244,10 @@ class SimdScheduler:
                 self._ops.record_result(msg)
                 self._ops.record_attempt(tid, self._attempts[tid], 'result')
                 self._apply_result_tally(tid, msg)
+                # A non-decisive commit consumed a slot without incrementing ``ok`` — enqueue a
+                # bounded replacement so the cell can still reach completeness (no-op for a
+                # decisive result, which already advanced ``ok``).
+                self._ensure_topups_locked(cell_key(self._task_by_id[tid]))
             self._cond.notify_all()
 
     def requeue(self, task: GameTask) -> None:
@@ -254,6 +296,39 @@ class SimdScheduler:
         self._ops.quarantine(tid, subject, opp, pil, attempts=self._attempts[tid], reason=reason)
         self._cells[(subject, opp, pil)].quarantined += 1
 
+    def _ensure_topups_locked(self, key: tuple[str, str, str]) -> None:
+        """Enqueue any missing top-up replacements for one cell (idempotent, bounded by the cap).
+
+        The cell wants one replacement per committed non-decisive game (each consumed a slot
+        without a decisive result), capped at ``topup_cap * needed``. Quarantined failures are the
+        attempt-cap path's concern and are NOT compensated here. Idempotent: it only tops the cell
+        up to ``min(nondecisive, cap)`` replacements, so a resume never double-enqueues a top-up a
+        prior run already created.
+        """
+        cell = self._cells[key]
+        if cell.ok >= cell.needed:
+            return  # already complete — no replacement needed.
+        cap = self._topup_cap * cell.needed
+        wanted = min(cell.nondecisive, cap)
+        while cell.topups < wanted:
+            self._enqueue_topup_locked(key)
+
+    def _enqueue_topup_locked(self, key: tuple[str, str, str]) -> None:
+        """Create + enqueue one replacement task for ``key`` (registered to ops for resume)."""
+        subject, opp, pil = key
+        cell = self._cells[key]
+        template = self._cell_template[key]
+        new_id = '|'.join((subject, opp, pil, f'topup-{cell.topups}'))
+        task = GameTask(
+            task_id=new_id, fmt=template.fmt, seat_a=template.seat_a, seat_b=template.seat_b
+        )
+        cell.topups += 1
+        self._task_by_id[new_id] = task
+        self._pending[subject].append(task)
+        self._ops.register_tasks([task])
+        log.debug('cell (%s,%s,%s) topped up → %s (topups=%d, cap=%d)',
+                  subject, opp, pil, new_id, cell.topups, self._topup_cap * cell.needed)
+
     def _apply_result_tally(self, tid: str, res: GameResult) -> None:
         subject, opp, pil = cell_key(self._task_by_id[tid])
         cell = self._cells[(subject, opp, pil)]
@@ -288,11 +363,21 @@ class SimdScheduler:
             quarantined_cells = [
                 k for k, c in self._cells.items() if c.ok < c.needed and (c.quarantined or c.nondecisive)
             ]
+            # A cell is exhausted-by-cap iff it is still short AND its top-up budget is spent — every
+            # replacement it was allowed also failed to resolve decisively. Flagged distinctly so it
+            # is never silently counted complete, and it does NOT block ``complete``.
+            exhausted = [
+                k for k, c in self._cells.items()
+                if c.ok < c.needed and c.topups >= self._topup_cap * c.needed
+            ]
+            exhausted_set = set(exhausted)
+            blocking = [k for k in incomplete if k not in exhausted_set]
             return SimdRunResult(
                 results=dict(self._results),
                 quarantined=set(self._quarantined),
                 cells=cells,
                 incomplete_cells=incomplete,
                 quarantined_cells=quarantined_cells,
-                complete=not incomplete,
+                exhausted_cells=exhausted,
+                complete=not blocking,
             )
