@@ -365,6 +365,128 @@ def test_run_refuses_final_publish_on_incomplete_and_writes_partial(
     assert 'S|O|driven|0' in cov['never_run_tasks']
 
 
+# --------------------------------------------------------------------------- #
+# Baseline-only (single-arm) subjects — driverless decks in the corpus roster.   #
+# --------------------------------------------------------------------------- #
+
+_DRIVE_DECK_ID = 'commander/mid/dimir__yuriko-the-tiger-s-shadow.dck'
+_THIN_DECK_ID = 'commander/mid/dimir__tasha-the-witch-queen.dck'
+_THIN_DECK_ID2 = 'commander/mid/jeskai__narset-enlightened-master.dck'
+
+
+def _drive_row(deck_id: str) -> dict[str, object]:
+    return {'deck_id': deck_id, 'name': deck_id, 'fqcn': 'com.x.Driver', 'drive': True, 'stage': 'compiled'}
+
+
+def _thin_row(deck_id: str) -> dict[str, object]:
+    return {'deck_id': deck_id, 'name': deck_id, 'drive': False, 'stage': 'thin'}
+
+
+def test_corpus_tasks_baseline_only_thin_rows_single_arm(tmp_path: Path) -> None:
+    """A thin (driverless) subject stages its deck and emits ONLY the baseline arm: 1 subject x
+    F opponents x 1 arm x G games — task ids keep the ``subject|opponent|baseline|index`` shape."""
+    from pipeline.sim.gauntlet import _bundle
+
+    field = list(_bundle('commander', 'casual'))[:2]
+    games = 3
+    tasks = dr.build_corpus_game_tasks(
+        [], field, games=games, stage_dir=tmp_path, thin_rows=[_thin_row(_THIN_DECK_ID)]
+    )
+    assert len(tasks) == 1 * len(field) * 1 * games
+    assert {t.task_id.split('|')[2] for t in tasks} == {'baseline'}
+    assert all(t.seat_a.driver is None for t in tasks)  # subject seat bare (no driver)
+
+
+def test_corpus_tasks_mixed_drive_and_thin_task_math(tmp_path: Path) -> None:
+    """A mixed roster: a DRIVE subject (two arms) + a thin subject (baseline only). Task-count math:
+    1*F*2*G (driven) + 1*F*1*G (thin) — and completeness counts the thin subject's baseline cells
+    only (it has no phantom driven cell to leave forever unfilled)."""
+    from pipeline.sim.aggregate import RunAggregator
+    from pipeline.sim.gauntlet import _bundle
+
+    field = list(_bundle('commander', 'casual'))[:2]
+    games = 2
+    tasks = dr.build_corpus_game_tasks(
+        [_drive_row(_DRIVE_DECK_ID)], field, games=games, stage_dir=tmp_path,
+        thin_rows=[_thin_row(_THIN_DECK_ID)],
+    )
+    f = len(field)
+    assert len(tasks) == (f * 2 * games) + (f * 1 * games)
+    # The DRIVE subject carries a driver on its driven arm; the thin subject never does.
+    drive_sub = dr._flat_deck_basename('s', _DRIVE_DECK_ID)
+    thin_sub = dr._flat_deck_basename('s', _THIN_DECK_ID)
+    agg = RunAggregator(tasks)
+    assert agg.baseline_only_subjects() == [thin_sub]
+    thin_cells = [k for k in agg.cells() if k[0] == thin_sub]
+    assert {k[2] for k in thin_cells} == {'baseline'}  # thin subject: baseline cells only
+    drive_cells = {k[2] for k in agg.cells() if k[0] == drive_sub}
+    assert drive_cells == {'driven', 'baseline'}  # DRIVE subject: both arms
+
+
+def test_publish_splits_baseline_only_from_delta(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The published output separates a two-arm DRIVE subject (delta bucket row) from a baseline-only
+    subject (absolute baseline row) — the single-arm subject never pollutes the delta buckets, and a
+    dedicated baselines table (Wilson CI + starter split) is written for it."""
+    from types import SimpleNamespace
+
+    from pipeline.sim.game_protocol import GameResult
+
+    monkeypatch.setenv('MAKE_MAGIC_DATA_DIR', str(tmp_path))
+    drive_sub = dr._flat_deck_basename('s', _DRIVE_DECK_ID)
+    thin_sub = dr._flat_deck_basename('s', _THIN_DECK_ID)
+    opp = 'o_Opp.txt'
+    games = 2
+
+    def _res(tid: str, winner: str) -> GameResult:
+        st = 'A' if int(tid.split('|')[3]) % 2 == 0 else 'B'
+        return GameResult(task_id=tid, winner=winner, kill_turn=8, ms=60000, markers=[],
+                          log_path=None, reason=None, starter=st)
+
+    task_ids: list[str] = []
+    results: dict[str, GameResult] = {}
+    # DRIVE subject: driven (both wins) + baseline (both losses) → a positive lift.
+    for pil, win in (('driven', 'A'), ('baseline', 'B')):
+        for i in range(games):
+            tid = f'{drive_sub}|{opp}|{pil}|{i}'
+            task_ids.append(tid)
+            results[tid] = _res(tid, win)
+    # Thin subject: baseline only, splits wins.
+    for i in range(games):
+        tid = f'{thin_sub}|{opp}|baseline|{i}'
+        task_ids.append(tid)
+        results[tid] = _res(tid, 'A' if i == 0 else 'B')
+
+    result = SimpleNamespace(
+        complete=True, invalid_cells=[], task_ids=task_ids, results=results, quarantined=[],
+        incomplete_cells=[], exhausted_cells=[], quarantined_cells=[], cells={},
+        fast_games=0, concede_games=0,
+    )
+    out_dir = tmp_path / 'out'
+    dr.publish_corpus_results(
+        result,
+        rows=[_drive_row(_DRIVE_DECK_ID)],
+        thin_rows=[_thin_row(_THIN_DECK_ID)],
+        tightness={_DRIVE_DECK_ID: 'tight'},
+        field_names=['Opp'],
+        out_dir=out_dir,
+    )
+    import json as _json
+
+    buckets = _json.loads((out_dir / 'driver-run-buckets.json').read_text())
+    bucket_names = {b['bucket'] for b in buckets['buckets']}
+    # The DRIVE subject populates the delta buckets; the thin subject is ABSENT from them.
+    assert 'all-driven' in bucket_names
+    all_driven = next(b for b in buckets['buckets'] if b['bucket'] == 'all-driven')
+    assert all_driven['n_decks'] == 1  # only the DRIVE subject, not the thin one
+    # A dedicated baselines table carries the single-arm subject as an absolute row.
+    baselines = _json.loads((out_dir / 'driver-run-baselines.json').read_text())
+    subs = {r['subject'] for r in baselines['baselines']}
+    assert subs == {thin_sub}
+    row = next(r for r in baselines['baselines'])
+    assert row['decided'] == 2 and row['wins'] == 1  # 1 of 2 baseline games won
+    assert 'starter_split' in row
+
+
 def test_bucket_markdown_renders_headline() -> None:
     """The markdown table names the tight-keep headline + a row per populated bucket."""
     stats = dr.aggregate_buckets([_delta('a', 'tight-keep', 'drive-dedicated', 90, 100, 20, 100, 40)])
@@ -482,7 +604,7 @@ def test_run_corpus_queue_cleans_staging_on_normal_and_error(
 
     monkeypatch.setenv('MAKE_MAGIC_DATA_DIR', str(tmp_path))
 
-    def _fake_build(rows, field, *, games, stage_dir, data_dir=None):  # type: ignore[no-untyped-def]
+    def _fake_build(rows, field, *, games, stage_dir, data_dir=None, thin_rows=()):  # type: ignore[no-untyped-def]
         # Prove real files got staged (so cleanup has something to remove).
         (Path(stage_dir) / 's_x.txt').write_text('99 Forest\n', encoding='utf-8')
         return []
@@ -554,7 +676,7 @@ def _capture_corpus_run_id(
 
     monkeypatch.setenv('MAKE_MAGIC_DATA_DIR', str(tmp_path))
 
-    def _fake_build(rows, field, *, games, stage_dir, data_dir=None):  # type: ignore[no-untyped-def]
+    def _fake_build(rows, field, *, games, stage_dir, data_dir=None, thin_rows=()):  # type: ignore[no-untyped-def]
         stage = Path(stage_dir)
         subjects = []
         for n in subject_names:

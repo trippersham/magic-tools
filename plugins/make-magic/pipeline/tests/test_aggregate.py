@@ -61,6 +61,52 @@ def _ids(*ids: str) -> list[str]:
 
 
 # --------------------------------------------------------------------------- #
+# Baseline-only (single-arm) subjects — a driverless deck with only a baseline arm.
+# --------------------------------------------------------------------------- #
+
+
+def test_baseline_only_subject_detected_and_absolute_rate() -> None:
+    """A subject whose task universe has NO driven cell is baseline-only: it is flagged as such and
+    its absolute baseline win-rate (Wilson CI on decided games) + per-subject starter split pool its
+    baseline cells only — no phantom driven arm."""
+    # single-arm subject T vs two opponents, baseline only; plus a two-arm subject S for contrast.
+    ids = _ids(
+        'T|o1|baseline|0', 'T|o1|baseline|1', 'T|o2|baseline|0', 'T|o2|baseline|1',
+        'S|o1|driven|0', 'S|o1|baseline|0',
+    )
+    agg = RunAggregator(ids)
+    agg.add_result(_result_starter('T|o1|baseline|0', 'A', 'A'))  # subject win, A started
+    agg.add_result(_result_starter('T|o1|baseline|1', 'B', 'B'))  # subject loss, B started
+    agg.add_result(_result_starter('T|o2|baseline|0', 'A', 'A'))  # subject win, A started
+    agg.add_result(_result_starter('T|o2|baseline|1', 'A', 'B'))  # subject win, B started
+    agg.add_result(_result_starter('S|o1|driven|0', 'A', 'A'))
+    agg.add_result(_result_starter('S|o1|baseline|0', 'B', 'B'))
+
+    assert agg.baseline_only_subjects() == ['T']  # S has a driven cell → not baseline-only
+    row = agg.absolute_baseline('T')
+    assert (row.wins, row.decided) == (3, 4)  # 3 subject wins / 4 decided
+    assert row.winrate == pytest.approx(0.75)
+    assert row.winrate_ci == wilson_ci(3, 4)
+    assert row.n_matchups == 2
+    # per-subject starter split: A-started 2/2 wins, B-started 1/2 wins.
+    assert row.starter_split['A'] == {'subject_wins': 2, 'opponent_wins': 0, 'decided': 2, 'winrate': 1.0}
+    assert row.starter_split['B'] == {'subject_wins': 1, 'opponent_wins': 1, 'decided': 2, 'winrate': 0.5}
+
+
+def test_baseline_only_completeness_counts_baseline_cells_only() -> None:
+    """A baseline-only subject's completeness is its baseline cells alone — there is no driven cell
+    to leave forever unfilled (the single-arm subject still FINALIZES and can be complete)."""
+    ids = _ids('T|o1|baseline|0', 'T|o1|baseline|1')
+    agg = RunAggregator(ids)
+    agg.add_result(_result('T|o1|baseline|0', 'A'))
+    agg.add_result(_result('T|o1|baseline|1', 'B'))
+    # every registered (baseline) cell is filled → the run is complete (no phantom driven cell).
+    assert agg.complete()
+    assert agg.baseline_only_subjects() == ['T']
+    assert list(agg.cells().keys()) == [('T', 'o1', 'baseline')]
+
+
+# --------------------------------------------------------------------------- #
 # A1.2 — strict outcome validation (game_protocol codec, unchanged at cutover).
 # --------------------------------------------------------------------------- #
 

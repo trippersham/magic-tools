@@ -83,6 +83,46 @@ def test_thin_decks_yield_driverless_seats() -> None:
         assert t.seat_b.driver is None
 
 
+def test_baseline_only_subject_emits_single_arm() -> None:
+    """A baseline-only SUBJECT enumerates ONLY the baseline arm (one piloting x games per opponent),
+    with task ids keeping the ``subject|opponent|baseline|index`` shape."""
+    field = [_subject('o1'), _subject('o2')]
+    games = 3
+    tasks = build_game_tasks([], field, games, baseline_only_subjects=[_subject('s1', driven=False)])
+
+    cells: dict[tuple[str, str, str], int] = {}
+    for t in tasks:
+        cells[cell_key(t)] = cells.get(cell_key(t), 0) + 1
+    # 1 subject * 2 opponents * ONE (baseline) arm = 2 cells, each with `games` tasks.
+    assert len(cells) == 2
+    assert {key[2] for key in cells} == {'baseline'}
+    assert all(count == games for count in cells.values())
+    assert len(tasks) == 2 * games
+    assert all(t.task_id.split('|')[2] == 'baseline' for t in tasks)
+    # the subject seat is bare in every task; the opponent still carries its own driver.
+    assert all(t.seat_a.driver is None for t in tasks)
+
+
+def test_mixed_roster_two_arm_and_baseline_only() -> None:
+    """A roster mixing a driven subject (two arms) and a driverless subject (baseline only): each
+    subject enumerates its OWN arm set — the two-arm subject is unaffected by the single-arm one."""
+    field = [_subject('o1')]
+    tasks = build_game_tasks(
+        [_subject('driven1', driven=True)], field, 2,
+        baseline_only_subjects=[_subject('thin1', driven=False)],
+    )
+    arms_by_subject: dict[str, set[str]] = {}
+    for t in tasks:
+        subj, _opp, pil = cell_key(t)
+        arms_by_subject.setdefault(subj, set()).add(pil)
+    driven_subj = next(s for s in arms_by_subject if 'driven1' in s)
+    thin_subj = next(s for s in arms_by_subject if 'thin1' in s)
+    assert arms_by_subject[driven_subj] == {'driven', 'baseline'}
+    assert arms_by_subject[thin_subj] == {'baseline'}
+    # task-count math: 2-arm subject = 1 opp * 2 arms * 2 games = 4; 1-arm subject = 1*1*2 = 2.
+    assert len(tasks) == 4 + 2
+
+
 def test_cell_key_derives_from_task_id() -> None:
     subjects = [_subject('s1')]
     field = [_subject('o1')]

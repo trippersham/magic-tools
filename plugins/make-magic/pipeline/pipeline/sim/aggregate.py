@@ -17,6 +17,7 @@ the bucket rollup is :func:`pipeline.sim.driver_run.aggregate_buckets`. The simd
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -43,6 +44,7 @@ def _cell_of(task_id: str) -> tuple[str, str, str]:
 __all__ = (
     'BAILOUT_HARD_FLOOR_MS',
     'BAILOUT_SUSPICIOUS_MS',
+    'AbsoluteBaseline',
     'RunAggregator',
     'Validity',
     'aggregate_results',
@@ -245,6 +247,29 @@ class _Cell:
         self.wins_b_su = 0
 
 
+#: suffix → the starter bucket it feeds (subject seat A started / opponent seat B started / legacy).
+_STARTER_BUCKETS: tuple[tuple[str, str], ...] = (('sa', 'A'), ('sb', 'B'), ('su', 'unknown'))
+
+
+@dataclass(frozen=True)
+class AbsoluteBaseline:
+    """One baseline-only (single-arm) subject's ABSOLUTE baseline read — no driver delta.
+
+    A driverless deck has only a baseline arm, so it cannot produce a driven-vs-baseline lift; it is
+    reported as an absolute baseline win-rate instead. ``winrate`` / ``winrate_ci`` are the subject's
+    Wilson-CI win-rate on the POOLED DECIDED baseline games across its ``n_matchups`` opponents;
+    ``starter_split`` is the per-subject first-player split (``{'A'|'B'|'unknown': {subject_wins,
+    opponent_wins, decided, winrate}}``) over those same baseline cells."""
+
+    subject: str
+    wins: int
+    decided: int
+    winrate: float
+    winrate_ci: tuple[float, float]
+    n_matchups: int
+    starter_split: dict[str, dict[str, float | int]]
+
+
 class RunAggregator:
     """Fold a run's game outcomes into per-subject Wilson comparisons + coverage.
 
@@ -365,6 +390,54 @@ class RunAggregator:
         """``{subject: PilotingComparison}`` for every subject, in task-build order."""
         return {s: self._aggregate_subject(s) for s in self._subject_order}
 
+    # -- baseline-only (single-arm) subjects ------------------------------- #
+
+    def _has_driven_cell(self, subject: str) -> bool:
+        """True iff the task universe registered a ``driven`` cell for ``subject``."""
+        return any(s == subject and pil == 'driven' for (s, _o, pil) in self._cells)
+
+    def baseline_only_subjects(self) -> list[str]:
+        """Subjects whose universe has ONLY baseline cells (a driverless deck) — in task-build order.
+
+        These carry no driven arm, so they report an ABSOLUTE baseline win-rate
+        (:meth:`absolute_baseline`) rather than a driver delta, and must be kept OUT of the delta
+        bucket rollup (a phantom 0/0 driven arm would fabricate a spurious negative lift)."""
+        return [s for s in self._subject_order if not self._has_driven_cell(s)]
+
+    def absolute_baseline(self, subject: str) -> AbsoluteBaseline:
+        """Pool ``subject``'s baseline cells into an :class:`AbsoluteBaseline` (absolute win-rate).
+
+        Sums the decisive W/L over every ``(subject, opp, 'baseline')`` cell (draws excluded — the
+        Wilson denominator), reusing the SAME ``_rates`` Wilson math as the delta path, and folds the
+        per-subject first-player starter split over those cells. A subject with a driven arm is a
+        programming error here (it is not baseline-only) — callers gate on
+        :meth:`baseline_only_subjects`."""
+        wins = decided = n_matchups = 0
+        split: dict[str, dict[str, float | int]] = {
+            label: {'subject_wins': 0, 'opponent_wins': 0, 'decided': 0} for _s, label in _STARTER_BUCKETS
+        }
+        for opp in self._subject_opponents[subject]:
+            cell = self._cells.get((subject, opp, 'baseline'))
+            if cell is None:
+                continue
+            n_matchups += 1
+            wins += cell.wins_a
+            decided += cell.wins_a + cell.wins_b
+            for suffix, label in _STARTER_BUCKETS:
+                sw = getattr(cell, f'wins_a_{suffix}')
+                ow = getattr(cell, f'wins_b_{suffix}')
+                split[label]['subject_wins'] += sw
+                split[label]['opponent_wins'] += ow
+                split[label]['decided'] += sw + ow
+        for stats in split.values():
+            d = stats['decided']
+            stats['winrate'] = (stats['subject_wins'] / d) if d else 0.0
+        rate, ci = _rates(wins, decided)
+        return AbsoluteBaseline(
+            subject=subject, wins=wins, decided=decided, winrate=rate,
+            winrate_ci=ci, n_matchups=n_matchups, starter_split=split,
+        )
+
     # -- coverage ---------------------------------------------------------- #
 
     def cells(self) -> dict[tuple[str, str, str], tuple[int, int]]:
@@ -414,14 +487,12 @@ class RunAggregator:
         A first-player advantage shows as ``A``'s subject winrate exceeding ``B``'s within an arm;
         because both arms share an index-matched starter schedule, the two arms are comparable.
         """
-        # suffix → the starter bucket it feeds in the output.
-        buckets = (('sa', 'A'), ('sb', 'B'), ('su', 'unknown'))
         out: dict[str, dict[str, dict[str, float | int]]] = {}
         for (_subject, _opp, pil), cell in self._cells.items():
             arm = out.setdefault(
-                pil, {label: {'subject_wins': 0, 'opponent_wins': 0, 'decided': 0} for _s, label in buckets}
+                pil, {label: {'subject_wins': 0, 'opponent_wins': 0, 'decided': 0} for _s, label in _STARTER_BUCKETS}
             )
-            for suffix, label in buckets:
+            for suffix, label in _STARTER_BUCKETS:
                 sw = getattr(cell, f'wins_a_{suffix}')
                 ow = getattr(cell, f'wins_b_{suffix}')
                 arm[label]['subject_wins'] += sw

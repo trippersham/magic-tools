@@ -68,6 +68,7 @@ __all__ = (
     'DeckDelta',
     'aggregate_buckets',
     'build_opponent_field',
+    'publish_corpus_results',
     'run_corpus_queue',
     'xmage_deck_loads',
 )
@@ -428,14 +429,23 @@ def build_corpus_game_tasks(
     games: int,
     stage_dir: str | os.PathLike[str],
     data_dir: str | os.PathLike[str] | None = None,
+    thin_rows: Sequence[dict[str, Any]] = (),
 ):
-    """Phase-3 opt-in: expand the compiled DRIVE ``rows`` x ``field`` into a flat
-    :class:`~pipeline.sim.game_tasks.GameTask` list for the persistent-worker queue.
+    """Phase-3 opt-in: expand the compiled DRIVE ``rows`` (+ any baseline-only ``thin_rows``) x
+    ``field`` into a flat :class:`~pipeline.sim.game_tasks.GameTask` list for the persistent-worker
+    queue.
 
-    Each subject seat carries its compiled driver ``(classes_dir, fqcn)`` (dual-driver
+    Each DRIVE subject seat carries its compiled driver ``(classes_dir, fqcn)`` (dual-driver
     methodology); the opponent seats are the plain gauntlet decks (``driver=None`` — thin).
-    :func:`~pipeline.sim.game_tasks.build_game_tasks` enumerates BOTH pilotings per cell, so the
-    baseline arm is structurally guaranteed (the cp7 0/0 fix).
+    :func:`~pipeline.sim.game_tasks.build_game_tasks` enumerates BOTH pilotings for a driven subject,
+    so the baseline arm is structurally guaranteed (the cp7 0/0 fix).
+
+    **Baseline-only subjects (``thin_rows``).** A row in ``thin_rows`` is a driverless deck — it has
+    no compiled driver to run, so its subject seat is bare (``driver=None``) and
+    :func:`~pipeline.sim.game_tasks.build_game_tasks` enumerates ONLY its baseline arm (one piloting x
+    ``games`` per opponent, task ids ``subject|opponent|baseline|index``). These rows carry no
+    ``fqcn`` / class tree; they still stage + size-validate their deck exactly like a DRIVE subject.
+    Kept a distinct parameter (not folded into ``rows``) so ``rows`` stays "compiled DRIVE rows".
 
     **Deck translation (BUG-1).** The P2 worker loads ``seat.deck`` as an XMage ``.txt`` deck file
     it finds by bare basename in its cwd (linked there from ``--decks-dir``). A raw Forge ``.dck``
@@ -452,18 +462,31 @@ def build_corpus_game_tasks(
     stage = Path(stage_dir)
     stage.mkdir(parents=True, exist_ok=True)
 
-    subjects: list[SeatSpec] = []
-    for row in rows:
-        deck, _deck_ref = deck_and_ref_for_row(row)
-        deck_id = str(row['deck_id'])
+    def _stage_subject_deck(deck_id: str) -> str:
+        """Translate + size-validate ``deck_id`` and write its staged ``.txt`` (returns the basename)."""
         name = _flat_deck_basename('s', deck_id)
         dck_text = _gauntlet_dck_path(deck_id).read_text(encoding='utf-8')
         xtxt = xe._forge_dck_to_xmage_txt(dck_text)
         # Fail LOUD before any JVM: a wrong-size SUBJECT must never silently seat into a real game.
         main, commander = xe.validate_commander_deck(xtxt, deck_name=deck_id)
         (stage / name).write_text(xe.audit_header(main, commander) + xtxt, encoding='utf-8')
+        return name
+
+    subjects: list[SeatSpec] = []
+    for row in rows:
+        deck, _deck_ref = deck_and_ref_for_row(row)
+        name = _stage_subject_deck(str(row['deck_id']))
         driver = DriverRef(classpath=str(drivers.classes_dir(deck, data_dir=data_dir)), fqcn=str(row['fqcn']))
         subjects.append(SeatSpec(deck_path=name, driver=driver))
+
+    # Baseline-only subjects: stage the deck exactly like a DRIVE subject, but seat it driverless in
+    # the SEPARATE single-arm roster so build_game_tasks enumerates ONLY its baseline arm (no phantom
+    # driven cell). Kept apart from `subjects` so a two-arm subject's baseline seat is never confused
+    # with a genuinely single-arm one.
+    thin_subjects: list[SeatSpec] = []
+    for row in thin_rows:
+        name = _stage_subject_deck(str(row['deck_id']))
+        thin_subjects.append(SeatSpec(deck_path=name, driver=None))
 
     opponents: list[SeatSpec] = []
     for g in field:
@@ -475,7 +498,9 @@ def build_corpus_game_tasks(
         (stage / name).write_text(xe.audit_header(main, commander) + xtxt, encoding='utf-8')
         opponents.append(SeatSpec(deck_path=name, driver=None))
 
-    return build_game_tasks(subjects, opponents, games, fmt=_COMMANDER)
+    return build_game_tasks(
+        subjects, opponents, games, fmt=_COMMANDER, baseline_only_subjects=thin_subjects
+    )
 
 
 def resolve_worker_cmd(
@@ -661,6 +686,7 @@ def run_corpus_queue(
     rows: Sequence[dict[str, Any]],
     field: Sequence[GauntletDeck],
     games: int,
+    thin_rows: Sequence[dict[str, Any]] = (),
     stall_timeout_s: float = 900.0,
     monitor: ResourceMonitor | None = None,
     ops_db_path: str | os.PathLike[str] | None = None,
@@ -734,7 +760,9 @@ def run_corpus_queue(
         stage_dir = Path(tempfile.mkdtemp(prefix=f'corpus-decks-{os.getpid()}-', dir=staging))
         log_dir = Path(tempfile.mkdtemp(prefix=f'corpus-logs-{os.getpid()}-', dir=staging))
         try:
-            tasks = build_corpus_game_tasks(rows, field, games=games, stage_dir=stage_dir, data_dir=data_dir)
+            tasks = build_corpus_game_tasks(
+                rows, field, games=games, stage_dir=stage_dir, data_dir=data_dir, thin_rows=thin_rows
+            )
             cmd = (
                 list(worker_cmd)
                 if worker_cmd is not None
@@ -1069,6 +1097,70 @@ def write_bucket_table(
     return json_path, md_path
 
 
+def render_baseline_markdown(rows: Sequence[Any], *, field_names: Sequence[str] | None = None) -> str:
+    """A readable markdown table of the baseline-only (single-arm) subjects' ABSOLUTE win-rates.
+
+    ``rows`` are :class:`~pipeline.sim.aggregate.AbsoluteBaseline` records — a driverless deck has no
+    driver delta, so it is reported as an absolute baseline win-rate (Wilson CI on decided games)
+    plus the first-player starter split, kept clearly separate from the two-arm delta buckets."""
+    lines = ['# Baseline-only subjects — absolute baseline win-rate (single-arm)', '']
+    lines += [
+        '_Driverless decks have NO driven arm, so they carry no driver delta. Each row is the '
+        'absolute baseline win-rate vs the shared field (Wilson CI on DECIDED games) + the '
+        'first-player starter split — reported apart from the two-arm delta buckets._',
+        '',
+    ]
+    if field_names:
+        lines += [f'Opponent field ({len(field_names)}): {", ".join(field_names)}', '']
+    lines += [
+        '| subject | matchups | baseline wr | 95% CI | record | A-start wr | B-start wr |',
+        '| --- | --- | --- | --- | --- | --- | --- |',
+    ]
+    for r in rows:
+        a = r.starter_split.get('A', {})
+        b = r.starter_split.get('B', {})
+        lines.append(
+            f'| {r.subject} | {r.n_matchups} | {r.winrate:.3f} '
+            f'| {r.winrate_ci[0]:.3f}..{r.winrate_ci[1]:.3f} | {r.wins}/{r.decided} '
+            f'| {float(a.get("winrate", 0.0)):.3f} | {float(b.get("winrate", 0.0)):.3f} |'
+        )
+    return '\n'.join(lines) + '\n'
+
+
+def write_baseline_table(
+    rows: Sequence[Any],
+    *,
+    out_dir: str | os.PathLike[str],
+    field_names: Sequence[str] | None = None,
+) -> tuple[Path, Path]:
+    """Write the baseline-only subjects' absolute-win-rate table (json + md) into ``out_dir``."""
+    out = Path(out_dir)
+    json_path = out / 'driver-run-baselines.json'
+    md_path = out / 'driver-run-baselines.md'
+    _write_json(
+        json_path,
+        {
+            'field': list(field_names or []),
+            'baselines': [
+                {
+                    'subject': r.subject,
+                    'n_matchups': r.n_matchups,
+                    'wins': r.wins,
+                    'decided': r.decided,
+                    'winrate': r.winrate,
+                    'winrate_ci': list(r.winrate_ci),
+                    'record': f'{r.wins}/{r.decided}',
+                    'starter_split': r.starter_split,
+                }
+                for r in rows
+            ],
+        },
+    )
+    md_path.parent.mkdir(parents=True, exist_ok=True)
+    md_path.write_text(render_baseline_markdown(rows, field_names=field_names), encoding='utf-8')
+    return json_path, md_path
+
+
 # --------------------------------------------------------------------------- #
 # CLI entry point (how the orchestrator launches the FULL monitored run).
 # --------------------------------------------------------------------------- #
@@ -1113,7 +1205,6 @@ def run(argv: list[str] | None = None) -> None:
         print(f'run-set: {len(run_set)} DRIVE decks (dry preview — pass --run to execute)')
         return
 
-    from pipeline.sim.aggregate import BAILOUT_HARD_FLOOR_MS, aggregate_results
     from pipeline.sim.monitor import ResourceMonitor
     from pipeline.sim.simd.preflight import preflight_java
     from pipeline.sim.xmage_runtime import _resolve_java
@@ -1181,7 +1272,40 @@ def run(argv: list[str] | None = None) -> None:
         result.complete, len(result.quarantined), len(result.incomplete_cells),
         result.fast_games, result.concede_games, len(result.invalid_cells),
     )
-    out_dir = args.out_dir
+    publish_corpus_results(
+        result, rows=rows, tightness=tightness, field_names=field_names, out_dir=args.out_dir
+    )
+
+
+def publish_corpus_results(
+    result: Any,
+    *,
+    rows: Sequence[dict[str, Any]],
+    tightness: dict[str, str],
+    field_names: Sequence[str],
+    out_dir: str | os.PathLike[str],
+    thin_rows: Sequence[dict[str, Any]] = (),
+) -> None:
+    """Fold a committed simd ``result`` into the published corpus artifacts (or refuse loudly).
+
+    The single owner of the corpus run's post-processing, shared by the CLI :func:`run` and the
+    standalone full-corpus launcher so the two can never drift. Honors the PUBLICATION REFUSAL
+    semantics (Sol BLOCKER 1): an incomplete/invalid run writes ONLY the explicitly-named PARTIAL
+    coverage artifact and ``raise SystemExit(1)`` — it never publishes final buckets.
+
+    A COMPLETE run writes two clearly-separated tables:
+
+      * ``driver-run-buckets.{json,md}`` — the rule-8 driver-vs-CP7 DELTA buckets, over the two-arm
+        DRIVE subjects only;
+      * ``driver-run-baselines.{json,md}`` — the baseline-only (driverless) subjects' ABSOLUTE
+        baseline win-rates (Wilson CI + starter split), which carry no delta and must be kept OUT of
+        the delta buckets (a phantom 0/0 driven arm would fabricate a spurious negative lift).
+
+    ``rows`` are the compiled DRIVE rows; ``thin_rows`` the baseline-only rows (used only to map the
+    staged subject basename back to a deck_id for the tables). Aggregation runs over the ORIGINAL
+    registered task universe (``result.task_ids``) so any never-run task surfaces as coverage."""
+    from pipeline.sim.aggregate import BAILOUT_HARD_FLOOR_MS, aggregate_results
+
     if result.invalid_cells:
         # INVALID = a decisive claim with NO legal terminal cause (macro-game-over / unknown). This
         # must be near-zero; a nonzero count is a loud data-integrity alarm (a driver fabricating a
@@ -1190,10 +1314,10 @@ def run(argv: list[str] | None = None) -> None:
                     'terminal cause) — excluded + topped up + flagged: %s',
                     len(result.invalid_cells), result.invalid_cells)
 
-    # PUBLICATION REFUSAL (Sol BLOCKER 1): the final bucket table is science that gates ship/no-ship,
-    # so it is written ONLY when the run is genuinely complete (every cell ok>=needed) AND saw zero
-    # INVALID cells. An incomplete/exhausted/invalid run TERMINATES but must NOT publish final buckets:
-    # it writes an explicitly-named PARTIAL coverage artifact and exits nonzero instead.
+    # PUBLICATION REFUSAL (Sol BLOCKER 1): the final tables are science that gates ship/no-ship, so
+    # they are written ONLY when the run is genuinely complete (every cell ok>=needed) AND saw zero
+    # INVALID cells. An incomplete/exhausted/invalid run TERMINATES but must NOT publish: it writes an
+    # explicitly-named PARTIAL coverage artifact and exits nonzero instead.
     never_run = [t for t in result.task_ids if t not in result.results and t not in result.quarantined]
     if not result.complete or result.invalid_cells:
         partial_path = _write_partial_coverage(result, never_run, out_dir=out_dir, field_names=field_names)
@@ -1206,23 +1330,35 @@ def run(argv: list[str] | None = None) -> None:
         print(f'PARTIAL (incomplete run — final buckets refused): {partial_path}')
         raise SystemExit(1)
 
-    # Fold the committed results into per-subject comparisons, remapping the tag maps from deck_id
-    # to the staged subject basename the tasks carry. Aggregation runs over the ORIGINAL registered
-    # task universe (``result.task_ids``) so any never-run task surfaces as coverage, never vanishes.
-    subject_of = {_flat_deck_basename('s', str(r['deck_id'])): str(r['deck_id']) for r in rows}
-    tight_by_subject = {sub: tightness.get(did, '') for sub, did in subject_of.items()}
+    # Remap the tag maps from deck_id to the staged subject basename the tasks carry (both DRIVE and
+    # thin rows stage under the same 's'-prefixed basename).
+    all_rows = list(rows) + list(thin_rows)
+    tight_by_subject = {
+        _flat_deck_basename('s', str(r['deck_id'])): tightness.get(str(r['deck_id']), '') for r in all_rows
+    }
     arche_by_subject = {
-        _flat_deck_basename('s', str(r['deck_id'])): str(r.get('archetype') or '') for r in rows
+        _flat_deck_basename('s', str(r['deck_id'])): str(r.get('archetype') or '') for r in all_rows
     }
     agg = aggregate_results(
         result.task_ids, result.results, quarantined=result.quarantined, bailout_floor_ms=BAILOUT_HARD_FLOOR_MS
     )
     comparisons = agg.comparisons()
-    stats = aggregate_buckets(_deltas_from_comparisons(comparisons, arche_by_subject, tight_by_subject))
+    # Split the roster: baseline-only (single-arm) subjects report an ABSOLUTE baseline win-rate;
+    # only the two-arm subjects feed the driver-vs-CP7 delta buckets.
+    baseline_only = set(agg.baseline_only_subjects())
+    two_arm = {s: c for s, c in comparisons.items() if s not in baseline_only}
+    stats = aggregate_buckets(_deltas_from_comparisons(two_arm, arche_by_subject, tight_by_subject))
     json_path, md_path = write_bucket_table(stats, out_dir=out_dir, field_names=field_names)
     print(render_bucket_markdown(stats, field_names=field_names))
     print(f'buckets: {json_path}')
     print(f'buckets: {md_path}')
+
+    baseline_rows = [agg.absolute_baseline(s) for s in agg.baseline_only_subjects()]
+    if baseline_rows:
+        b_json, b_md = write_baseline_table(baseline_rows, out_dir=out_dir, field_names=field_names)
+        print(render_baseline_markdown(baseline_rows, field_names=field_names))
+        print(f'baselines: {b_json}')
+        print(f'baselines: {b_md}')
 
 
 def _deltas_from_comparisons(

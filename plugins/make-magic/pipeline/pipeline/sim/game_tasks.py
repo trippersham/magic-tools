@@ -103,6 +103,7 @@ def build_game_tasks(
     games: int,
     *,
     fmt: str = 'commander',
+    baseline_only_subjects: list[SeatSpec] | tuple[SeatSpec, ...] = (),
 ) -> list[GameTask]:
     """Expand a compare request into the flat, deterministic task list.
 
@@ -110,7 +111,15 @@ def build_game_tasks(
     ``game_index in range(games)`` emit one :class:`GameTask`. ``driven`` puts the
     subject's driver on ``seat_a``; ``baseline`` clears it (``seat_a.driver=None``).
     ``seat_b`` **always** carries the opponent's driver (opponent driven in both arms).
-    A subject/opponent with ``driver=None`` (thin deck) yields driverless seats.
+    Both arms are enumerated for every ``subjects`` entry regardless of its ``driver`` (a
+    ``driver=None`` subject in ``subjects`` still gets both arms — its driven arm is a bare-CP7 seat).
+
+    **Baseline-only (single-arm) subjects.** ``baseline_only_subjects`` is a SEPARATE roster of
+    driverless decks that have no driven arm to run — each enumerates ONLY the baseline arm (one
+    piloting x ``games`` per opponent), with task ids keeping the ``subject|opponent|baseline|index``
+    shape. They are appended after the two-arm subjects. Keeping single-arm membership an EXPLICIT
+    roster (not inferred from ``driver is None``) preserves the two-arm meaning of a driverless
+    ``subjects`` entry — the delta study's baseline arm is exactly such a seat.
 
     The iteration order is subject-major → opponent → piloting → game_index, giving a
     stable, unique task_id per game.
@@ -119,12 +128,16 @@ def build_game_tasks(
         msg = f'games must be positive, got {games}'
         raise ValueError(msg)
 
+    # (subject, its piloting arms): two-arm subjects first, then the single-arm (baseline-only) ones.
+    rosters: list[tuple[SeatSpec, tuple[str, ...]]] = [(s, PILOTINGS) for s in subjects]
+    rosters += [(s, ('baseline',)) for s in baseline_only_subjects]
+
     tasks: list[GameTask] = []
-    for subject in subjects:
+    for subject, pilotings in rosters:
         s_id = _ident(subject)
         for opponent in field:
             o_id = _ident(opponent)
-            for piloting in PILOTINGS:
+            for piloting in pilotings:
                 seat_a_driver = subject.driver if piloting == 'driven' else None
                 seat_a = SeatSpec(deck_path=subject.deck_path, driver=seat_a_driver)
                 seat_b = SeatSpec(deck_path=opponent.deck_path, driver=opponent.driver)
