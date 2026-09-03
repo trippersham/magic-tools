@@ -535,6 +535,17 @@ def resolve_worker_cmd(
 
     The canonical warm db must already exist (a single ``XMageBatch --warm`` before the pool —
     the cold ``CardScanner.scan`` is not concurrency-safe)."""
+    # Long-lived CP7 workers DECAY (heap creep across hundreds of games -> every AI decision blows
+    # the think cap -> all-pass wall-clock-timeout games), so worker lifetime must be boundable per
+    # machine without a code change. Env wins only when it parses as a positive int.
+    env_max = os.environ.get('MAKE_MAGIC_WORKER_MAX_GAMES')
+    if env_max is not None:
+        try:
+            parsed = int(env_max)
+            if parsed > 0:
+                max_games = parsed
+        except ValueError:
+            pass
     cmd = [sys.executable, '-m', 'pipeline.sim.game_worker', '--worker-max-games', str(max_games)]
     if log_dir is not None:
         cmd += ['--log-dir', str(Path(log_dir).resolve())]

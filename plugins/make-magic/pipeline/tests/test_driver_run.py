@@ -762,3 +762,24 @@ def test_corpus_run_id_changes_on_same_name_different_content(
         deck_bytes=lambda n: f'98 Forest 1 Island\n# v2 {n}\n',  # DIFFERENT bytes, same basenames
     )
     assert v1 != v2
+
+
+def test_resolve_worker_cmd_max_games_env_override(monkeypatch):
+    """MAKE_MAGIC_WORKER_MAX_GAMES bounds worker JVM lifetime (long-lived CP7 workers decay:
+    heap creep -> every AI decision blows the think cap -> all-pass timeout games)."""
+    from pipeline.sim.driver_run import resolve_worker_cmd
+
+    monkeypatch.setenv('MAKE_MAGIC_WORKER_MAX_GAMES', '40')
+    cmd = resolve_worker_cmd()
+    i = cmd.index('--worker-max-games')
+    assert cmd[i + 1] == '40'
+
+    monkeypatch.delenv('MAKE_MAGIC_WORKER_MAX_GAMES')
+    cmd = resolve_worker_cmd()
+    i = cmd.index('--worker-max-games')
+    assert cmd[i + 1] == '500'
+
+    monkeypatch.setenv('MAKE_MAGIC_WORKER_MAX_GAMES', 'nonsense')
+    cmd = resolve_worker_cmd()
+    i = cmd.index('--worker-max-games')
+    assert cmd[i + 1] == '500'  # malformed -> default, never crash the launch
