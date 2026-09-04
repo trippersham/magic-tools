@@ -1,0 +1,63 @@
+# EVIDENCE EXCERPT — trimmed tail of a preserved crash transcript
+# source file : s_commander_casual_jeskai__narset-enlightened-master.dck.txt_o_rakdos__prosper.txt_baseline_8.log
+# size        : 13761 bytes / 126 lines (whole file; tail shown below)
+# death: abrupt, mid-combat (Prosper deals 2 to PlayerA); last line 'Life: ...11 > 9', turn 21, no terminal event.
+# XMAGEBATCH RESULT lines in whole file : 0
+# XMAGEBATCH TIMEOUT lines in whole file: 0
+# exception / stacktrace lines          : 0
+# ---- transcript tail ----
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 16 (Ai(2)-PlayerB)
+HANDLOG turn=16 event=turnstart active=Ai(2)-PlayerB UR_hand=[] UR_untapped_lands=2 UR_total_lands=5 opp_creatures=2 UR_life=33 opp_life=39
+HANDLOG turn=16 event=cast kind=spell castBy=Ai(2)-PlayerB source=Laelia, the Blade Reforged UR_hand=[] UR_untapped_lands=2 UR_total_lands=5 opp_creatures=2 UR_life=33 opp_life=39
+HANDLOG turn=16 event=cast kind=spell castBy=Ai(2)-PlayerB source=Dream Devourer UR_hand=[] UR_untapped_lands=2 UR_total_lands=5 opp_creatures=3 UR_life=33 opp_life=39
+Damage: Prosper, Tome-Bound [165] deals 2 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 33 > 31
+Damage: Crime Novelist [62b] deals 2 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 31 > 29
+Damage: Prosper, Tome-Bound [165] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 29 > 28
+Damage: Laelia, the Blade Reforged [005] deals 3 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 28 > 25
+Turn: Turn 17 (Ai(1)-PlayerA)
+HANDLOG turn=17 event=turnstart active=Ai(1)-PlayerA UR_hand=[Whirlwind of Thought] UR_untapped_lands=1 UR_total_lands=5 opp_creatures=4 UR_life=25 opp_life=39
+HANDLOG turn=17 event=cast kind=spell castBy=Ai(1)-PlayerA source=Narset, Enlightened Master UR_hand=[Whirlwind of Thought] UR_untapped_lands=1 UR_total_lands=5 opp_creatures=4 UR_life=25 opp_life=39
+Turn: Turn 18 (Ai(2)-PlayerB)
+HANDLOG turn=18 event=turnstart active=Ai(2)-PlayerB UR_hand=[Whirlwind of Thought] UR_untapped_lands=1 UR_total_lands=5 opp_creatures=4 UR_life=25 opp_life=39
+Land: Ai(2)-PlayerB played a land
+Damage: Crime Novelist [62b] deals 2 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 25 > 23
+Damage: Prosper, Tome-Bound [165] deals 1 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 23 > 22
+Damage: Laelia, the Blade Reforged [005] deals 5 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 22 > 17
+HANDLOG turn=18 event=cast kind=spell castBy=Ai(2)-PlayerB source=Warped Space UR_hand=[Whirlwind of Thought] UR_untapped_lands=1 UR_total_lands=5 opp_creatures=4 UR_life=17 opp_life=39
+Damage: Prosper, Tome-Bound [165] deals 6 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 17 > 11
+Turn: Turn 19 (Ai(1)-PlayerA)
+HANDLOG turn=19 event=turnstart active=Ai(1)-PlayerA UR_hand=[Whirlwind of Thought] UR_untapped_lands=6 UR_total_lands=6 opp_creatures=4 UR_life=11 opp_life=39
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Whirlwind of Thought UR_hand=[] UR_untapped_lands=3 UR_total_lands=6 opp_creatures=4 UR_life=11 opp_life=39
+Damage: Narset, Enlightened Master [f5d] deals 3 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 39 > 36
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Narset of the Ancient Way UR_hand=[] UR_untapped_lands=3 UR_total_lands=6 opp_creatures=4 UR_life=11 opp_life=36
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Jace, the Mind Sculptor UR_hand=[Teferi, Time Raveler] UR_untapped_lands=3 UR_total_lands=6 opp_creatures=4 UR_life=11 opp_life=36
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Aqueous Form UR_hand=[Teferi, Time Raveler;Island] UR_untapped_lands=3 UR_total_lands=6 opp_creatures=4 UR_life=11 opp_life=36
+HANDLOG turn=19 event=cast kind=spell castBy=Ai(1)-PlayerA source=Teferi's Protection UR_hand=[Teferi, Time Raveler;Island] UR_untapped_lands=2 UR_total_lands=6 opp_creatures=4 UR_life=11 opp_life=36
+Turn: Turn 20 (Ai(2)-PlayerB)
+HANDLOG turn=20 event=turnstart active=Ai(2)-PlayerB UR_hand=[Teferi, Time Raveler;Island;Deepglow Skate] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=4 UR_life=11 opp_life=36
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(2)-PlayerB source=Grim Hireling UR_hand=[Teferi, Time Raveler;Island;Deepglow Skate] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=4 UR_life=11 opp_life=36
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(2)-PlayerB source=Wrenn's Resolve UR_hand=[Teferi, Time Raveler;Island;Deepglow Skate] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=5 UR_life=11 opp_life=36
+HANDLOG turn=20 event=cast kind=spell castBy=Ai(2)-PlayerB source=Marionette Apprentice UR_hand=[Teferi, Time Raveler;Island;Deepglow Skate] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=5 UR_life=11 opp_life=36
+Turn: Turn 21 (Ai(1)-PlayerA)
+HANDLOG turn=21 event=turnstart active=Ai(1)-PlayerA UR_hand=[Teferi, Time Raveler;Island;Deepglow Skate] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=6 UR_life=11 opp_life=36
+Land: Ai(1)-PlayerA played a land
+Land: Ai(1)-PlayerA played a land
+Land: Ai(1)-PlayerA played a land
+Land: Ai(1)-PlayerA played a land
+Land: Ai(1)-PlayerA played a land
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=21 event=cast kind=spell castBy=Ai(2)-PlayerB source=Rakdos Charm UR_hand=[Teferi, Time Raveler;Island;Deepglow Skate;Oath of Teferi] UR_untapped_lands=6 UR_total_lands=6 opp_creatures=6 UR_life=11 opp_life=36
+Damage: Prosper, Tome-Bound [165] deals 2 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 11 > 9

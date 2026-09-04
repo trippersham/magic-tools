@@ -1,0 +1,63 @@
+# EVIDENCE EXCERPT — trimmed tail of a preserved crash transcript
+# source file : s_commander_casual_jeskai__narset-enlightened-master.dck.txt_o_five-color__the-ur-dragon.txt_baseline_8.log
+# size        : 5654 bytes / 55 lines (whole file; tail shown below)
+# death: at a fresh turn boundary — last lines are 'Turn: Turn 11' then the turn-11 turnstart HANDLOG; transcript stops, turn 11.
+# XMAGEBATCH RESULT lines in whole file : 0
+# XMAGEBATCH TIMEOUT lines in whole file: 0
+# exception / stacktrace lines          : 0
+# ---- transcript tail ----
+Turn: Turn 1 (Ai(2)-?)
+HANDLOG turn=1 event=turnstart active=Ai(2)-? UR_hand=[] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=0 opp_life=0
+Life: Life: Ai(1)-PlayerA 0 > 40
+Life: Life: Ai(2)-PlayerB 0 > 40
+XMAGEBATCH opening_hand PlayerA (6): [Exotic Orchard;Island;Mountain;Teferi, Temporal Archmage;Quintorius Kand;Teferi, Master of Time]
+XMAGEBATCH opening_hand PlayerB (7): [Forest;Island;Jungle Shrine;Commander's Sphere;Dragon Tempest;Ojutai, Soul of Winter;Boneyard Scourge]
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 2 (Ai(2)-PlayerB)
+HANDLOG turn=2 event=turnstart active=Ai(2)-PlayerB UR_hand=[Exotic Orchard;Island;Teferi, Temporal Archmage;Quintorius Kand;Teferi, Master of Time] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=40 opp_life=40
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=2 event=cast kind=spell castBy=Ai(2)-PlayerB source=Sol Ring UR_hand=[Exotic Orchard;Island;Teferi, Temporal Archmage;Quintorius Kand;Teferi, Master of Time] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=40 opp_life=40
+Turn: Turn 3 (Ai(1)-PlayerA)
+HANDLOG turn=3 event=turnstart active=Ai(1)-PlayerA UR_hand=[Exotic Orchard;Teferi, Temporal Archmage;Quintorius Kand;Teferi, Master of Time;Talisman of Progress] UR_untapped_lands=2 UR_total_lands=2 opp_creatures=0 UR_life=40 opp_life=40
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=3 event=cast kind=spell castBy=Ai(1)-PlayerA source=Talisman of Progress UR_hand=[Exotic Orchard;Teferi, Temporal Archmage;Quintorius Kand;Teferi, Master of Time] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=40 opp_life=40
+Turn: Turn 4 (Ai(2)-PlayerB)
+HANDLOG turn=4 event=turnstart active=Ai(2)-PlayerB UR_hand=[Exotic Orchard;Teferi, Temporal Archmage;Quintorius Kand;Teferi, Master of Time] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=40 opp_life=40
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=4 event=cast kind=spell castBy=Ai(2)-PlayerB source=Commander's Sphere UR_hand=[Exotic Orchard;Teferi, Temporal Archmage;Quintorius Kand;Teferi, Master of Time] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=40 opp_life=40
+HANDLOG turn=4 event=cast kind=spell castBy=Ai(2)-PlayerB source=Dragon Tempest UR_hand=[Exotic Orchard;Teferi, Temporal Archmage;Quintorius Kand;Teferi, Master of Time] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=0 UR_life=40 opp_life=40
+Turn: Turn 5 (Ai(1)-PlayerA)
+HANDLOG turn=5 event=turnstart active=Ai(1)-PlayerA UR_hand=[Teferi, Temporal Archmage;Quintorius Kand;Teferi, Master of Time;Temple of Triumph] UR_untapped_lands=3 UR_total_lands=3 opp_creatures=0 UR_life=40 opp_life=40
+Land: Ai(1)-PlayerA played a land
+Damage: Talisman of Progress [c09] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 40 > 39
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(1)-PlayerA source=Teferi, Master of Time UR_hand=[Teferi, Temporal Archmage;Quintorius Kand;Temple of Triumph] UR_untapped_lands=0 UR_total_lands=3 opp_creatures=0 UR_life=39 opp_life=40
+Turn: Turn 6 (Ai(2)-PlayerB)
+HANDLOG turn=6 event=turnstart active=Ai(2)-PlayerB UR_hand=[Quintorius Kand;Temple of Triumph;Norn's Annex] UR_untapped_lands=0 UR_total_lands=3 opp_creatures=0 UR_life=39 opp_life=40
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 7 (Ai(1)-PlayerA)
+HANDLOG turn=7 event=turnstart active=Ai(1)-PlayerA UR_hand=[Temple of Triumph;Norn's Annex;Triumphant Reckoning;Hallowed Fountain] UR_untapped_lands=3 UR_total_lands=3 opp_creatures=0 UR_life=39 opp_life=40
+Damage: Talisman of Progress [c09] deals 1 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 39 > 38
+HANDLOG turn=7 event=cast kind=spell castBy=Ai(1)-PlayerA source=Whirlwind of Thought UR_hand=[Temple of Triumph;Norn's Annex;Hallowed Fountain] UR_untapped_lands=0 UR_total_lands=3 opp_creatures=0 UR_life=38 opp_life=40
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 8 (Ai(2)-PlayerB)
+HANDLOG turn=8 event=turnstart active=Ai(2)-PlayerB UR_hand=[Norn's Annex;Hallowed Fountain] UR_untapped_lands=0 UR_total_lands=4 opp_creatures=0 UR_life=38 opp_life=40
+HANDLOG turn=8 event=cast kind=spell castBy=Ai(2)-PlayerB source=Ojutai, Soul of Winter UR_hand=[Norn's Annex;Hallowed Fountain] UR_untapped_lands=0 UR_total_lands=4 opp_creatures=0 UR_life=38 opp_life=40
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 9 (Ai(1)-PlayerA)
+HANDLOG turn=9 event=turnstart active=Ai(1)-PlayerA UR_hand=[Norn's Annex;Hallowed Fountain] UR_untapped_lands=3 UR_total_lands=4 opp_creatures=1 UR_life=38 opp_life=40
+Damage: Hallowed Fountain [6cd] deals 2 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 38 > 36
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=9 event=cast kind=spell castBy=Ai(1)-PlayerA source=Narset, Enlightened Master UR_hand=[Norn's Annex;Ajani Steadfast] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=36 opp_life=40
+Turn: Turn 10 (Ai(2)-PlayerB)
+HANDLOG turn=10 event=turnstart active=Ai(2)-PlayerB UR_hand=[Norn's Annex;Brainstorm] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=36 opp_life=40
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=10 event=cast kind=spell castBy=Ai(2)-PlayerB source=Utvara Hellkite UR_hand=[Brainstorm;Deepglow Skate] UR_untapped_lands=0 UR_total_lands=5 opp_creatures=1 UR_life=36 opp_life=40
+Damage: Dragon Token [562] deals 4 damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 36 > 32
+Damage: Utvara Hellkite [bbf] deals 6 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 32 > 26
+Turn: Turn 11 (Ai(1)-PlayerA)
+HANDLOG turn=11 event=turnstart active=Ai(1)-PlayerA UR_hand=[Brainstorm;Deepglow Skate;Island] UR_untapped_lands=5 UR_total_lands=5 opp_creatures=4 UR_life=26 opp_life=40

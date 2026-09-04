@@ -1,0 +1,63 @@
+# EVIDENCE EXCERPT — trimmed tail of a preserved crash transcript
+# source file : s_commander_mid_esper__aminatou-the-fateshifter.dck.txt_o_five-color__the-ur-dragon.txt_baseline_0.log
+# size        : 18604 bytes / 138 lines (whole file; tail shown below)
+# death: abnormal — a HANDLOG event=gameend fires at turn 34 with BOTH players alive (UR_life=8 opp_life=27) yet NO XMAGEBATCH RESULT follows.
+# XMAGEBATCH RESULT lines in whole file : 0
+# XMAGEBATCH TIMEOUT lines in whole file: 0
+# exception / stacktrace lines          : 0
+# ---- transcript tail ----
+Turn: Turn 21 (Ai(1)-PlayerA)
+HANDLOG turn=21 event=turnstart active=Ai(1)-PlayerA UR_hand=[The Chain Veil;Jace, the Mind Sculptor;Venser, the Sojourner;Resourceful Defense;Ripples of Potential] UR_untapped_lands=2 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=40
+HANDLOG turn=21 event=cast kind=spell castBy=Ai(1)-PlayerA source=Aminatou, the Fateshifter UR_hand=[The Chain Veil;Jace, the Mind Sculptor;Venser, the Sojourner;Resourceful Defense;Ripples of Potential] UR_untapped_lands=2 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=40
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=21 event=cast kind=spell castBy=Ai(1)-PlayerA source=Jace, the Mind Sculptor UR_hand=[The Chain Veil;Venser, the Sojourner;Resourceful Defense;Ripples of Potential] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=40
+Turn: Turn 22 (Ai(2)-PlayerB)
+HANDLOG turn=22 event=turnstart active=Ai(2)-PlayerB UR_hand=[The Chain Veil;Venser, the Sojourner;Resourceful Defense;Ripples of Potential] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=40
+HANDLOG turn=22 event=cast kind=spell castBy=Ai(2)-PlayerB source=Deathbringer Regent UR_hand=[The Chain Veil;Venser, the Sojourner;Resourceful Defense;Ripples of Potential] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=40
+Turn: Turn 23 (Ai(1)-PlayerA)
+HANDLOG turn=23 event=turnstart active=Ai(1)-PlayerA UR_hand=[The Chain Veil;Venser, the Sojourner;Resourceful Defense;Ripples of Potential;Wall of Omens] UR_untapped_lands=7 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=40
+Turn: Turn 24 (Ai(2)-PlayerB)
+HANDLOG turn=24 event=turnstart active=Ai(2)-PlayerB UR_hand=[The Chain Veil;Venser, the Sojourner;Resourceful Defense;Ripples of Potential;Wall of Omens] UR_untapped_lands=7 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=40
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=24 event=cast kind=spell castBy=Ai(2)-PlayerB source=Kindred Discovery UR_hand=[The Chain Veil;Venser, the Sojourner;Resourceful Defense;Ripples of Potential;Wall of Omens] UR_untapped_lands=7 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=40
+Turn: Turn 25 (Ai(1)-PlayerA)
+HANDLOG turn=25 event=turnstart active=Ai(1)-PlayerA UR_hand=[The Chain Veil;Venser, the Sojourner;Resourceful Defense;Ripples of Potential;Wall of Omens;Narset, Parter of Veils] UR_untapped_lands=7 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=40
+Damage: Zombie Token [f75] deals 2 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 40 > 38
+Turn: Turn 26 (Ai(2)-PlayerB)
+HANDLOG turn=26 event=turnstart active=Ai(2)-PlayerB UR_hand=[The Chain Veil;Venser, the Sojourner;Resourceful Defense;Ripples of Potential;Wall of Omens;Narset, Parter of Veils] UR_untapped_lands=7 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=38
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=26 event=cast kind=spell castBy=Ai(2)-PlayerB source=Crux of Fate UR_hand=[The Chain Veil;Venser, the Sojourner;Resourceful Defense;Ripples of Potential;Wall of Omens;Narset, Parter of Veils] UR_untapped_lands=7 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=38
+Turn: Turn 27 (Ai(1)-PlayerA)
+HANDLOG turn=27 event=turnstart active=Ai(1)-PlayerA UR_hand=[The Chain Veil;Venser, the Sojourner;Resourceful Defense;Ripples of Potential;Wall of Omens;Narset, Parter of Veils] UR_untapped_lands=4 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=38
+HANDLOG turn=27 event=cast kind=spell castBy=Ai(1)-PlayerA source=Dreamtide Whale UR_hand=[The Chain Veil;Venser, the Sojourner;Resourceful Defense;Ripples of Potential;Wall of Omens;Narset, Parter of Veils] UR_untapped_lands=4 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=38
+HANDLOG turn=27 event=cast kind=spell castBy=Ai(1)-PlayerA source=Resourceful Defense UR_hand=[The Chain Veil;Venser, the Sojourner;Ripples of Potential;Wall of Omens;Narset, Parter of Veils] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=38
+HANDLOG turn=27 event=cast kind=spell castBy=Ai(1)-PlayerA source=Wall of Omens UR_hand=[The Chain Veil;Venser, the Sojourner;Ripples of Potential;Narset, Parter of Veils] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=38
+Damage: Zombie Token [f75] deals 2 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 38 > 36
+Turn: Turn 28 (Ai(2)-PlayerB)
+HANDLOG turn=28 event=turnstart active=Ai(2)-PlayerB UR_hand=[The Chain Veil;Venser, the Sojourner;Narset, Parter of Veils;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=36
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=28 event=cast kind=spell castBy=Ai(2)-PlayerB source=The Ur-Dragon UR_hand=[The Chain Veil;Venser, the Sojourner;Narset, Parter of Veils;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=36
+Turn: Turn 29 (Ai(1)-PlayerA)
+HANDLOG turn=29 event=turnstart active=Ai(1)-PlayerA UR_hand=[The Chain Veil;Venser, the Sojourner;Narset, Parter of Veils;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana] UR_untapped_lands=7 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=36
+HANDLOG turn=29 event=cast kind=spell castBy=Ai(1)-PlayerA source=Aminatou, the Fateshifter UR_hand=[The Chain Veil;Venser, the Sojourner;Narset, Parter of Veils;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana;Oath of Gideon] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=36
+Land: Ai(1)-PlayerA played a land
+Damage: Zombie Token [f75] deals 2 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 36 > 34
+Damage: Dreamtide Whale [622] deals 7 combat damage to Ai(2)-PlayerB.
+Life: Life: Ai(2)-PlayerB 34 > 27
+Turn: Turn 30 (Ai(2)-PlayerB)
+HANDLOG turn=30 event=turnstart active=Ai(2)-PlayerB UR_hand=[The Chain Veil;Venser, the Sojourner;Narset, Parter of Veils;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana;Oath of Gideon] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=27
+HANDLOG turn=30 event=cast kind=spell castBy=Ai(2)-PlayerB source=Scion of the Ur-Dragon UR_hand=[The Chain Veil;Venser, the Sojourner;Narset, Parter of Veils;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana;Oath of Gideon] UR_untapped_lands=1 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=27
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 31 (Ai(1)-PlayerA)
+HANDLOG turn=31 event=turnstart active=Ai(1)-PlayerA UR_hand=[The Chain Veil;Venser, the Sojourner;Narset, Parter of Veils;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana;Oath of Gideon] UR_untapped_lands=7 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=27
+HANDLOG turn=31 event=cast kind=spell castBy=Ai(1)-PlayerA source=Oath of Gideon UR_hand=[The Chain Veil;Venser, the Sojourner;Narset, Parter of Veils;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana;Ripples of Potential] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=27
+Turn: Turn 32 (Ai(2)-PlayerB)
+HANDLOG turn=32 event=turnstart active=Ai(2)-PlayerB UR_hand=[The Chain Veil;Narset, Parter of Veils;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana;Ripples of Potential;Deepglow Skate] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=27
+Land: Ai(2)-PlayerB played a land
+HANDLOG turn=32 event=cast kind=spell castBy=Ai(2)-PlayerB source=The Ur-Dragon UR_hand=[The Chain Veil;Narset, Parter of Veils;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana;Ripples of Potential;Deepglow Skate] UR_untapped_lands=0 UR_total_lands=7 opp_creatures=0 UR_life=8 opp_life=27
+Turn: Turn 33 (Ai(1)-PlayerA)
+HANDLOG turn=33 event=turnstart active=Ai(1)-PlayerA UR_hand=[The Chain Veil;Narset, Parter of Veils;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana;Ripples of Potential;Deepglow Skate;Arcane Signet] UR_untapped_lands=7 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=27
+HANDLOG turn=34 event=gameend UR_hand=[The Chain Veil;Primevals' Glorious Rebirth;Peregrine Drake;Oath of Liliana;Ripples of Potential;Deepglow Skate;Arcane Signet] UR_untapped_lands=7 UR_total_lands=7 opp_creatures=1 UR_life=8 opp_life=27
