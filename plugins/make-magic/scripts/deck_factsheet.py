@@ -300,40 +300,82 @@ def _load_card_otag() -> dict[str, set[str]] | None:
 OTAG_COVERAGE_FLOOR = 0.5
 
 
+#: Minimum GLOBAL closure size (distinct tagged oracle_ids) for the otag layer to
+#: count as fully hydrated. This separates two very different failure modes that a
+#: deck-relative coverage number alone cannot tell apart:
+#:
+#:   * a DEGRADED dataset — the bundled snapshot tags only a few thousand oracle_ids
+#:     (~20% of the ~38k oracle corpus), so ANY deck reads near-blank; the fix is to
+#:     load the real dataset, and naming ``collection hydrate-lake`` is honest.
+#:   * a HYDRATED dataset that simply lacks a JUST-RELEASED set's oracle_ids — the
+#:     closure holds tens of thousands of entries (~32k, ~84-92% global coverage) but
+#:     Scryfall's tagger lags a new set by days-to-weeks, so a fresh-set precon reads
+#:     0% while the dataset is as good as it gets; ``hydrate-lake`` cannot help.
+#:
+#: A closure with >= this many entries is definitively hydrated (well above any
+#: snapshot ceiling of a few thousand, well below the ~32k hydrated floor), so a
+#: sub-floor DECK coverage then reflects the DECK (a fresh set), not the dataset.
+#: Injectable so callers/tests can pin either regime.
+OTAG_HYDRATED_MIN_SIZE = 10_000
+
+
 class OtagProbe(NamedTuple):
     """Verdict from :func:`crispi_otag_probe` — the single otag-availability authority.
 
-    ``ok`` is whether CRISPI may score; ``closure`` is the loaded
+    ``ok`` is whether CRISPI may score; ``degraded`` is whether it must score
+    LOUDLY degraded (the fresh-set case: hydrated dataset, but this deck's cards
+    are not tagged upstream yet); ``closure`` is the loaded
     ``oracle_id -> set[slug]`` map (None when the otag layer is unavailable);
-    ``coverage`` is the deck's nonland otag coverage (None when no closure);
-    ``reason`` is a human string for the refusal text.
+    ``coverage`` is the deck's nonland otag coverage (None when no closure /
+    global refusal); ``reason`` is a human string for the refusal / degrade text.
     """
 
     ok: bool
     closure: dict[str, set[str]] | None
     coverage: float | None
     reason: str
+    degraded: bool = False
 
 
-def crispi_otag_probe(deck, *, floor: float = OTAG_COVERAGE_FLOOR) -> OtagProbe:  # noqa: ANN001
-    """Single source of truth for whether CRISPI may score ``deck``.
+def crispi_otag_probe(
+    deck,  # noqa: ANN001
+    *,
+    floor: float = OTAG_COVERAGE_FLOOR,
+    min_global_size: int = OTAG_HYDRATED_MIN_SIZE,
+) -> OtagProbe:
+    """Single source of truth for whether/how CRISPI may score ``deck``.
 
     Routes through the SAME closure the factsheet loader produces
     (:func:`_load_card_otag`) so the crispi guard and the factsheet read the
     identical otag source (the #53 fix: the old ``otag_mart_available`` probed a
-    ``normalized/card_otag`` mart the factsheet never reads). Refuses when:
+    ``normalized/card_otag`` mart the factsheet never reads). Three-way verdict:
 
-      * the closure is None — the otag layer is entirely unavailable, or
-      * the deck's nonland otag coverage is below ``floor`` — the closure is
-        snapshot-degraded and knows too few of the deck's cards to score honestly.
+      1. closure is None, OR globally snapshot-degraded (fewer than
+         ``min_global_size`` tagged oracle_ids) -> REFUSE, naming
+         ``collection hydrate-lake`` — the dataset itself is not loaded, so any
+         deck reads near-blank and the remedy actually helps.
+      2. closure globally healthy BUT this deck's nonland coverage is below
+         ``floor`` (the fresh-set case: a just-released set the tagger has not
+         reached yet) -> SCORE, but ``degraded=True`` so the caller stamps the
+         loud degradation marker. ``hydrate-lake`` cannot help here.
+      3. closure healthy AND coverage >= floor -> score normally.
 
     The factsheet keeps its own structured-only degrade (the ``otag layer
     unavailable`` marker) when the closure is None; CRISPI's whole output is a
-    confident score, so it refuses rather than degrade.
+    confident score, so it refuses (case 1) or scores degraded-loud (case 2).
     """
     closure = _load_card_otag()
     if closure is None:
         return OtagProbe(False, None, None, 'otag layer unavailable (no closure could be loaded)')
+    if len(closure) < min_global_size:
+        return OtagProbe(
+            False,
+            closure,
+            None,
+            f'otag closure holds only {len(closure)} tagged oracle_ids, below the '
+            f'{min_global_size} hydrated-size floor (snapshot-degraded — the full '
+            'oracle-tag dataset is not loaded)',
+        )
     _ensure_pipeline_on_path()
     from pipeline.transforms.deck_factsheet import _card_slugs
 
@@ -343,14 +385,16 @@ def crispi_otag_probe(deck, *, floor: float = OTAG_COVERAGE_FLOOR) -> OtagProbe:
         return OtagProbe(True, closure, 1.0, 'no nonland cards to cover')
     tagged = sum(1 for c in nonland if _card_slugs(c, closure))
     coverage = tagged / len(nonland)
-    ok = coverage >= floor
+    if coverage >= floor:
+        return OtagProbe(True, closure, coverage, f'otag coverage {coverage:.0%} of {len(nonland)} nonland cards')
+    # Global-healthy but this deck reads below the floor: the fresh-set case — score,
+    # loudly degraded. The dataset is fully loaded, so `hydrate-lake` would not help;
+    # these cards are simply not tagged upstream yet (a just-released set).
     reason = (
-        f'otag coverage {coverage:.0%} of {len(nonland)} nonland cards'
-        if ok
-        else f'otag coverage {coverage:.0%} of {len(nonland)} nonland cards is below the '
-        f'{floor:.0%} floor (snapshot-degraded — the full oracle-tag dataset is not loaded)'
+        f'otag coverage {coverage:.0%} of {len(nonland)} nonland cards is below the {floor:.0%} floor, '
+        'but the closure is hydrated — likely a just-released set not yet tagged upstream'
     )
-    return OtagProbe(ok, closure, coverage, reason)
+    return OtagProbe(True, closure, coverage, reason, True)
 
 
 def _pipeline_factsheet(
@@ -718,12 +762,22 @@ def _auto_fundamental_turn(deck, cards, card_otag):  # noqa: ANN001
     return _router(deck, cards, card_otag, install=install)
 
 
+#: The CRISPI axes whose value leans on the otag layer (functional buckets /
+#: susceptibility). When scoring a fresh set with limited otag signal, each of
+#: these axis rationales is annotated so the degradation is un-missable in the
+#: per-axis prose, not just the top-level block. Speed leans on structured facts
+#: (fundamental turn), so it is intentionally excluded.
+_OTAG_DRIVEN_AXES = ('interaction', 'resilience', 'consistency')
+
+
 def crispi_from_deck(
     deck,  # a contracts.Deck
     *,
     fundamental_turn: float | None = None,
     commander_dependence: str,
     computed_at: str = '',
+    otag_degraded: bool = False,
+    otag_coverage: float | None = None,
 ) -> dict:
     """Score a resolved ``contracts.Deck`` on CRISPI — the bridge to ``crispi_score``.
 
@@ -772,6 +826,21 @@ def crispi_from_deck(
     out = result.model_dump()
     if speed_source is not None:
         out['speed_source'] = speed_source  # provenance for the CLI (auto-computed).
+    if otag_degraded:
+        # Fresh-set degrade: the dataset is hydrated but these cards are not tagged
+        # upstream yet, so the otag-driven axes under-read. Stamp an un-missable marker
+        # BOTH as a top-level block AND inside each otag-driven axis rationale — never
+        # emit a silently-confident score.
+        out['otag_coverage'] = otag_coverage
+        out['otag_degraded'] = True
+        pct = f'{otag_coverage:.0%}' if otag_coverage is not None else 'low'
+        note = (
+            f' [otag signal limited: {pct} of this deck is tagged upstream — likely a '
+            'just-released set; this otag-driven component may under-read]'
+        )
+        for axis in _OTAG_DRIVEN_AXES:
+            if axis in out and isinstance(out[axis], dict):
+                out[axis]['rationale'] = out[axis].get('rationale', '') + note
     return out
 
 

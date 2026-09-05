@@ -842,3 +842,71 @@ def test_factsheet_from_deck_fallback_is_byte_identical_to_golden(monkeypatch):
     monkeypatch.setattr(deck_factsheet, "_load_card_otag", lambda: None)
     fs = deck_factsheet.factsheet_from_deck(_golden_deck())
     assert fs == _GOLDEN["deck_fallback"]
+
+
+# --------------------------------------------------------------------------- #
+# crispi_otag_probe — three-way discrimination + injectable floor knob.
+# --------------------------------------------------------------------------- #
+
+
+def _probe_deck(names: list[str]):
+    """A duck-typed contracts.Deck of hydrated nonland DeckCards (for the probe)."""
+    import uuid
+    from types import SimpleNamespace
+
+    def mk(n: str):
+        return SimpleNamespace(
+            name=n,
+            oracle_id=str(uuid.uuid5(uuid.NAMESPACE_OID, n)),
+            oracle_text="draw a card",
+            type_line="Creature",
+            mana_value=2.0,
+            keywords=[],
+            produced_mana=None,
+            mana_cost="{1}{G}",
+        )
+
+    return SimpleNamespace(cards=[mk(n) for n in names])
+
+
+def test_crispi_otag_probe_custom_floor_knob(monkeypatch):
+    """A globally-healthy closure honours a CUSTOM floor: coverage below the custom
+    floor scores DEGRADED (not refused); the same coverage clears the default floor."""
+    import uuid
+
+    import deck_factsheet
+
+    names = [f"C{i}" for i in range(10)]
+    deck = _probe_deck(names)
+    # Closure covers 6/10 (60%) and is globally "healthy" under a small custom size floor.
+    closure = {str(uuid.uuid5(uuid.NAMESPACE_OID, n)): {"draw"} for n in names[:6]}
+    monkeypatch.setattr(deck_factsheet, "_load_card_otag", lambda: closure)
+
+    # Default floor (0.5): 60% >= 50% -> scores, NOT degraded.
+    p_default = deck_factsheet.crispi_otag_probe(deck, min_global_size=5)
+    assert p_default.ok and not p_default.degraded
+    assert p_default.coverage == 0.6
+
+    # Custom stricter floor (0.8): 60% < 80% but the closure is hydrated -> the
+    # fresh-set path: SCORE degraded-loud (ok True, degraded True).
+    p_strict = deck_factsheet.crispi_otag_probe(deck, floor=0.8, min_global_size=5)
+    assert p_strict.ok and p_strict.degraded
+    assert p_strict.coverage == 0.6
+
+
+def test_crispi_otag_probe_snapshot_still_refuses(monkeypatch):
+    """A globally-SMALL closure (snapshot / near-empty) refuses regardless of the
+    deck's coverage — the remedy `collection hydrate-lake` can actually help."""
+    import uuid
+
+    import deck_factsheet
+
+    names = [f"C{i}" for i in range(10)]
+    deck = _probe_deck(names)
+    # Tiny closure (2 entries) — below the hydrated-size floor -> snapshot-degraded refuse.
+    closure = {str(uuid.uuid5(uuid.NAMESPACE_OID, n)): {"draw"} for n in names[:2]}
+    monkeypatch.setattr(deck_factsheet, "_load_card_otag", lambda: closure)
+
+    p = deck_factsheet.crispi_otag_probe(deck)
+    assert not p.ok and not p.degraded
+    assert "snapshot-degraded" in p.reason

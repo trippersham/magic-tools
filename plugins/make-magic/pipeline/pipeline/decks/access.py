@@ -78,12 +78,14 @@ class DeckAccess:
             return rows[0].deck_uuid
         if not rows:
             return uuid4().hex
-        # >1 rows named ``name``. Archived drafts are addressable by ``--id`` ONLY
-        # (#53): exclude them from the ambiguity so a bare name resolves to the one
-        # surviving ACTIVE deck — which makes the advertised "archive the extra
-        # draft(s)" remedy actually clear the ambiguity. This narrows the read-path
-        # candidate set only; the write-side dup walls (``resolve_for_write`` /
-        # ``_resolve_existing``) count rows independently and are untouched.
+        # >1 rows named ``name``. Only AMBIGUITY filtering skips archived rows: a
+        # single archived deck with a unique name already resolved by bare name above
+        # (the ``len(rows) == 1`` branch does not inspect ``archived``). Here, with
+        # multiple same-named rows, archived drafts drop OUT of the ambiguity set so a
+        # bare name resolves to the one surviving ACTIVE deck — which makes the
+        # advertised "archive the extra draft(s)" remedy actually clear the ambiguity.
+        # This narrows the read-path candidate set only; the write-side dup walls
+        # (``resolve_for_write`` / ``_resolve_existing``) count rows independently.
         active = [r for r in rows if not r.archived]
         if len(active) == 1:
             return active[0].deck_uuid

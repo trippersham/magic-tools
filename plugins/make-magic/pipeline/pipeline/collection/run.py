@@ -2019,6 +2019,17 @@ def _crispi(argv: list[str]) -> None:
             '  collection hydrate-lake\n'
             'then re-run. (factsheet still runs, reporting structured facts only.)'
         )
+    if probe.degraded:
+        # Fresh-set case: the dataset is hydrated but this deck's cards are not tagged
+        # upstream yet (a just-released set). Score, but warn loudly — the score's
+        # otag-driven axes may under-read. The JSON carries the marker too (below).
+        cov = f'{probe.coverage:.0%}' if probe.coverage is not None else 'near-zero'
+        print(
+            f'# WARNING: only {cov} of this deck is tagged in the oracle-tag dataset — these '
+            'cards are likely not tagged upstream yet (a just-released set), so the score\'s '
+            'Interaction/Resilience/Consistency otag-driven components may under-read.',
+            file=sys.stderr,
+        )
 
     computed_at = datetime.now(UTC).isoformat()
     try:
@@ -2027,6 +2038,8 @@ def _crispi(argv: list[str]) -> None:
             fundamental_turn=args.fundamental_turn,
             commander_dependence=args.commander_dependence,
             computed_at=computed_at,
+            otag_degraded=probe.degraded,
+            otag_coverage=probe.coverage,
         )
     except SpeedNotApplicable as exc:
         # The auto-computed Speed is N/A (control / no honest own-turn kill) and the

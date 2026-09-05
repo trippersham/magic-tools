@@ -380,6 +380,48 @@ def test_crispi_refuses_when_otag_coverage_snapshot_degraded(
     assert 'collection hydrate-lake' in err
 
 
+def test_crispi_scores_degraded_loud_on_fresh_set(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    # The fresh-set case: the closure is fully HYDRATED globally (tens of thousands of
+    # tagged oracle_ids) but knows NONE of this deck's cards — a just-released set the
+    # upstream tagger has not reached yet. CRISPI must SCORE (not refuse), and the
+    # output must carry an un-missable degradation marker (top-level block + amended
+    # otag-driven axis rationales) with a one-line stderr warning.
+    import json
+    import uuid
+
+    monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _EnrichingResolver())
+    monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
+    names = [f'Spell {i}' for i in range(10)]
+    text = ''.join(f'1 {n}\n' for n in names)
+    monkeypatch.setattr('sys.stdin', __import__('io').StringIO(text))
+    _run(monkeypatch, 'import-deck', '-', '--name', 'Fresh Set', '--source', 'plaintext')
+    # A big, healthy closure (>= the hydrated-size floor) that covers NONE of the deck's
+    # oracle_ids -> global-healthy, deck-coverage 0% -> score degraded-loud.
+    big = {str(uuid.uuid5(uuid.NAMESPACE_OID, f'Other {i}')): {'ramp'} for i in range(12000)}
+    _deck_factsheet_mod()
+    monkeypatch.setattr('deck_factsheet._load_card_otag', lambda: big)
+    capsys.readouterr()
+
+    # An explicit fundamental turn avoids the Speed-N/A escape hatch for a wincon-less deck.
+    _run(monkeypatch, 'crispi', 'Fresh Set', '--commander-dependence', 'med', '--fundamental-turn', '4')
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
+    # Un-missable JSON degradation block.
+    assert report['otag_degraded'] is True
+    assert report['otag_coverage'] == 0.0
+    # Each otag-driven axis rationale notes the limited signal.
+    for axis in ('interaction', 'resilience', 'consistency'):
+        assert 'otag signal limited' in report[axis]['rationale']
+    # One-line stderr warning.
+    assert 'just-released set' in captured.err
+    assert 'under-read' in captured.err
+    # It really SCORED (not a refusal).
+    assert 'collection hydrate-lake' not in captured.err
+    assert isinstance(report['performance_index'], (int, float))
+
+
 def test_factsheet_still_runs_when_otag_closure_unavailable(
     data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
