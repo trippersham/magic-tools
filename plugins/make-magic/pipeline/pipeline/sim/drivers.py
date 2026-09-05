@@ -48,12 +48,21 @@ __all__ = (
     'DriverMeta',
     'classes_dir',
     'driver_dir',
+    'driver_state',
     'driver_valid',
     'harness_version',
     'meta_path',
     'read_meta',
     'write_meta',
 )
+
+#: The four states :func:`driver_state` classifies a deck's driver into. ``'valid'`` is the
+#: exact :func:`driver_valid` conjunction; the other three split what ``driver_valid`` collapses
+#: to a single ``False`` so a router can react differently: ``'stale'`` is RECOVERABLE (an
+#: authored driver whose stamp merely lags the current deck/harness — a re-gate can revive it),
+#: ``'broken'`` is a gate/parse FAILURE (present but failed sign-off), and ``'absent'`` is simply
+#: no driver on disk.
+DRIVER_STATES = ('valid', 'stale', 'absent', 'broken')
 
 #: Subdirectory of the store data root that holds per-deck driver dirs.
 DRIVERS_DIRNAME = 'drivers'
@@ -218,11 +227,33 @@ def driver_valid(deck: Deck, *, data_dir: str | os.PathLike[str] | None = None) 
     ``harness_version`` equals the current :func:`harness_version`. Any miss (incl. a
     missing dir/meta) → ``False`` — the caller falls back to the driverless path.
     """
+    return driver_state(deck, data_dir=data_dir) == 'valid'
+
+
+def driver_state(deck: Deck, *, data_dir: str | os.PathLike[str] | None = None) -> str:
+    """Classify ``deck``'s driver into one of :data:`DRIVER_STATES` — the STALE/ABSENT/BROKEN
+    split :func:`driver_valid` collapses into a single ``False``.
+
+    * ``'absent'`` — no ``meta.json`` on disk at all (a fresh deck / never-authored driver).
+    * ``'broken'`` — a ``meta.json`` IS on disk but it is unparseable/corrupt, OR it parses with
+      ``gates_passed`` false (the gate ran and REJECTED this driver). A re-gate is warranted only
+      after a recompile; the stamp itself says "do not trust".
+    * ``'stale'`` — parses, ``gates_passed`` true, but the stamped ``deck_version`` OR
+      ``harness_version`` no longer matches the current values (the deck was edited, or — the jar
+      cut — the harness ABI moved). RECOVERABLE by re-gating against the current harness.
+    * ``'valid'`` — the full :func:`driver_valid` conjunction holds.
+
+    Distinguishing ABSENT from BROKEN needs the raw file (``read_meta`` maps both to ``None``): a
+    missing file is absent; a present-but-``None`` file is broken.
+    """
+    path = meta_path(deck, data_dir=data_dir)
+    if not path.is_file():
+        return 'absent'
     meta = read_meta(deck, data_dir=data_dir)
     if meta is None:
-        return False
-    return (
-        meta.gates_passed
-        and meta.deck_version == version(deck)
-        and meta.harness_version == harness_version(data_dir=data_dir)
-    )
+        return 'broken'  # file present but corrupt/incomplete — a failed/garbled stamp.
+    if not meta.gates_passed:
+        return 'broken'  # the gate ran and did NOT sign off.
+    if meta.deck_version != version(deck) or meta.harness_version != harness_version(data_dir=data_dir):
+        return 'stale'  # signed off, but the deck or the harness moved under it — re-gate can revive.
+    return 'valid'

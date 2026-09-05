@@ -66,10 +66,14 @@ if TYPE_CHECKING:
 __all__ = (
     'DRIVER_REGISTERED_MARKER',
     'MACRO_FIRE_REAL_MARKER',
+    'MIN_GATE_GAMES',
     'MULLIGAN_FIRED_MARKER',
     'GateResult',
+    'RegateResult',
     'compile_quad_driver',
     'gate_driver',
+    'recompile_authored_driver',
+    'regate_driver',
 )
 
 #: The seam's registration marker: ``XMageBatch`` prints ``DRIVER_REGISTERED fqcn=... playerId=...``
@@ -106,6 +110,9 @@ MULLIGAN_FIRED_MARKER = DRIVER_MULLIGAN_MARKER
 #: 10/13, 13/13, 11/12) where n=12 and n=15 had each false-failed — so 20 is the empirically-
 #: pinned floor at which the numeric term stops flaking for a driven≈baseline deck.
 _MIN_GATE_GAMES = 20
+#: Public alias of the gate's per-run game-count floor, so callers (the re-gate flow, the speed
+#: router) can respect it without reaching for the private name.
+MIN_GATE_GAMES = _MIN_GATE_GAMES
 
 #: Own-turn-kill slack allowed on the never-slower check. XMage has no reproducible seed, so the
 #: driven + baseline solo medians are two independent noisy samples that jitter ~±1 own-turn
@@ -203,7 +210,6 @@ def compile_quad_driver(
     parsed diagnostics. NO meta is stamped here (the behavioral gate owns the ``gates_passed``
     stamp).
     """
-    import shutil
     from pathlib import Path
 
     source = render_quad_driver(deck, spec)
@@ -216,12 +222,59 @@ def compile_quad_driver(
 
     fqcn = driver_fqcn(deck)
     cache_dir, _ = driver_compile.compile_for_injection(str(src_path), fqcn, data_dir=data_dir)
+    return _publish_classes(deck, cache_dir, data_dir=data_dir), fqcn
 
-    # Publish the compiled class tree into the per-deck classes dir the run/gate path injects.
+
+def _publish_classes(
+    deck: Deck,
+    cache_dir: str,
+    *,
+    data_dir: str | os.PathLike[str] | None = None,
+) -> str:
+    """Publish an ECJ ``(dist SHA, source hash)`` cache tree into ``deck``'s per-deck classes dir.
+
+    The single seam shared by the first compile (:func:`compile_quad_driver`) and the re-compile
+    (:func:`recompile_authored_driver`): copy the compiled class tree into the ``classes_dir``
+    keyed by ``deck.uuid`` that BOTH the gate and the production run path inject, wiping any stale
+    ``.class`` first. Returns the published dir as a str."""
+    import shutil
+
     classes = drivers.classes_dir(deck, data_dir=data_dir)
-    shutil.rmtree(classes, ignore_errors=True)  # no stale .class survives a re-author.
+    shutil.rmtree(classes, ignore_errors=True)  # no stale .class survives a re-compile.
     shutil.copytree(cache_dir, classes)
-    return str(classes), fqcn
+    return str(classes)
+
+
+def recompile_authored_driver(
+    deck: Deck,
+    fqcn: str,
+    *,
+    data_dir: str | os.PathLike[str] | None = None,
+) -> tuple[str, str]:
+    """Re-compile ``deck``'s ALREADY-AUTHORED ``Driver.java`` against the CURRENT dist jar.
+
+    The re-gate counterpart of :func:`compile_quad_driver`: instead of re-rendering from a
+    :class:`QuadSpec`, it takes the source already on disk in the deck's driver dir (written by
+    the original :func:`compile_quad_driver`) and runs it back through the SAME ECJ path
+    (:func:`~pipeline.sim.driver_compile.compile_for_injection`) against whatever dist jar is now
+    effective — so a harness/jar cut that invalidated the old bytecode produces fresh, current
+    bytecode. The compiled tree is published into the per-deck ``classes_dir`` via
+    :func:`_publish_classes`. Returns the ``(classes_dir, fqcn)`` injection tuple.
+
+    A missing authored source raises ``FileNotFoundError``; a compile failure raises
+    :class:`~pipeline.sim.driver_compile.DriverCompileError` (parsed diagnostics); a toolchain
+    failure (no ECJ/JRE) raises :class:`~pipeline.sim.driver_compile.DriverCompileToolError`.
+    """
+    from pathlib import Path
+
+    src_path = drivers.driver_dir(deck, data_dir=data_dir) / 'Driver.java'
+    if not Path(src_path).is_file():
+        raise FileNotFoundError(
+            f'no authored Driver.java for deck {deck.uuid} at {src_path} — cannot re-compile a '
+            'driver whose source was never persisted (author + compile it first)'
+        )
+    cache_dir, _ = driver_compile.compile_for_injection(str(src_path), fqcn, data_dir=data_dir)
+    return _publish_classes(deck, cache_dir, data_dir=data_dir), fqcn
 
 
 def _kill_metric(median_kills_own: float) -> float:
@@ -239,7 +292,8 @@ def gate_driver(
     deck: Deck,
     deck_ref: tuple[str, str],
     *,
-    spec: QuadSpec,
+    spec: QuadSpec | None = None,
+    mode: str | None = None,
     install: EngineInstall,
     games: int,
     tolerance: float = _DEFAULT_TOLERANCE,
@@ -294,8 +348,19 @@ def gate_driver(
     fqcn = driver_fqcn(deck)
     driver = (str(classes), fqcn)
 
-    is_proactive = spec.macro is not None
-    mode = 'proactive' if is_proactive else 'reactive'
+    # CAPABILITY mode: normally derived from the quad SHAPE (a macro ⇒ proactive). The re-gate
+    # flow has no live spec (it recompiles source already on disk) and instead passes the mode
+    # recovered from the existing stamp; a legacy ``'unknown'`` stamp maps to the LENIENT reactive
+    # gate (no macro-fire requirement) — we cannot prove a macro we never rendered, and demanding
+    # a fire we can't justify would wrongly reject a still-good driver.
+    if spec is not None:
+        is_proactive = spec.macro is not None
+        mode = 'proactive' if is_proactive else 'reactive'
+    elif mode is not None:
+        is_proactive = mode == 'proactive'
+        mode = 'proactive' if is_proactive else 'reactive'
+    else:
+        raise ValueError('gate_driver requires exactly one of spec= or mode=')
 
     # LAYER 1 — forbidden-API bytecode scan (no-terminal-API rule). A driver may only enqueue
     # LEGAL game actions; every terminal state must come from the rules engine. Scan the
@@ -457,3 +522,123 @@ def gate_driver(
         fqcn=fqcn,
         extra=extra,
     )
+
+
+@dataclass(frozen=True)
+class RegateResult:
+    """The outcome of :func:`regate_driver` — a stale driver's recompile + re-gate attempt.
+
+    ``ok`` True means the driver is now :func:`~pipeline.sim.drivers.driver_valid` again (the gate
+    re-stamped a current ``meta.json``). ``ok`` False splits by ``outcome``:
+
+      * ``'failed'`` — the recompile or the behavioral gate REJECTED the driver; the stamp was
+        rewritten ``gates_passed=false`` (state → ``'broken'``) and the authored source was KEPT.
+      * ``'environment'`` — the toolchain could not run (no ECJ / no JRE / no jar): the driver is
+        NOT condemned (still ``'stale'``), the caller must fall back loudly naming the cause.
+      * ``'absent'`` — there was no stamp/authored source to re-gate in the first place.
+
+    ``reason`` names the failure (empty on ``ok``); ``gate`` carries the underlying
+    :class:`GateResult` when the behavioral gate actually ran.
+    """
+
+    ok: bool
+    outcome: str  #: 'regated' | 'failed' | 'environment' | 'absent'
+    reason: str = ''
+    gate: GateResult | None = None
+
+
+def _mark_broken(
+    deck: Deck,
+    meta: object,
+    reason: str,
+    *,
+    data_dir: str | os.PathLike[str] | None,
+) -> None:
+    """Rewrite ``deck``'s stamp ``gates_passed=false`` (state → ``'broken'``), keeping the source.
+
+    A re-gate that FAILS must not leave the old ``gates_passed=true`` stamp — a stale driver whose
+    recompile/gate rejected it would otherwise keep reading as merely ``'stale'`` and be retried
+    forever. We refresh the version stamps to CURRENT (so it is unambiguously "current harness,
+    gate said no" — broken, not stale) and record the failure reason in ``extra``. The authored
+    ``Driver.java`` is deliberately left on disk for inspection / a future re-author.
+    """
+    prior = getattr(meta, 'extra', {})
+    extra = {**(prior if isinstance(prior, dict) else {}), 'regate_failure_reason': reason}
+    drivers.write_meta(
+        deck,
+        drivers.DriverMeta(
+            deck_version=version(deck),
+            harness_version=drivers.harness_version(data_dir=data_dir),
+            fqcn=getattr(meta, 'fqcn', '') or driver_fqcn(deck),
+            gates_passed=False,
+            gate_mode=getattr(meta, 'gate_mode', 'unknown'),
+            extra=extra,
+        ),
+        data_dir=data_dir,
+    )
+
+
+def regate_driver(
+    deck: Deck,
+    deck_ref: tuple[str, str],
+    *,
+    install: EngineInstall,
+    games: int,
+    tolerance: float = _DEFAULT_TOLERANCE,
+    engine: _GoldfishEngine | None = None,
+    data_dir: str | os.PathLike[str] | None = None,
+    defended_lens: bool = False,
+    compile_fn: object | None = None,
+    gate_fn: object | None = None,
+) -> RegateResult:
+    """Re-compile ``deck``'s authored driver against the CURRENT harness and re-run the gate.
+
+    The stale→valid recovery the jar cut needs: a driver whose bytecode was compiled against an
+    older dist reads as ``'stale'`` (:func:`~pipeline.sim.drivers.driver_state`) after a harness
+    bump. This reuses the ORIGINAL compile path (:func:`recompile_authored_driver` →
+    :func:`~pipeline.sim.driver_compile.compile_for_injection`, the same ECJ invocation) to
+    produce fresh bytecode, then re-runs the behavioral :func:`gate_driver` (mode recovered from
+    the existing stamp — no live :class:`QuadSpec` needed). On PASS the gate re-stamps a current
+    ``meta.json`` (``ok=True``, ``driver_valid`` True again). On a compile/gate FAILURE the stamp
+    is rewritten ``gates_passed=false`` (state → ``'broken'``) and the authored source is KEPT. A
+    toolchain failure (no ECJ/JRE/jar) returns ``outcome='environment'`` WITHOUT condemning the
+    driver — the caller falls back loudly.
+
+    ``compile_fn`` / ``gate_fn`` are the recompile + behavioral-gate seams, injectable so unit
+    tests exercise the state machine with NO real JVM/ECJ.
+    """
+    from pipeline.sim.driver_compile import DriverCompileError, DriverCompileToolError
+
+    recompile = compile_fn if compile_fn is not None else recompile_authored_driver
+    gate = gate_fn if gate_fn is not None else gate_driver
+
+    meta = drivers.read_meta(deck, data_dir=data_dir)
+    if meta is None:
+        return RegateResult(
+            ok=False, outcome='absent',
+            reason='no parseable meta.json to re-gate (author + compile + gate the driver first)',
+        )
+
+    fqcn = meta.fqcn or driver_fqcn(deck)
+    try:
+        recompile(deck, fqcn, data_dir=data_dir)  # type: ignore[operator]
+    except DriverCompileError as exc:
+        reason = f're-compile against the current dist FAILED: {exc}'
+        _mark_broken(deck, meta, reason, data_dir=data_dir)
+        return RegateResult(ok=False, outcome='failed', reason=reason)
+    except (DriverCompileToolError, FileNotFoundError, OSError) as exc:
+        # Toolchain/environment could not run (no ECJ, no JRE, no jar, missing source). Do NOT
+        # condemn the driver — it may re-gate cleanly on a machine that can compile.
+        return RegateResult(
+            ok=False, outcome='environment',
+            reason=f'the compile toolchain could not run (no javac/ECJ/JRE or missing source): {exc}',
+        )
+
+    result: GateResult = gate(  # type: ignore[operator]
+        deck, deck_ref, mode=meta.gate_mode, install=install, games=games,
+        tolerance=tolerance, engine=engine, data_dir=data_dir, defended_lens=defended_lens,
+    )
+    if result.passed:
+        return RegateResult(ok=True, outcome='regated', gate=result)
+    _mark_broken(deck, meta, result.reason, data_dir=data_dir)
+    return RegateResult(ok=False, outcome='failed', reason=result.reason, gate=result)

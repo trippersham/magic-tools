@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from pipeline.sim import drivers, speed
+from pipeline.sim import drivers
 from pipeline.sim.speed import FundamentalTurn, fundamental_turn
 from pipeline.sim.speed_estimate import SpeedEstimate
 
@@ -29,7 +29,7 @@ class _FakeEngine:
         self.median = median
         self.calls: list[dict] = []
 
-    def goldfish(self, deck_ref, *, games, install, driver=None, **kw):  # noqa: ANN001
+    def goldfish(self, deck_ref, *, games, install, driver=None, **kw):
         self.calls.append({'deck_ref': deck_ref, 'games': games, 'install': install, 'driver': driver})
         return _FakeGoldfish(self.median, games)
 
@@ -45,14 +45,17 @@ def _est(**kw) -> object:
     defaults.update(kw)
     est = SpeedEstimate(**defaults)  # type: ignore[arg-type]
 
-    def _fn(cards, card_otag=None, *, archetype=None, combo_pieces=None, lethal=20.0):  # noqa: ANN001
+    def _fn(cards, card_otag=None, *, archetype=None, combo_pieces=None, lethal=20.0):
         return est
 
     return _fn
 
 
 def _valid(monkeypatch: pytest.MonkeyPatch, ok: bool) -> None:
+    # The router classifies via driver_state now; 'valid' drives Tier-2, 'absent' falls back
+    # (the same quiet "no driver" path the old driver_valid=False produced).
     monkeypatch.setattr(drivers, 'driver_valid', lambda deck, *, data_dir=None: ok)
+    monkeypatch.setattr(drivers, 'driver_state', lambda deck, *, data_dir=None: 'valid' if ok else 'absent')
     monkeypatch.setattr(drivers, 'classes_dir', lambda deck, *, data_dir=None: '/tmp/classes')
     monkeypatch.setattr(
         drivers, 'read_meta',
@@ -182,7 +185,7 @@ class _FakeEngineAll(_FakeEngine):
         self.bricks = bricks
         self.max_turn = max_turn
 
-    def goldfish(self, deck_ref, *, games, install, driver=None, **kw):  # noqa: ANN001
+    def goldfish(self, deck_ref, *, games, install, driver=None, **kw):
         self.calls.append({'deck_ref': deck_ref, 'games': games, 'install': install, 'driver': driver})
         return _FakeGoldfishAll(self.median, games, self.max_turn, self.bricks, self.all_median)
 
@@ -229,3 +232,113 @@ def test_parse_goldfish_summary_reads_median_all_own() -> None:
     assert r.median_all_own == 7.5
     assert r.median_kills_own == 5.0
     assert r.bricks == 8 and r.max_turn == 25
+
+
+# --------------------------------------------------------------------------- #
+# Issue #52 — STALE driver auto-re-gate flows (all mocked; no JVM/ECJ).        #
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class _FakeRegate:
+    """A stubbed regate seam recording its calls and returning a canned RegateResult-like."""
+
+    ok: bool
+    outcome: str
+    reason: str = ''
+    calls: list = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        self.calls = []
+
+    def __call__(self, deck, deck_ref, **kwargs):
+        self.calls.append({'deck_ref': deck_ref, 'kwargs': kwargs})
+        return self
+
+
+def _stale(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(drivers, 'driver_state', lambda deck, *, data_dir=None: 'stale')
+    monkeypatch.setattr(drivers, 'classes_dir', lambda deck, *, data_dir=None: '/tmp/classes')
+    monkeypatch.setattr(
+        drivers, 'read_meta',
+        lambda deck, *, data_dir=None: drivers.DriverMeta(
+            deck_version='v', harness_version='h', fqcn='makemagic.driver.Fake', gates_passed=True
+        ),
+    )
+
+
+def test_stale_regates_then_runs_tier2(monkeypatch: pytest.MonkeyPatch) -> None:
+    """STALE + successful re-gate → the driver becomes valid and Tier-2 runs the goldfish."""
+    _stale(monkeypatch)
+    # after a successful re-gate the router treats state as valid and reads meta for the driver.
+    eng = _FakeEngine(median=3.0)
+    regate = _FakeRegate(ok=True, outcome='regated')
+    ft = fundamental_turn(
+        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
+        estimate=_est(needs_tier2=True), regate=regate,
+    )
+    assert ft.tier == 'tier2'
+    assert ft.turn == 3.0
+    assert len(regate.calls) == 1  # re-gate attempted exactly ONCE.
+    assert len(eng.calls) == 1
+
+
+def test_stale_failed_regate_falls_back_loudly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """STALE + gate REJECTS on re-gate → loud Tier-1 fallback NAMING the gate failure."""
+    _stale(monkeypatch)
+    eng = _FakeEngine()
+    regate = _FakeRegate(ok=False, outcome='failed', reason='driven medianKillsOwn WORSE than CP7')
+    ft = fundamental_turn(
+        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
+        estimate=_est(needs_tier2=True), regate=regate,
+    )
+    assert ft.tier == 'tier1'
+    assert ft.tier2_recommended is True
+    assert 'FAILED re-gate' in ft.source_rationale
+    assert 'WORSE than CP7' in ft.source_rationale  # names the gate failure, not the quiet text.
+    assert eng.calls == []  # no Tier-2 goldfish after a failed re-gate.
+
+
+def test_stale_environment_failure_falls_back_loudly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """STALE but the toolchain can't compile here → loud Tier-1 naming the environment cause."""
+    _stale(monkeypatch)
+    eng = _FakeEngine()
+    regate = _FakeRegate(ok=False, outcome='environment', reason='no ECJ/JRE available')
+    ft = fundamental_turn(
+        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
+        estimate=_est(needs_tier2=True), regate=regate,
+    )
+    assert ft.tier == 'tier1'
+    assert ft.tier2_recommended is True
+    assert 'could not run in THIS environment' in ft.source_rationale
+    assert 'no ECJ/JRE' in ft.source_rationale
+    assert eng.calls == []
+
+
+def test_broken_driver_names_gate_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A BROKEN driver (gates_passed=false) → loud Tier-1 naming the recorded gate failure."""
+    monkeypatch.setattr(drivers, 'driver_state', lambda deck, *, data_dir=None: 'broken')
+    monkeypatch.setattr(
+        drivers, 'read_meta',
+        lambda deck, *, data_dir=None: drivers.DriverMeta(
+            deck_version='v', harness_version='h', fqcn='x', gates_passed=False,
+            extra={'regate_failure_reason': 'macro never fired'},
+        ),
+    )
+    eng = _FakeEngine()
+    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng, estimate=_est(needs_tier2=True))
+    assert ft.tier == 'tier1'
+    assert ft.tier2_recommended is True
+    assert 'BROKEN' in ft.source_rationale
+    assert 'macro never fired' in ft.source_rationale
+    assert eng.calls == []
+
+
+def test_stale_no_install_does_not_regate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """STALE with NO install must not attempt a re-gate (needs the engine) — quiet fallback."""
+    _stale(monkeypatch)
+    regate = _FakeRegate(ok=True, outcome='regated')
+    ft = fundamental_turn(_Deck(), [], None, install=None, estimate=_est(needs_tier2=True), regate=regate)
+    assert ft.tier == 'tier1'
+    assert ft.tier2_recommended is True
+    assert regate.calls == []  # no engine → no re-gate.

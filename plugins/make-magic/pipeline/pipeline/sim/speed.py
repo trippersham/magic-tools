@@ -40,6 +40,11 @@ DEFAULT_GOLDFISH_GAMES = 20
 #: unavailable (no driver / no install) or the driven goldfish found no kill.
 _LOWER_CONFIDENCE = {'high': 'medium', 'medium': 'low', 'low': 'low', 'n/a': 'low'}
 
+#: Floor on the game count handed to an auto-re-gate. The behavioral gate flakes below its own
+#: floor; a router call with fewer games must still re-gate at the honest minimum rather than
+#: trip the gate's hard ``ValueError``.
+_MIN_REGATE_GAMES = 20
+
 
 @dataclass(frozen=True)
 class FundamentalTurn:
@@ -87,6 +92,7 @@ def fundamental_turn(
     combo_pieces: list[list[int]] | None = None,
     lethal: float = DEFAULT_LETHAL,
     estimate=estimate_speed,
+    regate=None,
 ) -> FundamentalTurn:
     """Resolve ``deck``'s fundamental own-turn kill (Tier-1 -> Tier-2-driven -> turn).
 
@@ -119,6 +125,9 @@ def fundamental_turn(
         data_dir: Driver-registry data root override.
         archetype / combo_pieces / lethal: Passed through to the Tier-1 estimator.
         estimate: The Tier-1 function (injectable for tests).
+        regate: The stale-driver re-gate seam (defaults to
+            :func:`~pipeline.sim.driver_gate.regate_driver`); injectable so tests drive the
+            stale→re-gate→Tier-2 and stale→fail→loud-Tier-1 flows with no real JVM/ECJ.
 
     Returns:
         A :class:`FundamentalTurn`.
@@ -141,8 +150,60 @@ def fundamental_turn(
             source_rationale=est.rationale, tier2_recommended=False,
         )
 
-    # 4. Tier-2 warranted.
-    has_driver = drivers.driver_valid(deck, data_dir=data_dir)  # type: ignore[arg-type]
+    # 4. Tier-2 warranted. Classify the driver into valid / stale / broken / absent so a STALE
+    # driver (the jar-cut case: authored + gated, but the harness ABI moved under its stamp) gets
+    # AUTO-RE-GATED once against the current harness before we give up on Tier-2.
+    state = drivers.driver_state(deck, data_dir=data_dir)  # type: ignore[arg-type]
+
+    if state == 'stale' and install is not None:
+        # STALE → attempt a bounded, ONCE-per-call re-gate: recompile the authored driver against
+        # the current harness and re-run the gate. On success Tier-2 resumes; on a compile/gate
+        # failure or an environment (no javac/ECJ/JRE) failure we fall back LOUDLY, naming the cause.
+        regate_fn = regate if regate is not None else _default_regate
+        ref = deck_ref if deck_ref is not None else _deck_ref(deck)
+        rg = regate_fn(
+            deck, ref, install=install, games=max(games, _MIN_REGATE_GAMES),
+            engine=engine, data_dir=data_dir,
+        )
+        if rg.ok:
+            state = 'valid'  # re-gate re-stamped a current meta — proceed Tier-2.
+        elif rg.outcome == 'environment':
+            return FundamentalTurn(
+                turn=float(est.own_turn), confidence=_LOWER_CONFIDENCE[est.confidence], tier='tier1',
+                source_rationale=(
+                    'needs_tier2 and the per-deck driver is STALE (harness/deck moved under its '
+                    f'stamp), but re-gate could not run in THIS environment: {rg.reason}. '
+                    f'Using the tier-1 estimate. ({est.rationale})'
+                ),
+                tier2_recommended=True,
+            )
+        else:  # 'failed' → the recompile/gate REJECTED the driver; it is now broken.
+            return FundamentalTurn(
+                turn=float(est.own_turn), confidence=_LOWER_CONFIDENCE[est.confidence], tier='tier1',
+                source_rationale=(
+                    'needs_tier2 but the STALE per-deck driver FAILED re-gate against the current '
+                    f'harness: {rg.reason}. Using the tier-1 estimate. ({est.rationale})'
+                ),
+                tier2_recommended=True,
+            )
+
+    if state == 'broken':
+        # A driver present but rejected by its gate (gates_passed=false). Do NOT emit the quiet
+        # "no driver" text — name the gate failure so the reason is actionable.
+        meta = drivers.read_meta(deck, data_dir=data_dir)  # type: ignore[arg-type]
+        detail = ''
+        if meta is not None:
+            detail = str(meta.extra.get('regate_failure_reason', '')) or 'gate did not sign off (gates_passed=false)'
+        return FundamentalTurn(
+            turn=float(est.own_turn), confidence=_LOWER_CONFIDENCE[est.confidence], tier='tier1',
+            source_rationale=(
+                'needs_tier2 but the per-deck driver is BROKEN (its gate rejected it): '
+                f'{detail}. Using the tier-1 estimate. ({est.rationale})'
+            ),
+            tier2_recommended=True,
+        )
+
+    has_driver = state == 'valid'
     if has_driver and install is not None:
         eng = engine if engine is not None else _default_engine()
         classes = str(drivers.classes_dir(deck, data_dir=data_dir))  # type: ignore[arg-type]
@@ -211,3 +272,10 @@ def _default_engine() -> object:
     from pipeline.sim.engine import get_engine
 
     return get_engine('xmage')
+
+
+def _default_regate(deck, deck_ref, **kwargs):  # type: ignore[no-untyped-def]
+    """The real re-gate seam (lazy — the pure/fallback paths never import the gate/ECJ stack)."""
+    from pipeline.sim.driver_gate import regate_driver
+
+    return regate_driver(deck, deck_ref, **kwargs)
