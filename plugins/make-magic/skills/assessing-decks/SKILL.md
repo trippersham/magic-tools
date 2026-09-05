@@ -148,13 +148,20 @@ raw Airtable CRUD.
 
 - **uv** — the CLI and the fact-sheet engine run via `uv run`.
 - **A hydrated card lake** — scoring verbs (`factsheet`, `crispi`) read enrichment (oracle
-  ids + the `card_otag` mart) from a local card lake. Bootstrap it once with
+  ids + the rolled-up oracle-tag closure) from a local card lake. Bootstrap it once with
   `collection hydrate-lake` (respects `MAKE_MAGIC_DATA_DIR`). **First run** downloads the
-  Scryfall `oracle_cards` bulk (~140MB, a few minutes) and builds the `card_otag` rollup
-  (~38k cards); re-runs are a fast no-op (cursor-gated, no-clobber). This is a **friendly
-  guardrail, not a failure mode**: if the lake is absent, a stub, low-coverage for the deck,
-  or the otag mart is missing, scoring **refuses loudly** — exiting nonzero with remediation
-  text naming `collection hydrate-lake` — rather than emitting misleading all-zero scores.
+  Scryfall `oracle_cards` bulk (~140MB, a few minutes) and loads the full oracle-tag dataset
+  (~84-92% coverage); re-runs are a fast no-op (cursor-gated, no-clobber). This is a
+  **friendly guardrail, not a failure mode**, and the two scoring verbs handle a missing/
+  degraded otag layer DIFFERENTLY:
+  - `crispi` **refuses loudly** — exiting nonzero with remediation text naming
+    `collection hydrate-lake` — when the lake is absent/stub, the deck stays low-coverage
+    after enrichment, OR the oracle-tag closure is unavailable or **snapshot-degraded** for
+    the deck (below the coverage floor). Its whole output is a confident score, so it never
+    scores off a blank/near-blank otag signal.
+  - `factsheet` still **refuses** on an absent/stub lake or a name-only deck, but when only
+    the otag closure is unavailable it **degrades gracefully** to structured facts with the
+    `otag layer unavailable` marker (see Step 3's Graceful degradation) rather than refusing.
 - **`MAKE_MAGIC_DATA_DIR`** — the store root; all lake paths and the local decks store
   resolve off it. Set it to a stable location (a throwaway dir gets an unhydrated lake and
   triggers the refusal above).

@@ -67,6 +67,7 @@ import logging
 import re
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 log = logging.getLogger('make_magic.deck_factsheet')
 
@@ -286,6 +287,70 @@ def _load_card_otag() -> dict[str, set[str]] | None:
     except Exception as exc:
         log.warning('otag layer: snapshot load failed (%s); degrading.', exc)
         return None
+
+
+#: CRISPI otag-coverage floor. The offline **bundled snapshot** tags only ~20% of
+#: nonland oracle cards; a fully **hydrated** lake reaches ~84-92%. A deck whose
+#: nonland otag coverage falls below this conservative midpoint is running on the
+#: snapshot (or a near-empty closure): CRISPI's functional axes (buckets /
+#: susceptibility) would then score off a mostly-blank otag signal — blind
+#: confidence — so the guard refuses and names ``collection hydrate-lake``. Set
+#: well above the ~20% snapshot ceiling and well below the ~84% hydrated floor;
+#: injectable so callers/tests can pin either regime.
+OTAG_COVERAGE_FLOOR = 0.5
+
+
+class OtagProbe(NamedTuple):
+    """Verdict from :func:`crispi_otag_probe` — the single otag-availability authority.
+
+    ``ok`` is whether CRISPI may score; ``closure`` is the loaded
+    ``oracle_id -> set[slug]`` map (None when the otag layer is unavailable);
+    ``coverage`` is the deck's nonland otag coverage (None when no closure);
+    ``reason`` is a human string for the refusal text.
+    """
+
+    ok: bool
+    closure: dict[str, set[str]] | None
+    coverage: float | None
+    reason: str
+
+
+def crispi_otag_probe(deck, *, floor: float = OTAG_COVERAGE_FLOOR) -> OtagProbe:  # noqa: ANN001
+    """Single source of truth for whether CRISPI may score ``deck``.
+
+    Routes through the SAME closure the factsheet loader produces
+    (:func:`_load_card_otag`) so the crispi guard and the factsheet read the
+    identical otag source (the #53 fix: the old ``otag_mart_available`` probed a
+    ``normalized/card_otag`` mart the factsheet never reads). Refuses when:
+
+      * the closure is None — the otag layer is entirely unavailable, or
+      * the deck's nonland otag coverage is below ``floor`` — the closure is
+        snapshot-degraded and knows too few of the deck's cards to score honestly.
+
+    The factsheet keeps its own structured-only degrade (the ``otag layer
+    unavailable`` marker) when the closure is None; CRISPI's whole output is a
+    confident score, so it refuses rather than degrade.
+    """
+    closure = _load_card_otag()
+    if closure is None:
+        return OtagProbe(False, None, None, 'otag layer unavailable (no closure could be loaded)')
+    _ensure_pipeline_on_path()
+    from pipeline.transforms.deck_factsheet import _card_slugs
+
+    cards = [_deck_card_to_fields(c) for c in deck.cards]
+    nonland = [c for c in cards if not is_land(_type_line(c))]
+    if not nonland:
+        return OtagProbe(True, closure, 1.0, 'no nonland cards to cover')
+    tagged = sum(1 for c in nonland if _card_slugs(c, closure))
+    coverage = tagged / len(nonland)
+    ok = coverage >= floor
+    reason = (
+        f'otag coverage {coverage:.0%} of {len(nonland)} nonland cards'
+        if ok
+        else f'otag coverage {coverage:.0%} of {len(nonland)} nonland cards is below the '
+        f'{floor:.0%} floor (snapshot-degraded — the full oracle-tag dataset is not loaded)'
+    )
+    return OtagProbe(ok, closure, coverage, reason)
 
 
 def _pipeline_factsheet(

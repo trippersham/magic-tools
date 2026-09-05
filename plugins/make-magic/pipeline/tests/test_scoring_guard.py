@@ -40,6 +40,18 @@ class _NameOnlyResolver:
         return None
 
 
+def _deck_factsheet_mod():
+    """Import the sibling ``scripts/deck_factsheet.py`` (the otag read surface)."""
+    import sys
+
+    scripts_dir = Path(__file__).resolve().parents[2] / 'scripts'
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    import deck_factsheet  # type: ignore[import-not-found]
+
+    return deck_factsheet
+
+
 def _run(monkeypatch: pytest.MonkeyPatch, *argv: str) -> None:
     monkeypatch.setattr('sys.argv', ['collection', *argv])
     cli.main()
@@ -279,7 +291,6 @@ def test_import_commander_flag_satisfies_guard(
 ) -> None:
     monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _EnrichingResolver())
     monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
-    monkeypatch.setattr('pipeline.collection.resolver.otag_mart_available', lambda: True)
     text = '# Cold Start — commanders=1 total=100\n1 Krenko, Mob Boss\n' + ('1 Swamp\n' * 99)
     monkeypatch.setattr('sys.stdin', __import__('io').StringIO(text))
     _run(monkeypatch, 'import-deck', '-', '--source', 'plaintext', '--commander', 'Krenko, Mob Boss')
@@ -321,12 +332,15 @@ def test_scoring_refuses_low_coverage_ready_lake(
 # --------------------------------------------------------------------------- #
 
 
-def test_crispi_refuses_when_otag_mart_absent(
+def test_crispi_refuses_when_otag_closure_unavailable(
     data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
+    # #53: crispi guards through the SAME closure the factsheet reads. A None closure
+    # (otag layer entirely unavailable) -> loud refusal naming hydrate-lake.
     monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _EnrichingResolver())
     monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
-    monkeypatch.setattr('pipeline.collection.resolver.otag_mart_available', lambda: False)
+    _deck_factsheet_mod()
+    monkeypatch.setattr('deck_factsheet._load_card_otag', lambda: None)
     _import_basics_deck(monkeypatch)
     capsys.readouterr()
 
@@ -334,11 +348,39 @@ def test_crispi_refuses_when_otag_mart_absent(
         _run(monkeypatch, 'crispi', 'Cold Start', '--commander-dependence', 'med')
     assert exc.value.code != 0
     err = capsys.readouterr().err
-    assert 'card_otag' in err
+    assert 'oracle-tag' in err
     assert 'collection hydrate-lake' in err
 
 
-def test_factsheet_still_runs_when_otag_mart_absent(
+def test_crispi_refuses_when_otag_coverage_snapshot_degraded(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    # #53: a closure that tags too few of the deck's nonlands (snapshot-degraded,
+    # below OTAG_COVERAGE_FLOOR) -> refuse rather than score blind.
+    import uuid
+
+    monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _EnrichingResolver())
+    monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
+    # Import 10 distinct NONLAND cards (the enriching resolver leaves type_line empty).
+    names = [f'Spell {i}' for i in range(10)]
+    text = ''.join(f'1 {n}\n' for n in names)
+    monkeypatch.setattr('sys.stdin', __import__('io').StringIO(text))
+    _run(monkeypatch, 'import-deck', '-', '--name', 'Cold Start', '--source', 'plaintext')
+    # Closure tags only 2/10 -> 20% coverage, below the 50% floor.
+    tagged = {str(uuid.uuid5(uuid.NAMESPACE_OID, n)): {'ramp'} for n in names[:2]}
+    _deck_factsheet_mod()
+    monkeypatch.setattr('deck_factsheet._load_card_otag', lambda: tagged)
+    capsys.readouterr()
+
+    with pytest.raises(SystemExit) as exc:
+        _run(monkeypatch, 'crispi', 'Cold Start', '--commander-dependence', 'med')
+    assert exc.value.code != 0
+    err = capsys.readouterr().err
+    assert 'snapshot-degraded' in err
+    assert 'collection hydrate-lake' in err
+
+
+def test_factsheet_still_runs_when_otag_closure_unavailable(
     data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
     # factsheet degrades to structured-only (its own marker) — it must NOT be
@@ -347,7 +389,8 @@ def test_factsheet_still_runs_when_otag_mart_absent(
 
     monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _EnrichingResolver())
     monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
-    monkeypatch.setattr('pipeline.collection.resolver.otag_mart_available', lambda: False)
+    _deck_factsheet_mod()
+    monkeypatch.setattr('deck_factsheet._load_card_otag', lambda: None)
     _import_basics_deck(monkeypatch)
     capsys.readouterr()
 

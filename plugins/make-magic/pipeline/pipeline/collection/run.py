@@ -1965,29 +1965,33 @@ def _crispi(argv: list[str]) -> None:
     # `collection hydrate-lake`) when the lake is absent/stub or the deck is name-only.
     deck = _scoring_deck(args.name, args.id_prefix)
 
-    # R2: CRISPI's axes lean on the otag layer (functional buckets / susceptibility).
-    # oracle_cards can be hydrated while the card_otag mart is not (a partial
-    # hydrate-lake) — scoring then would emit confident numbers off ZERO otag signal.
-    # Refuse rather than fabricate. (factsheet keeps its structured-only degrade via the
-    # `otag layer unavailable` marker; CRISPI's whole output is a confident score, so it
-    # refuses instead of degrading.)
-    from pipeline.collection import resolver as resolver_mod
-
-    if not resolver_mod.otag_mart_available():
-        raise CollectionError(
-            'crispi refused: the oracle_cards lake is present but the card_otag mart is '
-            'absent, so CRISPI would score with zero oracle-tag signal (blind confidence). '
-            'Build the mart first:\n'
-            '  collection hydrate-lake\n'
-            'then re-run. (factsheet still runs, reporting structured facts only.)'
-        )
-
+    # R2 (#53): CRISPI's axes lean on the otag layer (functional buckets /
+    # susceptibility). Guard through the SAME closure the factsheet loader reads —
+    # `crispi_otag_probe` builds `_load_card_otag()` and measures the deck's nonland
+    # coverage — so the guard and the score key on one source of truth. Refuse when the
+    # closure is unavailable OR the coverage is snapshot-degraded below the floor; either
+    # way CRISPI would score off a blank/near-blank otag signal (blind confidence).
+    # (factsheet keeps its structured-only degrade via the `otag layer unavailable`
+    # marker; CRISPI's whole output is a confident score, so it refuses instead.)
     from datetime import UTC, datetime
 
     root = str(_SCRIPTS_DIR)
     if root not in sys.path:
         sys.path.insert(0, root)
-    from deck_factsheet import SpeedNotApplicable, crispi_from_deck  # pyright: ignore[reportMissingImports]
+    from deck_factsheet import (  # pyright: ignore[reportMissingImports]
+        SpeedNotApplicable,
+        crispi_from_deck,
+        crispi_otag_probe,
+    )
+
+    probe = crispi_otag_probe(deck)
+    if not probe.ok:
+        raise CollectionError(
+            f'crispi refused: {probe.reason}, so CRISPI would score with little-to-no '
+            'oracle-tag signal (blind confidence). Load the full oracle-tag dataset first:\n'
+            '  collection hydrate-lake\n'
+            'then re-run. (factsheet still runs, reporting structured facts only.)'
+        )
 
     computed_at = datetime.now(UTC).isoformat()
     try:
