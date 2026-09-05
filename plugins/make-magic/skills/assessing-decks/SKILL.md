@@ -81,6 +81,49 @@ thin_focus / off_focus), the full fact-sheet field reference, and the limitation
 (cEDH is out of scope; why the card-scoring premise was retired).
 </reference>
 
+## Cold start: from a decklist file to a CRISPI score
+
+New here, with just a decklist file (a precon export, a pasted list) and no populated
+backend? This is the shortest path to a real **CRISPI** score. A standalone CRISPI does
+**not** require a Strategy — the `<primary-constraint>` Strategy gate applies to the full
+Assessment / quadrant pre-mortem, not to CRISPI, which is a deterministic power score you
+can run on any deck. (For the full Assessment you still need a Strategy — distilling-strategy
+first.)
+
+```bash
+# 1. Pin the local backend (one time; persists, won't re-prompt).
+${CLAUDE_PLUGIN_ROOT}/scripts/collection onboard --backend local
+
+# 2. Hydrate the card lake (see Prerequisites — first run downloads ~140MB and takes a
+#    few minutes; re-runs are a fast no-op). WITHOUT this, scoring verbs refuse loudly.
+${CLAUDE_PLUGIN_ROOT}/scripts/collection hydrate-lake
+
+# 3. Import the list as an ephemeral local draft. A file path auto-sniffs as plaintext
+#    (--source plaintext forces it). For a precon-style `#`-header export the header
+#    becomes the deck name ("# Witherbloom Pestilence — total=100" → that name).
+${CLAUDE_PLUGIN_ROOT}/scripts/collection import-deck <file> --source plaintext
+
+# 4. Score it. --commander-dependence is required; --fundamental-turn is optional
+#    (omit to auto-estimate, supply to override).
+${CLAUDE_PLUGIN_ROOT}/scripts/collection crispi "<deck name>" \
+  --fundamental-turn <N> --commander-dependence <low|med|high>
+```
+
+**Import notes (the friendly guardrails):**
+- **Duplicate lines sum.** MTGJSON precon exports emit one line per printing, so `1 Swamp`
+  eight times is 8 Swamp — the importer sums them; a 100-card list stays 100.
+- **Commander detection is loud, never silent.** A `Commander:`/`[Commander]` section wins;
+  else pass `--commander "<name>"`; else the importer tries the first-line legendary *when
+  the lake is up to confirm it*. If a Commander-format list lands with **0 commanders**, you
+  get a hard stderr warning — and `crispi` will **refuse** the deck until you re-import with
+  `--commander`. Set the commander before scoring a commander-format deck.
+- **Re-importing the same list** mints another same-named draft (the dup-name walls are
+  intact); a later bare-name reference is then ambiguous. Address a specific copy with
+  `--id <prefix>`, or archive the extra — the import prints the exact commands.
+
+The two reasoning inputs (`--fundamental-turn`, `--commander-dependence`) are defined
+authoritatively in **Step 9** below — read those definitions before you supply them.
+
 ## The data surface: the `collection` CLI
 
 Every read and the Assessment/Focus-Otags writes go through the backend-agnostic
@@ -104,8 +147,21 @@ raw Airtable CRUD.
 ## Prerequisites
 
 - **uv** — the CLI and the fact-sheet engine run via `uv run`.
-- **A populated backend** with the deck present and a Strategy filled (per
-  `strategy-schema.md`). No Strategy → distilling-strategy first.
+- **A hydrated card lake** — scoring verbs (`factsheet`, `crispi`) read enrichment (oracle
+  ids + the `card_otag` mart) from a local card lake. Bootstrap it once with
+  `collection hydrate-lake` (respects `MAKE_MAGIC_DATA_DIR`). **First run** downloads the
+  Scryfall `oracle_cards` bulk (~140MB, a few minutes) and builds the `card_otag` rollup
+  (~38k cards); re-runs are a fast no-op (cursor-gated, no-clobber). This is a **friendly
+  guardrail, not a failure mode**: if the lake is absent, a stub, low-coverage for the deck,
+  or the otag mart is missing, scoring **refuses loudly** — exiting nonzero with remediation
+  text naming `collection hydrate-lake` — rather than emitting misleading all-zero scores.
+- **`MAKE_MAGIC_DATA_DIR`** — the store root; all lake paths and the local decks store
+  resolve off it. Set it to a stable location (a throwaway dir gets an unhydrated lake and
+  triggers the refusal above).
+- **A populated backend** — for the full Assessment / quadrant pre-mortem, the deck must be
+  present with a Strategy filled (per `strategy-schema.md`); no Strategy → distilling-strategy
+  first. (A standalone CRISPI needs only an imported deck + a hydrated lake — no Strategy; see
+  **Cold start** above.)
 
 ## Two run modes — same write path, different target
 
@@ -285,9 +341,11 @@ score Speed 9 / Resilience 9 here).
 
 **The two inputs you reason (from the pre-mortem you just did):**
 - **`--fundamental-turn <N|N.5>`** — goldfish the deck: the turn it *completes* a first
-  elimination (or wins outright) in ≥50% of average draws, no disruption. Half-steps are a
-  real read of variance (a line that kills turn 4 on curve / turn 5 through a brick → `4.5`);
-  if torn, take the slower turn. This is the entire Speed axis.
+  elimination (or wins outright) in ≥50% of goldfish games, no disruption — the score times
+  the *median game*, not the fast high-roll. Half-steps are a real read of variance (a line
+  that kills turn 4 on curve / turn 5 through a brick → `4.5`); if torn, take the slower turn.
+  This is the entire Speed axis. (OPTIONAL at the CLI — omit it and the engine auto-computes
+  the estimate; supply it to override.)
 - **`--commander-dependence <low|med|high>`** — how the deck plays commander-less:
   `low` = runs fine without it (80%+ capacity; a goodstuff/combo-in-the-99 pile),
   `med` = the format default (matters, still executes, 50–80%),
