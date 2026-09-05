@@ -112,6 +112,33 @@ def test_regate_compile_failure_marks_broken(_store: Path) -> None:
     assert drivers.driver_state(deck, data_dir=_store) == 'broken'
 
 
+def test_regate_missing_jre_compile_error_is_environment_not_condemned(_store: Path) -> None:
+    """A DriverCompileError with NO diagnostics + a "no Java runtime" stderr is an ENVIRONMENT
+    problem (missing toolchain), not a broken driver — so it must NOT be condemned."""
+    deck = _deck()
+    _stale_stamp(deck, _store)
+
+    def _no_jre(d, fqcn, *, data_dir):
+        raise DriverCompileError(
+            Path('Driver.java'),
+            CompileResult(
+                ok=False, class_dir=None, diagnostics=(),
+                raw_stderr='Unable to locate a Java Runtime.\nPlease visit ...', cache_hit=False,
+            ),
+        )
+
+    res = dg.regate_driver(
+        deck, ('D', 'dck'), install=object(), games=20, data_dir=_store,
+        compile_fn=_no_jre, gate_fn=_failing_gate,
+    )
+    assert res.ok is False and res.outcome == 'environment'
+    assert 'toolchain could not run' in res.reason
+    # NOT condemned — still stale, so a machine that CAN compile revives it later.
+    assert drivers.driver_state(deck, data_dir=_store) == 'stale'
+    meta = drivers.read_meta(deck, data_dir=_store)
+    assert meta is not None and meta.gates_passed is True  # stamp untouched.
+
+
 def test_regate_toolchain_failure_is_environment_not_condemned(_store: Path) -> None:
     deck = _deck()
     _stale_stamp(deck, _store)

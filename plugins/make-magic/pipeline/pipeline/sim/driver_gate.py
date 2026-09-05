@@ -547,6 +547,34 @@ class RegateResult:
     gate: GateResult | None = None
 
 
+#: Substrings that mark a compile "failure" as a MISSING toolchain (JRE/javac/ECJ) rather than a
+#: genuine ECJ rejection of the driver source — the JVM/OS launcher noise emitted when no runtime is
+#: reachable. Matched case-insensitively against a diagnostic-less DriverCompileError's stderr.
+_TOOLCHAIN_ABSENT_MARKERS = (
+    'unable to locate a java runtime',
+    'no java runtime present',
+    'unable to find any jvms',
+    'java: command not found',
+    'no such file or directory: java',
+    'the operation could',  # macOS "The operation couldn't be completed" launcher failure.
+)
+
+
+def _is_toolchain_absence(exc: object) -> bool:
+    """True if a :class:`DriverCompileError` is really a MISSING toolchain, not a source rejection.
+
+    A genuine ECJ rejection parses at least one structured diagnostic. A missing JRE/javac instead
+    yields a nonzero exit with ZERO parsed diagnostics and a launcher message on stderr (e.g. macOS's
+    "Unable to locate a Java Runtime"). We treat only the diagnostic-less + known-marker case as an
+    environment problem, so a real compile error is never silently excused.
+    """
+    result = getattr(exc, 'result', None)
+    if result is None or getattr(result, 'diagnostics', None):
+        return False
+    stderr = (getattr(result, 'raw_stderr', '') or '').lower()
+    return any(marker in stderr for marker in _TOOLCHAIN_ABSENT_MARKERS)
+
+
 def _mark_broken(
     deck: Deck,
     meta: object,
@@ -623,6 +651,14 @@ def regate_driver(
     try:
         recompile(deck, fqcn, data_dir=data_dir)  # type: ignore[operator]
     except DriverCompileError as exc:
+        if _is_toolchain_absence(exc):
+            # The "compile failure" is actually a MISSING toolchain (no JRE/javac/ECJ) surfacing as
+            # a nonzero ECJ exit with no parseable diagnostics — an ENVIRONMENT problem, not a broken
+            # driver. Do NOT condemn it; it may re-gate cleanly on a machine that can compile.
+            return RegateResult(
+                ok=False, outcome='environment',
+                reason=f'the compile toolchain could not run (no javac/ECJ/JRE): {exc}',
+            )
         reason = f're-compile against the current dist FAILED: {exc}'
         _mark_broken(deck, meta, reason, data_dir=data_dir)
         return RegateResult(ok=False, outcome='failed', reason=reason)
