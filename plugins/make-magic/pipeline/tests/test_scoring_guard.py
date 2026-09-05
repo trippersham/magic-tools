@@ -437,6 +437,56 @@ def test_reimport_identical_list_notes_duplicate(
     assert '--id' in err
 
 
+# --------------------------------------------------------------------------- #
+# #53 F3 — declared header total=N vs actual imported count
+# --------------------------------------------------------------------------- #
+
+
+def test_import_warns_on_header_total_mismatch(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    # A `#`-header declares total=100 but only 99 cards are pasted -> loud stderr
+    # warning naming BOTH numbers; the import still succeeds.
+    text = '# Truncated — total=100\n' + ('1 Swamp\n' * 99)
+    monkeypatch.setattr('sys.stdin', __import__('io').StringIO(text))
+    _run(monkeypatch, 'import-deck', '-', '--name', 'Truncated', '--source', 'plaintext')
+    captured = capsys.readouterr()
+    assert 'total=100' in captured.err
+    assert '99 cards' in captured.err
+    assert 'Imported' in captured.out  # import still succeeded
+
+
+def test_import_silent_when_header_total_matches(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    text = '# Exact — total=100\n' + ('1 Swamp\n' * 100)
+    monkeypatch.setattr('sys.stdin', __import__('io').StringIO(text))
+    _run(monkeypatch, 'import-deck', '-', '--name', 'Exact', '--source', 'plaintext')
+    captured = capsys.readouterr()
+    assert 'mismatch' not in captured.err
+
+
+# --------------------------------------------------------------------------- #
+# #53 F4 — --fundamental-turn range validation
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize('bad', ['-1', '0', '31'])
+def test_crispi_rejects_out_of_range_fundamental_turn(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture, bad: str
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        _run(monkeypatch, 'crispi', 'Whatever', '--commander-dependence', 'med', '--fundamental-turn', bad)
+    assert exc.value.code != 0
+    assert 'range' in capsys.readouterr().err.lower()
+
+
+@pytest.mark.parametrize('good', ['0.5', '8', '8.5'])
+def test_fundamental_turn_arg_accepts_in_range(good: str) -> None:
+    # The argparse `type` accepts sane values (unit-level: no deck needed).
+    assert cli._fundamental_turn_arg(good) == float(good)
+
+
 def test_ambiguous_name_message_names_disambiguation_options(
     data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:

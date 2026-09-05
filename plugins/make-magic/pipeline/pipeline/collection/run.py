@@ -24,6 +24,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -1924,6 +1925,32 @@ def _factsheet(argv: list[str]) -> None:
 _COMMANDER_DEPENDENCE = ('low', 'med', 'high')
 
 
+#: Sane inclusive range for a fundamental turn. Below ~0.5 is not a real turn
+#: (a 0/negative turn silently clamped Speed to the max, 8.0); above 30 is past
+#: any realistic game. Values outside the band are a user error, not a score input.
+_FUNDAMENTAL_TURN_MIN = 0.5
+_FUNDAMENTAL_TURN_MAX = 30.0
+
+
+def _fundamental_turn_arg(value: str) -> float:
+    """argparse ``type`` for ``--fundamental-turn``: a float within the sane range.
+
+    Rejects non-numeric input and any value outside ``[0.5, 30]`` with a clear
+    ``ArgumentTypeError`` (argparse renders it as a usage error, exit 2) rather than
+    letting a nonsense turn silently clamp the Speed axis.
+    """
+    try:
+        turn = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f'{value!r} is not a number') from None
+    if not (_FUNDAMENTAL_TURN_MIN <= turn <= _FUNDAMENTAL_TURN_MAX):
+        raise argparse.ArgumentTypeError(
+            f'fundamental turn {turn:g} is out of range — must be between '
+            f'{_FUNDAMENTAL_TURN_MIN:g} and {_FUNDAMENTAL_TURN_MAX:g} (inclusive)'
+        )
+    return turn
+
+
 def _crispi(argv: list[str]) -> None:
     """Score a deck on CRISPI — the four axes + Performance Index (deterministic).
 
@@ -1944,9 +1971,9 @@ def _crispi(argv: list[str]) -> None:
     parser.add_argument(
         '--fundamental-turn',
         dest='fundamental_turn',
-        type=float,
+        type=_fundamental_turn_arg,
         default=None,
-        help='The fundamental turn (float; half-steps allowed) — drives Speed. OPTIONAL: '
+        help='The fundamental turn (float in [0.5, 30]; half-steps allowed) — drives Speed. OPTIONAL: '
         'supplied OVERRIDES the estimator (manual escape hatch); omitted auto-computes it '
         'via the Tier-1 closed form -> Tier-2 driven goldfish router.',
     )
@@ -2088,6 +2115,30 @@ def _hydrate_lake(argv: list[str]) -> None:
 _IMPORT_SOURCES = ('archidekt', 'edhrec', 'moxfield', 'plaintext')
 
 
+#: A `#`-header's `total=N` declaration (precon-export dialect, e.g.
+#: `# Witherbloom Pestilence — commanders=1 total=100`). Matched on the first
+#: `#` line only; the value is advisory (drives the F3 mismatch warning).
+_HEADER_TOTAL_RE = re.compile(r'total\s*=\s*(\d+)', re.IGNORECASE)
+
+
+def _declared_header_total(ref: str) -> int | None:
+    """Parse a `total=N` declaration from a pasted list's leading `#` header, or None.
+
+    Only meaningful for the plaintext/precon dialect where ``ref`` is the deck TEXT
+    (stdin already read into ``ref``); a URL / file-path ref has no such header and
+    returns None. Reads only the FIRST `#` line (later `#` lines are comments).
+    """
+    for raw_line in ref.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if not line.startswith('#'):
+            return None  # the header, if any, is the first non-blank line
+        match = _HEADER_TOTAL_RE.search(line)
+        return int(match.group(1)) if match is not None else None
+    return None
+
+
 def _import_deck(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(
         prog='collection import-deck',
@@ -2166,6 +2217,21 @@ def _import_deck(argv: list[str]) -> None:
             'section) — scoring verbs (crispi) will otherwise refuse this deck.',
             file=sys.stderr,
         )
+
+    # #53 F3: a `#`-header may declare `total=N` (the precon-export dialect). If the
+    # actual imported card count disagrees, the paste was truncated / mis-parsed —
+    # surface a LOUD stderr warning naming BOTH numbers (import still succeeds; the
+    # declared total is advisory, not authoritative).
+    declared_total = _declared_header_total(ref)
+    if declared_total is not None:
+        actual_total = sum(c.quantity for c in deck.cards)
+        if actual_total != declared_total:
+            print(
+                f'warning: {deck.name!r} header declares total={declared_total} but '
+                f'{actual_total} cards were imported (a {declared_total - actual_total:+d} '
+                'mismatch) — the pasted list may be truncated or mis-parsed. Review before scoring.',
+                file=sys.stderr,
+            )
 
     # T3.3 re-import hygiene. Re-importing the SAME list mints another same-named
     # ephemeral draft (the dup-name walls are intact — we never merge/overwrite);
