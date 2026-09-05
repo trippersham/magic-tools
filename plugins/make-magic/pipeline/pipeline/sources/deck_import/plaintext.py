@@ -70,6 +70,10 @@ _MARKER_RE = re.compile(r'\*[^*]+\*')
 #: The Moxfield commander marker (matched case-insensitively, post-strip).
 _CMDR_MARKER = 'cmdr'
 
+#: The em-dash / spaced-hyphen separators that split a ``#``-header's deck name
+#: from its trailing metadata (``# Witherbloom Pestilence — commanders=1 total=100``).
+_HEADER_META_SPLIT = re.compile('\\s+(?:\u2014|\u2013|-)\\s+')
+
 #: Header labels (lowercased, ``:``/brackets stripped) that set the current role.
 _COMMANDER_HEADERS = frozenset({'commander', 'commanders', 'command zone'})
 _SIDEBOARD_HEADERS = frozenset({'sideboard', 'maybeboard'})
@@ -147,7 +151,7 @@ class PlaintextImporter:
         key = content_key(text)
 
         def _do_parse() -> RawDeck:
-            entries, name = self._parse(text)
+            entries, name, meta = self._parse(text)
             if not entries:
                 raise CollectionError('no card lines found in the pasted/loaded deck')
             return RawDeck(
@@ -155,6 +159,7 @@ class PlaintextImporter:
                 cards=entries,
                 source=self.source,
                 source_ref=key,
+                meta=meta,
                 fetched_at=datetime.now(tz=UTC),
             )
 
@@ -184,28 +189,54 @@ class PlaintextImporter:
 
     def _has_card_line(self, text: str) -> bool:
         """True iff ``text`` has at least one parseable card line (for ``matches``)."""
-        entries, _name = self._parse(text)
+        entries, _name, _meta = self._parse(text)
         return bool(entries)
 
-    def _parse(self, text: str) -> tuple[list[RawEntry], str | None]:
-        """Parse deck text into ``(entries, name)`` — the whole tolerant parser.
+    def _parse(self, text: str) -> tuple[list[RawEntry], str | None, dict[str, object]]:
+        """Parse deck text into ``(entries, name, meta)`` — the whole tolerant parser.
 
         Walks lines top-to-bottom tracking the current role (set by section
         headers); ``[metadata]`` ``Name=`` becomes the deck name. Both the plaintext
         section forms (``Commander:`` / ``[Commander]`` / ``Deck``) and the Forge
         ``.dck`` INI sections flow through the same header handling.
+
+        A leading ``#`` header (the MTGJSON / precon-export dialect,
+        ``# Witherbloom Pestilence — commanders=1 total=100``) names the deck (its
+        text, trailing ``— …`` metadata stripped) and, when its metadata mentions a
+        commander, marks the deck ``format='Commander'`` in ``meta`` so the importer
+        can degrade loudly on a 0-commander commander-format list. Every subsequent
+        ``#``/``//`` line stays a comment.
+
+        Duplicate card lines (the MTGJSON per-printing basics dialect emits e.g.
+        ``4 Swamp`` several times) are SUMMED into one entry keyed by (name, role) —
+        never collapsed to one printing — so the total card count is preserved
+        (the 100→88 truncation bug). First-seen order is kept.
         """
         entries: list[RawEntry] = []
+        merged: dict[tuple[str, str | None], RawEntry] = {}
         name: str | None = None
+        meta: dict[str, object] = {}
         current_role: str | None = None
         in_metadata = False
+        seen_first = False
 
         for raw_line in text.splitlines():
             line = raw_line.strip()
             if not line:
                 current_role = None  # a blank line ends a role section (back to maindeck)
                 continue
-            if line.startswith(('//', '#')):
+            first = not seen_first
+            seen_first = True
+            if line.startswith('#'):
+                # The FIRST line, if it is a ``#`` header, names the deck (and may
+                # flag commander format). Any later ``#`` line is a plain comment.
+                if first and name is None:
+                    header_name, header_format = self._parse_hash_header(line)
+                    name = header_name
+                    if header_format is not None:
+                        meta['format'] = header_format
+                continue
+            if line.startswith('//'):
                 continue
 
             header = self._section_role(line)
@@ -220,10 +251,34 @@ class PlaintextImporter:
                 continue
 
             entry = self._card_line(line, current_role)
-            if entry is not None:
+            if entry is None:
+                continue
+            merge_key = (entry.name, entry.role)
+            existing = merged.get(merge_key)
+            if existing is None:
+                merged[merge_key] = entry
                 entries.append(entry)
+            else:
+                existing.quantity += entry.quantity
 
-        return entries, name
+        return entries, name, meta
+
+    def _parse_hash_header(self, line: str) -> tuple[str | None, str | None]:
+        """Parse a leading ``# ...`` header into ``(deck_name, format_hint)``.
+
+        Strips the leading ``#``(s) and whitespace, then splits off any trailing
+        ``— metadata`` / ``- metadata`` tail (em/en-dash or spaced hyphen): the head
+        is the deck name, the tail is source metadata. When the metadata mentions a
+        commander (e.g. ``commanders=1``) the format hint is ``'Commander'`` — the
+        signal the importer uses to demand a commander (loud 0-commander degrade).
+        """
+        stripped = line.lstrip('#').strip()
+        if not stripped:
+            return None, None
+        head = _HEADER_META_SPLIT.split(stripped, maxsplit=1)[0]
+        deck_name = head.strip() or None
+        fmt = 'Commander' if 'commander' in stripped.lower() else None
+        return deck_name, fmt
 
     def _section_role(self, line: str) -> tuple[str | None, bool] | None:
         """Map a header line to ``(role, in_metadata)``, or ``None`` if not a header.

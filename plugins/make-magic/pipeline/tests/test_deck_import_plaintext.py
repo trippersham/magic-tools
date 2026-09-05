@@ -231,6 +231,64 @@ def test_import_deck_routes_to_plaintext(data_dir: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# T3.1 — duplicate-line merge (the 100->88 truncation bug)
+# --------------------------------------------------------------------------- #
+
+
+def test_duplicate_lines_are_summed(data_dir: Path) -> None:
+    # MTGJSON emits one line per printing of a basic; 8 separate `1 Swamp` lines
+    # must SUM to one entry of 8, never collapse to a single copy.
+    text = '\n'.join(['1 Swamp'] * 8) + '\n1 Sol Ring\n'
+    raw = PlaintextImporter().fetch(text)
+    by_name = {c.name: c for c in raw.cards}
+    assert by_name['Swamp'].quantity == 8
+    assert by_name['Sol Ring'].quantity == 1
+    # One merged Swamp entry, not eight.
+    assert sum(1 for c in raw.cards if c.name == 'Swamp') == 1
+
+
+def test_witherbloom_fixture_preserves_100_cards(data_dir: Path) -> None:
+    # The real MTGJSON export shape: 100 cards incl. per-printing duplicate basics
+    # (`4 Swamp` twice, `4 Forest` twice). The total must survive as 100.
+    deck = import_deck(str(FIXTURES / 'witherbloom_pestilence.txt'))
+    total = sum(c.quantity for c in deck.cards)
+    assert total == 100
+    by_name = {c.name: c for c in deck.cards}
+    assert by_name['Swamp'].quantity == 8  # 4 + 4 summed
+    assert by_name['Forest'].quantity == 8  # 4 + 4 summed
+
+
+# --------------------------------------------------------------------------- #
+# T3.2 — `#`-header deck name + commander-format hint
+# --------------------------------------------------------------------------- #
+
+
+def test_hash_header_sets_deck_name(data_dir: Path) -> None:
+    deck = import_deck(str(FIXTURES / 'witherbloom_pestilence.txt'))
+    # Header text becomes the name; the trailing ` — commanders=1 total=100` is stripped.
+    assert deck.name == 'Witherbloom Pestilence'
+
+
+def test_hash_header_commander_metadata_marks_commander_format(data_dir: Path) -> None:
+    deck = import_deck(str(FIXTURES / 'witherbloom_pestilence.txt'))
+    assert deck.format == 'Commander'
+
+
+def test_hash_header_without_commander_meta_no_format(data_dir: Path) -> None:
+    text = '# Just A Pile\n1 Sol Ring\n1 Arcane Signet\n'
+    deck = import_deck(text)
+    assert deck.name == 'Just A Pile'
+    assert deck.format is None
+
+
+def test_later_hash_lines_stay_comments(data_dir: Path) -> None:
+    text = '# My Deck\n1 Sol Ring\n# this is a comment\n1 Arcane Signet\n'
+    raw = PlaintextImporter().fetch(text)
+    names = {c.name for c in raw.cards}
+    assert names == {'Sol Ring', 'Arcane Signet'}
+
+
+# --------------------------------------------------------------------------- #
 # cache: permanent paste (no re-parse on hit; refresh re-parses)
 # --------------------------------------------------------------------------- #
 

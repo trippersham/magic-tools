@@ -172,7 +172,13 @@ def _normalize_rawdeck(raw: RawDeck) -> Deck:
     resolver/store concern, not this shape stage's.
     """
     cards = [DeckCard(name=entry.name, quantity=entry.quantity, role=entry.role) for entry in raw.cards]
-    return Deck(name=raw.name, cards=cards)
+    # A source-carried ``format`` hint (e.g. the plaintext ``#``-header's
+    # ``commanders=…`` metadata -> 'Commander') flows onto the Deck so downstream
+    # can key format-specific rules (the 0-commander commander-format degrade). A
+    # str hint only; anything else is ignored (shape stage stays defensive).
+    fmt = raw.meta.get('format')
+    deck_format = fmt if isinstance(fmt, str) and fmt else None
+    return Deck(name=raw.name, cards=cards, format=deck_format)
 
 
 # --------------------------------------------------------------------------- #
