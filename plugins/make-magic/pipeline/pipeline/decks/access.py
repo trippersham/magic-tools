@@ -78,7 +78,20 @@ class DeckAccess:
             return rows[0].deck_uuid
         if not rows:
             return uuid4().hex
-        raise DecksError(self._ambiguous_name_message(name, rows))
+        # >1 rows named ``name``. Archived drafts are addressable by ``--id`` ONLY
+        # (#53): exclude them from the ambiguity so a bare name resolves to the one
+        # surviving ACTIVE deck — which makes the advertised "archive the extra
+        # draft(s)" remedy actually clear the ambiguity. This narrows the read-path
+        # candidate set only; the write-side dup walls (``resolve_for_write`` /
+        # ``_resolve_existing``) count rows independently and are untouched.
+        active = [r for r in rows if not r.archived]
+        if len(active) == 1:
+            return active[0].deck_uuid
+        if not active:
+            # Every candidate is archived — none is bare-name addressable. Surface the
+            # full list so the user picks one by --id (unchanged prior behavior).
+            raise DecksError(self._ambiguous_name_message(name, rows))
+        raise DecksError(self._ambiguous_name_message(name, active))
 
     def _resolve_id_prefix(self, id_prefix: str) -> str:
         """Resolve an ``--id <prefix>`` to a single ``deck_uuid`` (0/1/>1 -> error/uuid/error)."""
