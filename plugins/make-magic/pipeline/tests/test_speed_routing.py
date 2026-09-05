@@ -158,3 +158,74 @@ def test_sentinel_no_kill_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_returns_fundamental_turn_type() -> None:
     ft = fundamental_turn(_Deck(), [], None, estimate=_est())
     assert isinstance(ft, FundamentalTurn)
+
+
+# --- Rubric fidelity: the fundamental turn is the MEDIAN GAME, not the median kill ---
+# deckcheck rubric (issue #30 spec of record): "the turn it actually COMPLETES an
+# elimination ... in at least 50% of games"; "the score times the median game". A
+# kills-only median flatters a deck that high-rolls (kills fast in <50% of games).
+
+@dataclass
+class _FakeGoldfishAll:
+    median_kills_own: float
+    games: int = 20
+    max_turn: int | None = 25
+    bricks: int | None = 0
+    median_all_own: float | None = None
+
+
+class _FakeEngineAll(_FakeEngine):
+    def __init__(self, *, kills_median: float, all_median: float | None,
+                 bricks: int | None = 0, max_turn: int | None = 25) -> None:
+        super().__init__(median=kills_median)
+        self.all_median = all_median
+        self.bricks = bricks
+        self.max_turn = max_turn
+
+    def goldfish(self, deck_ref, *, games, install, driver=None, **kw):  # noqa: ANN001
+        self.calls.append({'deck_ref': deck_ref, 'games': games, 'install': install, 'driver': driver})
+        return _FakeGoldfishAll(self.median, games, self.max_turn, self.bricks, self.all_median)
+
+
+def test_tier2_uses_all_games_median_not_kills_median(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Kills-median 4.0 but all-games median 6.0 (bricks drag it) -> the rubric's answer is 6.0."""
+    _valid(monkeypatch, True)
+    eng = _FakeEngineAll(kills_median=4.0, all_median=6.0, bricks=8)
+    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng,
+                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0, needs_tier2=True))
+    assert ft.tier == 'tier2'
+    assert ft.turn == 6.0
+
+
+def test_tier2_majority_bricks_falls_back_flagged(monkeypatch: pytest.MonkeyPatch) -> None:
+    """>=50% bricks -> all-games median lands past the brick cap -> no honest clock ->
+    Tier-1 fallback with lowered confidence (never the flattering kills-only median)."""
+    _valid(monkeypatch, True)
+    eng = _FakeEngineAll(kills_median=4.0, all_median=26.0, bricks=11, max_turn=25)
+    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng,
+                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0, needs_tier2=True, confidence='high'))
+    assert ft.tier == 'tier1'
+    assert ft.turn == 5.0
+    assert ft.tier2_recommended is True
+    assert ft.confidence != 'high'
+
+
+def test_tier2_old_harness_without_all_median_keeps_kills_median(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Older summary output (no medianAllOwn) -> preserve prior behavior rather than guessing."""
+    _valid(monkeypatch, True)
+    eng = _FakeEngineAll(kills_median=4.0, all_median=None, max_turn=None, bricks=None)
+    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng,
+                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0, needs_tier2=True))
+    assert ft.tier == 'tier2'
+    assert ft.turn == 4.0
+
+
+def test_parse_goldfish_summary_reads_median_all_own() -> None:
+    from pipeline.sim.engines.xmage import _parse_goldfish_summary
+    line = ('GOLDFISH SUMMARY (OWN TURNS) deck=x.dck variant=base games=20 maxTurn=25 '
+            'skill=6 kills=12 bricks=8 medianAllOwn=7.5 medianKillsOwn=5.0 '
+            'meanKillsOwn=5.2 bestOwn=4 distOwn=[...]')
+    r = _parse_goldfish_summary(line)
+    assert r.median_all_own == 7.5
+    assert r.median_kills_own == 5.0
+    assert r.bricks == 8 and r.max_turn == 25

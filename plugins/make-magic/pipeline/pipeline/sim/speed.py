@@ -156,7 +156,22 @@ def fundamental_turn(
             result = eng.goldfish(
                 ref, games=games, install=install, driver=(classes, meta.fqcn), fmt=fmt
             )
-            median = float(result.median_kills_own)
+            # RUBRIC FIDELITY (issue #30 spec of record, deckcheck Speed rubric): the
+            # fundamental turn is "the score times the MEDIAN GAME" — the turn a kill
+            # completes in ≥50% of ALL games, bricks counted as slow. A kills-only
+            # median flatters a high-roll line (kills fast in <50% of games), so the
+            # all-games median is authoritative when the harness reports it; a median
+            # past the brick cap means the majority of games never killed — no honest
+            # clock — and must fall back rather than return the flattering number.
+            median_all = getattr(result, 'median_all_own', None)
+            max_turn = getattr(result, 'max_turn', None)
+            if median_all is not None:
+                if median_all >= 0 and (max_turn is None or median_all <= max_turn):
+                    median = float(median_all)
+                else:
+                    median = -1.0  # majority-brick → the no-kill fallback below.
+            else:
+                median = float(result.median_kills_own)  # pre-medianAllOwn harness output.
             if median >= 0:
                 return FundamentalTurn(
                     turn=median, confidence='high', tier='tier2',
@@ -171,7 +186,8 @@ def fundamental_turn(
             return FundamentalTurn(
                 turn=float(est.own_turn), confidence=_LOWER_CONFIDENCE[est.confidence], tier='tier1',
                 source_rationale=(
-                    'tier-2 driven goldfish found no kill in the window (medianKillsOwn=-1); '
+                    'tier-2 driven goldfish found no ≥50%-of-games kill in the window '
+                    '(no kill at all, or the majority of games bricked); '
                     f'using the tier-1 estimate. ({est.rationale})'
                 ),
                 tier2_recommended=True,

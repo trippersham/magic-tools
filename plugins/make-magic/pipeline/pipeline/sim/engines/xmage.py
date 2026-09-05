@@ -136,6 +136,12 @@ class GoldfishResult:
     games: int
     max_turn: int | None = None
     bricks: int | None = None
+    #: Median own-turn over ALL games, bricks counted at the ``maxTurn+1`` sentinel
+    #: (the Java ``medianAllOwn``). This is the CRISPI rubric's fundamental-turn
+    #: statistic ("the score times the median game" — ≥50% of games, not of kills);
+    #: a value past ``max_turn`` means the majority of games bricked. ``None`` when
+    #: the summary predates the field.
+    median_all_own: float | None = None
 
 
 def _parse_goldfish_summary(output: str) -> GoldfishResult:
@@ -160,11 +166,13 @@ def _parse_goldfish_summary(output: str) -> GoldfishResult:
         # → None, which makes the gate's brick-cap guard a no-op rather than guessing.
         max_turn_m = re.search(r'\bmaxTurn=(\d+)', line)
         bricks_m = re.search(r'\bbricks=(\d+)', line)
+        all_m = re.search(r'\bmedianAllOwn=(-?\d+(?:\.\d+)?)', line)
         return GoldfishResult(
             median_kills_own=float(median_m.group(1)),
             games=int(games_m.group(1)),
             max_turn=int(max_turn_m.group(1)) if max_turn_m else None,
             bricks=int(bricks_m.group(1)) if bricks_m else None,
+            median_all_own=float(all_m.group(1)) if all_m else None,
         )
     raise XMageError(
         'no GOLDFISH SUMMARY (OWN TURNS) line in XMage --solo output '
