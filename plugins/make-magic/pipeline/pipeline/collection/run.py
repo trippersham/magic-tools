@@ -177,6 +177,17 @@ def _onboard(argv: list[str]) -> None:
     args = parser.parse_args(argv)
     onboard(args.backend)
     print(f'onboard: backend set to {args.backend} (persisted; will not re-prompt).')
+    # Cold-start next step: local scoring needs the card lake. When it is absent /
+    # a stub, name the exact bootstrap command so a new user is never left to
+    # archaeology (the pristine-sandbox failure this closes).
+    if args.backend == 'local':
+        from pipeline.collection import resolver as resolver_mod
+
+        if resolver_mod.lake_status() != 'ready':
+            print(
+                'next step: the card lake is not hydrated yet — run `collection hydrate-lake` '
+                'before scoring (factsheet/crispi), or those verbs will refuse.'
+            )
 
 
 # --------------------------------------------------------------------------- #
@@ -1783,6 +1794,80 @@ def _copy(argv: list[str]) -> None:
     print(report.model_dump_json(indent=2))
 
 
+#: Below this resolved-enrichment fraction a deck is treated as unhydrated for
+#: scoring: a few unreleased / mis-spelled names are tolerated, but a wholesale
+#: name-only deck (the cold-start seam) is refused rather than scored as zeros.
+_MIN_SCORING_COVERAGE = 0.80
+
+
+def _enrich_deck_for_scoring(deck: Deck, resolver: object) -> Deck:
+    """Return ``deck`` with each card re-hydrated through ``resolver`` (read-time enrichment).
+
+    Closes the DecksStore seam: a deck served from the local decks store (ephemeral
+    imports included) carries whatever enrichment it was stored with — a plaintext
+    import is name-only. This applies the SAME ``CardResolver`` hydration the
+    local_yaml CollectionStore adapter applies on read, so scoring sees enriched
+    cards. Reuses the package resolver; an unresolved name stays name-only (its
+    membership facts — quantity / role — are always preserved).
+    """
+    from pipeline.contracts import DeckCard
+
+    cards: list[DeckCard] = []
+    for card in deck.cards:
+        enriched = resolver.get_card(card.name)  # type: ignore[attr-defined]
+        if enriched is None:
+            cards.append(card)
+            continue
+        fields = enriched.model_dump()
+        fields.update(quantity=card.quantity, role=card.role)
+        cards.append(DeckCard.model_validate(fields))
+    return deck.model_copy(update={'cards': cards})
+
+
+def _refuse_unhydrated_lake(status: str) -> CollectionError:
+    """The loud refusal when the card lake is absent / a seed stub (never zeros)."""
+    detail = 'is not present' if status == 'absent' else 'holds only a seed stub (a handful of cards)'
+    return CollectionError(
+        f'scoring refused: the card lake {detail}, so factsheet/crispi would score against '
+        'un-enriched cards (all-zeros). Hydrate the lake first:\n'
+        '  collection hydrate-lake\n'
+        'then re-run. (Set MAKE_MAGIC_DATA_DIR to control where the lake lives.)'
+    )
+
+
+def _refuse_low_coverage(resolved: int, total: int) -> CollectionError:
+    """The loud refusal when the lake is present but did not enrich this deck."""
+    return CollectionError(
+        f'scoring refused: only {resolved}/{total} cards resolved to enriched card data '
+        '(the rest are name-only), so factsheet/crispi would under-score. The card lake is '
+        'present but did not cover this deck — refresh it with `collection hydrate-lake`, or '
+        'check the decklist for typos / unreleased card names.'
+    )
+
+
+def _scoring_deck(name: str | None, id_prefix: str | None) -> Deck:
+    """Read + read-time-enrich a deck for a scoring verb, refusing loudly when unhydrated.
+
+    The single choke point for ``factsheet`` / ``crispi``: it reads the deck via the
+    local decks store (so ephemeral drafts score too), then — before any scoring —
+    enforces the loud-refusal-over-silent-zeros rule. An absent / stub lake or a deck
+    that stays name-only after enrichment raises a :class:`CollectionError` naming
+    ``collection hydrate-lake`` (exit nonzero), never emits zeros.
+    """
+    from pipeline.collection import resolver as resolver_mod
+
+    deck = _deck_access().read_deck(name or '', id_prefix=id_prefix)
+    status = resolver_mod.lake_status()
+    if status != 'ready':
+        raise _refuse_unhydrated_lake(status)
+    enriched = _enrich_deck_for_scoring(deck, resolver_mod.default_card_resolver())
+    total = len(enriched.cards)
+    resolved = sum(1 for c in enriched.cards if c.oracle_id is not None)
+    if total and resolved / total < _MIN_SCORING_COVERAGE:
+        raise _refuse_low_coverage(resolved, total)
+    return enriched
+
+
 def _factsheet(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='collection factsheet')
     parser.add_argument('name', nargs='?')
@@ -1791,9 +1876,10 @@ def _factsheet(argv: list[str]) -> None:
     args = parser.parse_args(argv)
     if args.id_prefix is None and not args.name:
         raise CollectionError('factsheet: a deck name or --id prefix is required')
-    # Route through the local decks store so factsheet works on ephemeral drafts
-    # too; --id takes precedence over the name.
-    deck = _deck_access().read_deck(args.name or '', id_prefix=args.id_prefix)
+    # Route through the scoring choke point: reads via the local decks store (so
+    # ephemeral drafts work too), applies read-time enrichment, and refuses loudly
+    # (naming `collection hydrate-lake`) rather than score un-enriched cards as zeros.
+    deck = _scoring_deck(args.name, args.id_prefix)
 
     root = str(_SCRIPTS_DIR)
     if root not in sys.path:
@@ -1847,7 +1933,9 @@ def _crispi(argv: list[str]) -> None:
     if args.id_prefix is None and not args.name:
         raise CollectionError('crispi: a deck name or --id prefix is required')
 
-    deck = _deck_access().read_deck(args.name or '', id_prefix=args.id_prefix)
+    # Scoring choke point: read-time enrichment + loud refusal (names
+    # `collection hydrate-lake`) when the lake is absent/stub or the deck is name-only.
+    deck = _scoring_deck(args.name, args.id_prefix)
 
     from datetime import UTC, datetime
 
@@ -1882,6 +1970,62 @@ def _crispi(argv: list[str]) -> None:
             file=sys.stderr,
         )
     print(json.dumps(result, indent=2))
+
+
+def _hydrate_lake(argv: list[str]) -> None:
+    """Bootstrap the local card lake — the public wrapper over the ingest + build stages.
+
+    Wraps ``pipeline.sources.run oracle_cards`` (the Scryfall oracle bulk) + the
+    ``card_otag`` mart build (``pipeline.transforms.build``) into one idempotent,
+    resumable verb with progress output. No-clobber lives in the underlying stages:
+    the oracle_cards pull is cursor-gated (skip-if-not-newer) and the mart build
+    rebuilds from raw, so a re-run is a cheap no-op when nothing changed. Respects
+    ``MAKE_MAGIC_DATA_DIR`` (all paths resolve off the store root).
+    """
+    parser = argparse.ArgumentParser(
+        prog='collection hydrate-lake',
+        description=(
+            'Download the Scryfall oracle_cards bulk and build the card_otag rollup so '
+            'local scoring (factsheet/crispi) has a real card dim. Idempotent + resumable.'
+        ),
+    )
+    parser.add_argument(
+        '--max-cards',
+        dest='max_cards',
+        type=int,
+        default=None,
+        help='Cap the oracle bulk (default: full ~38k-card refresh). Mainly for smoke tests.',
+    )
+    parser.add_argument('--force', action='store_true', help='Re-pull the oracle bulk even if not newer.')
+    parser.add_argument(
+        '--no-ingest',
+        action='store_true',
+        help='Skip the otag/combo raw pull; build the marts from existing raw only.',
+    )
+    args = parser.parse_args(argv)
+
+    from pipeline.collection import resolver as resolver_mod
+    from pipeline.sources import scryfall_bulk
+    from pipeline.transforms import build
+
+    print(
+        'hydrate-lake: pulling the oracle_cards bulk (first run downloads ~140MB; a '
+        'few minutes) ...',
+        file=sys.stderr,
+    )
+    oracle_path = scryfall_bulk.sync(force=args.force, max_cards=args.max_cards)
+    print(f'hydrate-lake: oracle_cards -> {oracle_path}', file=sys.stderr)
+
+    print('hydrate-lake: building normalized marts (card_otag rollup) ...', file=sys.stderr)
+    marts = build.run(ingest=not args.no_ingest)
+
+    status = resolver_mod.lake_status()
+    print(
+        json.dumps(
+            {'oracle_cards': str(oracle_path), 'marts': marts, 'lake_status': status},
+            indent=2,
+        )
+    )
 
 
 #: The import sources exposed by the ``--source`` override (the registry keys). The
@@ -1996,6 +2140,7 @@ def _force_commander(deck: Deck, commander: str) -> Deck:
 VERBS = {
     'status': _status,
     'onboard': _onboard,
+    'hydrate-lake': _hydrate_lake,
     'copy': _copy,
     # decks
     'list-decks': _list_decks,

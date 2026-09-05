@@ -80,7 +80,13 @@ _RETRYABLE_STATUS = frozenset({429, 503})
 #: Cap it: after ``_MAX_RETRIES`` throttles the lookup still falls to name-only.
 _MAX_BACKOFF = 5.0
 
-__all__ = ('DuckDBCardResolver', 'default_card_resolver', 'fetch_card_raw')
+#: Below this ``raw/oracle_cards`` row count the lake is treated as a seed/stub,
+#: not a real card dim: the committed seed is a single row and a real Scryfall
+#: oracle bulk is ~38k cards, so a floor comfortably between the two distinguishes
+#: them. Scoring against a stub silently under-resolves — the guard refuses instead.
+LAKE_STUB_FLOOR = 1000
+
+__all__ = ('DuckDBCardResolver', 'default_card_resolver', 'fetch_card_raw', 'lake_row_count', 'lake_status')
 
 
 class _Transient(Enum):
@@ -428,6 +434,40 @@ def _card_from_row(record: dict[str, Any], otags: Iterable[str]) -> Card:
 def _opt_str(value: object) -> str | None:
     """Coerce a DuckDB scalar to str|None (oracle_id may be a uuid.UUID)."""
     return None if value is None else str(value)
+
+
+def lake_row_count() -> int | None:
+    """Return the ``raw/oracle_cards`` row count, or None when the table is absent.
+
+    Fail-open: any store/duckdb error is swallowed to None (treated as absent) so a
+    status probe never crashes a scoring verb.
+    """
+    if not store.table_exists(*_ORACLE_CARDS):
+        return None
+    try:
+        with store.connect(read_only=True) as conn:
+            path = store.StorePaths.resolve().parquet_path(*_ORACLE_CARDS, create=False)
+            row = conn.execute(f"SELECT count(*) FROM read_parquet('{path}')").fetchone()
+    except Exception as exc:  # pragma: no cover - defensive: a corrupt/locked lake.
+        log.warning('card-dim: oracle_cards row-count probe failed (%s); treating as absent.', exc)
+        return None
+    return int(row[0]) if row is not None else None
+
+
+def lake_status() -> str:
+    """Classify the card lake: ``'absent'`` | ``'stub'`` | ``'ready'``.
+
+    The single signal the scoring guard keys on. ``absent`` = no ``raw/oracle_cards``
+    table; ``stub`` = present but below :data:`LAKE_STUB_FLOOR` (the committed seed
+    row, not a real dim); ``ready`` = a real oracle bulk. Only ``ready`` is safe to
+    score against — ``absent``/``stub`` mean scoring would resolve to all-zeros.
+    """
+    count = lake_row_count()
+    if count is None:
+        return 'absent'
+    if count < LAKE_STUB_FLOOR:
+        return 'stub'
+    return 'ready'
 
 
 def default_card_resolver() -> DuckDBCardResolver:

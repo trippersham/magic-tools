@@ -36,6 +36,15 @@ class _StubResolver:
         return None
 
 
+class _EnrichingResolver:
+    """Resolves every name to an enriched card (a stand-in for a hydrated lake)."""
+
+    def get_card(self, name: str) -> Card | None:
+        import uuid
+
+        return Card(name=name, oracle_id=str(uuid.uuid5(uuid.NAMESPACE_OID, name)))
+
+
 @pytest.fixture()
 def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / 'data'
@@ -61,8 +70,16 @@ def test_b4_factsheet_on_ephemeral_draft(
     """``factsheet`` on a fresh draft exits 0 with valid JSON — no FileNotFoundError.
 
     An ephemeral draft has no source of record; factsheet routes through the local
-    decks store so ASSESS can run on a draft the way the guided build needs.
+    decks store so ASSESS can run on a draft the way the guided build needs. With a
+    hydrated lake the read-time enrichment makes the draft score (the cold-start
+    seam is only refused when the lake is absent/stub — see test_scoring_guard).
     """
+    # A hydrated lake + an enriching resolver so read-time enrichment covers the draft.
+    monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
+    monkeypatch.setattr(
+        'pipeline.collection.resolver.default_card_resolver',
+        lambda: _EnrichingResolver(),
+    )
     # A clean-slate ephemeral draft — NO source of record exists for it.
     _run(monkeypatch, 'new-draft', 'Scratch Brew', '--commander', 'Grumgully, the Generous', '--format', 'Commander')
     capsys.readouterr()
