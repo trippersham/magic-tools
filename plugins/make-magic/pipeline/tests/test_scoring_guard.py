@@ -230,3 +230,183 @@ def test_onboard_local_no_hint_when_lake_ready(
     _run(monkeypatch, 'onboard', '--backend', 'local')
     out = capsys.readouterr().out
     assert 'hydrate-lake' not in out
+
+
+# --------------------------------------------------------------------------- #
+# Helpers for the Phase-3 / rider tests
+# --------------------------------------------------------------------------- #
+
+
+def _import_commander_format_no_commander(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Import a commander-format list (a `#`-header with commander metadata) with 0 commanders."""
+    text = '# Cold Start — commanders=1 total=100\n' + ('1 Swamp\n' * 100)
+    monkeypatch.setattr('sys.stdin', __import__('io').StringIO(text))
+    _run(monkeypatch, 'import-deck', '-', '--source', 'plaintext')
+
+
+# --------------------------------------------------------------------------- #
+# T3.2 — commander-format deck with 0 commanders: importer warns, scoring refuses
+# --------------------------------------------------------------------------- #
+
+
+def test_import_commander_format_no_commander_warns(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    _import_commander_format_no_commander(monkeypatch)
+    err = capsys.readouterr().err
+    assert '--commander' in err
+    assert 'Commander-format' in err or 'commander' in err.lower()
+
+
+def test_scoring_refuses_commander_format_zero_commanders(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _EnrichingResolver())
+    monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
+    _import_commander_format_no_commander(monkeypatch)
+    capsys.readouterr()
+
+    with pytest.raises(SystemExit) as exc:
+        _run(monkeypatch, 'factsheet', 'Cold Start')
+    assert exc.value.code != 0
+    err = capsys.readouterr().err
+    assert '0 commanders' in err
+    assert '--commander' in err
+
+
+def test_import_commander_flag_satisfies_guard(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _EnrichingResolver())
+    monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
+    monkeypatch.setattr('pipeline.collection.resolver.otag_mart_available', lambda: True)
+    text = '# Cold Start — commanders=1 total=100\n1 Krenko, Mob Boss\n' + ('1 Swamp\n' * 99)
+    monkeypatch.setattr('sys.stdin', __import__('io').StringIO(text))
+    _run(monkeypatch, 'import-deck', '-', '--source', 'plaintext', '--commander', 'Krenko, Mob Boss')
+    capsys.readouterr()
+
+    # A commander is present -> the commander-format guard does not trip; factsheet scores.
+    import json
+
+    _run(monkeypatch, 'factsheet', 'Cold Start')
+    report = json.loads(capsys.readouterr().out)
+    assert report['deck'] == 'Cold Start'
+
+
+# --------------------------------------------------------------------------- #
+# R1 — low-coverage refusal (ready lake, deck stays name-only past tolerance)
+# --------------------------------------------------------------------------- #
+
+
+def test_scoring_refuses_low_coverage_ready_lake(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    # The lake is READY, but the resolver enriches nothing (every card stays
+    # name-only) -> resolved/total = 0 < _MIN_SCORING_COVERAGE -> loud refusal.
+    monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _NameOnlyResolver())
+    monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
+    _import_basics_deck(monkeypatch)
+    capsys.readouterr()
+
+    with pytest.raises(SystemExit) as exc:
+        _run(monkeypatch, 'factsheet', 'Cold Start')
+    assert exc.value.code != 0
+    err = capsys.readouterr().err
+    assert 'collection hydrate-lake' in err
+    assert '0/100' in err or 'name-only' in err
+
+
+# --------------------------------------------------------------------------- #
+# R2 — crispi refuses when oracle_cards is ready but the card_otag mart is absent
+# --------------------------------------------------------------------------- #
+
+
+def test_crispi_refuses_when_otag_mart_absent(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _EnrichingResolver())
+    monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
+    monkeypatch.setattr('pipeline.collection.resolver.otag_mart_available', lambda: False)
+    _import_basics_deck(monkeypatch)
+    capsys.readouterr()
+
+    with pytest.raises(SystemExit) as exc:
+        _run(monkeypatch, 'crispi', 'Cold Start', '--commander-dependence', 'med')
+    assert exc.value.code != 0
+    err = capsys.readouterr().err
+    assert 'card_otag' in err
+    assert 'collection hydrate-lake' in err
+
+
+def test_factsheet_still_runs_when_otag_mart_absent(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    # factsheet degrades to structured-only (its own marker) — it must NOT be
+    # collateral-refused by the crispi-scoped otag guard.
+    import json
+
+    monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _EnrichingResolver())
+    monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
+    monkeypatch.setattr('pipeline.collection.resolver.otag_mart_available', lambda: False)
+    _import_basics_deck(monkeypatch)
+    capsys.readouterr()
+
+    _run(monkeypatch, 'factsheet', 'Cold Start')
+    report = json.loads(capsys.readouterr().out)
+    assert report['deck'] == 'Cold Start'
+
+
+# --------------------------------------------------------------------------- #
+# R3 — hydrate-lake --max-cards help notes the stub-floor interaction
+# --------------------------------------------------------------------------- #
+
+
+def test_hydrate_lake_help_notes_stub_floor(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    from pipeline.collection.resolver import LAKE_STUB_FLOOR
+
+    with pytest.raises(SystemExit):
+        _run(monkeypatch, 'hydrate-lake', '-h')
+    out = capsys.readouterr().out
+    assert str(LAKE_STUB_FLOOR) in out
+    assert 'stub' in out.lower()
+
+
+# --------------------------------------------------------------------------- #
+# T3.3 — re-import hygiene: content-identical note, no wedge
+# --------------------------------------------------------------------------- #
+
+
+def test_reimport_identical_list_notes_duplicate(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    text = '1 Sol Ring\n1 Arcane Signet\n'
+
+    monkeypatch.setattr('sys.stdin', __import__('io').StringIO(text))
+    _run(monkeypatch, 'import-deck', '-', '--name', 'Dup Deck', '--source', 'plaintext')
+    capsys.readouterr()
+
+    monkeypatch.setattr('sys.stdin', __import__('io').StringIO(text))
+    _run(monkeypatch, 'import-deck', '-', '--name', 'Dup Deck', '--source', 'plaintext')
+    err = capsys.readouterr().err
+    assert 'content-identical' in err
+    assert '--id' in err
+
+
+def test_ambiguous_name_message_names_disambiguation_options(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    text = '1 Sol Ring\n1 Arcane Signet\n'
+    for _ in range(2):
+        monkeypatch.setattr('sys.stdin', __import__('io').StringIO(text))
+        _run(monkeypatch, 'import-deck', '-', '--name', 'Dup Deck', '--source', 'plaintext')
+    capsys.readouterr()
+
+    with pytest.raises(SystemExit) as exc:
+        _run(monkeypatch, 'get-deck', 'Dup Deck')
+    assert exc.value.code != 0
+    err = capsys.readouterr().err
+    assert 'ambiguous' in err
+    assert '--id' in err
+    assert 'archive-deck' in err

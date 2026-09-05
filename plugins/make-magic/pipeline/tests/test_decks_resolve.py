@@ -100,10 +100,12 @@ def test_dup_name_refuses_with_verbatim_candidate_list(data_dir: Path, tmp_path:
 
     msg = str(excinfo.value)
     expected = (
-        "'Gruul' is ambiguous (3 decks). Re-run with one of:\n"
+        "'Gruul' is ambiguous (3 decks). Re-run addressing one by --id:\n"
         '  --id 6a3f0b   # synced · airtable\n'
         '  --id b81c92   # ephemeral · local\n'
-        '  --id 0f2d14   # ephemeral,archived · local'
+        '  --id 0f2d14   # ephemeral,archived · local\n'
+        'To clear the ambiguity, archive the extra draft(s): '
+        'collection archive-deck --id <prefix>'
     )
     assert msg == expected
 

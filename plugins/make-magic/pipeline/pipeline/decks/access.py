@@ -101,12 +101,18 @@ class DeckAccess:
         carries an airtable external ref, else ``local``.
         """
         ordered = sorted(rows, key=lambda r: (r.sync_status != 'synced', r.name))
-        lines = [f'{name!r} is ambiguous ({len(rows)} decks). Re-run with one of:']
+        lines = [f'{name!r} is ambiguous ({len(rows)} decks). Re-run addressing one by --id:']
         for row in ordered:
             status = row.sync_status
             if row.archived:
                 status = f'{status},archived'
             lines.append(f'  --id {row.deck_uuid[:6]}   # {status} · {self._source_backend(row)}')
+        # Name the way OUT of the ambiguity, not just how to pick one — a re-import
+        # leaves duplicate drafts, so point at archiving the extras (by --id).
+        lines.append(
+            'To clear the ambiguity, archive the extra draft(s): '
+            'collection archive-deck --id <prefix>'
+        )
         return '\n'.join(lines)
 
     def _dead_binding_message(self, name: str, deck_uuid: str) -> str:

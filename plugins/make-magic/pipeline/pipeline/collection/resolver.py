@@ -86,7 +86,14 @@ _MAX_BACKOFF = 5.0
 #: them. Scoring against a stub silently under-resolves — the guard refuses instead.
 LAKE_STUB_FLOOR = 1000
 
-__all__ = ('DuckDBCardResolver', 'default_card_resolver', 'fetch_card_raw', 'lake_row_count', 'lake_status')
+__all__ = (
+    'DuckDBCardResolver',
+    'default_card_resolver',
+    'fetch_card_raw',
+    'lake_row_count',
+    'lake_status',
+    'otag_mart_available',
+)
 
 
 class _Transient(Enum):
@@ -468,6 +475,22 @@ def lake_status() -> str:
     if count < LAKE_STUB_FLOOR:
         return 'stub'
     return 'ready'
+
+
+def otag_mart_available() -> bool:
+    """True iff the ``normalized/card_otag`` rollup mart is present.
+
+    The otag layer is what powers the CRISPI axes' functional signal (buckets /
+    susceptibility). ``oracle_cards`` can be hydrated while this mart is not (a
+    partial ``hydrate-lake``), which would let CRISPI emit confident numbers off
+    zero otag signal — the scoring guard keys on this to refuse instead. Fail-safe:
+    any probe error reads as absent (refuse rather than risk a blind score).
+    """
+    try:
+        return store.table_exists(*_CARD_OTAG)
+    except Exception as exc:  # pragma: no cover - defensive: a corrupt/locked lake.
+        log.warning('card-dim: card_otag mart probe failed (%s); treating as absent.', exc)
+        return False
 
 
 def default_card_resolver() -> DuckDBCardResolver:
