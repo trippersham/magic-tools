@@ -116,3 +116,42 @@ def test_cli_exit_zero_when_all_clean(_store: Path, monkeypatch: pytest.MonkeyPa
     )
     code = regate_batch.run(['--ledger', str(ledger_path), '--dry-run'])
     assert code == 0
+
+
+def test_cli_without_live_is_dry_run(_store: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The incident-class guard: WITHOUT --live the CLI is dry-run — dry_run=True is threaded to the
+    batch fn and no XMage install is ever resolved (so a missing install cannot even be reached)."""
+    ledger_path = _ledger_with_stale_driver(_store)
+    seen: dict[str, object] = {}
+
+    def _spy(**kw: object) -> list[regate_batch.RegateReport]:
+        seen.update(kw)
+        return [regate_batch.RegateReport(
+            deck_id='gauntlet/x.dck', name='X', state='stale', outcome='stale')]
+
+    monkeypatch.setattr(regate_batch, 'run_regate_batch', _spy)
+    # Deliberately NO --live and NO --dry-run: default must still be dry-run.
+    code = regate_batch.run(['--ledger', str(ledger_path)])
+    assert code == 0
+    assert seen['dry_run'] is True
+    assert seen['install'] is None  # never resolved an install on the dry path.
+
+
+def test_cli_live_resolves_install_and_writes(_store: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """WITH --live the CLI threads dry_run=False (mutation permitted). We stub install resolution so
+    no real JVM is needed and assert the live flag reaches the batch fn."""
+    ledger_path = _ledger_with_stale_driver(_store)
+    seen: dict[str, object] = {}
+
+    monkeypatch.setattr(xr, 'resolve', lambda: object())
+
+    def _spy(**kw: object) -> list[regate_batch.RegateReport]:
+        seen.update(kw)
+        return [regate_batch.RegateReport(
+            deck_id='gauntlet/x.dck', name='X', state='stale', outcome='regated')]
+
+    monkeypatch.setattr(regate_batch, 'run_regate_batch', _spy)
+    code = regate_batch.run(['--ledger', str(ledger_path), '--live'])
+    assert code == 0
+    assert seen['dry_run'] is False
+    assert seen['install'] is not None

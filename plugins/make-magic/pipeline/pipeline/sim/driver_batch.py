@@ -345,14 +345,6 @@ class Ledger:
 # --------------------------------------------------------------------------- #
 
 
-def default_ledger_path(data_dir: str | os.PathLike[str] | None = None) -> Path:
-    """The default ledger path: ``<data_dir>/sim/driver_batch/ledger.jsonl``."""
-    from pipeline import store
-
-    root = Path(data_dir) if data_dir is not None else store.StorePaths.resolve().data_dir
-    return root / 'sim' / 'driver_batch' / 'ledger.jsonl'
-
-
 def run_classify(
     decks: Iterable[CorpusDeck],
     combos: list[Combo],
@@ -812,7 +804,9 @@ def run(argv: list[str] | None = None) -> None:
         description='Corpus combo-litmus classifier (classify stage).',
     )
     parser.add_argument(
-        '--ledger', default=None, help='Ledger JSONL path (default: <data_dir>/sim/driver_batch/ledger.jsonl).'
+        '--ledger', required=True,
+        help='Ledger JSONL path to write (REQUIRED — this authoring CLI has no default, so it can '
+             'never silently clobber the production v2 ledger).',
     )
     parser.add_argument(
         '--manifest', default=None, help='Extra manifest path (besides the plan-dir + data-dir copies).'
@@ -822,7 +816,7 @@ def run(argv: list[str] | None = None) -> None:
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
 
-    ledger_path = Path(args.ledger) if args.ledger else default_ledger_path()
+    ledger_path = Path(args.ledger)
 
     ensure_combo_lake()
     combos = load_combos()

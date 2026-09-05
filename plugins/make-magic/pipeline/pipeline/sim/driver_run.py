@@ -98,19 +98,13 @@ _PLAN_DIR = Path(
 )
 
 
-def default_batch_ledger_path(data_dir: str | os.PathLike[str] | None = None) -> Path:
-    """The P3 author/compile ledger the run reads compiled-driver rows from (legacy 32-driver)."""
-    from pipeline.sim.driver_batch import default_ledger_path
-
-    return default_ledger_path(data_dir)
-
-
 def default_batch_ledger_v2_path(data_dir: str | os.PathLike[str] | None = None) -> Path:
     """The v2 batch ledger: ``<data_dir>/sim/driver_batch_v2/ledger.jsonl``.
 
-    The 47-DRIVER roster (widened win-predicate + light nudge), each row tagged with a
-    ``p_tightness`` of ``tight`` | ``loose``. This is the DEFAULT the corpus run reads —
-    NOT the legacy 32-driver :func:`default_batch_ledger_path`."""
+    The SINGLE ledger-path authority (the legacy v1 ``sim/driver_batch/ledger.jsonl`` resolver
+    has been deleted). The 47-DRIVER roster (widened win-predicate + light nudge), each row
+    tagged with a ``p_tightness`` of ``tight`` | ``loose``. This is the DEFAULT the corpus run
+    reads."""
     from pipeline import store
 
     root = Path(data_dir) if data_dir is not None else store.StorePaths.resolve().data_dir

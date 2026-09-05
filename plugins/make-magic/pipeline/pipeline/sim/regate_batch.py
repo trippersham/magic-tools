@@ -6,13 +6,15 @@ walks the driver-batch ledger (:mod:`pipeline.sim.driver_batch`), classifies eve
 state, and — outside dry-run — RE-GATES each stale driver against the current harness
 (:func:`pipeline.sim.driver_gate.regate_driver`), so the chore is a single invocation:
 
-    python -m pipeline.sim.regate_batch            # re-gate every stale driver
-    python -m pipeline.sim.regate_batch --dry-run  # just LIST states, change nothing
+    python -m pipeline.sim.regate_batch          # DRY-RUN: just LIST states, change nothing
+    python -m pipeline.sim.regate_batch --live   # re-gate every stale driver (mutates the store)
 
-Reports a per-driver line (``valid`` / ``stale`` / ``regated`` / ``failed`` / ``absent`` /
-``broken`` / ``environment``) and a summary. Exits NONZERO if ANY driver FAILED its re-gate (a
-compile/gate rejection) — a broken driver post-cut is a release signal, not a silent revert.
-The dry-run path never re-gates and never exits nonzero on stale alone.
+The ``--live`` flag is the incident-class guard: WITHOUT it the tool is ALWAYS a dry-run
+(listing states, writing nothing) regardless of any other flag, so it can never mutate a store
+by accident. Reports a per-driver line (``valid`` / ``stale`` / ``regated`` / ``failed`` /
+``absent`` / ``broken`` / ``environment``) and a summary. Exits NONZERO if ANY driver FAILED its
+re-gate (a compile/gate rejection) — a broken driver post-cut is a release signal, not a silent
+revert. The dry-run path never re-gates and never exits nonzero on stale alone.
 """
 
 from __future__ import annotations
@@ -145,16 +147,34 @@ def run(argv: list[str] | None = None) -> int:
         prog='regate-drivers',
         description='Batch re-gate every stale per-deck driver against the current harness.',
     )
-    parser.add_argument('--ledger', default=None, help='Ledger JSONL path (default: the data-dir ledger).')
-    parser.add_argument('--dry-run', action='store_true', help='List driver states only; re-gate nothing.')
+    parser.add_argument('--ledger', default=None, help='Ledger JSONL path (default: the v2 batch ledger).')
+    parser.add_argument(
+        '--live', action='store_true',
+        help='Actually re-gate stale drivers (mutating the store). WITHOUT this flag the tool ALWAYS '
+             'behaves as a dry-run — it lists states and writes nothing, regardless of other flags.',
+    )
+    parser.add_argument(
+        '--dry-run', action='store_true',
+        help='Explicitly request the (default) dry-run. Redundant with omitting --live; retained for '
+             'clarity and backwards compatibility.',
+    )
     parser.add_argument('--games', type=int, default=20, help='Games per re-gate goldfish (default 20).')
     args = parser.parse_args(argv)  # argv=None → argparse reads sys.argv (the real CLI path).
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
 
-    ledger_path = Path(args.ledger) if args.ledger else driver_batch.default_ledger_path()
+    # THE INCIDENT-CLASS GUARD: a store mutation requires an explicit --live. Without it, the tool is
+    # ALWAYS a dry-run regardless of any other flag (including a stray --dry-run being absent).
+    dry_run = not args.live
+    if dry_run:
+        log.warning('--live not passed: DRY-RUN only (listing states, writing nothing). '
+                    'Pass --live to actually re-gate stale drivers.')
+
+    from pipeline.sim.driver_run import default_batch_ledger_v2_path
+
+    ledger_path = Path(args.ledger) if args.ledger else default_batch_ledger_v2_path()
     install = None
-    if not args.dry_run:
+    if not dry_run:
         try:
             from pipeline.sim import xmage_runtime as xr
 
@@ -164,7 +184,7 @@ def run(argv: list[str] | None = None) -> int:
             return 2
 
     reports = run_regate_batch(
-        ledger_path=ledger_path, dry_run=args.dry_run, install=install, games=args.games,
+        ledger_path=ledger_path, dry_run=dry_run, install=install, games=args.games,
     )
 
     for r in reports:
@@ -177,7 +197,7 @@ def run(argv: list[str] | None = None) -> int:
     for r in reports:
         summary[r.outcome] = summary.get(r.outcome, 0) + 1
     print('\n' + json.dumps({'total': len(reports), 'by_outcome': dict(sorted(summary.items())),
-                             'dry_run': bool(args.dry_run), 'ledger': str(ledger_path)}, indent=2))
+                             'dry_run': bool(dry_run), 'ledger': str(ledger_path)}, indent=2))
 
     failed = summary.get('failed', 0)
     if failed:
