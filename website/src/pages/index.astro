@@ -1,0 +1,48 @@
+---
+import '../styles/global.css';
+import FaceDownCard from '../components/FaceDownCard.astro';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="make-magic — this AI plugin has been cast for its foretell cost."
+    />
+    <meta name="theme-color" content="#05060f" />
+    <meta property="og:title" content="make-magic" />
+    <meta
+      property="og:description"
+      content="this AI plugin has been cast for its foretell cost"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://make-magic.org/" />
+    <meta property="og:image" content="https://make-magic.org/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="make-magic" />
+    <meta
+      name="twitter:description"
+      content="this AI plugin has been cast for its foretell cost"
+    />
+    <meta name="twitter:image" content="https://make-magic.org/og.jpg" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b1030'/%3E%3Cpath d='M16 5 19 13 27 16 19 19 16 27 13 19 5 16 13 13Z' fill='%23e7cf8e'/%3E%3C/svg%3E"
+    />
+    <title>make-magic</title>
+  </head>
+  <body>
+    <main class="hero">
+      <FaceDownCard />
+      <p class="tagline">this AI plugin has been cast for its foretell cost</p>
+    </main>
+    <script>
+      import '../scripts/tilt.ts';
+    </script>
+  </body>
+</html>

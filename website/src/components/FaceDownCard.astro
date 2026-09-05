@@ -1,0 +1,26 @@
+---
+// The foretold card: the official Magic card back (public/card-back.webp,
+// sourced from Scryfall's card-back asset) shown face-down under a frosty
+// "foretell" veil. The shimmer sweep and float live in global.css; the cursor
+// tilt is wired by src/scripts/tilt.ts.
+---
+
+<div class="card-stage">
+  <div class="card" data-tilt>
+    <div class="card-inner">
+      <img
+        class="card-art"
+        src="/card-back.webp"
+        width="640"
+        height="893"
+        alt="A face-down Magic card, foretold — exiled and waiting to be cast."
+        draggable="false"
+      />
+
+      <!-- foretell veil: the frosty translucent shroud over an exiled card -->
+      <div class="veil" aria-hidden="true"></div>
+      <!-- shimmer sweep -->
+      <div class="shimmer" aria-hidden="true"></div>
+    </div>
+  </div>
+</div>
