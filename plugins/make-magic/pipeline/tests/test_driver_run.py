@@ -769,17 +769,17 @@ def test_resolve_worker_cmd_max_games_env_override(monkeypatch):
     heap creep -> every AI decision blows the think cap -> all-pass timeout games)."""
     from pipeline.sim.driver_run import resolve_worker_cmd
 
-    monkeypatch.setenv('MAKE_MAGIC_WORKER_MAX_GAMES', '40')
+    monkeypatch.setenv('MAKE_MAGIC_WORKER_MAX_GAMES', '25')
     cmd = resolve_worker_cmd()
     i = cmd.index('--worker-max-games')
-    assert cmd[i + 1] == '40'
+    assert cmd[i + 1] == '25'
 
     monkeypatch.delenv('MAKE_MAGIC_WORKER_MAX_GAMES')
     cmd = resolve_worker_cmd()
     i = cmd.index('--worker-max-games')
-    assert cmd[i + 1] == '500'
+    assert cmd[i + 1] == '40'
 
     monkeypatch.setenv('MAKE_MAGIC_WORKER_MAX_GAMES', 'nonsense')
     cmd = resolve_worker_cmd()
     i = cmd.index('--worker-max-games')
-    assert cmd[i + 1] == '500'  # malformed -> default, never crash the launch
+    assert cmd[i + 1] == '40'  # malformed -> default, never crash the launch

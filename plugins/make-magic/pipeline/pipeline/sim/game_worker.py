@@ -44,7 +44,7 @@ __all__ = ('build_worker_java_argv', 'main')
 
 #: The persistent worker recycles after this many games by default (the governor respawns a
 #: fresh JVM — bounds metaspace/heap creep over a long corpus run).
-DEFAULT_MAX_GAMES = 500
+DEFAULT_MAX_GAMES = 40
 
 
 def build_worker_java_argv(install: object, *, max_games: int = DEFAULT_MAX_GAMES) -> list[str]:

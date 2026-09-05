@@ -507,7 +507,7 @@ def build_corpus_game_tasks(
 
 def resolve_worker_cmd(
     *,
-    max_games: int = 500,
+    max_games: int = 40,
     log_dir: str | os.PathLike[str] | None = None,
     data_dir: str | os.PathLike[str] | None = None,
     decks_dir: str | os.PathLike[str] | None = None,

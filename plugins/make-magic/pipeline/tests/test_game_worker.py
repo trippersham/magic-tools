@@ -20,8 +20,10 @@ def test_resolve_worker_cmd_shape() -> None:
 
 
 def test_resolve_worker_cmd_defaults() -> None:
+    # 40-game default: long-lived CP7 workers decay (heap creep -> think-cap blowout ->
+    # all-pass timeout games), empirically total by ~12h at the old 500; 40 recycles ~2-hourly.
     cmd = resolve_worker_cmd()
-    assert cmd[3:5] == ['--worker-max-games', '500']
+    assert cmd[3:5] == ['--worker-max-games', '40']
     assert '--log-dir' not in cmd and '--data-dir' not in cmd
 
 
@@ -40,4 +42,5 @@ def test_build_worker_java_argv_shape() -> None:
 
 
 def test_default_max_games() -> None:
-    assert DEFAULT_MAX_GAMES == 500
+    # 40, not 500: decay-safe recycle cadence proven in the 2026-09 full-corpus run.
+    assert DEFAULT_MAX_GAMES == 40
