@@ -25,37 +25,41 @@ every downstream skill reads and none of them overwrite.
 Why: the wants tell refining-decks what to reach for; the DOES-NOT-WANTs are a **hard
 pre-filter** it applies before it ranks a single card. A Strategy that only lists wants
 produces a deck that drifts toward generic goodstuff — the exclusions are what keep it
-coherent. Always elicit both. "What doesn't fit" is not an afterthought; it is half the
+coherent. Always elicit both. `DOES NOT WANT` is not an afterthought; it is half the
 plan.
 </primary-constraint>
 
 <red-flags>
 If you catch yourself about to:
-- **Write a Strategy with no `What doesn't fit:` line** — STOP. Ask the exclusion
+- **Write a Strategy with no `DOES NOT WANT` section** — STOP. Ask the exclusion
   question. A deck with no stated DOES-NOT-WANTs cannot be refined coherently.
 - **Re-elicit a whole Strategy for a deck that already has one** — STOP. Existing decks
   get the "do these still apply?" DIFF, not a blank-slate interview. Read the current
   Strategy first and confirm/adjust it.
 - **`set-strategy` a partial fragment** — STOP. `set-strategy` REPLACES the whole
-  Strategy field, so a fragment silently erases the rest (including the `What doesn't
-  fit:` line). Always pass the **complete** block. When nothing changed, write nothing.
+  Strategy field, so a fragment silently erases the rest (including the `DOES NOT WANT`
+  section). Always pass the **complete** block. When nothing changed, write nothing.
 - **Invent a color identity or commander the user didn't state** — STOP. Format,
   commander, and colors are elicited, never assumed.
 </red-flags>
 
 ## What you produce
 
-A **Strategy** in the `strategy-schema.md` convention — the aim in prose:
+A **Strategy** in the `strategy-schema.md` five-section format — the aim in prose:
 
 ```
-Commander: <name> (<color identity>)
-Archetype: <primary> / <secondary if applicable>
-Win conditions: <how the deck wins>
-Key mechanics: <comma-separated keywords from the BUCKET_STRATEGY_SYNONYMS vocabulary>
-Lines:
-- <line of play>
-What makes a card good here: <the WANTS — positive selection criteria>
-What doesn't fit: <the DOES-NOT-WANTS — negative selection criteria, the hard filter>
+PRIMARY STRATEGY: <archetype / sub-archetype> (<colors>)
+
+GAME PLAN: <one prose paragraph — the overall plan and win path>
+
+KEY LINES:
+• <line of play, at piloting altitude — concrete sequence + OWN: + DEFER:>
+
+WANTS:
+• <the WANTS — positive selection criteria>
+
+DOES NOT WANT:
+• <the DOES-NOT-WANTS — negative selection criteria, the hard pre-filter>
 ```
 
 Alongside the prose you name the **Focus Otags** — the handful of buckets/otag slugs
@@ -66,9 +70,10 @@ price ceiling) — captured here so refining-decks can turn on its conditional p
 
 Read the schema before you write:
 <reference file="../building-decks/references/strategy-schema.md">
-strategy-schema.md — the Strategy field convention, the `Key mechanics` vocabulary, the
-worked reference examples (Sokka / Ozai / Shelob), and how the `Archetype:` line frames
-the downstream pre-mortem.
+strategy-schema.md — the five-section Strategy format (PRIMARY STRATEGY / GAME PLAN /
+KEY LINES / WANTS / DOES NOT WANT), the piloting-altitude + category-framed KEY LINES
+rules, the real worked examples (Ozai / Sokka / World Reclaimer), and how the
+`PRIMARY STRATEGY:` line frames the downstream pre-mortem.
 </reference>
 
 ## The data surface: the `collection` CLI
@@ -140,22 +145,52 @@ Don't dump all questions at once — this is a conversation, not a form.
   identity in mind (they may be choosing a commander to fit colors, or vice-versa).
 - **Archetype** — aggro / midrange / control / combo / aristocrats / spellslinger /
   voltron / go-wide / stax / … The archetype frames what "healthy" looks like per
-  game-state downstream, so pin it explicitly (see the `Archetype:` table in
-  strategy-schema.md).
+  game-state downstream, so pin it explicitly (see the `PRIMARY STRATEGY:` pre-mortem
+  table in strategy-schema.md).
+- **Proactive or reactive?** — the archetype answers one load-bearing question that routes
+  the sim Driver: does this deck **enact its own win** (proactive: aggro/combo/midrange/
+  go-wide/voltron) or **answer the opponent's** (reactive: control/stax/spellslinger-control)?
+  Pin it — it decides whether the deck's Driver gets a scripted win **macro** (proactive) or is
+  **Φ-only** (reactive), and which gate mode it runs in. See the deck-primer lens in
+  strategy-schema.md.
 
-**2. The wants — what makes a card good here?**
-- **Win conditions** — how does this deck actually win? Name the payoff(s).
-- **Key mechanics** — the engine keywords, drawn from the `BUCKET_STRATEGY_SYNONYMS`
-  vocabulary (`spellslinger`, `blink`, `aristocrats`, `counters`, `burn`, `combat`,
-  `ramp`, …). These become the `Key mechanics:` line and seed the Focus Otags.
-- **Lines of play** — the two or three sequences the deck wants to enact.
+**2. The GAME PLAN + WANTS — how it wins and what makes a card good here.**
+- **Game plan / win conditions** — how does this deck actually win? Name the payoff(s).
+  This becomes the `GAME PLAN` paragraph.
+- **The wants** — the engine keywords and positive selection criteria, drawn from the
+  `BUCKET_STRATEGY_SYNONYMS` vocabulary (`spellslinger`, `blink`, `aristocrats`,
+  `counters`, `burn`, `combat`, `ramp`, …). These become the `WANTS` bullets and seed the
+  Focus Otags.
+- **KEY LINES — at PILOTING altitude, framed by CATEGORY.** Not "what does the deck do"
+  in the abstract, but the concrete sequence PLUS the non-obvious decisions a good pilot
+  makes. For each of the two or three lines, draw out three parts (see
+  `strategy-schema.md`, "`KEY LINES` is the load-bearing section"):
+    1. the **concrete sequence** — the real play in order ("sac an expendable land to a
+       land-eating outlet → recur it from the yard → re-fire a landfall payoff"), not
+       "sacrifice for value";
+    2. **`OWN:`** — the load-bearing call a good pilot controls that a naive AI botches,
+       in the deck's OWN terms ("feed a fetched/surplus land to any land-sac outlet, never
+       a land tapped for a payoff this turn; hold sacs for end-of-turn / in response to
+       removal") — a human decision, never an engine API;
+    3. **`DEFER:`** — what generic play (land drops, curve, combat, casting) to leave
+       alone.
+  **Frame each line by CATEGORY / MECHANIC, not by one card.** Name specific cards only as
+  NON-EXHAUSTIVE members (`members (examples, NOT the definition): outlets — Zuran Orb,
+  Szarel, sac-a-land effects; recursion — Life from the Loam, Crucible, …`). The
+  definition is the mechanic ("ANY outlet that can sacrifice a land"), never the card.
+  **Exception:** a discrete infinite/deterministic combo (Mikaeus + Triskelion) IS its
+  named pieces — name them.
+  Ask directly: *"Walk me through the optimal turn — and where does a good pilot make a
+  non-obvious call that a bot would get wrong?"* If a line genuinely has no owned
+  decision (linear aggro/goodstuff a competent baseline pilots fine), record that
+  honestly — an empty/"none" `OWN:` is correct; don't manufacture one.
 
-**3. The DOES-NOT-WANTs — what doesn't fit? (do not skip)**
+**3. The DOES NOT WANT — the exclusions (do not skip)**
 Ask directly: *"What should this deck deliberately NOT do?"* Draw out the exclusions —
 wrong-axis mechanics (auras in a spellslinger deck), tempo mismatches (slow value engines
-in an aggro deck), anything the user actively wants to keep out. These become the `What
-doesn't fit:` line and are a **hard pre-filter** in refining-decks. A vague "nothing off
-strategy" is not enough — get specifics.
+in an aggro deck), anything the user actively wants to keep out. These become the
+`DOES NOT WANT` bullets and are a **hard pre-filter** in refining-decks. A vague "nothing
+off strategy" is not enough — get specifics.
 
 **4. Constraints (optional).**
 - **Budget** — is there a price ceiling (per card, or whole deck)? If yes, capture it —
@@ -164,7 +199,7 @@ strategy" is not enough — get specifics.
 - Any other hard constraints (owned-cards-only, no-reprints, theme restrictions).
 
 **5. Curate the Focus Otags.**
-From the `Key mechanics` and the archetype, name the handful of buckets/otag slugs the
+From the `WANTS` and the archetype, name the handful of buckets/otag slugs the
 deck is genuinely built around — the **intended identity**, a curated subset (a
 tokens/counters go-wide deck's focus is `tokens counters anthem`, not the incidental
 `ramp`/`removal` every deck runs). This is intent, never the mechanical union.
@@ -193,11 +228,17 @@ has.
 ${CLAUDE_PLUGIN_ROOT}/scripts/collection get-deck "<deck>"   # strategy + focus_otags + cards[]
 ```
 
-**2. Present it back and diff.** Show the user the current `Archetype`, `Win
-conditions`, `Key mechanics`, `What makes a card good here`, and `What doesn't fit`, and
-ask, point by point, *"do these still apply?"* Surface where the **current decklist**
-has drifted from the stated aim (a spellslinger Strategy with a pile of creatures added
-since is a signal the aim moved — flag it, don't silently rewrite).
+**2. Present it back and diff.** Show the user the current `PRIMARY STRATEGY`, `GAME
+PLAN`, `KEY LINES`, `WANTS`, and `DOES NOT WANT`, and ask, point by point, *"do these
+still apply?"* Surface where the **current decklist** has drifted from the stated aim (a
+spellslinger Strategy with a pile of creatures added since is a signal the aim moved —
+flag it, don't silently rewrite). **Check the `KEY LINES` altitude AND framing
+specifically:** a line written as a bare axis ("sacrifice for value") is stale — re-elicit
+it to piloting altitude (concrete sequence + `OWN:` + `DEFER:`, per step 2 above). A line
+that DEFINES itself by one card ("sac to Zuran Orb") rather than the category ("ANY
+land-sac outlet — Zuran Orb, Szarel, …") is also stale — re-elicit it to category framing
+with cards as non-exhaustive members (combo pieces stay named). A card-selection-altitude
+or single-card-framed line is the exact gap that ships the wrong sim-pilot.
 
 **3. Weave any adjustments into the FULL Strategy.** If the user adjusts — new
 sub-archetype, a mechanic added or dropped, a new exclusion — apply those changes into
@@ -207,7 +248,7 @@ changed lines). Re-confirm the DOES-NOT-WANTs specifically; they drift the most 
 **4. Write the FULL strategy — or nothing.** If the user ADJUSTED, `set-strategy` the
 **full** strategy WITH the adjustments woven in — the complete block, never a fragment
 (`set-strategy` REPLACES the entire field, silently erasing every clause you leave out,
-including the `What doesn't fit:` DOES-NOT-WANT line). Apply any Focus Otags change with
+including the `DOES NOT WANT` section). Apply any Focus Otags change with
 `set-focus-otags`. If **nothing changed**, write nothing — do **NOT** re-write a
 "confirmed as-is" placeholder. This is identical standalone and under the orchestrator;
 the only difference is the target (a real deck vs an ephemeral draft), and the write
@@ -218,9 +259,9 @@ commits through accordingly.
 ## Output contract
 
 You hand off:
-- **Strategy** — the `strategy-schema.md` prose block: format, commander, colors,
-  archetype, win conditions, key mechanics, lines, **wants** (`What makes a card good
-  here`), **does-not-wants** (`What doesn't fit`).
+- **Strategy** — the `strategy-schema.md` five-section prose block: `PRIMARY STRATEGY`
+  (archetype + colors), `GAME PLAN`, `KEY LINES` (piloting-altitude, category-framed),
+  `WANTS`, and `DOES NOT WANT`.
 - **Focus Otags** — the curated bucket/otag slug list.
 - **Budget constraint** — present only if the user stated one; otherwise absent (the
   downstream price axis stays off).

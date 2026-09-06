@@ -26,6 +26,7 @@ from pipeline.sim.core import (
     Comparison,
     SimResult,
     compare,
+    newcombe_diff_ci,
     run_cached_matchups,
     simulate,
     wilson_ci,
@@ -66,6 +67,28 @@ def test_wilson_ci_sample_size_narrows() -> None:
     lo_big, hi_big = wilson_ci(500, 1000)
     assert (hi_big - lo_big) < (hi_small - hi_small + (hi_small - lo_small))
     assert (hi_big - lo_big) < (hi_small - lo_small)
+
+
+def test_newcombe_diff_ci_reference_case() -> None:
+    """Newcombe (1998) Table II reference case: 56/70 vs 48/70 → (-0.0308, 0.2535) (method 10)."""
+    lo, hi = newcombe_diff_ci(56, 70, 48, 70)
+    assert lo == pytest.approx(-0.0308, abs=5e-4)
+    assert hi == pytest.approx(0.2535, abs=5e-4)
+
+
+def test_newcombe_diff_ci_boundary_case() -> None:
+    """Newcombe (1998) reference case at a zero cell: 15/148 vs 0/132 → ~(0.0533, 0.1605)."""
+    lo, hi = newcombe_diff_ci(15, 148, 0, 132)
+    assert lo == pytest.approx(0.0533, abs=1e-3)
+    assert hi == pytest.approx(0.1605, abs=1e-3)
+
+
+def test_newcombe_diff_ci_stays_in_bounds_and_antisymmetric() -> None:
+    """The interval stays inside [-1, 1] and flips sign/order under arm swap (p1-p2 vs p2-p1)."""
+    lo, hi = newcombe_diff_ci(10, 10, 0, 10)
+    assert -1.0 <= lo <= hi <= 1.0
+    lo2, hi2 = newcombe_diff_ci(0, 10, 10, 10)
+    assert (lo2, hi2) == pytest.approx((-hi, -lo))
 
 
 # --------------------------------------------------------------------------- #

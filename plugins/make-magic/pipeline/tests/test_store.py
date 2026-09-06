@@ -45,6 +45,33 @@ def test_paths_resolve_under_env_override(data_dir: Path) -> None:
     assert paths.db_path == data_dir / 'make_magic.duckdb'
 
 
+def test_default_data_dir_is_home_anchored_not_package(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Env unset -> the default is the per-user home lake, NOT inside the checkout."""
+    monkeypatch.delenv(store.ENV_DATA_DIR, raising=False)
+    monkeypatch.delenv('XDG_DATA_HOME', raising=False)
+    monkeypatch.setattr(Path, 'home', classmethod(lambda cls: Path('/home/tester')))
+    paths = store.StorePaths.resolve()
+    assert paths.data_dir == Path('/home/tester/.local/share/make-magic')
+    # It must NOT be package-relative (the whole point of the change).
+    assert 'pipeline' not in paths.data_dir.parts
+
+
+def test_default_data_dir_honors_xdg_data_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """When XDG_DATA_HOME is set (and MAKE_MAGIC_DATA_DIR is not), it wins over ~/.local/share."""
+    monkeypatch.delenv(store.ENV_DATA_DIR, raising=False)
+    monkeypatch.setenv('XDG_DATA_HOME', str(tmp_path / 'xdg'))
+    paths = store.StorePaths.resolve()
+    assert paths.data_dir == (tmp_path / 'xdg' / 'make-magic').resolve()
+
+
+def test_explicit_override_beats_xdg_and_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """MAKE_MAGIC_DATA_DIR is the top of the precedence chain (tests + user choice)."""
+    monkeypatch.setenv(store.ENV_DATA_DIR, str(tmp_path / 'explicit'))
+    monkeypatch.setenv('XDG_DATA_HOME', str(tmp_path / 'xdg'))
+    paths = store.StorePaths.resolve()
+    assert paths.data_dir == (tmp_path / 'explicit').resolve()
+
+
 def test_layer_dir_created_on_demand(data_dir: Path) -> None:
     paths = store.StorePaths.resolve()
     assert not paths.raw.exists()

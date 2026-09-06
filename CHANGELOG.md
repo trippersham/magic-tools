@@ -12,6 +12,20 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Deck ingestor layer** — `collection import-deck <url|file|->` imports an external
+  deck into an ephemeral draft, then every downstream verb (`get-deck`, `factsheet`,
+  `deck-swap`, …) works on it. Supported sources: **Archidekt** and **EDHREC** URLs
+  (public APIs, no creds), **Moxfield** URLs (best-effort — the Cloudflare WAF blocks
+  automated reads, so a block degrades to an actionable "Export → paste the list, pipe
+  it to `import-deck -`" error rather than a traceback), and **plaintext / Forge `.dck`**
+  lists (a file, `-`/stdin, or a paste, with `*CMDR*` / `Commander:` commander markers).
+  Imports cache a normalized `RawDeck` under `data/raw/deck_import/` on a short TTL
+  (paste-sourced entries are permanent); `--refresh` forces a re-fetch. Purely
+  **additive / non-breaking**: a new verb + a new read-side source sub-package, no
+  changes to existing decks, verbs, or the Airtable schema.
+
 ## [0.6.2] — 2026-08-23
 
 A **non-breaking** simulation release (a *patch* under this project's `0.y.z`
@@ -59,6 +73,7 @@ opt-in). Upgrading is safe: no CLI removals, no store or Airtable schema changes
   release, harness-jar bytecode reproducibility (both engines), and a weekly
   upstream-dep canary (Adoptium JRE + Forge tarball still resolve — the exact break
   that shipped the `/21/ga` 404).
+
 
 ## [0.6.1] — 2026-08-05
 

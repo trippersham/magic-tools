@@ -29,12 +29,12 @@ Design notes:
 
 from __future__ import annotations
 
-from typing import Final
+from typing import Final, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from pipeline.contracts.targets import target_for_format
+from pipeline.contracts.targets import is_commander_format, target_for_format
 
 # --------------------------------------------------------------------------- #
 # Deck-card roles — the single source of truth for the role vocabulary. A card's
@@ -130,6 +130,21 @@ class Card(BaseModel):
         default_factory=list,
         description='Raw rolled-up oracle-tag slugs from the card dim (empty if the otag layer is unavailable).',
     )
+
+    @property
+    def can_be_commander(self) -> bool:
+        """Whether this card may head a Commander deck, per rule CR 903.3: a legendary creature,
+        or any card whose oracle text grants it commander eligibility ("can be your commander").
+
+        Deterministic from Scryfall fields (`type_line` + `oracle_text`) — Scryfall exposes no
+        per-card commander-eligibility flag (`legalities.commander` is deck legality, a different
+        question). An unresolved card (no `type_line`) is not eligible. Background/Partner-with-
+        Background pairings, which only head a deck alongside another commander, are out of scope.
+        """
+        type_line = (self.type_line or '').lower()
+        if 'legendary' in type_line and 'creature' in type_line:
+            return True
+        return 'can be your commander' in (self.oracle_text or '').lower()
 
 
 class OwnedCard(Card):
@@ -284,6 +299,25 @@ class Deck(BaseModel):
         :func:`pipeline.contracts.targets.target_for_format`.
         """
         return target_for_format(self.format)
+
+    @property
+    def is_commander_format(self) -> bool:
+        """True iff `format` declares Commander/EDH — the single canonical predicate every
+        caller shares (:func:`pipeline.contracts.targets.is_commander_format`). Strict: an
+        UNDECLARED format is not commander-format (see :attr:`expects_commander`)."""
+        return is_commander_format(self.format)
+
+    @property
+    def expects_commander(self) -> bool:
+        """True when a commander is EXPECTED — commander-format OR an UNDECLARED format.
+
+        The IMPORT-time predicate for this Commander-centric tool: a headerless / format-less
+        list is treated as Commander (it still gets first-line-legendary autodetect + the loud
+        0-commander warning), while an explicitly NON-commander format (standard/modern/…) is
+        not. Distinct from :attr:`is_commander_format` (strict), which gates the hard scoring
+        refusal — import should nudge, scoring should only hard-refuse a self-declared commander
+        deck."""
+        return self.is_commander_format or not (self.format or '').strip()
 
 
 # --------------------------------------------------------------------------- #
@@ -461,6 +495,116 @@ class FactSheet(BaseModel):
         default_factory=FactSheetFocusRelative,
         description='Focus-relative signals: actual card tags measured vs the focus set.',
     )
+
+
+# --------------------------------------------------------------------------- #
+# CRISPI — the deterministic four-axis deck score + Performance Index.
+#
+# CRISPI = Consistency · Resilience · Interaction · Speed · Performance Index
+# (DeckCheck's open-source rubric, reimplemented over our own neutral data). Each
+# axis is scored 1-10 in quarter-point steps; the PI is their average snapped to
+# the same grid. The engine (transforms/crispi.py, later phases) is deterministic
+# given the deck plus exactly two typed reasoning inputs — the fundamental turn
+# and the commander-dependence — carried on `inputs`.
+# --------------------------------------------------------------------------- #
+
+
+class CrispiAxis(BaseModel):
+    """One scored CRISPI axis — its 1-10 value plus the reasoning that produced it.
+
+    `value` is a quarter-point score on the rubric's 1-10 scale (the whole number
+    is the rubric row, the decimal is where the deck sits inside it). The range is
+    enforced (1.0 <= value <= 10.0); quarter-point snapping is the engine's job,
+    not a field constraint. `rationale` is the one-line "why" and `cited_cards`
+    the cards that drove the score, so the output reproduces the per-axis prose.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    value: float = Field(
+        ge=1.0,
+        le=10.0,
+        description='Axis score on the 1-10 rubric scale (quarter-point steps; range enforced).',
+    )
+    rationale: str = Field(description='One-line explanation of how the score was derived.')
+    cited_cards: list[str] = Field(
+        default_factory=list,
+        description='Card names that drove this axis (for the per-axis citation prose).',
+    )
+
+
+class CrispiBracket(BaseModel):
+    """The official WotC Commander Bracket (1-5) assigned on top of CRISPI.
+
+    Populated in a later phase (the Bracket classifier); until then a
+    `CrispiResult` carries `bracket=None`. Constructible now with just a bracket
+    number — `triggers` (the named signals that set the bracket, e.g. "bumped to
+    B4: Consistency 7.5 + Interaction 7.5") defaults empty.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    bracket: int = Field(
+        ge=1,
+        le=5,
+        description='Commander Bracket 1-5 (1 Exhibition … 5 cEDH); range enforced.',
+    )
+    triggers: list[str] = Field(
+        default_factory=list,
+        description='The rule/floor signals that set this bracket (named for transparency).',
+    )
+
+
+class CrispiInputs(BaseModel):
+    """The two AI-judged reasoning inputs the CRISPI engine consumes.
+
+    Everything else in the score is deterministic; these two are the only judgement
+    calls (the rubric leaves them to the AI). A typed model — not a bare dict — so the
+    boundary schema (`model_json_schema()` for MCP/TS) carries both fields, and
+    `commander_dependence` is a closed vocabulary.
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    fundamental_turn: float = Field(
+        description='The AI-judged fundamental turn (half-steps allowed) — drives Speed.',
+    )
+    commander_dependence: Literal['low', 'med', 'high'] = Field(
+        description='How the deck plays commander-less: low (0) / med (-1) / high (-2) Resilience penalty.',
+    )
+
+
+class CrispiResult(BaseModel):
+    """The full CRISPI score for one deck — four axes, the PI, and the bracket.
+
+    All four axis values are retained (never just the PI): 9/3/3/9 and 6/7/7/6
+    both average to 6.25 but are very different decks, so the shape is
+    load-bearing. `bracket` is nullable until the Bracket phase populates it.
+    `inputs` records the two typed reasoning inputs the engine consumed
+    (`fundamental_turn: float`, `commander_dependence: str`), so "same deck +
+    same inputs -> identical output" is auditable. `computed_at` is a freshness
+    stamp (ISO-8601 string).
+    """
+
+    model_config = ConfigDict(extra='forbid')
+
+    consistency: CrispiAxis = Field(description='Consistency axis: how reliably the deck executes its plan.')
+    interaction: CrispiAxis = Field(description='Interaction axis: how well the deck disrupts and protects.')
+    speed: CrispiAxis = Field(description='Speed axis: how fast the deck realistically wins (fundamental turn).')
+    resilience: CrispiAxis = Field(description='Resilience axis: how well the deck forces a win through disruption.')
+    performance_index: float = Field(
+        ge=1.0,
+        le=10.0,
+        description='The CRISPI Score: mean of the four axes, snapped to the quarter-point grid.',
+    )
+    bracket: CrispiBracket | None = Field(
+        default=None,
+        description='Commander Bracket (1-5); None until the Bracket phase populates it.',
+    )
+    inputs: CrispiInputs = Field(
+        description='The two AI-judged reasoning inputs the engine consumed (fundamental_turn + commander_dependence).',
+    )
+    computed_at: str = Field(description='Freshness stamp (ISO-8601) — when this score was computed.')
 
 
 # --------------------------------------------------------------------------- #

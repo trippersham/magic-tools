@@ -23,8 +23,6 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-
     from pipeline.contracts import Deck
     from pipeline.destinations.deck_export import DeckExporter
 
@@ -137,11 +135,3 @@ def export_checked(
     if report.blocking and strict:
         raise DeckExportError(report)
     return ExportResult(text=exporter.export(deck), report=report)
-
-
-def merge_reports(deck_name: str, reports: Iterable[ValidationReport]) -> ValidationReport:
-    """Flatten several per-deck reports into one (used when a call spans decks)."""
-    issues: list[CardIssue] = []
-    for r in reports:
-        issues.extend(r.issues)
-    return ValidationReport(deck_name=deck_name, issues=tuple(issues))

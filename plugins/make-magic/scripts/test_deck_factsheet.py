@@ -28,15 +28,17 @@ import pytest
 
 # The pipeline package lives beside the scripts dir; the script itself adds it to
 # sys.path via a shim, but the tests validate against the contract directly.
-_PIPELINE = Path(__file__).resolve().parents[1] / 'pipeline'
+_PIPELINE = Path(__file__).resolve().parents[1] / "pipeline"
 if str(_PIPELINE) not in sys.path:
     sys.path.insert(0, str(_PIPELINE))
 
 from deck_factsheet import (  # noqa: E402
     _avg_cmc,
+    _crispi_mana_facts,
     _fallback_factsheet,
     _load_card_otag,
     _pip_counts,
+    _produced_colors,
     _resolve_card,
     _strip_printing_annotation,
     _top_end_count,
@@ -55,87 +57,87 @@ from deck_factsheet import (  # noqa: E402
 def card(
     name: str,
     *,
-    type_line: str = '',
-    oracle_text: str = '',
+    type_line: str = "",
+    oracle_text: str = "",
     cmc: float = 0.0,
     keywords: list[str] | None = None,
     produced_mana: list[str] | None = None,
-    mana_cost: str = '',
+    mana_cost: str = "",
     oracle_id: str | None = None,
 ) -> dict:
     return {
-        'name': name,
-        'type_line': type_line,
-        'oracle_text': oracle_text,
-        'cmc': cmc,
-        'keywords': keywords or [],
-        'produced_mana': produced_mana,
-        'mana_cost': mana_cost,
-        'oracle_id': oracle_id,
+        "name": name,
+        "type_line": type_line,
+        "oracle_text": oracle_text,
+        "cmc": cmc,
+        "keywords": keywords or [],
+        "produced_mana": produced_mana,
+        "mana_cost": mana_cost,
+        "oracle_id": oracle_id,
     }
 
 
 SOL_RING = card(
-    'Sol Ring',
-    type_line='Artifact',
-    oracle_text='{T}: Add {C}{C}.',
+    "Sol Ring",
+    type_line="Artifact",
+    oracle_text="{T}: Add {C}{C}.",
     cmc=1,
-    produced_mana=['C'],
-    mana_cost='{1}',
+    produced_mana=["C"],
+    mana_cost="{1}",
 )
 LLANOWAR_ELVES = card(
-    'Llanowar Elves',
-    type_line='Creature — Elf Druid',
-    oracle_text='{T}: Add {G}.',
+    "Llanowar Elves",
+    type_line="Creature — Elf Druid",
+    oracle_text="{T}: Add {G}.",
     cmc=1,
-    produced_mana=['G'],
-    mana_cost='{G}',
+    produced_mana=["G"],
+    mana_cost="{G}",
 )
 CHROMATIC_LANTERN = card(
-    'Chromatic Lantern',
-    type_line='Artifact',
-    oracle_text='{T}: Add one mana of any color.',
+    "Chromatic Lantern",
+    type_line="Artifact",
+    oracle_text="{T}: Add one mana of any color.",
     cmc=3,
-    produced_mana=['W', 'U', 'B', 'R', 'G'],
-    mana_cost='{3}',
+    produced_mana=["W", "U", "B", "R", "G"],
+    mana_cost="{3}",
 )
 BLASPHEMOUS_ACT = card(
-    'Blasphemous Act',
-    type_line='Sorcery',
-    oracle_text='This spell costs {1} less to cast for each creature on the battlefield.',
+    "Blasphemous Act",
+    type_line="Sorcery",
+    oracle_text="This spell costs {1} less to cast for each creature on the battlefield.",
     cmc=9,
-    mana_cost='{8}{R}',
+    mana_cost="{8}{R}",
 )
 SWORDS = card(
-    'Swords to Plowshares',
-    type_line='Instant',
-    oracle_text='Exile target creature.',
+    "Swords to Plowshares",
+    type_line="Instant",
+    oracle_text="Exile target creature.",
     cmc=1,
-    mana_cost='{W}',
+    mana_cost="{W}",
 )
 AMBUSH_VIPER = card(
-    'Ambush Viper',
-    type_line='Creature — Snake',
-    oracle_text='',
+    "Ambush Viper",
+    type_line="Creature — Snake",
+    oracle_text="",
     cmc=3,
-    keywords=['Flash', 'Deathtouch'],
-    mana_cost='{1}{G}{G}',
+    keywords=["Flash", "Deathtouch"],
+    mana_cost="{1}{G}{G}",
 )
 WRATH = card(
-    'Wrath of God',
-    type_line='Sorcery',
-    oracle_text='Destroy all creatures.',
+    "Wrath of God",
+    type_line="Sorcery",
+    oracle_text="Destroy all creatures.",
     cmc=4,
-    mana_cost='{2}{W}{W}',
+    mana_cost="{2}{W}{W}",
 )
 SYNERGY_BLANK = card(
-    'Metallic Mimic',
-    type_line='Artifact Creature — Shapeshifter',
-    oracle_text='As Metallic Mimic enters the battlefield, choose a creature type.',
+    "Metallic Mimic",
+    type_line="Artifact Creature — Shapeshifter",
+    oracle_text="As Metallic Mimic enters the battlefield, choose a creature type.",
     cmc=2,
-    mana_cost='{2}',
+    mana_cost="{2}",
 )
-FOREST = card('Forest', type_line='Basic Land — Forest', produced_mana=['G'])
+FOREST = card("Forest", type_line="Basic Land — Forest", produced_mana=["G"])
 
 
 # --------------------------------------------------------------------------- #
@@ -145,9 +147,9 @@ FOREST = card('Forest', type_line='Basic Land — Forest', produced_mana=['G'])
 
 def test_strip_printing_annotation():
     """A trailing printing annotation is stripped; a plain name is untouched."""
-    assert _strip_printing_annotation('Parallel Lives (Borderless)') == 'Parallel Lives'
-    assert _strip_printing_annotation('Sol Ring (Retro)') == 'Sol Ring'
-    assert _strip_printing_annotation('Cultivate') == 'Cultivate'
+    assert _strip_printing_annotation("Parallel Lives (Borderless)") == "Parallel Lives"
+    assert _strip_printing_annotation("Sol Ring (Retro)") == "Sol Ring"
+    assert _strip_printing_annotation("Cultivate") == "Cultivate"
 
 
 def test_resolve_card_falls_back_to_stripped_printing_annotation():
@@ -161,29 +163,29 @@ def test_resolve_card_falls_back_to_stripped_printing_annotation():
 
         def get_card(self, name: str):
             self.calls.append(name)
-            return {'name': 'Parallel Lives'} if name == 'Parallel Lives' else None
+            return {"name": "Parallel Lives"} if name == "Parallel Lives" else None
 
     cache = FakeCache()
-    card = _resolve_card(cache, 'Parallel Lives (Borderless)')
-    assert card == {'name': 'Parallel Lives'}
+    card = _resolve_card(cache, "Parallel Lives (Borderless)")
+    assert card == {"name": "Parallel Lives"}
     # Exact tried first, then the stripped fallback.
-    assert cache.calls == ['Parallel Lives (Borderless)', 'Parallel Lives']
+    assert cache.calls == ["Parallel Lives (Borderless)", "Parallel Lives"]
 
     # A genuinely unresolvable name still returns None (kept in `missing`).
     cache2 = FakeCache()
-    assert _resolve_card(cache2, 'Nonexistent (Borderless)') is None
+    assert _resolve_card(cache2, "Nonexistent (Borderless)") is None
 
 
 def test_is_land():
-    assert is_land('Basic Land — Forest') is True
-    assert is_land('Sorcery') is False
-    assert is_land('Artifact') is False
+    assert is_land("Basic Land — Forest") is True
+    assert is_land("Sorcery") is False
+    assert is_land("Artifact") is False
 
 
 def test_is_land_uses_front_face_of_mdfc():
-    assert is_land('Instant // Land') is False
-    assert is_land('Creature — Werewolf // Creature — Werewolf') is False
-    assert is_land('Land // Land') is True
+    assert is_land("Instant // Land") is False
+    assert is_land("Creature — Werewolf // Creature — Werewolf") is False
+    assert is_land("Land // Land") is True
 
 
 # --------------------------------------------------------------------------- #
@@ -193,96 +195,138 @@ def test_is_land_uses_front_face_of_mdfc():
 
 def test_cmc_histogram_buckets():
     cards = [
-        card('Zero', cmc=0),
-        card('One', cmc=1),
-        card('Two', cmc=2),
-        card('Six', cmc=6),
-        card('Eight', cmc=8),
+        card("Zero", cmc=0),
+        card("One", cmc=1),
+        card("Two", cmc=2),
+        card("Six", cmc=6),
+        card("Eight", cmc=8),
     ]
     hist = cmc_histogram(cards)
-    assert hist['0'] == 1
-    assert hist['1'] == 1
-    assert hist['2'] == 1
-    assert hist['6'] == 1
-    assert hist['7+'] == 1  # the 8-drop collapses into 7+
+    assert hist["0"] == 1
+    assert hist["1"] == 1
+    assert hist["2"] == 1
+    assert hist["6"] == 1
+    assert hist["7+"] == 1  # the 8-drop collapses into 7+
 
 
 def test_cmc_histogram_bucket_keys():
     hist = cmc_histogram([])
-    assert set(hist) == {'0', '1', '2', '3', '4', '5', '6', '7+'}
+    assert set(hist) == {"0", "1", "2", "3", "4", "5", "6", "7+"}
     assert all(v == 0 for v in hist.values())
 
 
 def test_avg_cmc_nonland_only():
     cards = [
-        card('A', type_line='Artifact', cmc=2),
-        card('B', type_line='Sorcery', cmc=4),
+        card("A", type_line="Artifact", cmc=2),
+        card("B", type_line="Sorcery", cmc=4),
         FOREST,  # land excluded
     ]
     assert _avg_cmc(cards) == pytest.approx(3.0)
 
 
 def test_top_end_count():
-    cards = [card('Big', type_line='Creature', cmc=7), card('Small', cmc=2)]
+    cards = [card("Big", type_line="Creature", cmc=7), card("Small", cmc=2)]
     assert _top_end_count(cards) == 1
 
 
 def test_pip_counts_keys_and_symbols():
     pc = _pip_counts([SOL_RING, LLANOWAR_ELVES, CHROMATIC_LANTERN])
-    assert set(pc) == {'W', 'U', 'B', 'R', 'G', 'C'}
+    assert set(pc) == {"W", "U", "B", "R", "G", "C"}
     # Llanowar Elves has a single {G} pip.
-    assert pc['G'] >= 1
+    assert pc["G"] >= 1
+
+
+def test_produced_colors_prefers_explicit_produced_mana():
+    assert _produced_colors({"type_line": "Land", "produced_mana": ["U", "W"]}) == {
+        "U",
+        "W",
+    }
+
+
+def test_produced_colors_infers_basic_land_color_when_empty():
+    # Basics frequently arrive with an empty produced_mana in the store; infer from
+    # the subtype so a basic-heavy 2-color base is not read as ~2 sources per color.
+    assert _produced_colors(
+        {"type_line": "Basic Land — Plains", "produced_mana": []}
+    ) == {"W"}
+    assert _produced_colors(
+        {"type_line": "Basic Snow Land — Island", "produced_mana": None}
+    ) == {"U"}
+    # A NON-basic land with a genuinely empty produced_mana still contributes nothing.
+    assert _produced_colors({"type_line": "Land", "produced_mana": []}) == set()
+
+
+def test_mana_facts_counts_basics_as_color_producers():
+    # 14x Plains with empty produced_mana must read as 14 W producers (by copy), so a
+    # healthy mono-heavy base does not trip the <10-producers pip penalty.
+    cards = [
+        {
+            "name": "Plains",
+            "type_line": "Basic Land — Plains",
+            "produced_mana": [],
+            "quantity": 14,
+        },
+        {
+            "name": "Serra Angel",
+            "type_line": "Creature — Angel",
+            "mana_cost": "{3}{W}{W}",
+            "quantity": 1,
+        },
+    ]
+    facts = _crispi_mana_facts(cards, None)
+    w = next((cnt for color, _share, cnt in facts["pip_pressure"] if color == "W"), 0)
+    assert w == 14
 
 
 def test_ramp_from_produced_mana():
-    assert ramp_and_fixing([SOL_RING])['ramp_sources'] == 1
+    assert ramp_and_fixing([SOL_RING])["ramp_sources"] == 1
 
 
 def test_creature_dork_is_ramp():
-    assert ramp_and_fixing([LLANOWAR_ELVES])['ramp_sources'] == 1
+    assert ramp_and_fixing([LLANOWAR_ELVES])["ramp_sources"] == 1
 
 
 def test_fixing_from_multi_color_rock():
     r = ramp_and_fixing([CHROMATIC_LANTERN])
-    assert r['ramp_sources'] == 1
-    assert r['fixing_sources'] == 1
+    assert r["ramp_sources"] == 1
+    assert r["fixing_sources"] == 1
 
 
 def test_single_color_rock_is_ramp_not_fixing():
     r = ramp_and_fixing([SOL_RING])
-    assert r['ramp_sources'] == 1
-    assert r['fixing_sources'] == 0
+    assert r["ramp_sources"] == 1
+    assert r["fixing_sources"] == 0
 
 
 def test_cost_reduction_is_not_ramp():
     # No produced_mana -> not a ramp source (structured signal only).
     r = ramp_and_fixing([BLASPHEMOUS_ACT])
-    assert r['ramp_sources'] == 0
-    assert r['fixing_sources'] == 0
+    assert r["ramp_sources"] == 0
+    assert r["fixing_sources"] == 0
 
 
 def test_land_does_not_count_as_ramp():
     r = ramp_and_fixing([FOREST])
-    assert r['ramp_sources'] == 0
-    assert r['fixing_sources'] == 0
+    assert r["ramp_sources"] == 0
+    assert r["fixing_sources"] == 0
 
 
 def test_keyword_census_counts():
     cards = [
-        card('A', type_line='Creature', keywords=['Flying', 'Vigilance']),
-        card('B', type_line='Creature', keywords=['Flying']),
-        card('C', type_line='Creature', keywords=['Deathtouch']),
+        card("A", type_line="Creature", keywords=["Flying", "Vigilance"]),
+        card("B", type_line="Creature", keywords=["Flying"]),
+        card("C", type_line="Creature", keywords=["Deathtouch"]),
     ]
     census = keyword_census(cards)
-    assert census['Flying'] == 2
-    assert census['Vigilance'] == 1
-    assert census['Deathtouch'] == 1
+    assert census["Flying"] == 2
+    assert census["Vigilance"] == 1
+    assert census["Deathtouch"] == 1
 
 
 def test_keyword_census_omits_zero():
-    census = keyword_census([card('A', keywords=['Flying'])])
-    assert 'Trample' not in census
-    assert census == {'Flying': 1}
+    census = keyword_census([card("A", keywords=["Flying"])])
+    assert "Trample" not in census
+    assert census == {"Flying": 1}
 
 
 # --------------------------------------------------------------------------- #
@@ -299,23 +343,23 @@ def _validate_factsheet(fs: dict) -> None:
 
 def test_fallback_emits_structured_facts_and_empty_buckets():
     cards = [SOL_RING, LLANOWAR_ELVES, CHROMATIC_LANTERN, AMBUSH_VIPER, FOREST]
-    fs = _fallback_factsheet(cards, deck='Fallback Deck', missing=[])
+    fs = _fallback_factsheet(cards, deck="Fallback Deck", missing=[])
     # Structured facts survive the fallback.
-    assert fs['shape']['nonland_count'] == 4
-    assert fs['shape']['land_count'] == 1
-    assert fs['mana']['ramp_sources'] == 3  # Sol Ring, Llanowar, Chromatic Lantern
-    assert fs['mana']['fixing_sources'] == 1  # Chromatic Lantern
-    assert fs['interaction']['instant_speed'] == 1  # Ambush Viper (Flash)
+    assert fs["shape"]["nonland_count"] == 4
+    assert fs["shape"]["land_count"] == 1
+    assert fs["mana"]["ramp_sources"] == 3  # Sol Ring, Llanowar, Chromatic Lantern
+    assert fs["mana"]["fixing_sources"] == 1  # Chromatic Lantern
+    assert fs["interaction"]["instant_speed"] == 1  # Ambush Viper (Flash)
     # otag layer is degraded: empty buckets + a clear signal.
-    assert fs['otag_buckets'] == {}
-    assert any('otag layer unavailable' in s.lower() for s in fs['susceptibility'])
+    assert fs["otag_buckets"] == {}
+    assert any("otag layer unavailable" in s.lower() for s in fs["susceptibility"])
     _validate_factsheet(fs)
 
 
 def test_fallback_validates_contract_with_empty_deck():
-    fs = _fallback_factsheet([], deck=None, missing=['Bogus Card'])
-    assert fs['otag_buckets'] == {}
-    assert fs['missing'] == ['Bogus Card']
+    fs = _fallback_factsheet([], deck=None, missing=["Bogus Card"])
+    assert fs["otag_buckets"] == {}
+    assert fs["missing"] == ["Bogus Card"]
     _validate_factsheet(fs)
 
 
@@ -326,12 +370,12 @@ def test_build_factsheet_falls_back_when_card_otag_none(monkeypatch):
 
     monkeypatch.setattr(
         deck_factsheet,
-        '_pipeline_factsheet',
+        "_pipeline_factsheet",
         lambda *a, **k: None,  # signal "pipeline unavailable"
     )
-    fs = build_factsheet([SOL_RING, WRATH, SWORDS], deck='Deck', card_otag=None)
-    assert fs['otag_buckets'] == {}
-    assert any('otag layer unavailable' in s.lower() for s in fs['susceptibility'])
+    fs = build_factsheet([SOL_RING, WRATH, SWORDS], deck="Deck", card_otag=None)
+    assert fs["otag_buckets"] == {}
+    assert any("otag layer unavailable" in s.lower() for s in fs["susceptibility"])
     _validate_factsheet(fs)
 
 
@@ -344,7 +388,7 @@ def test_load_card_otag_is_populated():
     # The otag layer must load and roll up to a nonempty map (via the puller
     # path, which itself fails open to the bundled snapshot when offline).
     card_otag = _load_card_otag()
-    assert card_otag is not None, 'card_otag must load (puller or snapshot)'
+    assert card_otag is not None, "card_otag must load (puller or snapshot)"
     assert len(card_otag) > 1000
     # Values are slug closures (sets of strings).
     sample = next(iter(card_otag.values()))
@@ -365,16 +409,16 @@ def test_load_card_otag_is_populated():
 # (oid="oid-a") carries the leaf, so both slugs land in its closure.
 _FAKE_TAGS = [
     {
-        'id': 'tid-removal',
-        'slug': 'removal',
-        'parent_ids': [],
-        'taggings': [],
+        "id": "tid-removal",
+        "slug": "removal",
+        "parent_ids": [],
+        "taggings": [],
     },
     {
-        'id': 'tid-sweeper',
-        'slug': 'sweeper',
-        'parent_ids': ['tid-removal'],
-        'taggings': [{'oracle_id': 'oid-a'}],
+        "id": "tid-sweeper",
+        "slug": "sweeper",
+        "parent_ids": ["tid-removal"],
+        "taggings": [{"oracle_id": "oid-a"}],
     },
 ]
 
@@ -387,31 +431,33 @@ def test_load_card_otag_routes_through_puller(monkeypatch):
     from pipeline.sources import oracle_tags
     from pipeline.transforms import otag_rollup
 
-    calls: dict[str, int] = {'sync': 0, 'read_raw': 0, 'snapshot': 0}
+    calls: dict[str, int] = {"sync": 0, "read_raw": 0, "snapshot": 0}
 
     def fake_sync(*a, **k):
-        calls['sync'] += 1
+        calls["sync"] += 1
         return None  # loaded path (return value unused by the script)
 
     def fake_read_raw():
-        calls['read_raw'] += 1
+        calls["read_raw"] += 1
         return _FAKE_TAGS
 
     def fake_snapshot():
-        calls['snapshot'] += 1
+        calls["snapshot"] += 1
         return _FAKE_TAGS
 
-    monkeypatch.setattr(oracle_tags, 'sync', fake_sync)
-    monkeypatch.setattr(otag_rollup, '_load_raw_tags', fake_read_raw)
-    monkeypatch.setattr(oracle_tags, '_load_snapshot', fake_snapshot)
+    monkeypatch.setattr(oracle_tags, "sync", fake_sync)
+    monkeypatch.setattr(otag_rollup, "_load_raw_tags", fake_read_raw)
+    monkeypatch.setattr(oracle_tags, "_load_snapshot", fake_snapshot)
 
     card_otag = deck_factsheet._load_card_otag()
 
-    assert calls['sync'] == 1, "must drive the puller's fetch/cursor/load path"
-    assert calls['read_raw'] == 1, 'must read the LOADED raw tags back'
-    assert calls['snapshot'] == 0, 'must NOT bypass the puller with a direct snapshot load'
+    assert calls["sync"] == 1, "must drive the puller's fetch/cursor/load path"
+    assert calls["read_raw"] == 1, "must read the LOADED raw tags back"
+    assert calls["snapshot"] == 0, (
+        "must NOT bypass the puller with a direct snapshot load"
+    )
     # Rollup: the card carries the leaf, so its closure has leaf + ancestor.
-    assert card_otag == {'oid-a': {'sweeper', 'removal'}}
+    assert card_otag == {"oid-a": {"sweeper", "removal"}}
 
 
 def test_load_card_otag_falls_back_to_snapshot_when_puller_raises(monkeypatch):
@@ -420,22 +466,22 @@ def test_load_card_otag_falls_back_to_snapshot_when_puller_raises(monkeypatch):
     import deck_factsheet
     from pipeline.sources import oracle_tags
 
-    calls: dict[str, int] = {'snapshot': 0}
+    calls: dict[str, int] = {"snapshot": 0}
 
     def boom(*a, **k):
-        raise RuntimeError('store unusable')
+        raise RuntimeError("store unusable")
 
     def fake_snapshot():
-        calls['snapshot'] += 1
+        calls["snapshot"] += 1
         return _FAKE_TAGS
 
-    monkeypatch.setattr(oracle_tags, 'sync', boom)
-    monkeypatch.setattr(oracle_tags, '_load_snapshot', fake_snapshot)
+    monkeypatch.setattr(oracle_tags, "sync", boom)
+    monkeypatch.setattr(oracle_tags, "_load_snapshot", fake_snapshot)
 
     card_otag = deck_factsheet._load_card_otag()
 
-    assert calls['snapshot'] == 1, 'must fall back to the bundled snapshot'
-    assert card_otag == {'oid-a': {'sweeper', 'removal'}}
+    assert calls["snapshot"] == 1, "must fall back to the bundled snapshot"
+    assert card_otag == {"oid-a": {"sweeper", "removal"}}
 
 
 def test_load_card_otag_returns_none_when_all_sources_fail(monkeypatch):
@@ -444,10 +490,10 @@ def test_load_card_otag_returns_none_when_all_sources_fail(monkeypatch):
     from pipeline.sources import oracle_tags
 
     def boom(*a, **k):
-        raise RuntimeError('dead')
+        raise RuntimeError("dead")
 
-    monkeypatch.setattr(oracle_tags, 'sync', boom)
-    monkeypatch.setattr(oracle_tags, '_load_snapshot', boom)
+    monkeypatch.setattr(oracle_tags, "sync", boom)
+    monkeypatch.setattr(oracle_tags, "_load_snapshot", boom)
 
     assert deck_factsheet._load_card_otag() is None
 
@@ -455,25 +501,25 @@ def test_load_card_otag_returns_none_when_all_sources_fail(monkeypatch):
 def test_build_factsheet_populates_buckets_with_mocked_otag():
     # A card whose oracle_id maps to ramp+tutor slugs must count in both buckets.
     ramped = card(
-        'Cultivate',
-        type_line='Sorcery',
-        oracle_text='Search your library for up to two basic land cards.',
+        "Cultivate",
+        type_line="Sorcery",
+        oracle_text="Search your library for up to two basic land cards.",
         cmc=3,
-        mana_cost='{2}{G}',
-        oracle_id='cultivate-oid',
+        mana_cost="{2}{G}",
+        oracle_id="cultivate-oid",
     )
-    card_otag = {'cultivate-oid': {'ramp', 'tutor'}}
-    fs = build_factsheet([ramped], deck='Buckets', card_otag=card_otag)
-    assert fs['otag_buckets'].get('ramp') == 1
-    assert fs['otag_buckets'].get('tutor') == 1
+    card_otag = {"cultivate-oid": {"ramp", "tutor"}}
+    fs = build_factsheet([ramped], deck="Buckets", card_otag=card_otag)
+    assert fs["otag_buckets"].get("ramp") == 1
+    assert fs["otag_buckets"].get("tutor") == 1
     _validate_factsheet(fs)
 
 
 def test_build_factsheet_untagged_card_stays_uncategorized():
-    blank = card('No Tags', type_line='Artifact', cmc=2, oracle_id='none-oid')
-    fs = build_factsheet([blank], deck='Uncat', card_otag={})
-    assert fs['otag_buckets'] == {}
-    assert 'No Tags' in fs['coverage']['uncategorized_cards']
+    blank = card("No Tags", type_line="Artifact", cmc=2, oracle_id="none-oid")
+    fs = build_factsheet([blank], deck="Uncat", card_otag={})
+    assert fs["otag_buckets"] == {}
+    assert "No Tags" in fs["coverage"]["uncategorized_cards"]
     _validate_factsheet(fs)
 
 
@@ -484,43 +530,45 @@ def test_build_factsheet_untagged_card_stays_uncategorized():
 
 def test_build_factsheet_without_focus_leaves_focus_fields_empty():
     ramped = card(
-        'Cultivate',
-        type_line='Sorcery',
-        oracle_text='Search your library for up to two basic land cards.',
+        "Cultivate",
+        type_line="Sorcery",
+        oracle_text="Search your library for up to two basic land cards.",
         cmc=3,
-        mana_cost='{2}{G}',
-        oracle_id='cultivate-oid',
+        mana_cost="{2}{G}",
+        oracle_id="cultivate-oid",
     )
-    card_otag = {'cultivate-oid': {'ramp', 'tutor'}}
-    fs = build_factsheet([ramped], deck='NoFocus', card_otag=card_otag)
-    assert fs['focus'] == []
-    assert fs['focus_relative'] == {
-        'coverage_of_focus': {},
-        'thin_focus': [],
-        'off_focus': [],
+    card_otag = {"cultivate-oid": {"ramp", "tutor"}}
+    fs = build_factsheet([ramped], deck="NoFocus", card_otag=card_otag)
+    assert fs["focus"] == []
+    assert fs["focus_relative"] == {
+        "coverage_of_focus": {},
+        "thin_focus": [],
+        "off_focus": [],
     }
     _validate_factsheet(fs)
 
 
 def test_build_factsheet_reads_focus_and_computes_signals():
     ramped = card(
-        'Cultivate',
-        type_line='Sorcery',
-        oracle_text='Search your library for up to two basic land cards.',
+        "Cultivate",
+        type_line="Sorcery",
+        oracle_text="Search your library for up to two basic land cards.",
         cmc=3,
-        mana_cost='{2}{G}',
-        oracle_id='cultivate-oid',
+        mana_cost="{2}{G}",
+        oracle_id="cultivate-oid",
     )
-    card_otag = {'cultivate-oid': {'ramp', 'tutor'}}
+    card_otag = {"cultivate-oid": {"ramp", "tutor"}}
     # Focus declares ramp (well-supported) + tokens (declared, no support -> thin).
-    fs = build_factsheet([ramped], deck='Focus', card_otag=card_otag, focus=['ramp', 'tokens'])
-    assert fs['focus'] == ['ramp', 'tokens']
-    fr = fs['focus_relative']
-    assert fr['coverage_of_focus']['ramp'] == 1
-    assert fr['coverage_of_focus']['tokens'] == 0
-    assert 'tokens' in fr['thin_focus']
+    fs = build_factsheet(
+        [ramped], deck="Focus", card_otag=card_otag, focus=["ramp", "tokens"]
+    )
+    assert fs["focus"] == ["ramp", "tokens"]
+    fr = fs["focus_relative"]
+    assert fr["coverage_of_focus"]["ramp"] == 1
+    assert fr["coverage_of_focus"]["tokens"] == 0
+    assert "tokens" in fr["thin_focus"]
     # tutor is a prominent non-focus bucket -> off_focus.
-    assert 'tutor' in fr['off_focus']
+    assert "tutor" in fr["off_focus"]
     _validate_factsheet(fs)
 
 
@@ -528,12 +576,12 @@ def test_fallback_factsheet_focus_fields_present_when_pipeline_absent():
     # Even in the structured-only fallback, the focus fields exist (empty) so the
     # contract holds; the fallback does not compute focus-relative signals.
     cards = [SOL_RING]
-    fs = _fallback_factsheet(cards, deck='Fallback', missing=[])
-    assert fs['focus'] == []
-    assert fs['focus_relative'] == {
-        'coverage_of_focus': {},
-        'thin_focus': [],
-        'off_focus': [],
+    fs = _fallback_factsheet(cards, deck="Fallback", missing=[])
+    assert fs["focus"] == []
+    assert fs["focus_relative"] == {
+        "coverage_of_focus": {},
+        "thin_focus": [],
+        "off_focus": [],
     }
     _validate_factsheet(fs)
 
@@ -545,48 +593,48 @@ def test_fallback_factsheet_focus_fields_present_when_pipeline_absent():
 
 def test_build_factsheet_schema_shape():
     cards = [SOL_RING, WRATH, SWORDS, SYNERGY_BLANK, FOREST]
-    fs = build_factsheet(cards, deck='Test Deck', card_otag={})
+    fs = build_factsheet(cards, deck="Test Deck", card_otag={})
     assert set(fs) >= {
-        'deck',
-        'shape',
-        'mana',
-        'keywords',
-        'interaction',
-        'card_advantage',
-        'structural',
-        'coverage',
-        'cards',
-        'missing',
-        'otag_buckets',
-        'susceptibility',
+        "deck",
+        "shape",
+        "mana",
+        "keywords",
+        "interaction",
+        "card_advantage",
+        "structural",
+        "coverage",
+        "cards",
+        "missing",
+        "otag_buckets",
+        "susceptibility",
     }
-    assert fs['deck'] == 'Test Deck'
-    assert fs['shape']['nonland_count'] == 4
-    assert fs['shape']['land_count'] == 1
+    assert fs["deck"] == "Test Deck"
+    assert fs["shape"]["nonland_count"] == 4
+    assert fs["shape"]["land_count"] == 1
     _validate_factsheet(fs)
 
 
 def test_build_factsheet_per_card_records():
     fs = build_factsheet([SOL_RING], deck=None, card_otag={})
-    rec = fs['cards'][0]
+    rec = fs["cards"][0]
     assert set(rec) >= {
-        'name',
-        'cmc',
-        'type_line',
-        'keywords',
-        'produced_mana',
-        'is_land',
-        'oracle_text',
+        "name",
+        "cmc",
+        "type_line",
+        "keywords",
+        "produced_mana",
+        "is_land",
+        "oracle_text",
     }
-    assert rec['name'] == 'Sol Ring'
-    assert rec['is_land'] is False
+    assert rec["name"] == "Sol Ring"
+    assert rec["is_land"] is False
 
 
 def test_build_factsheet_has_no_role_labels():
     cards = [SOL_RING, WRATH, SWORDS]
     fs = build_factsheet(cards, deck=None, card_otag={})
     blob = str(fs).lower()
-    for banned in ['development', 'parity', 'winning', 'losing', 'quadrant', 'wincon']:
+    for banned in ["development", "parity", "winning", "losing", "quadrant", "wincon"]:
         assert banned not in blob, f"fact sheet must not contain role label '{banned}'"
 
 
@@ -599,24 +647,24 @@ def test_parse_decklist_handles_counts_comments_and_annotations():
     from deck_factsheet import _parse_decklist
 
     raw = (
-        '# Put That Thang Down\n'
-        '# Commander: Nick Fury\n'
-        '\n'
-        '1 Nick Fury, Agent of S.H.I.E.L.D.  # COMMANDER\n'
-        '# --- Nonbasic ---\n'
-        '1 Swords to Plowshares\n'
-        '2x Lightning Bolt\n'
-        'Sol Ring (C21) 263\n'
-        'Commander:\n'
+        "# Put That Thang Down\n"
+        "# Commander: Nick Fury\n"
+        "\n"
+        "1 Nick Fury, Agent of S.H.I.E.L.D.  # COMMANDER\n"
+        "# --- Nonbasic ---\n"
+        "1 Swords to Plowshares\n"
+        "2x Lightning Bolt\n"
+        "Sol Ring (C21) 263\n"
+        "Commander:\n"
     )
     parsed = _parse_decklist(raw)
-    assert (1, 'Nick Fury, Agent of S.H.I.E.L.D.') in parsed
-    assert (1, 'Swords to Plowshares') in parsed
-    assert (2, 'Lightning Bolt') in parsed
-    assert (1, 'Sol Ring') in parsed
+    assert (1, "Nick Fury, Agent of S.H.I.E.L.D.") in parsed
+    assert (1, "Swords to Plowshares") in parsed
+    assert (2, "Lightning Bolt") in parsed
+    assert (1, "Sol Ring") in parsed
     names = [n for _c, n in parsed]
-    assert 'Commander' not in names
-    assert all('#' not in n for n in names)
+    assert "Commander" not in names
+    assert all("#" not in n for n in names)
 
 
 # --------------------------------------------------------------------------- #
@@ -629,19 +677,26 @@ def test_parse_decklist_handles_counts_comments_and_annotations():
 # form. Every byte must stay identical — this is the hard gate.
 # --------------------------------------------------------------------------- #
 
-_GOLDEN = json.loads((Path(__file__).resolve().parent / 'fixtures' / 'golden' / 'factsheet_golden.json').read_text())
+_GOLDEN = json.loads(
+    (
+        Path(__file__).resolve().parent
+        / "fixtures"
+        / "golden"
+        / "factsheet_golden.json"
+    ).read_text()
+)
 
 
 def _golden_card(name: str, **kw) -> dict:
     d = {
-        'name': name,
-        'type_line': '',
-        'oracle_text': '',
-        'cmc': 0.0,
-        'keywords': [],
-        'produced_mana': None,
-        'mana_cost': '',
-        'oracle_id': None,
+        "name": name,
+        "type_line": "",
+        "oracle_text": "",
+        "cmc": 0.0,
+        "keywords": [],
+        "produced_mana": None,
+        "mana_cost": "",
+        "oracle_id": None,
     }
     d.update(kw)
     return d
@@ -650,78 +705,80 @@ def _golden_card(name: str, **kw) -> dict:
 def _golden_text_cards() -> list[dict]:
     return [
         _golden_card(
-            'Sol Ring',
-            type_line='Artifact',
-            oracle_text='{T}: Add {C}{C}.',
+            "Sol Ring",
+            type_line="Artifact",
+            oracle_text="{T}: Add {C}{C}.",
             cmc=1,
-            produced_mana=['C'],
-            mana_cost='{1}',
-            oracle_id='sol-oid',
+            produced_mana=["C"],
+            mana_cost="{1}",
+            oracle_id="sol-oid",
         ),
         _golden_card(
-            'Llanowar Elves',
-            type_line='Creature — Elf Druid',
-            oracle_text='{T}: Add {G}.',
+            "Llanowar Elves",
+            type_line="Creature — Elf Druid",
+            oracle_text="{T}: Add {G}.",
             cmc=1,
-            produced_mana=['G'],
-            mana_cost='{G}',
-            oracle_id='llan-oid',
+            produced_mana=["G"],
+            mana_cost="{G}",
+            oracle_id="llan-oid",
         ),
         _golden_card(
-            'Chromatic Lantern',
-            type_line='Artifact',
+            "Chromatic Lantern",
+            type_line="Artifact",
             cmc=3,
-            produced_mana=['W', 'U', 'B', 'R', 'G'],
-            mana_cost='{3}',
-            oracle_id='chrom-oid',
+            produced_mana=["W", "U", "B", "R", "G"],
+            mana_cost="{3}",
+            oracle_id="chrom-oid",
         ),
         _golden_card(
-            'Ambush Viper',
-            type_line='Creature — Snake',
+            "Ambush Viper",
+            type_line="Creature — Snake",
             cmc=3,
-            keywords=['Flash', 'Deathtouch'],
-            mana_cost='{1}{G}{G}',
-            oracle_id='viper-oid',
+            keywords=["Flash", "Deathtouch"],
+            mana_cost="{1}{G}{G}",
+            oracle_id="viper-oid",
         ),
         _golden_card(
-            'Wrath of God',
-            type_line='Sorcery',
-            oracle_text='Destroy all creatures.',
+            "Wrath of God",
+            type_line="Sorcery",
+            oracle_text="Destroy all creatures.",
             cmc=4,
-            mana_cost='{2}{W}{W}',
-            oracle_id='wrath-oid',
+            mana_cost="{2}{W}{W}",
+            oracle_id="wrath-oid",
         ),
         _golden_card(
-            'Forest',
-            type_line='Basic Land — Forest',
-            produced_mana=['G'],
-            oracle_id='forest-oid',
+            "Forest",
+            type_line="Basic Land — Forest",
+            produced_mana=["G"],
+            oracle_id="forest-oid",
         ),
     ]
 
 
 def test_fallback_factsheet_is_byte_identical_to_golden():
     """Text path, degraded (card_otag=None) — the structured-only fallback."""
-    fs = _fallback_factsheet(_golden_text_cards(), deck='Golden Deck', missing=['Bogus Card'])
-    assert fs == _GOLDEN['fallback']
+    fs = _fallback_factsheet(
+        _golden_text_cards(), deck="Golden Deck", missing=["Bogus Card"]
+    )
+    assert fs == _GOLDEN["fallback"]
 
 
 def test_pipeline_factsheet_is_byte_identical_to_golden():
     """Text path, pipeline-backed (real otag map + focus) — via build_factsheet."""
     otag = {
-        'sol-oid': {'ramp', 'mana-rock'},
-        'llan-oid': {'ramp'},
-        'chrom-oid': {'ramp'},
-        'wrath-oid': {'removal', 'sweeper'},
+        "sol-oid": {"ramp", "mana-rock"},
+        "llan-oid": {"ramp"},
+        "chrom-oid": {"ramp"},
+        "wrath-oid": {"removal", "sweeper"},
     }
     fs = build_factsheet(
         _golden_text_cards(),
-        deck='Golden Deck',
-        missing=['Bogus Card'],
+        deck="Golden Deck",
+        missing=["Bogus Card"],
         card_otag=otag,
-        focus=['ramp', 'tokens'],
+        focus=["ramp", "tokens"],
     )
-    assert fs == _GOLDEN['pipeline']
+    assert fs == _GOLDEN["pipeline"]
 
 
 def _golden_deck():
@@ -729,40 +786,40 @@ def _golden_deck():
 
     cards = [
         DeckCard(
-            name='Sol Ring',
-            oracle_id='sol-oid',
+            name="Sol Ring",
+            oracle_id="sol-oid",
             mana_value=1.0,
-            type_line='Artifact',
-            produced_mana=['C'],
-            mana_cost='{1}',
-            oracle_text='{T}: Add {C}{C}.',
+            type_line="Artifact",
+            produced_mana=["C"],
+            mana_cost="{1}",
+            oracle_text="{T}: Add {C}{C}.",
         ),
         DeckCard(
-            name='Llanowar Elves',
-            oracle_id='llan-oid',
+            name="Llanowar Elves",
+            oracle_id="llan-oid",
             mana_value=1.0,
-            type_line='Creature — Elf Druid',
-            produced_mana=['G'],
-            mana_cost='{G}',
-            oracle_text='{T}: Add {G}.',
+            type_line="Creature — Elf Druid",
+            produced_mana=["G"],
+            mana_cost="{G}",
+            oracle_text="{T}: Add {G}.",
         ),
         DeckCard(
-            name='Ambush Viper',
-            oracle_id='viper-oid',
+            name="Ambush Viper",
+            oracle_id="viper-oid",
             mana_value=3.0,
-            type_line='Creature — Snake',
-            keywords=['Flash', 'Deathtouch'],
-            mana_cost='{1}{G}{G}',
+            type_line="Creature — Snake",
+            keywords=["Flash", "Deathtouch"],
+            mana_cost="{1}{G}{G}",
         ),
         DeckCard(
-            name='Forest',
-            oracle_id='forest-oid',
+            name="Forest",
+            oracle_id="forest-oid",
             mana_value=0.0,
-            type_line='Basic Land — Forest',
-            produced_mana=['G'],
+            type_line="Basic Land — Forest",
+            produced_mana=["G"],
         ),
     ]
-    return Deck(name='Deck Path Golden', cards=cards)
+    return Deck(name="Deck Path Golden", cards=cards)
 
 
 def test_factsheet_from_deck_pipeline_is_byte_identical_to_golden(monkeypatch):
@@ -771,17 +828,85 @@ def test_factsheet_from_deck_pipeline_is_byte_identical_to_golden(monkeypatch):
 
     monkeypatch.setattr(
         deck_factsheet,
-        '_load_card_otag',
-        lambda: {'sol-oid': {'ramp'}, 'llan-oid': {'ramp'}},
+        "_load_card_otag",
+        lambda: {"sol-oid": {"ramp"}, "llan-oid": {"ramp"}},
     )
-    fs = deck_factsheet.factsheet_from_deck(_golden_deck(), focus=['ramp'])
-    assert fs == _GOLDEN['deck_pipeline']
+    fs = deck_factsheet.factsheet_from_deck(_golden_deck(), focus=["ramp"])
+    assert fs == _GOLDEN["deck_pipeline"]
 
 
 def test_factsheet_from_deck_fallback_is_byte_identical_to_golden(monkeypatch):
     """Hydrated-Deck path, degraded (otag load returns None) — the fallback."""
     import deck_factsheet
 
-    monkeypatch.setattr(deck_factsheet, '_load_card_otag', lambda: None)
+    monkeypatch.setattr(deck_factsheet, "_load_card_otag", lambda: None)
     fs = deck_factsheet.factsheet_from_deck(_golden_deck())
-    assert fs == _GOLDEN['deck_fallback']
+    assert fs == _GOLDEN["deck_fallback"]
+
+
+# --------------------------------------------------------------------------- #
+# crispi_otag_probe — three-way discrimination + injectable floor knob.
+# --------------------------------------------------------------------------- #
+
+
+def _probe_deck(names: list[str]):
+    """A duck-typed contracts.Deck of hydrated nonland DeckCards (for the probe)."""
+    import uuid
+    from types import SimpleNamespace
+
+    def mk(n: str):
+        return SimpleNamespace(
+            name=n,
+            oracle_id=str(uuid.uuid5(uuid.NAMESPACE_OID, n)),
+            oracle_text="draw a card",
+            type_line="Creature",
+            mana_value=2.0,
+            keywords=[],
+            produced_mana=None,
+            mana_cost="{1}{G}",
+        )
+
+    return SimpleNamespace(cards=[mk(n) for n in names])
+
+
+def test_crispi_otag_probe_custom_floor_knob(monkeypatch):
+    """A globally-healthy closure honours a CUSTOM floor: coverage below the custom
+    floor scores DEGRADED (not refused); the same coverage clears the default floor."""
+    import uuid
+
+    import deck_factsheet
+
+    names = [f"C{i}" for i in range(10)]
+    deck = _probe_deck(names)
+    # Closure covers 6/10 (60%) and is globally "healthy" under a small custom size floor.
+    closure = {str(uuid.uuid5(uuid.NAMESPACE_OID, n)): {"draw"} for n in names[:6]}
+    monkeypatch.setattr(deck_factsheet, "_load_card_otag", lambda: closure)
+
+    # Default floor (0.5): 60% >= 50% -> scores, NOT degraded.
+    p_default = deck_factsheet.crispi_otag_probe(deck, min_global_size=5)
+    assert p_default.ok and not p_default.degraded
+    assert p_default.coverage == 0.6
+
+    # Custom stricter floor (0.8): 60% < 80% but the closure is hydrated -> the
+    # fresh-set path: SCORE degraded-loud (ok True, degraded True).
+    p_strict = deck_factsheet.crispi_otag_probe(deck, floor=0.8, min_global_size=5)
+    assert p_strict.ok and p_strict.degraded
+    assert p_strict.coverage == 0.6
+
+
+def test_crispi_otag_probe_snapshot_still_refuses(monkeypatch):
+    """A globally-SMALL closure (snapshot / near-empty) refuses regardless of the
+    deck's coverage — the remedy `collection hydrate-lake` can actually help."""
+    import uuid
+
+    import deck_factsheet
+
+    names = [f"C{i}" for i in range(10)]
+    deck = _probe_deck(names)
+    # Tiny closure (2 entries) — below the hydrated-size floor -> snapshot-degraded refuse.
+    closure = {str(uuid.uuid5(uuid.NAMESPACE_OID, n)): {"draw"} for n in names[:2]}
+    monkeypatch.setattr(deck_factsheet, "_load_card_otag", lambda: closure)
+
+    p = deck_factsheet.crispi_otag_probe(deck)
+    assert not p.ok and not p.degraded
+    assert "snapshot-degraded" in p.reason

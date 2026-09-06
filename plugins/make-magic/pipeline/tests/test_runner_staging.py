@@ -255,20 +255,25 @@ def test_reap_stale_staging_sweeps_only_old_run_dirs(monkeypatch: pytest.MonkeyP
 
     old_run = root / 'run-oldcrash'
     old_xmage = root / 'xmage-oldcrash'
+    # Fable M7: the corpus run stages corpus-decks-*/corpus-logs-* dirs, which the sweeper must
+    # ALSO cover (the old run-/xmage- only filter made it a no-op on the live corpus path).
+    old_corpus_decks = root / 'corpus-decks-oldcrash'
+    old_corpus_logs = root / 'corpus-logs-oldcrash'
     fresh_run = root / 'run-active'
     unrelated = root / 'keepme'
-    for d in (old_run, old_xmage, fresh_run, unrelated):
+    orphans = (old_run, old_xmage, old_corpus_decks, old_corpus_logs)
+    for d in (*orphans, fresh_run, unrelated):
         d.mkdir()
         (d / 'marker').write_text('x')
-    # Age the two orphans well past the cutoff; leave fresh + unrelated new.
+    # Age the orphans well past the cutoff; leave fresh + unrelated new.
     old_time = time.time() - 7200  # 2h ago
-    for d in (old_run, old_xmage):
+    for d in orphans:
         os.utime(d, (old_time, old_time))
 
     reaped = reap_stale_staging(max_age_s=3600)
 
-    assert reaped == 2
-    assert not old_run.exists() and not old_xmage.exists()  # orphans swept.
+    assert reaped == 4
+    assert all(not d.exists() for d in orphans)  # run-/xmage-/corpus- orphans all swept.
     assert fresh_run.exists()  # a concurrent run's fresh dir is untouched.
     assert unrelated.exists()  # non-staging entries are never touched.
 

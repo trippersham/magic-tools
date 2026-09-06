@@ -18,5 +18,11 @@ dist/
 # Runtime caches (regenerated on demand; never source)
 spoiler_cache.db
 **/spoiler_cache.db
+# XMage H2 card database — a ~300MB runtime artifact built/fetched from the card data, never
+# source. Keep it out of git.
+db/cards.h2.*
+**/db/cards.h2.*
+**/*.h2.mv.db
+**/*.h2.trace.db
 **/*.pyc
 **/__pycache__/

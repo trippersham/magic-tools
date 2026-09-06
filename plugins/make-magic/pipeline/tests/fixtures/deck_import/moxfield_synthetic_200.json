@@ -1,0 +1,30 @@
+{
+  "name": "Krenko Goblin Tribal (synthetic)",
+  "format": "commander",
+  "commanders": {
+    "Krenko, Mob Boss": {
+      "quantity": 1,
+      "card": { "name": "Krenko, Mob Boss" }
+    }
+  },
+  "mainboard": {
+    "Sol Ring": {
+      "quantity": 1,
+      "card": { "name": "Sol Ring" }
+    },
+    "Goblin Chieftain": {
+      "quantity": 1,
+      "card": { "name": "Goblin Chieftain" }
+    },
+    "Mountain": {
+      "quantity": 30,
+      "card": { "name": "Mountain" }
+    }
+  },
+  "sideboard": {
+    "Blood Moon": {
+      "quantity": 1,
+      "card": { "name": "Blood Moon" }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+XMAGEBATCH opening_hand PlayerA (7): [Island;Island;Counterspell;Brainstorm;Island;Ponder;Island]
+XMAGEBATCH opening_hand PlayerB (7): [Forest;Forest;Tarmogoyf;Llanowar Elves;Forest;Forest;Forest]
+Turn: Turn 1 (Ai(1)-PlayerA)
+HANDLOG turn=1 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 2 (Ai(2)-PlayerB)
+Land: Ai(2)-PlayerB played a land
+Turn: Turn 8 (Ai(2)-PlayerB)
+HANDLOG turn=8 event=turnstart active=Ai(2)-PlayerB UR_hand=[Counterspell] UR_untapped_lands=4 UR_total_lands=4 opp_creatures=3 UR_life=5 opp_life=14
+Damage: Tarmogoyf deals 5 combat damage to Ai(1)-PlayerA.
+Life: Life: Ai(1)-PlayerA 5 > 0
+HANDLOG turn=8 event=gameend UR_hand=[Counterspell] UR_untapped_lands=4 UR_total_lands=4 opp_creatures=3 UR_life=0 opp_life=14
+XMAGEBATCH RESULT game=1/1 winner=PlayerB endTurn=8 ended=true lifeA=0 lifeB=14 ms=15000 :: [PlayerB]
+
+Game Result: Game 1 ended in 15000 ms. Ai(2)-PlayerB has won!

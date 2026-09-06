@@ -136,6 +136,24 @@ def test_oracle_tags_fail_open_to_snapshot(data_dir: Path, monkeypatch: pytest.M
     assert n == 4499
 
 
+def test_oracle_tags_fail_open_reuses_cache_not_snapshot(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A prior successful pull (the ~84-92% coverage cache) must NOT be clobbered by
+    # the ~20% bundled snapshot when a later fetch fails. Stale-but-full > fresh-but-thin.
+    monkeypatch.setattr(oracle_tags, '_fetch_meta', lambda c: ('http://x/uri', '2026-07-26T21:00:00+00:00'))
+    monkeypatch.setattr(oracle_tags, '_fetch_payload', lambda c, uri: _TAGS_PAYLOAD)
+    oracle_tags.sync(client=httpx.Client())  # populate raw with the 2-row "full" pull
+
+    def boom(client: httpx.Client) -> tuple[str, str]:
+        raise httpx.ConnectError('network down')
+
+    monkeypatch.setattr(oracle_tags, '_fetch_meta', boom)
+    path = oracle_tags.sync(client=httpx.Client())  # fetch fails -> reuse cache, no clobber
+    assert path.exists()
+    with store.connect() as conn:
+        n = store.read_parquet(conn, 'raw', 'oracle_tags').aggregate('count(*)').fetchone()[0]
+    assert n == 2  # the cached pull is preserved, NOT overwritten by the 4,499-row snapshot
+
+
 # --------------------------------------------------------------------------- #
 # spellbook: parse/load + fail-open
 # --------------------------------------------------------------------------- #
@@ -168,6 +186,24 @@ def test_spellbook_fail_open_to_snapshot(data_dir: Path, monkeypatch: pytest.Mon
     with store.connect() as conn:
         n = store.read_parquet(conn, 'raw', 'combos').aggregate('count(*)').fetchone()[0]
     assert n == 2000  # bundled snapshot size
+
+
+def test_spellbook_fail_open_reuses_cache_not_snapshot(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Mirror of the oracle_tags guard: a good cached pull is not clobbered by the
+    # 2,000-variant bundled snapshot on a transient fetch failure.
+    monkeypatch.setattr(spellbook, '_remote_cursor', lambda c: 'etag-1')
+    monkeypatch.setattr(spellbook, '_fetch_remote', lambda c, m: _COMBOS_PAYLOAD)
+    spellbook.sync(client=httpx.Client())  # populate raw with the 2-row deduped pull
+
+    def boom(client: httpx.Client) -> str | None:
+        raise httpx.ConnectError('down')
+
+    monkeypatch.setattr(spellbook, '_remote_cursor', boom)
+    path = spellbook.sync(client=httpx.Client())  # fetch fails -> reuse cache, no clobber
+    assert path.exists()
+    with store.connect() as conn:
+        n = store.read_parquet(conn, 'raw', 'combos').aggregate('count(*)').fetchone()[0]
+    assert n == 2  # cached pull preserved, NOT the 2,000-variant snapshot
 
 
 # --------------------------------------------------------------------------- #

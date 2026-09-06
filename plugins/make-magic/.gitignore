@@ -1,0 +1,12 @@
+# Build artifacts — never commit (git bloat). The shaded XMage dist jar + its H2
+# card DB are RELEASE artifacts fetched/built at runtime, not source.
+pipeline/pipeline/sim/java/xmage-dist/target/
+
+# Compiled Python (project is 3.12; stray *.pyc must never be tracked).
+*.pyc
+__pycache__/
+
+# NOTE: mcp/airtable-mcp-server/dist/server.js is intentionally NOT ignored here.
+# It is the committed, self-contained stdio bundle that .mcp.json executes directly
+# (node .../dist/server.js) — there is no install-time rebuild, so it is a shipped
+# runtime artifact, not an accidental build output. See that dir's own .gitignore.

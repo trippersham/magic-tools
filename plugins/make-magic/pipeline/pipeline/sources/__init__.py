@@ -15,6 +15,13 @@ dispatcher ``python -m pipeline.sources.run <source>``.
         scryfall_bulk -> Scryfall oracle_cards bulk (fetch-on-demand, not bundled)
         airtable      -> human-edited tables mirror (PULL-ONLY, GET requests only)
         spoilers      -> MythicSpoiler preview scrape (fail-open to last snapshot)
+
+The :mod:`pipeline.sources.deck_import` sub-package is a sibling of these lake
+pullers, at a different granularity: deck-level ingestion — an external deck
+reference (an Archidekt/EDHREC/Moxfield URL, a file, or pasted text) resolved to a
+typed :class:`~pipeline.contracts.Deck` via the ``DeckImporter`` registry. It
+caches a normalized ``RawDeck`` under ``raw/deck_import/`` rather than appending
+card rows into the lake, so it is distinct from the card-data pullers above.
 """
 
 from __future__ import annotations

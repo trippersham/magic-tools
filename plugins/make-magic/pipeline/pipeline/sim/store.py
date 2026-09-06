@@ -36,7 +36,9 @@ so tests point at a tmp db.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+import logging
+import re
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -49,8 +51,12 @@ if TYPE_CHECKING:
 
     import duckdb
 
+log = logging.getLogger('make_magic.sim.store')
+
 __all__ = (
     'CachedMatchup',
+    'GoldfishGameRow',
+    'GoldfishRecord',
     'MatchupMeta',
     'MatchupRow',
     'deck_hash',
@@ -58,7 +64,14 @@ __all__ = (
     'find_matchups',
     'get_cached',
     'get_game_logs',
+    'get_goldfish',
+    'get_goldfish_log',
+    'goldfish_features',
+    'goldfish_key',
     'matchup_key',
+    'parse_goldfish_games',
+    'persist_goldfish_run',
+    'store_goldfish',
     'store_matchup',
 )
 
@@ -202,6 +215,7 @@ def matchup_key(
     fmt: str,
     engine: str,
     engine_version: str,
+    driver: tuple[str, str] | None = None,
 ) -> str:
     """A stable content hash identifying a matchup by its exact inputs.
 
@@ -213,6 +227,11 @@ def matchup_key(
     changes the key — so the same decks/seed/n under two DIFFERENT backends hash
     to DIFFERENT keys and never collide in the content cache, guaranteeing a miss
     for changed inputs.
+
+    ``driver`` folds a PlayerA per-deck driver (its ``fqcn``) into the key so a
+    DRIVEN run and the driverless run of the same deck/opponent/seed never collide
+    (AC6 — the driven read must not be served a stale driverless cache row).
+    ``None`` keeps the key byte-identical to the pre-driver shape.
     """
     parts = (
         deck_hash(deck_a_dck),
@@ -223,6 +242,8 @@ def matchup_key(
         engine,
         engine_version,
     )
+    if driver is not None:
+        parts = (*parts, f'driver={driver[1]}')
     payload = '\x00'.join(parts).encode('utf-8')
     return hashlib.sha256(payload).hexdigest()
 
@@ -564,6 +585,406 @@ def feature_stats(
         'median_kill_turn': median_kill_turn,
         'wincon_counts': wincon_counts,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Solo-goldfish persistence — the gate/compare own-turn clock, retained per run.
+# --------------------------------------------------------------------------- #
+#
+# The solo goldfish path (:meth:`~pipeline.sim.engines.xmage.XMageEngine.goldfish_output`)
+# runs a deck against a do-nothing passer and prints per-game ``GOLDFISH GAME`` lines +
+# a ``GOLDFISH SUMMARY`` line. Every gate/compare goldfish was previously thrown away;
+# these three tables retain the FULL run for retrospective analysis, mirroring the
+# ``sim_matchups`` idiom (content-key upsert, DELETE-then-INSERT child rows):
+#
+#   * ``sim_goldfish``       — one row per RUN (a content key + summary scalars).
+#   * ``sim_goldfish_games`` — one row per GAME (own_turn, killed, ms, …).
+#   * ``sim_goldfish_logs``  — one row per RUN holding the raw stdout+stderr for replay.
+
+_GOLDFISH_DDL = """
+CREATE TABLE IF NOT EXISTS sim_goldfish (
+    goldfish_key      TEXT PRIMARY KEY,
+    deck_hash         TEXT,
+    driver_fqcn       TEXT,
+    alpha             INT,
+    format            TEXT,
+    games             INT,
+    median_kills_own  DOUBLE,
+    bricks            INT,
+    max_turn          INT,
+    fire_count        INT,
+    reachable_count   INT,
+    registered        BOOLEAN,
+    mean_ms_per_game  DOUBLE,
+    engine            TEXT,
+    created_at        TIMESTAMP
+)
+"""
+
+_GOLDFISH_GAMES_DDL = """
+CREATE TABLE IF NOT EXISTS sim_goldfish_games (
+    goldfish_key TEXT,
+    game_index   INT,
+    own_turn     INT,
+    killed       BOOLEAN,
+    global_turn  INT,
+    ms           INT,
+    fired        BOOLEAN
+)
+"""
+
+_GOLDFISH_LOGS_DDL = """
+CREATE TABLE IF NOT EXISTS sim_goldfish_logs (
+    goldfish_key TEXT,
+    raw_log      TEXT
+)
+"""
+
+#: The per-game ``GOLDFISH GAME g/games deck=... killed=<bool> ownKillTurn=<int|NONE>
+#: globalTurn=<int> lifeB=<int> ms=<int>`` line the Java harness prints (XMageBatch.runSolo).
+_GOLDFISH_GAME_RE = re.compile(
+    r'GOLDFISH GAME\s+(?P<idx>\d+)/(?P<games>\d+)\b.*?'
+    r'\bkilled=(?P<killed>true|false)\b.*?'
+    r'\bownKillTurn=(?P<own>NONE|-?\d+)\b.*?'
+    r'\bglobalTurn=(?P<global>-?\d+)\b.*?'
+    r'\bms=(?P<ms>\d+)\b'
+)
+#: The proactive-macro real-execution marker (counted for ``fire_count``).
+_MACRO_FIRE_REAL = 'MACRO_FIRE_REAL'
+#: The reachable-in-search marker (counted for ``reachable_count``).
+_MACRO_REACHABLE = 'DRIVER_MACRO_FIRED'
+#: The registration marker (presence → ``registered``).
+_DRIVER_REGISTERED = 'DRIVER_REGISTERED'
+
+
+@dataclass(frozen=True)
+class GoldfishGameRow:
+    """One solo-goldfish GAME's telemetry (one ``GOLDFISH GAME`` line).
+
+    ``own_turn`` is the capped OWN kill turn (``None`` when the game did not kill —
+    the ``ownKillTurn=NONE`` sentinel). ``fired`` records whether the driver's macro
+    really executed in THAT game when derivable (``None`` when the raw log does not
+    tag fire markers per game — the standalone solo harness does not, so it stays
+    ``None`` rather than guessing)."""
+
+    own_turn: int | None
+    killed: bool
+    global_turn: int | None
+    ms: int | None
+    fired: bool | None = None
+
+
+@dataclass(frozen=True)
+class GoldfishRecord:
+    """A stored goldfish run: the summary scalars + its ordered per-game rows."""
+
+    goldfish_key: str
+    deck_hash: str
+    driver_fqcn: str | None
+    alpha: int | None
+    format: str
+    games: int
+    median_kills_own: float
+    bricks: int | None
+    max_turn: int | None
+    fire_count: int
+    reachable_count: int
+    registered: bool
+    mean_ms_per_game: float | None
+    engine: str
+    created_at: str
+    per_game: list[GoldfishGameRow] = field(default_factory=list)
+
+
+def parse_goldfish_games(raw_log: str) -> list[GoldfishGameRow]:
+    """Parse the per-game ``GOLDFISH GAME`` lines out of a ``--solo`` run's raw output.
+
+    One :class:`GoldfishGameRow` per line, in emission order (game 1..N). A run with no
+    such lines (an elided/placeholder log) yields ``[]`` — never a raise. ``fired`` is
+    left ``None`` (the solo harness does not tag fire markers per game)."""
+    rows: list[GoldfishGameRow] = []
+    for m in _GOLDFISH_GAME_RE.finditer(raw_log):
+        own_raw = m.group('own')
+        rows.append(
+            GoldfishGameRow(
+                own_turn=None if own_raw == 'NONE' else int(own_raw),
+                killed=m.group('killed') == 'true',
+                global_turn=int(m.group('global')),
+                ms=int(m.group('ms')),
+            )
+        )
+    return rows
+
+
+def goldfish_key(
+    deck_text: str,
+    *,
+    driver_fqcn: str | None,
+    alpha: int | None,
+    fmt: str,
+    games: int,
+    salt: str = '',
+) -> str:
+    """A stable content hash identifying a solo-goldfish RUN by its exact inputs.
+
+    Combines the deck hash with the driver identity (``fqcn``+``alpha``; ``None`` = the
+    driverless CP7 baseline), format, and game-count. A driven and driverless run of the
+    SAME deck therefore hash to DIFFERENT keys (the driver fqcn differs), and re-running
+    the identical inputs upserts rather than duplicates. ``salt`` is an optional
+    run-scoped discriminator (default ``''`` keeps re-runs collapsing onto one row)."""
+    parts = (
+        deck_hash(deck_text),
+        driver_fqcn or 'none',
+        str(alpha) if alpha is not None else 'none',
+        fmt,
+        str(games),
+        salt,
+    )
+    return hashlib.sha256('\x00'.join(parts).encode('utf-8')).hexdigest()
+
+
+def _ensure_goldfish_tables(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create the goldfish store tables if absent (idempotent — safe every op)."""
+    conn.execute(_GOLDFISH_DDL)
+    conn.execute(_GOLDFISH_GAMES_DDL)
+    conn.execute(_GOLDFISH_LOGS_DDL)
+
+
+def store_goldfish(
+    key: str,
+    *,
+    deck_hash: str,
+    driver_fqcn: str | None,
+    alpha: int | None,
+    fmt: str,
+    result: object,
+    per_game_rows: list[GoldfishGameRow],
+    raw_log: str,
+    engine: str,
+    fire_count: int = 0,
+    reachable_count: int = 0,
+    registered: bool = False,
+    data_dir: str | os.PathLike[str] | None = None,
+) -> None:
+    """Upsert the goldfish RUN row + REPLACE its per-game + log rows under ``key``.
+
+    Idempotent by key (delete-then-insert, mirroring :func:`store_matchup`). ``result``
+    is duck-typed for ``median_kills_own`` / ``games`` / ``max_turn`` / ``bricks`` (a
+    :class:`~pipeline.sim.engines.xmage.GoldfishResult`). ``mean_ms_per_game`` is derived
+    from ``per_game_rows``. The child rows are cleared then re-inserted so a re-store
+    never leaves duplicates."""
+    deck_h = deck_hash
+    median = float(result.median_kills_own)  # type: ignore[attr-defined]
+    games = int(result.games)  # type: ignore[attr-defined]
+    max_turn = getattr(result, 'max_turn', None)
+    bricks = getattr(result, 'bricks', None)
+    ms_values = [r.ms for r in per_game_rows if r.ms is not None]
+    mean_ms = (sum(ms_values) / len(ms_values)) if ms_values else None
+
+    db_path = _db_path(data_dir)
+    with store.connect(db_path) as conn:
+        _ensure_goldfish_tables(conn)
+        conn.execute('DELETE FROM sim_goldfish WHERE goldfish_key = ?', [key])
+        conn.execute(
+            """
+            INSERT INTO sim_goldfish
+                (goldfish_key, deck_hash, driver_fqcn, alpha, format, games,
+                 median_kills_own, bricks, max_turn, fire_count, reachable_count,
+                 registered, mean_ms_per_game, engine, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                key,
+                deck_h,
+                driver_fqcn,
+                alpha,
+                fmt,
+                games,
+                median,
+                bricks,
+                max_turn,
+                fire_count,
+                reachable_count,
+                registered,
+                mean_ms,
+                engine,
+                datetime.now(UTC),
+            ],
+        )
+        conn.execute('DELETE FROM sim_goldfish_games WHERE goldfish_key = ?', [key])
+        for game_index, gr in enumerate(per_game_rows):
+            conn.execute(
+                """
+                INSERT INTO sim_goldfish_games
+                    (goldfish_key, game_index, own_turn, killed, global_turn, ms, fired)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                [key, game_index, gr.own_turn, gr.killed, gr.global_turn, gr.ms, gr.fired],
+            )
+        conn.execute('DELETE FROM sim_goldfish_logs WHERE goldfish_key = ?', [key])
+        conn.execute(
+            'INSERT INTO sim_goldfish_logs (goldfish_key, raw_log) VALUES (?, ?)',
+            [key, raw_log],
+        )
+
+
+def get_goldfish(
+    key: str,
+    *,
+    data_dir: str | os.PathLike[str] | None = None,
+) -> GoldfishRecord | None:
+    """Read back a stored goldfish run (summary + ordered per-game rows), or ``None``.
+
+    ``None`` on a miss (unknown key / fresh db). The raw log is retained separately —
+    read it via :func:`get_goldfish_log` (kept off this hot read)."""
+    db_path = _db_path(data_dir)
+    with store.connect(db_path) as conn:
+        _ensure_goldfish_tables(conn)
+        row = conn.execute(
+            """
+            SELECT goldfish_key, deck_hash, driver_fqcn, alpha, format, games,
+                   median_kills_own, bricks, max_turn, fire_count, reachable_count,
+                   registered, mean_ms_per_game, engine, created_at
+            FROM sim_goldfish WHERE goldfish_key = ?
+            """,
+            [key],
+        ).fetchone()
+        if row is None:
+            return None
+        game_rows = conn.execute(
+            """
+            SELECT own_turn, killed, global_turn, ms, fired
+            FROM sim_goldfish_games WHERE goldfish_key = ?
+            ORDER BY game_index
+            """,
+            [key],
+        ).fetchall()
+    per_game = [
+        GoldfishGameRow(own_turn=gr[0], killed=bool(gr[1]), global_turn=gr[2], ms=gr[3], fired=gr[4])
+        for gr in game_rows
+    ]
+    return GoldfishRecord(
+        goldfish_key=row[0],
+        deck_hash=row[1],
+        driver_fqcn=row[2],
+        alpha=row[3],
+        format=row[4],
+        games=row[5],
+        median_kills_own=row[6],
+        bricks=row[7],
+        max_turn=row[8],
+        fire_count=row[9],
+        reachable_count=row[10],
+        registered=bool(row[11]),
+        mean_ms_per_game=row[12],
+        engine=row[13],
+        created_at=str(row[14]),
+        per_game=per_game,
+    )
+
+
+def get_goldfish_log(
+    key: str,
+    *,
+    data_dir: str | os.PathLike[str] | None = None,
+) -> str | None:
+    """The retained raw stdout+stderr for a goldfish run (full retrospective replay)."""
+    db_path = _db_path(data_dir)
+    with store.connect(db_path) as conn:
+        _ensure_goldfish_tables(conn)
+        row = conn.execute('SELECT raw_log FROM sim_goldfish_logs WHERE goldfish_key = ?', [key]).fetchone()
+    return row[0] if row is not None else None
+
+
+def goldfish_features(
+    *,
+    fmt: str | None = None,
+    data_dir: str | os.PathLike[str] | None = None,
+) -> dict[str, object]:
+    """Aggregate over ``sim_goldfish`` — proof the goldfish store is queryable.
+
+    Returns ``runs`` (count), ``games`` (summed), ``avg_median_kills_own`` /
+    ``median_median_kills_own`` (over the non-sentinel, ``>= 0`` medians), ``driven_runs``
+    (fqcn present), and ``total_fires`` (summed ``fire_count``). Pass ``fmt`` to restrict.
+    Empty store -> zeroed result."""
+    db_path = _db_path(data_dir)
+    with store.connect(db_path) as conn:
+        _ensure_goldfish_tables(conn)
+        where = ''
+        params: list[object] = []
+        if fmt is not None:
+            where = 'WHERE format = ?'
+            params = [fmt]
+        agg = conn.execute(
+            f"""
+            SELECT
+                count(*)                                                   AS runs,
+                coalesce(sum(games), 0)                                    AS games,
+                avg(CASE WHEN median_kills_own >= 0 THEN median_kills_own END)     AS avg_med,
+                median(CASE WHEN median_kills_own >= 0 THEN median_kills_own END)  AS med_med,
+                count(*) FILTER (WHERE driver_fqcn IS NOT NULL)            AS driven,
+                coalesce(sum(fire_count), 0)                               AS fires
+            FROM sim_goldfish
+            {where}
+            """,
+            params,
+        ).fetchone()
+    assert agg is not None
+    return {
+        'runs': int(agg[0]),
+        'games': int(agg[1]),
+        'avg_median_kills_own': float(agg[2]) if agg[2] is not None else None,
+        'median_median_kills_own': float(agg[3]) if agg[3] is not None else None,
+        'driven_runs': int(agg[4]),
+        'total_fires': int(agg[5]),
+    }
+
+
+def persist_goldfish_run(
+    deck_text: str,
+    *,
+    driver_fqcn: str | None,
+    alpha: int | None,
+    fmt: str,
+    games: int,
+    result: object,
+    raw_log: str,
+    engine: str,
+    salt: str = '',
+    data_dir: str | os.PathLike[str] | None = None,
+) -> str | None:
+    """BEST-EFFORT: parse + persist a full solo-goldfish run; never raise.
+
+    The single wiring point the sim path calls after a goldfish completes. Derives the
+    content key, parses the per-game rows + the fire/reachable/registered markers out of
+    ``raw_log``, and writes all three tables. Persistence is a SIDE-CHANNEL — any failure
+    is logged and swallowed so a store error can never break the sim (the sim result is
+    the product). Returns the content key on success, ``None`` on a swallowed failure."""
+    try:
+        key = goldfish_key(deck_text, driver_fqcn=driver_fqcn, alpha=alpha, fmt=fmt, games=games, salt=salt)
+        per_game = parse_goldfish_games(raw_log)
+        fire_count = raw_log.count(_MACRO_FIRE_REAL)
+        reachable_count = raw_log.count(_MACRO_REACHABLE)
+        registered = _DRIVER_REGISTERED in raw_log
+        store_goldfish(
+            key,
+            deck_hash=deck_hash(deck_text),
+            driver_fqcn=driver_fqcn,
+            alpha=alpha,
+            fmt=fmt,
+            result=result,
+            per_game_rows=per_game,
+            raw_log=raw_log,
+            engine=engine,
+            fire_count=fire_count,
+            reachable_count=reachable_count,
+            registered=registered,
+            data_dir=data_dir,
+        )
+        return key
+    except Exception as exc:  # side-channel: a store failure never breaks the sim.
+        log.warning('goldfish persistence failed (non-fatal): %s', exc)
+        return None
 
 
 def _db_path(data_dir: str | os.PathLike[str] | None) -> str | None:

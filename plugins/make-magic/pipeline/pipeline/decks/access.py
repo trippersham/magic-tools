@@ -78,7 +78,22 @@ class DeckAccess:
             return rows[0].deck_uuid
         if not rows:
             return uuid4().hex
-        raise DecksError(self._ambiguous_name_message(name, rows))
+        # >1 rows named ``name``. Only AMBIGUITY filtering skips archived rows: a
+        # single archived deck with a unique name already resolved by bare name above
+        # (the ``len(rows) == 1`` branch does not inspect ``archived``). Here, with
+        # multiple same-named rows, archived drafts drop OUT of the ambiguity set so a
+        # bare name resolves to the one surviving ACTIVE deck — which makes the
+        # advertised "archive the extra draft(s)" remedy actually clear the ambiguity.
+        # This narrows the read-path candidate set only; the write-side dup walls
+        # (``resolve_for_write`` / ``_resolve_existing``) count rows independently.
+        active = [r for r in rows if not r.archived]
+        if len(active) == 1:
+            return active[0].deck_uuid
+        if not active:
+            # Every candidate is archived — none is bare-name addressable. Surface the
+            # full list so the user picks one by --id (unchanged prior behavior).
+            raise DecksError(self._ambiguous_name_message(name, rows))
+        raise DecksError(self._ambiguous_name_message(name, active))
 
     def _resolve_id_prefix(self, id_prefix: str) -> str:
         """Resolve an ``--id <prefix>`` to a single ``deck_uuid`` (0/1/>1 -> error/uuid/error)."""
@@ -101,12 +116,15 @@ class DeckAccess:
         carries an airtable external ref, else ``local``.
         """
         ordered = sorted(rows, key=lambda r: (r.sync_status != 'synced', r.name))
-        lines = [f'{name!r} is ambiguous ({len(rows)} decks). Re-run with one of:']
+        lines = [f'{name!r} is ambiguous ({len(rows)} decks). Re-run addressing one by --id:']
         for row in ordered:
             status = row.sync_status
             if row.archived:
                 status = f'{status},archived'
             lines.append(f'  --id {row.deck_uuid[:6]}   # {status} · {self._source_backend(row)}')
+        # Name the way OUT of the ambiguity, not just how to pick one — a re-import
+        # leaves duplicate drafts, so point at archiving the extras (by --id).
+        lines.append('To clear the ambiguity, archive the extra draft(s): collection archive-deck --id <prefix>')
         return '\n'.join(lines)
 
     def _dead_binding_message(self, name: str, deck_uuid: str) -> str:
@@ -786,6 +804,23 @@ class DeckAccess:
         self._decks.set_focus_otags(deck_uuid, list(otags), rationale='set-focus-otags')
         if commit:
             self._commit_transactional(deck_uuid, eff_name, pre_edit)
+
+    def set_crispi(self, name: str, result: object, *, id_prefix: str | None = None) -> None:
+        """Stamp the deck's ``crispi`` derived output — the mirror of the sim stamp.
+
+        Resolves the (name | ``--id``) target through :meth:`_target` so a synced
+        source deck is pulled-current (there is a local row to stamp against),
+        exactly like the ``stamp-sim`` hook. ``result`` is the structured
+        ``CrispiResult`` dict (stored verbatim by :meth:`DecksStore.set_crispi`).
+
+        CRISPI is a DERIVED output, not deck content — the stamp is bookkeeping only
+        (no ``deck_json`` change, no ledger version, no source push). It lands on the
+        local row for a synced deck just as it does for an ephemeral draft; there is
+        nothing to commit through to the source (the source of record carries deck
+        content, not this local derived stamp).
+        """
+        deck_uuid, _eff_name = self._target(name, id_prefix)
+        self._decks.set_crispi(deck_uuid, result=result)
 
     def _commit_transactional(self, deck_uuid: str, name: str, pre_edit: Deck | None) -> None:
         """Push a just-applied set-* edit; roll back the local edit if the push refuses.

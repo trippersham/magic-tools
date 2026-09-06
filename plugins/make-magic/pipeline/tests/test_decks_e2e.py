@@ -31,8 +31,15 @@ from pipeline.contracts import Card, DeckCard
 
 
 class _StubResolver:
+    """Enriches every name (a stand-in for a hydrated lake) so the ASSESS-checkpoint
+    factsheet scores rather than tripping the cold-start refusal guard. Names resolve
+    to a stable oracle_id; no functional otags (the combo lake stays absent, so
+    ``deck-combos`` still exercises its honest-degradation path)."""
+
     def get_card(self, name: str) -> Card | None:
-        return None
+        import uuid
+
+        return Card(name=name, oracle_id=str(uuid.uuid5(uuid.NAMESPACE_OID, name)))
 
 
 @pytest.fixture()
@@ -41,6 +48,9 @@ def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv(store.ENV_DATA_DIR, str(root))
     monkeypatch.setenv('MAKE_MAGIC_BACKEND', 'local')
     monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: _StubResolver())
+    # A hydrated lake so the factsheet ASSESS checkpoint scores (read-time enrichment
+    # via the stub resolver above); the combo lake is a SEPARATE table left absent.
+    monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
     return root
 
 

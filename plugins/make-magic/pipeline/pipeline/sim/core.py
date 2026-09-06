@@ -69,6 +69,7 @@ __all__ = (
     'SimResult',
     'TelemetryProfile',
     'compare',
+    'newcombe_diff_ci',
     'run_cached_matchups',
     'simulate',
     'wilson_ci',
@@ -97,6 +98,35 @@ def wilson_ci(wins: int, n: int, *, z: float = _WILSON_Z) -> tuple[float, float]
     center = (p + z * z / (2 * n)) / denom
     half = (z / denom) * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
     return (max(0.0, center - half), min(1.0, center + half))
+
+
+def newcombe_diff_ci(wins1: int, n1: int, wins2: int, n2: int, *, z: float = _WILSON_Z) -> tuple[float, float]:
+    """Newcombe's Wilson-score CI for the difference of two independent proportions ``p1 - p2``.
+
+    Method 10 ("square-and-add") of Newcombe, R.G. (1998), *Interval estimation for the
+    difference between independent proportions: comparison of eleven methods*, Statistics in
+    Medicine 17:873-890 — his recommended interval. Each proportion gets its own Wilson score
+    interval (:func:`wilson_ci`) ``(l_i, u_i)`` around ``p_i = wins_i/n_i``; the difference
+    interval is
+
+        lower = (p1 - p2) - sqrt((p1 - l1)^2 + (u2 - p2)^2)
+        upper = (p1 - p2) + sqrt((u1 - p1)^2 + (p2 - l2)^2)
+
+    Unlike naive endpoint subtraction ``(l1 - u2, u1 - l2)`` it has a stated ~95% coverage
+    guarantee, stays inside ``[-1, 1]``, and behaves at the 0/1 boundaries. Reference case
+    (Newcombe 1998, Table II): ``56/70`` vs ``48/70`` → ``(-0.0308, 0.2535)``.
+
+    The estimand is a **pooled game-level** difference of proportions and the interval assumes the
+    two arms' games are **independent** (no clustering by deck/opponent modelled).
+    """
+    l1, u1 = wilson_ci(wins1, n1, z=z)
+    l2, u2 = wilson_ci(wins2, n2, z=z)
+    p1 = wins1 / n1 if n1 else 0.0
+    p2 = wins2 / n2 if n2 else 0.0
+    diff = p1 - p2
+    lower = diff - math.sqrt((p1 - l1) ** 2 + (u2 - p2) ** 2)
+    upper = diff + math.sqrt((u1 - p1) ** 2 + (p2 - l2) ** 2)
+    return (max(-1.0, lower), min(1.0, upper))
 
 
 # --------------------------------------------------------------------------- #
@@ -296,6 +326,7 @@ def run_cached_matchups(
             fmt=s.fmt,
             engine=engine.name,
             engine_version=version,
+            driver=s.driver,
         )
         for s in specs
     ]
@@ -557,6 +588,7 @@ def simulate(
     store: object | None = None,
     data_dir: str | os.PathLike[str] | None = None,
     pool_size: int | None = None,
+    driver: tuple[str, str] | None = None,
 ) -> SimResult:
     """Simulate ``deck`` against a resolved gauntlet and aggregate the results.
 
@@ -595,6 +627,10 @@ def simulate(
             # AND parallel JVMs don't replay identical games.
             seed=seed + offset,
             fmt=fmt,
+            # The candidate is ALWAYS deck_a, so a per-deck driver pilots PlayerA
+            # only (candidate-only) — opponents keep their normal AI. None keeps the
+            # matchup driverless (Forge, and undriven XMage).
+            driver=driver,
         )
         for offset, opp in enumerate(opponents)
     ]

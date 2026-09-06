@@ -18,12 +18,15 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import warnings
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -47,6 +50,16 @@ _DEFAULT_TIMEOUT_S = 240
 #: explicit ``timeout_s`` still overrides. The external kill budget stays a per-game
 #: bound (``_JVM_LOAD_HEADROOM_S + n*timeout_s``).
 _COMMANDER_TIMEOUT_S = 300
+#: Per-game heartbeat the goldfish loop prints once per game (``GOLDFISH GAME g/N ...``).
+#: The stall watchdog (:func:`_run_with_watchdog`) resets its clock on every occurrence,
+#: so ``timeout_s`` bounds the gap BETWEEN games (a single stuck game) rather than the
+#: whole batch — see :func:`_launch_xmage`'s ``stall_timeout_s``.
+_GOLDFISH_HEARTBEAT = 'GOLDFISH GAME'
+#: Per-game heartbeat the MATCH loop prints once per completed game (``XMAGEBATCH RESULT
+#: game=g/N ...``). Lets the stall watchdog cover the defended/match path too — a game that
+#: hangs mid-search emits no new heartbeat and is reaped, instead of the whole matchup running
+#: to the per-batch backstop. A turn-capped game always terminates, so only a true hang trips it.
+_MATCH_HEARTBEAT = 'XMAGEBATCH RESULT game='
 #: XMage CP7 (MAD minimax) clones full game states during search, so it needs more
 #: heap + a larger per-JVM RAM budget than Forge's 2 GiB — under-budgeting over-admits
 #: the pool and risks swap/jetsam (#63). The pool-sizing budget is the ``-Xmx`` heap
@@ -97,6 +110,74 @@ class XMageError(RuntimeError):
     """An XMage run failed (deck-load / unparseable output / killed on timeout)."""
 
 
+@dataclass(frozen=True)
+class GoldfishResult:
+    """The parsed ``GOLDFISH SUMMARY (OWN TURNS)`` line from a ``--solo`` run.
+
+    ``median_kills_own`` is the median OWN-turn kill turn across the games that
+    actually killed (the Java ``medianKillsOwn``); it is ``-1.0`` (the harness
+    sentinel) when NO game killed — a real value the caller interprets, never a
+    silently-zeroed miss. ``games`` is the number of solo games the summary covers.
+
+    ``max_turn`` is the harness's OWN-turn brick cap (``maxTurn`` in the summary: 20
+    constructed / 25 commander). It is the boundary of the brick-cap validity guard:
+    the harness counts a "kill" whenever the passer opponent LOSES for ANY reason —
+    including decking out or losing on a state-based technicality — and CLAMPS that
+    kill turn to ``max_turn`` (``killTurn = min(ownEndTurn, maxTurn)`` in
+    ``XMageBatch.runSolo``). So a ``median_kills_own`` sitting AT ``max_turn`` is not a
+    real fast kill but a clamp artifact — the opponent-deckout/freeze-at-cap "win" the
+    gate must reject (see :func:`~pipeline.sim.driver_gate.gate_driver`). ``bricks`` is
+    the count of games that reached the cap without the opponent losing at all (the
+    ``maxTurn+1`` sentinel bucket). Both are ``None`` when the summary omits the field
+    (older harness output); the validity guard is then skipped rather than guessing.
+    """
+
+    median_kills_own: float
+    games: int
+    max_turn: int | None = None
+    bricks: int | None = None
+    #: Median own-turn over ALL games, bricks counted at the ``maxTurn+1`` sentinel
+    #: (the Java ``medianAllOwn``). This is the CRISPI rubric's fundamental-turn
+    #: statistic ("the score times the median game" — ≥50% of games, not of kills);
+    #: a value past ``max_turn`` means the majority of games bricked. ``None`` when
+    #: the summary predates the field.
+    median_all_own: float | None = None
+
+
+def _parse_goldfish_summary(output: str) -> GoldfishResult:
+    """Parse ``medianKillsOwn`` + ``games`` out of an ``XMageBatch --solo`` stdout.
+
+    Raises :class:`XMageError` when no ``GOLDFISH SUMMARY (OWN TURNS)`` line is present
+    (a crash, a deck-load failure, or a killed run) — NEVER silently returns 0, so an
+    absent summary is always surfaced as a failure rather than misread as "killed on
+    turn 0".
+    """
+    for line in output.splitlines():
+        if 'GOLDFISH SUMMARY (OWN TURNS)' not in line:
+            continue
+        median_m = re.search(r'\bmedianKillsOwn=(-?\d+(?:\.\d+)?)', line)
+        games_m = re.search(r'\bgames=(\d+)', line)
+        if median_m is None or games_m is None:
+            raise XMageError(f'GOLDFISH SUMMARY line missing medianKillsOwn/games field: {line!r}')
+        # maxTurn / bricks are the brick-cap validity signals (opponent-deckout /
+        # freeze-at-cap detection downstream). Optional: absent in older summary output
+        # → None, which makes the gate's brick-cap guard a no-op rather than guessing.
+        max_turn_m = re.search(r'\bmaxTurn=(\d+)', line)
+        bricks_m = re.search(r'\bbricks=(\d+)', line)
+        all_m = re.search(r'\bmedianAllOwn=(-?\d+(?:\.\d+)?)', line)
+        return GoldfishResult(
+            median_kills_own=float(median_m.group(1)),
+            games=int(games_m.group(1)),
+            max_turn=int(max_turn_m.group(1)) if max_turn_m else None,
+            bricks=int(bricks_m.group(1)) if bricks_m else None,
+            median_all_own=float(all_m.group(1)) if all_m else None,
+        )
+    raise XMageError(
+        'no GOLDFISH SUMMARY (OWN TURNS) line in XMage --solo output '
+        f'(run crashed / deck failed to load / was killed). Output tail:\n{output[-1000:]}'
+    )
+
+
 @lru_cache(maxsize=1)
 def _harness_jarhash() -> str:
     """Stable short sha256 of the committed XMage harness jar (binds the version to
@@ -136,10 +217,113 @@ def _forge_dck_to_xmage_txt(text: str) -> str:
         if not stripped:
             continue
         if section == '[main]':
-            lines.append(stripped)
+            lines.append(_strip_forge_annotations(stripped))
         elif section == '[commander]':
-            lines.append(f'SB: {stripped}')
+            lines.append(f'SB: {_strip_forge_annotations(stripped)}')
     return '\n'.join(lines) + '\n'
+
+
+def _strip_forge_annotations(card_line: str) -> str:
+    """Reduce a Forge ``N Name[+]|SET[|num]`` card line to the bare ``N Name`` XMage wants.
+
+    Newer Forge ``.dck`` exports (e.g. the packaged commander precons) annotate every card
+    line with a ``|SET|collector`` set/printing suffix and sometimes a ``+``/``*`` foil marker
+    (``Betor, Ancestor's Voice|TDC|1``, ``Vrondiss, Rage of Ancients+|AFC``). XMage's
+    ``TxtDeckImporter`` does NOT understand that suffix — it treats the whole string as the card
+    name, which resolves to NOTHING, so the entire deck imports as **0 cards** (the precon-opponent
+    blocker: A4's deterministic field seated a 0-card opponent -> degenerate games). Cut the line
+    at the first ``|`` (dropping the set/collector annotation) and strip a trailing foil marker so
+    the name matches the base card DB. A line with no annotation is returned unchanged.
+    """
+    name = card_line.split('|', 1)[0].rstrip()
+    return name.rstrip('+*').rstrip()
+
+
+# --------------------------------------------------------------------------- #
+# Commander deck-size / integrity validation (fail LOUD at staging).
+# --------------------------------------------------------------------------- #
+
+#: A legal commander (EDH) deck is exactly 100 cards total across the maindeck + command zone,
+#: with the command zone holding 1 commander — or 2 for a legal partner/background pair (98 + 2).
+#: A short-staged deck (e.g. a 95-card source) plays with a thinner library, biasing the
+#: consistency data with nothing surfacing it — the ``<40`` Java floor (``XMageBatch.java``) is
+#: far too weak to catch it. These constants drive the Python-side staging guard.
+COMMANDER_DECK_TOTAL = 100
+#: Legal command-zone sizes: a lone commander, or a partner/background pair.
+_COMMANDER_ZONE_SIZES = frozenset({1, 2})
+
+
+class DeckSizeError(ValueError):
+    """A staged deck violates its format's deck-size / integrity invariant.
+
+    Raised LOUD at staging (before any JVM) so a wrong-size SUBJECT deck can never silently
+    seat into a real game — see :func:`validate_commander_deck`.
+    """
+
+
+def count_xmage_deck(txt: str) -> tuple[int, int]:
+    """``(main_qty, commander_qty)`` for a translated XMage ``.txt`` — summing the ``N`` multipliers.
+
+    Counts actual card QUANTITIES (the leading ``N`` on each ``N Name`` line), NOT lines, so a
+    basic-land stack (``30 Swamp``) contributes 30. ``SB:``-prefixed lines are the command zone
+    (XMage's ``TxtDeckImporter`` moves them into the commander seat). ``//`` comment lines and
+    blank lines are ignored, mirroring the importer.
+    """
+    main = commander = 0
+    for raw in txt.splitlines():
+        line = raw.strip()
+        if not line or line.startswith('//'):
+            continue
+        is_commander = line.startswith('SB:')
+        if is_commander:
+            line = line[len('SB:') :].strip()
+        match = re.match(r'(\d+)\s+', line)
+        qty = int(match.group(1)) if match else 1
+        if is_commander:
+            commander += qty
+        else:
+            main += qty
+    return main, commander
+
+
+def commander_deck_ok(txt: str) -> bool:
+    """True iff ``txt`` stages to a legal commander size (JVM-free integrity predicate).
+
+    Legal = exactly :data:`COMMANDER_DECK_TOTAL` cards total (maindeck + command zone) with a
+    1- or 2-card command zone (a lone commander, or a legal partner/background pair). Used by the
+    deterministic opponent-field builder to EXCLUDE an undersized/oversized opponent the same way
+    a 0-card opponent is excluded.
+    """
+    main, commander = count_xmage_deck(txt)
+    return commander in _COMMANDER_ZONE_SIZES and main + commander == COMMANDER_DECK_TOTAL
+
+
+def validate_commander_deck(txt: str, *, deck_name: str) -> tuple[int, int]:
+    """Assert a translated commander ``.txt`` is a legal size; return its ``(main, commander)`` counts.
+
+    Raises :class:`DeckSizeError` — naming the deck and the offending counts — when the deck is not
+    exactly :data:`COMMANDER_DECK_TOTAL` cards total with a 1-2 card command zone. This is the loud
+    staging-time guard that stops a short-staged SUBJECT deck (e.g. the 95-card Kenrith source) from
+    reaching a real game with a thinner library and silently biasing the data.
+    """
+    main, commander = count_xmage_deck(txt)
+    if commander not in _COMMANDER_ZONE_SIZES or main + commander != COMMANDER_DECK_TOTAL:
+        raise DeckSizeError(
+            f'commander deck {deck_name!r} fails deck-size integrity: {main} main-deck card(s) + '
+            f'{commander} commander(s) = {main + commander} total '
+            f'(expected {COMMANDER_DECK_TOTAL} total with a 1- or 2-card command zone)'
+        )
+    return main, commander
+
+
+def audit_header(main: int, commander: int) -> str:
+    """A single ``//`` comment line recording the validated ``(main, commander)`` counts.
+
+    Prepended to every staged deck so a later audit can read the counts WITHOUT re-parsing the
+    source ``.dck``. ``//`` lines are comments to XMage's ``TxtDeckImporter`` (skipped before any
+    card is read), so this is inert to the loader.
+    """
+    return f'// audit: main={main} commander={commander}\n'
 
 
 class XMageEngine:
@@ -250,6 +434,7 @@ class XMageEngine:
         fmt: str,
         install: EngineInstall,
         timeout_s: int | None = None,
+        driver: tuple[str, str] | None = None,
     ) -> MatchResult:
         """Run ONE matchup of ``n`` games: ``deck_a`` (Ai(1)/PlayerA) vs ``deck_b``.
 
@@ -313,6 +498,12 @@ class XMageEngine:
                 cwd=run_dir,
                 timeout_s=external_timeout,
                 what=f'{name_a} vs {name_b} (n={n})',
+                driver=driver,  # per-deck PlayerA driver seam; None keeps driverless argv
+                # Per-game stall watchdog on the MATCH path too (parity with goldfish). A turn-
+                # capped defended game always terminates, so a generous 2x per-game bound reaps
+                # only a true hang while never false-killing a legitimately slow (capped) game.
+                stall_timeout_s=2 * timeout_s,
+                heartbeat=_MATCH_HEARTBEAT,
             )
             result = runner.parse_match_log(output, deck_a=name_a, deck_b=name_b)
             if result.games != n:
@@ -321,6 +512,136 @@ class XMageEngine:
                     f'(exit {returncode}). Output tail:\n{output[-1000:]}'
                 )
             return result
+        finally:
+            shutil.rmtree(run_dir, ignore_errors=True)
+
+    def goldfish(
+        self,
+        deck_a: tuple[str, str],
+        *,
+        games: int,
+        install: EngineInstall,
+        skill: int = _CP7_SKILL,
+        driver: tuple[str, str] | None = None,
+        timeout_s: int | None = None,
+        fmt: str = 'constructed',
+    ) -> GoldfishResult:
+        """Run a SOLO goldfish: ``deck_a`` (PlayerA, always on the play) vs a do-nothing
+        60-Forest passer, over ``games`` games, and return the parsed own-turn kill.
+
+        Launches ``XMageBatch <deckA.txt> --solo <games> <skill> [commander]`` (the
+        Phase-0 seam), parses the ``GOLDFISH SUMMARY (OWN TURNS) … medianKillsOwn=<float>``
+        line, and returns a :class:`GoldfishResult`. ``driver`` is an optional
+        ``(classes_dir, fqcn)`` per-deck driver injected on PlayerA (the SAME registry
+        entry the match path threads, so both contexts drive it identically).
+        ``fmt='commander'`` appends the 5th ``commander`` token so the harness seats the
+        commander in a CommanderDuel (40 life + command zone) — the ONLY way a
+        commander-dependent macro can fire in the solo gate; ``'constructed'`` is
+        byte-identical prior argv. No summary line / a non-zero exit → :class:`XMageError`
+        (never a silent 0). Mirrors :meth:`run_matchup`'s staging + warm + private-db
+        discipline for one deck.
+
+        Return-stable wrapper over :meth:`goldfish_output`: the dual-mode gate needs the
+        raw combined output (to grep the ``DRIVER_REGISTERED`` / ``DRIVER_MACRO_FIRED``
+        slot-exercise markers), so the run lives in :meth:`goldfish_output`; this keeps the
+        Phase-1 ``GoldfishResult`` return.
+        """
+        result, _output = self.goldfish_output(
+            deck_a,
+            games=games,
+            install=install,
+            skill=skill,
+            driver=driver,
+            timeout_s=timeout_s,
+            fmt=fmt,
+        )
+        return result
+
+    def goldfish_output(
+        self,
+        deck_a: tuple[str, str],
+        *,
+        games: int,
+        install: EngineInstall,
+        skill: int = _CP7_SKILL,
+        driver: tuple[str, str] | None = None,
+        timeout_s: int | None = None,
+        fmt: str = 'constructed',
+    ) -> tuple[GoldfishResult, str]:
+        """As :meth:`goldfish`, but also returns the RAW combined stdout+stderr.
+
+        The dual-mode behavioral gate greps this output for the driver's standard markers
+        (``DRIVER_REGISTERED`` for registration, ``DRIVER_MACRO_FIRED`` for a proactive
+        quad's slot exercise), which are the only honest signal the standalone solo harness
+        exposes. :meth:`goldfish` delegates here and drops the output, so its Phase-1 return
+        stays stable. ``fmt='commander'`` appends the 5th ``commander`` token (CommanderDuel
+        + command-zone commander) and uses the longer :data:`_COMMANDER_TIMEOUT_S` default;
+        ``'constructed'`` is byte-identical prior argv/timeout.
+        """
+        handle: XMageInstall = install.handle
+        if timeout_s is None:
+            timeout_s = _COMMANDER_TIMEOUT_S if fmt == 'commander' else _DEFAULT_TIMEOUT_S
+        name_a, text_a = deck_a
+
+        if not xmage_runtime._HARNESS_JAR.is_file():
+            raise XMageError(
+                f'XMage harness jar not found: {xmage_runtime._HARNESS_JAR}. '
+                'Rebuild it with pipeline/sim/java/xmage/build.sh.'
+            )
+
+        self._ensure_card_db_warm(handle)
+
+        staging = runner.staging_root()
+        staging.mkdir(parents=True, exist_ok=True)
+        run_dir = Path(tempfile.mkdtemp(prefix=f'xmage-solo-{os.getpid()}-', dir=staging))
+        try:
+            txt_a = _stage_txt(run_dir, 'deckA', _forge_dck_to_xmage_txt(text_a))
+            _stage_private_db(handle, run_dir)
+            # The absolute backstop stays the batch bound; the PER-GAME stall watchdog
+            # (stall_timeout_s = the single-game budget) is the real ceiling — one hung game is
+            # reaped in ~timeout_s instead of consuming the whole games*timeout_s batch budget,
+            # which was the "50 min sit, zero ledger rows" pathology.
+            external_timeout = runner._JVM_LOAD_HEADROOM_S + max(1, games) * timeout_s
+            solo_args = [str(txt_a), '--solo', str(games), str(skill)]
+            if fmt == 'commander':
+                # 5th token → commander-native solo (CommanderDuel, 40 life + command
+                # zone, commander seated from the deck's SB: line). Constructed stays 4
+                # args (byte-identical prior argv).
+                solo_args.append('commander')
+            output, returncode = _launch_xmage(
+                handle,
+                solo_args,
+                cwd=run_dir,
+                timeout_s=external_timeout,
+                what=f'{name_a} goldfish (games={games}, fmt={fmt})',
+                driver=driver,
+                stall_timeout_s=timeout_s,
+            )
+            if returncode != 0:
+                raise XMageError(f'XMage goldfish for {name_a} exited {returncode}. Output tail:\n{output[-1000:]}')
+            result = _parse_goldfish_summary(output)
+            # Persist the FULL solo goldfish run (summary + per-game telemetry + raw log)
+            # for retrospective analysis. BEST-EFFORT + non-fatal: a store failure is
+            # logged and swallowed inside persist_goldfish_run — the sim result is the
+            # product, persistence is a side-channel that must never break the sim. Every
+            # gate/compare goldfish (driven AND driverless) funnels through here, so this
+            # single call closes the solo-path persistence gap. ``driver[1]`` is the
+            # per-deck driver fqcn (None ⇒ the driverless CP7 baseline); alpha is not
+            # threaded this deep (the nudge magnitude is a batch-wide constant), so it is
+            # recorded as None here — the column stays available for a future wiring.
+            from pipeline.sim import store as _sim_store
+
+            _sim_store.persist_goldfish_run(
+                text_a,
+                driver_fqcn=driver[1] if driver is not None else None,
+                alpha=None,
+                fmt=fmt,
+                games=games,
+                result=result,
+                raw_log=output,
+                engine=self.name,
+            )
+            return result, output
         finally:
             shutil.rmtree(run_dir, ignore_errors=True)
 
@@ -463,7 +784,121 @@ def _clone_tree_cow(src: Path, dst: Path) -> bool:
         return False
 
 
-def _launch_xmage(handle: XMageInstall, args: list[str], *, cwd: Path, timeout_s: int, what: str) -> tuple[str, int]:
+def _compose_launch_cmd(
+    handle: XMageInstall,
+    args: list[str],
+    *,
+    heap: str,
+    driver: tuple[str, str] | None = None,
+) -> list[str]:
+    """Build the ``XMageBatch`` launch argv — a PURE function (no spawn), so tests can
+    assert the exact composed command without a JVM.
+
+    ``driver`` is an optional ``(classes_dir, fqcn)`` per-deck driver injection:
+
+      * the ``classes_dir`` is **prepended** onto the classpath so it sorts BEFORE the
+        dist/harness jar and its injected ``Driver`` class wins class-loading;
+      * ``-Dmakemagic.driver=<fqcn>`` is threaded into the JVM args (the PlayerA-only
+        register-by-playerId seam ``XMageBatch`` reads: it loads the Driver class and
+        reflectively invokes its ``static register(UUID)`` on PlayerA's id).
+
+    With ``driver=None`` the argv is byte-identical to the prior driverless shape: the
+    classpath is ``handle.classpath`` verbatim and no ``-D`` sysprop is added.
+    """
+    jvm_args = list(runner._jvm_args(heap=heap))  # CP7 minimax needs > Forge's 2g (#63)
+    classpath = handle.classpath
+    if driver is not None:
+        classes_dir, fqcn = driver
+        jvm_args.append(f'-Dmakemagic.driver={fqcn}')
+        classpath = os.pathsep.join((classes_dir, classpath))  # driver classes win class-load
+    return [
+        *runner._launch_prefix(),
+        str(handle.java),
+        *jvm_args,
+        '-cp',
+        classpath,
+        _XMAGE_MAIN_CLASS,
+        *args,
+    ]
+
+
+class _WatchdogState:
+    """Mutable shared state between the reader loop and the stall-watchdog thread."""
+
+    __slots__ = ('backstopped', 'last_progress', 'stalled', 'started')
+
+    def __init__(self) -> None:
+        now = time.monotonic()
+        self.last_progress = now
+        self.started = now
+        self.stalled = False
+        self.backstopped = False
+
+
+def _run_with_watchdog(
+    proc: subprocess.Popen[str],
+    *,
+    heartbeat: str,
+    stall_timeout_s: float,
+    backstop_s: float,
+    poll_s: float = 2.0,
+) -> tuple[str, int, _WatchdogState]:
+    """Stream ``proc``'s merged output, killing it if a game STALLS or the batch backstop trips.
+
+    Reads ``proc.stdout`` line-by-line on the calling thread and resets the progress clock on
+    every ``heartbeat`` line. A daemon watchdog thread kills the whole process group when either
+    the gap since the last heartbeat exceeds ``stall_timeout_s`` (a single stuck game — the real
+    ceiling fix; the OLD ``games * timeout_s`` product let one runaway game consume the whole
+    batch budget) or the total wall time exceeds ``backstop_s`` (an absolute ceiling for a process
+    that emits heartbeats forever). Returns ``(combined_output, returncode, state)``; the caller
+    inspects ``state.stalled`` / ``state.backstopped`` to raise the right :class:`XMageError`.
+    ``proc`` MUST be launched with ``stderr`` merged into ``stdout`` and ``start_new_session=True``
+    so the single stream carries every marker and the kill reaps the whole tree.
+    """
+    state = _WatchdogState()
+    lock = threading.Lock()
+
+    def _watch() -> None:
+        while proc.poll() is None:
+            now = time.monotonic()
+            with lock:
+                since_progress = now - state.last_progress
+                since_start = now - state.started
+            if stall_timeout_s and since_progress > stall_timeout_s:
+                state.stalled = True
+                runner._kill_process_group(proc)
+                return
+            if backstop_s and since_start > backstop_s:
+                state.backstopped = True
+                runner._kill_process_group(proc)
+                return
+            time.sleep(poll_s)
+
+    watcher = threading.Thread(target=_watch, name='xmage-stall-watchdog', daemon=True)
+    watcher.start()
+    lines: list[str] = []
+    assert proc.stdout is not None  # launched with stdout=PIPE.
+    for line in proc.stdout:
+        lines.append(line)
+        if heartbeat in line:
+            with lock:
+                state.last_progress = time.monotonic()
+    proc.wait()
+    watcher.join(timeout=poll_s * 2)
+    return ''.join(lines), proc.returncode, state
+
+
+def _launch_xmage(
+    handle: XMageInstall,
+    args: list[str],
+    *,
+    cwd: Path,
+    timeout_s: int,
+    what: str,
+    driver: tuple[str, str] | None = None,
+    stall_timeout_s: int | None = None,
+    heartbeat: str = _GOLDFISH_HEARTBEAT,
+) -> tuple[str, int]:
     """Launch ONE ``XMageBatch`` JVM and return ``(combined stdout+stderr, returncode)``.
 
     The single place the game-run and warm-up paths build the launch command and
@@ -472,42 +907,73 @@ def _launch_xmage(handle: XMageInstall, args: list[str], *, cwd: Path, timeout_s
     :class:`subprocess.TimeoutExpired` kills the group and raises :class:`XMageError`
     naming ``what``. Callers own the post-run interpretation (parse the log vs check
     the exit code) — this only owns launch + the external timeout. The H2 db is
-    ``./db`` relative to ``cwd``, so ``cwd`` selects which db the JVM opens.
+    ``./db`` relative to ``cwd``, so ``cwd`` selects which db the JVM opens. ``driver``
+    is threaded to :func:`_compose_launch_cmd` (the per-deck driver seam); ``None``
+    keeps the driverless argv unchanged.
     """
-    cmd = [
-        *runner._launch_prefix(),
-        str(handle.java),
-        *runner._jvm_args(heap=_XMAGE_HEAP),  # CP7 minimax needs > Forge's 2g (#63)
-        '-cp',
-        handle.classpath,
-        _XMAGE_MAIN_CLASS,
-        *args,
-    ]
+    cmd = _compose_launch_cmd(handle, args, heap=_XMAGE_HEAP, driver=driver)
+    # When a per-game stall bound is requested, MERGE stderr into stdout so the single stream
+    # carries both the GOLDFISH heartbeat (stdout) and the DRIVER_* markers (stderr) for the
+    # watchdog reader; otherwise keep the two pipes separate for the classic communicate() path.
+    watchdogged = stall_timeout_s is not None
     proc = subprocess.Popen(
         cmd,
         cwd=cwd,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=subprocess.STDOUT if watchdogged else subprocess.PIPE,
         text=True,
         start_new_session=True,
     )
     runner._register_active(proc)  # let the governor's emergency abort reach this JVM.
+    state: _WatchdogState | None = None
     try:
-        try:
+        if watchdogged:
+            assert stall_timeout_s is not None
+            # The watchdog thread reaps the group itself on a stall/backstop (so no kill here);
+            # we raise the right error AFTER the finally, off the returned state.
+            combined, _rc, state = _run_with_watchdog(
+                proc,
+                heartbeat=heartbeat,
+                stall_timeout_s=stall_timeout_s,
+                backstop_s=timeout_s,
+            )
+        else:
             stdout, stderr = proc.communicate(timeout=timeout_s)
-        except subprocess.TimeoutExpired as exc:
-            runner._kill_process_group(proc)
-            raise XMageError(f'XMage {what} exceeded the external {timeout_s}s timeout and was killed.') from exc
-        except BaseException:
-            # Any other failure reading the pipes (e.g. MemoryError under the very RAM
-            # pressure this subsystem fights, KeyboardInterrupt, or the governor's
-            # emergency kill) must not orphan the session-leader JVM holding its full
-            # -Xmx heap. Kill the group, then re-raise.
-            runner._kill_process_group(proc)
-            raise
+            combined = (stdout or '') + (stderr or '')
+    except subprocess.TimeoutExpired as exc:
+        runner._kill_process_group(proc)
+        raise XMageError(f'XMage {what} exceeded the external {timeout_s}s timeout and was killed.') from exc
+    except BaseException:
+        # Any other failure reading the pipes (e.g. MemoryError under the very RAM pressure this
+        # subsystem fights, KeyboardInterrupt, or the governor's emergency kill) must not orphan
+        # the session-leader JVM holding its full -Xmx heap. Kill the group, then re-raise.
+        runner._kill_process_group(proc)
+        raise
     finally:
         runner._unregister_active(proc)
-    return (stdout or '') + (stderr or ''), proc.returncode
+    if state is not None and state.stalled:
+        raise XMageError(
+            f'XMage {what} STALLED: no "{heartbeat}" progress for '
+            f'{stall_timeout_s}s — one game hung and was killed (per-game stall bound).'
+        )
+    if state is not None and state.backstopped:
+        raise XMageError(f'XMage {what} exceeded the {timeout_s}s absolute batch backstop and was killed.')
+    # Defense-in-depth fail-loud: if a driver WAS requested but the run emitted no
+    # DRIVER_REGISTERED line, the Driver never registered on PlayerA (a shadowed/stale
+    # XMageBatch that ignored -Dmakemagic.driver, or a bad Driver class). The run then
+    # degrades to bare CP7 with exit 0 — which would be scored as "no regression" and
+    # silently defeat the driver gate. Refuse it loudly. Skipped for driverless runs,
+    # where a missing marker is the correct, expected state. One cheap scan of captured
+    # stdout.
+    if driver is not None and 'DRIVER_REGISTERED' not in combined:
+        _, fqcn = driver
+        raise XMageError(
+            f'XMage {what}: driver {fqcn} was requested (-Dmakemagic.driver) but the run '
+            'emitted no DRIVER_REGISTERED line — the Driver never registered on PlayerA '
+            '(a shadowed/stale XMageBatch that ignores the seam, or a broken Driver class). '
+            f'Refusing to score this as a silent CP7 pass. Output tail:\n{combined[-1000:]}'
+        )
+    return combined, proc.returncode
 
 
 register_engine(XMageEngine())

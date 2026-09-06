@@ -1,0 +1,8 @@
+XMAGEBATCH opening_hand PlayerA (7): [Island;Island;Island;Island;Island;Island;Island]
+Turn: Turn 1 (Ai(1)-PlayerA)
+HANDLOG turn=1 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 40 (Ai(2)-PlayerB)
+HANDLOG turn=40 event=turnstart active=Ai(2)-PlayerB UR_hand=[Island] UR_untapped_lands=8 UR_total_lands=8 opp_creatures=0 UR_life=12 opp_life=9
+XMAGEBATCH RESULT game=1/1 winner=DRAW/UNFINISHED endTurn=40 ended=false lifeA=12 lifeB=9 ms=60000 :: null
+
+Game Result: Game 1 ended in a Draw! Took 60000 ms.

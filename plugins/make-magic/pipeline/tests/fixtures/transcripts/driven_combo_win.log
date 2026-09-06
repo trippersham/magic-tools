@@ -1,0 +1,26 @@
+XMAGEBATCH scanning card database (first run builds it)...
+DRIVER_REGISTERED fqcn=org.makemagic.drivers.Quad_deckA playerId=1
+XMAGEBATCH opening_hand PlayerA (7): [Island;Underground Sea;Dark Ritual;Demonic Consultation;Thassa's Oracle;Brainstorm;Ponder]
+XMAGEBATCH opening_hand PlayerB (7): [Forest;Forest;Llanowar Elves;Tarmogoyf;Forest;Forest;Forest]
+Turn: Turn 1 (Ai(1)-PlayerA)
+HANDLOG turn=1 event=turnstart active=Ai(1)-PlayerA UR_hand=[Island] UR_untapped_lands=0 UR_total_lands=0 opp_creatures=0 UR_life=20 opp_life=20
+Land: Ai(1)-PlayerA played a land
+HANDLOG turn=1 event=cast kind=spell castBy=Ai(1)-PlayerA source=Ponder UR_hand=[Island] UR_untapped_lands=0 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 2 (Ai(2)-PlayerB)
+HANDLOG turn=2 event=turnstart active=Ai(2)-PlayerB UR_hand=[Dark Ritual] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+HANDLOG turn=2 event=cast kind=spell castBy=Ai(2)-PlayerB source=Duress UR_hand=[Dark Ritual] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+Turn: Turn 3 (Ai(1)-PlayerA)
+HANDLOG turn=3 event=turnstart active=Ai(1)-PlayerA UR_hand=[Dark Ritual] UR_untapped_lands=1 UR_total_lands=1 opp_creatures=0 UR_life=20 opp_life=20
+DRIVER_MACRO_FIRED pid=1
+Land: Ai(1)-PlayerA played a land
+Turn: Turn 5 (Ai(1)-PlayerA)
+HANDLOG turn=5 event=turnstart active=Ai(1)-PlayerA UR_hand=[Dark Ritual] UR_untapped_lands=2 UR_total_lands=2 opp_creatures=1 UR_life=20 opp_life=20
+DRIVER_MACRO_FIRED pid=1
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(1)-PlayerA source=Dark Ritual UR_hand=[Demonic Consultation] UR_untapped_lands=2 UR_total_lands=2 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(1)-PlayerA source=Demonic Consultation UR_hand=[Thassa's Oracle] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=1 UR_life=20 opp_life=20
+HANDLOG turn=5 event=cast kind=spell castBy=Ai(1)-PlayerA source=Thassa's Oracle UR_hand=[] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=1 UR_life=20 opp_life=20
+MACRO_FIRE_REAL name=Quad_deckA turn=5
+HANDLOG turn=5 event=gameend UR_hand=[] UR_untapped_lands=0 UR_total_lands=2 opp_creatures=1 UR_life=20 opp_life=20
+XMAGEBATCH RESULT game=1/1 winner=PlayerA endTurn=5 ended=true lifeA=20 lifeB=20 ms=8421 :: [PlayerA]
+
+Game Result: Game 1 ended in 8421 ms. Ai(1)-PlayerA has won!

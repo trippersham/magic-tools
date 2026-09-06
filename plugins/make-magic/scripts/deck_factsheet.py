@@ -67,6 +67,7 @@ import logging
 import re
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 log = logging.getLogger('make_magic.deck_factsheet')
 
@@ -288,6 +289,113 @@ def _load_card_otag() -> dict[str, set[str]] | None:
         return None
 
 
+#: CRISPI otag-coverage floor. The offline **bundled snapshot** tags only ~20% of
+#: nonland oracle cards; a fully **hydrated** lake reaches ~84-92%. A deck whose
+#: nonland otag coverage falls below this conservative midpoint is running on the
+#: snapshot (or a near-empty closure): CRISPI's functional axes (buckets /
+#: susceptibility) would then score off a mostly-blank otag signal — blind
+#: confidence — so the guard refuses and names ``collection hydrate-lake``. Set
+#: well above the ~20% snapshot ceiling and well below the ~84% hydrated floor;
+#: injectable so callers/tests can pin either regime.
+OTAG_COVERAGE_FLOOR = 0.5
+
+
+#: Minimum GLOBAL closure size (distinct tagged oracle_ids) for the otag layer to
+#: count as fully hydrated. This separates two very different failure modes that a
+#: deck-relative coverage number alone cannot tell apart:
+#:
+#:   * a DEGRADED dataset — the bundled snapshot tags only a few thousand oracle_ids
+#:     (~20% of the ~38k oracle corpus), so ANY deck reads near-blank; the fix is to
+#:     load the real dataset, and naming ``collection hydrate-lake`` is honest.
+#:   * a HYDRATED dataset that simply lacks a JUST-RELEASED set's oracle_ids — the
+#:     closure holds tens of thousands of entries (~32k, ~84-92% global coverage) but
+#:     Scryfall's tagger lags a new set by days-to-weeks, so a fresh-set precon reads
+#:     0% while the dataset is as good as it gets; ``hydrate-lake`` cannot help.
+#:
+#: A closure with >= this many entries is definitively hydrated (well above any
+#: snapshot ceiling of a few thousand, well below the ~32k hydrated floor), so a
+#: sub-floor DECK coverage then reflects the DECK (a fresh set), not the dataset.
+#: Injectable so callers/tests can pin either regime.
+OTAG_HYDRATED_MIN_SIZE = 10_000
+
+
+class OtagProbe(NamedTuple):
+    """Verdict from :func:`crispi_otag_probe` — the single otag-availability authority.
+
+    ``ok`` is whether CRISPI may score; ``degraded`` is whether it must score
+    LOUDLY degraded (the fresh-set case: hydrated dataset, but this deck's cards
+    are not tagged upstream yet); ``closure`` is the loaded
+    ``oracle_id -> set[slug]`` map (None when the otag layer is unavailable);
+    ``coverage`` is the deck's nonland otag coverage (None when no closure /
+    global refusal); ``reason`` is a human string for the refusal / degrade text.
+    """
+
+    ok: bool
+    closure: dict[str, set[str]] | None
+    coverage: float | None
+    reason: str
+    degraded: bool = False
+
+
+def crispi_otag_probe(
+    deck,
+    *,
+    floor: float = OTAG_COVERAGE_FLOOR,
+    min_global_size: int = OTAG_HYDRATED_MIN_SIZE,
+) -> OtagProbe:
+    """Single source of truth for whether/how CRISPI may score ``deck``.
+
+    Routes through the same closure the factsheet loader produces
+    (:func:`_load_card_otag`) so the guard and the score read the identical otag source, and
+    never observe different datasets. Three-way verdict:
+
+      1. closure is None, OR globally snapshot-degraded (fewer than
+         ``min_global_size`` tagged oracle_ids) -> REFUSE, naming
+         ``collection hydrate-lake`` — the dataset itself is not loaded, so any
+         deck reads near-blank and the remedy actually helps.
+      2. closure globally healthy BUT this deck's nonland coverage is below
+         ``floor`` (the fresh-set case: a just-released set the tagger has not
+         reached yet) -> SCORE, but ``degraded=True`` so the caller stamps the
+         loud degradation marker. ``hydrate-lake`` cannot help here.
+      3. closure healthy AND coverage >= floor -> score normally.
+
+    The factsheet keeps its own structured-only degrade (the ``otag layer
+    unavailable`` marker) when the closure is None; CRISPI's whole output is a
+    confident score, so it refuses (case 1) or scores degraded-loud (case 2).
+    """
+    closure = _load_card_otag()
+    if closure is None:
+        return OtagProbe(False, None, None, 'otag layer unavailable (no closure could be loaded)')
+    if len(closure) < min_global_size:
+        return OtagProbe(
+            False,
+            closure,
+            None,
+            f'otag closure holds only {len(closure)} tagged oracle_ids, below the '
+            f'{min_global_size} hydrated-size floor (snapshot-degraded — the full '
+            'oracle-tag dataset is not loaded)',
+        )
+    _ensure_pipeline_on_path()
+    from pipeline.transforms.deck_factsheet import _card_slugs
+
+    cards = [_deck_card_to_fields(c) for c in deck.cards]
+    nonland = [c for c in cards if not is_land(_type_line(c))]
+    if not nonland:
+        return OtagProbe(True, closure, 1.0, 'no nonland cards to cover')
+    tagged = sum(1 for c in nonland if _card_slugs(c, closure))
+    coverage = tagged / len(nonland)
+    if coverage >= floor:
+        return OtagProbe(True, closure, coverage, f'otag coverage {coverage:.0%} of {len(nonland)} nonland cards')
+    # Global-healthy but this deck reads below the floor: the fresh-set case — score,
+    # loudly degraded. The dataset is fully loaded, so `hydrate-lake` would not help;
+    # these cards are simply not tagged upstream yet (a just-released set).
+    reason = (
+        f'otag coverage {coverage:.0%} of {len(nonland)} nonland cards is below the {floor:.0%} floor, '
+        'but the closure is hydrated — likely a just-released set not yet tagged upstream'
+    )
+    return OtagProbe(True, closure, coverage, reason, True)
+
+
 def _pipeline_factsheet(
     cards: list[dict],
     deck: str | None,
@@ -457,6 +565,293 @@ def factsheet_from_deck(deck, focus: list[str] | None = None) -> dict:  # a cont
     cards = [_deck_card_to_fields(c) for c in deck.cards]
     card_otag = _load_card_otag()  # None -> graceful fallback.
     return build_factsheet(cards, deck=deck.name, missing=[], card_otag=card_otag, focus=focus or [])
+
+
+# --------------------------------------------------------------------------- #
+# CRISPI bridge — build the scorer inputs from a resolved ``contracts.Deck`` and
+# delegate to ``pipeline.transforms.crispi.crispi_score``.
+#
+# Mirrors ``factsheet_from_deck``, but the CRISPI classifier needs MORE per-card
+# facts than the neutral factsheet: ``power`` / ``toughness`` seed the Resilience
+# threat base, and an ``is_commander`` flag lets the scorer classify the
+# commander's tiers. ``_deck_card_to_fields`` deliberately OMITS power/toughness
+# (the factsheet never reads them), so CRISPI uses its own ``_crispi_card_to_fields``
+# builder that adds them — without this, Resilience silently degrades (every threat
+# reads power 0). This is a HARD requirement.
+# --------------------------------------------------------------------------- #
+
+
+def _crispi_card_to_fields(card) -> dict:  # a contracts.DeckCard (duck-typed)
+    """Map a hydrated ``DeckCard`` to the CRISPI classifier's card dict.
+
+    A SUPERSET of ``_deck_card_to_fields``: adds ``power`` / ``toughness`` (the
+    classifier's threat base reads ``card.get('power')``; omitting them makes every
+    creature read power 0 and silently degrades Resilience) and an ``is_commander``
+    flag derived from the deck role. Missing enrichment stays null so the census
+    degrades honestly rather than crashing.
+    """
+    fields = _deck_card_to_fields(card)
+    from pipeline.contracts import ROLE_COMMANDER
+
+    fields['power'] = getattr(card, 'power', None)
+    fields['toughness'] = getattr(card, 'toughness', None)
+    fields['is_commander'] = getattr(card, 'role', None) == ROLE_COMMANDER
+    # Carry the deck-row COPY count so the mana-reliability counting can count card
+    # copies, not deck rows (basics carry quantity 8-12). Without this a 40-land deck
+    # built from a handful of basic-land rows reads ~24 effective sources and trips a
+    # phantom -2 (rubric "Count effective sources (lands + 0.75 per rock or dork)").
+    fields['quantity'] = getattr(card, 'quantity', 1) or 1
+    return fields
+
+
+#: Basic-land subtype -> the color it taps for. Used to infer a basic's color when
+#: its ``produced_mana`` is empty in the store (basics are frequently resolved
+#: without the field populated, which otherwise makes a basic-heavy 2-color base
+#: read as ~2 sources per color and trip a spurious pip-reliability penalty).
+_BASIC_LAND_COLOR = {
+    'Plains': 'W',
+    'Island': 'U',
+    'Swamp': 'B',
+    'Mountain': 'R',
+    'Forest': 'G',
+}
+
+
+def _produced_colors(card: dict) -> set[str]:
+    """The colors a card taps for — ``produced_mana`` if present, else a basic-land guess.
+
+    Scryfall populates ``produced_mana`` for basics (Plains -> ["W"]), but the store's
+    enrichment often leaves it empty. So when it is empty AND the card is a basic land,
+    infer the color from the land subtype in the type line (a Snow Basic Land — Plains
+    still taps W). Non-basic lands with a genuinely empty ``produced_mana`` contribute
+    nothing, as before.
+    """
+    pm = set(card.get('produced_mana') or [])
+    if pm:
+        return pm
+    tl = card.get('type_line') or ''
+    if 'Basic' in tl and 'Land' in tl:
+        return {color for sub, color in _BASIC_LAND_COLOR.items() if sub in tl}
+    return pm
+
+
+def _crispi_mana_facts(cards: list[dict], card_otag: dict[str, set[str]] | None) -> dict:
+    """Build the minimal ``mana_facts`` the Consistency axis consumes.
+
+    ``land_count`` (front-face lands), ``rock_count`` (mana artifacts), ``dork_count``
+    (mana creatures) — the latter two split the otag ``ramp`` bucket by type line,
+    falling back to structured ``produced_mana`` when the otag layer is absent.
+    ``avg_cmc`` and ``nonland_count`` come from the shared shape mart; ``pip_pressure``
+    is per-color ``(color, pip_share, producer_count)`` where a color carrying >=20%
+    of pips on <10 producers costs Consistency -1.
+
+    All source COUNTS are by card COPY (``quantity``), not deck ROW: basics carry a
+    quantity of 8-12, so a 40-land base built from a few basic-land rows must read ~40
+    lands, not ~24 (rubric "Count effective sources (lands + 0.75 per rock or dork)...
+    calibrated so only genuinely degenerate mana bases are touched"). Per-color
+    producers include LAND ``produced_mana`` too — fixing/basic lands ARE color
+    sources, so a color whose pips are carried by lands does not read <10 producers.
+    """
+    _ensure_pipeline_on_path()
+    from pipeline.transforms.crosswalk import buckets_for
+    from pipeline.transforms.deck_factsheet import _card_slugs, structured_ramp
+
+    def _qty(c: dict) -> int:
+        try:
+            return max(1, int(c.get('quantity') or 1))
+        except (TypeError, ValueError):
+            return 1
+
+    land_cards = [c for c in cards if is_land(_type_line(c))]
+    nonland = [c for c in cards if not is_land(_type_line(c))]
+    shape = _shape(cards)
+
+    # Lands by COPY count (basics carry quantity 8-12).
+    land_count = sum(_qty(c) for c in land_cards)
+
+    rock = dork = 0
+    for c in nonland:
+        slugs = _card_slugs(c, card_otag) if card_otag else set()
+        is_ramp = ('ramp' in buckets_for(slugs)) or structured_ramp(c)
+        if not is_ramp:
+            continue
+        tl = _type_line(c).lower()
+        if 'creature' in tl:
+            dork += _qty(c)
+        elif 'artifact' in tl:
+            rock += _qty(c)
+
+    # Pip pressure: per-color pip share (from nonland casting costs) + how many
+    # sources (LANDS + nonlands, by copy) produce that color. Lands are color sources.
+    pip_counts = _pip_counts(nonland)
+    colored = {sym: n for sym, n in pip_counts.items() if sym in ('W', 'U', 'B', 'R', 'G')}
+    total_pips = sum(colored.values())
+    producers: dict[str, int] = dict.fromkeys(colored, 0)
+    for c in cards:
+        for sym in _produced_colors(c):
+            if sym in producers:
+                producers[sym] += _qty(c)
+    pip_pressure = [
+        (color, (colored[color] / total_pips if total_pips else 0.0), producers[color]) for color in colored
+    ]
+
+    return {
+        'land_count': land_count,
+        'rock_count': rock,
+        'dork_count': dork,
+        'avg_cmc': shape['avg_cmc'],
+        'nonland_count': shape['nonland_count'],
+        'pip_pressure': pip_pressure,
+    }
+
+
+def _crispi_combos(names: set[str]) -> list:
+    """Best-effort combo match list for the deck (degrade gracefully on a sparse lake).
+
+    Loads the normalized combo table and matches the deck's card names. A sparse or
+    unavailable combo lake (``load_combos`` raises or returns empty) yields an empty
+    list so Resilience still scores via the combat path — never a crash.
+    """
+    _ensure_pipeline_on_path()
+    try:
+        from pipeline.transforms.combo_detect import combos_in_deck, load_combos
+
+        combos = load_combos()
+        return combos_in_deck(names, combos) if combos else []
+    except Exception as exc:
+        log.warning('crispi: combo lake unavailable (%s); scoring without combo lines.', exc)
+        return []
+
+
+def _combo_piece_copies(combos: list, deck) -> list[list[int]]:
+    """The Speed estimator's ``combo_pieces`` view of the deck's detected combos.
+
+    Each combo becomes a list of its pieces' copy counts in the deck (1 apiece in a singleton
+    Commander deck), which the estimator uses to detect the combo archetype and its assembly
+    clock. Empty when no combo was detected.
+    """
+    qty = {c.name: c.quantity for c in deck.cards}
+    return [[qty.get(name, 1) for name in getattr(combo, 'card_names', ())] for combo in combos]
+
+
+class SpeedNotApplicable(Exception):
+    """The auto-computed Speed is N/A (control / no honest own-turn kill).
+
+    The CRISPI contract (``crispi_score``/``speed_axis``) requires a NUMERIC
+    fundamental turn — it has no representation for Speed N/A — so we refuse to
+    fabricate a turn. The caller surfaces this and directs the user to pass
+    ``--fundamental-turn`` explicitly if they want to force a numeric Speed.
+    """
+
+    def __init__(self, rationale: str) -> None:
+        self.message = rationale
+        self.rationale = rationale
+        super().__init__(rationale)
+
+
+def _auto_fundamental_turn(deck, cards, card_otag, combo_pieces=None):
+    """Compute the fundamental turn via the Speed router.
+
+    Resolves an existing XMage installation without provisioning; the router uses it only for a
+    valid drive-class driver, and otherwise returns the closed-form estimate. ``combo_pieces``
+    (per-piece copy counts from the deck's detected combos) lets the estimate use the combo speed
+    model and lets the router recommend authoring a driver for a deck with a win line.
+    """
+    _ensure_pipeline_on_path()
+    from pipeline.sim.speed import fundamental_turn as _router
+
+    install = None
+    try:
+        from pipeline.sim.engine import get_engine
+
+        install = get_engine('xmage').resolve(provision=False)
+    except Exception as exc:  # no jar / not provisioned -> closed-form fallback path.
+        log.debug('crispi: XMage install unavailable for driven goldfish (%s); closed form only.', exc)
+
+    return _router(deck, cards, card_otag, install=install, combo_pieces=combo_pieces)
+
+
+#: The CRISPI axes whose value leans on the otag layer (functional buckets /
+#: susceptibility). When scoring a fresh set with limited otag signal, each of
+#: these axis rationales is annotated so the degradation is un-missable in the
+#: per-axis prose, not just the top-level block. Speed leans on structured facts
+#: (fundamental turn), so it is intentionally excluded.
+_OTAG_DRIVEN_AXES = ('interaction', 'resilience', 'consistency')
+
+
+def crispi_from_deck(
+    deck,  # a contracts.Deck
+    *,
+    fundamental_turn: float | None = None,
+    commander_dependence: str,
+    computed_at: str = '',
+    otag_degraded: bool = False,
+    otag_coverage: float | None = None,
+) -> dict:
+    """Score a resolved ``contracts.Deck`` on CRISPI — the bridge to ``crispi_score``.
+
+    Mirrors ``factsheet_from_deck``: the deck's ``DeckCard``s are already hydrated,
+    so no Scryfall fetch happens here. Builds the CRISPI card dicts (WITH power /
+    toughness / is_commander), loads the otag closure (self-refreshing / snapshot /
+    degrade), derives ``mana_facts``, runs the combo detector (graceful on an empty
+    lake), then delegates to ``crispi_score``. Returns ``result.model_dump()``.
+
+    Determinism: ``crispi_score`` is pure — ``computed_at`` is passed through (the
+    verb stamps a real timestamp; the default '' keeps the score deterministic).
+    """
+    _ensure_pipeline_on_path()
+    from pipeline.transforms.crispi import crispi_score
+
+    cards = [_crispi_card_to_fields(c) for c in deck.cards]
+    card_otag = _load_card_otag() or {}  # {} -> axes compute from structured facts.
+    mana_facts = _crispi_mana_facts(cards, card_otag)
+    names = {c.name for c in deck.cards}
+    combos = _crispi_combos(names)
+
+    # Speed input: an explicit ``fundamental_turn`` is the manual override (used
+    # verbatim). When omitted, auto-compute it via the closed-form -> driven-goldfish
+    # router (escalation gated on the deck's authored driver richness).
+    speed_source: dict | None = None
+    if fundamental_turn is None:
+        ft = _auto_fundamental_turn(deck, cards, card_otag, combo_pieces=_combo_piece_copies(combos, deck))
+        if ft.turn is None:  # Speed N/A — the contract can't represent it; surface.
+            raise SpeedNotApplicable(ft.source_rationale)
+        fundamental_turn = ft.turn
+        speed_source = {
+            'tier': ft.tier,
+            'confidence': ft.confidence,
+            'driver_recommended': ft.driver_recommended,
+            'rationale': ft.source_rationale,
+        }
+
+    result = crispi_score(
+        cards,
+        card_otag,
+        fundamental_turn=fundamental_turn,
+        commander_dependence=commander_dependence,
+        mana_facts=mana_facts,
+        combos=combos,
+        computed_at=computed_at,
+    )
+    out = result.model_dump()
+    if speed_source is not None:
+        out['speed_source'] = speed_source  # provenance for the CLI (auto-computed).
+    if otag_degraded:
+        # Fresh-set degrade: the dataset is hydrated but these cards are not tagged
+        # upstream yet, so the otag-driven axes under-read. Stamp an un-missable marker
+        # BOTH as a top-level block AND inside each otag-driven axis rationale — never
+        # emit a silently-confident score.
+        out['otag_coverage'] = otag_coverage
+        out['otag_degraded'] = True
+        pct = f'{otag_coverage:.0%}' if otag_coverage is not None else 'low'
+        note = (
+            f' [otag signal limited: {pct} of this deck is tagged upstream — likely a '
+            'just-released set; this otag-driven component may under-read]'
+        )
+        for axis in _OTAG_DRIVEN_AXES:
+            if axis in out and isinstance(out[axis], dict):
+                out[axis]['rationale'] = out[axis].get('rationale', '') + note
+    return out
 
 
 # --------------------------------------------------------------------------- #

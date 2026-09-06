@@ -1,12 +1,25 @@
 """Store path resolution — the one place that knows where the lake lives.
 
-The medallion lake (``raw/`` -> ``normalized/`` -> ``marts/``) plus the DuckDB
-file live under ``pipeline/data/``. Paths anchor to this module's location (not
-the current working directory) so ``uv run`` from anywhere resolves the same
-lake; the data dir sits inside the package, so a package-relative anchor is enough.
+The mutable store — the medallion lake (``raw/`` -> ``normalized/`` -> ``marts/``),
+the DuckDB working database, and the hand-editable ``collection/`` YAML — lives
+under a single **per-user home** data root by default, NOT inside the code
+checkout. The bundled offline snapshots (``data/snapshots/``) still ship in the
+package and are resolved package-relative by their own loaders (see
+``sources/oracle_tags.py`` and ``sources/spellbook.py``, which anchor on
+``__file__``), so the home anchor here only relocates the working store — offline
+degradation is unaffected.
 
-Overridable via the ``MAKE_MAGIC_DATA_DIR`` env var (used by tests to point at
-an isolated tmp dir). Directories are created on demand, never eagerly.
+Resolution (see :meth:`StorePaths.resolve`):
+  1. ``MAKE_MAGIC_DATA_DIR`` if set — the explicit override (tests + user choice);
+  2. else ``$XDG_DATA_HOME/make-magic`` if ``XDG_DATA_HOME`` is set;
+  3. else ``~/.local/share/make-magic`` (the XDG default).
+
+Why a home anchor, not package-relative: the default used to resolve to
+``<this checkout>/pipeline/data``, so every git worktree, source checkout, and
+installed plugin VERSION minted its own ``make_magic.duckdb`` + ``collection/``
+the first time it ran — the store silently forked per copy of the code. A stable
+home root gives one shared store across all of them. Directories are created on
+demand, never eagerly.
 """
 
 from __future__ import annotations
@@ -24,18 +37,31 @@ LAYERS = ('raw', 'normalized', 'marts')
 #: DuckDB working-database filename inside the data root.
 DB_FILENAME = 'make_magic.duckdb'
 
+#: Env var honored (when ``MAKE_MAGIC_DATA_DIR`` is unset) for the XDG data home.
+ENV_XDG_DATA_HOME = 'XDG_DATA_HOME'
+
+#: The application's subdirectory name under the resolved data home.
+APP_DIR_NAME = 'make-magic'
+
 
 def _default_data_dir() -> Path:
-    """The project-relative data root: ``pipeline/data/`` beside the package.
+    """The default data root: a stable per-user home location (XDG-aware).
 
-    Anchored to this file (``pipeline/pipeline/store/paths.py``) so it is
-    cwd-independent: parents[2] is the project root (the dir holding
-    ``pyproject.toml``, ``.gitignore``, and the committed ``data/snapshots/``);
-    its ``data`` child is the lake. This is the same ``data/`` the ingest
-    snapshot loaders resolve, so raw/normalized/marts sit alongside the
-    bundled snapshots.
+    Used only when ``MAKE_MAGIC_DATA_DIR`` is unset. Resolves to
+    ``$XDG_DATA_HOME/make-magic`` when ``XDG_DATA_HOME`` is set, else
+    ``~/.local/share/make-magic`` (the XDG Base Directory default).
+
+    Home-anchored ON PURPOSE. The default previously resolved package-relative
+    (``parents[2]/'data'``), so every git worktree, source checkout, and installed
+    plugin version created its own ``make_magic.duckdb`` + ``collection/`` — the
+    store forked per copy of the code. A home anchor gives all of them one shared
+    store. The bundled ``data/snapshots/`` still ship in the package and are
+    resolved package-relative by their loaders, so this does not touch offline
+    degradation. Override with ``MAKE_MAGIC_DATA_DIR`` for tests or a custom store.
     """
-    return Path(__file__).resolve().parents[2] / 'data'
+    xdg = os.getenv(ENV_XDG_DATA_HOME)
+    base = Path(xdg).resolve() if xdg else Path.home() / '.local' / 'share'
+    return base / APP_DIR_NAME
 
 
 @dataclass(frozen=True)
@@ -46,7 +72,11 @@ class StorePaths:
 
     @classmethod
     def resolve(cls) -> StorePaths:
-        """Resolve the data root: ``MAKE_MAGIC_DATA_DIR`` if set, else package-relative."""
+        """Resolve the data root: ``MAKE_MAGIC_DATA_DIR`` if set, else the home default.
+
+        The home default is XDG-aware (``$XDG_DATA_HOME/make-magic`` or
+        ``~/.local/share/make-magic``); see :func:`_default_data_dir`.
+        """
         override = os.getenv(ENV_DATA_DIR)
         root = Path(override).resolve() if override else _default_data_dir()
         return cls(data_dir=root)

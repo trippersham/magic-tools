@@ -1,0 +1,28 @@
+From a7d4deb2f4f0a2eefdbb97c4e91d893cc3e9bdef Mon Sep 17 00:00:00 2001
+From: Tripp Wickersham <tripp@hominy.ai>
+Date: Tue, 25 Aug 2026 20:36:23 -0700
+Subject: [PATCH 2/4] GameStateEvaluator2: fold DriverBonus into the leaf score
+ (Phi hook)
+
+Adds the potential-shaping Phi bonus (0 when nothing registered) to the
+permanents component of the normal-heuristic leaf evaluation.
+---
+ .../main/java/mage/player/ai/score/GameStateEvaluator2.java    | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/GameStateEvaluator2.java b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/GameStateEvaluator2.java
+index 9c96a619..da8bdafc 100644
+--- a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/GameStateEvaluator2.java
++++ b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/GameStateEvaluator2.java
+@@ -119,9 +119,10 @@ public final class GameStateEvaluator2 {
+                 + " total Score (life:" + (playerLifeScore - opponentLifeScore)
+                 + " permanents:" + (playerPermanentsScore - opponentPermanentsScore)
+                 + " hand:" + (playerHandScore - opponentHandScore) + ')');
++        int driverBonus = DriverBonus.evaluate(playerId, game); // 0 when nothing registered
+         return new PlayerEvaluateScore(
+                 playerId,
+-                playerLifeScore, playerHandScore, playerPermanentsScore,
++                playerLifeScore, playerHandScore, playerPermanentsScore + driverBonus,
+                 opponentLifeScore, opponentHandScore, opponentPermanentsScore);
+     }
+ 

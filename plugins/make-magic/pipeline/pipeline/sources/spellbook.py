@@ -113,7 +113,14 @@ def sync(
         log.info('combos: loaded %d variants (cursor=%s).', len(combos), token)
         return path
     except Exception as exc:
-        log.warning('combos: fetch failed (%s); falling back to bundled snapshot.', exc)
+        # Fail-open — but do not clobber a good cached pull with the smaller bundled
+        # snapshot on a transient failure. Reuse the existing raw table if present
+        # (stale-but-full beats fresh-but-thin); only load the bundled baseline when
+        # there is no cache at all. Mirrors the same guard in sources/oracle_tags.py.
+        if store.table_exists('raw', SOURCE):
+            log.warning('combos: fetch failed (%s); reusing cached raw (no clobber).', exc)
+            return store.StorePaths.resolve().parquet_path('raw', SOURCE, create=False)
+        log.warning('combos: fetch failed (%s); no cache — loading bundled snapshot.', exc)
         combos = _load_snapshot()
         path = _load(combos)
         log.info('combos: loaded %d variants from snapshot.', len(combos))

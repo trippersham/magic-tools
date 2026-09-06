@@ -8,6 +8,8 @@ behavioral evidence) + the telemetry drop-in in ``test_telemetry_xmage.py``.
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -92,6 +94,31 @@ def test_forge_dck_commander_zone_becomes_sideboard_line() -> None:
     assert 'Kaervek the Merciless' in out and out.count('Kaervek') == 1  # commander appears once.
 
 
+def test_forge_dck_strips_set_and_collector_suffix() -> None:
+    # Forge .dck card lines can carry a `Name|SET|num` set/collector suffix (and a `+`/`*`
+    # foil marker). XMage's TxtDeckImporter does NOT parse that suffix, so an un-stripped
+    # `Betor, Ancestor's Voice|TDC|1` resolves to NOTHING -> the whole deck loads 0 cards
+    # (the precon-opponent blocker). The translation must reduce each card line to a bare
+    # `N Name` so it resolves against the base card DB.
+    dck = (
+        '[metadata]\n'
+        'Name=Abzan Armor\n'
+        '[Commander]\n'
+        '1 Felothar the Steadfast|TDC|1\n'
+        '[Main]\n'
+        "1 Betor, Ancestor's Voice|TDC|1\n"
+        '1 Vrondiss, Rage of Ancients+|AFC\n'
+        '1 Kaalia of the Vast|COM\n'
+    )
+    out = _forge_dck_to_xmage_txt(dck)
+    assert 'SB: 1 Felothar the Steadfast\n' in out
+    assert "1 Betor, Ancestor's Voice\n" in out
+    assert '1 Vrondiss, Rage of Ancients\n' in out  # foil `+` and single-pipe suffix stripped.
+    assert '1 Kaalia of the Vast\n' in out
+    # No Forge annotation leaks through.
+    assert '|' not in out and '+' not in out
+
+
 def test_forge_dck_constructed_unchanged_no_sideboard_prefix() -> None:
     # A constructed .dck (no [Commander] zone) is byte-identical to before — no SB:.
     dck = '[metadata]\nName=T\n[Main]\n4 Lightning Bolt\n20 Mountain\n[Sideboard]\n2 Duress\n'
@@ -133,9 +160,22 @@ def _run_matchup_capturing_launch(
     + timeout threaded into :func:`_launch_xmage`. Returns the captured dict."""
     seen: dict[str, object] = {}
 
-    def _fake_launch(handle: object, args: list[str], *, cwd: object, timeout_s: int, what: str) -> tuple[str, int]:
+    def _fake_launch(
+        handle: object,
+        args: list[str],
+        *,
+        cwd: object,
+        timeout_s: int,
+        what: str,
+        driver: tuple[str, str] | None = None,
+        stall_timeout_s: int | None = None,
+        heartbeat: str = 'GOLDFISH GAME',
+    ) -> tuple[str, int]:
         seen['args'] = args
         seen['timeout_s'] = timeout_s
+        seen['driver'] = driver
+        seen['stall_timeout_s'] = stall_timeout_s
+        seen['heartbeat'] = heartbeat
         return ('OK', 0)
 
     def _fake_parse(output: str, *, deck_a: str, deck_b: str) -> MatchResult:
@@ -180,6 +220,10 @@ def test_commander_is_accepted_and_passes_commander_token(monkeypatch: pytest.Mo
     assert isinstance(args, list)
     assert args[-1] == 'commander'  # the mode token appended for commander.
     assert len(args) == 5  # deckA, deckB, n, skill, mode.
+    # Parity: run_matchup wires the per-game stall watchdog (2x the per-game budget) on the
+    # match heartbeat — so a hung defended game is reaped, not run to the batch backstop.
+    assert seen['stall_timeout_s'] == 2 * _COMMANDER_TIMEOUT_S
+    assert seen['heartbeat'] == xmage_engine._MATCH_HEARTBEAT
 
 
 def test_constructed_passes_no_commander_token(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -406,6 +450,41 @@ def test_stage_private_db_copies_db_into_run_dir(tmp_path: Path) -> None:
     assert copied.read_bytes() == b'CARD DB BYTES'  # a real, independent copy.
 
 
+def test_cow_clone_is_independent_and_falls_back(tmp_path: Path) -> None:
+    """A COW clone of the ``db/`` yields an INDEPENDENT copy — writing to the clone does
+    not mutate the source (proving copy-on-write, not a hardlink/shared file) — and the
+    non-COW path still produces an independent full copy. The reflink is a near-free stage
+    on APFS; the fallback keeps correctness on any FS.
+    """
+    import pipeline.sim.engines.xmage as xe
+
+    reactor = tmp_path / 'reactor'
+    (reactor / 'db').mkdir(parents=True)
+    (reactor / 'db' / 'cards.h2.mv.db').write_bytes(b'ORIGINAL')
+
+    # Real reflink path (macOS `cp -Rc` / Linux `cp -a --reflink=auto`). On a non-reflink
+    # FS this still copies; either way the result must be an independent file.
+    run_a = tmp_path / 'runA'
+    run_a.mkdir()
+    _stage_private_db(_install(reactor), run_a)
+    clone = run_a / 'db' / 'cards.h2.mv.db'
+    assert clone.read_bytes() == b'ORIGINAL'
+    clone.write_bytes(b'MUTATED-IN-CLONE')  # a write breaks COW sharing (or hits the copy).
+    assert (reactor / 'db' / 'cards.h2.mv.db').read_bytes() == b'ORIGINAL'  # source intact.
+
+    # Forced fallback (simulate a non-COW volume): still an independent copy.
+    run_b = tmp_path / 'runB'
+    run_b.mkdir()
+    orig = xe._clone_tree_cow
+    try:
+        xe._clone_tree_cow = lambda src, dst: False  # type: ignore[assignment]
+        _stage_private_db(_install(reactor), run_b)
+    finally:
+        xe._clone_tree_cow = orig  # type: ignore[assignment]
+    copied = run_b / 'db' / 'cards.h2.mv.db'
+    assert copied.read_bytes() == b'ORIGINAL'
+
+
 def test_max_concurrency_serializes_on_non_cow(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A non-COW staging volume → cap 1 (serialize) so pool x 266MB copies can't
     exhaust disk (#61), and it WARNs once."""
@@ -486,3 +565,156 @@ def test_clone_tree_cow_uses_platform_reflink_and_never_raises(monkeypatch: pyte
 
     monkeypatch.setattr(xmage_engine.subprocess, 'run', _boom)
     assert _clone_tree_cow(tmp_path / 'a', tmp_path / 'b') is False
+
+
+# --------------------------------------------------------------------------- #
+# Per-game stall watchdog (the timeout-ceiling fix)                            #
+# --------------------------------------------------------------------------- #
+
+
+def _spawn(script: str) -> subprocess.Popen[str]:
+    return subprocess.Popen(
+        [sys.executable, '-u', '-c', script],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+
+
+def test_watchdog_kills_a_stalled_game_fast_not_after_the_batch_budget() -> None:
+    """A process that emits ONE heartbeat then hangs is killed at the per-game stall bound,
+    NOT after the (much larger) batch backstop — the ceiling-bug fix."""
+    import time
+
+    from pipeline.sim.engines.xmage import _run_with_watchdog
+
+    # Print one heartbeat, then sleep far past the stall bound with no further progress.
+    proc = _spawn("import time; print('GOLDFISH GAME 1/20 killed=false'); time.sleep(60)")
+    t0 = time.monotonic()
+    out, rc, state = _run_with_watchdog(proc, heartbeat='GOLDFISH GAME', stall_timeout_s=2, backstop_s=600, poll_s=0.25)
+    elapsed = time.monotonic() - t0
+    assert state.stalled is True
+    assert state.backstopped is False
+    assert 'GOLDFISH GAME 1/20' in out  # output captured up to the kill
+    assert elapsed < 15  # reaped in ~stall_bound, nowhere near the 600s batch backstop
+    assert rc != 0  # killed
+
+
+def test_watchdog_lets_a_steadily_progressing_run_finish() -> None:
+    """Regular heartbeats keep resetting the clock, so a healthy multi-game run completes."""
+    from pipeline.sim.engines.xmage import _run_with_watchdog
+
+    # Five quick "games", each a heartbeat well within the stall bound, then a clean exit.
+    proc = _spawn(
+        'import time\n'
+        'for g in range(1, 6):\n'
+        "    print(f'GOLDFISH GAME {g}/5 killed=true'); time.sleep(0.3)\n"
+        "print('GOLDFISH SUMMARY (OWN TURNS) medianKillsOwn=7.0')\n"
+    )
+    out, rc, state = _run_with_watchdog(proc, heartbeat='GOLDFISH GAME', stall_timeout_s=2, backstop_s=600, poll_s=0.25)
+    assert state.stalled is False
+    assert state.backstopped is False
+    assert rc == 0
+    assert out.count('GOLDFISH GAME') == 5
+    assert 'medianKillsOwn=7.0' in out
+
+
+def test_watchdog_covers_match_heartbeat_not_only_goldfish() -> None:
+    """Parity: the stall watchdog reaps a hung MATCH game (keyed on the match heartbeat
+    'XMAGEBATCH RESULT game=') just like a goldfish — one match heartbeat then a hang is killed
+    fast, while steady match heartbeats run to completion."""
+    from pipeline.sim.engines.xmage import _MATCH_HEARTBEAT, _run_with_watchdog
+
+    hung = _spawn(f"import time; print('{_MATCH_HEARTBEAT}1/12 winner=A'); time.sleep(60)")
+    _out, rc, state = _run_with_watchdog(
+        hung, heartbeat=_MATCH_HEARTBEAT, stall_timeout_s=2, backstop_s=600, poll_s=0.25
+    )
+    assert state.stalled is True and rc != 0
+
+    healthy = _spawn(
+        f"import time\nfor g in range(1, 5): print(f'{_MATCH_HEARTBEAT}{{g}}/4 winner=A'); time.sleep(0.3)\n"
+    )
+    out2, rc2, state2 = _run_with_watchdog(
+        healthy, heartbeat=_MATCH_HEARTBEAT, stall_timeout_s=2, backstop_s=600, poll_s=0.25
+    )
+    assert state2.stalled is False and rc2 == 0
+    assert out2.count(_MATCH_HEARTBEAT) == 4
+
+
+# --------------------------------------------------------------------------- #
+# Commander deck-size / integrity validation (fail LOUD at staging).            #
+# --------------------------------------------------------------------------- #
+
+
+def _dck(main_lines: list[str], commander: str = '1 Kenrith, the Returned King') -> str:
+    """A minimal Forge .dck with the given [Main] lines and one [Commander]."""
+    body = '\n'.join(main_lines)
+    return f'[metadata]\nName=x\n[Commander]\n{commander}\n[Main]\n{body}\n'
+
+
+def test_count_xmage_deck_sums_quantity_multipliers() -> None:
+    """Card QUANTITIES are summed (the ``N`` multiplier), not lines: 30 Swamp == 30 cards."""
+    from pipeline.sim.engines.xmage import count_xmage_deck
+
+    txt = "30 Swamp\n1 Sol Ring\nSB: 1 K'rrik, Son of Yawgmoth\n"
+    assert count_xmage_deck(txt) == (31, 1)
+
+
+def test_validate_commander_deck_passes_99_plus_1() -> None:
+    """A legal 99 main + 1 commander deck validates and returns its counts."""
+    from pipeline.sim.engines.xmage import _forge_dck_to_xmage_txt, validate_commander_deck
+
+    dck = _dck([f'1 Card {i:02d}' for i in range(1, 99)] + ['1 Swamp'])
+    txt = _forge_dck_to_xmage_txt(dck)
+    assert validate_commander_deck(txt, deck_name='legal') == (99, 1)
+
+
+def test_validate_commander_deck_passes_partner_98_plus_2() -> None:
+    """A legal partner pair (98 main + 2 commanders = 100 total) validates."""
+    from pipeline.sim.engines.xmage import _forge_dck_to_xmage_txt, validate_commander_deck
+
+    dck = _dck(
+        [f'1 Card {i:02d}' for i in range(1, 98)] + ['1 Swamp'],
+        commander='1 Ardenn, Intrepid Archaeologist\n1 Rograkh, Son of Rohgahh',
+    )
+    txt = _forge_dck_to_xmage_txt(dck)
+    assert validate_commander_deck(txt, deck_name='partners') == (98, 2)
+
+
+def test_validate_commander_deck_fails_short_95_names_deck_and_counts() -> None:
+    """A 95-card deck fails LOUD; the message names the deck AND the offending counts."""
+    from pipeline.sim.engines.xmage import (
+        DeckSizeError,
+        _forge_dck_to_xmage_txt,
+        validate_commander_deck,
+    )
+
+    dck = _dck([f'1 Card {i:02d}' for i in range(1, 95)] + ['1 Swamp'])  # 95 main + 1 commander
+    txt = _forge_dck_to_xmage_txt(dck)
+    with pytest.raises(DeckSizeError) as exc:
+        validate_commander_deck(txt, deck_name='short-deck')
+    msg = str(exc.value)
+    assert 'short-deck' in msg and '95' in msg
+
+
+def test_translation_keeps_split_and_slash_names() -> None:
+    """A split-card / ``//`` name is NOT dropped by translation (counted, annotation stripped)."""
+    from pipeline.sim.engines.xmage import _forge_dck_to_xmage_txt, count_xmage_deck
+
+    dck = _dck(['1 Fire // Ice|MH2|290', '2 Wear // Tear'] + [f'1 Card {i:02d}' for i in range(1, 97)])
+    txt = _forge_dck_to_xmage_txt(dck)
+    assert 'Fire // Ice' in txt and 'Wear // Tear' in txt
+    assert '|MH2|' not in txt  # set/collector annotation stripped
+    main, commander = count_xmage_deck(txt)
+    assert (main, commander) == (99, 1)
+
+
+def test_audit_header_is_an_inert_comment_line() -> None:
+    """The audit header is a single ``//`` comment (skipped by the importer) recording counts."""
+    from pipeline.sim.engines.xmage import audit_header, count_xmage_deck
+
+    header = audit_header(99, 1)
+    assert header.startswith('// audit: main=99 commander=1')
+    # Prepended to a deck it must not change the counted cards (comment is ignored).
+    assert count_xmage_deck(header + '99 Swamp\nSB: 1 Yargle, Glutton of Urborg\n') == (99, 1)

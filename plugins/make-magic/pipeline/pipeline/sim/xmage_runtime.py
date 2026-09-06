@@ -18,6 +18,8 @@ a missing-install run stay actionable.
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,17 +33,32 @@ if TYPE_CHECKING:
 
 __all__ = (
     'ENV_JAVA',
+    'ENV_XMAGE_DIST_JAR',
     'ENV_XMAGE_HOME',
     'XMAGE_VERSION',
     'XMageInstall',
     'XMageUnavailableError',
+    'effective_dist_sha256',
     'ensure',
     'resolve',
 )
 
+_log = logging.getLogger(__name__)
+
 #: Point this at a BUILT XMage reactor (a clone where the ``_REACTOR_BUILD_CMD`` below
 #: has run) — the dir that contains ``Mage.Tests/``.
 ENV_XMAGE_HOME = 'MAKE_MAGIC_XMAGE_HOME'
+
+#: DEV-ONLY escape hatch: point this at a LOCAL dist jar (e.g. a freshly-built,
+#: not-yet-released ``make-magic-xmage-dist.jar``). When set, :func:`resolve` /
+#: :func:`ensure` use THAT jar directly — no fetch, no download, no code-pin SHA
+#: verification — and the jar's OWN sha256 becomes the *effective dist SHA*
+#: (:func:`effective_dist_sha256`) that keys the driver-compile cache + the ECJ
+#: classpath. It takes precedence over BOTH install modes below. Unset restores the
+#: byte-for-byte production path (fetch + verify against :data:`XMAGE_DIST_SHA256`,
+#: fail-closed on ``None``). Used to compile/test Drivers against a local dist before a
+#: release is cut.
+ENV_XMAGE_DIST_JAR = 'MAKE_MAGIC_XMAGE_DIST_JAR'
 
 #: The pinned XMage version the harness is compiled + verified against.
 XMAGE_VERSION = '1.4.60'
@@ -69,11 +86,13 @@ _HARNESS_JAR = Path(__file__).parent / 'java' / 'xmage' / 'make-magic-xmage.jar'
 _DIST_JAR_NAME = 'make-magic-xmage-dist.jar'
 #: The dist-artifact tag ``xmage-dist-release.yml`` publishes to. A DIST REVISION of the
 #: upstream ``XMAGE_VERSION`` line, bumped when the shaded jar's CONTENTS change without
-#: an upstream XMage bump — here ``-2`` is the first dist that bundles CommanderDuel (so
-#: install-mode can run 1v1 commander). Kept prefixed with ``xmage-dist-{XMAGE_VERSION}``
-#: so the coupling to the built XMage version stays legible; the workflow's tag trigger
-#: matches the ``xmage-dist-*`` wildcard, so any revision publishes.
-_DIST_TAG = f'xmage-dist-{XMAGE_VERSION}-2'
+#: an upstream XMage bump — ``-2`` first bundled CommanderDuel (install-mode 1v1 commander);
+#: ``-3`` bundles the in-search quad driver seam (score-package DriverBonus/MacroRegistry/
+#: SelectionRegistry/MulliganRegistry), which the committed harness references and the ``-2``
+#: jar lacked. Kept prefixed with ``xmage-dist-{XMAGE_VERSION}`` so the coupling to the built
+#: XMage version stays legible; the workflow's tag trigger matches the ``xmage-dist-*``
+#: wildcard, so any revision publishes.
+_DIST_TAG = f'xmage-dist-{XMAGE_VERSION}-3'
 #: The release asset URL — pinned to :data:`_DIST_TAG`. (Bump ``_DIST_TAG`` + re-pin the
 #: SHA below when a new dist is cut.)
 XMAGE_DIST_URL = f'https://github.com/trippersham/magic-tools/releases/download/{_DIST_TAG}/{_DIST_JAR_NAME}'
@@ -83,7 +102,13 @@ XMAGE_DIST_URL = f'https://github.com/trippersham/magic-tools/releases/download/
 #: build itself, not a local/dry-run rebuild). ``None`` re-arms fail-closed: ``ensure``
 #: refuses to fetch (``_download_verified`` rejects a missing checksum) — the state
 #: between bumping ``_DIST_TAG`` and pinning the newly-published ``.sha256``.
-XMAGE_DIST_SHA256: str | None = '847f458796843f1010562667df809f42fc4d95e7316ccf96f2e7741fcae1930f'
+# Pinned to the ``make-magic-xmage-dist.jar.sha256`` asset published at :data:`_DIST_TAG`
+# (``xmage-dist-1.4.60-3``). The shaded jar's bytes are NOT reproducible across builds, so this
+# canonical hash comes from the release build itself, not a local rebuild. Re-pin from the
+# freshly-published ``.sha256`` whenever ``_DIST_TAG`` is bumped. (``None`` re-arms the
+# fail-closed gate: ``ensure`` refuses to fetch without a checksum — the transient state between
+# bumping the tag and pinning the new asset.)
+XMAGE_DIST_SHA256: str | None = 'c87a108ba0fe562855989979681106afc8c0c4cb4f35a1ebee67fc40a5ab78c7'
 
 
 class XMageUnavailableError(RuntimeError):
@@ -106,14 +131,70 @@ class XMageInstall:
 
 
 def _resolve_java() -> Path:
-    """The JRE launcher: ``MAKE_MAGIC_JAVA`` if set (+ validated), else PATH ``java``."""
+    """The JRE launcher: ``MAKE_MAGIC_JAVA`` if set (+ validated), else PATH ``java`` (resolved).
+
+    NEVER returns a bare, unresolved ``Path('java')``: that silent fallback deferred a
+    missing-Java failure to an opaque per-worker JVM crash (every worker died the same way and the
+    crash-loop respawner flooded staging). Instead resolve ``java`` on ``PATH`` up front and raise
+    an ACTIONABLE :class:`XMageUnavailableError` when it is absent, so the boot preflight
+    (:func:`pipeline.sim.simd.preflight.preflight_java`) can version-gate a REAL launcher path.
+    """
     override = os.environ.get(ENV_JAVA)
     if override:
         java = Path(override)
         if not java.is_file():
             raise XMageUnavailableError(f'{ENV_JAVA}={override!r} is not an executable java launcher.')
         return java
-    return Path('java')
+    import shutil
+
+    found = shutil.which('java')
+    if found is None:
+        raise XMageUnavailableError(
+            f'no `java` on PATH and {ENV_JAVA} is unset. Set {ENV_JAVA} to a JRE {XMAGE_VERSION}-'
+            'compatible (Java 21+) launcher, or install one on PATH.'
+        )
+    return Path(found)
+
+
+def _dist_override() -> Path | None:
+    """The :data:`ENV_XMAGE_DIST_JAR` local-dist override jar, or ``None`` when unset.
+
+    A set-but-unusable override (missing / empty / not a file) RAISES rather than silently
+    falling through to the production fetch path — an explicit dev override that cannot be
+    honored must fail loudly.
+    """
+    override = os.environ.get(ENV_XMAGE_DIST_JAR)
+    if not override:
+        return None
+    jar = Path(override)
+    if not (jar.is_file() and jar.stat().st_size > 0):
+        raise XMageUnavailableError(f'{ENV_XMAGE_DIST_JAR}={override!r} is not a readable, non-empty jar file.')
+    return jar
+
+
+def _sha256_of(path: Path) -> str:
+    """SHA256 of ``path``, hashed in 1 MiB chunks (the dist jar is ~79 MB)."""
+    digest = hashlib.sha256()
+    with path.open('rb') as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def effective_dist_sha256(data_dir: str | os.PathLike[str] | None = None) -> str | None:
+    """The dist SHA that keys the driver-compile cache + identifies the ECJ classpath.
+
+    With the local-dist override active, this is the override jar's REAL hash (so swapping
+    the local jar re-keys the compile cache — a changed dist forces recompilation). Unset,
+    it is the code-pinned :data:`XMAGE_DIST_SHA256` verbatim — ``None`` in the release-cut
+    window, so the production path is unchanged by this accessor's presence. ``data_dir`` is
+    accepted for signature parity with :func:`resolve` / :func:`ensure` (the override path
+    is data-dir-independent).
+    """
+    override = _dist_override()
+    if override is not None:
+        return _sha256_of(override)
+    return XMAGE_DIST_SHA256
 
 
 def _dist_dir(data_dir: str | os.PathLike[str] | None) -> Path:
@@ -138,6 +219,22 @@ def resolve(data_dir: str | os.PathLike[str] | None = None) -> XMageInstall:
 
     Neither present → an actionable error naming BOTH how-to-enable paths.
     """
+    override = _dist_override()
+    if override is not None:
+        _log.warning(
+            'LOCAL-DIST OVERRIDE active (%s=%s): using this jar directly — no fetch, no '
+            'download, no code-pin SHA verification. This is a dev-only escape hatch.',
+            ENV_XMAGE_DIST_JAR,
+            override,
+        )
+        # Prepend the COMMITTED harness jar so its fresh XMageBatch (register-by-playerId)
+        # shadows the STALE shaded XMageBatch bundled inside the dist jar. Class-loading
+        # takes the FIRST match on the classpath, so without this the old engine-replacement
+        # class wins, ignores -Dmakemagic.driver, and the run silently degrades to bare CP7
+        # (exit 0) — defeating the driver gate. Mirrors the reactor branch's ordering.
+        classpath = os.pathsep.join((str(_HARNESS_JAR), str(override)))
+        return XMageInstall(mage_tests_dir=override.parent, classpath=classpath, java=_resolve_java())
+
     home_env = os.environ.get(ENV_XMAGE_HOME)
     if home_env:
         return _resolve_reactor(home_env)

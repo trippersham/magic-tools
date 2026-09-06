@@ -1,0 +1,119 @@
+From 99a410df851995b0d842c2b8b8f97744fbd5d035 Mon Sep 17 00:00:00 2001
+From: Tripp Wickersham <tripp@hominy.ai>
+Date: Wed, 26 Aug 2026 01:20:00 -0700
+Subject: [PATCH] mulligan registry + MulliganSteer + chooseMulligan hook
+
+New AI-module score classes MulliganRegistry + MulliganSteer (the driver
+quad's 5th dimension: the opening-hand keep/ship decision), keyed by the
+stable playerId; strict no-op for unregistered seats. ComputerPlayer.
+chooseMulligan consults the registry on the REAL pre-game decision only
+(!game.isSimulation(), after the full-hand/test/Momir guards) and emits a
+DRIVER_MULLIGAN marker; an unregistered seat falls through to the UNCHANGED
+CP7 land heuristic (byte-identical prior behavior).
+---
+ .../java/mage/player/ai/ComputerPlayer.java   | 13 ++++++++
+ .../player/ai/score/MulliganRegistry.java     | 32 +++++++++++++++++++
+ .../mage/player/ai/score/MulliganSteer.java   | 28 ++++++++++++++++
+ 3 files changed, 73 insertions(+)
+ create mode 100644 Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MulliganRegistry.java
+ create mode 100644 Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MulliganSteer.java
+
+diff --git a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/ComputerPlayer.java b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/ComputerPlayer.java
+index 1fea8bc4..d7ecce6b 100644
+--- a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/ComputerPlayer.java
++++ b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/ComputerPlayer.java
+@@ -110,6 +110,19 @@ public class ComputerPlayer extends PlayerImpl {
+         ) {
+             return false;
+         }
++        // In-search driver hook M (mulligan, the 5th dimension): on the REAL pre-game
++        // opening-hand decision (guarded above: full hand, not test, not Momir), consult the
++        // per-playerId mulligan steer. !isSimulation() excludes any nested search copy; the
++        // registry is a strict no-op for unregistered seats, so an unregistered player falls
++        // through to the UNCHANGED CP7 land heuristic below (byte-identical prior behavior).
++        if (!game.isSimulation()) {
++            mage.player.ai.score.MulliganSteer driverMull = mage.player.ai.score.MulliganRegistry.get(getId());
++            if (driverMull != null) {
++                boolean ship = driverMull.shipHand(game, getId());
++                System.err.println("DRIVER_MULLIGAN name=" + getName() + " ship=" + ship);
++                return ship;
++            }
++        }
+         Set<Card> lands = hand.getCards(new FilterLandCard(), game);
+         return lands.size() < 2
+                 || lands.size() > hand.size() - 2;
+diff --git a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MulliganRegistry.java b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MulliganRegistry.java
+new file mode 100644
+index 00000000..c150a874
+--- /dev/null
++++ b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MulliganRegistry.java
+@@ -0,0 +1,32 @@
++package mage.player.ai.score;
++
++import java.util.Map;
++import java.util.UUID;
++import java.util.concurrent.ConcurrentHashMap;
++
++/**
++ * In-search driver hook M registry (sibling of {@link DriverBonus} / {@link MacroRegistry} /
++ * {@link SelectionRegistry}): a per-playerId {@link MulliganSteer}. Keyed by the STABLE
++ * playerId UUID so a steer registered for the real PlayerA decides ONLY that seat's opening
++ * hand, and is a strict no-op for any other seat (per-playerId isolation = the
++ * intelligence-preserving property: an unregistered seat mulligans as pure CP7).
++ */
++public final class MulliganRegistry {
++
++    private static final Map<UUID, MulliganSteer> REGISTRY = new ConcurrentHashMap<>();
++
++    public static void register(UUID playerId, MulliganSteer steer) {
++        REGISTRY.put(playerId, steer);
++    }
++
++    public static void clear(UUID playerId) {
++        REGISTRY.remove(playerId);
++    }
++
++    public static MulliganSteer get(UUID playerId) {
++        return REGISTRY.get(playerId);
++    }
++
++    private MulliganRegistry() {
++    }
++}
+diff --git a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MulliganSteer.java b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MulliganSteer.java
+new file mode 100644
+index 00000000..ef01068f
+--- /dev/null
++++ b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/MulliganSteer.java
+@@ -0,0 +1,28 @@
++package mage.player.ai.score;
++
++import mage.game.Game;
++
++import java.util.UUID;
++
++/**
++ * In-search driver hook M (mulligan): the per-deck opening-hand keep/ship decision — the
++ * genuine 5th dimension of the quad, alongside {@link DriverBonus} (Φ), {@link ComboMacro}
++ * (P + macro) and {@link SelectionSteer} (S).
++ *
++ * <p>Consulted ONCE by {@code ComputerPlayer.chooseMulligan} on the REAL pre-game decision
++ * (never on a nested search copy — {@code chooseMulligan} guards on {@code !game.isSimulation()}),
++ * keyed by the STABLE playerId. When a steer is registered for the acting seat it decides
++ * keep-vs-ship for THIS opening hand; a strict no-op (unregistered) leaves the seat playing
++ * pure CP7's land-count heuristic (the intelligence-preserving property).</p>
++ *
++ * <p>v1 scope is the KEEP/SHIP boolean only. WHICH cards to bottom (London) stays with CP —
++ * deferred as a follow-up (mirror the {@code SelectionSteer} shape over the bottoming choice).</p>
++ */
++public interface MulliganSteer {
++
++    /**
++     * @return {@code true} to SHIP this opening hand (take a mulligan), {@code false} to KEEP.
++     *         Read the hand via {@code game.getPlayer(playerId).getHand()}.
++     */
++    boolean shipHand(Game game, UUID playerId);
++}
+-- 
+2.50.1 (Apple Git-155)
+

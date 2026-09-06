@@ -98,14 +98,34 @@ def test_dup_name_refuses_with_verbatim_candidate_list(data_dir: Path, tmp_path:
     with pytest.raises(DecksError) as excinfo:
         access.resolve('Gruul')
 
+    # #53: the archived eph2 is NOT bare-name addressable, so it drops out of both the
+    # match set and the count — the ambiguity is over the two ACTIVE rows only.
     msg = str(excinfo.value)
     expected = (
-        "'Gruul' is ambiguous (3 decks). Re-run with one of:\n"
+        "'Gruul' is ambiguous (2 decks). Re-run addressing one by --id:\n"
         '  --id 6a3f0b   # synced · airtable\n'
         '  --id b81c92   # ephemeral · local\n'
-        '  --id 0f2d14   # ephemeral,archived · local'
+        'To clear the ambiguity, archive the extra draft(s): '
+        'collection archive-deck --id <prefix>'
     )
     assert msg == expected
+
+
+def test_archiving_a_dup_clears_bare_name_ambiguity(data_dir: Path, tmp_path: Path) -> None:
+    # #53 STOP-CONDITION: the advertised remedy must actually work — archiving one of
+    # two same-named actives leaves a single ACTIVE deck a bare name resolves to.
+    decks = DecksStore()
+    a = _commander_deck('Twins', uuid='aaaaaa' + '0' * 26)
+    b = _commander_deck('Twins', uuid='bbbbbb' + '0' * 26)
+    decks.put(a, deck_uuid=a.uuid, sync_status='ephemeral')
+    decks.put(b, deck_uuid=b.uuid, sync_status='ephemeral')
+    access = DeckAccess(_source_store(tmp_path), decks=decks)
+
+    with pytest.raises(DecksError, match='ambiguous'):
+        access.resolve('Twins')
+
+    decks.archive(b.uuid)  # archive one — the remedy the error text advertises
+    assert access.resolve('Twins') == a.uuid  # bare name now resolves to the survivor
 
 
 def test_id_prefix_resolves_the_right_dup(data_dir: Path, tmp_path: Path) -> None:

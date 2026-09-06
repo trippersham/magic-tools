@@ -2,13 +2,15 @@
 name: assessing-decks
 description: >
   Diagnose a Commander deck's balance with Quadrant Theory — a reasoning-led pre-mortem
-  over a neutral fact sheet. TRIGGER when: user asks "is my deck balanced", "diagnose
-  [deck]", "what's [deck] missing", "what quadrant is weak", "what should I shore up",
-  "is [deck] too glass-cannon", "where does [deck] fall apart", "assess [deck]". Also
-  trigger as the ASSESS step of a building-decks session. SKIP for single-card
-  evaluation, card discovery / upgrade suggestions (that's refining-decks), or empirical
-  win-rate testing (that's simulating-games). This skill produces the Assessment those
-  steps consume.
+  over a neutral fact sheet — and score its power with CRISPI + the Commander Bracket.
+  TRIGGER when: user asks "is my deck balanced", "diagnose [deck]", "what's [deck] missing",
+  "what quadrant is weak", "what should I shore up", "is [deck] too glass-cannon", "where
+  does [deck] fall apart", "assess [deck]". ALSO trigger for power-level questions: "what's
+  my CRISPI score", "how powerful is [deck]", "what Commander Bracket is [deck]", "score
+  [deck]", "how fast/consistent/resilient is [deck]". Also trigger as the ASSESS step of a
+  building-decks session. SKIP for single-card evaluation, card discovery / upgrade
+  suggestions (that's refining-decks), or empirical win-rate testing (that's
+  simulating-games). This skill produces the Assessment + CRISPI those steps consume.
 user-invocable: true
 ---
 
@@ -42,7 +44,9 @@ send the user to **distilling-strategy** first.
 If you catch yourself about to:
 - **Report a percentage bar chart** (`Winning 12%, Losing 30%`) — STOP. The
   card-scoring premise was retired (see quadrant-theory.md). The Assessment is a
-  narrative pre-mortem, not a tally.
+  narrative pre-mortem, not a tally. (This is about the QUADRANTS; CRISPI's Step-9
+  axes — S/C/I/R 1–10 + PI — are a separate, legitimate cEDH-anchored power score
+  computed by a deterministic engine, NOT the retired quadrant tally. Don't conflate them.)
 - **Diagnose from card memory** — STOP. Run the `factsheet` verb; reason over the actual
   `otag_buckets` + `susceptibility`, not a remembered decklist.
 - **Read empty `otag_buckets` as "the deck does nothing"** — STOP. That's the otag layer
@@ -77,6 +81,59 @@ thin_focus / off_focus), the full fact-sheet field reference, and the limitation
 (cEDH is out of scope; why the card-scoring premise was retired).
 </reference>
 
+## Cold start: from a decklist file to a CRISPI score
+
+New here, with just a decklist file (a precon export, a pasted list) and no populated
+backend? This is the shortest path to a real **CRISPI** score. A standalone CRISPI does
+**not** require a Strategy — the `<primary-constraint>` Strategy gate applies to the full
+Assessment / quadrant pre-mortem, not to CRISPI, which is a deterministic power score you
+can run on any deck. (For the full Assessment you still need a Strategy — distilling-strategy
+first.)
+
+```bash
+# 1. Pin the local backend (one time; persists, won't re-prompt).
+${CLAUDE_PLUGIN_ROOT}/scripts/collection onboard --backend local
+
+# 2. Hydrate the card lake (see Prerequisites — first run downloads ~140MB and takes a
+#    few minutes; re-runs are a fast no-op). WITHOUT this, scoring verbs refuse loudly.
+${CLAUDE_PLUGIN_ROOT}/scripts/collection hydrate-lake
+
+# 3. Import the list as an ephemeral local draft. A file path auto-sniffs as plaintext
+#    (--source plaintext forces it). For a precon-style `#`-header export the header
+#    becomes the deck name ("# Witherbloom Pestilence — total=100" → that name).
+${CLAUDE_PLUGIN_ROOT}/scripts/collection import-deck <file> --source plaintext
+
+# 4. Score it. --commander-dependence is required; --fundamental-turn is optional
+#    (omit to auto-estimate, supply to override).
+${CLAUDE_PLUGIN_ROOT}/scripts/collection crispi "<deck name>" \
+  --fundamental-turn <N> --commander-dependence <low|med|high>
+```
+
+**Import notes (the friendly guardrails):**
+- **Duplicate lines sum.** MTGJSON precon exports emit one line per printing, so `1 Swamp`
+  eight times is 8 Swamp — the importer sums them; a 100-card list stays 100.
+- **Commander detection is loud, never silent.** A `Commander:`/`[Commander]` section wins;
+  else pass `--commander "<name>"`; else the importer tries the first-line legendary *when
+  the lake is up to confirm it*. If a Commander-format list lands with **0 commanders**, you
+  get a hard stderr warning — and `crispi` will **refuse** the deck until you re-import with
+  `--commander`. Set the commander before scoring a commander-format deck.
+- **Re-importing the same list** mints another same-named draft (the dup-name walls are
+  intact); a later bare-name reference is then ambiguous. Address a specific copy with
+  `--id <prefix>`, or archive the extra — the import prints the exact commands.
+
+The two reasoning inputs (`--fundamental-turn`, `--commander-dependence`) are defined
+authoritatively in **Step 9** below — read those definitions before you supply them.
+
+**Speed and drivers (the cold-start default).** The cold-start `crispi` above gives an
+honest **closed-form** Speed with no driver required — that is the deterministic a-priori
+answer and it is correct for the majority of decks (go-wide, aggro, goodstuff — CP7 pilots
+them fine). Speed only gets *sharper* by simulating for a deck with a real in-deck win line
+to pilot: author a **DRIVE** driver via **`authoring-drivers`**, run it through
+**`simulating-games`**, and Speed will consume the driven-goldfish clock instead of the
+closed form. `crispi`'s stderr flags `driver_recommended` when that would help. You do NOT
+need a driver to get a CRISPI score — only to replace a closed-form Speed with a simulated
+one on a driver-worthy deck.
+
 ## The data surface: the `collection` CLI
 
 Every read and the Assessment/Focus-Otags writes go through the backend-agnostic
@@ -100,8 +157,28 @@ raw Airtable CRUD.
 ## Prerequisites
 
 - **uv** — the CLI and the fact-sheet engine run via `uv run`.
-- **A populated backend** with the deck present and a Strategy filled (per
-  `strategy-schema.md`). No Strategy → distilling-strategy first.
+- **A hydrated card lake** — scoring verbs (`factsheet`, `crispi`) read enrichment (oracle
+  ids + the rolled-up oracle-tag closure) from a local card lake. Bootstrap it once with
+  `collection hydrate-lake` (respects `MAKE_MAGIC_DATA_DIR`). **First run** downloads the
+  Scryfall `oracle_cards` bulk (~140MB, a few minutes) and loads the full oracle-tag dataset
+  (~84-92% coverage); re-runs are a fast no-op (cursor-gated, no-clobber). This is a
+  **friendly guardrail, not a failure mode**, and the two scoring verbs handle a missing/
+  degraded otag layer DIFFERENTLY:
+  - `crispi` **refuses loudly** — exiting nonzero with remediation text naming
+    `collection hydrate-lake` — when the lake is absent/stub, the deck stays low-coverage
+    after enrichment, OR the oracle-tag closure is unavailable or **snapshot-degraded** for
+    the deck (below the coverage floor). Its whole output is a confident score, so it never
+    scores off a blank/near-blank otag signal.
+  - `factsheet` still **refuses** on an absent/stub lake or a name-only deck, but when only
+    the otag closure is unavailable it **degrades gracefully** to structured facts with the
+    `otag layer unavailable` marker (see Step 3's Graceful degradation) rather than refusing.
+- **`MAKE_MAGIC_DATA_DIR`** — the store root; all lake paths and the local decks store
+  resolve off it. Set it to a stable location (a throwaway dir gets an unhydrated lake and
+  triggers the refusal above).
+- **A populated backend** — for the full Assessment / quadrant pre-mortem, the deck must be
+  present with a Strategy filled (per `strategy-schema.md`); no Strategy → distilling-strategy
+  first. (A standalone CRISPI needs only an imported deck + a hydrated lake — no Strategy; see
+  **Cold start** above.)
 
 ## Two run modes — same write path, different target
 
@@ -265,6 +342,78 @@ and write an Assessment from the structured facts (curve, ramp, instant-speed, k
 
 ---
 
+## Step 9 — CRISPI power score + Commander Bracket (the quantitative companion)
+
+The quadrant pre-mortem answers *"does the deck have a plan for every game-state?"* CRISPI
+answers a different, complementary question: *"how powerful is it, on a cEDH-anchored
+scale, and what Commander Bracket is it?"* Run it after the pre-mortem — it reuses the same
+fact sheet, and the reads you already did (curve, ramp, wincon, susceptibility) are exactly
+what you need to supply its two inputs.
+
+**CRISPI is a deterministic engine with exactly two reasoning inputs — you supply only those
+two; the engine computes everything else.** It is a *static, a-priori* analysis that does NOT
+depend on a deck being pilotable by Forge, so it is a load-bearing complement to
+`simulating-games`, not a redundant one (a combo/turbo deck Forge under-pilots can still
+score Speed 9 / Resilience 9 here).
+
+**The two inputs you reason (from the pre-mortem you just did):**
+- **`--fundamental-turn <N|N.5>`** — goldfish the deck: the turn it *completes* a first
+  elimination (or wins outright) in ≥50% of goldfish games, no disruption — the score times
+  the *median game*, not the fast high-roll. Half-steps are a real read of variance (a line
+  that kills turn 4 on curve / turn 5 through a brick → `4.5`); if torn, take the slower turn.
+  This is the entire Speed axis. (OPTIONAL at the CLI — omit it and the engine auto-computes
+  the estimate; supply it to override.) When auto-computed, the engine returns a **deterministic
+  closed-form** own-turn by default. It **escalates to a driven goldfish** (a real, sim-backed
+  Speed) for exactly one kind of deck: one with a **DRIVE**-class authored driver — a genuine
+  in-deck win line to pilot. A **THIN** driver (bare CP7 — most go-wide/aggro/goodstuff decks)
+  keeps the deterministic closed form, because a goldfish driven by CP7 adds nothing over it.
+  The stderr provenance line reports `via tier1` (closed form) or `via tier2` (driven goldfish),
+  and flags `driver_recommended` when a DRIVE driver would sharpen a deck that lacks one — your
+  cue to author one via `authoring-drivers` / `simulating-games` and re-score.
+- **`--commander-dependence <low|med|high>`** — how the deck plays commander-less:
+  `low` = runs fine without it (80%+ capacity; a goodstuff/combo-in-the-99 pile),
+  `med` = the format default (matters, still executes, 50–80%),
+  `high` = brought to its knees (<50%; the engine/win/mana lives in the command zone).
+
+**Run it:**
+```bash
+${CLAUDE_PLUGIN_ROOT}/scripts/collection crispi "<deck>" --fundamental-turn <N> --commander-dependence <low|med|high>
+```
+It returns the four axes (each a 1–10 value + a short rationale + the cards that drove it),
+the **Performance Index** (their average), and the **Commander Bracket (1–5)** with the
+signals that set it. Keep **all four axes**, not just the PI — a 9/3/3/9 fast-fragile deck
+and a 6/7/7/6 balanced deck share a PI but are different decks.
+
+**Present** the axes + PI + Bracket to the user alongside the Assessment. Then **persist both**:
+```bash
+# structured result (a derived stamp, like sim — goes stale when the deck changes).
+# Pipe the crispi JSON via stdin (--result -): a real result carries apostrophes in
+# rationales/card names that break inline shell quoting.
+${CLAUDE_PLUGIN_ROOT}/scripts/collection crispi "<deck>" --fundamental-turn <N> --commander-dependence <t> \
+  | ${CLAUDE_PLUGIN_ROOT}/scripts/collection stamp-crispi "<deck>" --result -
+```
+and fold a one-line summary into the Assessment prose you write in Step 8, e.g.
+`CRISPI 6.25 · S7/C6/I7/R5 · Bracket 3`. The structured stamp is what a later
+building-decks VALIDATE step can cross-check against a sim verdict (a change that drops on
+BOTH sim and CRISPI is true worsening; one that drops on sim but holds on CRISPI is Forge
+archetype under-representation).
+
+<cedh-anchoring-note>
+**cEDH scope — CRISPI vs the quadrant diagnosis are different.** The quadrant pre-mortem
+keeps cEDH **out of scope** (game stages aren't well-defined there — see "When NOT to use").
+CRISPI is the opposite by design: it is **cEDH-anchored** — cEDH-optimized lists *define*
+8/9/10 on every axis, and grading a non-cEDH deck on that scale is intended and fine (a
+precon centers ~CRISPI 5 / Bracket 2). So "cEDH is out of scope" applies to the quadrant
+reasoning, NOT to CRISPI. Run CRISPI on any deck, including a low-power one; do not refuse it
+on the cEDH-scope grounds that apply to the pre-mortem.
+</cedh-anchoring-note>
+
+**Graceful degradation:** CRISPI's accuracy depends on otag coverage. If the otag layer is
+degraded/unavailable the axes read low across the board — note the caveat rather than
+reporting a misleadingly-low score as fact.
+
+---
+
 ## Output contract
 
 - **Assessment** — the Step-7 narrative pre-mortem (is / isn't / needs): per-quadrant
@@ -272,10 +421,13 @@ and write an Assessment from the structured facts (curve, ramp, instant-speed, k
 - **(if proposed) Focus Otags** — the curated bucket/otag slug list.
 - **The concrete needs** (prescription + owned fills) that refining-decks turns into
   ranked candidates.
+- **CRISPI score + Commander Bracket** (Step 9) — the four axes + PI + Bracket, with the
+  one-line summary folded into the Assessment prose.
 
-**Persistence:** you write via `set-assessment` (+ `set-focus-otags`) — the only write
-path. On a real (synced) deck the write commits through to the source of record; on an
-ephemeral building-decks draft it stays local until the orchestrator promotes it.
+**Persistence:** you write the Assessment via `set-assessment` (+ `set-focus-otags`) and the
+structured CRISPI result via `stamp-crispi`. On a real (synced) deck the assessment commits
+through to the source of record; the CRISPI stamp is a local derived-output stamp (like sim).
+On an ephemeral building-decks draft everything stays local until the orchestrator promotes it.
 
 ## When to use
 
@@ -291,5 +443,7 @@ ephemeral building-decks draft it stays local until the orchestrator promotes it
   Assessment).
 - **Empirically testing a win-rate** — that's simulating-games; this skill is a-priori
   reasoning, not games.
-- **cEDH / high-power combo** — out of scope; quadrant theory breaks down there
-  (game stages aren't well-defined). Say so; don't force it.
+- **cEDH / high-power combo — for the QUADRANT pre-mortem only.** Quadrant theory breaks
+  down there (game stages aren't well-defined); say so, don't force the pre-mortem. This
+  does NOT apply to the Step-9 **CRISPI** score, which is cEDH-anchored by design — run
+  CRISPI on any deck regardless of power level.

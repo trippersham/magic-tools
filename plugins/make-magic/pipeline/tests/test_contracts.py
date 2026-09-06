@@ -385,6 +385,35 @@ def test_deck_format_roundtrip() -> None:
     assert restored.target_size == 100
 
 
+def test_card_can_be_commander() -> None:
+    """CR 903.3: a legendary creature, or any card whose text says 'can be your commander'."""
+    assert Card(name='Krenko, Mob Boss', type_line='Legendary Creature — Goblin Warrior').can_be_commander is True
+    # A planeswalker heads a deck only with the granting text — not otherwise.
+    pw = 'Legendary Planeswalker — Freyalise'
+    assert Card(name='Freyalise', type_line=pw, oracle_text='Freyalise can be your commander.').can_be_commander is True
+    assert Card(name='Jace', type_line=pw, oracle_text='+1: draw a card.').can_be_commander is False
+    # Not legendary, not a creature, no granting text → not eligible.
+    assert Card(name='Sol Ring', type_line='Artifact').can_be_commander is False
+    assert Card(name='Unresolved').can_be_commander is False  # no type_line
+
+
+def test_deck_is_commander_format_property() -> None:
+    assert Deck(name='a', format='Commander', cards=[]).is_commander_format is True
+    assert Deck(name='b', format='EDH', cards=[]).is_commander_format is True
+    assert Deck(name='c', format='Duel Commander', cards=[]).is_commander_format is True
+    assert Deck(name='d', format='Standard', cards=[]).is_commander_format is False
+    assert Deck(name='e', cards=[]).is_commander_format is False  # undeclared is NOT commander-format
+
+
+def test_deck_expects_commander_property() -> None:
+    """expects_commander is the IMPORT-time predicate: commander-format OR undeclared (this is a
+    Commander-centric tool), but NOT an explicitly non-commander format."""
+    assert Deck(name='a', format='Commander', cards=[]).expects_commander is True
+    assert Deck(name='b', cards=[]).expects_commander is True  # undeclared → treated as commander
+    assert Deck(name='c', format='  ', cards=[]).expects_commander is True  # blank → undeclared
+    assert Deck(name='d', format='Standard', cards=[]).expects_commander is False  # declared non-commander
+
+
 def test_deck_missing_required_rejected() -> None:
     with pytest.raises(ValidationError):
         Deck(cards=[])  # type: ignore[call-arg]
