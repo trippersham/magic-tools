@@ -102,14 +102,13 @@ XMAGE_DIST_URL = f'https://github.com/trippersham/magic-tools/releases/download/
 #: build itself, not a local/dry-run rebuild). ``None`` re-arms fail-closed: ``ensure``
 #: refuses to fetch (``_download_verified`` rejects a missing checksum) — the state
 #: between bumping ``_DIST_TAG`` and pinning the newly-published ``.sha256``.
-# Pinned to the ``make-magic-xmage-dist.jar.sha256`` asset published at :data:`_DIST_TAG`.
-# The shaded jar's bytes are NOT reproducible across builds, so this canonical hash comes from
-# the release build itself, not a local rebuild. Re-pin from the freshly-published ``.sha256``
-# whenever ``_DIST_TAG`` is bumped. (``None`` re-arms the fail-closed gate: ``ensure`` refuses
-# to fetch without a checksum — the transient state between bumping the tag and pinning the new
-# asset. Currently ``None``: the ``xmage-dist-1.4.60-3`` release build is in flight; re-pin from
-# its published ``.sha256``.)
-XMAGE_DIST_SHA256: str | None = None
+# Pinned to the ``make-magic-xmage-dist.jar.sha256`` asset published at :data:`_DIST_TAG`
+# (``xmage-dist-1.4.60-3``). The shaded jar's bytes are NOT reproducible across builds, so this
+# canonical hash comes from the release build itself, not a local rebuild. Re-pin from the
+# freshly-published ``.sha256`` whenever ``_DIST_TAG`` is bumped. (``None`` re-arms the
+# fail-closed gate: ``ensure`` refuses to fetch without a checksum — the transient state between
+# bumping the tag and pinning the new asset.)
+XMAGE_DIST_SHA256: str | None = 'c87a108ba0fe562855989979681106afc8c0c4cb4f35a1ebee67fc40a5ab78c7'
 
 
 class XMageUnavailableError(RuntimeError):
