@@ -23,7 +23,7 @@ def _combo(vid: str, names: tuple[str, ...], result: str) -> Combo:
 
 
 # A game-WIN two-piece combo (rule-1 qualifies) and a bare-resource loop (does not).
-_WIN_2 = _combo('win2', ('Thassa\'s Oracle', 'Demonic Consultation'), 'Win the game')
+_WIN_2 = _combo('win2', ("Thassa's Oracle", 'Demonic Consultation'), 'Win the game')
 _WIN_3 = _combo('win3', ('Kiki-Jiki, Mirror Breaker', 'Zealous Conscripts', 'Sol Ring'), 'Infinite damage')
 _LOOP = _combo('loop', ('Basalt Monolith', 'Rings of Brighthearth'), 'Infinite colorless mana')
 

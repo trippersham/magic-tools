@@ -204,8 +204,11 @@ def test_headerless_planeswalker_commander_promoted_only_with_permission(
 ) -> None:
     """A legendary planeswalker heads the list only when its oracle text grants commander
     eligibility; an ordinary legendary planeswalker is not promoted."""
-    ok = _Card('Freyalise, Llanowar\'s Fury', 'Legendary Planeswalker — Freyalise',
-               'Freyalise, Llanowar\'s Fury can be your commander.')
+    ok = _Card(
+        "Freyalise, Llanowar's Fury",
+        'Legendary Planeswalker — Freyalise',
+        "Freyalise, Llanowar's Fury can be your commander.",
+    )
     _lake_ready(monkeypatch, _resolver_for(freyalise=ok))
     monkeypatch.setattr('sys.stdin', io.StringIO("Freyalise, Llanowar's Fury\n1 Forest\n"))
     _run(monkeypatch, 'import-deck', '-', '--name', 'PW OK')

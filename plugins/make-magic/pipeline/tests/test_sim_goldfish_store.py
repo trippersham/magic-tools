@@ -102,14 +102,26 @@ def test_driven_vs_driverless_distinct_keys(data_dir: Path) -> None:
 def test_restore_same_key_upserts(data_dir: Path) -> None:
     result = _FakeGoldfish(median_kills_own=6.5, games=3, max_turn=20, bricks=1)
     key = sim_store.persist_goldfish_run(
-        DECK, driver_fqcn=None, alpha=None, fmt='commander', games=3,
-        result=result, raw_log=_RAW_LOG, engine='xmage',
+        DECK,
+        driver_fqcn=None,
+        alpha=None,
+        fmt='commander',
+        games=3,
+        result=result,
+        raw_log=_RAW_LOG,
+        engine='xmage',
     )
     assert key is not None
     # Re-store the same content -> upsert, not duplicate.
     sim_store.persist_goldfish_run(
-        DECK, driver_fqcn=None, alpha=None, fmt='commander', games=3,
-        result=result, raw_log=_RAW_LOG, engine='xmage',
+        DECK,
+        driver_fqcn=None,
+        alpha=None,
+        fmt='commander',
+        games=3,
+        result=result,
+        raw_log=_RAW_LOG,
+        engine='xmage',
     )
     rec = sim_store.get_goldfish(key)
     assert rec is not None
@@ -118,14 +130,24 @@ def test_restore_same_key_upserts(data_dir: Path) -> None:
 
 def test_goldfish_features_aggregate(data_dir: Path) -> None:
     sim_store.persist_goldfish_run(
-        DECK, driver_fqcn='org.x.Driver', alpha=2000, fmt='commander', games=3,
+        DECK,
+        driver_fqcn='org.x.Driver',
+        alpha=2000,
+        fmt='commander',
+        games=3,
         result=_FakeGoldfish(median_kills_own=6.5, games=3, max_turn=20, bricks=1),
-        raw_log=_RAW_LOG, engine='xmage',
+        raw_log=_RAW_LOG,
+        engine='xmage',
     )
     sim_store.persist_goldfish_run(
-        DECK, driver_fqcn=None, alpha=None, fmt='commander', games=3,
+        DECK,
+        driver_fqcn=None,
+        alpha=None,
+        fmt='commander',
+        games=3,
         result=_FakeGoldfish(median_kills_own=8.0, games=3, max_turn=20, bricks=0),
-        raw_log=_RAW_LOG, engine='xmage',
+        raw_log=_RAW_LOG,
+        engine='xmage',
     )
     feats = sim_store.goldfish_features(fmt='commander')
     assert feats['runs'] == 2
@@ -138,7 +160,13 @@ def test_goldfish_features_aggregate(data_dir: Path) -> None:
 def test_persist_never_raises_on_bad_result(data_dir: Path) -> None:
     # A result missing median_kills_own -> swallowed, returns None (non-fatal side-channel).
     key = sim_store.persist_goldfish_run(
-        DECK, driver_fqcn=None, alpha=None, fmt='commander', games=3,
-        result=object(), raw_log=_RAW_LOG, engine='xmage',
+        DECK,
+        driver_fqcn=None,
+        alpha=None,
+        fmt='commander',
+        games=3,
+        result=object(),
+        raw_log=_RAW_LOG,
+        engine='xmage',
     )
     assert key is None

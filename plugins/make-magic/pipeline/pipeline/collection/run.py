@@ -2010,7 +2010,7 @@ def _crispi(argv: list[str]) -> None:
         cov = f'{probe.coverage:.0%}' if probe.coverage is not None else 'near-zero'
         print(
             f'# WARNING: only {cov} of this deck is tagged in the oracle-tag dataset — these '
-            'cards are likely not tagged upstream yet (a just-released set), so the score\'s '
+            "cards are likely not tagged upstream yet (a just-released set), so the score's "
             'Interaction/Resilience/Consistency otag-driven components may under-read.',
             file=sys.stderr,
         )

@@ -304,13 +304,10 @@ class OpsStore:
         is REFUSED loudly. A stored ``NULL`` fingerprint (a row created by a bare open) is adopted by
         the first real fingerprint; a ``None`` incoming fingerprint never triggers the guard.
         """
-        row = self._conn.execute(
-            'SELECT config FROM simd_runs WHERE run_id = ?', [run_id]
-        ).fetchone()
+        row = self._conn.execute('SELECT config FROM simd_runs WHERE run_id = ?', [run_id]).fetchone()
         if row is None:
             self._conn.execute(
-                'INSERT INTO simd_runs (run_id, created_at, config) VALUES (?, ?, ?) '
-                'ON CONFLICT (run_id) DO NOTHING',
+                'INSERT INTO simd_runs (run_id, created_at, config) VALUES (?, ?, ?) ON CONFLICT (run_id) DO NOTHING',
                 [run_id, _now(), config_fingerprint],
             )
             return
@@ -318,9 +315,7 @@ class OpsStore:
         if config_fingerprint is None:
             return  # a bare open (inspection/round-trip) — never re-fingerprints or guards.
         if stored is None:
-            self._conn.execute(
-                'UPDATE simd_runs SET config = ? WHERE run_id = ?', [config_fingerprint, run_id]
-            )
+            self._conn.execute('UPDATE simd_runs SET config = ? WHERE run_id = ?', [config_fingerprint, run_id])
             return
         if stored != config_fingerprint:
             msg = (
@@ -550,11 +545,31 @@ class OpsStore:
                 'timeout = excluded.timeout, missing_transcript = excluded.missing_transcript, '
                 'created_at = excluded.created_at',
                 [
-                    self._run_id, res.task_id, subject, opp, pil, gidx, feat.winner, feat.kill_turn,
-                    feat.win_margin_life, feat.wincon, feat.mulligans_a, feat.mulligans_b,
-                    feat.game_length_ms, feat.assembled_turn, feat.fired_turn, feat.driver_registered,
-                    feat.macro_reachable, feat.steer_fired, feat.storm_count, feat.life_swing,
-                    feat.disruption_survived, feat.incomplete, feat.timeout, False, _now(),
+                    self._run_id,
+                    res.task_id,
+                    subject,
+                    opp,
+                    pil,
+                    gidx,
+                    feat.winner,
+                    feat.kill_turn,
+                    feat.win_margin_life,
+                    feat.wincon,
+                    feat.mulligans_a,
+                    feat.mulligans_b,
+                    feat.game_length_ms,
+                    feat.assembled_turn,
+                    feat.fired_turn,
+                    feat.driver_registered,
+                    feat.macro_reachable,
+                    feat.steer_fired,
+                    feat.storm_count,
+                    feat.life_swing,
+                    feat.disruption_survived,
+                    feat.incomplete,
+                    feat.timeout,
+                    False,
+                    _now(),
                 ],
             )
         if cleanup and path:
@@ -564,9 +579,7 @@ class OpsStore:
                 os.remove(path)  # best-effort disk reclaim — a stuck file must never fail a game.
         return True
 
-    def _record_missing_game(
-        self, res: GameResult, subject: str, opp: str, pil: str, gidx: str
-    ) -> None:
+    def _record_missing_game(self, res: GameResult, subject: str, opp: str, pil: str, gidx: str) -> None:
         """Write a ``missing_transcript=True`` row for a game whose transcript was absent/unreadable
         — a flagged record, never a silent skip. The transcript file (if any) is deliberately KEPT
         so a later standalone re-drain can still recover it."""
@@ -603,9 +616,7 @@ class OpsStore:
     def load_game_features(self) -> dict[str, dict[str, object]]:
         """``{task_id: {feature-column: value}}`` for this run's drained games (roll-in source)."""
         with self._lock:
-            cur = self._conn.execute(
-                'SELECT * FROM simd_game_features WHERE run_id = ?', [self._run_id]
-            )
+            cur = self._conn.execute('SELECT * FROM simd_game_features WHERE run_id = ?', [self._run_id])
             cols = [d[0] for d in cur.description]
             rows = cur.fetchall()
         return {dict(zip(cols, r, strict=True))['task_id']: dict(zip(cols, r, strict=True)) for r in rows}
@@ -635,8 +646,7 @@ class OpsStore:
         the next :meth:`load_attempts` (which counts ``dispatch`` rows). One atomic statement."""
         with self._lock:
             self._conn.execute(
-                'DELETE FROM simd_attempts WHERE run_id = ? AND task_id = ? AND attempt = ? '
-                "AND outcome = 'dispatch'",
+                "DELETE FROM simd_attempts WHERE run_id = ? AND task_id = ? AND attempt = ? AND outcome = 'dispatch'",
                 [self._run_id, task_id, attempt],
             )
 
@@ -677,9 +687,7 @@ class OpsStore:
     def load_quarantine(self) -> set[str]:
         """The set of terminally quarantined task_ids (skipped on restart)."""
         with self._lock:
-            rows = self._conn.execute(
-                'SELECT task_id FROM simd_quarantine WHERE run_id = ?', [self._run_id]
-            ).fetchall()
+            rows = self._conn.execute('SELECT task_id FROM simd_quarantine WHERE run_id = ?', [self._run_id]).fetchall()
         return {r[0] for r in rows}
 
     def load_attempts(self) -> dict[str, int]:
@@ -690,7 +698,7 @@ class OpsStore:
         """
         with self._lock:
             rows = self._conn.execute(
-                "SELECT task_id, count(*) FROM simd_attempts "
+                'SELECT task_id, count(*) FROM simd_attempts '
                 "WHERE outcome = 'dispatch' AND run_id = ? GROUP BY task_id",
                 [self._run_id],
             ).fetchall()

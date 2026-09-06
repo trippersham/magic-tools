@@ -119,8 +119,14 @@ def test_gate1_bad_java_preflight_aborts_before_any_spawn(tmp_path, monkeypatch)
 
     with pytest.raises(BootFailure):
         run_games_simd(
-            tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0, ops_db_path=db,
-            preflight=bad_preflight, env_for_worker=env_for, join_timeout_s=30.0,
+            tasks,
+            worker_cmd=_cmd(),
+            workers=2,
+            stall_timeout_s=30.0,
+            ops_db_path=db,
+            preflight=bad_preflight,
+            env_for_worker=env_for,
+            join_timeout_s=30.0,
         )
     # ZERO workers ever spawned ...
     assert not spawnlog.exists(), 'a worker spawned despite a failed preflight'
@@ -177,8 +183,14 @@ def test_gate2_crashloop_breaker_bounds_spawns_no_flood(tmp_path) -> None:
 
     with pytest.raises(BootFailure, match='circuit breaker'):
         run_games_simd(
-            tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0, ops_db_path=db,
-            breaker=breaker, env_for_worker=env_for, join_timeout_s=60.0,
+            tasks,
+            worker_cmd=_cmd(),
+            workers=2,
+            stall_timeout_s=30.0,
+            ops_db_path=db,
+            breaker=breaker,
+            env_for_worker=env_for,
+            join_timeout_s=60.0,
         )
     assert breaker.tripped
     spawns = spawnlog.read_text().split() if spawnlog.exists() else []
@@ -277,8 +289,15 @@ def test_gate3_engine_halt_reap_neutralizes_dispatch_charge(tmp_path) -> None:
         return {'FAKE_SILENT': '1'}  # accept the task, then never emit RESULT (held in flight).
 
     res = run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0, ops_db_path=db,
-        disk_governor=gov, attempt_cap=1, env_for_worker=env_for, join_timeout_s=30.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=2,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        disk_governor=gov,
+        attempt_cap=1,
+        env_for_worker=env_for,
+        join_timeout_s=30.0,
     )
     assert not res.complete  # incomplete but RETURNED (resumable, no wedge).
     assert gov.halted
@@ -300,8 +319,14 @@ def test_gate3_engine_normal_close_still_charges_dispatch(tmp_path) -> None:
         return {'FAKE_DIE_ON_SUBJECT': poison}
 
     run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=1, stall_timeout_s=30.0, ops_db_path=db,
-        attempt_cap=2, env_for_worker=env_for, join_timeout_s=60.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=1,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        attempt_cap=2,
+        env_for_worker=env_for,
+        join_timeout_s=60.0,
     )
     with OpsStore(db) as ops:
         # No disk halt → real dispatch charges are retained (the poison task burned its cap).
@@ -316,8 +341,13 @@ def test_gate3_engine_resumable_exit_under_disk_halt(tmp_path) -> None:
     tasks = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 2, fmt='commander')
     gov = DiskGovernor(soft_floor_gib=10.0, hard_floor_gib=5.0, disk_probe=lambda _p: 1.0)
     res = run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0, ops_db_path=db,
-        disk_governor=gov, join_timeout_s=30.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=2,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        disk_governor=gov,
+        join_timeout_s=30.0,
     )
     assert not res.complete  # nothing admitted → incomplete, but the call RETURNED (no wedge).
     assert gov.halted
@@ -337,8 +367,13 @@ def test_cleanly_retired_worker_pgid_leaves_sidecar(tmp_path) -> None:
     # One worker → one reader thread → its clean retire drops its own pgid from the sidecar with no
     # concurrent-writer contention. Without the engine's on_retire wiring the pgid would linger.
     res = run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=1, stall_timeout_s=30.0, ops_db_path=db,
-        pidfile_path=pidfile, join_timeout_s=30.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=1,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        pidfile_path=pidfile,
+        join_timeout_s=30.0,
     )
     assert res.complete
     assert _read_worker_records(pidfile) == []
@@ -541,12 +576,18 @@ def test_engine_records_worker_sidecar_with_start_token(tmp_path, monkeypatch) -
     pidfile = tmp_path / 'simd.pid'
     tasks = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 1, fmt='commander')
     run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=1, stall_timeout_s=30.0, ops_db_path=db,
-        pidfile_path=pidfile, join_timeout_s=30.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=1,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        pidfile_path=pidfile,
+        join_timeout_s=30.0,
     )
     assert recorded, 'the engine recorded no worker sidecar entry'
-    assert all(token is not None for _pgid, token in recorded), \
+    assert all(token is not None for _pgid, token in recorded), (
         f'a worker was recorded with a BARE pgid (no start token): {recorded}'
+    )
 
 
 def test_reaper_skips_reused_worker_pgid_with_mismatched_token(tmp_path) -> None:

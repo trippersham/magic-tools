@@ -168,9 +168,7 @@ def ensure_ecj(data_dir: str | os.PathLike[str] | None = None) -> Path:
         return jar
 
     if ECJ_SHA256 is None:
-        raise DriverCompileToolError(
-            f'refusing to fetch {ECJ_URL!r} without a pinned SHA256 checksum (fail-closed).'
-        )
+        raise DriverCompileToolError(f'refusing to fetch {ECJ_URL!r} without a pinned SHA256 checksum (fail-closed).')
 
     from pipeline.sim.forge_runtime import _download_verified
 
@@ -287,13 +285,9 @@ def compile_driver(
     if proc.returncode != 0:
         shutil.rmtree(out_dir, ignore_errors=True)  # never cache a failed compile.
         _log.info('Driver compile failed for %s (exit %d): %d diagnostic(s).', src, proc.returncode, len(diagnostics))
-        return CompileResult(
-            ok=False, class_dir=None, diagnostics=diagnostics, raw_stderr=proc.stderr, cache_hit=False
-        )
+        return CompileResult(ok=False, class_dir=None, diagnostics=diagnostics, raw_stderr=proc.stderr, cache_hit=False)
 
-    return CompileResult(
-        ok=True, class_dir=out_dir, diagnostics=diagnostics, raw_stderr=proc.stderr, cache_hit=False
-    )
+    return CompileResult(ok=True, class_dir=out_dir, diagnostics=diagnostics, raw_stderr=proc.stderr, cache_hit=False)
 
 
 def compile_for_injection(

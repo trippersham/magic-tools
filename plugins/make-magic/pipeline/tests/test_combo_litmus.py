@@ -195,9 +195,7 @@ def test_ensure_combo_lake_noop_when_present(monkeypatch: pytest.MonkeyPatch) ->
     assert called == []
 
 
-def test_ensure_combo_lake_rebuilds_when_missing(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_ensure_combo_lake_rebuilds_when_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """When the parquet is MISSING the guard runs spellbook.sync() then build()."""
     called: list[str] = []
     missing = tmp_path / 'normalized' / 'combo.parquet'

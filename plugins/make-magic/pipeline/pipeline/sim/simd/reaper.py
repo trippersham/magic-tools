@@ -81,7 +81,10 @@ def proc_start_token(pid: int) -> str | None:
     try:
         out = subprocess.run(
             ['ps', '-p', str(pid), '-o', 'lstart='],
-            capture_output=True, text=True, timeout=5.0, check=False,
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -133,9 +136,7 @@ class SingletonLock:
         self.release()
 
 
-def write_pidfile(
-    path: str | os.PathLike[str], *, setpgrp: bool = True, nonce: str | None = None
-) -> _PidRecord:
+def write_pidfile(path: str | os.PathLike[str], *, setpgrp: bool = True, nonce: str | None = None) -> _PidRecord:
     """Become a process-group leader and record ``pid pgid token nonce`` to ``path`` (atomically).
 
     With ``setpgrp`` (production default) the caller calls :func:`os.setpgrp`, so its pid IS its
@@ -193,9 +194,7 @@ def _worker_sidecar(pidfile: Path) -> Path:
 _SIDECAR_LOCK = threading.Lock()
 
 
-def record_worker_pgid(
-    pidfile: str | os.PathLike[str], pgid: int, *, token: str | None = None
-) -> None:
+def record_worker_pgid(pidfile: str | os.PathLike[str], pgid: int, *, token: str | None = None) -> None:
     """Append a spawned worker's process-group id (+ optional identity ``token``) to the sidecar.
 
     Workers spawn with ``start_new_session=True`` (each is its own group leader, so ``pgid`` equals

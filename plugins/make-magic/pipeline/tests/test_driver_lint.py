@@ -159,9 +159,7 @@ def test_unreadable_class_fails_closed(tmp_path: Path) -> None:
     assert not result.ok, 'an unreadable class must fail closed, not pass'
 
 
-_REFERENCE_DRIVERS = sorted(
-    (Path(__file__).parents[1] / 'pipeline' / 'sim' / 'reference_drivers').glob('*.java')
-)
+_REFERENCE_DRIVERS = sorted((Path(__file__).parents[1] / 'pipeline' / 'sim' / 'reference_drivers').glob('*.java'))
 
 
 def test_checked_in_reference_drivers_ship_no_forbidden_api() -> None:

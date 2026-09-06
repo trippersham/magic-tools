@@ -22,12 +22,22 @@ from pipeline.sim.game_protocol import GameResult, parse_line
 
 
 def _r(
-    *, winner: str = 'A', ms: int = 60000, end_cause: str | None = None,
-    reason: str | None = None, markers: list[str] | None = None,
+    *,
+    winner: str = 'A',
+    ms: int = 60000,
+    end_cause: str | None = None,
+    reason: str | None = None,
+    markers: list[str] | None = None,
 ) -> GameResult:
     return GameResult(
-        task_id='S|O|driven|0', winner=winner, kill_turn=8, ms=ms,
-        markers=markers or [], log_path=None, reason=reason, end_cause=end_cause,
+        task_id='S|O|driven|0',
+        winner=winner,
+        kill_turn=8,
+        ms=ms,
+        markers=markers or [],
+        log_path=None,
+        reason=reason,
+        end_cause=end_cause,
     )
 
 
@@ -162,8 +172,7 @@ def test_fast_game_flag() -> None:
 
 def test_end_cause_parsed_off_markers() -> None:
     line = (
-        'RESULT {"id": "S|O|driven|0", "winner": "A", "ms": 746, '
-        '"markers": ["seatA=cp7", "end_cause=lethal_damage"]}'
+        'RESULT {"id": "S|O|driven|0", "winner": "A", "ms": 746, "markers": ["seatA=cp7", "end_cause=lethal_damage"]}'
     )
     msg = parse_line(line)
     assert isinstance(msg, GameResult)

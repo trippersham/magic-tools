@@ -79,8 +79,15 @@ class _Worker:
     """One live worker subprocess + its reader thread + stall bookkeeping."""
 
     __slots__ = (
-        'idx', 'in_flight', 'last_progress', 'lock', 'proc', 'reader', 'retiring',
-        'saw_ready', 'spawned_at',
+        'idx',
+        'in_flight',
+        'last_progress',
+        'lock',
+        'proc',
+        'reader',
+        'retiring',
+        'saw_ready',
+        'spawned_at',
     )
 
     def __init__(self, idx: int, proc: subprocess.Popen[str]) -> None:
@@ -440,9 +447,7 @@ class WorkerPool:
             for w in workers:
                 with w.lock:
                     stalled = (
-                        w.in_flight is not None
-                        and not w.retiring
-                        and (now - w.last_progress) > self._stall_timeout_s
+                        w.in_flight is not None and not w.retiring and (now - w.last_progress) > self._stall_timeout_s
                     )
                     # A2.4 boot deadline: a worker that has not reached READY within the deadline
                     # is a hung boot. Reap it (→ a pre-READY death that feeds the breaker) so a

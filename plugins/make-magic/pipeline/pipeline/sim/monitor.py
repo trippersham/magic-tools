@@ -340,7 +340,7 @@ class ResourceMonitor:
             reason = self._reap_reason(pid, active)
             if reason is not None:
                 try:
-                    self._kill(proc)
+                    self._kill(proc)  # type: ignore[arg-type]  # _kill accepts the _Killable protocol
                 except Exception:  # a kill failure is best-effort; record nothing.
                     continue
                 self._stall_counts.pop(pid, None)

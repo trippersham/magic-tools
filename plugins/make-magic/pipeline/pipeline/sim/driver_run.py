@@ -92,9 +92,7 @@ _FALLBACK_BUNDLES: tuple[str, ...] = ('casual', 'mid', 'cedh')
 _MIN_LOADABLE_CARDS = 60
 
 _PLAN_DIR = Path(
-    os.path.expanduser(
-        '~/.claude/plans/trippersham/magic-tools/2026-08-24-productionize-driver-authoring'
-    )
+    os.path.expanduser('~/.claude/plans/trippersham/magic-tools/2026-08-24-productionize-driver-authoring')
 )
 
 
@@ -197,11 +195,7 @@ def build_opponent_field(
 
     def _eligible(bundle: str) -> list[GauntletDeck]:
         candidates = sorted(_bundle(_COMMANDER, bundle), key=lambda g: g.name)
-        return [
-            g
-            for g in candidates
-            if f'{_COMMANDER}/{bundle}/{g.name}.dck' not in drive and loads(g)
-        ]
+        return [g for g in candidates if f'{_COMMANDER}/{bundle}/{g.name}.dck' not in drive and loads(g)]
 
     field: list[GauntletDeck] = []
     seated: set[str] = set()
@@ -216,7 +210,10 @@ def build_opponent_field(
         if take < k:
             log.warning(
                 'opponent-field stratum %r filled %d/%d loadable decks — redistributing %d slot(s)',
-                bundle, take, k, k - take,
+                bundle,
+                take,
+                k,
+                k - take,
             )
 
     if shortfall:
@@ -292,9 +289,7 @@ def xmage_deck_loads(
         xe._stage_private_db(install, run_dir)
         cand = xe._stage_txt(run_dir, 'cand', xe._forge_dck_to_xmage_txt(g.dck_text))
         passer = xe._stage_txt(run_dir, 'passer', _LOADCHECK_PASSER_TXT)
-        cmd = xe._compose_launch_cmd(
-            install, [str(cand), str(passer), '1', '7', 'commander'], heap='3g'
-        )
+        cmd = xe._compose_launch_cmd(install, [str(cand), str(passer), '1', '7', 'commander'], heap='3g')
         proc = subprocess.Popen(
             cmd, cwd=run_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
         )
@@ -310,9 +305,7 @@ def xmage_deck_loads(
             if seat_deadline is not None and time.monotonic() >= seat_deadline:
                 return True  # ready banner + no load error within grace -> seated OK.
             if time.monotonic() >= boot_deadline:
-                raise xe.XMageError(
-                    f'load-check for {g.name} never seated within {boot_timeout_s:.0f}s'
-                )
+                raise xe.XMageError(f'load-check for {g.name} never seated within {boot_timeout_s:.0f}s')
             try:
                 line = lines.get(timeout=1.0)
             except queue.Empty:
@@ -494,9 +487,7 @@ def build_corpus_game_tasks(
         (stage / name).write_text(xe.audit_header(main, commander) + xtxt, encoding='utf-8')
         opponents.append(SeatSpec(deck_path=name, driver=None))
 
-    return build_game_tasks(
-        subjects, opponents, games, fmt=_COMMANDER, baseline_only_subjects=thin_subjects
-    )
+    return build_game_tasks(subjects, opponents, games, fmt=_COMMANDER, baseline_only_subjects=thin_subjects)
 
 
 def resolve_worker_cmd(
@@ -637,9 +628,7 @@ def rollup_to_lake(
 
         conn = duckdb.connect(str(ops_path), read_only=True)
         try:
-            run_ids = [
-                r[0] for r in conn.execute('SELECT DISTINCT run_id FROM simd_game_logs').fetchall()
-            ]
+            run_ids = [r[0] for r in conn.execute('SELECT DISTINCT run_id FROM simd_game_logs').fetchall()]
         finally:
             conn.close()
     if not run_ids:
@@ -698,12 +687,25 @@ def rollup_to_lake(
                     'disruption_survived, incomplete, timeout) '
                     'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
-                        key, gi, f.get('winner'), f.get('kill_turn'), f.get('win_margin_life'),
-                        f.get('wincon'), f.get('mulligans_a'), f.get('mulligans_b'),
-                        f.get('game_length_ms'), f.get('assembled_turn'), f.get('fired_turn'),
-                        f.get('driver_registered'), f.get('macro_reachable'), f.get('steer_fired'),
-                        f.get('storm_count'), f.get('life_swing'), f.get('disruption_survived'),
-                        f.get('incomplete'), f.get('timeout'),
+                        key,
+                        gi,
+                        f.get('winner'),
+                        f.get('kill_turn'),
+                        f.get('win_margin_life'),
+                        f.get('wincon'),
+                        f.get('mulligans_a'),
+                        f.get('mulligans_b'),
+                        f.get('game_length_ms'),
+                        f.get('assembled_turn'),
+                        f.get('fired_turn'),
+                        f.get('driver_registered'),
+                        f.get('macro_reachable'),
+                        f.get('steer_fired'),
+                        f.get('storm_count'),
+                        f.get('life_swing'),
+                        f.get('disruption_survived'),
+                        f.get('incomplete'),
+                        f.get('timeout'),
                     ],
                 )
                 written += 1
@@ -715,8 +717,18 @@ def rollup_to_lake(
                 'engine_version, wins_a, wins_b, draws, created_at) '
                 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
-                    key, subject, opp, 0, len(tids), _COMMANDER, 'xmage', 'simd',
-                    wins_a, wins_b, draws, _dt.datetime.now(_dt.UTC),
+                    key,
+                    subject,
+                    opp,
+                    0,
+                    len(tids),
+                    _COMMANDER,
+                    'xmage',
+                    'simd',
+                    wins_a,
+                    wins_b,
+                    draws,
+                    _dt.datetime.now(_dt.UTC),
                 ],
             )
     return written
@@ -903,15 +915,29 @@ def run_corpus_queue(
 
     try:
         return _run_corpus_queue_body(
-            rows=rows, field=field, games=games, thin_rows=thin_rows, stall_timeout_s=stall_timeout_s,
-            monitor=monitor, worker_cmd=worker_cmd, data_dir=data_dir, preflight=preflight,
-            disk_governor=disk_governor, breaker=breaker, boot_deadline_s=boot_deadline_s,
-            boot_backoff_base_s=boot_backoff_base_s, own_pgroup=own_pgroup, ops_db=ops_db,
-            lock_path=lock_path, pidfile=pidfile,
+            rows=rows,
+            field=field,
+            games=games,
+            thin_rows=thin_rows,
+            stall_timeout_s=stall_timeout_s,
+            monitor=monitor,
+            worker_cmd=worker_cmd,
+            data_dir=data_dir,
+            preflight=preflight,
+            disk_governor=disk_governor,
+            breaker=breaker,
+            boot_deadline_s=boot_deadline_s,
+            boot_backoff_base_s=boot_backoff_base_s,
+            own_pgroup=own_pgroup,
+            ops_db=ops_db,
+            lock_path=lock_path,
+            pidfile=pidfile,
         )
     except _Terminated:
-        log.error('SIGTERM received — teardown ran (staging swept, flock released); every committed '
-                  'game is durable in ops.duckdb. Exiting nonzero + RESUMABLE.')
+        log.error(
+            'SIGTERM received — teardown ran (staging swept, flock released); every committed '
+            'game is durable in ops.duckdb. Exiting nonzero + RESUMABLE.'
+        )
         raise SystemExit(1) from None
     finally:
         if _term_installed:
@@ -984,8 +1010,13 @@ def _run_corpus_queue_body(
             # baked into the id are the ones passed to run_games_simd below (its defaults).
             attempt_cap, topup_cap = 2, 2
             run_id = _content_run_id(
-                tasks, stage_dir, games=games, attempt_cap=attempt_cap, topup_cap=topup_cap,
-                bailout_floor_ms=BAILOUT_HARD_FLOOR_MS, data_dir=data_dir,
+                tasks,
+                stage_dir,
+                games=games,
+                attempt_cap=attempt_cap,
+                topup_cap=topup_cap,
+                bailout_floor_ms=BAILOUT_HARD_FLOOR_MS,
+                data_dir=data_dir,
             )
             result = run_games_simd(
                 tasks,
@@ -1408,9 +1439,13 @@ def run(argv: list[str] | None = None) -> None:
     # Derive the DRIVE run-set + the tight/loose-P tags straight off the v2 batch ledger (47 drivers).
     batch = Ledger(batch_ledger_path)
     run_set, tightness = run_set_from_batch_ledger(batch)
-    log.info('v2 run-set: %d DRIVE decks (tight=%d loose=%d) from %s', len(run_set),
-             sum(t == 'tight' for t in tightness.values()),
-             sum(t == 'loose' for t in tightness.values()), batch_ledger_path)
+    log.info(
+        'v2 run-set: %d DRIVE decks (tight=%d loose=%d) from %s',
+        len(run_set),
+        sum(t == 'tight' for t in tightness.values()),
+        sum(t == 'loose' for t in tightness.values()),
+        batch_ledger_path,
+    )
 
     if not args.run:
         print(f'run-set: {len(run_set)} DRIVE decks (dry preview — pass --run to execute)')
@@ -1478,14 +1513,15 @@ def run(argv: list[str] | None = None) -> None:
         boot_backoff_base_s=0.5,
     )
     log.info(
-        'simd run complete=%s quarantined=%d incomplete_cells=%d fast_games=%d concede_games=%d '
-        'invalid_cells=%d',
-        result.complete, len(result.quarantined), len(result.incomplete_cells),
-        result.fast_games, result.concede_games, len(result.invalid_cells),
+        'simd run complete=%s quarantined=%d incomplete_cells=%d fast_games=%d concede_games=%d invalid_cells=%d',
+        result.complete,
+        len(result.quarantined),
+        len(result.incomplete_cells),
+        result.fast_games,
+        result.concede_games,
+        len(result.invalid_cells),
     )
-    publish_corpus_results(
-        result, rows=rows, tightness=tightness, field_names=field_names, out_dir=args.out_dir
-    )
+    publish_corpus_results(result, rows=rows, tightness=tightness, field_names=field_names, out_dir=args.out_dir)
 
 
 def publish_corpus_results(
@@ -1521,9 +1557,12 @@ def publish_corpus_results(
         # INVALID = a decisive claim with NO legal terminal cause (macro-game-over / unknown). This
         # must be near-zero; a nonzero count is a loud data-integrity alarm (a driver fabricating a
         # win). Surfaced distinctly so it is never mistaken for an ordinary non-decisive game.
-        log.warning('DATA-INTEGRITY ALARM: %d cell(s) saw INVALID games (decisive claim, no legal '
-                    'terminal cause) — excluded + topped up + flagged: %s',
-                    len(result.invalid_cells), result.invalid_cells)
+        log.warning(
+            'DATA-INTEGRITY ALARM: %d cell(s) saw INVALID games (decisive claim, no legal '
+            'terminal cause) — excluded + topped up + flagged: %s',
+            len(result.invalid_cells),
+            result.invalid_cells,
+        )
 
     # PUBLICATION REFUSAL (Sol BLOCKER 1): the final tables are science that gates ship/no-ship, so
     # they are written ONLY when the run is genuinely complete (every cell ok>=needed) AND saw zero
@@ -1535,8 +1574,12 @@ def publish_corpus_results(
         log.error(
             'REFUSING to publish final buckets: complete=%s invalid_cells=%d incomplete_cells=%d '
             'exhausted_cells=%d never_run_tasks=%d — wrote PARTIAL coverage artifact: %s',
-            result.complete, len(result.invalid_cells), len(result.incomplete_cells),
-            len(result.exhausted_cells), len(never_run), partial_path,
+            result.complete,
+            len(result.invalid_cells),
+            len(result.incomplete_cells),
+            len(result.exhausted_cells),
+            len(never_run),
+            partial_path,
         )
         print(f'PARTIAL (incomplete run — final buckets refused): {partial_path}')
         raise SystemExit(1)
@@ -1547,9 +1590,7 @@ def publish_corpus_results(
     tight_by_subject = {
         _flat_deck_basename('s', str(r['deck_id'])): tightness.get(str(r['deck_id']), '') for r in all_rows
     }
-    arche_by_subject = {
-        _flat_deck_basename('s', str(r['deck_id'])): str(r.get('archetype') or '') for r in all_rows
-    }
+    arche_by_subject = {_flat_deck_basename('s', str(r['deck_id'])): str(r.get('archetype') or '') for r in all_rows}
     agg = aggregate_results(
         result.task_ids, result.results, quarantined=result.quarantined, bailout_floor_ms=BAILOUT_HARD_FLOOR_MS
     )

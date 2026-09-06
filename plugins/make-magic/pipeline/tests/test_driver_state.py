@@ -90,7 +90,10 @@ def test_broken_when_meta_corrupt(_store: Path) -> None:
 
 def test_driver_class_round_trips_drive() -> None:
     meta = drivers.DriverMeta(
-        deck_version='v', harness_version='h', fqcn='x', gates_passed=True,
+        deck_version='v',
+        harness_version='h',
+        fqcn='x',
+        gates_passed=True,
         driver_class='drive',
     )
     assert drivers.DriverMeta.from_json(meta.to_json()).driver_class == 'drive'
@@ -98,7 +101,10 @@ def test_driver_class_round_trips_drive() -> None:
 
 def test_driver_class_round_trips_thin() -> None:
     meta = drivers.DriverMeta(
-        deck_version='v', harness_version='h', fqcn='x', gates_passed=True,
+        deck_version='v',
+        harness_version='h',
+        fqcn='x',
+        gates_passed=True,
         driver_class='thin',
     )
     assert drivers.DriverMeta.from_json(meta.to_json()).driver_class == 'thin'
@@ -109,7 +115,10 @@ def test_driver_class_legacy_meta_reads_unknown_not_a_guess() -> None:
     # guessed as 'drive'/'thin' (labeling it a richness it was never stamped under is
     # worse than admitting we don't know). It also must NOT leak into `extra`.
     legacy = {
-        'deck_version': 'v', 'harness_version': 'h', 'fqcn': 'x', 'gates_passed': True,
+        'deck_version': 'v',
+        'harness_version': 'h',
+        'fqcn': 'x',
+        'gates_passed': True,
         'gate_mode': 'proactive',
     }
     meta = drivers.DriverMeta.from_json(legacy)
@@ -122,8 +131,11 @@ def test_driver_is_drive_reads_the_stamp(_store: Path) -> None:
     drivers.write_meta(
         deck,
         drivers.DriverMeta(
-            deck_version='DECKV1', harness_version=drivers.harness_version(data_dir=_store),
-            fqcn='makemagic.driver.X', gates_passed=True, driver_class='drive',
+            deck_version='DECKV1',
+            harness_version=drivers.harness_version(data_dir=_store),
+            fqcn='makemagic.driver.X',
+            gates_passed=True,
+            driver_class='drive',
         ),
         data_dir=_store,
     )
@@ -135,8 +147,11 @@ def test_driver_is_drive_false_for_thin(_store: Path) -> None:
     drivers.write_meta(
         deck,
         drivers.DriverMeta(
-            deck_version='DECKV1', harness_version=drivers.harness_version(data_dir=_store),
-            fqcn='makemagic.driver.X', gates_passed=True, driver_class='thin',
+            deck_version='DECKV1',
+            harness_version=drivers.harness_version(data_dir=_store),
+            fqcn='makemagic.driver.X',
+            gates_passed=True,
+            driver_class='thin',
         ),
         data_dir=_store,
     )

@@ -592,9 +592,7 @@ def test_watchdog_kills_a_stalled_game_fast_not_after_the_batch_budget() -> None
     # Print one heartbeat, then sleep far past the stall bound with no further progress.
     proc = _spawn("import time; print('GOLDFISH GAME 1/20 killed=false'); time.sleep(60)")
     t0 = time.monotonic()
-    out, rc, state = _run_with_watchdog(
-        proc, heartbeat='GOLDFISH GAME', stall_timeout_s=2, backstop_s=600, poll_s=0.25
-    )
+    out, rc, state = _run_with_watchdog(proc, heartbeat='GOLDFISH GAME', stall_timeout_s=2, backstop_s=600, poll_s=0.25)
     elapsed = time.monotonic() - t0
     assert state.stalled is True
     assert state.backstopped is False
@@ -609,14 +607,12 @@ def test_watchdog_lets_a_steadily_progressing_run_finish() -> None:
 
     # Five quick "games", each a heartbeat well within the stall bound, then a clean exit.
     proc = _spawn(
-        "import time\n"
-        "for g in range(1, 6):\n"
+        'import time\n'
+        'for g in range(1, 6):\n'
         "    print(f'GOLDFISH GAME {g}/5 killed=true'); time.sleep(0.3)\n"
         "print('GOLDFISH SUMMARY (OWN TURNS) medianKillsOwn=7.0')\n"
     )
-    out, rc, state = _run_with_watchdog(
-        proc, heartbeat='GOLDFISH GAME', stall_timeout_s=2, backstop_s=600, poll_s=0.25
-    )
+    out, rc, state = _run_with_watchdog(proc, heartbeat='GOLDFISH GAME', stall_timeout_s=2, backstop_s=600, poll_s=0.25)
     assert state.stalled is False
     assert state.backstopped is False
     assert rc == 0
@@ -637,8 +633,7 @@ def test_watchdog_covers_match_heartbeat_not_only_goldfish() -> None:
     assert state.stalled is True and rc != 0
 
     healthy = _spawn(
-        "import time\n"
-        f"for g in range(1, 5): print(f'{_MATCH_HEARTBEAT}{{g}}/4 winner=A'); time.sleep(0.3)\n"
+        f"import time\nfor g in range(1, 5): print(f'{_MATCH_HEARTBEAT}{{g}}/4 winner=A'); time.sleep(0.3)\n"
     )
     out2, rc2, state2 = _run_with_watchdog(
         healthy, heartbeat=_MATCH_HEARTBEAT, stall_timeout_s=2, backstop_s=600, poll_s=0.25
@@ -662,7 +657,7 @@ def test_count_xmage_deck_sums_quantity_multipliers() -> None:
     """Card QUANTITIES are summed (the ``N`` multiplier), not lines: 30 Swamp == 30 cards."""
     from pipeline.sim.engines.xmage import count_xmage_deck
 
-    txt = '30 Swamp\n1 Sol Ring\nSB: 1 K\'rrik, Son of Yawgmoth\n'
+    txt = "30 Swamp\n1 Sol Ring\nSB: 1 K'rrik, Son of Yawgmoth\n"
     assert count_xmage_deck(txt) == (31, 1)
 
 

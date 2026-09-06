@@ -80,9 +80,7 @@ def test_resolve_reactor_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     assert '/fake/dep1.jar' in install.classpath
 
 
-def test_resolve_dist_override_prepends_harness_jar(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_resolve_dist_override_prepends_harness_jar(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """MAKE_MAGIC_XMAGE_DIST_JAR set → classpath is [harness jar, override jar] in that
     order. The committed harness jar MUST sort FIRST so its fresh XMageBatch shadows the
     STALE shaded XMageBatch bundled in the dist (else the run silently degrades to bare
@@ -228,9 +226,7 @@ def test_local_dist_override_resolves_that_jar(monkeypatch: pytest.MonkeyPatch, 
     assert xr.effective_dist_sha256(data_dir=tmp_path) == hashlib.sha256(body).hexdigest()
 
 
-def test_local_dist_override_takes_precedence_over_reactor(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_local_dist_override_takes_precedence_over_reactor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The explicit dist-jar override wins over a set MAKE_MAGIC_XMAGE_HOME reactor."""
     home = _fake_reactor(tmp_path)
     monkeypatch.setenv('MAKE_MAGIC_XMAGE_HOME', str(home))
@@ -259,9 +255,7 @@ def test_effective_sha_unset_override_is_the_code_pin(monkeypatch: pytest.Monkey
     assert xr.effective_dist_sha256(data_dir=tmp_path) == 'b' * 64
 
 
-def test_ensure_none_sha_still_fails_closed_without_override(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_ensure_none_sha_still_fails_closed_without_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """With NO override and a None pin, ensure() still refuses to fetch (production path
     byte-for-byte unchanged by the override feature being present)."""
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)

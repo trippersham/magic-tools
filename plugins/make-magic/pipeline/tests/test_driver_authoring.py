@@ -231,8 +231,17 @@ def test_seed_macro_generates_no_forbidden_terminal_calls() -> None:
     game/player terminal or zone-fabrication API. Every seeded macro (plain + nudge) and the
     worked Jeleva positive control must be free of lost()/won()/setWinner()/end() and
     moveCards-fabrication — the win is PLAYED via cast(), not asserted."""
-    forbidden = ('.lost(', '.won(', '.leave(', '.quit(', '.setLosses(', '.setWins(',
-                 '.setWinner(', '.moveCards(', '.moveCardTo')
+    forbidden = (
+        '.lost(',
+        '.won(',
+        '.leave(',
+        '.quit(',
+        '.setLosses(',
+        '.setWins(',
+        '.setWinner(',
+        '.moveCards(',
+        '.moveCardTo',
+    )
     specs = [
         da.seed_quad_from_combo(_win_combo(), archetype='drive-capable'),
         da.seed_quad_from_combo(_win_combo(), archetype='drive-dedicated'),
@@ -268,9 +277,7 @@ def test_seed_macro_is_priority_fair_no_force_resolve() -> None:
         )
         # positive: the macro casts the line AND yields priority back to the engine.
         assert '.cast(' in apply_src, f'{spec.name}: macro must PLAY the line via cast()'
-        assert '.pass(' in apply_src, (
-            f'{spec.name}: macro must YIELD priority via pass() after a cast'
-        )
+        assert '.pass(' in apply_src, f'{spec.name}: macro must YIELD priority via pass() after a cast'
 
 
 def test_seed_quad_dedicated_stages_pieces_in_phi() -> None:
@@ -371,9 +378,7 @@ def _stage_real_ecj(data_dir: Path) -> None:
         pytest.skip(f'pinned ECJ jar unreachable (offline?): {exc}')
 
 
-def _compile_quad(
-    spec: da.QuadSpec, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> tuple[dc.CompileResult, Path]:
+def _compile_quad(spec: da.QuadSpec, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[dc.CompileResult, Path]:
     """Render ``spec`` into the deck's package tree + ECJ-compile it against the local dist."""
     java = _runnable_java()
     if java is None:
@@ -396,9 +401,7 @@ def _compile_quad(
 
 
 @pytest.mark.integration
-def test_proactive_quad_ecj_compiles_against_real_dist(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_proactive_quad_ecj_compiles_against_real_dist(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The PROACTIVE Jeleva quad ECJ-compiles against the REAL local dist jar (all three
     registry types + the ComboMacro/SelectionSteer inner classes resolve)."""
     result, pkg_rel = _compile_quad(da.JELEVA_QUAD_SPEC, monkeypatch, tmp_path)
@@ -413,9 +416,7 @@ def test_proactive_quad_ecj_compiles_against_real_dist(
 
 
 @pytest.mark.integration
-def test_phi_only_reactive_quad_ecj_compiles_against_real_dist(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_phi_only_reactive_quad_ecj_compiles_against_real_dist(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The Φ-ONLY reactive quad ECJ-compiles against the REAL local dist jar with ONLY the Φ
     method (no macro/S inner classes emitted)."""
     result, pkg_rel = _compile_quad(da.SHORIKAI_REACTIVE_QUAD_SPEC, monkeypatch, tmp_path)
@@ -428,9 +429,7 @@ def test_phi_only_reactive_quad_ecj_compiles_against_real_dist(
 
 
 @pytest.mark.integration
-def test_thin_quad_ecj_compiles_against_real_dist(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_thin_quad_ecj_compiles_against_real_dist(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A THIN quad (Φ=0, no macro/steer/mull) ECJ-compiles against the real dist — bare CP7."""
     result, pkg_rel = _compile_quad(da.QuadSpec.thin('thin-value-deck'), monkeypatch, tmp_path)
     assert result.ok, result.raw_stderr
@@ -442,9 +441,7 @@ def test_thin_quad_ecj_compiles_against_real_dist(
 
 
 @pytest.mark.integration
-def test_combo_seeded_quad_ecj_compiles_against_real_dist(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_combo_seeded_quad_ecj_compiles_against_real_dist(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A quad SEEDED from a Combo (rule-3 template) ECJ-compiles against the real dist for both
     Φ-modes (the P precondition + S fetch are concretely generated from card_names)."""
     combo = Combo(
@@ -464,9 +461,7 @@ def test_combo_seeded_quad_ecj_compiles_against_real_dist(
 
 
 @pytest.mark.integration
-def test_nudge_quad_ecj_compiles_across_alpha(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_nudge_quad_ecj_compiles_across_alpha(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The opportunistic-nudge quad ECJ-compiles against the real dist at every alpha on the sweep
     axis (0=thin, small, medium, large≈dedicated) — the early-out gate + alpha-scaled Φ are valid Java."""
     combo = Combo(

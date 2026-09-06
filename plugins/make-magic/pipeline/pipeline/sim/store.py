@@ -892,9 +892,7 @@ def get_goldfish_log(
     db_path = _db_path(data_dir)
     with store.connect(db_path) as conn:
         _ensure_goldfish_tables(conn)
-        row = conn.execute(
-            'SELECT raw_log FROM sim_goldfish_logs WHERE goldfish_key = ?', [key]
-        ).fetchone()
+        row = conn.execute('SELECT raw_log FROM sim_goldfish_logs WHERE goldfish_key = ?', [key]).fetchone()
     return row[0] if row is not None else None
 
 

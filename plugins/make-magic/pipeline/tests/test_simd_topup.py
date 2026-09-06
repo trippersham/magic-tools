@@ -69,8 +69,14 @@ def test_integration_topup_completes_short_cell(tmp_path) -> None:
         return {'FAKE_BAILOUT_ON_INDEX': '0', 'FAKE_RUNLOG': str(runlog)}
 
     res = run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0,
-        ops_db_path=db, attempt_cap=2, env_for_worker=env_for, join_timeout_s=60.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=2,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        attempt_cap=2,
+        env_for_worker=env_for,
+        join_timeout_s=60.0,
     )
     assert isinstance(res, SimdRunResult)
     assert res.complete, res.incomplete_cells
@@ -106,9 +112,15 @@ def test_integration_all_bailout_cell_terminates_at_cap(tmp_path) -> None:
         return {'FAKE_BAILOUT_ON_SUBJECT': _sid('sa')}
 
     res = run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0,
-        ops_db_path=db, attempt_cap=2, topup_cap=topup_cap,
-        env_for_worker=env_for, join_timeout_s=60.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=2,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        attempt_cap=2,
+        topup_cap=topup_cap,
+        env_for_worker=env_for,
+        join_timeout_s=60.0,
     )
     # The run TERMINATED (no infinite top-up loop): the healthy subject sb completed every cell.
     for opp in (_sid('oa'),):
@@ -129,10 +141,7 @@ def test_integration_all_bailout_cell_terminates_at_cap(tmp_path) -> None:
     assert res.exhausted_cells and set(res.exhausted_cells) == set(sa_cells)
     # Bounded: each exhausted cell ran at most needed + cap*needed tasks.
     for cell in sa_cells:
-        ran_in_cell = [
-            t for t in res.results
-            if (t.split('|')[0], t.split('|')[1], t.split('|')[2]) == cell
-        ]
+        ran_in_cell = [t for t in res.results if (t.split('|')[0], t.split('|')[1], t.split('|')[2]) == cell]
         assert len(ran_in_cell) <= needed + topup_cap * needed, (cell, len(ran_in_cell))
         assert len(ran_in_cell) == needed + topup_cap * needed, (cell, len(ran_in_cell))
 
@@ -162,10 +171,17 @@ def test_integration_resume_tops_up_short_cell_zero_rerun(tmp_path) -> None:
             ops.record_result(_win(t.task_id))
             decisive_ids.add(t.task_id)
         # The last driven game bailed (non-decisive) — the cell is short by exactly one.
-        ops.record_result(GameResult(
-            task_id=driven[-1].task_id, winner='none', kill_turn=None, ms=60000,
-            markers=[], log_path=None, reason='bailout',
-        ))
+        ops.record_result(
+            GameResult(
+                task_id=driven[-1].task_id,
+                winner='none',
+                kill_turn=None,
+                ms=60000,
+                markers=[],
+                log_path=None,
+                reason='bailout',
+            )
+        )
 
     # Reconstruct over the same ops.duckdb with a HEALTHY worker: it must enqueue exactly the one
     # missing top-up, re-run ZERO decisive games, and complete the run.
@@ -173,8 +189,14 @@ def test_integration_resume_tops_up_short_cell_zero_rerun(tmp_path) -> None:
         return {'FAKE_RUNLOG': str(runlog)}
 
     res = run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0,
-        ops_db_path=db, attempt_cap=2, env_for_worker=env_for, join_timeout_s=60.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=2,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        attempt_cap=2,
+        env_for_worker=env_for,
+        join_timeout_s=60.0,
     )
     assert res.complete, res.incomplete_cells
     # Every cell now holds ``needed`` decisive games.
@@ -206,8 +228,15 @@ def test_integration_topup_fairness_bailout_subject_cannot_starve(tmp_path) -> N
         return {'FAKE_BAILOUT_ON_SUBJECT': _sid('sa')}
 
     res = run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=3, stall_timeout_s=30.0,
-        ops_db_path=db, attempt_cap=2, topup_cap=2, env_for_worker=env_for, join_timeout_s=90.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=3,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        attempt_cap=2,
+        topup_cap=2,
+        env_for_worker=env_for,
+        join_timeout_s=90.0,
     )
     # Both HEALTHY subjects completed EVERY cell despite sa's top-up storm (no starvation).
     for subj in (_sid('sb'), _sid('sc')):

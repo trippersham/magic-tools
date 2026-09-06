@@ -36,8 +36,11 @@ def _stale_stamp(deck: Deck, store: Path) -> None:
     drivers.write_meta(
         deck,
         drivers.DriverMeta(
-            deck_version='DECKV1', harness_version='OLD-HARNESS',
-            fqcn='makemagic.driver.X', gates_passed=True, gate_mode='reactive',
+            deck_version='DECKV1',
+            harness_version='OLD-HARNESS',
+            fqcn='makemagic.driver.X',
+            gates_passed=True,
+            gate_mode='reactive',
         ),
         data_dir=store,
     )
@@ -50,7 +53,9 @@ def _passing_gate(deck, deck_ref, *, mode, install, games, data_dir, **kw):
         drivers.DriverMeta(
             deck_version=drivers.version(deck),
             harness_version=drivers.harness_version(data_dir=data_dir),
-            fqcn='makemagic.driver.X', gates_passed=True, gate_mode=mode,
+            fqcn='makemagic.driver.X',
+            gates_passed=True,
+            gate_mode=mode,
         ),
         data_dir=data_dir,
     )
@@ -68,7 +73,11 @@ def test_regate_success_restamps_current(_store: Path) -> None:
 
     compiled: list = []
     res = dg.regate_driver(
-        deck, ('D', 'dck'), install=object(), games=20, data_dir=_store,
+        deck,
+        ('D', 'dck'),
+        install=object(),
+        games=20,
+        data_dir=_store,
         compile_fn=lambda d, fqcn, *, data_dir: compiled.append(fqcn),
         gate_fn=_passing_gate,
     )
@@ -81,7 +90,11 @@ def test_regate_gate_failure_marks_broken(_store: Path) -> None:
     deck = _deck()
     _stale_stamp(deck, _store)
     res = dg.regate_driver(
-        deck, ('D', 'dck'), install=object(), games=20, data_dir=_store,
+        deck,
+        ('D', 'dck'),
+        install=object(),
+        games=20,
+        data_dir=_store,
         compile_fn=lambda d, fqcn, *, data_dir: None,
         gate_fn=_failing_gate,
     )
@@ -104,8 +117,13 @@ def test_regate_compile_failure_marks_broken(_store: Path) -> None:
         )
 
     res = dg.regate_driver(
-        deck, ('D', 'dck'), install=object(), games=20, data_dir=_store,
-        compile_fn=_boom, gate_fn=_failing_gate,
+        deck,
+        ('D', 'dck'),
+        install=object(),
+        games=20,
+        data_dir=_store,
+        compile_fn=_boom,
+        gate_fn=_failing_gate,
     )
     assert res.ok is False and res.outcome == 'failed'
     assert 're-compile' in res.reason
@@ -122,14 +140,22 @@ def test_regate_missing_jre_compile_error_is_environment_not_condemned(_store: P
         raise DriverCompileError(
             Path('Driver.java'),
             CompileResult(
-                ok=False, class_dir=None, diagnostics=(),
-                raw_stderr='Unable to locate a Java Runtime.\nPlease visit ...', cache_hit=False,
+                ok=False,
+                class_dir=None,
+                diagnostics=(),
+                raw_stderr='Unable to locate a Java Runtime.\nPlease visit ...',
+                cache_hit=False,
             ),
         )
 
     res = dg.regate_driver(
-        deck, ('D', 'dck'), install=object(), games=20, data_dir=_store,
-        compile_fn=_no_jre, gate_fn=_failing_gate,
+        deck,
+        ('D', 'dck'),
+        install=object(),
+        games=20,
+        data_dir=_store,
+        compile_fn=_no_jre,
+        gate_fn=_failing_gate,
     )
     assert res.ok is False and res.outcome == 'environment'
     assert 'toolchain could not run' in res.reason
@@ -147,8 +173,13 @@ def test_regate_toolchain_failure_is_environment_not_condemned(_store: Path) -> 
         raise DriverCompileToolError('no ECJ jar and cannot fetch offline')
 
     res = dg.regate_driver(
-        deck, ('D', 'dck'), install=object(), games=20, data_dir=_store,
-        compile_fn=_no_ecj, gate_fn=_failing_gate,
+        deck,
+        ('D', 'dck'),
+        install=object(),
+        games=20,
+        data_dir=_store,
+        compile_fn=_no_ecj,
+        gate_fn=_failing_gate,
     )
     assert res.ok is False and res.outcome == 'environment'
     assert 'toolchain could not run' in res.reason
@@ -158,7 +189,12 @@ def test_regate_toolchain_failure_is_environment_not_condemned(_store: Path) -> 
 
 def test_regate_absent_meta(_store: Path) -> None:
     res = dg.regate_driver(
-        _deck(), ('D', 'dck'), install=object(), games=20, data_dir=_store,
-        compile_fn=lambda d, fqcn, *, data_dir: None, gate_fn=_passing_gate,
+        _deck(),
+        ('D', 'dck'),
+        install=object(),
+        games=20,
+        data_dir=_store,
+        compile_fn=lambda d, fqcn, *, data_dir: None,
+        gate_fn=_passing_gate,
     )
     assert res.ok is False and res.outcome == 'absent'

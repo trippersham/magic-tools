@@ -666,7 +666,8 @@ def regate_driver(
     meta = drivers.read_meta(deck, data_dir=data_dir)
     if meta is None:
         return RegateResult(
-            ok=False, outcome='absent',
+            ok=False,
+            outcome='absent',
             reason='no parseable meta.json to re-gate (author + compile + gate the driver first)',
         )
 
@@ -679,7 +680,8 @@ def regate_driver(
             # a nonzero ECJ exit with no parseable diagnostics — an ENVIRONMENT problem, not a broken
             # driver. Do NOT condemn it; it may re-gate cleanly on a machine that can compile.
             return RegateResult(
-                ok=False, outcome='environment',
+                ok=False,
+                outcome='environment',
                 reason=f'the compile toolchain could not run (no javac/ECJ/JRE): {exc}',
             )
         reason = f're-compile against the current dist FAILED: {exc}'
@@ -689,13 +691,21 @@ def regate_driver(
         # Toolchain/environment could not run (no ECJ, no JRE, no jar, missing source). Do NOT
         # condemn the driver — it may re-gate cleanly on a machine that can compile.
         return RegateResult(
-            ok=False, outcome='environment',
+            ok=False,
+            outcome='environment',
             reason=f'the compile toolchain could not run (no javac/ECJ/JRE or missing source): {exc}',
         )
 
     result: GateResult = gate(  # type: ignore[operator]
-        deck, deck_ref, mode=meta.gate_mode, install=install, games=games,
-        tolerance=tolerance, engine=engine, data_dir=data_dir, defended_lens=defended_lens,
+        deck,
+        deck_ref,
+        mode=meta.gate_mode,
+        install=install,
+        games=games,
+        tolerance=tolerance,
+        engine=engine,
+        data_dir=data_dir,
+        defended_lens=defended_lens,
     )
     if result.passed:
         return RegateResult(ok=True, outcome='regated', gate=result)

@@ -192,9 +192,15 @@ def test_aggregation_ship_thin_and_ci_includes_zero() -> None:
 
 def _delta_p(deck_id, tightness, dw, dd, cw, cd, n) -> dr.DeckDelta:
     return dr.DeckDelta(
-        deck_id=deck_id, keep='', archetype='drive-dedicated',
-        driver_wins=dw, driver_decided=dd, cp7_wins=cw, cp7_decided=cd,
-        n_matchups=n, p_tightness=tightness,
+        deck_id=deck_id,
+        keep='',
+        archetype='drive-dedicated',
+        driver_wins=dw,
+        driver_decided=dd,
+        cp7_wins=cw,
+        cp7_decided=cd,
+        n_matchups=n,
+        p_tightness=tightness,
     )
 
 
@@ -389,9 +395,7 @@ def test_corpus_tasks_baseline_only_thin_rows_single_arm(tmp_path: Path) -> None
 
     field = list(_bundle('commander', 'casual'))[:2]
     games = 3
-    tasks = dr.build_corpus_game_tasks(
-        [], field, games=games, stage_dir=tmp_path, thin_rows=[_thin_row(_THIN_DECK_ID)]
-    )
+    tasks = dr.build_corpus_game_tasks([], field, games=games, stage_dir=tmp_path, thin_rows=[_thin_row(_THIN_DECK_ID)])
     assert len(tasks) == 1 * len(field) * 1 * games
     assert {t.task_id.split('|')[2] for t in tasks} == {'baseline'}
     assert all(t.seat_a.driver is None for t in tasks)  # subject seat bare (no driver)
@@ -407,7 +411,10 @@ def test_corpus_tasks_mixed_drive_and_thin_task_math(tmp_path: Path) -> None:
     field = list(_bundle('commander', 'casual'))[:2]
     games = 2
     tasks = dr.build_corpus_game_tasks(
-        [_drive_row(_DRIVE_DECK_ID)], field, games=games, stage_dir=tmp_path,
+        [_drive_row(_DRIVE_DECK_ID)],
+        field,
+        games=games,
+        stage_dir=tmp_path,
         thin_rows=[_thin_row(_THIN_DECK_ID)],
     )
     f = len(field)
@@ -439,8 +446,9 @@ def test_publish_splits_baseline_only_from_delta(tmp_path: Path, monkeypatch: py
 
     def _res(tid: str, winner: str) -> GameResult:
         st = 'A' if int(tid.split('|')[3]) % 2 == 0 else 'B'
-        return GameResult(task_id=tid, winner=winner, kill_turn=8, ms=60000, markers=[],
-                          log_path=None, reason=None, starter=st)
+        return GameResult(
+            task_id=tid, winner=winner, kill_turn=8, ms=60000, markers=[], log_path=None, reason=None, starter=st
+        )
 
     task_ids: list[str] = []
     results: dict[str, GameResult] = {}
@@ -457,9 +465,17 @@ def test_publish_splits_baseline_only_from_delta(tmp_path: Path, monkeypatch: py
         results[tid] = _res(tid, 'A' if i == 0 else 'B')
 
     result = SimpleNamespace(
-        complete=True, invalid_cells=[], task_ids=task_ids, results=results, quarantined=[],
-        incomplete_cells=[], exhausted_cells=[], quarantined_cells=[], cells={},
-        fast_games=0, concede_games=0,
+        complete=True,
+        invalid_cells=[],
+        task_ids=task_ids,
+        results=results,
+        quarantined=[],
+        incomplete_cells=[],
+        exhausted_cells=[],
+        quarantined_cells=[],
+        cells={},
+        fast_games=0,
+        concede_games=0,
     )
     out_dir = tmp_path / 'out'
     dr.publish_corpus_results(
@@ -550,9 +566,7 @@ def _corpus_staging_entries(data_dir: Path) -> list[str]:
     return [p.name for p in staging.iterdir() if p.name.startswith('corpus-')]
 
 
-def test_run_corpus_queue_preflight_fails_with_zero_staging(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_run_corpus_queue_preflight_fails_with_zero_staging(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Missing Java (a failing preflight) aborts BEFORE any deck is staged — zero corpus-* dirs."""
     monkeypatch.setenv('MAKE_MAGIC_DATA_DIR', str(tmp_path))
     built = {'n': 0}
@@ -566,8 +580,12 @@ def test_run_corpus_queue_preflight_fails_with_zero_staging(
 
     with pytest.raises(_NoJava):
         dr.run_corpus_queue(
-            rows=[], field=[], games=2, ops_db_path=tmp_path / 'ops.duckdb',
-            worker_cmd=['x'], preflight=_preflight,
+            rows=[],
+            field=[],
+            games=2,
+            ops_db_path=tmp_path / 'ops.duckdb',
+            worker_cmd=['x'],
+            preflight=_preflight,
         )
     assert built['n'] == 0
     assert _corpus_staging_entries(tmp_path) == []
@@ -594,9 +612,7 @@ def test_run_corpus_queue_second_launch_refuses_with_zero_staging(
         held.release()
 
 
-def test_run_corpus_queue_cleans_staging_on_normal_and_error(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_run_corpus_queue_cleans_staging_on_normal_and_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Both a normal return and a mid-run error leave NO corpus-* staging dirs behind."""
     from types import SimpleNamespace
 
@@ -615,7 +631,11 @@ def test_run_corpus_queue_cleans_staging_on_normal_and_error(
     # Normal exit.
     monkeypatch.setattr(engine_mod, 'run_games_simd', lambda *a, **k: SimpleNamespace(results={}))
     dr.run_corpus_queue(
-        rows=[{'deck_id': 'd'}], field=[], games=2, ops_db_path=tmp_path / 'ops.duckdb', worker_cmd=['x'],
+        rows=[{'deck_id': 'd'}],
+        field=[],
+        games=2,
+        ops_db_path=tmp_path / 'ops.duckdb',
+        worker_cmd=['x'],
     )
     assert _corpus_staging_entries(tmp_path) == []
 
@@ -626,7 +646,11 @@ def test_run_corpus_queue_cleans_staging_on_normal_and_error(
     monkeypatch.setattr(engine_mod, 'run_games_simd', _boom)
     with pytest.raises(RuntimeError):
         dr.run_corpus_queue(
-            rows=[{'deck_id': 'd'}], field=[], games=2, ops_db_path=tmp_path / 'ops.duckdb', worker_cmd=['x'],
+            rows=[{'deck_id': 'd'}],
+            field=[],
+            games=2,
+            ops_db_path=tmp_path / 'ops.duckdb',
+            worker_cmd=['x'],
         )
     assert _corpus_staging_entries(tmp_path) == []
 
@@ -701,8 +725,11 @@ def _capture_corpus_run_id(
 
     monkeypatch.setattr(engine_mod, 'run_games_simd', _fake_simd)
     dr.run_corpus_queue(
-        rows=[{'deck_id': 'd'}], field=[], games=games,
-        ops_db_path=tmp_path / f'ops-{tag}.duckdb', worker_cmd=['x'],
+        rows=[{'deck_id': 'd'}],
+        field=[],
+        games=games,
+        ops_db_path=tmp_path / f'ops-{tag}.duckdb',
+        worker_cmd=['x'],
     )
     return captured['run_id']
 
@@ -711,9 +738,7 @@ def _same_bytes(n: str) -> str:
     return f'99 Forest\n# deck {n}\n'
 
 
-def test_corpus_run_id_stable_for_same_universe_and_config(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_corpus_run_id_stable_for_same_universe_and_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Same universe + same config → the SAME run_id → a resume replays committed state."""
     kw = {'subject_names': ['sa'], 'opp_names': ['oa'], 'games': 2, 'deck_bytes': _same_bytes}
     a = _capture_corpus_run_id(monkeypatch, tmp_path, tag='a', **kw)
@@ -721,9 +746,7 @@ def test_corpus_run_id_stable_for_same_universe_and_config(
     assert a == b and a.startswith('run-')
 
 
-def test_corpus_run_id_changes_when_games_shrinks(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_corpus_run_id_changes_when_games_shrinks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Sol's changed-``--games`` repro: a reduced game count is a DIFFERENT universe → new run_id."""
     two = _capture_corpus_run_id(
         monkeypatch, tmp_path, tag='g2', subject_names=['sa'], opp_names=['oa'], games=2, deck_bytes=_same_bytes
@@ -734,9 +757,7 @@ def test_corpus_run_id_changes_when_games_shrinks(
     assert two != one
 
 
-def test_corpus_run_id_changes_when_field_changes(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_corpus_run_id_changes_when_field_changes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A changed opponent field is a different task universe → a different run_id."""
     base = _capture_corpus_run_id(
         monkeypatch, tmp_path, tag='f1', subject_names=['sa'], opp_names=['oa'], games=2, deck_bytes=_same_bytes
@@ -747,18 +768,26 @@ def test_corpus_run_id_changes_when_field_changes(
     assert base != changed
 
 
-def test_corpus_run_id_changes_on_same_name_different_content(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_corpus_run_id_changes_on_same_name_different_content(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Same deck BASENAMES but different staged BYTES → a different run_id (content binding, not
     names): the exact same-name-different-content collision Sol reproduced at the fingerprint level
     can no longer mix incompatible science under one identity."""
     v1 = _capture_corpus_run_id(
-        monkeypatch, tmp_path, tag='c1', subject_names=['sa'], opp_names=['oa'], games=2,
+        monkeypatch,
+        tmp_path,
+        tag='c1',
+        subject_names=['sa'],
+        opp_names=['oa'],
+        games=2,
         deck_bytes=lambda n: f'99 Forest\n# v1 {n}\n',
     )
     v2 = _capture_corpus_run_id(
-        monkeypatch, tmp_path, tag='c2', subject_names=['sa'], opp_names=['oa'], games=2,
+        monkeypatch,
+        tmp_path,
+        tag='c2',
+        subject_names=['sa'],
+        opp_names=['oa'],
+        games=2,
         deck_bytes=lambda n: f'98 Forest 1 Island\n# v2 {n}\n',  # DIFFERENT bytes, same basenames
     )
     assert v1 != v2

@@ -133,9 +133,7 @@ def test_requeue_on_death_respawns_and_completes(tmp_path: Path) -> None:
         requeue=h.requeue,
         stall_timeout_s=30.0,
         # One-shot: worker 0 dies once; its replacement (same idx env) runs clean via the marker.
-        env_for_worker=lambda idx: (
-            {'FAKE_DIE_ON_TASK': '1', 'FAKE_FAULT_ONCE_FILE': marker} if idx == 0 else {}
-        ),
+        env_for_worker=lambda idx: {'FAKE_DIE_ON_TASK': '1', 'FAKE_FAULT_ONCE_FILE': marker} if idx == 0 else {},
     )
     pool.start()
     pool.join(timeout=30.0)
@@ -161,9 +159,7 @@ def test_stall_reap_requeues_and_completes(tmp_path: Path) -> None:
         stall_timeout_s=1.0,
         poll_s=0.1,
         # One-shot: worker 0 goes silent once; its replacement runs clean via the marker.
-        env_for_worker=lambda idx: (
-            {'FAKE_SILENT': '1', 'FAKE_FAULT_ONCE_FILE': marker} if idx == 0 else {}
-        ),
+        env_for_worker=lambda idx: {'FAKE_SILENT': '1', 'FAKE_FAULT_ONCE_FILE': marker} if idx == 0 else {},
     )
     pool.start()
     pool.join(timeout=30.0)
@@ -264,7 +260,7 @@ def _protocol_failure_case(env_flag: str, tmp_path: Path, poll_s: float = 0.1) -
         requeue=h.requeue,
         stall_timeout_s=30.0,
         poll_s=poll_s,
-        env_for_worker=lambda idx: ({env_flag: '1', 'FAKE_FAULT_ONCE_FILE': marker} if idx == 0 else {}),
+        env_for_worker=lambda idx: {env_flag: '1', 'FAKE_FAULT_ONCE_FILE': marker} if idx == 0 else {},
     )
     pool.start()
     assert pool.join(timeout=30.0), f'{env_flag}: pool wedged — a lost in-flight task never requeued'

@@ -100,9 +100,7 @@ def wilson_ci(wins: int, n: int, *, z: float = _WILSON_Z) -> tuple[float, float]
     return (max(0.0, center - half), min(1.0, center + half))
 
 
-def newcombe_diff_ci(
-    wins1: int, n1: int, wins2: int, n2: int, *, z: float = _WILSON_Z
-) -> tuple[float, float]:
+def newcombe_diff_ci(wins1: int, n1: int, wins2: int, n2: int, *, z: float = _WILSON_Z) -> tuple[float, float]:
     """Newcombe's Wilson-score CI for the difference of two independent proportions ``p1 - p2``.
 
     Method 10 ("square-and-add") of Newcombe, R.G. (1998), *Interval estimation for the

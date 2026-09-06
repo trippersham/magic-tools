@@ -19,15 +19,25 @@ def _seat(name: str) -> SeatSpec:
 def _concede(task_id: str) -> GameResult:
     # A concession: the loser conceded, the winner (seat A) is credited normally.
     return GameResult(
-        task_id=task_id, winner='a', kill_turn=6, ms=60000, markers=['end_cause=concede'],
-        log_path=None, end_cause='concede',
+        task_id=task_id,
+        winner='a',
+        kill_turn=6,
+        ms=60000,
+        markers=['end_cause=concede'],
+        log_path=None,
+        end_cause='concede',
     )
 
 
 def _decisive(task_id: str) -> GameResult:
     return GameResult(
-        task_id=task_id, winner='a', kill_turn=8, ms=60000, markers=['end_cause=lethal_damage'],
-        log_path=None, end_cause='lethal_damage',
+        task_id=task_id,
+        winner='a',
+        kill_turn=8,
+        ms=60000,
+        markers=['end_cause=lethal_damage'],
+        log_path=None,
+        end_cause='lethal_damage',
     )
 
 
@@ -71,6 +81,6 @@ def test_concede_fills_cell_and_is_not_topped_up(tmp_path) -> None:
                 break
             drained.append(t.task_id)
             sched.on_result(_decisive(t.task_id))
-        assert not any(
-            t.split('|')[3].startswith('topup-') and t.split('|')[:3] == list(cell) for t in drained
-        ), drained
+        assert not any(t.split('|')[3].startswith('topup-') and t.split('|')[:3] == list(cell) for t in drained), (
+            drained
+        )

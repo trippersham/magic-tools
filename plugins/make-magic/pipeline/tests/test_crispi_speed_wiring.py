@@ -59,7 +59,8 @@ def test_omitted_turn_auto_computes(stub_lakes, monkeypatch: pytest.MonkeyPatch)
 
     monkeypatch.setattr(engine_mod, 'get_engine', lambda name: (_ for _ in ()).throw(RuntimeError('no jar')))
     monkeypatch.setattr(
-        speed, 'fundamental_turn',
+        speed,
+        'fundamental_turn',
         lambda *a, **k: FundamentalTurn(turn=4.0, confidence='high', tier='tier1', source_rationale='stub'),
     )
     out = stub_lakes.crispi_from_deck(_deck(), commander_dependence='low')
@@ -75,8 +76,9 @@ def test_detected_combos_reach_the_router(stub_lakes, monkeypatch: pytest.Monkey
     import pipeline.sim.speed as speed
     from pipeline.transforms.combo_detect import Combo
 
-    combo = Combo(variant_id='v1', card_names=('Lightning Bolt', 'Nonesuch'),
-                  card_oracle_ids=('o1', 'o2'), result='Win the game')
+    combo = Combo(
+        variant_id='v1', card_names=('Lightning Bolt', 'Nonesuch'), card_oracle_ids=('o1', 'o2'), result='Win the game'
+    )
     monkeypatch.setattr(stub_lakes, '_crispi_combos', lambda names: [combo])
     monkeypatch.setattr(engine_mod, 'get_engine', lambda name: (_ for _ in ()).throw(RuntimeError('no jar')))
     seen: dict = {}
@@ -97,7 +99,8 @@ def test_auto_speed_na_raises(stub_lakes, monkeypatch: pytest.MonkeyPatch) -> No
 
     monkeypatch.setattr(engine_mod, 'get_engine', lambda name: (_ for _ in ()).throw(RuntimeError('no jar')))
     monkeypatch.setattr(
-        speed, 'fundamental_turn',
+        speed,
+        'fundamental_turn',
         lambda *a, **k: FundamentalTurn(turn=None, confidence='n/a', tier='na', source_rationale='control'),
     )
     with pytest.raises(stub_lakes.SpeedNotApplicable):

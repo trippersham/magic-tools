@@ -124,7 +124,16 @@ class SimdRunResult:
 
 class _Cell:
     __slots__ = (
-        'concede', 'fast', 'invalid', 'needed', 'nondecisive', 'ok', 'quarantined', 'topups', 'wins_a', 'wins_b'
+        'concede',
+        'fast',
+        'invalid',
+        'needed',
+        'nondecisive',
+        'ok',
+        'quarantined',
+        'topups',
+        'wins_a',
+        'wins_b',
     )
 
     def __init__(self) -> None:
@@ -242,7 +251,10 @@ class SimdScheduler:
             if template is None:
                 continue  # a top-up for a cell not in this run's universe — skip (out of scope).
             self._task_by_id[tid] = GameTask(
-                task_id=tid, fmt=fmt, seat_a=template.seat_a, seat_b=template.seat_b,
+                task_id=tid,
+                fmt=fmt,
+                seat_a=template.seat_a,
+                seat_b=template.seat_b,
                 starter=_starter_of_id(tid),
             )
             self._cells[key].topups += 1
@@ -415,7 +427,13 @@ class SimdScheduler:
         subject, opp, pil = cell_key(self._task_by_id[tid])
         log.warning(
             'task %s QUARANTINED after %d attempt(s) (cap=%d) — %s; cell (%s,%s,%s) left under-filled',
-            tid, self._attempts[tid], self._attempt_cap, reason, subject, opp, pil,
+            tid,
+            self._attempts[tid],
+            self._attempt_cap,
+            reason,
+            subject,
+            opp,
+            pil,
         )
         self._ops.quarantine(tid, subject, opp, pil, attempts=self._attempts[tid], reason=reason)
         self._cells[(subject, opp, pil)].quarantined += 1
@@ -444,7 +462,10 @@ class SimdScheduler:
         template = self._cell_template[key]
         new_id = '|'.join((subject, opp, pil, f'topup-{cell.topups}'))
         task = GameTask(
-            task_id=new_id, fmt=template.fmt, seat_a=template.seat_a, seat_b=template.seat_b,
+            task_id=new_id,
+            fmt=template.fmt,
+            seat_a=template.seat_a,
+            seat_b=template.seat_b,
             # Top-ups continue the cell's alternation by TOP-UP ORDINAL parity (cell.topups): even
             # ordinal → A, odd → B, matching the original games' index-parity schedule.
             starter=starter_for_index(cell.topups),
@@ -453,8 +474,15 @@ class SimdScheduler:
         self._task_by_id[new_id] = task
         self._pending[subject].append(task)
         self._ops.register_tasks([task])
-        log.debug('cell (%s,%s,%s) topped up → %s (topups=%d, cap=%d)',
-                  subject, opp, pil, new_id, cell.topups, self._topup_cap * cell.needed)
+        log.debug(
+            'cell (%s,%s,%s) topped up → %s (topups=%d, cap=%d)',
+            subject,
+            opp,
+            pil,
+            new_id,
+            cell.topups,
+            self._topup_cap * cell.needed,
+        )
 
     def _apply_result_tally(self, tid: str, res: GameResult) -> None:
         subject, opp, pil = cell_key(self._task_by_id[tid])
@@ -470,7 +498,12 @@ class SimdScheduler:
                 log.warning(
                     'task %s INVALID (end_cause=%r, winner=%r) — decisive claim with no legal '
                     'terminal cause; excluded + topped up; cell (%s,%s,%s) flagged',
-                    tid, res.end_cause, res.winner, subj, o, p,
+                    tid,
+                    res.end_cause,
+                    res.winner,
+                    subj,
+                    o,
+                    p,
                 )
             return
         cell.ok += 1
@@ -514,8 +547,7 @@ class SimdScheduler:
             # incomplete: it does NOT get subtracted from the completeness predicate (Sol BLOCKER 1 —
             # ``complete`` means all cells ok>=needed, no exhaustion exception).
             exhausted = [
-                k for k, c in self._cells.items()
-                if c.ok < c.needed and c.topups >= self._topup_cap * c.needed
+                k for k, c in self._cells.items() if c.ok < c.needed and c.topups >= self._topup_cap * c.needed
             ]
             invalid_cells = [k for k, c in self._cells.items() if c.invalid]
             fast_games = sum(c.fast for c in self._cells.values())

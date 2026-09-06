@@ -20,15 +20,25 @@ def _seat(name):
 def _invalid(task_id: str) -> GameResult:
     # A game that CLAIMS a winner but carries no legal terminal cause (macro-game-over) → INVALID.
     return GameResult(
-        task_id=task_id, winner='a', kill_turn=1, ms=22, markers=['end_cause=macro_game_over'],
-        log_path=None, end_cause='macro_game_over',
+        task_id=task_id,
+        winner='a',
+        kill_turn=1,
+        ms=22,
+        markers=['end_cause=macro_game_over'],
+        log_path=None,
+        end_cause='macro_game_over',
     )
 
 
 def _decisive(task_id: str) -> GameResult:
     return GameResult(
-        task_id=task_id, winner='a', kill_turn=8, ms=60000, markers=['end_cause=lethal_damage'],
-        log_path=None, end_cause='lethal_damage',
+        task_id=task_id,
+        winner='a',
+        kill_turn=8,
+        ms=60000,
+        markers=['end_cause=lethal_damage'],
+        log_path=None,
+        end_cause='lethal_damage',
     )
 
 

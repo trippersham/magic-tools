@@ -293,9 +293,7 @@ def analyze_deck_win_combos(deck_identity: set[str], combos: list[Combo]) -> Dec
     present = combos_in_deck(deck_identity, combos)
     predicate_wins = [c for c in present if is_game_win_result(c.result)]
     sinks = deck_mana_sinks(deck_identity)
-    mana_only = [
-        c for c in present if not is_game_win_result(c.result) and is_infinite_mana_result(c.result)
-    ]
+    mana_only = [c for c in present if not is_game_win_result(c.result) and is_infinite_mana_result(c.result)]
     if sinks:
         mana_sink_wins = mana_only
         flagged: list[Combo] = []

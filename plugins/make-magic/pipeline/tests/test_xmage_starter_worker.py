@@ -91,15 +91,22 @@ def _run_one(install, run_dir: Path, deck: Path, starter: str):  # type: ignore[
 
     cmd = xe._compose_launch_cmd(install, ['--worker', '--worker-max-games', '1'], heap='3g')  # type: ignore[attr-defined]
     proc = subprocess.Popen(
-        cmd, cwd=run_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, text=True, bufsize=1, env=dict(os.environ),
+        cmd,
+        cwd=run_dir,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1,
+        env=dict(os.environ),
     )
     assert proc.stdin is not None and proc.stdout is not None
     q: queue.Queue = queue.Queue()  # type: ignore[type-arg]
     threading.Thread(target=_reader, args=(proc.stdout, q), daemon=True).start()
 
     task = {
-        'id': f'starter-{starter}', 'fmt': 'commander',
+        'id': f'starter-{starter}',
+        'fmt': 'commander',
         'a': {'deck': str(deck), 'driver': None},
         'b': {'deck': str(deck), 'driver': None},
         'starter': starter,

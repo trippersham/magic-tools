@@ -47,8 +47,14 @@ _DRIVER_UUID = '0109aec2cf0b0c82cbc42f8ee9a36034b731995ca0'
 _DRIVER_FQCN = f'makemagic.driver.d_{_DRIVER_UUID}.Driver'
 
 # Marker prefixes that MUST NOT appear in a driverless game's transcript.
-_DRIVER_MARKERS = ('DRIVER_REGISTERED', 'DRIVER_MACRO_FIRED', 'DRIVER_STEER_FIRED',
-                   'DRIVER_MULLIGAN', 'MACRO_FIRE_REAL', 'QUAD_DRIVER_REGISTERED')
+_DRIVER_MARKERS = (
+    'DRIVER_REGISTERED',
+    'DRIVER_MACRO_FIRED',
+    'DRIVER_STEER_FIRED',
+    'DRIVER_MULLIGAN',
+    'MACRO_FIRE_REAL',
+    'QUAD_DRIVER_REGISTERED',
+)
 
 
 def _driver_classes_dir() -> Path:
@@ -136,8 +142,13 @@ def session(tmp_path_factory: pytest.TempPathFactory) -> _Session:
 
     cmd = xe._compose_launch_cmd(install, ['--worker', '--worker-max-games', '2'], heap='3g')
     proc = subprocess.Popen(
-        cmd, cwd=run_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, text=True, bufsize=1,
+        cmd,
+        cwd=run_dir,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1,
     )
     assert proc.stdin is not None and proc.stdout is not None
     q: queue.Queue = queue.Queue()  # type: ignore[type-arg]
@@ -158,7 +169,9 @@ def session(tmp_path_factory: pytest.TempPathFactory) -> _Session:
             sampler_stop = threading.Event()
             if task is driven:
                 threading.Thread(
-                    target=_sample_growth, args=(log_file, sampler_stop, driven_growth), daemon=True,
+                    target=_sample_growth,
+                    args=(log_file, sampler_stop, driven_growth),
+                    daemon=True,
                 ).start()
 
             line = _await(q, lambda tag, ln: tag == 'O' and (ln.startswith('RESULT ') or ln.startswith('ERROR ')), 600)
@@ -177,8 +190,10 @@ def session(tmp_path_factory: pytest.TempPathFactory) -> _Session:
         if proc.poll() is None:
             proc.kill()
 
-    transcripts = {tid: (logs_dir / f'{tid}.log').read_text(encoding='utf-8', errors='replace')
-                   for tid in ('g0_driven', 'g1_driverless')}
+    transcripts = {
+        tid: (logs_dir / f'{tid}.log').read_text(encoding='utf-8', errors='replace')
+        for tid in ('g0_driven', 'g1_driverless')
+    }
     log_paths = {tid: logs_dir / f'{tid}.log' for tid in ('g0_driven', 'g1_driverless')}
     return _Session(result_lines, transcripts, log_paths, exit_code, driven_growth)
 
@@ -216,8 +231,7 @@ def test_state_bleed_driverless_after_driven(session: _Session) -> None:
     assert 'QUAD_DRIVER_REGISTERED' in driven
 
     # The driverless game must carry NONE of the seam markers.
-    offending = [ln for ln in driverless.splitlines()
-                 if any(ln.startswith(m) for m in _DRIVER_MARKERS)]
+    offending = [ln for ln in driverless.splitlines() if any(ln.startswith(m) for m in _DRIVER_MARKERS)]
     assert offending == [], f'state bled into the driverless game: {offending}'
 
 
@@ -279,7 +293,7 @@ def test_worker_recycles_at_max_games(session: _Session) -> None:
 def test_result_json_shape(session: _Session) -> None:
     """The RESULT JSON body carries exactly the P1 keys the governor's parser reads."""
     for tid in ('g0_driven', 'g1_driverless'):
-        body = json.loads(session.result_lines[tid][len('RESULT '):])
+        body = json.loads(session.result_lines[tid][len('RESULT ') :])
         assert set(body) >= {'id', 'winner', 'kill_turn', 'ms', 'markers', 'log'}
         assert body['id'] == tid
         assert isinstance(body['markers'], list)

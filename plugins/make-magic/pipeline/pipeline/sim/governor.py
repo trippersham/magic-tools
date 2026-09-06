@@ -370,7 +370,7 @@ class Governor:
                     seed=spec.seed + self.seed_offset,
                     fmt=spec.fmt,
                     install=install,
-                    **driver_kw,
+                    **driver_kw,  # type: ignore[arg-type]  # `driver` kwarg exists only on the XMage engine, not the base Protocol
                 )
                 with lock:
                     results.append(result)

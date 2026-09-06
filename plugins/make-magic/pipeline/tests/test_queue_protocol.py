@@ -50,7 +50,8 @@ def test_encode_task_exact_json_shape() -> None:
 
 def test_encode_task_carries_starter() -> None:
     task = GameTask(
-        task_id='s1|o1|driven|1', fmt='commander',
+        task_id='s1|o1|driven|1',
+        fmt='commander',
         seat_a=SeatSpec(deck_path='/d/s1.dck', driver=None),
         seat_b=SeatSpec(deck_path='/d/o1.dck', driver=None),
         starter='B',
@@ -61,8 +62,7 @@ def test_encode_task_carries_starter() -> None:
 
 def test_result_starter_marker_round_trips() -> None:
     line = 'RESULT ' + json.dumps(
-        {'id': 's1|o1|driven|1', 'winner': 'A', 'ms': 30000,
-         'markers': ['starter=B', 'end_cause=lethal_damage']}
+        {'id': 's1|o1|driven|1', 'winner': 'A', 'ms': 30000, 'markers': ['starter=B', 'end_cause=lethal_damage']}
     )
     msg = parse_line(line)
     assert isinstance(msg, GameResult)
@@ -78,9 +78,7 @@ def test_result_without_starter_marker_defaults_none() -> None:
 
 
 def test_result_bad_starter_marker_raises() -> None:
-    line = 'RESULT ' + json.dumps(
-        {'id': 's1|o1|driven|0', 'winner': 'A', 'ms': 30000, 'markers': ['starter=Z']}
-    )
+    line = 'RESULT ' + json.dumps({'id': 's1|o1|driven|0', 'winner': 'A', 'ms': 30000, 'markers': ['starter=Z']})
     with pytest.raises(ProtocolError, match='unknown starter'):
         parse_line(line)
 

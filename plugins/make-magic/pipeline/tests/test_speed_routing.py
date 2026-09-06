@@ -52,8 +52,9 @@ def _est(**kw) -> object:
     return _fn
 
 
-def _driver(monkeypatch: pytest.MonkeyPatch, *, state: str, is_drive: bool | None,
-            fqcn: str = 'makemagic.driver.Fake') -> None:
+def _driver(
+    monkeypatch: pytest.MonkeyPatch, *, state: str, is_drive: bool | None, fqcn: str = 'makemagic.driver.Fake'
+) -> None:
     """Stub the driver registry to a given state + richness.
 
     ``is_drive``: True (DRIVE), False (THIN), or None (unstamped/unknown OR absent).
@@ -68,10 +69,14 @@ def _driver(monkeypatch: pytest.MonkeyPatch, *, state: str, is_drive: bool | Non
         return
     dclass = 'drive' if is_drive else ('thin' if is_drive is False else 'unknown')
     monkeypatch.setattr(
-        drivers, 'read_meta',
+        drivers,
+        'read_meta',
         lambda deck, *, data_dir=None: drivers.DriverMeta(
-            deck_version='v', harness_version='h', fqcn=fqcn,
-            gates_passed=(state != 'broken'), driver_class=dclass,
+            deck_version='v',
+            harness_version='h',
+            fqcn=fqcn,
+            gates_passed=(state != 'broken'),
+            driver_class=dclass,
         ),
     )
 
@@ -96,8 +101,9 @@ def test_absent_with_winline_recommends_driver(monkeypatch: pytest.MonkeyPatch) 
     driver would sharpen Speed."""
     _driver(monkeypatch, state='absent', is_drive=None)
     eng = _FakeEngine()
-    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng,
-                          estimate=_est(archetype='combo'), combo_pieces=[[1, 1]])
+    ft = fundamental_turn(
+        _Deck(), [], None, install=object(), engine=eng, estimate=_est(archetype='combo'), combo_pieces=[[1, 1]]
+    )
     assert ft.tier == 'tier1'
     assert ft.driver_recommended is True
     assert eng.calls == []
@@ -112,8 +118,13 @@ def test_drive_driver_runs_goldfish(monkeypatch: pytest.MonkeyPatch) -> None:
     _driver(monkeypatch, state='valid', is_drive=True)
     eng = _FakeEngine(median=3.0)
     ft = fundamental_turn(
-        _Deck(), [], None, install=object(), engine=eng,
-        deck_ref=('Fake Deck', 'dcktext'), estimate=_est(),
+        _Deck(),
+        [],
+        None,
+        install=object(),
+        engine=eng,
+        deck_ref=('Fake Deck', 'dcktext'),
+        estimate=_est(),
     )
     assert ft.tier == 'tier2'
     assert ft.turn == 3.0  # the goldfish median, not the tier-1 5.0.
@@ -133,8 +144,13 @@ def test_thin_driver_stays_closed_form_no_goldfish(monkeypatch: pytest.MonkeyPat
     _driver(monkeypatch, state='valid', is_drive=False)
     eng = _FakeEngine(median=3.0)
     ft = fundamental_turn(
-        _Deck(), [], None, install=object(), engine=eng,
-        deck_ref=('Fake Deck', 'dcktext'), estimate=_est(),
+        _Deck(),
+        [],
+        None,
+        install=object(),
+        engine=eng,
+        deck_ref=('Fake Deck', 'dcktext'),
+        estimate=_est(),
     )
     assert ft.tier == 'tier1'
     assert ft.turn == 5.0  # the deterministic closed form, not a goldfish number.
@@ -170,8 +186,14 @@ def test_valid_unknown_richness_keeps_closed_form_and_recommends(monkeypatch: py
     eng = _FakeEngine(median=3.0)
     regate = _FakeRegate(ok=True, outcome='regated')
     ft = fundamental_turn(
-        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
-        estimate=_est(), regate=regate,
+        _Deck(),
+        [],
+        None,
+        install=object(),
+        engine=eng,
+        deck_ref=('Fake Deck', 'dck'),
+        estimate=_est(),
+        regate=regate,
     )
     assert ft.tier == 'tier1'
     assert ft.driver_recommended is True
@@ -189,7 +211,13 @@ def test_valid_drive_but_meta_unreadable_falls_back(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(drivers, 'read_meta', lambda deck, *, data_dir=None: None)  # racy delete.
     eng = _FakeEngine(median=3.0)
     ft = fundamental_turn(
-        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'), estimate=_est(),
+        _Deck(),
+        [],
+        None,
+        install=object(),
+        engine=eng,
+        deck_ref=('Fake Deck', 'dck'),
+        estimate=_est(),
     )
     assert ft.tier == 'tier1'
     assert ft.driver_recommended is True
@@ -205,7 +233,11 @@ def test_control_returns_na(monkeypatch: pytest.MonkeyPatch) -> None:
     _driver(monkeypatch, state='absent', is_drive=None)
     eng = _FakeEngine()
     ft = fundamental_turn(
-        _Deck(), [], None, install=object(), engine=eng,
+        _Deck(),
+        [],
+        None,
+        install=object(),
+        engine=eng,
         estimate=_est(own_turn=None, archetype='control', confidence='n/a'),
     )
     assert ft.tier == 'na'
@@ -222,8 +254,13 @@ def test_sentinel_no_kill_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
     _driver(monkeypatch, state='valid', is_drive=True)
     eng = _FakeEngine(median=-1.0)
     ft = fundamental_turn(
-        _Deck(), [], None, install=object(), engine=eng,
-        deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=6.0),
+        _Deck(),
+        [],
+        None,
+        install=object(),
+        engine=eng,
+        deck_ref=('Fake Deck', 'dcktext'),
+        estimate=_est(own_turn=6.0),
     )
     assert ft.tier == 'tier1'
     assert ft.turn == 6.0  # the tier-1 number, NOT -1.
@@ -242,6 +279,7 @@ def test_returns_fundamental_turn_type(monkeypatch: pytest.MonkeyPatch) -> None:
 # elimination ... in at least 50% of games"; "the score times the median game". A
 # kills-only median flatters a deck that high-rolls (kills fast in <50% of games).
 
+
 @dataclass
 class _FakeGoldfishAll:
     median_kills_own: float
@@ -252,8 +290,9 @@ class _FakeGoldfishAll:
 
 
 class _FakeEngineAll(_FakeEngine):
-    def __init__(self, *, kills_median: float, all_median: float | None,
-                 bricks: int | None = 0, max_turn: int | None = 25) -> None:
+    def __init__(
+        self, *, kills_median: float, all_median: float | None, bricks: int | None = 0, max_turn: int | None = 25
+    ) -> None:
         super().__init__(median=kills_median)
         self.all_median = all_median
         self.bricks = bricks
@@ -268,8 +307,9 @@ def test_tier2_uses_all_games_median_not_kills_median(monkeypatch: pytest.Monkey
     """Kills-median 4.0 but all-games median 6.0 (bricks drag it) -> the rubric's answer is 6.0."""
     _driver(monkeypatch, state='valid', is_drive=True)
     eng = _FakeEngineAll(kills_median=4.0, all_median=6.0, bricks=8)
-    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng,
-                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0))
+    ft = fundamental_turn(
+        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0)
+    )
     assert ft.tier == 'tier2'
     assert ft.turn == 6.0
 
@@ -279,8 +319,15 @@ def test_tier2_majority_bricks_falls_back_flagged(monkeypatch: pytest.MonkeyPatc
     Tier-1 fallback with lowered confidence (never the flattering kills-only median)."""
     _driver(monkeypatch, state='valid', is_drive=True)
     eng = _FakeEngineAll(kills_median=4.0, all_median=26.0, bricks=11, max_turn=25)
-    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng,
-                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0, confidence='high'))
+    ft = fundamental_turn(
+        _Deck(),
+        [],
+        None,
+        install=object(),
+        engine=eng,
+        deck_ref=('Fake Deck', 'dcktext'),
+        estimate=_est(own_turn=5.0, confidence='high'),
+    )
     assert ft.tier == 'tier1'
     assert ft.turn == 5.0
     assert ft.driver_recommended is True
@@ -291,17 +338,21 @@ def test_tier2_old_harness_without_all_median_keeps_kills_median(monkeypatch: py
     """Older summary output (no medianAllOwn) -> preserve prior behavior rather than guessing."""
     _driver(monkeypatch, state='valid', is_drive=True)
     eng = _FakeEngineAll(kills_median=4.0, all_median=None, max_turn=None, bricks=None)
-    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng,
-                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0))
+    ft = fundamental_turn(
+        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0)
+    )
     assert ft.tier == 'tier2'
     assert ft.turn == 4.0
 
 
 def test_parse_goldfish_summary_reads_median_all_own() -> None:
     from pipeline.sim.engines.xmage import _parse_goldfish_summary
-    line = ('GOLDFISH SUMMARY (OWN TURNS) deck=x.dck variant=base games=20 maxTurn=25 '
-            'skill=6 kills=12 bricks=8 medianAllOwn=7.5 medianKillsOwn=5.0 '
-            'meanKillsOwn=5.2 bestOwn=4 distOwn=[...]')
+
+    line = (
+        'GOLDFISH SUMMARY (OWN TURNS) deck=x.dck variant=base games=20 maxTurn=25 '
+        'skill=6 kills=12 bricks=8 medianAllOwn=7.5 medianKillsOwn=5.0 '
+        'meanKillsOwn=5.2 bestOwn=4 distOwn=[...]'
+    )
     r = _parse_goldfish_summary(line)
     assert r.median_all_own == 7.5
     assert r.median_kills_own == 5.0
@@ -337,10 +388,14 @@ def _stale(monkeypatch: pytest.MonkeyPatch, *, is_drive: bool | None = True) -> 
     monkeypatch.setattr(drivers, 'classes_dir', lambda deck, *, data_dir=None: '/tmp/classes')
     dclass = 'drive' if is_drive else ('thin' if is_drive is False else 'unknown')
     monkeypatch.setattr(
-        drivers, 'read_meta',
+        drivers,
+        'read_meta',
         lambda deck, *, data_dir=None: drivers.DriverMeta(
-            deck_version='v', harness_version='h', fqcn='makemagic.driver.Fake',
-            gates_passed=True, driver_class=dclass,
+            deck_version='v',
+            harness_version='h',
+            fqcn='makemagic.driver.Fake',
+            gates_passed=True,
+            driver_class=dclass,
         ),
     )
 
@@ -351,8 +406,14 @@ def test_stale_regates_then_runs_tier2(monkeypatch: pytest.MonkeyPatch) -> None:
     eng = _FakeEngine(median=3.0)
     regate = _FakeRegate(ok=True, outcome='regated')
     ft = fundamental_turn(
-        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
-        estimate=_est(), regate=regate,
+        _Deck(),
+        [],
+        None,
+        install=object(),
+        engine=eng,
+        deck_ref=('Fake Deck', 'dck'),
+        estimate=_est(),
+        regate=regate,
     )
     assert ft.tier == 'tier2'
     assert ft.turn == 3.0
@@ -366,8 +427,14 @@ def test_stale_thin_regates_then_stays_closed_form(monkeypatch: pytest.MonkeyPat
     eng = _FakeEngine(median=3.0)
     regate = _FakeRegate(ok=True, outcome='regated')
     ft = fundamental_turn(
-        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
-        estimate=_est(own_turn=5.0), regate=regate,
+        _Deck(),
+        [],
+        None,
+        install=object(),
+        engine=eng,
+        deck_ref=('Fake Deck', 'dck'),
+        estimate=_est(own_turn=5.0),
+        regate=regate,
     )
     assert len(regate.calls) == 1
     assert ft.tier == 'tier1'
@@ -381,8 +448,14 @@ def test_stale_failed_regate_falls_back_loudly(monkeypatch: pytest.MonkeyPatch) 
     eng = _FakeEngine()
     regate = _FakeRegate(ok=False, outcome='failed', reason='driven medianKillsOwn WORSE than CP7')
     ft = fundamental_turn(
-        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
-        estimate=_est(), regate=regate,
+        _Deck(),
+        [],
+        None,
+        install=object(),
+        engine=eng,
+        deck_ref=('Fake Deck', 'dck'),
+        estimate=_est(),
+        regate=regate,
     )
     assert ft.tier == 'tier1'
     assert ft.driver_recommended is True
@@ -397,8 +470,14 @@ def test_stale_environment_failure_falls_back_loudly(monkeypatch: pytest.MonkeyP
     eng = _FakeEngine()
     regate = _FakeRegate(ok=False, outcome='environment', reason='no ECJ/JRE available')
     ft = fundamental_turn(
-        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
-        estimate=_est(), regate=regate,
+        _Deck(),
+        [],
+        None,
+        install=object(),
+        engine=eng,
+        deck_ref=('Fake Deck', 'dck'),
+        estimate=_est(),
+        regate=regate,
     )
     assert ft.tier == 'tier1'
     assert ft.driver_recommended is True
@@ -412,9 +491,13 @@ def test_broken_driver_names_gate_failure(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(drivers, 'driver_state', lambda deck, *, data_dir=None: 'broken')
     monkeypatch.setattr(drivers, 'driver_is_drive', lambda deck, *, data_dir=None: None)
     monkeypatch.setattr(
-        drivers, 'read_meta',
+        drivers,
+        'read_meta',
         lambda deck, *, data_dir=None: drivers.DriverMeta(
-            deck_version='v', harness_version='h', fqcn='x', gates_passed=False,
+            deck_version='v',
+            harness_version='h',
+            fqcn='x',
+            gates_passed=False,
             extra={'regate_failure_reason': 'macro never fired'},
         ),
     )

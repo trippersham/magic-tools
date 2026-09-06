@@ -192,9 +192,7 @@ def test_packaged_driver_cache_hits_on_second_call(monkeypatch: pytest.MonkeyPat
 
     fqcn = 'makemagic.driver.d_abc123.Driver'
     src = tmp_path / 'Driver.java'
-    src.write_text(
-        'package makemagic.driver.d_abc123;\npublic final class Driver { }\n', encoding='utf-8'
-    )
+    src.write_text('package makemagic.driver.d_abc123;\npublic final class Driver { }\n', encoding='utf-8')
     first = dc.compile_driver(src, fqcn=fqcn, data_dir=tmp_path)
     assert first.ok and first.cache_hit is False
     assert first.class_dir is not None

@@ -91,8 +91,14 @@ def _run_one_worker_game(install, db_src: Path, run_dir: Path, task: dict) -> Ga
 
     cmd = xe._compose_launch_cmd(install, ['--worker', '--worker-max-games', '1'], heap='3g')  # type: ignore[attr-defined]
     proc = subprocess.Popen(
-        cmd, cwd=run_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, text=True, bufsize=1, env=dict(os.environ),
+        cmd,
+        cwd=run_dir,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1,
+        env=dict(os.environ),
     )
     assert proc.stdin is not None and proc.stdout is not None
     q: queue.Queue = queue.Queue()  # type: ignore[type-arg]
@@ -134,7 +140,8 @@ def test_worker_lethal_damage_cause(tmp_path: Path) -> None:
     durdle.write_text('60 Mountain\n', encoding='utf-8')
 
     task = {
-        'id': 'lethal-1', 'fmt': 'constructed',
+        'id': 'lethal-1',
+        'fmt': 'constructed',
         'a': {'deck': str(aggro), 'driver': None},
         'b': {'deck': str(durdle), 'driver': None},
     }
@@ -157,7 +164,8 @@ def test_worker_turn_cap_draw_cause(tmp_path: Path) -> None:
     deck = run_dir / 'swamp.txt'
     deck.write_text('99 Swamp\nSB: 1 Yargle, Glutton of Urborg\n', encoding='utf-8')
     task = {
-        'id': 'draw-1', 'fmt': 'commander',
+        'id': 'draw-1',
+        'fmt': 'commander',
         'a': {'deck': str(deck), 'driver': None},
         'b': {'deck': str(deck), 'driver': None},
     }
@@ -198,15 +206,22 @@ def test_worker_emits_end_cause_marker(tmp_path: Path) -> None:
 
     cmd = xe._compose_launch_cmd(install, ['--worker', '--worker-max-games', '1'], heap='3g')  # type: ignore[attr-defined]
     proc = subprocess.Popen(
-        cmd, cwd=run_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, text=True, bufsize=1, env=dict(os.environ),
+        cmd,
+        cwd=run_dir,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1,
+        env=dict(os.environ),
     )
     assert proc.stdin is not None and proc.stdout is not None
     q: queue.Queue = queue.Queue()  # type: ignore[type-arg]
     threading.Thread(target=_reader, args=(proc.stdout, q), daemon=True).start()
 
     task = {
-        'id': 'end-cause-1', 'fmt': 'commander',
+        'id': 'end-cause-1',
+        'fmt': 'commander',
         'a': {'deck': str(deck), 'driver': None},
         'b': {'deck': str(deck), 'driver': None},
     }
@@ -226,6 +241,13 @@ def test_worker_emits_end_cause_marker(tmp_path: Path) -> None:
     assert msg.end_cause is not None, msg
     # The cause must be one the classifier understands (never a bare/empty marker).
     assert msg.end_cause in {
-        'lethal_damage', 'commander_damage', 'draw_empty_library', 'poison',
-        'state_loss', 'draw_game', 'timeout', 'concede', 'unknown',
+        'lethal_damage',
+        'commander_damage',
+        'draw_empty_library',
+        'poison',
+        'state_loss',
+        'draw_game',
+        'timeout',
+        'concede',
+        'unknown',
     }, msg.end_cause

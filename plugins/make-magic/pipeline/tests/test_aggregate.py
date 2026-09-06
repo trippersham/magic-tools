@@ -27,8 +27,14 @@ def _result(tid: str, winner: str, *, ms: int = 60000, reason: str | None = None
 
 def _result_starter(tid: str, winner: str, starter: str | None) -> GameResult:
     return GameResult(
-        task_id=tid, winner=winner, kill_turn=8, ms=60000, markers=[], log_path=None,
-        reason=None, starter=starter,
+        task_id=tid,
+        winner=winner,
+        kill_turn=8,
+        ms=60000,
+        markers=[],
+        log_path=None,
+        reason=None,
+        starter=starter,
     )
 
 
@@ -36,8 +42,12 @@ def test_starter_split_measures_first_player_effect() -> None:
     """The per-arm starter split counts A-started vs B-started decided games + the subject's
     win rate in each, so the first-player seat effect is measurable (the confound's readout)."""
     ids = _ids(
-        's|o|driven|0', 's|o|driven|1', 's|o|driven|2', 's|o|driven|3',
-        's|o|baseline|0', 's|o|baseline|1',
+        's|o|driven|0',
+        's|o|driven|1',
+        's|o|driven|2',
+        's|o|driven|3',
+        's|o|baseline|0',
+        's|o|baseline|1',
     )
     agg = RunAggregator(ids)
     # driven: A-started games 0,2 → subject wins both; B-started games 1,3 → subject loses both.
@@ -71,8 +81,12 @@ def test_baseline_only_subject_detected_and_absolute_rate() -> None:
     baseline cells only — no phantom driven arm."""
     # single-arm subject T vs two opponents, baseline only; plus a two-arm subject S for contrast.
     ids = _ids(
-        'T|o1|baseline|0', 'T|o1|baseline|1', 'T|o2|baseline|0', 'T|o2|baseline|1',
-        'S|o1|driven|0', 'S|o1|baseline|0',
+        'T|o1|baseline|0',
+        'T|o1|baseline|1',
+        'T|o2|baseline|0',
+        'T|o2|baseline|1',
+        'S|o1|driven|0',
+        'S|o1|baseline|0',
     )
     agg = RunAggregator(ids)
     agg.add_result(_result_starter('T|o1|baseline|0', 'A', 'A'))  # subject win, A started
@@ -174,10 +188,17 @@ def test_concede_is_decisive_credited_and_surfaced() -> None:
     # counted in the concede breakdown so concede-heavy matchups are visible.
     ids = _ids('S|O|driven|0', 'S|O|baseline|0')
     agg = RunAggregator(ids)
-    agg.add_result(GameResult(
-        task_id='S|O|driven|0', winner='A', kill_turn=6, ms=60000,
-        markers=['end_cause=concede'], log_path=None, end_cause='concede',
-    ))
+    agg.add_result(
+        GameResult(
+            task_id='S|O|driven|0',
+            winner='A',
+            kill_turn=6,
+            ms=60000,
+            markers=['end_cause=concede'],
+            log_path=None,
+            end_cause='concede',
+        )
+    )
     agg.add_result(_result('S|O|baseline|0', 'B'))
     opp = agg.comparisons()['S'].per_opponent[0]
     # The concede is credited to the winner (seat A) exactly like any decisive cause.

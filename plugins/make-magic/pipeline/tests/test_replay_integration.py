@@ -77,9 +77,7 @@ def _pooled(agg: RunAggregator) -> tuple[int, int, int, int]:
 
 
 def _decisive_ab(rows: list[dict], *, min_ms: int) -> int:
-    return sum(
-        1 for r in rows if str(r['winner']).strip().upper() in ('A', 'B') and int(r.get('ms', 0)) >= min_ms
-    )
+    return sum(1 for r in rows if str(r['winner']).strip().upper() in ('A', 'B') and int(r.get('ms', 0)) >= min_ms)
 
 
 def test_replay_reproduces_audit_delta() -> None:

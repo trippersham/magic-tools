@@ -29,6 +29,7 @@ def test_resolve_worker_cmd_defaults() -> None:
 
 def test_build_worker_java_argv_shape() -> None:
     """The staged JVM argv is well-formed: java, -Xmx3g, -cp <cp>, XMageBatch --worker …."""
+
     class _Install:
         java = '/opt/jre/bin/java'
         classpath = '/harness.jar:/dist.jar'

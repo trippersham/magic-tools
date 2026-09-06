@@ -110,7 +110,9 @@ def _is_reflection(owner: str, method: str) -> bool:
     if owner == 'java/lang/reflect/Method' and method == 'invoke':
         return True
     if owner.startswith('java/lang/invoke/MethodHandle') and method in (
-        'invoke', 'invokeExact', 'invokeWithArguments',
+        'invoke',
+        'invokeExact',
+        'invokeWithArguments',
     ):
         return True
     return owner == 'java/lang/Class' and method in _REFLECT_CLASS_METHODS
@@ -208,7 +210,7 @@ def _walk_pool(
         if tag == _TAG_UTF8:
             (length,) = struct.unpack_from('>H', data, off)
             off += 2
-            utf8[i] = data[off:off + length].decode('utf-8', 'replace')
+            utf8[i] = data[off : off + length].decode('utf-8', 'replace')
             off += length
         elif tag in (_TAG_INTEGER, _TAG_FLOAT, _TAG_FIELDREF, _TAG_DYNAMIC, _TAG_INVOKE_DYNAMIC):
             off += 4

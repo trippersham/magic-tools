@@ -61,9 +61,7 @@ def main() -> None:
     die_on_task = bool(os.environ.get('FAKE_DIE_ON_TASK'))
     die_on_task_id = os.environ.get('FAKE_DIE_ON_TASK_ID')
     die_on_subject = os.environ.get('FAKE_DIE_ON_SUBJECT')
-    bailout_indices = frozenset(
-        v for v in os.environ.get('FAKE_BAILOUT_ON_INDEX', '').split(',') if v
-    )
+    bailout_indices = frozenset(v for v in os.environ.get('FAKE_BAILOUT_ON_INDEX', '').split(',') if v)
     bailout_all = bool(os.environ.get('FAKE_BAILOUT_ALL'))
     bailout_on_subject = os.environ.get('FAKE_BAILOUT_ON_SUBJECT')
     runlog = os.environ.get('FAKE_RUNLOG')
@@ -98,8 +96,13 @@ def main() -> None:
     # One-shot fault gate: only the FIRST worker to claim the marker faults; respawns run clean.
     once_file = os.environ.get('FAKE_FAULT_ONCE_FILE')
     _faulty = (
-        die_on_task or silent or die_after_result or silent_after_hb
-        or bad_result or ready_while_inflight or wrong_id_result
+        die_on_task
+        or silent
+        or die_after_result
+        or silent_after_hb
+        or bad_result
+        or ready_while_inflight
+        or wrong_id_result
     )
     if once_file and _faulty:
         try:
@@ -144,10 +147,19 @@ def main() -> None:
             elif ready_while_inflight:
                 _emit('READY')  # backpressure signal while still holding a task — a violation.
             else:  # wrong_id_result
-                _emit('RESULT ' + json.dumps(
-                    {'id': 'FOREIGN|task|driven|9', 'winner': 'a', 'kill_turn': 3,
-                     'ms': 60000, 'markers': [], 'log': None}
-                ))
+                _emit(
+                    'RESULT '
+                    + json.dumps(
+                        {
+                            'id': 'FOREIGN|task|driven|9',
+                            'winner': 'a',
+                            'kill_turn': 3,
+                            'ms': 60000,
+                            'markers': [],
+                            'log': None,
+                        }
+                    )
+                )
             while True:  # the pool must kill us + requeue the held task; we make no more progress.
                 time.sleep(3600)
 
@@ -178,8 +190,13 @@ def main() -> None:
             # Non-decisive: consumes the slot without crediting either seat (models the Java
             # deadline / sub-2s gate). ``ok`` will NOT increment → the cell must be topped up.
             result = {
-                'id': task_id, 'winner': 'none', 'kill_turn': None, 'ms': game_ms,
-                'markers': [], 'log': None, 'reason': 'bailout',
+                'id': task_id,
+                'winner': 'none',
+                'kill_turn': None,
+                'ms': game_ms,
+                'markers': [],
+                'log': None,
+                'reason': 'bailout',
             }
         else:
             result = {'id': task_id, 'winner': 'a', 'kill_turn': 3, 'ms': game_ms, 'markers': [], 'log': None}

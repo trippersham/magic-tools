@@ -108,7 +108,9 @@ def test_mixed_roster_two_arm_and_baseline_only() -> None:
     subject enumerates its OWN arm set — the two-arm subject is unaffected by the single-arm one."""
     field = [_subject('o1')]
     tasks = build_game_tasks(
-        [_subject('driven1', driven=True)], field, 2,
+        [_subject('driven1', driven=True)],
+        field,
+        2,
         baseline_only_subjects=[_subject('thin1', driven=False)],
     )
     arms_by_subject: dict[str, set[str]] = {}

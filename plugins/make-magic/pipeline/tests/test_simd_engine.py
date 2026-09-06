@@ -156,8 +156,14 @@ def test_integration_fairness_poison_subject_cannot_starve_others(tmp_path) -> N
         return {'FAKE_DIE_ON_SUBJECT': poison}
 
     res = run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=3, stall_timeout_s=30.0,
-        ops_db_path=db, attempt_cap=2, env_for_worker=env_for, join_timeout_s=60.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=3,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        attempt_cap=2,
+        env_for_worker=env_for,
+        join_timeout_s=60.0,
     )
     assert isinstance(res, SimdRunResult)
     # The run TERMINATED (did not wedge): every task is terminal (done or quarantined).
@@ -193,8 +199,14 @@ def test_integration_quarantine_persists_across_restart(tmp_path) -> None:
         return {'FAKE_DIE_ON_SUBJECT': poison}
 
     res1 = run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0,
-        ops_db_path=db, attempt_cap=2, env_for_worker=env_poison, join_timeout_s=60.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=2,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        attempt_cap=2,
+        env_for_worker=env_poison,
+        join_timeout_s=60.0,
     )
     poison_tasks = {t.task_id for t in tasks if t.task_id.split('|', 1)[0] == poison}
     assert res1.quarantined == poison_tasks
@@ -212,8 +224,14 @@ def test_integration_quarantine_persists_across_restart(tmp_path) -> None:
         return {'FAKE_RUNLOG': str(runlog)}
 
     res2 = run_games_simd(
-        tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0,
-        ops_db_path=db, attempt_cap=2, env_for_worker=env_runlog, join_timeout_s=60.0,
+        tasks,
+        worker_cmd=_cmd(),
+        workers=2,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        attempt_cap=2,
+        env_for_worker=env_runlog,
+        join_timeout_s=60.0,
     )
     # Zero games ran in the restart (sb was already done; sa stays quarantined).
     ran = runlog.read_text().split() if runlog.exists() else []
@@ -242,8 +260,14 @@ def test_integration_crash_safe_resume_zero_loss(tmp_path) -> None:
     #    This commits some but NOT all of sa's cells (sa is left mid-subject). ------------------
     phase1_tasks = build_game_tasks(_subjects(['sa']), _subjects(['oa']), 2, fmt='commander')
     res1 = run_games_simd(
-        phase1_tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0,
-        ops_db_path=db, attempt_cap=2, env_for_worker=env_runlog, join_timeout_s=60.0,
+        phase1_tasks,
+        worker_cmd=_cmd(),
+        workers=2,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        attempt_cap=2,
+        env_for_worker=env_runlog,
+        join_timeout_s=60.0,
     )
     committed = set(res1.results)
     assert committed, 'phase 1 committed nothing'
@@ -258,15 +282,22 @@ def test_integration_crash_safe_resume_zero_loss(tmp_path) -> None:
     #    already-committed sa/oa cells MUST NOT re-run; everything else runs to completion. -----
     full_tasks = build_game_tasks(_subjects(['sa', 'sb']), _subjects(['oa', 'ob']), 2, fmt='commander')
     res2 = run_games_simd(
-        full_tasks, worker_cmd=_cmd(), workers=2, stall_timeout_s=30.0,
-        ops_db_path=db, attempt_cap=2, env_for_worker=env_runlog, join_timeout_s=60.0,
+        full_tasks,
+        worker_cmd=_cmd(),
+        workers=2,
+        stall_timeout_s=30.0,
+        ops_db_path=db,
+        attempt_cap=2,
+        env_for_worker=env_runlog,
+        join_timeout_s=60.0,
     )
     ran_total = runlog.read_text().split()
     # ZERO completed game was ever re-run: no task_id appears twice across the two phases.
-    assert len(ran_total) == len(set(ran_total)), \
+    assert len(ran_total) == len(set(ran_total)), (
         f'a committed game was RE-RUN on resume: {[t for t in ran_total if ran_total.count(t) > 1]}'
+    )
     # The committed phase-1 games did NOT re-run in phase 2.
-    ran_phase2 = ran_total[len(ran_phase1):]
+    ran_phase2 = ran_total[len(ran_phase1) :]
     assert committed.isdisjoint(set(ran_phase2)), 'a committed game re-ran in phase 2'
     # The full run is now complete — every cell of every subject filled, none lost.
     assert res2.complete, res2.incomplete_cells

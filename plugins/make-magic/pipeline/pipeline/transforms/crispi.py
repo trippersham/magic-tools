@@ -32,7 +32,7 @@ import itertools
 import math
 import re
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, cast
 
 from pipeline.contracts.models import CrispiAxis, CrispiBracket, CrispiInputs, CrispiResult
 from pipeline.transforms.crispi_tiers import (
@@ -950,7 +950,7 @@ def consistency_totals(
         tutor_total += 5.0
         if commander is not None:
             cited.append(commander.name)
-        if commander is not None and commander.tutor[0] in _PREMIUM_TUTOR_LABELS:
+        if commander is not None and commander.tutor and commander.tutor[0] in _PREMIUM_TUTOR_LABELS:
             premium_tutor_count += 1
     if combo_commander:
         tutor_total += 4.0
@@ -1564,7 +1564,7 @@ def _normalize_dependence(value: str) -> Literal['low', 'med', 'high']:
     """
     v = (value or '').strip().lower()
     v = _DEPENDENCE_ALIASES.get(v, v)
-    return v if v in _COMMANDER_DEPENDENCE_PENALTY else 'med'
+    return cast("Literal['low', 'med', 'high']", v) if v in _COMMANDER_DEPENDENCE_PENALTY else 'med'
 
 
 def resilience_axis(
@@ -2028,7 +2028,7 @@ def _two_card_combo_count(combos: list) -> int:
     for c in combos:
         names = getattr(c, 'card_names', ()) or ()
         vid = getattr(c, 'variant_id', None)
-        if len(names) == 2 and vid not in seen:
+        if len(names) == 2 and vid is not None and vid not in seen:
             seen.add(vid)
             count += 1
     return count

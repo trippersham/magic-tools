@@ -168,9 +168,7 @@ def _dist_override() -> Path | None:
         return None
     jar = Path(override)
     if not (jar.is_file() and jar.stat().st_size > 0):
-        raise XMageUnavailableError(
-            f'{ENV_XMAGE_DIST_JAR}={override!r} is not a readable, non-empty jar file.'
-        )
+        raise XMageUnavailableError(f'{ENV_XMAGE_DIST_JAR}={override!r} is not a readable, non-empty jar file.')
     return jar
 
 

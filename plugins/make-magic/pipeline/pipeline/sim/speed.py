@@ -80,7 +80,7 @@ def _deck_ref(deck: object) -> tuple[str, str]:
     from pipeline.destinations.deck_export import get_exporter
 
     name = getattr(deck, 'name', '') or ''
-    return (name, get_exporter('forge_dck').export(deck))
+    return (name, get_exporter('forge_dck').export(deck))  # type: ignore[arg-type]  # duck-typed deck
 
 
 def fundamental_turn(
@@ -123,15 +123,16 @@ def fundamental_turn(
     Returns:
         A :class:`FundamentalTurn`.
     """
-    est: SpeedEstimate = estimate(
-        cards, card_otag, archetype=archetype, combo_pieces=combo_pieces, lethal=lethal
-    )
+    est: SpeedEstimate = estimate(cards, card_otag, archetype=archetype, combo_pieces=combo_pieces, lethal=lethal)
 
     # 1. Speed N/A — control or any estimate with no honest own-turn kill.
     if est.own_turn is None:
         return FundamentalTurn(
-            turn=None, confidence=est.confidence, tier='na',
-            source_rationale=est.rationale, driver_recommended=False,
+            turn=None,
+            confidence=est.confidence,
+            tier='na',
+            source_rationale=est.rationale,
+            driver_recommended=False,
         )
 
     tier1_turn = float(est.own_turn)
@@ -143,8 +144,11 @@ def fundamental_turn(
         """The closed-form fallback — the deterministic default whenever a goldfish doesn't run."""
         conf = _LOWER_CONFIDENCE[est.confidence] if lowered else est.confidence
         return FundamentalTurn(
-            turn=tier1_turn, confidence=conf, tier='tier1',
-            source_rationale=reason, driver_recommended=recommend,
+            turn=tier1_turn,
+            confidence=conf,
+            tier='tier1',
+            source_rationale=reason,
+            driver_recommended=recommend,
         )
 
     # 2. Classify the driver. A STALE driver (the deck or harness ABI moved under its stamp) is
@@ -158,7 +162,8 @@ def fundamental_turn(
             return _closed_form(
                 'a per-deck driver is stale (deck/harness moved under its stamp) but no XMage '
                 f'install is available to re-gate it. Using the closed-form estimate. ({est.rationale})',
-                lowered=True, recommend=True,
+                lowered=True,
+                recommend=True,
             )
         # Recompile the authored source against the current harness + re-run the gate. On success
         # the driver is current again (with a fresh richness stamp) — re-read below. A gate or
@@ -166,8 +171,12 @@ def fundamental_turn(
         regate_fn = regate if regate is not None else _default_regate
         ref = deck_ref if deck_ref is not None else _deck_ref(deck)
         rg = regate_fn(
-            deck, ref, install=install, games=max(games, _MIN_REGATE_GAMES),
-            engine=engine, data_dir=data_dir,
+            deck,
+            ref,
+            install=install,
+            games=max(games, _MIN_REGATE_GAMES),
+            engine=engine,
+            data_dir=data_dir,
         )
         if rg.ok:
             state = 'valid'  # re-stamped a current meta (incl. richness) — re-read below.
@@ -175,13 +184,15 @@ def fundamental_turn(
             return _closed_form(
                 'a stale per-deck driver could not be re-gated in this environment: '
                 f'{rg.reason}. Using the closed-form estimate. ({est.rationale})',
-                lowered=True, recommend=True,
+                lowered=True,
+                recommend=True,
             )
         else:  # 'failed' → the recompile/gate rejected the driver.
             return _closed_form(
                 'a stale per-deck driver failed re-gate against the current harness: '
                 f'{rg.reason}. Using the closed-form estimate. ({est.rationale})',
-                lowered=True, recommend=True,
+                lowered=True,
+                recommend=True,
             )
 
     if state == 'broken':
@@ -194,7 +205,8 @@ def fundamental_turn(
         return _closed_form(
             'the per-deck driver is BROKEN (its gate rejected it): '
             f'{detail}. Using the closed-form estimate. ({est.rationale})',
-            lowered=True, recommend=True,
+            lowered=True,
+            recommend=True,
         )
 
     if state == 'absent':
@@ -204,22 +216,25 @@ def fundamental_turn(
             return _closed_form(
                 'a win-line is detected but no per-deck driver exists — a DRIVE driver would let a '
                 f'goldfish measure the real execution clock. Using the closed-form estimate. ({est.rationale})',
-                lowered=True, recommend=True,
+                lowered=True,
+                recommend=True,
             )
         return _closed_form(
             f'no per-deck driver; the closed-form own-turn is the Speed. ({est.rationale})',
-            lowered=False, recommend=False,
+            lowered=False,
+            recommend=False,
         )
 
     # 3. state == 'valid' — driver richness decides: DRIVE runs the goldfish, THIN keeps the
     # closed form, unknown keeps the closed form and recommends re-authoring.
-    is_drive = drivers.driver_is_drive(deck, data_dir=data_dir)  # re-read (post-regate if it ran).
+    is_drive = drivers.driver_is_drive(deck, data_dir=data_dir)  # type: ignore[arg-type]  # re-read post-regate
     if is_drive is False:
         # A thin driver reproduces baseline play, so a goldfish adds nothing over the closed form.
         return _closed_form(
             'the per-deck driver is thin (baseline play) — the closed-form own-turn is '
             f'authoritative. ({est.rationale})',
-            lowered=False, recommend=False,
+            lowered=False,
+            recommend=False,
         )
     if is_drive is None:
         # Richness could not be determined (a legacy driver whose class was never resolved). Keep
@@ -227,7 +242,8 @@ def fundamental_turn(
         return _closed_form(
             'the per-deck driver richness is unknown; re-author it to restore a driven Speed. '
             f'Using the closed-form estimate. ({est.rationale})',
-            lowered=True, recommend=True,
+            lowered=True,
+            recommend=True,
         )
 
     # is_drive is True — a DRIVE driver.
@@ -235,7 +251,8 @@ def fundamental_turn(
         return _closed_form(
             'a DRIVE per-deck driver is present but no XMage install is available to run the '
             f'driven goldfish. Using the closed-form estimate. ({est.rationale})',
-            lowered=True, recommend=True,
+            lowered=True,
+            recommend=True,
         )
 
     eng = engine if engine is not None else _default_engine()
@@ -245,15 +262,14 @@ def fundamental_turn(
         # Racy delete between the state check and here — fall back honestly.
         return _closed_form(
             f'the per-deck driver meta could not be read; using the closed-form estimate. ({est.rationale})',
-            lowered=True, recommend=True,
+            lowered=True,
+            recommend=True,
         )
     ref = deck_ref if deck_ref is not None else _deck_ref(deck)
     # Commander decks run the commander-native solo (40 life + command zone) so the commander is
     # seated — otherwise a commander-dependent line can never execute.
     fmt = 'commander' if getattr(deck, 'commanders', None) else 'constructed'
-    result = eng.goldfish(
-        ref, games=games, install=install, driver=(classes, meta.fqcn), fmt=fmt
-    )
+    result = eng.goldfish(ref, games=games, install=install, driver=(classes, meta.fqcn), fmt=fmt)  # type: ignore[attr-defined]  # duck-typed engine
     # Use the all-games median (the deckcheck Speed rubric, issue #30): the turn a kill completes
     # in ≥50% of games, bricks counted as slow. A kills-only median flatters a line that kills
     # fast in <50% of games. A median past the brick cap means most games never killed — no honest
@@ -267,7 +283,9 @@ def fundamental_turn(
         median = float(result.median_kills_own)  # engines that don't report an all-games median.
     if median >= 0:
         return FundamentalTurn(
-            turn=median, confidence='high', tier='tier2',
+            turn=median,
+            confidence='high',
+            tier='tier2',
             source_rationale=(
                 f'driven goldfish ({meta.fqcn}, {games} games): '
                 f'median own-turn kill {median:g}. (closed form: {est.rationale})'
@@ -278,7 +296,8 @@ def fundamental_turn(
     return _closed_form(
         'the driven goldfish found no ≥50%-of-games kill in the window (no kill at all, or the '
         f'majority of games bricked); using the closed-form estimate. ({est.rationale})',
-        lowered=True, recommend=True,
+        lowered=True,
+        recommend=True,
     )
 
 

@@ -109,15 +109,22 @@ def test_worker_rejects_forbidden_driver(tmp_path: Path, variant: str, driver_cl
 
     cmd = xe._compose_launch_cmd(install, ['--worker', '--worker-max-games', '1'], heap='3g')  # type: ignore[attr-defined]
     proc = subprocess.Popen(
-        cmd, cwd=run_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, text=True, bufsize=1, env=dict(os.environ),
+        cmd,
+        cwd=run_dir,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1,
+        env=dict(os.environ),
     )
     assert proc.stdin is not None and proc.stdout is not None
     q: queue.Queue = queue.Queue()  # type: ignore[type-arg]
     threading.Thread(target=_reader, args=(proc.stdout, q), daemon=True).start()
 
     task = {
-        'id': 'lint-reject-1', 'fmt': 'commander',
+        'id': 'lint-reject-1',
+        'fmt': 'commander',
         'a': {'deck': str(deck), 'driver': {'cp': str(bad_cp), 'fqcn': f'org.makemagic.driver.{driver_cls}'}},
         'b': {'deck': str(deck), 'driver': None},
     }
@@ -131,7 +138,7 @@ def test_worker_rejects_forbidden_driver(tmp_path: Path, variant: str, driver_cl
             proc.kill()
 
     assert line is not None and line.startswith('RESULT '), f'expected terminal RESULT, got: {line}'
-    body = json.loads(line[len('RESULT '):])
+    body = json.loads(line[len('RESULT ') :])
     assert body['reason'] == 'driver-rejected', body
     assert body['winner'] == 'none', body
     assert any('forbidden' in m for m in body.get('markers', [])), body

@@ -158,9 +158,7 @@ def _parse_goldfish_summary(output: str) -> GoldfishResult:
         median_m = re.search(r'\bmedianKillsOwn=(-?\d+(?:\.\d+)?)', line)
         games_m = re.search(r'\bgames=(\d+)', line)
         if median_m is None or games_m is None:
-            raise XMageError(
-                f'GOLDFISH SUMMARY line missing medianKillsOwn/games field: {line!r}'
-            )
+            raise XMageError(f'GOLDFISH SUMMARY line missing medianKillsOwn/games field: {line!r}')
         # maxTurn / bricks are the brick-cap validity signals (opponent-deckout /
         # freeze-at-cap detection downstream). Optional: absent in older summary output
         # → None, which makes the gate's brick-cap guard a no-op rather than guessing.
@@ -278,7 +276,7 @@ def count_xmage_deck(txt: str) -> tuple[int, int]:
             continue
         is_commander = line.startswith('SB:')
         if is_commander:
-            line = line[len('SB:'):].strip()
+            line = line[len('SB:') :].strip()
         match = re.match(r'(\d+)\s+', line)
         qty = int(match.group(1)) if match else 1
         if is_commander:
@@ -549,8 +547,13 @@ class XMageEngine:
         Phase-1 ``GoldfishResult`` return.
         """
         result, _output = self.goldfish_output(
-            deck_a, games=games, install=install, skill=skill, driver=driver,
-            timeout_s=timeout_s, fmt=fmt,
+            deck_a,
+            games=games,
+            install=install,
+            skill=skill,
+            driver=driver,
+            timeout_s=timeout_s,
+            fmt=fmt,
         )
         return result
 
@@ -615,9 +618,7 @@ class XMageEngine:
                 stall_timeout_s=timeout_s,
             )
             if returncode != 0:
-                raise XMageError(
-                    f'XMage goldfish for {name_a} exited {returncode}. Output tail:\n{output[-1000:]}'
-                )
+                raise XMageError(f'XMage goldfish for {name_a} exited {returncode}. Output tail:\n{output[-1000:]}')
             result = _parse_goldfish_summary(output)
             # Persist the FULL solo goldfish run (summary + per-game telemetry + raw log)
             # for retrospective analysis. BEST-EFFORT + non-fatal: a store failure is

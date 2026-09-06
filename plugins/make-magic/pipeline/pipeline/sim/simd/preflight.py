@@ -59,9 +59,7 @@ def default_java_probe(java: Path) -> str:
     Raises :class:`FileNotFoundError` if the binary does not exist / is not executable — the
     caller (:func:`preflight_java`) converts that into a :class:`BootFailure`.
     """
-    proc = subprocess.run(
-        [str(java), '-version'], capture_output=True, text=True, timeout=30, check=False
-    )
+    proc = subprocess.run([str(java), '-version'], capture_output=True, text=True, timeout=30, check=False)
     return (proc.stderr or '') + (proc.stdout or '')
 
 
@@ -84,8 +82,7 @@ def preflight_java(
         output = run_probe(path)
     except FileNotFoundError as exc:
         raise BootFailure(
-            f'java launcher not found or not executable: {path!r}. Set MAKE_MAGIC_JAVA to a '
-            f'JRE {min_major}+ launcher.'
+            f'java launcher not found or not executable: {path!r}. Set MAKE_MAGIC_JAVA to a JRE {min_major}+ launcher.'
         ) from exc
     except (OSError, subprocess.SubprocessError) as exc:
         raise BootFailure(f'could not run `{path} -version` for the boot preflight: {exc}') from exc

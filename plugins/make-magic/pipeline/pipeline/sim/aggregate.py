@@ -41,6 +41,7 @@ def _cell_of(task_id: str) -> tuple[str, str, str]:
         raise ValueError(msg)
     return parts[0], parts[1], parts[2]
 
+
 __all__ = (
     'BAILOUT_HARD_FLOOR_MS',
     'BAILOUT_SUSPICIOUS_MS',
@@ -224,8 +225,21 @@ class _Cell:
     """
 
     __slots__ = (
-        'concede', 'failed', 'fast', 'invalid', 'needed', 'nondecisive', 'ok',
-        'wins_a', 'wins_a_sa', 'wins_a_sb', 'wins_a_su', 'wins_b', 'wins_b_sa', 'wins_b_sb', 'wins_b_su',
+        'concede',
+        'failed',
+        'fast',
+        'invalid',
+        'needed',
+        'nondecisive',
+        'ok',
+        'wins_a',
+        'wins_a_sa',
+        'wins_a_sb',
+        'wins_a_su',
+        'wins_b',
+        'wins_b_sa',
+        'wins_b_sb',
+        'wins_b_su',
     )
 
     def __init__(self) -> None:
@@ -434,8 +448,13 @@ class RunAggregator:
             stats['winrate'] = (stats['subject_wins'] / d) if d else 0.0
         rate, ci = _rates(wins, decided)
         return AbsoluteBaseline(
-            subject=subject, wins=wins, decided=decided, winrate=rate,
-            winrate_ci=ci, n_matchups=n_matchups, starter_split=split,
+            subject=subject,
+            wins=wins,
+            decided=decided,
+            winrate=rate,
+            winrate_ci=ci,
+            n_matchups=n_matchups,
+            starter_split=split,
         )
 
     # -- coverage ---------------------------------------------------------- #

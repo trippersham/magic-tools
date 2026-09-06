@@ -136,8 +136,15 @@ def test_starter_persists_and_round_trips(tmp_path) -> None:
     with OpsStore(db, run_id='r1') as ops:
         ops.register_tasks(tasks)
         ops.record_result(
-            GameResult(task_id=tasks[0].task_id, winner='a', kill_turn=3, ms=60000,
-                       markers=['starter=B'], log_path=None, starter='B')
+            GameResult(
+                task_id=tasks[0].task_id,
+                winner='a',
+                kill_turn=3,
+                ms=60000,
+                markers=['starter=B'],
+                log_path=None,
+                starter='B',
+            )
         )
     with OpsStore(db, run_id='r1') as ops2:
         loaded = ops2.load_results()
@@ -162,8 +169,15 @@ def test_pre_starter_runid_file_gains_column(tmp_path) -> None:
         loaded = ops.load_results()
         assert loaded['sa|oa|driven|0'].starter is None  # pre-existing row: unrecorded starter.
         ops.record_result(
-            GameResult(task_id='sa|oa|driven|1', winner='b', kill_turn=3, ms=60000,
-                       markers=['starter=A'], log_path=None, starter='A')
+            GameResult(
+                task_id='sa|oa|driven|1',
+                winner='b',
+                kill_turn=3,
+                ms=60000,
+                markers=['starter=A'],
+                log_path=None,
+                starter='A',
+            )
         )
         assert ops.load_results()['sa|oa|driven|1'].starter == 'A'
 
@@ -191,12 +205,8 @@ def test_legacy_file_loads_under_legacy_run(tmp_path) -> None:
         'outcome TEXT NOT NULL, detail TEXT, created_at TIMESTAMP, '
         'PRIMARY KEY (task_id, attempt, outcome))'
     )
-    con.execute(
-        "INSERT INTO simd_tasks VALUES ('sa|oa|driven|0', 'sa', 'oa', 'driven', 'commander')"
-    )
-    con.execute(
-        "INSERT INTO simd_results (task_id, winner, ms) VALUES ('sa|oa|driven|0', 'a', 60000)"
-    )
+    con.execute("INSERT INTO simd_tasks VALUES ('sa|oa|driven|0', 'sa', 'oa', 'driven', 'commander')")
+    con.execute("INSERT INTO simd_results (task_id, winner, ms) VALUES ('sa|oa|driven|0', 'a', 60000)")
     con.close()
 
     # Open with the new store under the legacy run: the historical rows read back.

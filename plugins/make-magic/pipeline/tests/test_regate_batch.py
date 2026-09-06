@@ -26,10 +26,15 @@ def _ledger_with_stale_driver(store: Path) -> Path:
     """A ledger holding one compiled DRIVE row whose driver is stamped STALE on disk."""
     ledger_path = store / 'ledger.jsonl'
     ledger = driver_batch.Ledger(ledger_path)
-    ledger.record({
-        'deck_id': 'gauntlet/x.dck', 'name': 'X', 'drive': True, 'stage': 'compiled',
-        'fqcn': 'makemagic.driver.X',
-    })
+    ledger.record(
+        {
+            'deck_id': 'gauntlet/x.dck',
+            'name': 'X',
+            'drive': True,
+            'stage': 'compiled',
+            'fqcn': 'makemagic.driver.X',
+        }
+    )
     # THIN rows carry no driver — must be skipped from the driver walk.
     ledger.record({'deck_id': 'gauntlet/thin.dck', 'name': 'Thin', 'drive': False, 'stage': 'gated'})
 
@@ -37,8 +42,11 @@ def _ledger_with_stale_driver(store: Path) -> Path:
     drivers.write_meta(
         deck,
         drivers.DriverMeta(
-            deck_version='DECKV1', harness_version='OLD-HARNESS',
-            fqcn='makemagic.driver.X', gates_passed=True, gate_mode='reactive',
+            deck_version='DECKV1',
+            harness_version='OLD-HARNESS',
+            fqcn='makemagic.driver.X',
+            gates_passed=True,
+            gate_mode='reactive',
         ),
         data_dir=store,
     )
@@ -57,6 +65,7 @@ class _RG:
 def _fake_regate(ok: bool, outcome: str, reason: str = ''):
     def _fn(deck, deck_ref, **kwargs):
         return _RG(ok, outcome, reason)
+
     return _fn
 
 
@@ -65,7 +74,9 @@ def test_dry_run_lists_states_and_regates_nothing(_store: Path) -> None:
     called: list = []
 
     reports = regate_batch.run_regate_batch(
-        ledger_path=ledger_path, data_dir=_store, dry_run=True,
+        ledger_path=ledger_path,
+        data_dir=_store,
+        dry_run=True,
         regate_fn=lambda *a, **k: called.append(1),
         deck_ref_fn=lambda deck, row: ('X', 'dck'),
     )
@@ -77,7 +88,10 @@ def test_dry_run_lists_states_and_regates_nothing(_store: Path) -> None:
 def test_live_run_regates_stale(_store: Path) -> None:
     ledger_path = _ledger_with_stale_driver(_store)
     reports = regate_batch.run_regate_batch(
-        ledger_path=ledger_path, data_dir=_store, dry_run=False, install=object(),
+        ledger_path=ledger_path,
+        data_dir=_store,
+        dry_run=False,
+        install=object(),
         regate_fn=_fake_regate(ok=True, outcome='regated'),
         deck_ref_fn=lambda deck, row: ('X', 'dck'),
     )
@@ -87,7 +101,10 @@ def test_live_run_regates_stale(_store: Path) -> None:
 def test_failed_regate_reported(_store: Path) -> None:
     ledger_path = _ledger_with_stale_driver(_store)
     reports = regate_batch.run_regate_batch(
-        ledger_path=ledger_path, data_dir=_store, dry_run=False, install=object(),
+        ledger_path=ledger_path,
+        data_dir=_store,
+        dry_run=False,
+        install=object(),
         regate_fn=_fake_regate(ok=False, outcome='failed', reason='macro never fired'),
         deck_ref_fn=lambda deck, row: ('X', 'dck'),
     )
@@ -99,9 +116,13 @@ def test_cli_exits_nonzero_on_failure(_store: Path, monkeypatch: pytest.MonkeyPa
     ledger_path = _ledger_with_stale_driver(_store)
     # Dry-run path avoids resolving a real install; inject a failed report via the batch fn.
     monkeypatch.setattr(
-        regate_batch, 'run_regate_batch',
-        lambda **kw: [regate_batch.RegateReport(
-            deck_id='gauntlet/x.dck', name='X', state='stale', outcome='failed', reason='boom')],
+        regate_batch,
+        'run_regate_batch',
+        lambda **kw: [
+            regate_batch.RegateReport(
+                deck_id='gauntlet/x.dck', name='X', state='stale', outcome='failed', reason='boom'
+            )
+        ],
     )
     code = regate_batch.run(['--ledger', str(ledger_path), '--dry-run'])
     assert code == 1  # any failed driver → nonzero exit.
@@ -110,9 +131,9 @@ def test_cli_exits_nonzero_on_failure(_store: Path, monkeypatch: pytest.MonkeyPa
 def test_cli_exit_zero_when_all_clean(_store: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     ledger_path = _ledger_with_stale_driver(_store)
     monkeypatch.setattr(
-        regate_batch, 'run_regate_batch',
-        lambda **kw: [regate_batch.RegateReport(
-            deck_id='gauntlet/x.dck', name='X', state='valid', outcome='valid')],
+        regate_batch,
+        'run_regate_batch',
+        lambda **kw: [regate_batch.RegateReport(deck_id='gauntlet/x.dck', name='X', state='valid', outcome='valid')],
     )
     code = regate_batch.run(['--ledger', str(ledger_path), '--dry-run'])
     assert code == 0
@@ -126,8 +147,7 @@ def test_cli_without_live_is_dry_run(_store: Path, monkeypatch: pytest.MonkeyPat
 
     def _spy(**kw: object) -> list[regate_batch.RegateReport]:
         seen.update(kw)
-        return [regate_batch.RegateReport(
-            deck_id='gauntlet/x.dck', name='X', state='stale', outcome='stale')]
+        return [regate_batch.RegateReport(deck_id='gauntlet/x.dck', name='X', state='stale', outcome='stale')]
 
     monkeypatch.setattr(regate_batch, 'run_regate_batch', _spy)
     # Deliberately NO --live and NO --dry-run: default must still be dry-run.
@@ -147,8 +167,7 @@ def test_cli_live_resolves_install_and_writes(_store: Path, monkeypatch: pytest.
 
     def _spy(**kw: object) -> list[regate_batch.RegateReport]:
         seen.update(kw)
-        return [regate_batch.RegateReport(
-            deck_id='gauntlet/x.dck', name='X', state='stale', outcome='regated')]
+        return [regate_batch.RegateReport(deck_id='gauntlet/x.dck', name='X', state='stale', outcome='regated')]
 
     monkeypatch.setattr(regate_batch, 'run_regate_batch', _spy)
     code = regate_batch.run(['--ledger', str(ledger_path), '--live'])

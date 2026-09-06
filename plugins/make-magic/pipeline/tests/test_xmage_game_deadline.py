@@ -78,7 +78,7 @@ def test_wallclock_deadline_then_reset(tmp_path: Path) -> None:
     from pipeline.sim.engines import xmage as xe
 
     if not _KRRIK_DCK.is_file():
-        pytest.skip(f'K\'rrik gauntlet deck not present: {_KRRIK_DCK}')
+        pytest.skip(f"K'rrik gauntlet deck not present: {_KRRIK_DCK}")
 
     try:
         install = xr.resolve()
@@ -112,8 +112,7 @@ def test_wallclock_deadline_then_reset(tmp_path: Path) -> None:
 
     # Translate the Forge .dck to XMage's `N Card` txt via the SAME path build_corpus_game_tasks uses.
     krrik_txt = run_dir / 'krrik.txt'
-    krrik_txt.write_text(_forge := xe._forge_dck_to_xmage_txt(_KRRIK_DCK.read_text(encoding='utf-8')),
-                         encoding='utf-8')
+    krrik_txt.write_text(_forge := xe._forge_dck_to_xmage_txt(_KRRIK_DCK.read_text(encoding='utf-8')), encoding='utf-8')
     # A trivial lands-only commander deck for the SUBSEQUENT normal game (decks out fast → decisive).
     quick = run_dir / 'quick.txt'
     quick.write_text('99 Swamp\nSB: 1 Yargle, Glutton of Urborg\n', encoding='utf-8')
@@ -136,8 +135,14 @@ def test_wallclock_deadline_then_reset(tmp_path: Path) -> None:
 
     cmd = xe._compose_launch_cmd(install, ['--worker', '--worker-max-games', '2'], heap='3g')
     proc = subprocess.Popen(
-        cmd, cwd=run_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, text=True, bufsize=1, env=env,
+        cmd,
+        cwd=run_dir,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1,
+        env=env,
     )
     assert proc.stdin is not None and proc.stdout is not None
     q: queue.Queue = queue.Queue()  # type: ignore[type-arg]
@@ -151,8 +156,7 @@ def test_wallclock_deadline_then_reset(tmp_path: Path) -> None:
                 pytest.fail(f'worker never printed READY before task {task["id"]}')
             proc.stdin.write('TASK ' + json.dumps(task) + '\n')
             proc.stdin.flush()
-            line = _await(q, lambda ln: ln.startswith('RESULT ') or ln.startswith('ERROR '),
-                          _BUDGET_SECS + slack)
+            line = _await(q, lambda ln: ln.startswith('RESULT ') or ln.startswith('ERROR '), _BUDGET_SECS + slack)
             if line is None:
                 pytest.fail(f'no RESULT for task {task["id"]} within budget+slack')
             results[task['id']] = line
@@ -172,7 +176,7 @@ def test_wallclock_deadline_then_reset(tmp_path: Path) -> None:
     # (a) the livelock game timed out: TERMINAL, NON-DECISIVE.
     ll_line = results['g0_krrik_livelock']
     assert ll_line.startswith('RESULT '), f'livelock game did not produce a RESULT: {ll_line}'
-    ll = json.loads(ll_line[len('RESULT '):])
+    ll = json.loads(ll_line[len('RESULT ') :])
     assert ll['reason'] == 'timeout', f'expected reason=timeout, got: {ll}'
     assert ll['winner'] == 'none', f'timeout must be non-decisive (winner=none), got: {ll}'
     assert 'reason=timeout' in ll['markers']
@@ -189,7 +193,7 @@ def test_wallclock_deadline_then_reset(tmp_path: Path) -> None:
     # Both prove reset; an instant (< a few seconds) end would prove a bled-through interrupt.
     n_line = results['g1_quick_normal']
     assert n_line.startswith('RESULT '), f'normal game did not produce a RESULT: {n_line}'
-    n = json.loads(n_line[len('RESULT '):])
+    n = json.loads(n_line[len('RESULT ') :])
     assert exit_code == 0, 'worker did not exit cleanly after the subsequent game'
     if n.get('reason') is None:
         # Clean decisive/undecided game — the ideal proof of a healthy, reset worker.

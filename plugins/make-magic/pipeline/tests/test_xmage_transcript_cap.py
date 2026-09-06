@@ -43,13 +43,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 _XMAGE_JAVA_ROOT = Path(__file__).resolve().parents[1] / 'pipeline/sim/java'
-_IMPL_SRC = (
-    _XMAGE_JAVA_ROOT
-    / 'xmage-dist/src/main/java/org/makemagic/xmage/TranscriptCappingOutputStream.java'
-)
-_UNIT_TEST_SRC = (
-    _XMAGE_JAVA_ROOT / 'xmage/test/org/makemagic/xmage/TranscriptCappingOutputStreamTest.java'
-)
+_IMPL_SRC = _XMAGE_JAVA_ROOT / 'xmage-dist/src/main/java/org/makemagic/xmage/TranscriptCappingOutputStream.java'
+_UNIT_TEST_SRC = _XMAGE_JAVA_ROOT / 'xmage/test/org/makemagic/xmage/TranscriptCappingOutputStreamTest.java'
 
 _MARKER_NEEDLE = 'TRANSCRIPT TRUNCATED AT'
 
@@ -138,15 +133,25 @@ def _run_worker_game(
 
     cmd = engines_mod._compose_launch_cmd(install, ['--worker', '--worker-max-games', '1'], heap='3g')  # type: ignore[attr-defined]
     proc = subprocess.Popen(
-        cmd, cwd=run_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, text=True, bufsize=1, env=env,
+        cmd,
+        cwd=run_dir,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1,
+        env=env,
     )
     assert proc.stdin is not None and proc.stdout is not None
     q: queue.Queue = queue.Queue()  # type: ignore[type-arg]
     threading.Thread(target=_reader, args=(proc.stdout, q), daemon=True).start()
 
-    task = {'id': task_id, 'fmt': 'commander', 'a': {'deck': str(deck_txt), 'driver': None},
-            'b': {'deck': str(deck_txt), 'driver': None}}
+    task = {
+        'id': task_id,
+        'fmt': 'commander',
+        'a': {'deck': str(deck_txt), 'driver': None},
+        'b': {'deck': str(deck_txt), 'driver': None},
+    }
     try:
         if _await(q, lambda ln: ln == 'READY', 600) is None:
             pytest.fail(f'worker never printed READY before task {task_id}')
@@ -167,7 +172,7 @@ def _run_worker_game(
 
     assert exit_code == 0, f'worker exited non-zero for {task_id}'
     assert line.startswith('RESULT '), f'{task_id}: expected RESULT, got: {line}'
-    return json.loads(line[len('RESULT '):])
+    return json.loads(line[len('RESULT ') :])
 
 
 @pytest.mark.integration
@@ -213,8 +218,12 @@ def test_worker_transcript_bounded(tmp_path: Path) -> None:
     # (a) + (b): two capped games in a row (fresh workers), each transcript bounded + marked.
     for task_id in ('g0_capped', 'g1_capped'):
         result = _run_worker_game(
-            install=install, run_dir=run_dir, deck_txt=deck, cap_bytes=cap,
-            task_id=task_id, engines_mod=xe,
+            install=install,
+            run_dir=run_dir,
+            deck_txt=deck,
+            cap_bytes=cap,
+            task_id=task_id,
+            engines_mod=xe,
         )
         log_path = Path(str(result['log']))
         assert log_path.is_file(), f'{task_id}: transcript missing at {log_path}'
@@ -231,8 +240,12 @@ def test_worker_transcript_bounded(tmp_path: Path) -> None:
 
     # (c): cap DISABLED (<=0) — a larger, marker-FREE transcript (prior behavior preserved).
     uncapped = _run_worker_game(
-        install=install, run_dir=run_dir, deck_txt=deck, cap_bytes=0,
-        task_id='g2_uncapped', engines_mod=xe,
+        install=install,
+        run_dir=run_dir,
+        deck_txt=deck,
+        cap_bytes=0,
+        task_id='g2_uncapped',
+        engines_mod=xe,
     )
     up = Path(str(uncapped['log']))
     assert up.is_file()

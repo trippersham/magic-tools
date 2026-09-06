@@ -91,6 +91,7 @@ def validate_archetype(archetype: str) -> str:
         raise ValueError(f'archetype {archetype!r} is not one of {ARCHETYPES}')
     return archetype
 
+
 #: The package prefix every generated driver lives under (per-deck leaf appended).
 DRIVER_PACKAGE_ROOT = 'makemagic.driver'
 #: The (fixed) simple class name; deck identity lives in the package leaf so every driver's
@@ -344,10 +345,7 @@ def render_quad_driver(deck: Deck, spec: QuadSpec) -> str:
             if has_mulligan
             else 'documentation only — this quad keeps CP7 default mulligan'
         )
-        mull_doc = (
-            f'\n     *\n     * <p>Mulligan (keepable hands, primer-derived; {binding}): '
-            f'{spec.mulligan_note}</p>'
-        )
+        mull_doc = f'\n     *\n     * <p>Mulligan (keepable hands, primer-derived; {binding}): {spec.mulligan_note}</p>'
 
     parts: list[str] = []
     parts.append(f'package {pkg};\n')
@@ -365,7 +363,7 @@ def render_quad_driver(deck: Deck, spec: QuadSpec) -> str:
     parts.append('    private Driver() {')
     parts.append('    }')
     parts.append('')
-    parts.append('    /** Wire this deck\'s quad for {@code playerId}. Invoked by XMageBatch on PlayerA only. */')
+    parts.append("    /** Wire this deck's quad for {@code playerId}. Invoked by XMageBatch on PlayerA only. */")
     parts.append('    public static void register(UUID playerId) {')
     parts.append(register_block)
     parts.append('    }')
@@ -398,7 +396,7 @@ def render_quad_driver(deck: Deck, spec: QuadSpec) -> str:
         parts.append('            // REACHABILITY marker (emitter-injected): the seam invokes apply() on THROWAWAY')
         parts.append('            // search copies at every node where P holds AND in real act(), so entry means the')
         parts.append('            // macro is REACHABLE, not that it executed to win. True execution is proven by the')
-        parts.append('            // frozen dist\'s MACRO_FIRE_REAL (emitted only from the real act() commit).')
+        parts.append("            // frozen dist's MACRO_FIRE_REAL (emitted only from the real act() commit).")
         parts.append(f'            System.err.println("{DRIVER_MACRO_FIRED_MARKER} pid=" + pid);')
         parts.append(_indent(macro.apply_body, 12))
         parts.append('        }')
@@ -464,12 +462,19 @@ class GuardrailViolation(ValueError):
 #: combat / attacker selection or land drops. Matched by token so legitimate reads
 #: (``isLand``, ``getAllActivePermanents``) never trip.
 _GUARDRAILS: tuple[tuple[str, str], ...] = (
-    (r'\.priority\s*\(', 'a quad slot must not call priority() on the handed sim game '
-                         '(own the noun, defer the verb — drive the outcome with bounded state moves)'),
-    (r'\.copy\s*\(', 'a quad slot must not call copy() on the handed game '
-                     '(it would leak driver logic into nested search copies)'),
-    (r'\b(?:selectAttackers|selectBlockers|declareAttacker\w*|forceAttack\w*)\b',
-     'a quad must not own combat / attacker selection (the force-attack HARD RULE — CP7 owns combat)'),
+    (
+        r'\.priority\s*\(',
+        'a quad slot must not call priority() on the handed sim game '
+        '(own the noun, defer the verb — drive the outcome with bounded state moves)',
+    ),
+    (
+        r'\.copy\s*\(',
+        'a quad slot must not call copy() on the handed game (it would leak driver logic into nested search copies)',
+    ),
+    (
+        r'\b(?:selectAttackers|selectBlockers|declareAttacker\w*|forceAttack\w*)\b',
+        'a quad must not own combat / attacker selection (the force-attack HARD RULE — CP7 owns combat)',
+    ),
     (r'\bplayLand\w*\s*\(', 'a quad must not own land drops / curve sequencing (CP7 curves out)'),
 )
 
@@ -517,7 +522,7 @@ def _seed_phi_body(card_names: tuple[str, ...], *, dedicated: bool) -> str:
         return 'return 0;'
     names = _java_name_set(card_names)
     total = len(card_names)
-    return f'''\
+    return f"""\
 // DEDICATED combo-Φ (rule 4): a bounded, monotone potential toward assembling the win pieces.
 java.util.Set<String> want = new java.util.HashSet<>(java.util.Arrays.asList({names}));
 int pieces = 0;
@@ -530,7 +535,7 @@ int score = pieces * 40000;
 if (pieces == {total}) {{
     score += 700000;
 }}
-return score;'''
+return score;"""
 
 
 #: The assembly-completion bonus multiplier for the opportunistic nudge Φ: the all-pieces-present
@@ -571,7 +576,7 @@ def _nudge_phi_body(card_names: tuple[str, ...], *, alpha: int) -> str:
     names = _java_name_set(card_names)
     total = len(card_names)
     bonus = alpha * NUDGE_ASSEMBLY_BONUS_MULT
-    return f'''\
+    return f"""\
 // OPPORTUNISTIC combo-Φ (bounded nudge magnitude alpha={alpha}): a SMALL tie-breaker toward
 // holding/assembling the win pieces, NOT a dominant term. The deck plays its normal game and
 // captures the combo when it naturally comes together (the macro fires when P holds).
@@ -613,7 +618,7 @@ int score = pieces * {alpha};
 if (pieces == {total}) {{
     score += {bonus};
 }}
-return score;'''
+return score;"""
 
 
 def _seed_applicable_body(card_names: tuple[str, ...]) -> str:
@@ -630,7 +635,7 @@ def _seed_applicable_body(card_names: tuple[str, ...]) -> str:
     """
     names = _java_name_set(card_names)
     total = len(card_names)
-    return f'''\
+    return f"""\
 if (game.checkIfGameIsOver()) {{
     return false;
 }}
@@ -668,7 +673,7 @@ for (Card c : game.getExile().getAllCards(game)) {{
         accounted.add(c.getName());
     }}
 }}
-return accounted.size() == {total} && inHand >= 1;'''
+return accounted.size() == {total} && inHand >= 1;"""
 
 
 def _seed_apply_body(result: str, card_names: tuple[str, ...]) -> str:
@@ -692,7 +697,7 @@ def _seed_apply_body(result: str, card_names: tuple[str, ...]) -> str:
     # result rides in a // comment — strip newlines so it can't break out of the line comment.
     result_comment = ' '.join((result or '(unspecified win)').split())
     names = _java_name_set(card_names)
-    return f'''\
+    return f"""\
 Player me = game.getPlayer(pid);
 if (me == null) {{
     return;
@@ -722,14 +727,14 @@ for (Card c : new java.util.ArrayList<>(me.getHand().getCards(game))) {{
     return;
 }}
 // No castable piece remained in hand this priority — yield so the step can advance (no spin).
-me.pass(game);'''
+me.pass(game);"""
 
 
 def _seed_steer_body(card_names: tuple[str, ...]) -> str:
     """S body: steer MY OWN tutor/search toward any still-missing combo piece (category-agnostic
     over the piece set — fetch whichever piece the hand lacks)."""
     names = _java_name_set(card_names)
-    return f'''\
+    return f"""\
 if (source == null || cards == null || target == null) {{
     return false;
 }}
@@ -766,7 +771,7 @@ for (Card c : me.getLibrary().getCards(game)) {{
     }}
     return true;
 }}
-return false;'''
+return false;"""
 
 
 def seed_quad_from_combo(combo: Combo, *, archetype: str) -> QuadSpec:
@@ -832,8 +837,7 @@ def seed_nudge_quad(combo: Combo, *, alpha: int) -> QuadSpec:
             'import mage.game.permanent.Permanent;',
         ),
         mulligan_note=(
-            f'opportunistic nudge (alpha={alpha}) seeded from combo {combo.variant_id}: '
-            f'{", ".join(combo.card_names)}.'
+            f'opportunistic nudge (alpha={alpha}) seeded from combo {combo.variant_id}: {", ".join(combo.card_names)}.'
         ),
     )
 
@@ -846,7 +850,7 @@ def seed_nudge_quad(combo: Combo, *, alpha: int) -> QuadSpec:
 # tutor to the missing combo half). This is the emitter's positive control.     #
 # --------------------------------------------------------------------------- #
 
-_JELEVA_HELPERS = '''\
+_JELEVA_HELPERS = """\
 private static int untappedLands(Game game, UUID pid) {
     int n = 0;
     for (Permanent p : game.getBattlefield().getAllActivePermanents(pid)) {
@@ -855,9 +859,9 @@ private static int untappedLands(Game game, UUID pid) {
         }
     }
     return n;
-}'''
+}"""
 
-_JELEVA_PHI = '''\
+_JELEVA_PHI = """\
 boolean hasOracle = false;
 boolean hasExile = false;
 int pieces = 0;
@@ -892,9 +896,9 @@ if (hasOracle && hasExile) {
 if (hasOracle && me.getLibrary().size() == 0) {
     score += 1200000;
 }
-return score;'''
+return score;"""
 
-_JELEVA_MACRO_APPLICABLE = '''\
+_JELEVA_MACRO_APPLICABLE = """\
 if (game.checkIfGameIsOver()) {
     return false;
 }
@@ -921,9 +925,9 @@ if (!oracle) {
 if (me.getLibrary().size() == 0) {
     return true;
 }
-return exile && untappedLands(game, pid) >= 3;'''
+return exile && untappedLands(game, pid) >= 3;"""
 
-_JELEVA_MACRO_APPLY = '''\
+_JELEVA_MACRO_APPLY = """\
 Player me = game.getPlayer(pid);
 if (me == null) {
     return;
@@ -967,9 +971,9 @@ for (String want : castOrder) {
     return;
 }
 // Nothing castable this priority — yield so the step can advance (no spin).
-me.pass(game);'''
+me.pass(game);"""
 
-_JELEVA_STEER = '''\
+_JELEVA_STEER = """\
 if (source == null || cards == null || target == null) {
     return false;
 }
@@ -1016,9 +1020,9 @@ for (String want : wants) {
         return true;
     }
 }
-return false;'''
+return false;"""
 
-_JELEVA_MULLIGAN = '''\
+_JELEVA_MULLIGAN = """\
 int lands = 0;
 boolean hasPiece = false;
 for (Card c : me.getHand().getCards(game)) {
@@ -1039,7 +1043,7 @@ if (hasPiece && lands >= 2 && lands <= size - 2) {
     return false;
 }
 // Ship land-screw (0-1 land) or flood (>= size-1 lands); otherwise keep.
-return lands <= 1 || lands >= size - 1;'''
+return lands <= 1 || lands >= size - 1;"""
 
 #: The Jeleva/Thoracle quad — the emitter's PROACTIVE positive control (mirrors the proven
 #: hand-authored reference driver). Φ ← Gameplan, macro ← Win Condition, P ← Assembly,
@@ -1071,7 +1075,7 @@ JELEVA_QUAD_SPEC = QuadSpec(
 # The gate runs this in Φ-only mode (never-worse-solo floor, defended lens).    #
 # --------------------------------------------------------------------------- #
 
-_REACTIVE_PHI = '''\
+_REACTIVE_PHI = """\
 int openMana = 0;
 for (Permanent p : game.getBattlefield().getAllActivePermanents(pid)) {
     if (p.isLand(game) && !p.isTapped()) {
@@ -1085,7 +1089,7 @@ int score = openMana * 40000 + cardsInHand * 20000;
 if (openMana >= 2 && cardsInHand >= 2) {
     score += 200000;
 }
-return score;'''
+return score;"""
 
 #: A Φ-only reactive quad — the emitter's REACTIVE control. Emits Φ ONLY: no macro/P/S. Proves
 #: the scaffold registers just ``DriverBonus`` and omits the ``Macro``/``Steer`` inner classes.

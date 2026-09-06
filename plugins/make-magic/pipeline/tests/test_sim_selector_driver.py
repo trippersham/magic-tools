@@ -33,7 +33,8 @@ def _stub_valid(monkeypatch: pytest.MonkeyPatch, ok: bool) -> None:
     monkeypatch.setattr(drivers, 'driver_valid', lambda deck, *, data_dir=None: ok)
     monkeypatch.setattr(drivers, 'classes_dir', lambda deck, *, data_dir=None: '/c')
     monkeypatch.setattr(
-        drivers, 'read_meta',
+        drivers,
+        'read_meta',
         lambda deck, *, data_dir=None: drivers.DriverMeta(
             deck_version='v', harness_version='h', fqcn='mm.Fake', gates_passed=True
         ),

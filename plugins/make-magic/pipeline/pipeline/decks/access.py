@@ -124,10 +124,7 @@ class DeckAccess:
             lines.append(f'  --id {row.deck_uuid[:6]}   # {status} · {self._source_backend(row)}')
         # Name the way OUT of the ambiguity, not just how to pick one — a re-import
         # leaves duplicate drafts, so point at archiving the extras (by --id).
-        lines.append(
-            'To clear the ambiguity, archive the extra draft(s): '
-            'collection archive-deck --id <prefix>'
-        )
+        lines.append('To clear the ambiguity, archive the extra draft(s): collection archive-deck --id <prefix>')
         return '\n'.join(lines)
 
     def _dead_binding_message(self, name: str, deck_uuid: str) -> str:

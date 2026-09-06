@@ -73,7 +73,13 @@ def _monor_aggro():
         _card('Lava Spike', 1, 'Sorcery', qty=4, text='Lava Spike deals 3 damage to target player or planeswalker.'),
         _card('Rift Bolt', 1, 'Sorcery', qty=4, text='Rift Bolt deals 3 damage to any target.'),
         _card('Incinerate', 2, 'Instant', qty=4, text='Incinerate deals 3 damage to any target.'),
-        _card('Searing Blaze', 2, 'Instant', qty=4, text='Searing Blaze deals 3 damage to target player and 3 damage to target creature.'),  # noqa: E501 (verbatim oracle text fixture)
+        _card(
+            'Searing Blaze',
+            2,
+            'Instant',
+            qty=4,
+            text='Searing Blaze deals 3 damage to target player and 3 damage to target creature.',
+        ),
         _land('Mountain', 20),
     ]
 
@@ -91,9 +97,27 @@ def _ramp_green():
         _card('Llanowar Elves', 1, 'Creature — Elf Druid', qty=4, power=1, produced=['G']),
         _card('Elvish Mystic', 1, 'Creature — Elf Druid', qty=4, power=1, produced=['G']),
         _card('Fyndhorn Elves', 1, 'Creature — Elf Druid', qty=4, power=1, produced=['G']),
-        _card('Rampant Growth', 2, 'Sorcery', qty=4, text='Search your library for a basic land card and put it onto the battlefield tapped.'),  # noqa: E501 (verbatim oracle text fixture)
-        _card("Kodama's Reach", 3, 'Sorcery', qty=4, text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.'),  # noqa: E501 (verbatim oracle text fixture)
-        _card('Cultivate', 3, 'Sorcery', qty=4, text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.'),  # noqa: E501 (verbatim oracle text fixture)
+        _card(
+            'Rampant Growth',
+            2,
+            'Sorcery',
+            qty=4,
+            text='Search your library for a basic land card and put it onto the battlefield tapped.',
+        ),
+        _card(
+            "Kodama's Reach",
+            3,
+            'Sorcery',
+            qty=4,
+            text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.',  # noqa: E501
+        ),
+        _card(
+            'Cultivate',
+            3,
+            'Sorcery',
+            qty=4,
+            text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.',  # noqa: E501
+        ),
         _card('Sol Ring', 1, 'Artifact', qty=2, produced=['C'], text='{T}: Add {C}{C}.'),
         _card('Terastodon', 7, 'Creature — Elephant', qty=4, power=9),
         _card('Woodfall Primus', 8, 'Creature — Treefolk Shaman', qty=4, power=6, keywords=['Trample']),
@@ -117,11 +141,44 @@ def _ramp_green():
 def _combo_mikaeus():
     return [
         _card('Mikaeus, the Unhallowed', 5, 'Legendary Creature — Zombie Cleric', qty=4, power=5),
-        _card('Triskelion', 6, 'Artifact Creature — Construct', qty=4, power=1, text='Triskelion enters with three +1/+1 counters. Remove a +1/+1 counter: deals 1 damage to any target.'),  # noqa: E501 (verbatim oracle text fixture)
-        _card('Solemn Simulacrum', 4, 'Artifact Creature — Golem', qty=4, power=2, text='When Solemn Simulacrum enters, search your library for a basic land card and put it onto the battlefield tapped.'),  # noqa: E501 (verbatim oracle text fixture)
-        _card('Sakura-Tribe Elder', 2, 'Creature — Snake Shaman', qty=4, power=1, text='Sacrifice: Search your library for a basic land card and put it onto the battlefield tapped.'),  # noqa: E501 (verbatim oracle text fixture)
-        _card('Rampant Growth', 2, 'Sorcery', qty=4, text='Search your library for a basic land card and put it onto the battlefield tapped.'),  # noqa: E501 (verbatim oracle text fixture)
-        _card('Cultivate', 3, 'Sorcery', qty=4, text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.'),  # noqa: E501 (verbatim oracle text fixture)
+        _card(
+            'Triskelion',
+            6,
+            'Artifact Creature — Construct',
+            qty=4,
+            power=1,
+            text='Triskelion enters with three +1/+1 counters. Remove a +1/+1 counter: deals 1 damage to any target.',
+        ),
+        _card(
+            'Solemn Simulacrum',
+            4,
+            'Artifact Creature — Golem',
+            qty=4,
+            power=2,
+            text='When Solemn Simulacrum enters, search your library for a basic land card and put it onto the battlefield tapped.',  # noqa: E501
+        ),
+        _card(
+            'Sakura-Tribe Elder',
+            2,
+            'Creature — Snake Shaman',
+            qty=4,
+            power=1,
+            text='Sacrifice: Search your library for a basic land card and put it onto the battlefield tapped.',
+        ),
+        _card(
+            'Rampant Growth',
+            2,
+            'Sorcery',
+            qty=4,
+            text='Search your library for a basic land card and put it onto the battlefield tapped.',
+        ),
+        _card(
+            'Cultivate',
+            3,
+            'Sorcery',
+            qty=4,
+            text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.',  # noqa: E501
+        ),
         _card('Sign in Blood', 2, 'Sorcery', qty=4, text='Target player draws two cards and loses 2 life.'),
         _card('Read the Bones', 3, 'Sorcery', qty=4, text='Scry 2, then draw two cards. You lose 2 life.'),
         _card("Night's Whisper", 2, 'Sorcery', qty=4, text='You draw two cards and lose 2 life.'),

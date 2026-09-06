@@ -46,7 +46,12 @@ def _write(tmp_path: Path, name: str, text: str) -> Path:
 
 def _result(task_id: str, log_path: str | None, *, winner: str = 'a') -> GameResult:
     return GameResult(
-        task_id=task_id, winner=winner, kill_turn=3, ms=8421, markers=[], log_path=log_path,
+        task_id=task_id,
+        winner=winner,
+        kill_turn=3,
+        ms=8421,
+        markers=[],
+        log_path=log_path,
     )
 
 
@@ -196,7 +201,9 @@ def test_sigterm_midrun_tears_down_nonzero_and_keeps_transcripts(tmp_path: Path)
     env = {**os.environ, 'MAKE_MAGIC_DATA_DIR': str(tmp_path)}
     proc = subprocess.run(
         [sys.executable, str(driver), str(tmp_path), str(_FIX / 'driven_combo_win.log')],
-        capture_output=True, text=True, env=env,
+        capture_output=True,
+        text=True,
+        env=env,
     )
     assert proc.returncode == 1, f'expected nonzero TERM exit; stdout={proc.stdout} stderr={proc.stderr}'
     # Teardown ran: no leaked corpus-* staging dirs (reported by the subprocess over its own tmp staging).
@@ -247,9 +254,7 @@ def test_rollup_writes_joinable_lake_rows(_lake: Path, tmp_path: Path) -> None:
             'SELECT count(*) FROM sim_game_features f JOIN sim_matchups m USING (matchup_key)'
         ).fetchone()[0]
         assert joined == 3
-        wins_a, wins_b, draws = conn.execute(
-            'SELECT wins_a, wins_b, draws FROM sim_matchups'
-        ).fetchone()
+        wins_a, wins_b, draws = conn.execute('SELECT wins_a, wins_b, draws FROM sim_matchups').fetchone()
         assert (wins_a, wins_b, draws) == (2, 1, 0)
         # top-up index offset keeps originals + top-ups distinct on the grain.
         indices = sorted(r[0] for r in conn.execute('SELECT game_index FROM sim_game_features').fetchall())

@@ -62,9 +62,7 @@ def test_compose_driver_prepends_classes_and_threads_prop(tmp_path: Path) -> Non
     install = _install(tmp_path)
     classes = tmp_path / 'drivers' / 'abc123' / 'classes'
     fqcn = 'makemagic.driver.Deck_abc123'
-    cmd = xe._compose_launch_cmd(
-        install, ['deckA.txt', '--solo', '1', '6'], heap='3g', driver=(str(classes), fqcn)
-    )
+    cmd = xe._compose_launch_cmd(install, ['deckA.txt', '--solo', '1', '6'], heap='3g', driver=(str(classes), fqcn))
     assert f'-Dmakemagic.driver={fqcn}' in cmd
     cp = cmd[cmd.index('-cp') + 1]
     entries = cp.split(os.pathsep)
@@ -93,9 +91,7 @@ class _FakePopen:
 
 def _patch_launch(monkeypatch: pytest.MonkeyPatch, stdout: str, returncode: int = 0) -> None:
     """Route _launch_xmage's Popen + runner hooks to a no-JVM fake emitting ``stdout``."""
-    monkeypatch.setattr(
-        xe.subprocess, 'Popen', lambda *a, **k: _FakePopen(stdout, '', returncode)
-    )
+    monkeypatch.setattr(xe.subprocess, 'Popen', lambda *a, **k: _FakePopen(stdout, '', returncode))
     monkeypatch.setattr(xe.runner, '_register_active', lambda proc: None)
     monkeypatch.setattr(xe.runner, '_unregister_active', lambda proc: None)
 
@@ -119,9 +115,7 @@ def test_launch_driver_requested_without_registered_line_raises(
         )
 
 
-def test_launch_driver_requested_with_registered_line_ok(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_launch_driver_requested_with_registered_line_ok(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A driver-requested run WITH a ``DRIVER_REGISTERED`` line does NOT raise."""
     install = _install(tmp_path)
     _patch_launch(
@@ -140,9 +134,7 @@ def test_launch_driver_requested_with_registered_line_ok(
     assert 'DRIVER_REGISTERED' in output
 
 
-def test_launch_no_driver_never_raises_on_missing_registered(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_launch_no_driver_never_raises_on_missing_registered(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A run with NO driver requested never checks for DRIVER_REGISTERED (bare CP7 is a
     legitimate driverless run)."""
     install = _install(tmp_path)
@@ -159,9 +151,7 @@ def test_launch_no_driver_never_raises_on_missing_registered(
 # --------------------------------------------------------------------------- #
 
 
-def test_compile_for_injection_returns_classdir_and_fqcn(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_compile_for_injection_returns_classdir_and_fqcn(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """compile_for_injection compiles the Driver .java (ECJ, mocked here) and returns the
     exact ``(classes_dir, fqcn)`` tuple the engine's ``driver=`` parameter takes."""
     class_dir = tmp_path / 'out'
@@ -180,9 +170,7 @@ def test_compile_for_injection_returns_classdir_and_fqcn(
     assert injection == (str(class_dir), fqcn)
 
 
-def test_compile_for_injection_raises_on_compile_failure(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_compile_for_injection_raises_on_compile_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A compile FAILURE is fail-loud (DriverCompileError carrying the diagnostics) — never a
     tuple pointing at an empty/partial class dir that would silently run as pure CP7."""
     diag = dc.Diagnostic(severity='ERROR', file='Driver.java', line=3, message='cannot find symbol')
@@ -248,10 +236,7 @@ def test_parse_goldfish_summary_extracts_median_and_games() -> None:
 def test_parse_goldfish_summary_max_turn_absent_is_none() -> None:
     """An older summary line without maxTurn parses cleanly with max_turn=None (the brick-cap
     guard then no-ops rather than guessing a cap)."""
-    out = (
-        'GOLDFISH SUMMARY (OWN TURNS) deck=d.txt games=5 skill=6 '
-        'medianKillsOwn=6.0 distOwn=[6]\n'
-    )
+    out = 'GOLDFISH SUMMARY (OWN TURNS) deck=d.txt games=5 skill=6 medianKillsOwn=6.0 distOwn=[6]\n'
     result = xe._parse_goldfish_summary(out)
     assert result.max_turn is None and result.bricks is None
 

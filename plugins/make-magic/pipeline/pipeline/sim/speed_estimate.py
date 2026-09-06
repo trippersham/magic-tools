@@ -267,9 +267,7 @@ def detect_archetype(
         _is_spot_removal,
     )
 
-    interaction = sum(
-        1 for c in nonland if _is_counterspell(c) or _is_spot_removal(c) or _is_board_wipe(c)
-    )
+    interaction = sum(1 for c in nonland if _is_counterspell(c) or _is_spot_removal(c) or _is_board_wipe(c))
     threats = sum(1 for c in creatures if _power(c) >= 3) + top_end
     if interaction >= max(6, 0.30 * n) and threats <= 0.10 * n:
         return 'control'
@@ -334,7 +332,9 @@ def _estimate_aggro(cards: list[dict], lethal: float) -> SpeedEstimate:
             return SpeedEstimate(float(t), 'high', 'aggro', rationale)
 
     return SpeedEstimate(
-        20.0, 'low', 'aggro',
+        20.0,
+        'low',
+        'aggro',
         f'aggro clock never reaches lethal={lethal:g} within 20 turns (grindy).',
     )
 
@@ -445,8 +445,9 @@ def _estimate_combo(
     # Draw acceleration from one-shot draw spells (Sign in Blood / Night's Whisper
     # class): each nets ~DRAW_SPELL_YIELD cards; spread over the deck as an extra
     # per-turn rate, capped so a cantrip chain can't run unboundedly.
-    draw_spells = sum(1 for c in expanded if _DRAW_N_RE.search((c.get('oracle_text') or '').lower())
-                      and not is_land(_type_line(c)))
+    draw_spells = sum(
+        1 for c in expanded if _DRAW_N_RE.search((c.get('oracle_text') or '').lower()) and not is_land(_type_line(c))
+    )
     draw_rate = min(DRAW_RATE_CAP, draw_spells * DRAW_SPELL_YIELD / deck_size)
 
     assembly_turn = 20
@@ -521,9 +522,10 @@ def estimate_speed(
 
     if arch == 'control':
         return SpeedEstimate(
-            None, 'n/a', 'control',
-            'control: no honest own-turn kill (wins by attrition/inevitability, not a '
-            'closed-form clock) — Speed N/A.',
+            None,
+            'n/a',
+            'control',
+            'control: no honest own-turn kill (wins by attrition/inevitability, not a closed-form clock) — Speed N/A.',
         )
     if arch == 'combo':
         return _estimate_combo(cards, combo_pieces or [], lethal)

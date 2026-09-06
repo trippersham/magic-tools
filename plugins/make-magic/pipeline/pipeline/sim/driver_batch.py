@@ -89,6 +89,7 @@ def validate_p_tightness(value: str) -> str:
         raise ValueError(f'p_tightness {value!r} is not one of {P_TIGHTNESS_VALUES}')
     return value
 
+
 #: A light rule-4 tutor heuristic: a card whose normalized name is in this set (or whose
 #: name contains "tutor") counts as a "dedicated tutor" for the combo pieces. This is a
 #: deliberately coarse, ALWAYS-AVAILABLE signal (no oracle text needed): the strong,
@@ -114,8 +115,8 @@ _KNOWN_TUTORS: frozenset[str] = frozenset(
         'Scheming Symmetry',
         'Finale of Devastation',
         'Chord of Calling',
-        'Green Sun\'s Zenith',
-        'Eladamri\'s Call',
+        "Green Sun's Zenith",
+        "Eladamri's Call",
         'Signal the Clans',
         'Fabricate',
         'Whir of Invention',
@@ -804,9 +805,10 @@ def run(argv: list[str] | None = None) -> None:
         description='Corpus combo-litmus classifier (classify stage).',
     )
     parser.add_argument(
-        '--ledger', required=True,
+        '--ledger',
+        required=True,
         help='Ledger JSONL path to write (REQUIRED — this authoring CLI has no default, so it can '
-             'never silently clobber the production v2 ledger).',
+        'never silently clobber the production v2 ledger).',
     )
     parser.add_argument(
         '--manifest', default=None, help='Extra manifest path (besides the plan-dir + data-dir copies).'
@@ -834,8 +836,14 @@ def run(argv: list[str] | None = None) -> None:
         'gauntlet': len(gauntlet),
         'combos_in_lake': len(combos),
     }
-    log.info('corpus: %d decks (inventory=%d [%s], gauntlet=%d); %d combos in lake.',
-             len(corpus), len(inventory), inv_source, len(gauntlet), len(combos))
+    log.info(
+        'corpus: %d decks (inventory=%d [%s], gauntlet=%d); %d combos in lake.',
+        len(corpus),
+        len(inventory),
+        inv_source,
+        len(gauntlet),
+        len(combos),
+    )
 
     result = run_classify(corpus, combos, ledger_path=ledger_path)
     log.info('classify: %d classified, %d skipped.', result['classified'], result['skipped'])
