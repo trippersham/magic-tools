@@ -25,7 +25,7 @@ class _Deck:
 
 
 class _Resolved:
-    def __init__(self, deck) -> None:  # noqa: ANN001
+    def __init__(self, deck) -> None:
         self.deck = deck
 
 
@@ -71,7 +71,7 @@ class _RecordingEngine:
     def __init__(self) -> None:
         self.kwargs: list[dict] = []
 
-    def run_matchup(self, deck_a, deck_b, *, n, seed, fmt, install, **kw):  # noqa: ANN001
+    def run_matchup(self, deck_a, deck_b, *, n, seed, fmt, install, **kw):
         self.kwargs.append(kw)
 
         class _R:
@@ -80,7 +80,7 @@ class _RecordingEngine:
         return _R()
 
 
-def _run_one(engine, spec) -> None:  # noqa: ANN001
+def _run_one(engine, spec) -> None:
     gov = Governor(pool_size=1, max_concurrency=1, stagger_s=0.0)
     gov.run(engine, install=object(), specs=[spec])
 
@@ -98,7 +98,7 @@ def test_governor_omits_driver_kwarg_when_none() -> None:
 
 
 def test_cache_key_folds_driver() -> None:
-    base = dict(seed=0, n_games=1, fmt='constructed', engine='xmage', engine_version='v1')
+    base = {'seed': 0, 'n_games': 1, 'fmt': 'constructed', 'engine': 'xmage', 'engine_version': 'v1'}
     driverless = matchup_key('a', 'b', **base)
     driven = matchup_key('a', 'b', **base, driver=('/c', 'mm.Fake'))
     assert driverless != driven  # a driven run never collides with the driverless row.

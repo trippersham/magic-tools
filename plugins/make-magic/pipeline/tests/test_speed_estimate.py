@@ -23,14 +23,11 @@ from math import comb
 import pytest
 
 from pipeline.sim.speed_estimate import (
-    COMBO_ASSEMBLY_THRESHOLD,
-    SpeedEstimate,
     detect_archetype,
     estimate_speed,
     p_all_pieces,
     p_at_least_one,
 )
-
 
 # --------------------------------------------------------------------------- #
 # Fixture builders (compact — `quantity` expands to physical copies).
@@ -76,7 +73,7 @@ def _monor_aggro():
         _card('Lava Spike', 1, 'Sorcery', qty=4, text='Lava Spike deals 3 damage to target player or planeswalker.'),
         _card('Rift Bolt', 1, 'Sorcery', qty=4, text='Rift Bolt deals 3 damage to any target.'),
         _card('Incinerate', 2, 'Instant', qty=4, text='Incinerate deals 3 damage to any target.'),
-        _card('Searing Blaze', 2, 'Instant', qty=4, text='Searing Blaze deals 3 damage to target player and 3 damage to target creature.'),
+        _card('Searing Blaze', 2, 'Instant', qty=4, text='Searing Blaze deals 3 damage to target player and 3 damage to target creature.'),  # noqa: E501 (verbatim oracle text fixture)
         _land('Mountain', 20),
     ]
 
@@ -94,9 +91,9 @@ def _ramp_green():
         _card('Llanowar Elves', 1, 'Creature — Elf Druid', qty=4, power=1, produced=['G']),
         _card('Elvish Mystic', 1, 'Creature — Elf Druid', qty=4, power=1, produced=['G']),
         _card('Fyndhorn Elves', 1, 'Creature — Elf Druid', qty=4, power=1, produced=['G']),
-        _card('Rampant Growth', 2, 'Sorcery', qty=4, text='Search your library for a basic land card and put it onto the battlefield tapped.'),
-        _card("Kodama's Reach", 3, 'Sorcery', qty=4, text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.'),
-        _card('Cultivate', 3, 'Sorcery', qty=4, text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.'),
+        _card('Rampant Growth', 2, 'Sorcery', qty=4, text='Search your library for a basic land card and put it onto the battlefield tapped.'),  # noqa: E501 (verbatim oracle text fixture)
+        _card("Kodama's Reach", 3, 'Sorcery', qty=4, text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.'),  # noqa: E501 (verbatim oracle text fixture)
+        _card('Cultivate', 3, 'Sorcery', qty=4, text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.'),  # noqa: E501 (verbatim oracle text fixture)
         _card('Sol Ring', 1, 'Artifact', qty=2, produced=['C'], text='{T}: Add {C}{C}.'),
         _card('Terastodon', 7, 'Creature — Elephant', qty=4, power=9),
         _card('Woodfall Primus', 8, 'Creature — Treefolk Shaman', qty=4, power=6, keywords=['Trample']),
@@ -120,11 +117,11 @@ def _ramp_green():
 def _combo_mikaeus():
     return [
         _card('Mikaeus, the Unhallowed', 5, 'Legendary Creature — Zombie Cleric', qty=4, power=5),
-        _card('Triskelion', 6, 'Artifact Creature — Construct', qty=4, power=1, text='Triskelion enters with three +1/+1 counters. Remove a +1/+1 counter: deals 1 damage to any target.'),
-        _card('Solemn Simulacrum', 4, 'Artifact Creature — Golem', qty=4, power=2, text='When Solemn Simulacrum enters, search your library for a basic land card and put it onto the battlefield tapped.'),
-        _card('Sakura-Tribe Elder', 2, 'Creature — Snake Shaman', qty=4, power=1, text='Sacrifice: Search your library for a basic land card and put it onto the battlefield tapped.'),
-        _card('Rampant Growth', 2, 'Sorcery', qty=4, text='Search your library for a basic land card and put it onto the battlefield tapped.'),
-        _card('Cultivate', 3, 'Sorcery', qty=4, text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.'),
+        _card('Triskelion', 6, 'Artifact Creature — Construct', qty=4, power=1, text='Triskelion enters with three +1/+1 counters. Remove a +1/+1 counter: deals 1 damage to any target.'),  # noqa: E501 (verbatim oracle text fixture)
+        _card('Solemn Simulacrum', 4, 'Artifact Creature — Golem', qty=4, power=2, text='When Solemn Simulacrum enters, search your library for a basic land card and put it onto the battlefield tapped.'),  # noqa: E501 (verbatim oracle text fixture)
+        _card('Sakura-Tribe Elder', 2, 'Creature — Snake Shaman', qty=4, power=1, text='Sacrifice: Search your library for a basic land card and put it onto the battlefield tapped.'),  # noqa: E501 (verbatim oracle text fixture)
+        _card('Rampant Growth', 2, 'Sorcery', qty=4, text='Search your library for a basic land card and put it onto the battlefield tapped.'),  # noqa: E501 (verbatim oracle text fixture)
+        _card('Cultivate', 3, 'Sorcery', qty=4, text='Search your library for up to two basic land cards, put one onto the battlefield tapped and the other into your hand.'),  # noqa: E501 (verbatim oracle text fixture)
         _card('Sign in Blood', 2, 'Sorcery', qty=4, text='Target player draws two cards and loses 2 life.'),
         _card('Read the Bones', 3, 'Sorcery', qty=4, text='Scry 2, then draw two cards. You lose 2 life.'),
         _card("Night's Whisper", 2, 'Sorcery', qty=4, text='You draw two cards and lose 2 life.'),
@@ -173,7 +170,7 @@ def test_speed_aggro_handworked_four_haste_beaters():
     # clock. One body/turn; a haste body deployed turn i attacks turns i..t.
     #   combat(t) = 3 * ( sum_{i=1..min(t,4)}(t-i) + 1.0*min(t,4) )   [haste_frac=1]
     #   t=1: 3*(0+1)=3    t=2: 3*(1+2)=9    t=3: 3*(3+3)=18    t=4: 3*(6+4)=30 >=20
-    deck = [_card('Beater', 1, 'Creature — Elemental', qty=4, power=3, keywords=['Haste'])] + [_land('Mountain', 10)]
+    deck = [_card('Beater', 1, 'Creature — Elemental', qty=4, power=3, keywords=['Haste']), _land('Mountain', 10)]
     est = estimate_speed(deck, archetype='aggro', lethal=20)
     assert est.own_turn == 4.0
     assert est.archetype == 'aggro'
