@@ -44,7 +44,7 @@ def stub_lakes(monkeypatch: pytest.MonkeyPatch):
 def test_supplied_turn_overrides_router(stub_lakes, monkeypatch: pytest.MonkeyPatch) -> None:
     import pipeline.sim.speed as speed
 
-    def _boom(*a, **k):  # noqa: ANN002, ANN003
+    def _boom(*a, **k):
         raise AssertionError('router must NOT be called when --fundamental-turn is supplied')
 
     monkeypatch.setattr(speed, 'fundamental_turn', _boom)
@@ -65,6 +65,30 @@ def test_omitted_turn_auto_computes(stub_lakes, monkeypatch: pytest.MonkeyPatch)
     out = stub_lakes.crispi_from_deck(_deck(), commander_dependence='low')
     assert out['inputs']['fundamental_turn'] == 4.0
     assert out['speed_source']['tier'] == 'tier1'
+
+
+def test_detected_combos_reach_the_router(stub_lakes, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A deck's detected combos are threaded to the router as combo_pieces (per-piece copy
+    counts), so the combo speed model and the driver recommendation are live in production —
+    not only when a test hand-supplies combo_pieces."""
+    import pipeline.sim.engine as engine_mod
+    import pipeline.sim.speed as speed
+    from pipeline.transforms.combo_detect import Combo
+
+    combo = Combo(variant_id='v1', card_names=('Lightning Bolt', 'Nonesuch'),
+                  card_oracle_ids=('o1', 'o2'), result='Win the game')
+    monkeypatch.setattr(stub_lakes, '_crispi_combos', lambda names: [combo])
+    monkeypatch.setattr(engine_mod, 'get_engine', lambda name: (_ for _ in ()).throw(RuntimeError('no jar')))
+    seen: dict = {}
+
+    def _spy_router(deck, cards, card_otag=None, **kw):
+        seen['combo_pieces'] = kw.get('combo_pieces')
+        return FundamentalTurn(turn=5.0, confidence='high', tier='tier1', source_rationale='stub')
+
+    monkeypatch.setattr(speed, 'fundamental_turn', _spy_router)
+    stub_lakes.crispi_from_deck(_deck(), commander_dependence='low')
+    # Lightning Bolt is a 4-of in _deck(); the unknown second piece defaults to 1 copy.
+    assert seen['combo_pieces'] == [[4, 1]]
 
 
 def test_auto_speed_na_raises(stub_lakes, monkeypatch: pytest.MonkeyPatch) -> None:

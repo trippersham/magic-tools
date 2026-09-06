@@ -161,6 +161,79 @@ def test_commander_adds_when_absent(
 
 
 # --------------------------------------------------------------------------- #
+# Headerless (undeclared-format) commander autodetection                       #
+# --------------------------------------------------------------------------- #
+
+
+def _Card(name: str, type_line: str, oracle_text: str = '') -> Card:
+    """A resolved ``Card`` whose commander-eligibility autodetection reads via `can_be_commander`."""
+    return Card(name=name, type_line=type_line, oracle_text=oracle_text)
+
+
+def _resolver_for(**cards: Card) -> Any:
+    """A resolver confirming the given cards (keyed by a lowercase name substring); else unknown."""
+
+    class _R:
+        def get_card(self, name: str) -> Any:
+            n = name.strip().lower()
+            return next((c for key, c in cards.items() if key in n), None)
+
+    return _R()
+
+
+def _lake_ready(monkeypatch: pytest.MonkeyPatch, resolver: Any) -> None:
+    monkeypatch.setattr('pipeline.collection.resolver.default_card_resolver', lambda: resolver)
+    monkeypatch.setattr('pipeline.collection.resolver.lake_status', lambda: 'ready')
+
+
+def test_headerless_legendary_first_line_autodetects_commander(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A headerless list whose first line is a lake-confirmed legendary creature is auto-promoted
+    to commander — the first-line fallback fires even without an explicit Commander format."""
+    _lake_ready(monkeypatch, _resolver_for(hazel=_Card('Hazel of the Rootbloom', 'Legendary Creature — Rabbit Druid')))
+    monkeypatch.setattr('sys.stdin', io.StringIO('Hazel of the Rootbloom\n1 Forest\n1 Swamp\n'))
+    _run(monkeypatch, 'import-deck', '-', '--name', 'Headerless Deck')
+    deck = _only_draft()
+    assert len(deck.commanders) == 1
+    assert deck.commanders[0].name == 'Hazel of the Rootbloom'
+
+
+def test_headerless_planeswalker_commander_promoted_only_with_permission(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A legendary planeswalker heads the list only when its oracle text grants commander
+    eligibility; an ordinary legendary planeswalker is not promoted."""
+    ok = _Card('Freyalise, Llanowar\'s Fury', 'Legendary Planeswalker — Freyalise',
+               'Freyalise, Llanowar\'s Fury can be your commander.')
+    _lake_ready(monkeypatch, _resolver_for(freyalise=ok))
+    monkeypatch.setattr('sys.stdin', io.StringIO("Freyalise, Llanowar's Fury\n1 Forest\n"))
+    _run(monkeypatch, 'import-deck', '-', '--name', 'PW OK')
+    assert _only_draft().commanders[0].name == "Freyalise, Llanowar's Fury"
+
+
+def test_headerless_ordinary_planeswalker_not_promoted(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    no = _Card('Jace, the Mind Sculptor', 'Legendary Planeswalker — Jace', 'Some loyalty abilities.')
+    _lake_ready(monkeypatch, _resolver_for(jace=no))
+    monkeypatch.setattr('sys.stdin', io.StringIO('Jace, the Mind Sculptor\n1 Island\n'))
+    _run(monkeypatch, 'import-deck', '-', '--name', 'PW No')
+    assert _only_draft().commanders == []  # ineligible planeswalker is not made commander
+
+
+def test_headerless_no_commander_warns_loudly(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A headerless list with no detectable commander still emits the loud 0-commander warning."""
+    _lake_ready(monkeypatch, _resolver_for())
+    monkeypatch.setattr('sys.stdin', io.StringIO('1 Sol Ring\n1 Forest\n'))
+    _run(monkeypatch, 'import-deck', '-', '--name', 'No Cmdr')
+    err = capsys.readouterr().err
+    assert 'no commander' in err.lower()
+
+
+# --------------------------------------------------------------------------- #
 # --source edhrec bare name (the P5 bare-name path)
 # --------------------------------------------------------------------------- #
 

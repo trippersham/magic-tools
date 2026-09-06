@@ -124,6 +124,16 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/collection crispi "<deck name>" \
 The two reasoning inputs (`--fundamental-turn`, `--commander-dependence`) are defined
 authoritatively in **Step 9** below — read those definitions before you supply them.
 
+**Speed and drivers (the cold-start default).** The cold-start `crispi` above gives an
+honest **closed-form** Speed with no driver required — that is the deterministic a-priori
+answer and it is correct for the majority of decks (go-wide, aggro, goodstuff — CP7 pilots
+them fine). Speed only gets *sharper* by simulating for a deck with a real in-deck win line
+to pilot: author a **DRIVE** driver via **`authoring-drivers`**, run it through
+**`simulating-games`**, and Speed will consume the driven-goldfish clock instead of the
+closed form. `crispi`'s stderr flags `driver_recommended` when that would help. You do NOT
+need a driver to get a CRISPI score — only to replace a closed-form Speed with a simulated
+one on a driver-worthy deck.
+
 ## The data surface: the `collection` CLI
 
 Every read and the Assessment/Focus-Otags writes go through the backend-agnostic
@@ -352,7 +362,14 @@ score Speed 9 / Resilience 9 here).
   the *median game*, not the fast high-roll. Half-steps are a real read of variance (a line
   that kills turn 4 on curve / turn 5 through a brick → `4.5`); if torn, take the slower turn.
   This is the entire Speed axis. (OPTIONAL at the CLI — omit it and the engine auto-computes
-  the estimate; supply it to override.)
+  the estimate; supply it to override.) When auto-computed, the engine returns a **deterministic
+  closed-form** own-turn by default. It **escalates to a driven goldfish** (a real, sim-backed
+  Speed) for exactly one kind of deck: one with a **DRIVE**-class authored driver — a genuine
+  in-deck win line to pilot. A **THIN** driver (bare CP7 — most go-wide/aggro/goodstuff decks)
+  keeps the deterministic closed form, because a goldfish driven by CP7 adds nothing over it.
+  The stderr provenance line reports `via tier1` (closed form) or `via tier2` (driven goldfish),
+  and flags `driver_recommended` when a DRIVE driver would sharpen a deck that lacks one — your
+  cue to author one via `authoring-drivers` / `simulating-games` and re-score.
 - **`--commander-dependence <low|med|high>`** — how the deck plays commander-less:
   `low` = runs fine without it (80%+ capacity; a goodstuff/combo-in-the-99 pile),
   `med` = the format default (matters, still executes, 50–80%),

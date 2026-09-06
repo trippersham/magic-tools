@@ -338,17 +338,16 @@ class OtagProbe(NamedTuple):
 
 
 def crispi_otag_probe(
-    deck,  # noqa: ANN001
+    deck,
     *,
     floor: float = OTAG_COVERAGE_FLOOR,
     min_global_size: int = OTAG_HYDRATED_MIN_SIZE,
 ) -> OtagProbe:
     """Single source of truth for whether/how CRISPI may score ``deck``.
 
-    Routes through the SAME closure the factsheet loader produces
-    (:func:`_load_card_otag`) so the crispi guard and the factsheet read the
-    identical otag source (the #53 fix: the old ``otag_mart_available`` probed a
-    ``normalized/card_otag`` mart the factsheet never reads). Three-way verdict:
+    Routes through the same closure the factsheet loader produces
+    (:func:`_load_card_otag`) so the guard and the score read the identical otag source, and
+    never observe different datasets. Three-way verdict:
 
       1. closure is None, OR globally snapshot-degraded (fewer than
          ``min_global_size`` tagged oracle_ids) -> REFUSE, naming
@@ -724,6 +723,17 @@ def _crispi_combos(names: set[str]) -> list:
         return []
 
 
+def _combo_piece_copies(combos: list, deck) -> list[list[int]]:
+    """The Speed estimator's ``combo_pieces`` view of the deck's detected combos.
+
+    Each combo becomes a list of its pieces' copy counts in the deck (1 apiece in a singleton
+    Commander deck), which the estimator uses to detect the combo archetype and its assembly
+    clock. Empty when no combo was detected.
+    """
+    qty = {c.name: c.quantity for c in deck.cards}
+    return [[qty.get(name, 1) for name in getattr(combo, 'card_names', ())] for combo in combos]
+
+
 class SpeedNotApplicable(Exception):
     """The auto-computed Speed is N/A (control / no honest own-turn kill).
 
@@ -739,14 +749,13 @@ class SpeedNotApplicable(Exception):
         super().__init__(rationale)
 
 
-def _auto_fundamental_turn(deck, cards, card_otag):  # noqa: ANN001
-    """Compute the fundamental turn via the Tier-1 -> Tier-2-driven Speed router.
+def _auto_fundamental_turn(deck, cards, card_otag, combo_pieces=None):
+    """Compute the fundamental turn via the Speed router.
 
-    Resolves an XMage install READ-ONLY (never provisions) so a Tier-2 DRIVEN
-    goldfish fires only when the deck ALSO has a ``driver_valid`` driver; on any
-    resolve failure the install is ``None`` and the router falls back to Tier-1 with
-    ``tier2_recommended`` (AC3 — never a naive XMage run). Returns the
-    ``FundamentalTurn``.
+    Resolves an existing XMage installation without provisioning; the router uses it only for a
+    valid drive-class driver, and otherwise returns the closed-form estimate. ``combo_pieces``
+    (per-piece copy counts from the deck's detected combos) lets the estimate use the combo speed
+    model and lets the router recommend authoring a driver for a deck with a win line.
     """
     _ensure_pipeline_on_path()
     from pipeline.sim.speed import fundamental_turn as _router
@@ -756,10 +765,10 @@ def _auto_fundamental_turn(deck, cards, card_otag):  # noqa: ANN001
         from pipeline.sim.engine import get_engine
 
         install = get_engine('xmage').resolve(provision=False)
-    except Exception as exc:  # no jar / not provisioned -> Tier-1 fallback path.
-        log.debug('crispi: XMage install unavailable for Tier-2 (%s); Tier-1 only.', exc)
+    except Exception as exc:  # no jar / not provisioned -> closed-form fallback path.
+        log.debug('crispi: XMage install unavailable for driven goldfish (%s); closed form only.', exc)
 
-    return _router(deck, cards, card_otag, install=install)
+    return _router(deck, cards, card_otag, install=install, combo_pieces=combo_pieces)
 
 
 #: The CRISPI axes whose value leans on the otag layer (functional buckets /
@@ -800,17 +809,18 @@ def crispi_from_deck(
     combos = _crispi_combos(names)
 
     # Speed input: an explicit ``fundamental_turn`` is the manual override (used
-    # verbatim). When omitted, auto-compute it via the Tier-1 -> Tier-2-driven router.
+    # verbatim). When omitted, auto-compute it via the closed-form -> driven-goldfish
+    # router (escalation gated on the deck's authored driver richness).
     speed_source: dict | None = None
     if fundamental_turn is None:
-        ft = _auto_fundamental_turn(deck, cards, card_otag)
+        ft = _auto_fundamental_turn(deck, cards, card_otag, combo_pieces=_combo_piece_copies(combos, deck))
         if ft.turn is None:  # Speed N/A — the contract can't represent it; surface.
             raise SpeedNotApplicable(ft.source_rationale)
         fundamental_turn = ft.turn
         speed_source = {
             'tier': ft.tier,
             'confidence': ft.confidence,
-            'tier2_recommended': ft.tier2_recommended,
+            'driver_recommended': ft.driver_recommended,
             'rationale': ft.source_rationale,
         }
 

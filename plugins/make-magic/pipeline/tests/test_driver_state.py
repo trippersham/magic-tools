@@ -1,4 +1,4 @@
-"""Issue #52 — the STALE/ABSENT/BROKEN driver-state classifier (drivers.driver_state).
+"""The STALE/ABSENT/BROKEN driver-state classifier (drivers.driver_state).
 
 The truth table ``driver_valid`` collapses into a single bool. All offline: a tmp data dir + a
 pinned harness_version (via XMAGE_DIST_SHA256) + a stubbed deck version — no JVM/ECJ.
@@ -62,7 +62,7 @@ def test_stale_on_deck_version_mismatch(_store: Path) -> None:
 def test_stale_on_harness_version_mismatch(_store: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     deck = _deck()
     _stamp(deck, _store, deck_version='DECKV1', gates_passed=True)
-    # Bump the harness under the stamp (the jar-cut case).
+    # Bump the harness version under the stamp.
     monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', 'feedface' * 8)
     assert drivers.driver_state(deck, data_dir=_store) == 'stale'
 
@@ -79,3 +79,77 @@ def test_broken_when_meta_corrupt(_store: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text('{ this is not valid json', encoding='utf-8')
     assert drivers.driver_state(deck, data_dir=_store) == 'broken'
+
+
+# --------------------------------------------------------------------------- #
+# driver_class — the DRIVE/THIN richness stamp the Speed router reads.          #
+# The single decider of whether Speed runs a driven goldfish (DRIVE) or keeps   #
+# the deterministic closed form (THIN). Descriptive-only, mirrors gate_mode.    #
+# --------------------------------------------------------------------------- #
+
+
+def test_driver_class_round_trips_drive() -> None:
+    meta = drivers.DriverMeta(
+        deck_version='v', harness_version='h', fqcn='x', gates_passed=True,
+        driver_class='drive',
+    )
+    assert drivers.DriverMeta.from_json(meta.to_json()).driver_class == 'drive'
+
+
+def test_driver_class_round_trips_thin() -> None:
+    meta = drivers.DriverMeta(
+        deck_version='v', harness_version='h', fqcn='x', gates_passed=True,
+        driver_class='thin',
+    )
+    assert drivers.DriverMeta.from_json(meta.to_json()).driver_class == 'thin'
+
+
+def test_driver_class_legacy_meta_reads_unknown_not_a_guess() -> None:
+    # A meta.json without driver_class must read back the honest sentinel — never
+    # guessed as 'drive'/'thin' (labeling it a richness it was never stamped under is
+    # worse than admitting we don't know). It also must NOT leak into `extra`.
+    legacy = {
+        'deck_version': 'v', 'harness_version': 'h', 'fqcn': 'x', 'gates_passed': True,
+        'gate_mode': 'proactive',
+    }
+    meta = drivers.DriverMeta.from_json(legacy)
+    assert meta.driver_class == drivers._LEGACY_DRIVER_CLASS
+    assert 'driver_class' not in meta.extra
+
+
+def test_driver_is_drive_reads_the_stamp(_store: Path) -> None:
+    deck = _deck()
+    drivers.write_meta(
+        deck,
+        drivers.DriverMeta(
+            deck_version='DECKV1', harness_version=drivers.harness_version(data_dir=_store),
+            fqcn='makemagic.driver.X', gates_passed=True, driver_class='drive',
+        ),
+        data_dir=_store,
+    )
+    assert drivers.driver_is_drive(deck, data_dir=_store) is True
+
+
+def test_driver_is_drive_false_for_thin(_store: Path) -> None:
+    deck = _deck()
+    drivers.write_meta(
+        deck,
+        drivers.DriverMeta(
+            deck_version='DECKV1', harness_version=drivers.harness_version(data_dir=_store),
+            fqcn='makemagic.driver.X', gates_passed=True, driver_class='thin',
+        ),
+        data_dir=_store,
+    )
+    assert drivers.driver_is_drive(deck, data_dir=_store) is False
+
+
+def test_driver_is_drive_none_when_unstamped(_store: Path) -> None:
+    # Legacy stamp with no driver_class → None: the router must refuse + force re-gate,
+    # never silently goldfish or silently skip.
+    deck = _deck()
+    _stamp(deck, _store, deck_version='DECKV1', gates_passed=True)
+    assert drivers.driver_is_drive(deck, data_dir=_store) is None
+
+
+def test_driver_is_drive_none_when_absent(_store: Path) -> None:
+    assert drivers.driver_is_drive(_deck(), data_dir=_store) is None

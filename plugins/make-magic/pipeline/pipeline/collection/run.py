@@ -1836,17 +1836,6 @@ def _refuse_unhydrated_lake(status: str) -> CollectionError:
     )
 
 
-#: Format labels that carry the singleton-100 commander rule (a commander is
-#: mandatory). Kept lowercase; compared case-folded against ``Deck.format``.
-_COMMANDER_FORMATS = frozenset({'commander', 'edh'})
-
-
-def _is_commander_format(deck: Deck) -> bool:
-    """True iff ``deck`` declares a commander format (a commander is mandatory)."""
-    fmt = (deck.format or '').strip().lower()
-    return fmt in _COMMANDER_FORMATS
-
-
 def _refuse_commander_format_no_commander(deck: Deck) -> CollectionError:
     """The loud refusal: a commander-format deck with 0 commanders mis-scores silently."""
     return CollectionError(
@@ -1883,11 +1872,9 @@ def _scoring_deck(name: str | None, id_prefix: str | None) -> Deck:
     status = resolver_mod.lake_status()
     if status != 'ready':
         raise _refuse_unhydrated_lake(status)
-    # Scoring-integrity: a commander-format deck with no commander mis-scores
-    # silently (commander logic reads an empty command zone). Refuse before any
-    # enrichment/scoring so the fix (--commander re-import) is named. This is the
-    # hard half of T3.2's loud degradation (the importer's stderr warning is the soft half).
-    if _is_commander_format(deck) and not deck.commanders:
+    # A commander-format deck with no commander mis-scores silently (commander logic reads an
+    # empty command zone). Refuse before scoring so the fix (--commander re-import) is named.
+    if deck.is_commander_format and not deck.commanders:
         raise _refuse_commander_format_no_commander(deck)
     enriched = _enrich_deck_for_scoring(deck, resolver_mod.default_card_resolver())
     total = len(enriched.cards)
@@ -1992,14 +1979,11 @@ def _crispi(argv: list[str]) -> None:
     # `collection hydrate-lake`) when the lake is absent/stub or the deck is name-only.
     deck = _scoring_deck(args.name, args.id_prefix)
 
-    # R2 (#53): CRISPI's axes lean on the otag layer (functional buckets /
-    # susceptibility). Guard through the SAME closure the factsheet loader reads —
-    # `crispi_otag_probe` builds `_load_card_otag()` and measures the deck's nonland
-    # coverage — so the guard and the score key on one source of truth. Refuse when the
-    # closure is unavailable OR the coverage is snapshot-degraded below the floor; either
-    # way CRISPI would score off a blank/near-blank otag signal (blind confidence).
-    # (factsheet keeps its structured-only degrade via the `otag layer unavailable`
-    # marker; CRISPI's whole output is a confident score, so it refuses instead.)
+    # CRISPI's axes lean on the otag layer. Guard through the same closure the factsheet loader
+    # reads (`crispi_otag_probe` builds `_load_card_otag()` and measures the deck's nonland
+    # coverage) so the guard and the score share one source of truth. Refuse when that closure is
+    # unavailable or its coverage is below the floor — CRISPI would otherwise score off a
+    # near-blank otag signal. (factsheet instead degrades to structured-only facts.)
     from datetime import UTC, datetime
 
     root = str(_SCRIPTS_DIR)
@@ -2055,7 +2039,7 @@ def _crispi(argv: list[str]) -> None:
         print(
             f'# Speed auto-computed: fundamental turn {result["inputs"]["fundamental_turn"]:g} '
             f'via {source["tier"]} (confidence {source["confidence"]}'
-            f'{", tier2_recommended" if source["tier2_recommended"] else ""}).',
+            f'{", driver_recommended" if source["driver_recommended"] else ""}).',
             file=sys.stderr,
         )
     print(json.dumps(result, indent=2))
@@ -2212,29 +2196,20 @@ def _import_deck(argv: list[str]) -> None:
 
     if args.name is not None:
         deck = deck.model_copy(update={'name': args.name})
-    if args.commander is not None:
-        deck = _force_commander(deck, args.commander)
 
-    # T3.2 commander-format degradation. A commander-format import (a `#`-header
-    # precon export whose metadata named a commander) MUST end with a commander, or
-    # commander-dependent scoring is silently wrong. Resolution order: a parsed
-    # `Commander:` section, then --commander (both handled above), then the
-    # first-line-legendary heuristic (only when the lake is ready to check), and
-    # finally a LOUD stderr warning telling the user to pass --commander.
-    if _is_commander_format(deck) and not deck.commanders:
-        deck = _autodetect_commander(deck)
-    if _is_commander_format(deck) and not deck.commanders:
+    # Resolve the commander through one precedence (see `_resolve_commander`), then warn if a
+    # commander-expected deck still has none. Import only nudges; scoring hard-refuses.
+    deck = _resolve_commander(deck, cli_commander=args.commander)
+    if deck.expects_commander and not deck.commanders:
         print(
-            f'warning: {deck.name!r} looks like a Commander-format deck but no commander was '
-            "detected. Re-import with --commander '<Commander Name>' (or add a `Commander:` "
-            'section) — scoring verbs (crispi) will otherwise refuse this deck.',
+            f'warning: {deck.name!r} has no commander detected (a format-less import is treated as '
+            "Commander here). Re-import with --commander '<Commander Name>' (or add a `Commander:` "
+            'line) — commander-dependent scoring needs one.',
             file=sys.stderr,
         )
 
-    # #53 F3: a `#`-header may declare `total=N` (the precon-export dialect). If the
-    # actual imported card count disagrees, the paste was truncated / mis-parsed —
-    # surface a LOUD stderr warning naming BOTH numbers (import still succeeds; the
-    # declared total is advisory, not authoritative).
+    # A `#`-header may declare `total=N`. If the imported card count disagrees, the paste was
+    # truncated or mis-parsed — warn naming both numbers (the declared total is advisory).
     declared_total = _declared_header_total(ref)
     if declared_total is not None:
         actual_total = sum(c.quantity for c in deck.cards)
@@ -2246,10 +2221,8 @@ def _import_deck(argv: list[str]) -> None:
                 file=sys.stderr,
             )
 
-    # T3.3 re-import hygiene. Re-importing the SAME list mints another same-named
-    # ephemeral draft (the dup-name walls are intact — we never merge/overwrite);
-    # name-addressing then refuses with the ambiguity list. Surface that up front:
-    # if a content-identical ephemeral already exists, say so and name the fix.
+    # Re-importing the same list mints another same-named ephemeral draft (drafts are never
+    # merged), which makes later name lookup ambiguous. Warn up front if one already exists.
     existing = _content_identical_ephemeral(deck)
     if existing is not None:
         print(
@@ -2273,16 +2246,38 @@ def _import_deck(argv: list[str]) -> None:
     print(f'Imported [ephemeral]: {deck.name}  ({" + ".join(parts)})  ({deck_uuid})')
 
 
-def _autodetect_commander(deck: Deck) -> Deck:
-    """Promote the first-line legendary to commander when the lake can confirm it.
+def _resolve_commander(deck: Deck, *, cli_commander: str | None) -> Deck:
+    """Resolve ``deck``'s commander via a SINGLE precedence, returning the updated deck.
 
-    The last-resort leg of T3.2's commander resolution: when a commander-format
-    import still has no commander, and the card lake is READY, resolve the first
-    maindeck card and promote it iff it is a legendary creature / planeswalker (the
-    precon-export convention: the commander is the first line). Lake absent/stub, an
-    unresolved name, or a non-legendary first card -> the deck is returned unchanged
-    (the caller then warns loudly). Never fabricates: a promotion only happens on a
-    positive lake confirmation.
+    The single owner of commander resolution at import. Order, first that yields a commander wins:
+
+      1. ``cli_commander`` (explicit ``--commander``) — forced unconditionally, even for a
+         non-commander format (the user asked for it by name).
+      2. a commander ALREADY on the deck — a parsed ``Commander:`` section or ``*CMDR*`` marker
+         the importer produced — is kept.
+      3. first-line-legendary autodetect — only when a commander is EXPECTED
+         (:attr:`Deck.expects_commander`) and the lake is READY to confirm the first maindeck
+         card is a legendary creature / planeswalker.
+      4. otherwise unchanged — the caller warns loudly, and scoring hard-refuses a
+         self-declared commander deck with no commander.
+    """
+    if cli_commander is not None:
+        return _force_commander(deck, cli_commander)
+    if deck.commanders:
+        return deck
+    if deck.expects_commander:
+        return _autodetect_commander(deck)
+    return deck
+
+
+def _autodetect_commander(deck: Deck) -> Deck:
+    """Promote the first maindeck card to commander when card data confirms it is eligible.
+
+    Follows the precon-export convention that the commander is the first line. Only promotes on
+    a positive lake confirmation that the card is commander-eligible: a legendary creature, or a
+    legendary planeswalker whose oracle text grants commander eligibility ("can be your
+    commander"). A stub lake, an unresolved name, or an ineligible first card leaves the deck
+    unchanged (the caller then warns).
     """
     from pipeline.collection import resolver as resolver_mod
 
@@ -2292,11 +2287,9 @@ def _autodetect_commander(deck: Deck) -> Deck:
     if first is None:
         return deck
     card = resolver_mod.default_card_resolver().get_card(first.name)
-    type_line = (getattr(card, 'type_line', None) or '') if card is not None else ''
-    lowered = type_line.lower()
-    if 'legendary' in lowered and ('creature' in lowered or 'planeswalker' in lowered):
-        return _force_commander(deck, first.name)
-    return deck
+    if card is None or not card.can_be_commander:
+        return deck
+    return _force_commander(deck, first.name)
 
 
 def _deck_content_signature(deck: Deck) -> tuple:
@@ -2314,8 +2307,8 @@ def _deck_content_signature(deck: Deck) -> tuple:
 def _content_identical_ephemeral(deck: Deck) -> str | None:
     """Return the deck_uuid of an existing content-identical ephemeral draft, or None.
 
-    Backs T3.3's re-import note: scans same-named ephemeral drafts and returns the
-    first whose content signature matches ``deck``. Read-only; never mutates.
+    Scans same-named ephemeral drafts and returns the id of the first whose content signature
+    matches ``deck`` (backs the re-import ambiguity warning). Read-only; never mutates.
     """
     from pipeline.decks import DecksStore
 

@@ -124,6 +124,89 @@ def test_proactive_passes_when_registers_really_fires_and_not_slower(_store: Pat
     assert drivers.driver_valid(deck, data_dir=_store) is True
 
 
+def test_passing_gate_stamps_driver_class_drive_for_macro_bearing(_store: Path) -> None:
+    """DRIVE/THIN richness stamp: a macro-bearing (proactive) quad that passes stamps
+    driver_class='drive' — Speed will run a DRIVEN goldfish. Derived from macro presence
+    (is_proactive), the same signal gate_mode uses."""
+    deck = _deck()
+    output = (
+        f'{_REG} fqcn=x playerId=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
+        'GOLDFISH SUMMARY (OWN TURNS) ...\n'
+    )
+    eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
+    result = dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
+    assert result.passed is True
+    meta = drivers.read_meta(deck, data_dir=_store)
+    assert meta is not None and meta.driver_class == 'drive'
+    assert drivers.driver_is_drive(deck, data_dir=_store) is True
+
+
+def test_passing_gate_stamps_driver_class_thin_for_phi_only(_store: Path) -> None:
+    """A Φ-only (reactive) quad that passes stamps driver_class='thin' — a goldfish driven
+    by it is behaviorally CP7, so Speed keeps the deterministic closed form."""
+    deck = _deck()
+    output = f'{_REG} fqcn=x playerId=1\nGOLDFISH SUMMARY (OWN TURNS) ...\n'  # no macro fire needed
+    eng = _FakeEngine(driven=_res(7.0), driven_output=output, baseline=_res(7.0))
+    result = dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=_reactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store)
+    assert result.passed is True
+    meta = drivers.read_meta(deck, data_dir=_store)
+    assert meta is not None and meta.driver_class == 'thin'
+    assert drivers.driver_is_drive(deck, data_dir=_store) is False
+
+
+def test_specless_regate_recovers_driver_class_from_mode(_store: Path) -> None:
+    """The spec-less re-gate path: no live QuadSpec, mode recovered from the prior stamp.
+    driver_class is re-derived from that mode (proactive ⇒ drive)."""
+    deck = _deck()
+    output = (
+        f'{_REG} fqcn=x playerId=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
+        'GOLDFISH SUMMARY (OWN TURNS) ...\n'
+    )
+    eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
+    result = dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=None, mode='proactive', install=object(), games=_GAMES, engine=eng, data_dir=_store)
+    assert result.passed is True
+    assert drivers.read_meta(deck, data_dir=_store).driver_class == 'drive'
+
+
+def test_specless_regate_recovers_drive_from_observed_macro_fire(_store: Path) -> None:
+    """A driver re-gated from an 'unknown' gate_mode runs under the lenient reactive gate
+    (is_proactive False), but if its macro still fires in the re-gate goldfish it is stamped
+    'drive' — richness keys on the observed fire, not the declared mode."""
+    deck = _deck()
+    output = (  # a macro really fires even though we gate in reactive mode
+        f'{_REG} fqcn=x playerId=1\n{_MACRO} pid=1\n{_REAL} name=A turn=6\n'
+        'GOLDFISH SUMMARY (OWN TURNS) ...\n'
+    )
+    eng = _FakeEngine(driven=_res(6.0), driven_output=output, baseline=_res(8.0))
+    result = dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=None, mode='unknown', install=object(), games=_GAMES, engine=eng, data_dir=_store)
+    assert result.passed is True
+    assert drivers.read_meta(deck, data_dir=_store).driver_class == 'drive'  # recovered, not 'thin'.
+
+
+def test_specless_regate_unknown_mode_no_fire_stamps_unknown(_store: Path) -> None:
+    """A legacy driver re-gated from an 'unknown' mode passes the lenient reactive gate WITHOUT
+    firing a macro. Its richness cannot be determined — no observed fire proves neither a macro's
+    absence nor thin-ness — so it must stamp 'unknown' (read back as driver_is_drive → None), not
+    guess 'thin'. The Speed router then keeps the closed form and recommends re-authoring."""
+    deck = _deck()
+    output = f'{_REG} fqcn=x playerId=1\nGOLDFISH SUMMARY (OWN TURNS) ...\n'  # registers, no macro fire
+    eng = _FakeEngine(driven=_res(7.0), driven_output=output, baseline=_res(7.0))
+    result = dg.gate_driver(
+        deck, ('D', 'dck'),
+        spec=None, mode='unknown', install=object(), games=_GAMES, engine=eng, data_dir=_store)
+    assert result.passed is True
+    assert drivers.read_meta(deck, data_dir=_store).driver_class == 'unknown'  # not 'thin'.
+    assert drivers.driver_is_drive(deck, data_dir=_store) is None
+
+
 def test_proactive_fails_when_macro_never_fires(_store: Path) -> None:
     """Proactive: registers but MACRO_FIRE_REAL absent → fail even if the median is fine;
     nothing stamped, driver_valid False."""

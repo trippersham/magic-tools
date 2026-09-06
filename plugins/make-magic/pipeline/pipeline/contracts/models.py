@@ -34,7 +34,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from pipeline.contracts.targets import target_for_format
+from pipeline.contracts.targets import is_commander_format, target_for_format
 
 # --------------------------------------------------------------------------- #
 # Deck-card roles — the single source of truth for the role vocabulary. A card's
@@ -130,6 +130,21 @@ class Card(BaseModel):
         default_factory=list,
         description='Raw rolled-up oracle-tag slugs from the card dim (empty if the otag layer is unavailable).',
     )
+
+    @property
+    def can_be_commander(self) -> bool:
+        """Whether this card may head a Commander deck, per rule CR 903.3: a legendary creature,
+        or any card whose oracle text grants it commander eligibility ("can be your commander").
+
+        Deterministic from Scryfall fields (`type_line` + `oracle_text`) — Scryfall exposes no
+        per-card commander-eligibility flag (`legalities.commander` is deck legality, a different
+        question). An unresolved card (no `type_line`) is not eligible. Background/Partner-with-
+        Background pairings, which only head a deck alongside another commander, are out of scope.
+        """
+        type_line = (self.type_line or '').lower()
+        if 'legendary' in type_line and 'creature' in type_line:
+            return True
+        return 'can be your commander' in (self.oracle_text or '').lower()
 
 
 class OwnedCard(Card):
@@ -284,6 +299,25 @@ class Deck(BaseModel):
         :func:`pipeline.contracts.targets.target_for_format`.
         """
         return target_for_format(self.format)
+
+    @property
+    def is_commander_format(self) -> bool:
+        """True iff `format` declares Commander/EDH — the single canonical predicate every
+        caller shares (:func:`pipeline.contracts.targets.is_commander_format`). Strict: an
+        UNDECLARED format is not commander-format (see :attr:`expects_commander`)."""
+        return is_commander_format(self.format)
+
+    @property
+    def expects_commander(self) -> bool:
+        """True when a commander is EXPECTED — commander-format OR an UNDECLARED format.
+
+        The IMPORT-time predicate for this Commander-centric tool: a headerless / format-less
+        list is treated as Commander (it still gets first-line-legendary autodetect + the loud
+        0-commander warning), while an explicitly NON-commander format (standard/modern/…) is
+        not. Distinct from :attr:`is_commander_format` (strict), which gates the hard scoring
+        refusal — import should nudge, scoring should only hard-refuse a self-declared commander
+        deck."""
+        return self.is_commander_format or not (self.format or '').strip()
 
 
 # --------------------------------------------------------------------------- #

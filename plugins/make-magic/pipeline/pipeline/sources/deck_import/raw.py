@@ -100,14 +100,19 @@ class RawDeck(BaseModel):
 # --------------------------------------------------------------------------- #
 
 
-def content_key(text: str) -> str:
+def content_key(text: str, *, salt: str = '') -> str:
     """A stable, filesystem-safe key for pasted text (a content hash).
 
     Paste-sourced imports have no re-fetchable ``source_ref``, so the key is a
     truncated SHA-256 of the content: identical text -> identical key (a re-paste
     reuses the cache); different text -> a different key.
+
+    ``salt`` folds a caller-owned discriminator (e.g. a parser version) into the hash so a
+    parser change yields a new key and re-parses rather than serving a stale cache entry.
+    An empty salt reproduces the bare content hash, so unsalted callers keep their keys.
     """
-    digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
+    payload = text if not salt else f'{len(salt)}:{salt}{text}'
+    digest = hashlib.sha256(payload.encode()).hexdigest()
     return f'paste-{digest[:16]}'
 
 

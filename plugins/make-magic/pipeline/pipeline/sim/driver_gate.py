@@ -114,6 +114,11 @@ _MIN_GATE_GAMES = 20
 #: router) can respect it without reaching for the private name.
 MIN_GATE_GAMES = _MIN_GATE_GAMES
 
+#: The richness stamp for a driver whose DRIVE-vs-THIN class could not be determined (a legacy
+#: 'unknown'-mode re-gate with no observed macro fire). Mirrors ``drivers._LEGACY_DRIVER_CLASS``:
+#: ``driver_is_drive`` reads it back as ``None``, so the router keeps the closed form.
+_UNKNOWN_DRIVER_CLASS = 'unknown'
+
 #: Own-turn-kill slack allowed on the never-slower check. XMage has no reproducible seed, so the
 #: driven + baseline solo medians are two independent noisy samples that jitter ~±1 own-turn
 #: between runs. 2 turns of slack makes a neutral driver pass deterministically while a driver
@@ -257,7 +262,7 @@ def recompile_authored_driver(
     :class:`QuadSpec`, it takes the source already on disk in the deck's driver dir (written by
     the original :func:`compile_quad_driver`) and runs it back through the SAME ECJ path
     (:func:`~pipeline.sim.driver_compile.compile_for_injection`) against whatever dist jar is now
-    effective — so a harness/jar cut that invalidated the old bytecode produces fresh, current
+    effective — so a harness/jar change that invalidated the old bytecode produces fresh, current
     bytecode. The compiled tree is published into the per-deck ``classes_dir`` via
     :func:`_publish_classes`. Returns the ``(classes_dir, fqcn)`` injection tuple.
 
@@ -353,10 +358,16 @@ def gate_driver(
     # recovered from the existing stamp; a legacy ``'unknown'`` stamp maps to the LENIENT reactive
     # gate (no macro-fire requirement) — we cannot prove a macro we never rendered, and demanding
     # a fire we can't justify would wrongly reject a still-good driver.
+    # ``richness_known`` records whether we can decide DRIVE-vs-THIN from the input alone: an
+    # authored spec tells us directly (a macro ⇒ drive, none ⇒ thin), and a re-gate carrying a
+    # real 'proactive'/'reactive' stamp is authoritative too. A legacy 'unknown' stamp is NOT —
+    # only an OBSERVED macro fire can prove drive; absent that, richness stays undetermined.
     if spec is not None:
         is_proactive = spec.macro is not None
         mode = 'proactive' if is_proactive else 'reactive'
+        richness_known = True
     elif mode is not None:
+        richness_known = mode in ('proactive', 'reactive')
         is_proactive = mode == 'proactive'
         mode = 'proactive' if is_proactive else 'reactive'
     else:
@@ -385,10 +396,9 @@ def gate_driver(
             extra={'gate_lint_warnings': lint_warnings, 'gate_lint_fail': lint.summary},
         )
 
-    # Commander decks MUST run the commander-native solo goldfish (CommanderDuel, 40 life
-    # + command zone) so the commander is actually seated — a commander-dependent macro
-    # can never fire in the constructed 60-basics goldfish (the P6.2 Yawgmoth VETO). The
-    # DRIVEN and BASELINE runs use the SAME fmt so the never-slower comparison is honest.
+    # Commander decks run the commander-native solo goldfish (40 life + command zone) so the
+    # commander is seated — a commander-dependent macro can never fire in the constructed goldfish.
+    # The driven and baseline runs use the same fmt so the never-slower comparison is honest.
     fmt = 'commander' if deck.commanders else 'constructed'
 
     driven, output = eng.goldfish_output(deck_ref, games=games, install=install, driver=driver, fmt=fmt)
@@ -495,6 +505,18 @@ def gate_driver(
         'gate_markers_seen': sorted(markers_seen),
         'gate_lint_warnings': lint_warnings,
     }
+    # DRIVE/THIN richness the Speed router reads: 'drive' runs a driven goldfish, 'thin' keeps the
+    # closed form. A driver is 'drive' if it is proactive or its macro actually fired this run;
+    # 'thin' only when richness is known (an authored spec, or a real 'proactive'/'reactive' stamp)
+    # and no drive evidence appeared. When richness is unknown (a legacy 'unknown'-mode re-gate) and
+    # no macro fired, stamp 'unknown' rather than guess 'thin' — the router then keeps the closed
+    # form and recommends re-authoring instead of silently ruling out a driven goldfish.
+    if is_proactive or macro_fired:
+        driver_class = 'drive'
+    elif richness_known:
+        driver_class = 'thin'
+    else:
+        driver_class = _UNKNOWN_DRIVER_CLASS
     drivers.write_meta(
         deck,
         drivers.DriverMeta(
@@ -503,6 +525,7 @@ def gate_driver(
             fqcn=fqcn,
             gates_passed=True,
             gate_mode=mode,
+            driver_class=driver_class,
             extra=extra,
         ),
         data_dir=data_dir,
@@ -621,9 +644,9 @@ def regate_driver(
 ) -> RegateResult:
     """Re-compile ``deck``'s authored driver against the CURRENT harness and re-run the gate.
 
-    The stale→valid recovery the jar cut needs: a driver whose bytecode was compiled against an
-    older dist reads as ``'stale'`` (:func:`~pipeline.sim.drivers.driver_state`) after a harness
-    bump. This reuses the ORIGINAL compile path (:func:`recompile_authored_driver` →
+    The stale→valid recovery after a harness bump: a driver whose bytecode was compiled against an
+    older dist reads as ``'stale'`` (:func:`~pipeline.sim.drivers.driver_state`). This reuses the
+    original compile path (:func:`recompile_authored_driver` →
     :func:`~pipeline.sim.driver_compile.compile_for_injection`, the same ECJ invocation) to
     produce fresh bytecode, then re-runs the behavioral :func:`gate_driver` (mode recovered from
     the existing stamp — no live :class:`QuadSpec` needed). On PASS the gate re-stamps a current

@@ -56,6 +56,11 @@ _STDIN_SENTINEL = '-'
 #: Default deck name when no source name is available (``.dck`` ``Name=`` wins).
 _DEFAULT_NAME = 'Imported deck'
 
+#: Parser version — folded into the paste-cache key (:func:`content_key` ``salt``) so a change to
+#: the parse logic re-parses previously-cached text instead of serving a stale ``RawDeck`` from
+#: the permanent cache. Bump this whenever ``_parse`` changes.
+_PARSER_VERSION = '2'
+
 #: Any URI scheme prefix (``http://``, ``ftp://``, ``file://``, ``scp://``, ...).
 #: A scheme:// ref belongs to a host adapter, never to this offline importer.
 _URI_SCHEME = re.compile(r'^[a-z][a-z0-9+.-]*://', re.IGNORECASE)
@@ -148,7 +153,7 @@ class PlaintextImporter:
         identical text is never re-parsed until ``refresh``/``invalidate``.
         """
         text = self._read_text(ref)
-        key = content_key(text)
+        key = content_key(text, salt=_PARSER_VERSION)
 
         def _do_parse() -> RawDeck:
             entries, name, meta = self._parse(text)
@@ -244,24 +249,43 @@ class PlaintextImporter:
                 current_role, in_metadata = header
                 continue
 
+            # Inline ``<Header>: <card>`` (e.g. ``Commander: Atraxa``): the trailing card takes the
+            # header's role, then the role resets to maindeck — a one-line declaration, not a block.
+            inline = self._inline_section(line)
+            if inline is not None:
+                role, card_text = inline
+                current_role = None
+                self._merge(self._card_line(card_text, role), merged, entries)
+                continue
+
             if in_metadata:
                 kv = _KV_RE.match(line)
                 if kv is not None and kv.group('key').strip().lower() == 'name':
                     name = kv.group('value').strip() or None
                 continue
 
-            entry = self._card_line(line, current_role)
-            if entry is None:
-                continue
-            merge_key = (entry.name, entry.role)
-            existing = merged.get(merge_key)
-            if existing is None:
-                merged[merge_key] = entry
-                entries.append(entry)
-            else:
-                existing.quantity += entry.quantity
+            self._merge(self._card_line(line, current_role), merged, entries)
 
         return entries, name, meta
+
+    @staticmethod
+    def _merge(
+        entry: RawEntry | None,
+        merged: dict[tuple[str, str | None], RawEntry],
+        entries: list[RawEntry],
+    ) -> None:
+        """Fold ``entry`` into the accumulators, summing a duplicate ``(name, role)`` line's
+        quantity (the MTGJSON per-printing dialect) and keeping first-seen order. ``None`` (a
+        non-card line) is a no-op."""
+        if entry is None:
+            return
+        merge_key = (entry.name, entry.role)
+        existing = merged.get(merge_key)
+        if existing is None:
+            merged[merge_key] = entry
+            entries.append(entry)
+        else:
+            existing.quantity += entry.quantity
 
     def _parse_hash_header(self, line: str) -> tuple[str | None, str | None]:
         """Parse a leading ``# ...`` header into ``(deck_name, format_hint)``.
@@ -298,6 +322,24 @@ class PlaintextImporter:
         candidate = line.rstrip(':').strip().lower()
         if candidate in _COMMANDER_HEADERS or candidate in _SIDEBOARD_HEADERS or candidate in _MAINDECK_HEADERS:
             return self._role_for_label(candidate)
+        return None
+
+    def _inline_section(self, line: str) -> tuple[str | None, str] | None:
+        """Parse the inline ``<Header>: <card>`` dialect (e.g. ``Commander: Atraxa``).
+
+        Returns ``(role, card_text)`` when a known section label precedes the first colon and
+        non-empty text follows it; else ``None`` (a bare ``Commander:`` header and ordinary card
+        lines fall through). The role applies to the trailing card only — a one-line declaration,
+        not a block.
+        """
+        label, sep, rest = line.partition(':')
+        rest = rest.strip()
+        if not sep or not rest:
+            return None
+        candidate = label.strip().lower()
+        if candidate in _COMMANDER_HEADERS or candidate in _SIDEBOARD_HEADERS or candidate in _MAINDECK_HEADERS:
+            role, _ = self._role_for_label(candidate)
+            return role, rest
         return None
 
     def _role_for_label(self, label: str) -> tuple[str | None, bool]:

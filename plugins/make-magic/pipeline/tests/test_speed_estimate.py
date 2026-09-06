@@ -8,7 +8,7 @@ Three layers:
   * hypergeometric correctness against a hand-computed value;
   * the ±1 calibration regression (AC4) on three fixtures that reproduce the
     LOAD-BEARING shape of the lab decks MonoR_Aggro (->5.0), Ramp_Green (->7.0),
-    Combo_Mikaeus (->7.0, needs_tier2). Fixtures are HAND-BUILT from the real
+    Combo_Mikaeus (->7.0, combo). Fixtures are HAND-BUILT from the real
     decklists at ~/mtg-sim-lab/xmage-lab/mage/Mage.Tests/{MonoR_Aggro,Ramp_Green,
     Combo_Mikaeus}.txt (every card is a well-known real card whose power / CMC /
     ramp / combo role I transcribe below); the mapping is documented per fixture.
@@ -176,7 +176,7 @@ def test_speed_aggro_handworked_four_haste_beaters():
     deck = [_card('Beater', 1, 'Creature — Elemental', qty=4, power=3, keywords=['Haste'])] + [_land('Mountain', 10)]
     est = estimate_speed(deck, archetype='aggro', lethal=20)
     assert est.own_turn == 4.0
-    assert est.needs_tier2 is False
+    assert est.archetype == 'aggro'
 
 
 def test_speed_ramp_handworked_connect_math():
@@ -203,7 +203,7 @@ def test_speed_combo_handworked_assembly_plus_lag():
         _card('Swamp', 0, 'Basic Land — Swamp', qty=52, produced=['B']),
     ]
     est = estimate_speed(deck, archetype='combo', combo_pieces=[[4, 4]], lethal=20)
-    assert est.needs_tier2 is True
+    assert est.archetype == 'combo'
     # execution_lag = num_pieces = 2, floored by the mana wall (turn>=? no ramp ->
     # mana reaches 6 at turn 6). own_turn = max(assembly+2, 6).
     assert est.own_turn >= 6.0
@@ -256,7 +256,6 @@ def test_speed_calibration_within_one_own_turn(name, fixture, kwargs, anchor):
     )
 
 
-def test_speed_combo_mikaeus_needs_tier2():
+def test_speed_combo_mikaeus_detected_as_combo():
     est = estimate_speed(_combo_mikaeus(), combo_pieces=[[4, 4]])
-    assert est.needs_tier2 is True
     assert est.archetype == 'combo'

@@ -74,7 +74,7 @@ CLASSES_DIRNAME = 'classes'
 #: The core meta.json keys this module owns; any OTHER key read from disk is
 #: preserved into :attr:`DriverMeta.extra` so Phase-2 gate stamps survive a
 #: read/write round-trip through this module.
-_CORE_KEYS = frozenset({'deck_version', 'harness_version', 'fqcn', 'gates_passed', 'gate_mode'})
+_CORE_KEYS = frozenset({'deck_version', 'harness_version', 'fqcn', 'gates_passed', 'gate_mode', 'driver_class'})
 
 #: The gate mode a driver was signed off under (Phase 5 dual-mode gate): ``'proactive'``
 #: (macro-bearing — gated on macro-fire + never-slower) or ``'reactive'`` (Φ-only — gated on
@@ -87,6 +87,16 @@ _DEFAULT_GATE_MODE = 'proactive'
 #: NOT be guessed as ``'proactive'`` — labeling a legacy meta a mode it was never gated under is
 #: worse than an honest ``'unknown'``.
 _LEGACY_GATE_MODE = 'unknown'
+
+#: The driver-richness stamp the Speed router reads: ``'drive'`` (an in-deck win line to pilot →
+#: Speed runs a driven goldfish) or ``'thin'`` (baseline play → Speed keeps the closed form).
+#: Derived at gate time from the authored quad's combo litmus.
+_DRIVER_CLASSES = ('drive', 'thin')
+
+#: The sentinel a ``meta.json`` without a ``driver_class`` reads back as. A missing class is not
+#: inferred: the router treats ``'unknown'`` as "cannot tell" and keeps the closed form rather
+#: than choosing a tier.
+_LEGACY_DRIVER_CLASS = 'unknown'
 
 
 @dataclass(frozen=True)
@@ -103,17 +113,20 @@ class DriverMeta:
     fqcn: str
     gates_passed: bool
     gate_mode: str = _DEFAULT_GATE_MODE
+    driver_class: str = _LEGACY_DRIVER_CLASS
     extra: dict[str, object] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, object]:
-        """Serialize to the flat ``meta.json`` dict (core keys + spread ``extra``)."""
+        """Serialize to the flat ``meta.json`` dict. ``extra`` is spread first so the
+        authoritative core keys always win, even if ``extra`` carries a colliding key."""
         return {
+            **self.extra,
             'deck_version': self.deck_version,
             'harness_version': self.harness_version,
             'fqcn': self.fqcn,
             'gates_passed': self.gates_passed,
             'gate_mode': self.gate_mode,
-            **self.extra,
+            'driver_class': self.driver_class,
         }
 
     @classmethod
@@ -131,6 +144,7 @@ class DriverMeta:
             fqcn=str(data['fqcn']),
             gates_passed=bool(data['gates_passed']),
             gate_mode=str(data.get('gate_mode', _LEGACY_GATE_MODE)),
+            driver_class=str(data.get('driver_class', _LEGACY_DRIVER_CLASS)),
             extra=extra,
         )
 
@@ -228,6 +242,22 @@ def driver_valid(deck: Deck, *, data_dir: str | os.PathLike[str] | None = None) 
     missing dir/meta) → ``False`` — the caller falls back to the driverless path.
     """
     return driver_state(deck, data_dir=data_dir) == 'valid'
+
+
+def driver_is_drive(deck: Deck, *, data_dir: str | os.PathLike[str] | None = None) -> bool | None:
+    """Whether ``deck``'s stamped driver is a DRIVE line, a THIN one, or undetermined.
+
+    Returns ``True`` for a ``'drive'`` stamp (Speed runs a driven goldfish), ``False`` for
+    ``'thin'`` (Speed keeps the closed form), and ``None`` when there is no meta or the
+    ``driver_class`` is absent/unrecognized (the router keeps the closed form rather than guess).
+
+    Orthogonal to :func:`driver_valid`: richness is a separate question from whether the driver
+    is current and gate-passed. The router checks both.
+    """
+    meta = read_meta(deck, data_dir=data_dir)
+    if meta is None or meta.driver_class not in _DRIVER_CLASSES:
+        return None
+    return meta.driver_class == 'drive'
 
 
 def driver_state(deck: Deck, *, data_dir: str | os.PathLike[str] | None = None) -> str:

@@ -35,6 +35,14 @@ Run `win_combos_in_deck(deck_identity, combos)` (from `pipeline.transforms.combo
 
 Proactive/reactive is NOT the router anymore. It survives only as one *input* to the rule-4
 Φ-mode choice (dedicated vs capable) below — never as the top-level route.
+
+**THIN is a first-class outcome, and it is what the Speed axis consumes.** When the ship gate
+passes a driver it stamps a `driver_class` on the meta (`'drive'` for a macro-bearing DRIVE
+quad, `'thin'` for a Φ-only/bare-CP7 one). The CRISPI Speed router reads that stamp as its
+**single decider**: a DRIVE driver makes Speed run a driven goldfish (a real sim clock); a THIN
+driver makes Speed keep its deterministic closed-form estimate — because a goldfish piloted by
+bare CP7 reproduces CP7 and adds nothing. So emitting `QuadSpec.thin` for a CP7-fine deck is not
+a consolation prize: it is the correct, load-bearing signal that Speed should stay closed-form.
 </primary-constraint>
 
 ## The 4 load-bearing rules (design §5)

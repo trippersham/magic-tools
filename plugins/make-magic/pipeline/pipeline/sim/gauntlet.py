@@ -154,10 +154,7 @@ def _mine(fmt: str, store: CollectionStore) -> list[GauntletDeck]:
     decks: list[GauntletDeck] = []
     for stub in store.list_decks():
         deck = store.get_deck(stub.name)
-        is_commander = bool(deck.commanders) or (deck.format or '').strip().lower() in (
-            'commander',
-            'edh',
-        )
+        is_commander = bool(deck.commanders) or deck.is_commander_format
         if is_commander != want_commander:
             continue
         decks.append(GauntletDeck(name=deck.name, dck_text=exporter.export(deck)))

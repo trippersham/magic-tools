@@ -161,6 +161,26 @@ def test_fetch_plain_list(data_dir: Path) -> None:
     assert all(c.role is None for c in raw.cards if c.name != 'Krenko, Mob Boss')
 
 
+def test_fetch_inline_commander_header(data_dir: Path) -> None:
+    """The inline ``Commander: <name>`` dialect (the name on the header line, not a block below
+    it) puts <name> in the commander role, not the maindeck."""
+    raw = PlaintextImporter().fetch('Commander: Krenko, Mob Boss\n1 Sol Ring\n1 Mountain\n')
+    by_name = {c.name: c for c in raw.cards}
+    assert 'Commander: Krenko, Mob Boss' not in by_name  # NOT folded into a fake maindeck card.
+    assert by_name['Krenko, Mob Boss'].role == 'commander'
+    assert by_name['Krenko, Mob Boss'].quantity == 1
+    assert by_name['Sol Ring'].role is None  # a following bare line is still maindeck.
+
+
+def test_fetch_inline_commander_does_not_swallow_following_cards(data_dir: Path) -> None:
+    """The inline header sets the commander from its OWN line only; the next line reverts to
+    maindeck (the inline form is a one-card declaration, not a block that captures the rest)."""
+    raw = PlaintextImporter().fetch('Commander: Krenko, Mob Boss\n1 Goblin Bushwhacker\n')
+    by_name = {c.name: c for c in raw.cards}
+    assert by_name['Krenko, Mob Boss'].role == 'commander'
+    assert by_name['Goblin Bushwhacker'].role is None
+
+
 # --------------------------------------------------------------------------- #
 # fetch — Forge .dck
 # --------------------------------------------------------------------------- #
@@ -231,7 +251,7 @@ def test_import_deck_routes_to_plaintext(data_dir: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# T3.1 — duplicate-line merge (the 100->88 truncation bug)
+# Duplicate-line merge
 # --------------------------------------------------------------------------- #
 
 
@@ -259,7 +279,7 @@ def test_witherbloom_fixture_preserves_100_cards(data_dir: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# T3.2 — `#`-header deck name + commander-format hint
+# `#`-header deck name + commander-format hint
 # --------------------------------------------------------------------------- #
 
 

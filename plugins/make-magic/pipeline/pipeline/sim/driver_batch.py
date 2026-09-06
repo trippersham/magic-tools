@@ -701,7 +701,7 @@ def enumerate_inventory() -> tuple[list[CorpusDeck], str]:
     for deck in deck_objs:
         cards = tuple(c.name for c in deck.cards)
         commanders = tuple(c.name for c in deck.commanders)
-        is_commander = bool(commanders) or (deck.format or '').strip().lower() in ('commander', 'edh')
+        is_commander = bool(commanders) or deck.is_commander_format
         decks.append(
             CorpusDeck(
                 deck_id=f'inventory/{deck.uuid}',

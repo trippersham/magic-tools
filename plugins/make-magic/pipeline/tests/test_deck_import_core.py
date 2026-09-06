@@ -223,6 +223,22 @@ def test_content_key_stable_and_distinct() -> None:
     assert '/' not in key and '\\' not in key
 
 
+def test_content_key_salt_busts_stale_parse_cache() -> None:
+    """A `salt` (a parser version) changes the key so identical text re-parses when the parser
+    changes. Same text + same salt still dedupes; the key stays filesystem-safe.
+    Same text + same salt still dedupes; the key stays filesystem-safe."""
+    import hashlib
+
+    text = '1 Sol Ring\n'
+    assert content_key(text, salt='v1') == content_key(text, salt='v1')  # stable within a version
+    assert content_key(text, salt='v1') != content_key(text, salt='v2')  # bumping the version busts it
+    assert content_key(text) != content_key(text, salt='v2')  # unsalted differs from salted
+    # An empty salt reproduces the bare content hash (unsalted callers keep their keys).
+    assert content_key(text) == f'paste-{hashlib.sha256(text.encode()).hexdigest()[:16]}'
+    salted = content_key('a/b\\c', salt='v9')
+    assert '/' not in salted and '\\' not in salted
+
+
 def test_cache_key_sanitizes_urls(data_dir: Path) -> None:
     # A URL source_ref must not escape the source dir via path separators.
     path = cache_path('archidekt', cache_key('https://archidekt.com/decks/10126962'))

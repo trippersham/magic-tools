@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from pipeline.contracts.targets import target_for_format
+from pipeline.contracts.targets import is_commander_format, target_for_format
 
 
 @pytest.mark.parametrize(
@@ -39,3 +39,27 @@ from pipeline.contracts.targets import target_for_format
 )
 def test_target_for_format(fmt: str | None, expected: int | None) -> None:
     assert target_for_format(fmt) == expected
+
+
+@pytest.mark.parametrize(
+    ('fmt', 'expected'),
+    [
+        ('Commander', True),
+        ('commander', True),
+        ('  Commander  ', True),
+        ('EDH', True),
+        ('edh', True),
+        ('Duel Commander', True),  # substring match, same as target_for_format -> 100.
+        ('Non-Commander', False),  # the negation is not a commander format.
+        ('Standard', False),
+        ('Modern', False),
+        ('', False),
+        ('   ', False),
+        (None, False),
+        ('Limited', False),
+    ],
+)
+def test_is_commander_format(fmt: str | None, expected: bool) -> None:
+    """The canonical Commander/EDH predicate — same tolerant match as
+    ``target_for_format``'s 100-card branch (so the two never drift)."""
+    assert is_commander_format(fmt) is expected

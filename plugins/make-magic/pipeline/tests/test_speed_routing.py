@@ -1,8 +1,9 @@
-"""Phase 4 — Speed router (Tier-1 -> Tier-2-driven -> fundamental turn).
+"""Speed router — closed-form default -> DRIVEN goldfish, gated by DRIVER RICHNESS.
 
-All offline: ``estimate_speed`` is stubbed and the goldfish engine is a fake (NO
-JVM, no reactor). The load-bearing assertion is AC3: a ``needs_tier2`` deck with NO
-valid driver must NOT call ``engine.goldfish`` (no naive XMage ever runs for Speed).
+All offline: ``estimate_speed`` is stubbed and the goldfish engine is a fake (no JVM). Driver
+richness (``drivers.driver_is_drive``) decides escalation: a drive driver runs the goldfish, a
+thin driver keeps the closed form. The load-bearing invariant: the goldfish runs only with a
+valid drive driver and an available install — never driverless, never with a thin driver.
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ class _Deck:
 
 def _est(**kw) -> object:
     """A stubbed ``estimate_speed`` returning a fixed :class:`SpeedEstimate`."""
-    defaults = dict(own_turn=5.0, confidence='high', needs_tier2=False, archetype='aggro', rationale='stub')
+    defaults = {'own_turn': 5.0, 'confidence': 'high', 'archetype': 'aggro', 'rationale': 'stub'}
     defaults.update(kw)
     est = SpeedEstimate(**defaults)  # type: ignore[arg-type]
 
@@ -51,77 +52,148 @@ def _est(**kw) -> object:
     return _fn
 
 
-def _valid(monkeypatch: pytest.MonkeyPatch, ok: bool) -> None:
-    # The router classifies via driver_state now; 'valid' drives Tier-2, 'absent' falls back
-    # (the same quiet "no driver" path the old driver_valid=False produced).
-    monkeypatch.setattr(drivers, 'driver_valid', lambda deck, *, data_dir=None: ok)
-    monkeypatch.setattr(drivers, 'driver_state', lambda deck, *, data_dir=None: 'valid' if ok else 'absent')
+def _driver(monkeypatch: pytest.MonkeyPatch, *, state: str, is_drive: bool | None,
+            fqcn: str = 'makemagic.driver.Fake') -> None:
+    """Stub the driver registry to a given state + richness.
+
+    ``is_drive``: True (DRIVE), False (THIN), or None (unstamped/unknown OR absent).
+    Richness reads flow through ``driver_is_drive``; the goldfish block reads ``read_meta``
+    for the fqcn. ``state='absent'`` → no meta on disk.
+    """
+    monkeypatch.setattr(drivers, 'driver_state', lambda deck, *, data_dir=None: state)
+    monkeypatch.setattr(drivers, 'driver_is_drive', lambda deck, *, data_dir=None: is_drive)
     monkeypatch.setattr(drivers, 'classes_dir', lambda deck, *, data_dir=None: '/tmp/classes')
+    if state == 'absent':
+        monkeypatch.setattr(drivers, 'read_meta', lambda deck, *, data_dir=None: None)
+        return
+    dclass = 'drive' if is_drive else ('thin' if is_drive is False else 'unknown')
     monkeypatch.setattr(
         drivers, 'read_meta',
         lambda deck, *, data_dir=None: drivers.DriverMeta(
-            deck_version='v', harness_version='h', fqcn='makemagic.driver.Fake', gates_passed=True
+            deck_version='v', harness_version='h', fqcn=fqcn,
+            gates_passed=(state != 'broken'), driver_class=dclass,
         ),
     )
 
 
 # --------------------------------------------------------------------------- #
-# Tier-1 only — no engine ever touched.                                        #
+# Closed-form default — no driver, no engine ever touched.                     #
 # --------------------------------------------------------------------------- #
 
 
-def test_tier1_only_no_engine_call() -> None:
+def test_absent_no_winline_closed_form_no_engine_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    _driver(monkeypatch, state='absent', is_drive=None)
     eng = _FakeEngine()
-    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng, estimate=_est(needs_tier2=False))
+    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng, estimate=_est())
     assert ft.tier == 'tier1'
     assert ft.turn == 5.0
-    assert ft.tier2_recommended is False
-    assert eng.calls == []  # Tier-1 never touches the engine.
+    assert ft.driver_recommended is False  # CP7-fine deck: closed form is the honest answer.
+    assert eng.calls == []
+
+
+def test_absent_with_winline_recommends_driver(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A deck with a detected win-line but no driver → closed form, but flags that a DRIVE
+    driver would sharpen Speed."""
+    _driver(monkeypatch, state='absent', is_drive=None)
+    eng = _FakeEngine()
+    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng,
+                          estimate=_est(archetype='combo'), combo_pieces=[[1, 1]])
+    assert ft.tier == 'tier1'
+    assert ft.driver_recommended is True
+    assert eng.calls == []
 
 
 # --------------------------------------------------------------------------- #
-# Tier-2 driven — goldfish runs WITH the driver tuple.                         #
+# DRIVE driver — goldfish runs WITH the driver tuple.                          #
 # --------------------------------------------------------------------------- #
 
 
-def test_tier2_driven_runs_goldfish_with_driver(monkeypatch: pytest.MonkeyPatch) -> None:
-    _valid(monkeypatch, ok=True)
+def test_drive_driver_runs_goldfish(monkeypatch: pytest.MonkeyPatch) -> None:
+    _driver(monkeypatch, state='valid', is_drive=True)
     eng = _FakeEngine(median=3.0)
     ft = fundamental_turn(
         _Deck(), [], None, install=object(), engine=eng,
-        deck_ref=('Fake Deck', 'dcktext'), estimate=_est(needs_tier2=True),
+        deck_ref=('Fake Deck', 'dcktext'), estimate=_est(),
     )
     assert ft.tier == 'tier2'
     assert ft.turn == 3.0  # the goldfish median, not the tier-1 5.0.
+    assert ft.driver_recommended is False
     assert len(eng.calls) == 1
     assert eng.calls[0]['driver'] == ('/tmp/classes', 'makemagic.driver.Fake')
 
 
 # --------------------------------------------------------------------------- #
-# AC3 — needs_tier2 + NO valid driver => goldfish NEVER runs.                  #
+# Thin driver — deterministic closed form; the goldfish never runs.            #
 # --------------------------------------------------------------------------- #
 
 
-def test_ac3_needs_tier2_no_driver_never_runs_goldfish(monkeypatch: pytest.MonkeyPatch) -> None:
-    _valid(monkeypatch, ok=False)
-    eng = _FakeEngine()
+def test_thin_driver_stays_closed_form_no_goldfish(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The single-decider heart: a valid THIN driver keeps the closed form and must NOT run
+    a goldfish (a thin driver reproduces baseline play, so it adds nothing)."""
+    _driver(monkeypatch, state='valid', is_drive=False)
+    eng = _FakeEngine(median=3.0)
     ft = fundamental_turn(
-        _Deck(), [], None, install=object(), engine=eng, estimate=_est(needs_tier2=True, confidence='low')
+        _Deck(), [], None, install=object(), engine=eng,
+        deck_ref=('Fake Deck', 'dcktext'), estimate=_est(),
     )
-    assert ft.tier == 'tier1'  # falls back to the tier-1 number.
-    assert ft.turn == 5.0
-    assert ft.tier2_recommended is True
-    assert eng.calls == []  # <-- the invariant: naive XMage NEVER runs for Speed.
-
-
-def test_ac3_no_install_never_runs_goldfish(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A valid driver but no XMage install still must NOT run a naive goldfish."""
-    _valid(monkeypatch, ok=True)
-    eng = _FakeEngine()
-    ft = fundamental_turn(_Deck(), [], None, install=None, engine=eng, estimate=_est(needs_tier2=True))
     assert ft.tier == 'tier1'
-    assert ft.tier2_recommended is True
+    assert ft.turn == 5.0  # the deterministic closed form, not a goldfish number.
+    assert ft.driver_recommended is False  # thin is the CORRECT authored outcome; nothing to recommend.
+    assert eng.calls == []  # <-- the invariant: no thin/naive goldfish for Speed.
+    assert 'thin' in ft.source_rationale.lower()
+
+
+# --------------------------------------------------------------------------- #
+# Drive driver but no install => goldfish never runs.                          #
+# --------------------------------------------------------------------------- #
+
+
+def test_ac3_drive_no_install_never_runs_goldfish(monkeypatch: pytest.MonkeyPatch) -> None:
+    _driver(monkeypatch, state='valid', is_drive=True)
+    eng = _FakeEngine()
+    ft = fundamental_turn(_Deck(), [], None, install=None, engine=eng, estimate=_est())
+    assert ft.tier == 'tier1'
+    assert ft.driver_recommended is True  # a DRIVE driver exists; the install is what's missing.
     assert eng.calls == []
+
+
+# --------------------------------------------------------------------------- #
+# Valid driver with unknown richness — closed form + recommend, no re-gate.    #
+# --------------------------------------------------------------------------- #
+
+
+def test_valid_unknown_richness_keeps_closed_form_and_recommends(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A current, valid driver whose richness can't be determined (driver_is_drive → None) keeps
+    the closed form and recommends re-authoring. It must NOT goldfish (no drive evidence) and must
+    NOT re-gate — a scoring call never re-gates a current driver."""
+    _driver(monkeypatch, state='valid', is_drive=None)
+    eng = _FakeEngine(median=3.0)
+    regate = _FakeRegate(ok=True, outcome='regated')
+    ft = fundamental_turn(
+        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
+        estimate=_est(), regate=regate,
+    )
+    assert ft.tier == 'tier1'
+    assert ft.driver_recommended is True
+    assert eng.calls == []  # no drive evidence → no goldfish.
+    assert regate.calls == []  # a current driver is never re-gated during scoring.
+
+
+def test_valid_drive_but_meta_unreadable_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Racy delete: state=='valid' and driver_is_drive True, but read_meta returns None between
+    the state check and the goldfish (the driver dir vanished). The DRIVE block must fall back to
+    the closed form rather than crash or run a driverless goldfish."""
+    monkeypatch.setattr(drivers, 'driver_state', lambda deck, *, data_dir=None: 'valid')
+    monkeypatch.setattr(drivers, 'driver_is_drive', lambda deck, *, data_dir=None: True)
+    monkeypatch.setattr(drivers, 'classes_dir', lambda deck, *, data_dir=None: '/tmp/classes')
+    monkeypatch.setattr(drivers, 'read_meta', lambda deck, *, data_dir=None: None)  # racy delete.
+    eng = _FakeEngine(median=3.0)
+    ft = fundamental_turn(
+        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'), estimate=_est(),
+    )
+    assert ft.tier == 'tier1'
+    assert ft.driver_recommended is True
+    assert eng.calls == []  # no driverless goldfish on a vanished driver.
 
 
 # --------------------------------------------------------------------------- #
@@ -130,6 +202,7 @@ def test_ac3_no_install_never_runs_goldfish(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_control_returns_na(monkeypatch: pytest.MonkeyPatch) -> None:
+    _driver(monkeypatch, state='absent', is_drive=None)
     eng = _FakeEngine()
     ft = fundamental_turn(
         _Deck(), [], None, install=object(), engine=eng,
@@ -146,19 +219,20 @@ def test_control_returns_na(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_sentinel_no_kill_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
-    _valid(monkeypatch, ok=True)
+    _driver(monkeypatch, state='valid', is_drive=True)
     eng = _FakeEngine(median=-1.0)
     ft = fundamental_turn(
         _Deck(), [], None, install=object(), engine=eng,
-        deck_ref=('Fake Deck', 'dcktext'), estimate=_est(needs_tier2=True, own_turn=6.0),
+        deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=6.0),
     )
     assert ft.tier == 'tier1'
     assert ft.turn == 6.0  # the tier-1 number, NOT -1.
-    assert ft.tier2_recommended is True
+    assert ft.driver_recommended is True
     assert len(eng.calls) == 1  # the goldfish DID run; its -1 was mapped honestly.
 
 
-def test_returns_fundamental_turn_type() -> None:
+def test_returns_fundamental_turn_type(monkeypatch: pytest.MonkeyPatch) -> None:
+    _driver(monkeypatch, state='absent', is_drive=None)
     ft = fundamental_turn(_Deck(), [], None, estimate=_est())
     assert isinstance(ft, FundamentalTurn)
 
@@ -192,10 +266,10 @@ class _FakeEngineAll(_FakeEngine):
 
 def test_tier2_uses_all_games_median_not_kills_median(monkeypatch: pytest.MonkeyPatch) -> None:
     """Kills-median 4.0 but all-games median 6.0 (bricks drag it) -> the rubric's answer is 6.0."""
-    _valid(monkeypatch, True)
+    _driver(monkeypatch, state='valid', is_drive=True)
     eng = _FakeEngineAll(kills_median=4.0, all_median=6.0, bricks=8)
     ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng,
-                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0, needs_tier2=True))
+                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0))
     assert ft.tier == 'tier2'
     assert ft.turn == 6.0
 
@@ -203,22 +277,22 @@ def test_tier2_uses_all_games_median_not_kills_median(monkeypatch: pytest.Monkey
 def test_tier2_majority_bricks_falls_back_flagged(monkeypatch: pytest.MonkeyPatch) -> None:
     """>=50% bricks -> all-games median lands past the brick cap -> no honest clock ->
     Tier-1 fallback with lowered confidence (never the flattering kills-only median)."""
-    _valid(monkeypatch, True)
+    _driver(monkeypatch, state='valid', is_drive=True)
     eng = _FakeEngineAll(kills_median=4.0, all_median=26.0, bricks=11, max_turn=25)
     ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng,
-                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0, needs_tier2=True, confidence='high'))
+                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0, confidence='high'))
     assert ft.tier == 'tier1'
     assert ft.turn == 5.0
-    assert ft.tier2_recommended is True
+    assert ft.driver_recommended is True
     assert ft.confidence != 'high'
 
 
 def test_tier2_old_harness_without_all_median_keeps_kills_median(monkeypatch: pytest.MonkeyPatch) -> None:
     """Older summary output (no medianAllOwn) -> preserve prior behavior rather than guessing."""
-    _valid(monkeypatch, True)
+    _driver(monkeypatch, state='valid', is_drive=True)
     eng = _FakeEngineAll(kills_median=4.0, all_median=None, max_turn=None, bricks=None)
     ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng,
-                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0, needs_tier2=True))
+                          deck_ref=('Fake Deck', 'dcktext'), estimate=_est(own_turn=5.0))
     assert ft.tier == 'tier2'
     assert ft.turn == 4.0
 
@@ -235,7 +309,7 @@ def test_parse_goldfish_summary_reads_median_all_own() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Issue #52 — STALE driver auto-re-gate flows (all mocked; no JVM/ECJ).        #
+# Stale-driver auto-re-gate flows (all mocked; no JVM/ECJ).                    #
 # --------------------------------------------------------------------------- #
 
 
@@ -256,31 +330,49 @@ class _FakeRegate:
         return self
 
 
-def _stale(monkeypatch: pytest.MonkeyPatch) -> None:
+def _stale(monkeypatch: pytest.MonkeyPatch, *, is_drive: bool | None = True) -> None:
+    """A STALE DRIVE driver by default (post-regate it becomes a valid DRIVE driver → goldfish)."""
     monkeypatch.setattr(drivers, 'driver_state', lambda deck, *, data_dir=None: 'stale')
+    monkeypatch.setattr(drivers, 'driver_is_drive', lambda deck, *, data_dir=None: is_drive)
     monkeypatch.setattr(drivers, 'classes_dir', lambda deck, *, data_dir=None: '/tmp/classes')
+    dclass = 'drive' if is_drive else ('thin' if is_drive is False else 'unknown')
     monkeypatch.setattr(
         drivers, 'read_meta',
         lambda deck, *, data_dir=None: drivers.DriverMeta(
-            deck_version='v', harness_version='h', fqcn='makemagic.driver.Fake', gates_passed=True
+            deck_version='v', harness_version='h', fqcn='makemagic.driver.Fake',
+            gates_passed=True, driver_class=dclass,
         ),
     )
 
 
 def test_stale_regates_then_runs_tier2(monkeypatch: pytest.MonkeyPatch) -> None:
-    """STALE + successful re-gate → the driver becomes valid and Tier-2 runs the goldfish."""
-    _stale(monkeypatch)
-    # after a successful re-gate the router treats state as valid and reads meta for the driver.
+    """STALE + successful re-gate → the driver becomes valid and (being DRIVE) Tier-2 runs."""
+    _stale(monkeypatch, is_drive=True)
     eng = _FakeEngine(median=3.0)
     regate = _FakeRegate(ok=True, outcome='regated')
     ft = fundamental_turn(
         _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
-        estimate=_est(needs_tier2=True), regate=regate,
+        estimate=_est(), regate=regate,
     )
     assert ft.tier == 'tier2'
     assert ft.turn == 3.0
     assert len(regate.calls) == 1  # re-gate attempted exactly ONCE.
     assert len(eng.calls) == 1
+
+
+def test_stale_thin_regates_then_stays_closed_form(monkeypatch: pytest.MonkeyPatch) -> None:
+    """STALE THIN driver + successful re-gate → valid THIN → closed form, no goldfish."""
+    _stale(monkeypatch, is_drive=False)
+    eng = _FakeEngine(median=3.0)
+    regate = _FakeRegate(ok=True, outcome='regated')
+    ft = fundamental_turn(
+        _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
+        estimate=_est(own_turn=5.0), regate=regate,
+    )
+    assert len(regate.calls) == 1
+    assert ft.tier == 'tier1'
+    assert ft.turn == 5.0
+    assert eng.calls == []  # re-gated, but THIN → no goldfish.
 
 
 def test_stale_failed_regate_falls_back_loudly(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -290,12 +382,12 @@ def test_stale_failed_regate_falls_back_loudly(monkeypatch: pytest.MonkeyPatch) 
     regate = _FakeRegate(ok=False, outcome='failed', reason='driven medianKillsOwn WORSE than CP7')
     ft = fundamental_turn(
         _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
-        estimate=_est(needs_tier2=True), regate=regate,
+        estimate=_est(), regate=regate,
     )
     assert ft.tier == 'tier1'
-    assert ft.tier2_recommended is True
-    assert 'FAILED re-gate' in ft.source_rationale
-    assert 'WORSE than CP7' in ft.source_rationale  # names the gate failure, not the quiet text.
+    assert ft.driver_recommended is True
+    assert 'failed re-gate' in ft.source_rationale
+    assert 'WORSE than CP7' in ft.source_rationale  # the gate failure reason is surfaced.
     assert eng.calls == []  # no Tier-2 goldfish after a failed re-gate.
 
 
@@ -306,11 +398,11 @@ def test_stale_environment_failure_falls_back_loudly(monkeypatch: pytest.MonkeyP
     regate = _FakeRegate(ok=False, outcome='environment', reason='no ECJ/JRE available')
     ft = fundamental_turn(
         _Deck(), [], None, install=object(), engine=eng, deck_ref=('Fake Deck', 'dck'),
-        estimate=_est(needs_tier2=True), regate=regate,
+        estimate=_est(), regate=regate,
     )
     assert ft.tier == 'tier1'
-    assert ft.tier2_recommended is True
-    assert 'could not run in THIS environment' in ft.source_rationale
+    assert ft.driver_recommended is True
+    assert 'could not be re-gated in this environment' in ft.source_rationale
     assert 'no ECJ/JRE' in ft.source_rationale
     assert eng.calls == []
 
@@ -318,6 +410,7 @@ def test_stale_environment_failure_falls_back_loudly(monkeypatch: pytest.MonkeyP
 def test_broken_driver_names_gate_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """A BROKEN driver (gates_passed=false) → loud Tier-1 naming the recorded gate failure."""
     monkeypatch.setattr(drivers, 'driver_state', lambda deck, *, data_dir=None: 'broken')
+    monkeypatch.setattr(drivers, 'driver_is_drive', lambda deck, *, data_dir=None: None)
     monkeypatch.setattr(
         drivers, 'read_meta',
         lambda deck, *, data_dir=None: drivers.DriverMeta(
@@ -326,9 +419,9 @@ def test_broken_driver_names_gate_failure(monkeypatch: pytest.MonkeyPatch) -> No
         ),
     )
     eng = _FakeEngine()
-    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng, estimate=_est(needs_tier2=True))
+    ft = fundamental_turn(_Deck(), [], None, install=object(), engine=eng, estimate=_est())
     assert ft.tier == 'tier1'
-    assert ft.tier2_recommended is True
+    assert ft.driver_recommended is True
     assert 'BROKEN' in ft.source_rationale
     assert 'macro never fired' in ft.source_rationale
     assert eng.calls == []
@@ -338,7 +431,7 @@ def test_stale_no_install_does_not_regate(monkeypatch: pytest.MonkeyPatch) -> No
     """STALE with NO install must not attempt a re-gate (needs the engine) — quiet fallback."""
     _stale(monkeypatch)
     regate = _FakeRegate(ok=True, outcome='regated')
-    ft = fundamental_turn(_Deck(), [], None, install=None, estimate=_est(needs_tier2=True), regate=regate)
+    ft = fundamental_turn(_Deck(), [], None, install=None, estimate=_est(), regate=regate)
     assert ft.tier == 'tier1'
-    assert ft.tier2_recommended is True
+    assert ft.driver_recommended is True
     assert regate.calls == []  # no engine → no re-gate.

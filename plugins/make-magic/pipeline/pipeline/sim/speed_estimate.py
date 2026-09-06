@@ -17,9 +17,9 @@ Three models, one per archetype family:
   3. draw-aware hypergeometric assembly + execution-lag (combo): the turn the
      hypergeometric draw model says every combo piece is assembled, PLUS an
      execution-lag term (deploy the remaining pieces + a turn to fire the loop).
-     Combo ALWAYS sets ``needs_tier2=True`` — the closed form gives the assembly
-     turn but the execution tail is exactly what the Tier-2 driven goldfish
-     resolves.
+     The closed form gives the assembly turn; the execution tail is what a DRIVEN
+     goldfish resolves — but whether one runs is the router's call (keyed on the
+     deck's authored driver richness), not a flag set here.
 
 Control decks get **Speed N/A** (``own_turn=None``): a control deck has no honest
 own-turn kill, so we refuse to emit a fake number.
@@ -115,18 +115,16 @@ DRAW_RATE_CAP = 0.6
 
 @dataclass(frozen=True)
 class SpeedEstimate:
-    """A Tier-1 kill-completion estimate.
+    """The closed-form own-turn kill estimate.
 
-    ``own_turn`` is the predicted turn the deck closes (float; ``None`` for control
-    decks, which have no honest kill turn — Speed N/A). ``needs_tier2`` flags decks
-    (combo) whose execution tail the closed form cannot resolve and which should
-    escalate to the Phase-2 driven goldfish. ``rationale`` states the math and the
-    constants behind the number.
+    ``own_turn`` is the predicted turn the deck closes (``None`` for control decks, which have no
+    honest kill turn — Speed N/A). ``rationale`` states the math and the constants behind it.
+    Whether Speed escalates to a driven goldfish is the router's decision, keyed on driver
+    richness — not encoded here.
     """
 
     own_turn: float | None
     confidence: str
-    needs_tier2: bool
     archetype: str
     rationale: str
 
@@ -312,7 +310,7 @@ def _estimate_aggro(cards: list[dict], lethal: float) -> SpeedEstimate:
     burns = [b for b in burns if b > 0]
 
     if not creatures and not burns:
-        return SpeedEstimate(None, 'low', False, 'aggro', 'no creatures or burn — no aggro clock.')
+        return SpeedEstimate(None, 'low', 'aggro', 'no creatures or burn — no aggro clock.')
 
     n_creatures = len(creatures)
     avg_power = (sum(_power(c) for c in creatures) / n_creatures) if n_creatures else 0.0
@@ -333,10 +331,10 @@ def _estimate_aggro(cards: list[dict], lethal: float) -> SpeedEstimate:
                 f'lethal={lethal:g} on own-turn {t} '
                 f'(combat {combat:.1f} + burn {burn:.1f}).'
             )
-            return SpeedEstimate(float(t), 'high', False, 'aggro', rationale)
+            return SpeedEstimate(float(t), 'high', 'aggro', rationale)
 
     return SpeedEstimate(
-        20.0, 'low', False, 'aggro',
+        20.0, 'low', 'aggro',
         f'aggro clock never reaches lethal={lethal:g} within 20 turns (grindy).',
     )
 
@@ -379,7 +377,7 @@ def _estimate_ramp(cards: list[dict], lethal: float, archetype: str) -> SpeedEst
         # No true top-end: fall back to the biggest creature as the payoff threat.
         creatures = [c for c in nonland if _is_creature(c)]
         if not creatures:
-            return SpeedEstimate(None, 'low', False, archetype, 'no creature payoff to connect with.')
+            return SpeedEstimate(None, 'low', archetype, 'no creature payoff to connect with.')
         payoff = max(creatures, key=_power)
 
     payoff_cmc = _cmc(payoff)
@@ -396,7 +394,7 @@ def _estimate_ramp(cards: list[dict], lethal: float, archetype: str) -> SpeedEst
         f'on deploy-turn {deploy_turn}; connect needs ceil(lethal={lethal:g}/{payoff_power:g})='
         f'{connect} swings -> own-turn {own_turn:g}.'
     )
-    return SpeedEstimate(own_turn, confidence, False, archetype, rationale)
+    return SpeedEstimate(own_turn, confidence, archetype, rationale)
 
 
 # --------------------------------------------------------------------------- #
@@ -433,16 +431,16 @@ def _estimate_combo(
     The 0.35 threshold is a FINDABILITY bar, not certainty: naive findability is
     exactly this, and the spike showed it under-predicts by 2-3 turns — so we ADD
     the execution-lag (you still have to cast the pieces one per turn and spend a
-    turn firing the loop). ``needs_tier2`` is ALWAYS True: the closed form nails the
-    assembly turn but the true execution tail (interaction, mana sequencing, the
-    actual loop) is what the Tier-2 driven goldfish resolves.
+    turn firing the loop). The closed form nails the assembly turn; the true execution
+    tail (interaction, mana sequencing, the actual loop) is what a DRIVEN goldfish
+    resolves — if the router escalates (driver-richness call), not a flag set here.
     """
     expanded = _expand(cards)
     deck_size = len(expanded)
     piece_copies, num_pieces = _combo_piece_copies(cards, combo_pieces)
 
     if num_pieces == 0 or deck_size == 0:
-        return SpeedEstimate(None, 'low', True, 'combo', 'no combo pieces detected — escalate to Tier-2.')
+        return SpeedEstimate(None, 'low', 'combo', 'no combo pieces detected.')
 
     # Draw acceleration from one-shot draw spells (Sign in Blood / Night's Whisper
     # class): each nets ~DRAW_SPELL_YIELD cards; spread over the deck as an extra
@@ -481,10 +479,9 @@ def _estimate_combo(
         f'(copies {piece_copies}) in a {deck_size}-card deck, draw_rate {draw_rate:.2f}. '
         f'P(all pieces assembled) crosses {COMBO_ASSEMBLY_THRESHOLD:g} on turn '
         f'{assembly_turn} (P={p_at_assembly:.2f}); +execution-lag {execution_lag} '
-        f'(deploy {num_pieces - 1} + fire 1) -> own-turn {own_turn:g}. needs_tier2: the '
-        f'closed form gives assembly, the execution tail needs the driven goldfish.'
+        f'(deploy {num_pieces - 1} + fire 1) -> own-turn {own_turn:g}.'
     )
-    return SpeedEstimate(own_turn, 'low', True, 'combo', rationale)
+    return SpeedEstimate(own_turn, 'low', 'combo', rationale)
 
 
 # --------------------------------------------------------------------------- #
@@ -516,14 +513,15 @@ def estimate_speed(
         lethal: Damage to win (default 20 = 1v1 life; pass 40 for Commander).
 
     Returns:
-        A :class:`SpeedEstimate`. Control -> ``own_turn=None`` (Speed N/A). Combo ->
-        ``needs_tier2=True``.
+        A :class:`SpeedEstimate`. Control -> ``own_turn=None`` (Speed N/A). Every other
+        archetype returns its closed-form own-turn; escalation to a driven goldfish is the
+        router's decision (driver richness), not encoded in the estimate.
     """
     arch = archetype or detect_archetype(cards, card_otag, combo_pieces=combo_pieces)
 
     if arch == 'control':
         return SpeedEstimate(
-            None, 'n/a', False, 'control',
+            None, 'n/a', 'control',
             'control: no honest own-turn kill (wins by attrition/inevitability, not a '
             'closed-form clock) — Speed N/A.',
         )
