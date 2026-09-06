@@ -1599,6 +1599,16 @@ def test_bracket_band_sanity_on_golden_decks():
     db_path = db / 'make_magic.duckdb' if db.is_dir() else db
     if not db_path.exists():
         pytest.skip(f'canonical store not present: {db_path}')
+    # The file can exist WITHOUT a decks table (e.g. a CI runner where another test
+    # created an empty default store) — treat a missing/unpopulated decks table the
+    # same as an absent store, per this test's local/dev-only intent.
+    import duckdb as _ddb
+
+    try:
+        with _ddb.connect(str(db_path), read_only=True) as _c:
+            _c.execute('select 1 from decks limit 1').fetchone()
+    except Exception:
+        pytest.skip(f'canonical decks store not present/populated: {db_path}')
 
     scripts_dir = _Path(__file__).resolve().parents[2] / 'scripts'
     if str(scripts_dir) not in _sys.path:
