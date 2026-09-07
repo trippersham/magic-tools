@@ -171,6 +171,7 @@ function enrich(name, extra, lake) {
     usd,
     reason: extra.reason ?? null,
     cut: extra.cut ?? null,
+    labels: extra.labels ?? undefined,
   };
 }
 
@@ -195,6 +196,7 @@ const deckEnriched = deck.map((c) =>
       mana_cost: c.mana_cost,
       type_line: c.type_line,
       colors: c.colors,
+      labels: c.labels,
     },
     lake,
   ),
@@ -203,10 +205,10 @@ const deckEnriched = deck.map((c) =>
 // their copy count; per-name qty maps ride on the changeset so the diff engine
 // nets copies without re-parsing the authored file.
 const addsEnriched = cs.adds.map((a) =>
-  enrich(a.name, { qty: a.qty ?? 1, reason: a.reason, cut: a.cut }, lake),
+  enrich(a.name, { qty: a.qty ?? 1, reason: a.reason, cut: a.cut, labels: a.labels }, lake),
 );
 const considEnriched = cs.considerations.map((c) =>
-  enrich(c.name, { qty: 1, reason: c.reason }, lake),
+  enrich(c.name, { qty: 1, reason: c.reason, labels: c.labels }, lake),
 );
 
 const qtyMap = (list) => {
@@ -226,6 +228,8 @@ const enriched = {
     addQty: qtyMap(cs.adds),
     dropQty: qtyMap(cs.drops),
   },
+  // v5 — authored strategy-role column order, carried through for the Labels facet.
+  label_order: cs.label_order ?? [],
 };
 
 const out = join(DATA, 'enriched.json');

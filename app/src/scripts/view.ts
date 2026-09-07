@@ -454,7 +454,7 @@ export function fanClose(after?: () => void): void {
  * listeners survive); within a column the sort stays mana-value then name.
  * ------------------------------------------------------------------ */
 
-type GroupMode = 'type' | 'color';
+type GroupMode = 'type' | 'color' | 'labels';
 let currentGrouping: GroupMode = 'type';
 
 const TYPE_ORDER = [
@@ -463,6 +463,25 @@ const TYPE_ORDER = [
 ];
 const COLOR_ORDER = ['White', 'Blue', 'Black', 'Red', 'Green', 'Multicolor', 'Colorless', 'Land'];
 const COLOR_NAME: Record<string, string> = { W: 'White', U: 'Blue', B: 'Black', R: 'Red', G: 'Green' };
+
+// v5 — Labels grouping. The bucket for cards with no labels, ordered last (mirrors
+// lib/grouping.ts UNLABELED). Authored column order is read from #facets-data.
+const UNLABELED = 'Unlabeled';
+
+function readLabelOrder(): string[] {
+  try {
+    const el = document.getElementById('facets-data');
+    if (!el?.textContent) return [];
+    const parsed = JSON.parse(el.textContent) as { labelOrder?: string[] };
+    return parsed.labelOrder ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function labelsOf(card: HTMLElement): string[] {
+  return (card.dataset.labels ?? '').split('|').filter(Boolean);
+}
 
 // Mirrors lib/grouping.ts groupOf() so Type mode reproduces the server layout.
 function typeGroupOf(card: HTMLElement): string {
@@ -503,7 +522,71 @@ function buildColumn(group: string, cards: HTMLElement[]): HTMLElement {
   return sec;
 }
 
+const sortByCmcName = (a: HTMLElement, b: HTMLElement): number =>
+  (Number(a.dataset.cmc) || 0) - (Number(b.dataset.cmc) || 0) ||
+  (a.dataset.name ?? '').localeCompare(b.dataset.name ?? '');
+
+/**
+ * A visual duplicate of a card for a SECONDARY label column (v5 multi-membership).
+ * Marked data-label-dup + data-clone-of so the stacking/expansion machinery (which
+ * only iterates `:not([data-clone-of])`) treats it as inert and skips it. Removed
+ * wholesale when the grouping axis changes. Info-pane listeners are re-attached;
+ * drag is delegated so no per-node wiring is needed.
+ */
+function makeLabelDup(master: HTMLElement): HTMLElement {
+  const c = master.cloneNode(true) as HTMLElement;
+  c.dataset.labelDup = 'true';
+  c.dataset.cloneOf = master.dataset.name ?? '';
+  wireCard(c);
+  return c;
+}
+
+function regroupWrapByLabels(wrap: HTMLElement, order: string[]): void {
+  // Canonical originals only — any prior label-dups were removed by applyGrouping.
+  const cards = Array.from(
+    wrap.querySelectorAll<HTMLElement>('.card[data-name]:not([data-label-dup])'),
+  );
+  const buckets = new Map<string, HTMLElement[]>();
+  const firstSeen: string[] = [];
+  const unlabeled: HTMLElement[] = [];
+  for (const card of cards) {
+    const labels = labelsOf(card);
+    if (labels.length === 0) {
+      unlabeled.push(card);
+      continue;
+    }
+    labels.forEach((label, idx) => {
+      if (!buckets.has(label)) {
+        buckets.set(label, []);
+        firstSeen.push(label);
+      }
+      // The original node lands in its FIRST label column; each additional label
+      // gets a duplicate so the card appears in every one of its columns.
+      buckets.get(label)!.push(idx === 0 ? card : makeLabelDup(card));
+    });
+  }
+  const ordered: string[] = [];
+  const emitted = new Set<string>();
+  for (const g of order) if (buckets.has(g) && !emitted.has(g)) (ordered.push(g), emitted.add(g));
+  for (const g of firstSeen) if (!emitted.has(g)) (ordered.push(g), emitted.add(g));
+
+  wrap.replaceChildren();
+  for (const g of ordered) {
+    const cs = buckets.get(g)!;
+    cs.sort(sortByCmcName);
+    wrap.appendChild(buildColumn(g, cs));
+  }
+  if (unlabeled.length > 0) {
+    unlabeled.sort(sortByCmcName);
+    wrap.appendChild(buildColumn(UNLABELED, unlabeled));
+  }
+}
+
 function regroupWrap(wrap: HTMLElement, mode: GroupMode): void {
+  if (mode === 'labels') {
+    regroupWrapByLabels(wrap, readLabelOrder());
+    return;
+  }
   const cards = Array.from(wrap.querySelectorAll<HTMLElement>('.card[data-name]'));
   const buckets = new Map<string, HTMLElement[]>();
   for (const card of cards) {
@@ -517,17 +600,16 @@ function regroupWrap(wrap: HTMLElement, mode: GroupMode): void {
   for (const g of order) {
     const cs = buckets.get(g);
     if (!cs || cs.length === 0) continue;
-    cs.sort(
-      (a, b) =>
-        (Number(a.dataset.cmc) || 0) - (Number(b.dataset.cmc) || 0) ||
-        (a.dataset.name ?? '').localeCompare(b.dataset.name ?? ''),
-    );
+    cs.sort(sortByCmcName);
     wrap.appendChild(buildColumn(g, cs));
   }
 }
 
 function applyGrouping(mode: GroupMode): void {
   currentGrouping = mode;
+  // Drop any label-dups from a previous Labels layout so every axis regroups from
+  // the canonical original nodes.
+  document.querySelectorAll<HTMLElement>('[data-label-dup]').forEach((el) => el.remove());
   // Collapse any expanded copies first so only master nodes are re-bucketed;
   // stacking is re-applied afterward. Keeps the DOM canonical across regroups.
   collapseAll();
@@ -698,6 +780,7 @@ function relocateCards(): void {
   if (!main || !consid) return;
 
   document.querySelectorAll<HTMLElement>('.card[data-name]').forEach((card) => {
+    if (card.dataset.labelDup === 'true') return; // v5 secondary-column duplicate
     const m = card.dataset.membership as Membership;
     let destWrap: HTMLElement | null = null;
     if (m === 'consideration') destWrap = consid;
@@ -781,7 +864,11 @@ function initView(): void {
     const rerender = () => {
       collapseAll();
       relocateCards();
-      applyStacking();
+      // In Labels mode, re-bucket so a re-tagged card's secondary-label clones
+      // regenerate with the fresh border/membership (v5) instead of going stale;
+      // applyGrouping re-applies stacking + view itself. Other axes just restack.
+      if (currentGrouping === 'labels') applyGrouping('labels');
+      else applyStacking();
     };
     // If a re-tag came from an OPEN fan, let its spring-back rubber-band play to
     // completion first, THEN re-render (v4.4). Otherwise re-render immediately.

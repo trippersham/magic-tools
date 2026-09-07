@@ -13,6 +13,8 @@ export interface DeckCard {
   colors: string[];
   color_identity: string[];
   role?: string | null;
+  /** Strategy-role tags (v5), authored in the data. */
+  labels?: string[];
 }
 
 /** A card after prep.mjs enrichment (image + price), as stored in enriched.json. */
@@ -30,6 +32,8 @@ export interface EnrichedCard {
   usd: number | null;
   reason: string | null;
   cut: string | null;
+  /** Strategy-role tags (v5), authored in the data. A card may carry several. */
+  labels?: string[];
 }
 
 /** An enriched card tagged with its diff membership for rendering. */
@@ -81,4 +85,6 @@ export interface EnrichedData {
   adds: EnrichedCard[];
   considerations: EnrichedCard[];
   changeset: Changeset;
+  /** Authored strategy-role column order (v5), carried through by prep. */
+  label_order?: string[];
 }

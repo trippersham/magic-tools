@@ -5,7 +5,7 @@
 
 import { applyGrouping, setDensity, setStacking } from './view';
 
-type GroupBy = 'type' | 'color';
+type GroupBy = 'type' | 'color' | 'labels';
 type RenderMode = 'cards' | 'text';
 type Density = 'compact' | 'art' | 'full';
 
@@ -18,7 +18,7 @@ interface FacetState {
 }
 
 const KEY = 'deck-diff:facets';
-const DEFAULTS: FacetState = {
+export const DEFAULTS: FacetState = {
   groupBy: 'type',
   render: 'cards',
   density: 'art',
@@ -26,14 +26,37 @@ const DEFAULTS: FacetState = {
   stackBasicLands: true,
 };
 
+/**
+ * Merge persisted (partial) facet state onto the defaults and coerce an invalid
+ * groupBy. `labels` is a conditional facet: when the loaded data carries no
+ * labels there is no Labels column axis to restore, so a persisted
+ * `groupBy: "labels"` falls back to `type` (v5).
+ */
+export function normalizeFacets(parsed: Partial<FacetState>, hasLabels: boolean): FacetState {
+  const merged = { ...DEFAULTS, ...parsed };
+  if (merged.groupBy === 'labels' && !hasLabels) merged.groupBy = 'type';
+  return merged;
+}
+
 let state: FacetState = { ...DEFAULTS };
 
+/** Whether the loaded enriched data has at least one label (from #facets-data). */
+function readHasLabels(): boolean {
+  try {
+    const el = document.getElementById('facets-data');
+    if (!el?.textContent) return false;
+    return Boolean((JSON.parse(el.textContent) as { hasLabels?: boolean }).hasLabels);
+  } catch {
+    return false;
+  }
+}
+
 function load(): void {
+  const hasLabels = readHasLabels();
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as Partial<FacetState>;
-    state = { ...DEFAULTS, ...parsed };
+    const parsed = raw ? (JSON.parse(raw) as Partial<FacetState>) : {};
+    state = normalizeFacets(parsed, hasLabels);
   } catch {
     state = { ...DEFAULTS };
   }

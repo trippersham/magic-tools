@@ -2,7 +2,7 @@
 import '../styles/global.css';
 import Card from '../components/Card.astro';
 import MetadataBand from '../components/MetadataBand.astro';
-import { toColumns } from '../lib/grouping';
+import { toColumns, hasAnyLabels } from '../lib/grouping';
 import { nameDiffMap } from '../lib/diff';
 import { stackBadge } from '../lib/instances';
 import type { EnrichedData, TaggedCard, Membership, EnrichedCard } from '../lib/types';
@@ -92,6 +92,13 @@ const VIEWS = [
 
 const deckName = 'Ardenn + Rográkh';
 
+// v5 — Labels is a CONDITIONAL facet: the radio + client axis only exist when the
+// enriched data actually carries labels. Checked across the full rendered set
+// (deck superset + considerations) so a label anywhere enables the mode.
+const hasLabels = hasAnyLabels([...superset, ...considTagged]);
+const labelOrder = data.label_order ?? [];
+const facetsData = { hasLabels, labelOrder };
+
 // Column header counts are quantity-weighted so a basic-land pile (Plains x15)
 // counts as 15, not one tile.
 const colQty = (cards: TaggedCard[]) => cards.reduce((a, c) => a + (c.qty ?? 1), 0);
@@ -172,6 +179,9 @@ const baseline = {
             <div class="dropdown-panel" data-dropdown-panel hidden role="menu" aria-label="Group by">
               <label class="dd-opt"><input type="radio" name="groupBy" value="type" /> Type</label>
               <label class="dd-opt"><input type="radio" name="groupBy" value="color" /> Color</label>
+              {hasLabels && (
+                <label class="dd-opt"><input type="radio" name="groupBy" value="labels" /> Labels</label>
+              )}
             </div>
           </div>
 
@@ -325,6 +335,7 @@ const baseline = {
 
     <script type="application/json" id="baseline-data" set:html={JSON.stringify(baseline)}></script>
     <script type="application/json" id="cards-data" set:html={JSON.stringify(cardsData)}></script>
+    <script type="application/json" id="facets-data" set:html={JSON.stringify(facetsData)}></script>
 
     <script src="../scripts/main.ts"></script>
   </body>

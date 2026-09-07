@@ -1,6 +1,7 @@
 [
   {
     "name": "Ardenn, Intrepid Archaeologist",
+    "labels": ["Commander / carrier"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{2}{W}",
@@ -15,6 +16,7 @@
   },
   {
     "name": "Rograkh, Son of Rohgahh",
+    "labels": ["Commander / carrier"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "{0}",
@@ -29,6 +31,7 @@
   },
   {
     "name": "Bonesplitter",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 1.0,
     "mana_cost": "{1}",
@@ -39,6 +42,7 @@
   },
   {
     "name": "Dead-Iron Sledge",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 1.0,
     "mana_cost": "{1}",
@@ -49,6 +53,7 @@
   },
   {
     "name": "Prowler's Helm",
+    "labels": ["Equipment", "Evasion"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",
@@ -59,6 +64,7 @@
   },
   {
     "name": "Vorrac Battlehorns",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",
@@ -69,6 +75,7 @@
   },
   {
     "name": "Vulshok Morningstar",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",
@@ -79,6 +86,7 @@
   },
   {
     "name": "Banshee's Blade",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",
@@ -89,6 +97,7 @@
   },
   {
     "name": "Fireshrieker",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{3}",
@@ -99,6 +108,7 @@
   },
   {
     "name": "Mithril Coat",
+    "labels": ["Equipment", "Protection / resilience"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{3}",
@@ -109,6 +119,7 @@
   },
   {
     "name": "Twin Blades",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{2}{R}",
@@ -123,6 +134,7 @@
   },
   {
     "name": "Gimli's Axe",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{2}{R}",
@@ -137,6 +149,7 @@
   },
   {
     "name": "Dragon Mantle",
+    "labels": ["Aura", "Card draw"],
     "quantity": 1,
     "mana_value": 1.0,
     "mana_cost": "{R}",
@@ -151,6 +164,7 @@
   },
   {
     "name": "Blessed Breath",
+    "labels": ["Protection / resilience"],
     "quantity": 1,
     "mana_value": 1.0,
     "mana_cost": "{W}",
@@ -165,6 +179,7 @@
   },
   {
     "name": "Hakoda, Selfless Commander",
+    "labels": ["Protection / resilience"],
     "quantity": 1,
     "mana_value": 4.0,
     "mana_cost": "{3}{W}",
@@ -179,6 +194,7 @@
   },
   {
     "name": "Chimil, the Inner Sun",
+    "labels": ["Card draw", "Protection / resilience"],
     "quantity": 1,
     "mana_value": 6.0,
     "mana_cost": "{6}",
@@ -189,6 +205,7 @@
   },
   {
     "name": "Sigil of the New Dawn",
+    "labels": ["Recursion"],
     "quantity": 1,
     "mana_value": 4.0,
     "mana_cost": "{3}{W}",
@@ -203,6 +220,7 @@
   },
   {
     "name": "Hammer of Purphoros",
+    "labels": ["Anthem / support"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{1}{R}{R}",
@@ -217,6 +235,7 @@
   },
   {
     "name": "You Cannot Pass!",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 1.0,
     "mana_cost": "{W}",
@@ -231,6 +250,7 @@
   },
   {
     "name": "Shatter",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{1}{R}",
@@ -245,6 +265,7 @@
   },
   {
     "name": "Pacifism",
+    "labels": ["Aura", "Removal / interaction"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{1}{W}",
@@ -259,6 +280,7 @@
   },
   {
     "name": "Topple",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{2}{W}",
@@ -273,6 +295,7 @@
   },
   {
     "name": "Altar's Light",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 4.0,
     "mana_cost": "{2}{W}{W}",
@@ -287,6 +310,7 @@
   },
   {
     "name": "Cathartic Pyre",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{1}{R}",
@@ -301,6 +325,7 @@
   },
   {
     "name": "Lembas",
+    "labels": ["Card draw"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",
@@ -311,6 +336,7 @@
   },
   {
     "name": "Mirror of Galadriel",
+    "labels": ["Card draw"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",
@@ -321,6 +347,7 @@
   },
   {
     "name": "Auriok Steelshaper",
+    "labels": ["Equipment payoff"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{1}{W}",
@@ -335,6 +362,7 @@
   },
   {
     "name": "Leonin Den-Guard",
+    "labels": ["Equipment payoff"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{1}{W}",
@@ -349,6 +377,7 @@
   },
   {
     "name": "Éowyn, Lady of Rohan",
+    "labels": ["Equipment payoff"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{2}{W}",
@@ -363,6 +392,7 @@
   },
   {
     "name": "Skyhunter Cub",
+    "labels": ["Equipment payoff"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{2}{W}",
@@ -377,6 +407,7 @@
   },
   {
     "name": "Myr Adapter",
+    "labels": ["Equipment payoff"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{3}",
@@ -387,6 +418,7 @@
   },
   {
     "name": "Taj-Nar Swordsmith",
+    "labels": ["Equipment payoff"],
     "quantity": 1,
     "mana_value": 4.0,
     "mana_cost": "{3}{W}",
@@ -401,6 +433,7 @@
   },
   {
     "name": "Loxodon Punisher",
+    "labels": ["Equipment payoff"],
     "quantity": 1,
     "mana_value": 4.0,
     "mana_cost": "{3}{W}",
@@ -415,6 +448,7 @@
   },
   {
     "name": "Master Piandao",
+    "labels": ["Equipment payoff"],
     "quantity": 1,
     "mana_value": 5.0,
     "mana_cost": "{4}{W}",
@@ -429,6 +463,7 @@
   },
   {
     "name": "Suki, Kyoshi Captain",
+    "labels": ["Anthem / support"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{2}{W}",
@@ -443,6 +478,7 @@
   },
   {
     "name": "Myr Retriever",
+    "labels": ["Recursion"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",
@@ -453,6 +489,7 @@
   },
   {
     "name": "Moraug, Fury of Akoum",
+    "labels": ["Extra combat"],
     "quantity": 1,
     "mana_value": 6.0,
     "mana_cost": "{4}{R}{R}",
@@ -467,6 +504,7 @@
   },
   {
     "name": "Command Tower",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -477,6 +515,7 @@
   },
   {
     "name": "Ancient Den",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -489,6 +528,7 @@
   },
   {
     "name": "Great Furnace",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -501,6 +541,7 @@
   },
   {
     "name": "The Grey Havens",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -511,6 +552,7 @@
   },
   {
     "name": "Ice Floe",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -521,6 +563,7 @@
   },
   {
     "name": "Shimmerdrift Vale",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -531,6 +574,7 @@
   },
   {
     "name": "White Lotus Hideout",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -541,6 +585,7 @@
   },
   {
     "name": "Rumble Arena",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -551,6 +596,7 @@
   },
   {
     "name": "Crown of Awe",
+    "labels": ["Aura", "Protection / resilience"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{1}{W}",
@@ -565,6 +611,7 @@
   },
   {
     "name": "Barrels of Blasting Jelly",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 1.0,
     "mana_cost": "{1}",
@@ -575,6 +622,7 @@
   },
   {
     "name": "Shire Scarecrow",
+    "labels": ["Card draw"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",
@@ -585,6 +633,7 @@
   },
   {
     "name": "Slagwurm Armor",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 1.0,
     "mana_cost": "{1}",
@@ -595,6 +644,7 @@
   },
   {
     "name": "Darksteel Citadel",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -605,6 +655,7 @@
   },
   {
     "name": "Ash Barrens",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -615,6 +666,7 @@
   },
   {
     "name": "Dúnedain Blade",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{1}{W}",
@@ -629,6 +681,7 @@
   },
   {
     "name": "Mechanical Glider",
+    "labels": ["Equipment", "Evasion"],
     "quantity": 1,
     "mana_value": 1.0,
     "mana_cost": "{1}",
@@ -639,6 +692,7 @@
   },
   {
     "name": "Thriving Bluff",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -651,6 +705,7 @@
   },
   {
     "name": "Thriving Heath",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -663,6 +718,7 @@
   },
   {
     "name": "Rip Apart",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{R}{W}",
@@ -679,6 +735,7 @@
   },
   {
     "name": "Make Your Move",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{2}{W}",
@@ -693,6 +750,7 @@
   },
   {
     "name": "Destroy Evil",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{1}{W}",
@@ -707,6 +765,7 @@
   },
   {
     "name": "Path of Ancestry",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -717,6 +776,7 @@
   },
   {
     "name": "Nesting Grounds",
+    "labels": ["Mana base (land)"],
     "quantity": 1,
     "mana_value": 0.0,
     "mana_cost": "",
@@ -727,6 +787,7 @@
   },
   {
     "name": "Plains",
+    "labels": ["Mana base (land)"],
     "quantity": 15,
     "mana_value": null,
     "mana_cost": null,
@@ -737,6 +798,7 @@
   },
   {
     "name": "Mountain",
+    "labels": ["Mana base (land)"],
     "quantity": 7,
     "mana_value": null,
     "mana_cost": null,
@@ -747,6 +809,7 @@
   },
   {
     "name": "Silent Arbiter",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 4.0,
     "mana_cost": "{4}",
@@ -757,6 +820,7 @@
   },
   {
     "name": "Exploding Barrel",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{3}",
@@ -767,6 +831,7 @@
   },
   {
     "name": "Fanatical Devotion",
+    "labels": ["Protection / resilience"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{2}{W}",
@@ -781,6 +846,7 @@
   },
   {
     "name": "Indomitable Will",
+    "labels": ["Aura"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{1}{W}",
@@ -805,6 +871,7 @@
   },
   {
     "name": "Hawkeye's Bow",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 1.0,
     "mana_cost": "{R}",
@@ -819,6 +886,7 @@
   },
   {
     "name": "Kyoshi Battle Fan",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",
@@ -829,6 +897,7 @@
   },
   {
     "name": "Pteron Ghost",
+    "labels": ["Protection / resilience"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{1}{W}",
@@ -843,6 +912,7 @@
   },
   {
     "name": "Quiet Purity",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 1.0,
     "mana_cost": "{W}",
@@ -857,6 +927,7 @@
   },
   {
     "name": "Terashi's Verdict",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{1}{W}",
@@ -871,6 +942,7 @@
   },
   {
     "name": "Shadowfax, Lord of Horses",
+    "labels": ["Anthem / support"],
     "quantity": 1,
     "mana_value": 5.0,
     "mana_cost": "{3}{R}{W}",
@@ -887,6 +959,7 @@
   },
   {
     "name": "Meteor Sword",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 7.0,
     "mana_cost": "{7}",
@@ -897,6 +970,7 @@
   },
   {
     "name": "Soul Nova",
+    "labels": ["Removal / interaction"],
     "quantity": 1,
     "mana_value": 5.0,
     "mana_cost": "{3}{W}{W}",
@@ -911,6 +985,7 @@
   },
   {
     "name": "Leonin Scimitar",
+    "labels": ["Equipment"],
     "quantity": 1,
     "mana_value": 1.0,
     "mana_cost": "{1}",
@@ -921,6 +996,7 @@
   },
   {
     "name": "Gold Myr",
+    "labels": ["Ramp / fast mana"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",
@@ -933,6 +1009,7 @@
   },
   {
     "name": "Iron Myr",
+    "labels": ["Ramp / fast mana"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",
@@ -945,6 +1022,7 @@
   },
   {
     "name": "Serum Tank",
+    "labels": ["Card draw"],
     "quantity": 1,
     "mana_value": 3.0,
     "mana_cost": "{3}",
@@ -955,6 +1033,7 @@
   },
   {
     "name": "Coldsteel Heart",
+    "labels": ["Ramp / fast mana"],
     "quantity": 1,
     "mana_value": 2.0,
     "mana_cost": "{2}",

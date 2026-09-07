@@ -57,6 +57,7 @@ const isBasic = /\bBasic\b/.test(card.type_line ?? '');
   data-cmc={card.cmc}
   data-colors={(card.colors ?? []).join(',')}
   data-type-line={card.type_line}
+  data-labels={(card.labels ?? []).join('|')}
   data-role={card.role ?? ''}
   data-reason={card.reason ?? ''}
   data-usd={card.usd == null ? '' : String(card.usd)}
