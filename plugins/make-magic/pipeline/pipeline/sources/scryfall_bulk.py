@@ -119,6 +119,7 @@ def _project(card: dict[str, Any]) -> dict[str, Any]:
         'power': card.get('power'),
         'toughness': card.get('toughness'),
         'art_crop': card.get('image_uris', {}).get('art_crop'),
+        'image_normal': card.get('image_uris', {}).get('normal'),
         'scryfall_uri': card.get('scryfall_uri'),
         'set_name': card.get('set_name'),
     }

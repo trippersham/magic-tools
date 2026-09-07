@@ -124,6 +124,7 @@ def _land_canonical_card(name: str, oracle_id: str) -> None:
         'power': None,
         'toughness': None,
         'art_crop': None,
+        'image_normal': None,
         'scryfall_uri': None,
         'set_name': 'Alpha',
     }

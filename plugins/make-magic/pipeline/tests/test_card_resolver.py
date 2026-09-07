@@ -43,6 +43,7 @@ _ORACLE_CARDS: list[dict[str, Any]] = [
         'power': None,
         'toughness': None,
         'art_crop': 'https://img/sol-ring.jpg',
+        'image_normal': 'https://img/sol-ring-normal.jpg',
         'scryfall_uri': 'https://scryfall.com/card/c21/263/sol-ring',
         'set_name': 'Commander 2021',
     },
@@ -60,6 +61,7 @@ _ORACLE_CARDS: list[dict[str, Any]] = [
         'power': '1',
         'toughness': '1',
         'art_crop': 'https://img/llanowar.jpg',
+        'image_normal': 'https://img/llanowar-normal.jpg',
         'scryfall_uri': 'https://scryfall.com/card/fdn/227/llanowar-elves',
         'set_name': 'Foundations',
     },
@@ -78,6 +80,7 @@ _ORACLE_CARDS: list[dict[str, Any]] = [
         'power': None,
         'toughness': None,
         'art_crop': 'https://img/fable.jpg',
+        'image_normal': 'https://img/fable-normal.jpg',
         'scryfall_uri': 'https://scryfall.com/card/neo/141/fable',
         'set_name': 'Kamigawa: Neon Dynasty',
     },
@@ -96,6 +99,7 @@ _ORACLE_CARDS: list[dict[str, Any]] = [
         'power': None,
         'toughness': None,
         'art_crop': 'https://img/split.jpg',
+        'image_normal': 'https://img/split-normal.jpg',
         'scryfall_uri': 'https://scryfall.com/x',
         'set_name': 'Test',
     },
@@ -115,6 +119,7 @@ _ORACLE_CARDS: list[dict[str, Any]] = [
         'power': None,
         'toughness': None,
         'art_crop': 'https://img/alpha.jpg',
+        'image_normal': 'https://img/alpha-normal.jpg',
         'scryfall_uri': 'https://scryfall.com/x',
         'set_name': 'Test',
     },
@@ -133,6 +138,7 @@ _ORACLE_CARDS: list[dict[str, Any]] = [
         'power': None,
         'toughness': None,
         'art_crop': 'https://img/jaya.jpg',
+        'image_normal': 'https://img/jaya-normal.jpg',
         'scryfall_uri': 'https://scryfall.com/card/dom/128/jayas-immolating-inferno',
         'set_name': 'Dominaria',
     },
@@ -229,6 +235,7 @@ def test_resolves_plain_card_offline(lake: Path) -> None:
     assert card.produced_mana == ['C']
     # presentation fields from the widened projection.
     assert card.art_crop == 'https://img/sol-ring.jpg'
+    assert card.image_normal == 'https://img/sol-ring-normal.jpg'
     assert card.scryfall_uri == 'https://scryfall.com/card/c21/263/sol-ring'
     assert card.set_name == 'Commander 2021'
 
@@ -264,6 +271,7 @@ def _empty_list_card(name: str, oid: str) -> dict[str, Any]:
         'power': None,
         'toughness': None,
         'art_crop': 'https://img/x.jpg',
+        'image_normal': 'https://img/x-normal.jpg',
         'scryfall_uri': 'https://scryfall.com/x',
         'set_name': 'Test',
     }
@@ -401,7 +409,7 @@ def _scryfall_named_payload(name: str) -> dict[str, Any]:
         'oracle_text': 'Draw two cards.',
         'power': None,
         'toughness': None,
-        'image_uris': {'art_crop': 'https://img/newcard.jpg'},
+        'image_uris': {'art_crop': 'https://img/newcard.jpg', 'normal': 'https://img/newcard-normal.jpg'},
         'scryfall_uri': 'https://scryfall.com/card/new/1/newcard',
         'set_name': 'New Set',
     }
@@ -430,6 +438,7 @@ def test_miss_falls_back_to_live_and_lands_durably(lake: Path) -> None:
     assert card is not None
     assert card.oracle_id == 'newcard-oid'
     assert card.art_crop == 'https://img/newcard.jpg'
+    assert card.image_normal == 'https://img/newcard-normal.jpg'
     assert counter.calls == 1
 
     # Second call for the SAME card issues ZERO further network (landed durably).
@@ -515,7 +524,7 @@ def test_fetch_card_raw_returns_full_dict_and_lands(lake: Path) -> None:
         'type_line': 'Instant',
         'color_identity': ['U'],
         'prices': {'usd': '1.23'},  # a field the Card contract drops.
-        'image_uris': {'art_crop': 'https://img/raw.jpg'},
+        'image_uris': {'art_crop': 'https://img/raw.jpg', 'normal': 'https://img/raw-normal.jpg'},
         'scryfall_uri': 'https://scryfall.com/x',
         'set_name': 'Set',
     }
@@ -535,6 +544,7 @@ def test_fetch_card_raw_returns_full_dict_and_lands(lake: Path) -> None:
     assert card is not None
     assert card.oracle_id == 'raw-oid'
     assert card.art_crop == 'https://img/raw.jpg'
+    assert card.image_normal == 'https://img/raw-normal.jpg'
 
 
 def test_fetch_card_raw_unresolved_returns_none(lake: Path) -> None:
@@ -576,6 +586,7 @@ def test_extended_fields_survive_hydrate_on_read_at_store_boundary(lake: Path) -
     deck = store_.get_deck('Ramp Deck')
     sol = next(c for c in deck.cards if c.name == 'Sol Ring')
     assert sol.art_crop == 'https://img/sol-ring.jpg'  # presentation, actual value
+    assert sol.image_normal == 'https://img/sol-ring-normal.jpg'
     assert set(sol.otags) == {'ramp', 'mana-rock'}  # functional, actual values
     assert 'ramp' in sol.otag_buckets
     assert sol.set_name == 'Commander 2021'

@@ -45,6 +45,7 @@ def _oracle(name: str, *, oid: str, cmc: float, type_line: str) -> dict[str, Any
         'power': None,
         'toughness': None,
         'art_crop': 'https://img/x.jpg',
+        'image_normal': 'https://img/x-normal.jpg',
         'scryfall_uri': 'https://scryfall.com/x',
         'set_name': 'Test',
     }
