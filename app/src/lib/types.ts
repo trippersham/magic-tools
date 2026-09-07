@@ -39,11 +39,15 @@ export interface TaggedCard extends EnrichedCard {
 
 export interface AddEntry {
   name: string;
+  /** Copies to add (v3.1). Optional; defaults to 1. */
+  qty?: number;
   cut: string;
   reason: string;
 }
 export interface DropEntry {
   name: string;
+  /** Copies to drop (v3.1). Optional; defaults to 1. Clamped to owned copies. */
+  qty?: number;
   reason: string;
 }
 export interface ConsiderationEntry {
@@ -59,11 +63,16 @@ export interface ChangesetV2 {
   considerations: ConsiderationEntry[];
 }
 
-/** Name-only changeset that the diff math and store key off. */
+/**
+ * Name-only changeset that the diff math and store key off. `addQty`/`dropQty`
+ * carry per-name copy counts (v3.1); a name absent from the map defaults to 1.
+ */
 export interface Changeset {
   adds: string[];
   drops: string[];
   considerations: string[];
+  addQty?: Record<string, number>;
+  dropQty?: Record<string, number>;
 }
 
 /** The offline build input — enriched.json. `changeset` is name-only. */

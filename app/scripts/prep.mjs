@@ -94,8 +94,19 @@ const deckEnriched = deck.map((c) =>
     colors: c.colors,
   }),
 );
-const addsEnriched = cs.adds.map((a) => enrich(a.name, { qty: 1, reason: a.reason, cut: a.cut }));
+// v3.1: adds/drops carry an optional `qty` (default 1). Enriched add cards keep
+// their copy count; per-name qty maps ride on the changeset so the diff engine
+// nets copies without re-parsing the authored file.
+const addsEnriched = cs.adds.map((a) =>
+  enrich(a.name, { qty: a.qty ?? 1, reason: a.reason, cut: a.cut }),
+);
 const considEnriched = cs.considerations.map((c) => enrich(c.name, { qty: 1, reason: c.reason }));
+
+const qtyMap = (list) => {
+  const m = {};
+  for (const e of list) if (e.qty != null && e.qty !== 1) m[e.name] = e.qty;
+  return m;
+};
 
 const enriched = {
   deck: deckEnriched,
@@ -105,6 +116,8 @@ const enriched = {
     adds: cs.adds.map((a) => a.name),
     drops: cs.drops.map((d) => d.name),
     considerations: cs.considerations.map((c) => c.name),
+    addQty: qtyMap(cs.adds),
+    dropQty: qtyMap(cs.drops),
   },
 };
 

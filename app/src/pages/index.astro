@@ -3,35 +3,83 @@ import '../styles/global.css';
 import Card from '../components/Card.astro';
 import MetadataBand from '../components/MetadataBand.astro';
 import { toColumns } from '../lib/grouping';
-import type { EnrichedData, TaggedCard, Membership } from '../lib/types';
+import { nameDiffMap } from '../lib/diff';
+import { stackBadge } from '../lib/instances';
+import type { EnrichedData, TaggedCard, Membership, EnrichedCard } from '../lib/types';
 import enrichedData from '../data/enriched.json';
 
 const data = enrichedData as unknown as EnrichedData;
-const dropSet = new Set(data.changeset.drops);
 
-// Tag every card with its baseline diff membership. Reasons/prices ride along
-// on each enriched card and are surfaced by the floating info pane.
-const deckTagged: TaggedCard[] = data.deck.map((c) => ({
-  ...c,
-  membership: (dropSet.has(c.name) ? 'drop' : 'untouched') as Membership,
-}));
-const addsTagged: TaggedCard[] = data.adds.map((c) => ({ ...c, membership: 'add' as Membership }));
+// v3.2: nameDiffMap is the SOLE source of per-tile membership AND quantity. The
+// old binary `dropSet.has(name)` tagging is gone — every consumer (tiles, view
+// filtering, metadata) reads the same per-name netting.
+const perName = nameDiffMap(data.deck, data.changeset);
+const countsFor = (name: string) =>
+  perName.get(name) ?? { untouchedQty: 0, droppedQty: 0, addedQty: 0 };
+
+const deckByName = new Map<string, EnrichedCard>(data.deck.map((c) => [c.name, c]));
+const addByName = new Map<string, EnrichedCard>(data.adds.map((c) => [c.name, c]));
+
+// The master tile's primary membership label derives from the netted badge kind
+// (unchanged→untouched, drop, add). A genuinely mixed name stays a deck resident
+// ('untouched') — its amber border comes from the badge kind in Card.astro and
+// its per-copy visibility from the u/r/a counts, not from this coarse label.
+function primaryLabel(nd: {
+  untouchedQty: number;
+  droppedQty: number;
+  addedQty: number;
+}): Membership {
+  const kind = stackBadge(nd).kind;
+  if (kind === 'drop') return 'drop';
+  if (kind === 'add') return 'add';
+  return 'untouched';
+}
+
+// One master tile per name: deck residents (possibly with drops/adds) plus
+// pure-add names. A name in both deck AND adds yields ONE tile (from the deck
+// card) carrying addedQty — no double-render.
+const masters = [...perName.values()]
+  .map((nd) => {
+    const base = deckByName.get(nd.name) ?? addByName.get(nd.name);
+    if (!base) return null;
+    return {
+      card: { ...base, membership: primaryLabel(nd) } as TaggedCard,
+      u: nd.untouchedQty,
+      r: nd.droppedQty,
+      a: nd.addedQty,
+    };
+  })
+  .filter((m): m is NonNullable<typeof m> => m !== null);
+
 const considTagged: TaggedCard[] = (data.considerations ?? []).map((c) => ({
   ...c,
   membership: 'consideration' as Membership,
 }));
 
-const untouched = deckTagged.filter((c) => c.membership === 'untouched');
-const drops = deckTagged.filter((c) => c.membership === 'drop');
-const adds = addsTagged;
-
 // Superset rendered once (deck + adds); the client script filters per view.
-const superset: TaggedCard[] = [...untouched, ...drops, ...adds];
+const superset: TaggedCard[] = masters.map((m) => m.card);
 const columns = toColumns(superset);
 const considColumns = toColumns(considTagged);
 
-const current = [...untouched, ...drops];
-const proposed = [...untouched, ...adds];
+// Quantity-correct metadata arrays for the SSR band (qty overrides so a partial
+// drop keeps its survivors and an add-to-existing counts once, grown).
+const mCurrent: TaggedCard[] = [];
+const mProposed: TaggedCard[] = [];
+const mAdds: TaggedCard[] = [];
+const mDrops: TaggedCard[] = [];
+for (const nd of perName.values()) {
+  const base = deckByName.get(nd.name) ?? addByName.get(nd.name);
+  if (!base) continue;
+  const cur = nd.untouchedQty + nd.droppedQty;
+  const prop = nd.untouchedQty + nd.addedQty;
+  if (cur > 0) mCurrent.push({ ...base, qty: cur, membership: 'untouched' });
+  if (prop > 0) mProposed.push({ ...base, qty: prop, membership: 'untouched' });
+  if (nd.addedQty > 0) mAdds.push({ ...base, qty: nd.addedQty, membership: 'add' });
+  if (nd.droppedQty > 0) mDrops.push({ ...base, qty: nd.droppedQty, membership: 'drop' });
+}
+
+const dropCount = masters.filter((m) => m.r > 0).length;
+const addCount = masters.filter((m) => m.a > 0).length;
 
 const VIEWS = [
   ['all', 'All'],
@@ -49,14 +97,36 @@ const deckName = 'Ardenn + Rográkh';
 const colQty = (cards: TaggedCard[]) => cards.reduce((a, c) => a + (c.qty ?? 1), 0);
 
 // Slim per-card stat data for the client-side live metadata band (recomputed on
-// every curation change). Covers deck + adds + considerations.
-const cardsData = [...deckTagged, ...addsTagged, ...considTagged].map((c) => ({
-  name: c.name,
-  qty: c.qty,
-  cmc: c.cmc,
-  mana_cost: c.mana_cost ?? null,
-  type_line: c.type_line,
-}));
+// every curation change). ONE entry per name carrying the netted u/r/a counts so
+// the band buckets by netted quantities (no double-count for add-to-existing);
+// considerations ride along as a disjoint pool.
+const cardsData = [
+  ...[...perName.values()].map((nd) => {
+    const base = deckByName.get(nd.name) ?? addByName.get(nd.name);
+    return {
+      name: nd.name,
+      qty: nd.deckQty || nd.addedQty,
+      cmc: base?.cmc ?? 0,
+      mana_cost: base?.mana_cost ?? null,
+      type_line: base?.type_line ?? '',
+      u: nd.untouchedQty,
+      r: nd.droppedQty,
+      a: nd.addedQty,
+      consideration: false,
+    };
+  }),
+  ...considTagged.map((c) => ({
+    name: c.name,
+    qty: c.qty,
+    cmc: c.cmc,
+    mana_cost: c.mana_cost ?? null,
+    type_line: c.type_line,
+    u: 0,
+    r: 0,
+    a: 0,
+    consideration: true,
+  })),
+];
 
 // Baseline the client store keys off (deck name + hash of this changeset).
 const baseline = {
@@ -81,25 +151,63 @@ const baseline = {
         <div>
           <h1 class="text-2xl font-bold tracking-tight">{deckName}</h1>
           <p class="text-sm text-zinc-400">
-            Proposed refinement — <span class="text-red-400">{drops.length} drops</span> /
-            <span class="text-emerald-400">{adds.length} adds</span> /
+            Proposed refinement — <span class="text-red-400">{dropCount} drops</span> /
+            <span class="text-emerald-400">{addCount} adds</span> /
             <span class="text-zinc-300">{considTagged.length} considerations</span>. Hover for
             details; drag a card to re-tag it.
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-4">
-          <div class="segmented" role="group" aria-label="Group by">
-            <button type="button" data-group-btn="type" class="seg-btn is-active">Type</button>
-            <button type="button" data-group-btn="color" class="seg-btn">Color</button>
+          {/* Group By ▾ — radio Type · Color (v3.3) */}
+          <div class="dropdown" data-dropdown="group">
+            <button
+              type="button"
+              class="dropdown-btn"
+              data-dropdown-btn
+              aria-haspopup="true"
+              aria-expanded="false"
+            >
+              <span data-dropdown-label="group">Group By: Type</span>
+            </button>
+            <div class="dropdown-panel" data-dropdown-panel hidden role="menu" aria-label="Group by">
+              <label class="dd-opt"><input type="radio" name="groupBy" value="type" /> Type</label>
+              <label class="dd-opt"><input type="radio" name="groupBy" value="color" /> Color</label>
+            </div>
           </div>
-          <div class="segmented" role="group" aria-label="Density">
-            <button type="button" data-density-btn="art" class="seg-btn is-active">Art</button>
-            <button type="button" data-density-btn="compact" class="seg-btn">Compact</button>
+
+          {/* Render ▾ — Mode + (Cards-only) Density / Stacking (v3.3) */}
+          <div class="dropdown" data-dropdown="render">
+            <button
+              type="button"
+              class="dropdown-btn"
+              data-dropdown-btn
+              aria-haspopup="true"
+              aria-expanded="false"
+            >
+              <span data-dropdown-label="render">Render: Cards</span>
+              <span class="dd-caret" aria-hidden="true"></span>
+            </button>
+            <div class="dropdown-panel" data-dropdown-panel hidden role="menu" aria-label="Render">
+              <div class="dd-section" role="radiogroup" aria-label="Mode">
+                <div class="dd-heading">Mode</div>
+                <label class="dd-opt"><input type="radio" name="mode" value="cards" /> Cards</label>
+                <label class="dd-opt"><input type="radio" name="mode" value="text" /> Text</label>
+              </div>
+              <div class="dd-cards-only" data-cards-only>
+                <hr class="dd-rule" />
+                <div class="dd-section" role="radiogroup" aria-label="Density">
+                  <div class="dd-heading">Density</div>
+                  <label class="dd-opt"><input type="radio" name="density" value="compact" /> Compact</label>
+                  <label class="dd-opt"><input type="radio" name="density" value="art" /> Art</label>
+                  <label class="dd-opt"><input type="radio" name="density" value="full" /> Full</label>
+                </div>
+                <hr class="dd-rule" />
+                <label class="dd-opt"><input type="checkbox" name="stackDuplicates" /> Stack Duplicates</label>
+                <label class="dd-opt"><input type="checkbox" name="stackBasicLands" /> Stack Basic Lands</label>
+              </div>
+            </div>
           </div>
-          <label class="flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
-            <input type="checkbox" data-text-toggle class="accent-emerald-500" />
-            Text view
-          </label>
+
           <button type="button" data-export class="action-btn">Export curation</button>
           <button type="button" data-reset class="action-btn action-btn-ghost">Reset to proposed</button>
         </div>
@@ -115,7 +223,7 @@ const baseline = {
         }
       </nav>
 
-      <MetadataBand current={current} proposed={proposed} adds={adds} drops={drops} />
+      <MetadataBand current={mCurrent} proposed={mProposed} adds={mAdds} drops={mDrops} />
 
       {/* Image stacks view */}
       <div class="stacks-view flex flex-wrap items-start gap-5">
@@ -127,7 +235,12 @@ const baseline = {
               </h2>
               <div class="stack">
                 {col.cards.map((card) => (
-                  <Card card={card} />
+                  <Card
+                    card={card}
+                    untouchedQty={countsFor(card.name).untouchedQty}
+                    droppedQty={countsFor(card.name).droppedQty}
+                    addedQty={countsFor(card.name).addedQty}
+                  />
                 ))}
               </div>
             </section>
@@ -196,6 +309,9 @@ const baseline = {
 
     {/* Drag donut (v2.6) — rendered/positioned by drag.ts on drag start. */}
     <div id="drag-donut" hidden aria-hidden="true"></div>
+
+    {/* Fan layer (v4.4) — a stacked master's copies spread here when unstacked. */}
+    <div id="fan-layer" hidden></div>
 
     {/* Note input popover (v2.6 annotate) */}
     <div id="note-popover" hidden>

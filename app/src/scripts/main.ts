@@ -4,6 +4,7 @@
 
 import { initStore, exportCuration, resetToProposed, dismissedCount, restoreDismissed } from './store';
 import { initView } from './view';
+import { initFacets } from './facets';
 import { initDrag } from './drag';
 import { initMetadata } from './metadataLive';
 
@@ -52,6 +53,7 @@ function wireControls(): void {
 function init(): void {
   initStore();
   initView();
+  initFacets();
   initMetadata();
   initDrag();
   wireControls();

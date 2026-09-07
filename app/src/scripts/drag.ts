@@ -1,7 +1,16 @@
-// Drag-to-tag controller (v2.6 / v2.8). Pointer Events (mouse + touch): press a
-// card and drag; the page fades, a radial donut of edge targets appears with a
-// dead-center no-op, and the release lands the pointer in a segment whose action
-// drives a pure curation transition. Presentation only — logic is in curation.ts.
+// Drag-to-tag controller (v4). Pointer Events. Two entry gestures:
+//
+//   • Singleton / expanded tile / fanned tile → a normal per-INSTANCE drag: the
+//     page fades, a radial donut of edge targets appears, and the release lands
+//     the pointer in a segment whose action drives a pure curation transition on
+//     THAT instance.
+//   • Stacked multi master → the progressive fan gesture (v4.4): grip and drag;
+//     the group fans open VERTICALLY in place, tracking drag distance; release
+//     past the threshold springs to the fully-expanded column, release below it
+//     springs back to the stack. No shake — the fan follows the finger.
+//
+// Presentation only — the transition logic is in curation.ts, the fan layout in
+// view.ts. Instances are identity-free: dragging tile i re-tags instance i.
 
 import {
   donutSegments,
@@ -12,10 +21,27 @@ import {
   type Segment,
   type DonutGeometry,
 } from '../lib/curation';
-import { getMembership, setMembership, setNote, getNote } from './store';
-import { suppressPaneForDrag } from './view';
+import {
+  instanceMembership,
+  setInstanceMembership,
+  setInstanceNote,
+  getInstanceNote,
+  instanceCount,
+} from './store';
+import {
+  suppressPaneForDrag,
+  fanBegin,
+  fanSetProgress,
+  fanSettleOpen,
+  fanClose,
+  isFanned,
+  isFanElement,
+} from './view';
 
-const START_THRESHOLD = 6; // px before a press becomes a drag
+const START_THRESHOLD = 6; // px before a press becomes a per-instance drag
+
+/* Gesture physics (hand-rolled, tune in iteration). */
+const UNSTACK_FACTOR = 0.65; // full-fan at ≈ 0.65 × card-height of drag distance
 
 /** Donut geometry, sized to the viewport: the empty center (deadzone) hole has a
  *  diameter of 50% of the window's smaller dimension. */
@@ -23,9 +49,18 @@ function geo(): DonutGeometry {
   return { radius: 200, deadzone: 0.25 * Math.min(window.innerWidth, window.innerHeight) };
 }
 
+function center(): { x: number; y: number } {
+  return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+}
+
+/* ------------------------------------------------------------------ *
+ * Per-instance drag
+ * ------------------------------------------------------------------ */
+
 interface DragCtx {
   card: HTMLElement;
   name: string;
+  index: number;
   membership: Membership;
   startX: number;
   startY: number;
@@ -37,22 +72,15 @@ interface DragCtx {
 
 let ctx: DragCtx | null = null;
 
-function center(): { x: number; y: number } {
-  return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-}
-
-function onPointerDown(e: PointerEvent): void {
-  if (e.button !== 0 && e.pointerType === 'mouse') return;
-  const card = (e.target as HTMLElement).closest<HTMLElement>('.card[data-name]');
-  if (!card) return;
-  const name = card.dataset.name!;
-  const membership = getMembership(name);
+function startInstanceDrag(e: PointerEvent, card: HTMLElement, name: string, index: number): void {
+  const membership = instanceMembership(name, index);
   if (donutSegments(membership).length === 0) return; // dismissed / nothing to do
 
   const c = center();
   ctx = {
     card,
     name,
+    index,
     membership,
     startX: e.clientX,
     startY: e.clientY,
@@ -88,9 +116,7 @@ function onPointerMove(e: PointerEvent): void {
     if (Math.hypot(dxs, dys) < START_THRESHOLD) return;
     beginDrag();
   }
-  // Move the card visually with the pointer.
   ctx.card.style.transform = `translate(${dxs}px, ${dys}px) scale(1.04)`;
-  // Highlight the hovered segment (pointer relative to donut center).
   const action = hitTest(ctx.membership, e.clientX - ctx.cx, e.clientY - ctx.cy, geo());
   highlight(action);
 }
@@ -111,15 +137,20 @@ function onPointerUp(e: PointerEvent): void {
   endDragVisuals(cur.card);
   ctx = null;
 
-  if (!action) return; // dead-center / outside -> cancel, no-op
+  if (!action) {
+    // Dead-center / outside → cancel. A tile dragged from an open fan just
+    // rubber-bands the fan closed.
+    if (isFanned()) fanClose();
+    return;
+  }
 
   cur.card.dataset.dragMoved = 'true'; // suppress the trailing click->pane
   if (action === 'annotate') {
-    openNote(cur.name);
+    openNote(cur.name, cur.index);
     return;
   }
   const result = applyAction(cur.membership, action);
-  setMembership(cur.name, result.membership);
+  setInstanceMembership(cur.name, cur.index, result.membership);
 }
 
 function onPointerCancel(): void {
@@ -148,13 +179,128 @@ function resetCard(card: HTMLElement): void {
 }
 
 /* ------------------------------------------------------------------ *
+ * The progressive fan gesture (stacked multi masters). Grip + drag fans the
+ * group open vertically in place, tracking drag distance; release decides
+ * settle-open (past threshold) vs spring-back (below). The layout/spring lives
+ * in view.ts (fanBegin / fanSetProgress / fanSettleOpen / fanClose).
+ * ------------------------------------------------------------------ */
+
+interface GripCtx {
+  master: HTMLElement;
+  name: string;
+  startX: number;
+  startY: number;
+  threshold: number;
+  began: boolean; // fanBegin() has fired (crossed START_THRESHOLD)
+}
+
+let grip: GripCtx | null = null;
+
+function startGrip(e: PointerEvent, master: HTMLElement, name: string): void {
+  const h = master.getBoundingClientRect().height || 329;
+  grip = {
+    master,
+    name,
+    startX: e.clientX,
+    startY: e.clientY,
+    threshold: h * UNSTACK_FACTOR,
+    began: false,
+  };
+  // Track via window listeners (no pointer capture — the master is hidden once
+  // the fan begins, which would drop a captured pointer).
+  window.addEventListener('pointermove', onGripMove);
+  window.addEventListener('pointerup', onGripUp);
+  window.addEventListener('pointercancel', onGripCancel);
+}
+
+function gripDist(e: PointerEvent): number {
+  return Math.hypot(e.clientX - grip!.startX, e.clientY - grip!.startY);
+}
+
+function onGripMove(e: PointerEvent): void {
+  if (!grip) return;
+  const dist = gripDist(e);
+  if (!grip.began) {
+    if (dist < START_THRESHOLD) return;
+    if (!fanBegin(grip.master)) {
+      cleanupGrip();
+      grip = null;
+      return;
+    }
+    grip.began = true;
+  }
+  // Fan tracks the finger: 0 = stacked, 1 (at threshold) = fully expanded.
+  fanSetProgress(dist / grip.threshold);
+}
+
+function onGripUp(e: PointerEvent): void {
+  if (!grip) return;
+  const g = grip;
+  const dist = gripDist(e);
+  cleanupGrip();
+  grip = null;
+  if (!g.began) return; // never crossed START_THRESHOLD → nothing happened
+  if (dist >= g.threshold) fanSettleOpen(); // past threshold → stays expanded
+  else fanClose(); // below threshold → springs back to the stack
+}
+
+function onGripCancel(): void {
+  if (!grip) return;
+  const began = grip.began;
+  cleanupGrip();
+  grip = null;
+  if (began) fanClose();
+}
+
+function cleanupGrip(): void {
+  window.removeEventListener('pointermove', onGripMove);
+  window.removeEventListener('pointerup', onGripUp);
+  window.removeEventListener('pointercancel', onGripCancel);
+}
+
+/* ------------------------------------------------------------------ *
+ * Pointer entry — routes a press to a per-instance drag or the gesture, and
+ * enforces the transient/modal fan (interacting outside it closes it).
+ * ------------------------------------------------------------------ */
+
+function onPointerDown(e: PointerEvent): void {
+  if (e.button !== 0 && e.pointerType === 'mouse') return;
+  const target = e.target as HTMLElement;
+
+  // Transient/modal: a press outside the open fan springs it closed (and is
+  // consumed as the dismiss — no drag/gesture starts on that press).
+  if (isFanned() && !isFanElement(target)) {
+    fanClose();
+    return;
+  }
+
+  const card = target.closest<HTMLElement>('.card[data-name]');
+  if (!card) return;
+  const name = card.dataset.name!;
+
+  // An expanded copy or a fanned tile carries its instance index → drag it.
+  if (card.dataset.instanceIndex !== undefined) {
+    startInstanceDrag(e, card, name, Number(card.dataset.instanceIndex));
+    return;
+  }
+
+  // A master. Multi + still stacked → the shake/unstack gesture (fork 2).
+  const total = instanceCount(name) || Number(card.dataset.qty) || 1;
+  const stacked = !card.classList.contains('is-stacked-hidden');
+  if (total > 1 && stacked) {
+    startGrip(e, card, name);
+    return;
+  }
+
+  // Singleton (fork 3) → straight to the donut on instance 0. No shake step.
+  startInstanceDrag(e, card, name, 0);
+}
+
+/* ------------------------------------------------------------------ *
  * Donut rendering — a full-screen SVG annulus: wedge segments sweep from
  * the empty dead-center hole out to the window edges.
  * ------------------------------------------------------------------ */
 
-// Angular span (radians, screen coords: 0 = +x/right, +y = down, clockwise) for
-// each region — matching hitTest's boundaries exactly so the wedge the pointer
-// sees is the wedge that fires.
 const REGION_ARC: Record<string, [number, number]> = {
   right: [-Math.PI / 2, Math.PI / 2],
   left: [Math.PI / 2, (3 * Math.PI) / 2],
@@ -165,15 +311,7 @@ const REGION_ARC: Record<string, [number, number]> = {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** Annulus-sector path from innerR..outerR spanning [a0, a1] about (cx, cy). */
-function sectorPath(
-  cx: number,
-  cy: number,
-  ri: number,
-  ro: number,
-  a0: number,
-  a1: number,
-): string {
+function sectorPath(cx: number, cy: number, ri: number, ro: number, a0: number, a1: number): string {
   const large = a1 - a0 > Math.PI ? 1 : 0;
   const pt = (r: number, a: number) => `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`;
   return (
@@ -190,9 +328,7 @@ function renderDonut(membership: Membership): void {
   const w = window.innerWidth;
   const h = window.innerHeight;
   const ri = geo().deadzone;
-  // Outer radius exceeds the farthest corner so the ring bleeds to every edge.
   const ro = Math.hypot(w, h);
-  // Labels sit midway between the hole edge and the nearest window edge.
   const labelR = ri + (Math.min(w, h) / 2 - ri) / 2;
 
   const wedges = segs
@@ -236,15 +372,16 @@ function hideDonut(): void {
 }
 
 /* ------------------------------------------------------------------ *
- * Note popover (annotate)
+ * Note popover (annotate) — per-instance keyed
  * ------------------------------------------------------------------ */
 
-function openNote(name: string): void {
+function openNote(name: string, index: number): void {
   const pop = document.getElementById('note-popover');
   if (!pop) return;
   const input = pop.querySelector<HTMLTextAreaElement>('.np-input')!;
-  input.value = getNote(name) ?? '';
+  input.value = getInstanceNote(name, index) ?? '';
   pop.dataset.name = name;
+  pop.dataset.instanceIndex = String(index);
   pop.hidden = false;
   input.focus();
 }
@@ -255,7 +392,8 @@ function initNotePopover(): void {
   const input = pop.querySelector<HTMLTextAreaElement>('.np-input')!;
   pop.querySelector<HTMLButtonElement>('.np-save')!.addEventListener('click', () => {
     const name = pop.dataset.name;
-    if (name) setNote(name, input.value.trim() || null);
+    const index = Number(pop.dataset.instanceIndex) || 0;
+    if (name) setInstanceNote(name, index, input.value.trim() || null);
     pop.hidden = true;
   });
   pop.querySelector<HTMLButtonElement>('.np-cancel')!.addEventListener('click', () => {
@@ -272,6 +410,7 @@ export function initDrag(): void {
       ctx.cy = c.y;
       renderDonut(ctx.membership);
     }
+    if (isFanned()) fanClose();
   });
   initNotePopover();
 }

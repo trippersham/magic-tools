@@ -1,29 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { computeDiff, currentDeck, proposedDeck } from './diff';
+import { describe, it, expect, vi } from 'vitest';
+import { computeDiff, currentDeck, proposedDeck, nameDiffMap } from './diff';
 import type { DeckCard, Changeset } from './types';
-import deckJson from '../data/deck.json';
-import changesetJson from '../data/changeset.json';
 
-// The v2 authored changeset (objects with reasons).
-const v2 = changesetJson as {
-  adds: { name: string }[];
-  drops: { name: string }[];
-  considerations: { name: string }[];
-};
-
-// Name-only changeset that the diff math keys off.
-const changeset: Changeset = {
-  adds: v2.adds.map((a) => a.name),
-  drops: v2.drops.map((d) => d.name),
-  considerations: v2.considerations.map((c) => c.name),
-};
-
-const addNames = new Set(changeset.adds);
-
-function stub(name: string): DeckCard {
+function card(name: string, quantity = 1): DeckCard {
   return {
     name,
-    quantity: 1,
+    quantity,
     mana_value: 0,
     mana_cost: null,
     type_line: 'Artifact',
@@ -32,75 +14,142 @@ function stub(name: string): DeckCard {
   };
 }
 
-// deck.json ships as the *proposed* deck (it already contains the adds). Build a
-// realistic *current* deck: the untouched real cards plus stubs for the drops,
-// so that drops ⊆ deck and adds ∩ deck = ∅ hold as they would pre-upgrade.
-const realDeck = deckJson as DeckCard[];
-const untouchedReal = realDeck.filter((c) => !addNames.has(c.name));
-const deck: DeckCard[] = [...untouchedReal, ...changeset.drops.map(stub)];
-
+const qtyTotal = (cards: DeckCard[]) => cards.reduce((a, c) => a + c.quantity, 0);
 const names = (cards: DeckCard[]) => new Set(cards.map((c) => c.name));
 
+describe('nameDiffMap — quantity netting', () => {
+  it('nets proposedQty = deckQty − dropQty + addQty', () => {
+    const deck = [card('Plains', 15), card('Sol Ring'), card('Silent Arbiter')];
+    const cs: Changeset = { adds: ['Tome of Legends'], drops: ['Silent Arbiter'], considerations: [] };
+    const m = nameDiffMap(deck, cs);
+    expect(m.get('Plains')!.proposedQty).toBe(15);
+    expect(m.get('Silent Arbiter')!.proposedQty).toBe(0);
+    expect(m.get('Tome of Legends')!.proposedQty).toBe(1);
+  });
+
+  it('add-to-existing grows proposedQty (name in deck AND adds)', () => {
+    const deck = [card('Hare Apparent', 4)];
+    const cs: Changeset = {
+      adds: ['Hare Apparent'],
+      drops: [],
+      considerations: [],
+      addQty: { 'Hare Apparent': 3 },
+    };
+    const nd = nameDiffMap(deck, cs).get('Hare Apparent')!;
+    expect(nd.deckQty).toBe(4);
+    expect(nd.addedQty).toBe(3);
+    expect(nd.untouchedQty).toBe(4);
+    expect(nd.droppedQty).toBe(0);
+    expect(nd.proposedQty).toBe(7);
+  });
+
+  it('partial drop → some untouched + some dropped', () => {
+    const deck = [card('Petitioners', 6)];
+    const cs: Changeset = {
+      adds: [],
+      drops: ['Petitioners'],
+      considerations: [],
+      dropQty: { Petitioners: 2 },
+    };
+    const nd = nameDiffMap(deck, cs).get('Petitioners')!;
+    expect(nd.untouchedQty).toBe(4);
+    expect(nd.droppedQty).toBe(2);
+    expect(nd.proposedQty).toBe(4);
+  });
+
+  it('full drop → 0 untouched, 0 proposed', () => {
+    const deck = [card('Silent Arbiter', 1)];
+    const cs: Changeset = { adds: [], drops: ['Silent Arbiter'], considerations: [] };
+    const nd = nameDiffMap(deck, cs).get('Silent Arbiter')!;
+    expect(nd.untouchedQty).toBe(0);
+    expect(nd.droppedQty).toBe(1);
+    expect(nd.proposedQty).toBe(0);
+  });
+
+  it('over-drop clamps to owned copies and warns', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const deck = [card('Plains', 3)];
+    const cs: Changeset = {
+      adds: [],
+      drops: ['Plains'],
+      considerations: [],
+      dropQty: { Plains: 5 },
+    };
+    const nd = nameDiffMap(deck, cs).get('Plains')!;
+    expect(nd.dropQty).toBe(5); // requested (raw) preserved
+    expect(nd.droppedQty).toBe(3); // clamped to owned
+    expect(nd.untouchedQty).toBe(0);
+    expect(nd.proposedQty).toBe(0);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it('mixed add + drop on the same name nets both', () => {
+    const deck = [card('Mountain', 7)];
+    const cs: Changeset = {
+      adds: ['Mountain'],
+      drops: ['Mountain'],
+      considerations: [],
+      addQty: { Mountain: 2 },
+      dropQty: { Mountain: 3 },
+    };
+    const nd = nameDiffMap(deck, cs).get('Mountain')!;
+    expect(nd.untouchedQty).toBe(4);
+    expect(nd.droppedQty).toBe(3);
+    expect(nd.addedQty).toBe(2);
+    expect(nd.proposedQty).toBe(6);
+  });
+});
+
 describe('computeDiff', () => {
-  const diff = computeDiff(deck, changeset);
+  const deck = [card('Plains', 15), card('Sol Ring'), card('Silent Arbiter')];
+  const cs: Changeset = {
+    adds: ['Tome of Legends'],
+    drops: ['Silent Arbiter'],
+    considerations: ['Skullclamp'],
+  };
+  const diff = computeDiff(deck, cs);
 
-  it('drops are a subset of the deck', () => {
-    const deckNames = names(deck);
-    for (const d of diff.drops) expect(deckNames.has(d.name)).toBe(true);
-    expect(diff.drops.length).toBe(changeset.drops.length);
+  it('emits qty-weighted untouched / drops / adds sets', () => {
+    expect(qtyTotal(diff.untouched)).toBe(16); // Plains 15 + Sol Ring 1
+    expect(qtyTotal(diff.drops)).toBe(1); // Silent Arbiter
+    expect(qtyTotal(diff.adds)).toBe(1); // Tome of Legends
   });
 
-  it('adds are disjoint from the deck', () => {
-    const deckNames = names(deck);
-    for (const a of diff.adds) expect(deckNames.has(a.name)).toBe(false);
+  it('a fully dropped name is absent from untouched', () => {
+    expect(names(diff.untouched).has('Silent Arbiter')).toBe(false);
+    expect(names(diff.drops).has('Silent Arbiter')).toBe(true);
   });
 
-  it('adds and drops are disjoint from each other', () => {
-    const dropNames = names(diff.drops);
-    for (const a of diff.adds) expect(dropNames.has(a.name)).toBe(false);
+  it('considerations pass through as a disjoint set', () => {
+    expect(diff.considerations.map((c) => c.name)).toEqual(['Skullclamp']);
   });
 
-  it('considerations pass through, disjoint from deck / adds / drops', () => {
-    const deckNames = names(deck);
-    const addN = names(diff.adds);
-    const dropN = names(diff.drops);
-    expect(diff.considerations.map((c) => c.name)).toEqual(changeset.considerations);
-    for (const c of diff.considerations) {
-      expect(deckNames.has(c.name)).toBe(false);
-      expect(addN.has(c.name)).toBe(false);
-      expect(dropN.has(c.name)).toBe(false);
-    }
+  it('currentDeck total = deck total (qty-weighted)', () => {
+    expect(qtyTotal(currentDeck(diff))).toBe(qtyTotal(deck));
   });
 
-  it('untouched contains no dropped card', () => {
-    const dropN = names(diff.drops);
-    for (const u of diff.untouched) expect(dropN.has(u.name)).toBe(false);
+  it('proposedDeck total = deck − drops + adds (qty-weighted, not size-preserving)', () => {
+    expect(qtyTotal(proposedDeck(diff))).toBe(qtyTotal(deck) - 1 + 1);
   });
 
-  it('untouched + drops partition the deck exactly', () => {
-    expect(diff.untouched.length + diff.drops.length).toBe(deck.length);
-    const recombined = names([...diff.untouched, ...diff.drops]);
-    expect(recombined).toEqual(names(deck));
-  });
-
-  it('proposedCount = deck.length − drops + adds (do not assume size-preserving)', () => {
-    const proposed = proposedDeck(diff);
-    expect(proposed.length).toBe(deck.length - diff.drops.length + diff.adds.length);
-  });
-
-  it('currentDeck reconstructs the original deck set', () => {
-    expect(names(currentDeck(diff))).toEqual(names(deck));
-    expect(currentDeck(diff).length).toBe(deck.length);
-  });
-
-  it('proposedDeck = untouched + adds', () => {
-    expect(names(proposedDeck(diff))).toEqual(names([...diff.untouched, ...diff.adds]));
+  it('add-to-existing produces a qty-weighted add tile without duplicating the deck copy', () => {
+    const deck2 = [card('Hare Apparent', 4)];
+    const cs2: Changeset = {
+      adds: ['Hare Apparent'],
+      drops: [],
+      considerations: [],
+      addQty: { 'Hare Apparent': 3 },
+    };
+    const d2 = computeDiff(deck2, cs2);
+    expect(qtyTotal(d2.untouched)).toBe(4);
+    expect(qtyTotal(d2.adds)).toBe(3);
+    expect(qtyTotal(proposedDeck(d2))).toBe(7);
   });
 
   it('honors explicit addCards over name-only stubs', () => {
-    const rich = changeset.adds.map((n) => ({ ...stub(n), quantity: 4, type_line: 'Creature' }));
-    const d2 = computeDiff(deck, changeset, rich);
-    expect(d2.adds.every((c) => c.quantity === 4)).toBe(true);
-    expect(d2.adds.length).toBe(changeset.adds.length);
+    const rich = [{ ...card('Tome of Legends'), type_line: 'Artifact', quantity: 1 }];
+    const d2 = computeDiff(deck, cs, rich);
+    expect(d2.adds.find((c) => c.name === 'Tome of Legends')?.type_line).toBe('Artifact');
   });
 });

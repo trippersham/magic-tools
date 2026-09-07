@@ -189,6 +189,139 @@ export function buildExport(states: Record<string, CardState>): CurationExport {
 }
 
 /* ------------------------------------------------------------------ *
+ * Per-instance state (v4.1) — pure helpers. The store (scripts/store.ts) is a
+ * thin DOM/localStorage wrapper over these. State is `Record<name, Instance[]>`:
+ * a name with u untouched + r drop + a add copies holds u+r+a instances, each
+ * carrying its own membership + note. Instances are positional / identity-free —
+ * indices are stable only within a session so the UI doesn't jump.
+ * ------------------------------------------------------------------ */
+
+export interface Instance {
+  membership: Membership;
+  note: string | null;
+}
+
+/** The full per-instance curation state, keyed by card name. */
+export type InstanceState = Record<string, Instance[]>;
+
+/** A deck/add name and its seed copy counts (from nameDiffMap). */
+export interface SeedName {
+  name: string;
+  u: number;
+  r: number;
+  a: number;
+}
+/** A consideration name and how many copies seed the pool (usually 1). */
+export interface SeedConsideration {
+  name: string;
+  qty: number;
+}
+
+/**
+ * Seed the instance state from the netted per-name counts (the nameDiffMap SSOT)
+ * plus the considerations pool. A name with u/r/a seeds u untouched + r drop + a
+ * add instances (order: untouched, drop, add). Considerations seed `qty` (≥1)
+ * consideration instances each. This is the file baseline that Reset restores.
+ */
+export function buildInstanceSeed(input: {
+  names: SeedName[];
+  considerations: SeedConsideration[];
+}): InstanceState {
+  const st: InstanceState = {};
+  for (const n of input.names) {
+    const list: Instance[] = [];
+    for (let i = 0; i < n.u; i++) list.push({ membership: 'untouched', note: null });
+    for (let i = 0; i < n.r; i++) list.push({ membership: 'drop', note: null });
+    for (let i = 0; i < n.a; i++) list.push({ membership: 'add', note: null });
+    if (list.length > 0) st[n.name] = list;
+  }
+  for (const c of input.considerations) {
+    const list: Instance[] = [];
+    const qty = Math.max(1, c.qty);
+    for (let i = 0; i < qty; i++) list.push({ membership: 'consideration', note: null });
+    st[c.name] = list;
+  }
+  return st;
+}
+
+export interface NameCounts {
+  u: number;
+  r: number;
+  a: number;
+  consideration: number;
+  dismissed: number;
+}
+
+/** Derive the {u,r,a,consideration,dismissed} counts for a name from its instances. */
+export function nameCounts(state: InstanceState, name: string): NameCounts {
+  const list = state[name] ?? [];
+  const c: NameCounts = { u: 0, r: 0, a: 0, consideration: 0, dismissed: 0 };
+  for (const inst of list) {
+    switch (inst.membership) {
+      case 'untouched':
+        c.u++;
+        break;
+      case 'drop':
+        c.r++;
+        break;
+      case 'add':
+        c.a++;
+        break;
+      case 'consideration':
+        c.consideration++;
+        break;
+      case 'dismissed':
+        c.dismissed++;
+        break;
+    }
+  }
+  return c;
+}
+
+/** Membership of instance i of a name (defaults to untouched when absent). */
+export function instanceMembership(state: InstanceState, name: string, i: number): Membership {
+  return state[name]?.[i]?.membership ?? 'untouched';
+}
+
+export interface QtyEntry {
+  name: string;
+  qty: number;
+}
+export interface InstanceExport {
+  adds: QtyEntry[];
+  drops: QtyEntry[];
+  considerations: QtyEntry[];
+  dismissed: QtyEntry[];
+  /** Per-instance notes keyed `name#i`; a singleton uses the bare `name`. */
+  notes: Record<string, string>;
+}
+
+/**
+ * Serialize the per-instance state into the quantitied export/handoff shape
+ * (v4.1). Each bucket carries {name, qty} totals; notes are per-instance-keyed
+ * (`name#i`), except a singleton name whose single note keys off the bare name.
+ */
+export function buildInstanceExport(state: InstanceState): InstanceExport {
+  const out: InstanceExport = { adds: [], drops: [], considerations: [], dismissed: [], notes: {} };
+  const names = Object.keys(state).sort();
+  for (const name of names) {
+    const list = state[name];
+    const c = nameCounts(state, name);
+    if (c.a > 0) out.adds.push({ name, qty: c.a });
+    if (c.r > 0) out.drops.push({ name, qty: c.r });
+    if (c.consideration > 0) out.considerations.push({ name, qty: c.consideration });
+    if (c.dismissed > 0) out.dismissed.push({ name, qty: c.dismissed });
+    const singleton = list.length === 1;
+    list.forEach((inst, i) => {
+      if (inst.note && inst.note.trim()) {
+        out.notes[singleton ? name : `${name}#${i}`] = inst.note;
+      }
+    });
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ *
  * Initial state + baseline keying
  * ------------------------------------------------------------------ */
 

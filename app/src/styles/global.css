@@ -31,6 +31,27 @@
 .stack .card:first-child {
   margin-top: 0;
 }
+/* A master card whose copies are shown expanded is hidden but kept in the DOM
+   (canonical node for regroup / relocation). Distinct from view-filter [hidden]. */
+.stack .card.is-stacked-hidden {
+  display: none !important;
+}
+/* A card in a transient in-place fan lifts above adjacent columns while the
+   group spreads vertically (v4.4). Margin-top is driven inline by the gesture. */
+.stack .card.fan-tile {
+  position: relative;
+  z-index: 30;
+}
+/* Full density: no overlap — cards stack with a small gap, fully visible. */
+:root[data-density='full'] .stack {
+  gap: 0.5rem;
+}
+:root[data-density='full'] .stack .card {
+  margin-top: 0 !important;
+}
+:root[data-density='full'] .stack .card:hover {
+  margin-bottom: 0;
+}
 /* Raise the hovered card fully into view above its neighbors. */
 .stack .card:hover {
   transform: translateY(-6px) scale(1.02);
@@ -61,6 +82,27 @@
   outline: 2px solid var(--neutral);
   outline-offset: -1px;
   border-radius: 4.75% / 3.5%;
+}
+/* v3.2: mixed name (some copies dropped AND some added on the same name) — an
+   amber split border distinct from pure add (green) / drop (red). */
+.card.mixed {
+  outline: 3px solid #f59e0b;
+  outline-offset: -1px;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.5);
+  border-radius: 4.75% / 3.5%;
+}
+.card:hover.mixed {
+  box-shadow: 0 10px 30px rgba(245, 158, 11, 0.45);
+}
+/* Delta-badge tint by kind (the master stacked tile). */
+.qty-badge--add {
+  color: #6ee7b7;
+}
+.qty-badge--drop {
+  color: #fca5a5;
+}
+.qty-badge--mixed {
+  color: #fcd34d;
 }
 /* reconstructed: considerations pool border (amber, distinct from add/drop) */
 .card.consideration {
@@ -132,6 +174,90 @@
 .seg-btn.is-active {
   background: #10b981;
   color: #052e16;
+}
+
+/* ------------------------------------------------------------------ *
+ * v3.3 — dropdown-button menus (Group By / Render)
+ * ------------------------------------------------------------------ */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+.dropdown-btn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.5rem;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e4e4e7;
+  transition: background 0.12s ease;
+}
+.dropdown-btn:hover {
+  background: #3f3f46;
+}
+.dropdown-btn[aria-expanded='true'] {
+  border-color: #10b981;
+}
+/* CSS-drawn chevron so it never depends on a font glyph rendering. */
+.dd-caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-left: 0.15em;
+  border-right: 2px solid #a1a1aa;
+  border-bottom: 2px solid #a1a1aa;
+  transform: rotate(45deg) translateY(-0.1em);
+}
+.dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 700;
+  min-width: 180px;
+  padding: 0.4rem;
+  border-radius: 0.5rem;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+.dropdown-panel[hidden] {
+  display: none;
+}
+.dd-heading {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #71717a;
+  padding: 0.2rem 0.35rem;
+}
+.dd-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.4rem;
+  border-radius: 0.35rem;
+  font-size: 0.85rem;
+  color: #d4d4d8;
+  cursor: pointer;
+}
+.dd-opt:hover {
+  background: #27272a;
+}
+.dd-opt input {
+  accent-color: #10b981;
+}
+.dd-rule {
+  border: none;
+  border-top: 1px solid #3f3f46;
+  margin: 0.35rem 0;
+}
+.dd-cards-only[hidden] {
+  display: none;
 }
 
 /* reconstructed: action buttons (export / reset) */
@@ -495,6 +621,33 @@ body[data-dragging='true'] .card.is-dragging {
 }
 .donut-cancel.is-hot {
   fill: #e4e4e7;
+}
+
+/* ------------------------------------------------------------------ *
+ * v4.4 — shake-to-unstack fan
+ * ------------------------------------------------------------------ */
+/* A stacked master being shaked below the unstack threshold rides above its
+   neighbors so the wobble reads clearly. */
+.card[data-shaking='true'] {
+  z-index: 200;
+  position: relative;
+  will-change: transform;
+}
+/* The transient fan overlay — a stacked group's copies spread here in place. */
+#fan-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 850;
+  pointer-events: none; /* empty area passes through; tiles re-enable below */
+}
+#fan-layer[hidden] {
+  display: none;
+}
+#fan-layer .fan-tile {
+  pointer-events: auto;
+  will-change: left, opacity;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  cursor: grab;
 }
 
 /* ------------------------------------------------------------------ *

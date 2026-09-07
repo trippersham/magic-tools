@@ -726,230 +726,6 @@
     "role": null
   },
   {
-    "name": "Tome of Legends",
-    "quantity": 1,
-    "mana_value": 2.0,
-    "mana_cost": "{2}",
-    "type_line": "Artifact — Book",
-    "colors": [],
-    "color_identity": [],
-    "role": null
-  },
-  {
-    "name": "Goldvein Pick",
-    "quantity": 1,
-    "mana_value": 2.0,
-    "mana_cost": "{2}",
-    "type_line": "Artifact — Equipment",
-    "colors": [],
-    "color_identity": [],
-    "role": null
-  },
-  {
-    "name": "With Great Power . . .",
-    "quantity": 1,
-    "mana_value": 4.0,
-    "mana_cost": "{3}{W}",
-    "type_line": "Enchantment — Aura",
-    "colors": [
-      "W"
-    ],
-    "color_identity": [
-      "W"
-    ],
-    "role": null
-  },
-  {
-    "name": "Twinblade Blessing",
-    "quantity": 1,
-    "mana_value": 3.0,
-    "mana_cost": "{1}{W}{W}",
-    "type_line": "Enchantment — Aura",
-    "colors": [
-      "W"
-    ],
-    "color_identity": [
-      "W"
-    ],
-    "role": null
-  },
-  {
-    "name": "Hero's Blade",
-    "quantity": 1,
-    "mana_value": 2.0,
-    "mana_cost": "{2}",
-    "type_line": "Artifact — Equipment",
-    "colors": [],
-    "color_identity": [],
-    "role": null
-  },
-  {
-    "name": "Gift of Immortality",
-    "quantity": 1,
-    "mana_value": 3.0,
-    "mana_cost": "{2}{W}",
-    "type_line": "Enchantment — Aura",
-    "colors": [
-      "W"
-    ],
-    "color_identity": [
-      "W"
-    ],
-    "role": null
-  },
-  {
-    "name": "Holy Mantle",
-    "quantity": 1,
-    "mana_value": 4.0,
-    "mana_cost": "{2}{W}{W}",
-    "type_line": "Enchantment — Aura",
-    "colors": [
-      "W"
-    ],
-    "color_identity": [
-      "W"
-    ],
-    "role": null
-  },
-  {
-    "name": "Samwise the Stouthearted",
-    "quantity": 1,
-    "mana_value": 2.0,
-    "mana_cost": "{1}{W}",
-    "type_line": "Legendary Creature — Halfling Peasant",
-    "colors": [
-      "W"
-    ],
-    "color_identity": [
-      "W"
-    ],
-    "role": null
-  },
-  {
-    "name": "Together Forever",
-    "quantity": 1,
-    "mana_value": 2.0,
-    "mana_cost": "{W}{W}",
-    "type_line": "Enchantment",
-    "colors": [
-      "W"
-    ],
-    "color_identity": [
-      "W"
-    ],
-    "role": null
-  },
-  {
-    "name": "Vibranium Energy Daggers",
-    "quantity": 1,
-    "mana_value": 1.0,
-    "mana_cost": "{1}",
-    "type_line": "Artifact — Equipment",
-    "colors": [],
-    "color_identity": [],
-    "role": null
-  },
-  {
-    "name": "Spirited Companion",
-    "quantity": 1,
-    "mana_value": 2.0,
-    "mana_cost": "{1}{W}",
-    "type_line": "Enchantment Creature — Dog",
-    "colors": [
-      "W"
-    ],
-    "color_identity": [
-      "W"
-    ],
-    "role": null
-  },
-  {
-    "name": "Swiftfoot Boots",
-    "quantity": 1,
-    "mana_value": 2.0,
-    "mana_cost": "{2}",
-    "type_line": "Artifact — Equipment",
-    "colors": [],
-    "color_identity": [],
-    "role": null
-  },
-  {
-    "name": "The Black Arrow",
-    "quantity": 1,
-    "mana_value": 3.0,
-    "mana_cost": "{3}",
-    "type_line": "Legendary Artifact — Equipment",
-    "colors": [],
-    "color_identity": [],
-    "role": null
-  },
-  {
-    "name": "Anti-Venom, Horrifying Healer",
-    "quantity": 1,
-    "mana_value": 5.0,
-    "mana_cost": "{W}{W}{W}{W}{W}",
-    "type_line": "Legendary Creature — Symbiote Hero",
-    "colors": [
-      "W"
-    ],
-    "color_identity": [
-      "W"
-    ],
-    "role": null
-  },
-  {
-    "name": "Sol Ring",
-    "quantity": 1,
-    "mana_value": 1.0,
-    "mana_cost": "{1}",
-    "type_line": "Artifact",
-    "colors": [],
-    "color_identity": [],
-    "role": null
-  },
-  {
-    "name": "Errand-Rider of Gondor",
-    "quantity": 1,
-    "mana_value": 3.0,
-    "mana_cost": "{2}{W}",
-    "type_line": "Creature — Human Soldier",
-    "colors": [
-      "W"
-    ],
-    "color_identity": [
-      "W"
-    ],
-    "role": null
-  },
-  {
-    "name": "Hero in Training",
-    "quantity": 1,
-    "mana_value": 3.0,
-    "mana_cost": "{2}{W}",
-    "type_line": "Creature — Human Hero",
-    "colors": [
-      "W"
-    ],
-    "color_identity": [
-      "W"
-    ],
-    "role": null
-  },
-  {
-    "name": "Super Speed",
-    "quantity": 1,
-    "mana_value": 1.0,
-    "mana_cost": "{R}",
-    "type_line": "Enchantment — Aura",
-    "colors": [
-      "R"
-    ],
-    "color_identity": [
-      "R"
-    ],
-    "role": null
-  },
-  {
     "name": "Plains",
     "quantity": 15,
     "mana_value": null,
@@ -965,6 +741,224 @@
     "mana_value": null,
     "mana_cost": null,
     "type_line": "Basic Land — Mountain",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Silent Arbiter",
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{4}",
+    "type_line": "Artifact Creature — Construct",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Exploding Barrel",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{3}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Fanatical Devotion",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{W}",
+    "type_line": "Enchantment",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Indomitable Will",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Enchantment — Aura",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Chimeric Coils",
+    "quantity": 1,
+    "mana_value": 1,
+    "mana_cost": "{1}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Hawkeye's Bow",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{R}",
+    "type_line": "Artifact — Equipment",
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "Kyoshi Battle Fan",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Pteron Ghost",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Creature — Dinosaur Spirit",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Quiet Purity",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{W}",
+    "type_line": "Instant — Arcane",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Terashi's Verdict",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Instant — Arcane",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Shadowfax, Lord of Horses",
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{3}{R}{W}",
+    "type_line": "Legendary Creature — Horse",
+    "colors": [
+      "R",
+      "W"
+    ],
+    "color_identity": [
+      "R",
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Meteor Sword",
+    "quantity": 1,
+    "mana_value": 7.0,
+    "mana_cost": "{7}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Soul Nova",
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{3}{W}{W}",
+    "type_line": "Instant",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Leonin Scimitar",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Gold Myr",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact Creature — Myr",
+    "colors": [],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Iron Myr",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact Creature — Myr",
+    "colors": [],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "Serum Tank",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{3}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Coldsteel Heart",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Snow Artifact",
     "colors": [],
     "color_identity": [],
     "role": null

@@ -11,11 +11,18 @@ import {
   type StatsDelta,
   type MetaCard,
 } from '../lib/metadata';
-import { getMembership } from './store';
+import { nameCounts } from './store';
 
 const PIP_ORDER = ['W', 'U', 'B', 'R', 'G', 'C'] as const;
 
-type StatCard = MetaCard & { name: string };
+type StatCard = MetaCard & {
+  name: string;
+  /** Netted per-name copy counts (v3.2) — the single source of quantity. */
+  u?: number;
+  r?: number;
+  a?: number;
+  consideration?: boolean;
+};
 let cards: StatCard[] = [];
 
 function loadCards(): StatCard[] {
@@ -112,17 +119,27 @@ function render(): void {
   const band = document.querySelector<HTMLElement>('.metadata-band');
   if (!band) return;
 
-  // Bucket live: current = deck-as-is (untouched+drop); proposed = untouched+add.
+  // Bucket by NETTED quantities (v3.2): current = untouched+dropped copies,
+  // proposed = untouched+added copies. A name appears once in `cards`, so an
+  // add-to-existing is counted a single time at its grown proposed qty and a
+  // partial drop keeps its survivors in Proposed.
   const current: MetaCard[] = [];
   const proposed: MetaCard[] = [];
   const adds: MetaCard[] = [];
   const drops: MetaCard[] = [];
+  const push = (bucket: MetaCard[], c: StatCard, qty: number) => {
+    if (qty > 0) bucket.push({ ...c, qty });
+  };
+  // v4: bucket every name straight from its LIVE per-instance counts (the store
+  // is the SSOT). Current = untouched+dropped copies, Proposed = untouched+added.
+  // A promoted consideration surfaces as added copies (a>0); a still-considering
+  // or dismissed one contributes nothing. Uniform across singletons and stacks.
   for (const c of cards) {
-    const m = getMembership(c.name);
-    if (m === 'untouched' || m === 'drop') current.push(c);
-    if (m === 'untouched' || m === 'add') proposed.push(c);
-    if (m === 'add') adds.push(c);
-    if (m === 'drop') drops.push(c);
+    const nc = nameCounts(c.name);
+    push(current, c, nc.u + nc.r);
+    push(proposed, c, nc.u + nc.a);
+    push(adds, c, nc.a);
+    push(drops, c, nc.r);
   }
 
   const cur = stats(current);

@@ -3,7 +3,7 @@
 // section is a separate pool: its cards stay visible regardless of view
 // (except when dismissed). Dismissed cards are hidden everywhere.
 
-import { getMembership, getNote } from './store';
+import { getMembership, getNote, instancesOf } from './store';
 
 type Membership = 'untouched' | 'drop' | 'add' | 'consideration' | 'dismissed';
 type ViewName = 'all' | 'current' | 'proposed' | 'adds' | 'drops' | 'changes';
@@ -34,6 +34,22 @@ function applyView(view: ViewName): void {
     // Considerations-section cards are their own pool — always visible.
     if (el.closest('[data-considerations]')) {
       el.hidden = false;
+      return;
+    }
+    // A genuinely mixed master tile (>1 of untouched/drop/add present) belongs to
+    // MULTIPLE view buckets at once; the binary data-membership can't express
+    // that, so derive visibility from the per-copy counts. Pure tiles (singletons,
+    // expanded copies, whole-name drag re-tags) keep honoring data-membership.
+    const u = Number(el.dataset.untouchedQty) || 0;
+    const r = Number(el.dataset.droppedQty) || 0;
+    const a = Number(el.dataset.addedQty) || 0;
+    const present = (u > 0 ? 1 : 0) + (r > 0 ? 1 : 0) + (a > 0 ? 1 : 0);
+    if (present > 1) {
+      const anyMatch =
+        (u > 0 && visible.has('untouched')) ||
+        (r > 0 && visible.has('drop')) ||
+        (a > 0 && visible.has('add'));
+      el.hidden = !anyMatch;
       return;
     }
     el.hidden = !visible.has(m);
@@ -78,7 +94,7 @@ function resetFirstVisibleMargins(): void {
   document.querySelectorAll<HTMLElement>('.stack').forEach((stack) => {
     let seenVisible = false;
     stack.querySelectorAll<HTMLElement>('.card').forEach((card) => {
-      if (card.hidden) {
+      if (card.hidden || card.classList.contains('is-stacked-hidden')) {
         card.style.marginTop = '';
         return;
       }
@@ -106,10 +122,17 @@ function coarseOrNarrow(): boolean {
   );
 }
 
-function applyDensity(mode: 'art' | 'compact'): void {
+type DensityMode = 'art' | 'compact' | 'full';
+
+function applyDensity(mode: DensityMode): void {
   document.documentElement.dataset.density = mode;
   const stacks = document.querySelectorAll<HTMLElement>('.stack');
   stacks.forEach((stack) => {
+    if (mode === 'full') {
+      // Full: no overlap — every card fully visible; columns wrap (CSS).
+      stack.style.setProperty('--overlap', '0px');
+      return;
+    }
     if (mode === 'art') {
       stack.style.setProperty('--overlap', `${ART_OVERLAP}px`);
       return;
@@ -123,10 +146,306 @@ function applyDensity(mode: 'art' | 'compact'): void {
     stack.style.setProperty('--overlap', `${overlap}px`);
   });
   resetFirstVisibleMargins();
+}
 
-  document.querySelectorAll<HTMLElement>('[data-density-btn]').forEach((btn) => {
-    btn.classList.toggle('is-active', btn.dataset.densityBtn === mode);
+/* ------------------------------------------------------------------ *
+ * Instance expansion vs stacking (v3.2). Each server-rendered master card
+ * carries data-{untouched,dropped,added}-qty. When its governing Stack toggle
+ * is OFF, the master is hidden and replaced by one single-copy tile per copy
+ * (neutral / red / green). When ON, the master (with its ×N badge) shows.
+ *
+ * Drag is delegated (window pointerdown), so generated tiles need no drag
+ * wiring; only the per-card info-pane listeners are re-attached via wireCard.
+ * ------------------------------------------------------------------ */
+
+let stackDuplicates = true;
+let stackBasicLands = true;
+let currentDensity: DensityMode = 'art';
+
+function tileCounts(master: HTMLElement): { u: number; r: number; a: number } {
+  return {
+    u: Number(master.dataset.untouchedQty) || 0,
+    r: Number(master.dataset.droppedQty) || 0,
+    a: Number(master.dataset.addedQty) || 0,
+  };
+}
+
+function isCloneNext(master: HTMLElement): boolean {
+  const n = master.nextElementSibling as HTMLElement | null;
+  return !!n && n.dataset.cloneOf === master.dataset.name;
+}
+
+type TileKind = 'neutral' | 'drop' | 'add';
+
+function kindOfMembership(m: string): TileKind {
+  return m === 'drop' ? 'drop' : m === 'add' ? 'add' : 'neutral';
+}
+
+/**
+ * A single-copy tile for instance `index` of a master (v4). Carries
+ * data-instance-index so a drag re-tags exactly that instance.
+ */
+function makeClone(master: HTMLElement, kind: TileKind, index: number): HTMLElement {
+  const c = master.cloneNode(true) as HTMLElement;
+  c.dataset.cloneOf = master.dataset.name ?? '';
+  c.dataset.instanceIndex = String(index);
+  c.dataset.qty = '1';
+  c.dataset.untouchedQty = kind === 'neutral' ? '1' : '0';
+  c.dataset.droppedQty = kind === 'drop' ? '1' : '0';
+  c.dataset.addedQty = kind === 'add' ? '1' : '0';
+  // Each expanded copy is a single, pure tile: rewrite its membership so the
+  // border, the view filter, and data-membership all agree.
+  c.dataset.membership = kind === 'neutral' ? 'untouched' : kind;
+  // Single-copy tile: strip the ×N badge.
+  c.querySelector('.qty-badge')?.remove();
+  c.classList.remove('add', 'drop', 'neutral', 'mixed', 'is-stacked-hidden');
+  c.classList.add(kind === 'add' ? 'add' : kind === 'drop' ? 'drop' : 'neutral');
+  return c;
+}
+
+/** One tile per INSTANCE (v4.3 expanded), each mapped to its instance index. */
+function buildInstanceTiles(master: HTMLElement): HTMLElement[] {
+  const name = master.dataset.name ?? '';
+  const list = instancesOf(name);
+  return list.map((inst, i) => makeClone(master, kindOfMembership(inst.membership), i));
+}
+
+function expandMaster(master: HTMLElement): void {
+  if (isCloneNext(master)) return; // already expanded
+  const tiles = buildInstanceTiles(master);
+  const frag = document.createDocumentFragment();
+  tiles.forEach((t) => frag.appendChild(t));
+  master.after(frag);
+  master.classList.add('is-stacked-hidden');
+  tiles.forEach(wireCard); // re-attach info-pane listeners (drag is delegated)
+}
+
+function collapseMaster(master: HTMLElement): void {
+  let n = master.nextElementSibling as HTMLElement | null;
+  while (n && n.dataset.cloneOf === master.dataset.name) {
+    const next = n.nextElementSibling as HTMLElement | null;
+    n.remove();
+    n = next;
+  }
+  master.classList.remove('is-stacked-hidden');
+}
+
+function collapseAll(): void {
+  document
+    .querySelectorAll<HTMLElement>('.card[data-name]:not([data-clone-of])')
+    .forEach(collapseMaster);
+}
+
+/** Expand or collapse every master according to the current Stack toggles. */
+function applyStacking(): void {
+  document
+    .querySelectorAll<HTMLElement>('.card[data-name]:not([data-clone-of])')
+    .forEach((master) => {
+      const { u, r, a } = tileCounts(master);
+      const total = u + r + a;
+      const basic = master.dataset.basic === 'true';
+      const shouldStack = basic ? stackBasicLands : stackDuplicates;
+      if (shouldStack || total <= 1) {
+        collapseMaster(master);
+      } else {
+        expandMaster(master);
+      }
+    });
+  applyDensity(currentDensity);
+  updateColumnCounts();
+  applyView(currentView);
+}
+
+export function setStacking(dup: boolean, basics: boolean): void {
+  stackDuplicates = dup;
+  stackBasicLands = basics;
+  applyStacking();
+}
+
+export function setDensity(mode: DensityMode): void {
+  currentDensity = mode;
+  applyDensity(mode);
+}
+
+/* ------------------------------------------------------------------ *
+ * v4.4 — the grip gesture. While dragging a stacked multi master, its copies
+ * fan out in a tight left/right ARC (like spreading a hand of cards) — purely a
+ * visual "you're interacting" affordance, driven by drag distance. Releasing
+ * PAST threshold settles to the fully-expanded VERTICAL column (fanSettleOpen);
+ * below threshold it rubber-bands back to the stack (fanClose). The pointer math
+ * lives in drag.ts; this module owns the layout + spring. Transient: one group
+ * fanned at a time; interacting outside it, or a completed re-tag, collapses it.
+ * ------------------------------------------------------------------ */
+
+const FAN_SPRING_MS = 300;
+const FAN_SPRING = 'cubic-bezier(0.22, 1.0, 0.36, 1)'; // ease-out settle (open)
+const FAN_BACK_MS = 220;
+const FAN_BACK = 'cubic-bezier(0.4, 0.0, 0.2, 1)'; // ease back into the stack
+const FAN_GAP = 10; // px between fully-expanded fanned cards
+// Arc affordance during drag. Ease-in so it emerges gently rather than popping.
+const FAN_EASE_POW = 2.0;
+const FAN_ARC_TOTAL_DEG = 26; // tight total spread across the hand at full progress
+const FAN_ARC_MAX_DEG = 5; // per-card cap so big stacks don't over-rotate
+const FAN_ARC_LIFT = 10; // px the fanned tops lift as they splay
+
+let fannedName: string | null = null;
+let fanTiles: HTMLElement[] = [];
+let fanCollapsedMargin = -ART_OVERLAP; // margin-top at progress 0 (stacked)
+let fanTopMargin = 0; // fixed margin-top of the first fanned tile (the master's slot)
+
+export function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+export function isFanned(): boolean {
+  return fannedName !== null;
+}
+
+/** Is this element one of the currently-fanned tiles? */
+export function isFanElement(el: HTMLElement | null): boolean {
+  return !!el && !!el.closest('.card')?.classList.contains('fan-tile');
+}
+
+function clearFanTransition(): void {
+  fanTiles.forEach((t) => {
+    t.style.transition = '';
+    t.style.transitionDelay = '';
   });
+}
+
+/** Ease-in: gentle at the start so the arc emerges rather than pops. */
+function easeInFan(p: number): number {
+  return Math.pow(p, FAN_EASE_POW);
+}
+
+/** Signed rotation (deg) for tile i of n at full spread — centered fan. */
+function arcAngle(i: number, n: number): number {
+  if (n <= 1) return 0;
+  const per = Math.min(FAN_ARC_TOTAL_DEG / (n - 1), FAN_ARC_MAX_DEG);
+  return (i - (n - 1) / 2) * per;
+}
+
+/**
+ * Begin the grip fan: expand the master in place, all copies STACKED (fully
+ * overlapping) and upright — visually identical to the single stacked master.
+ * Dragging then rotates them into a hand-arc. Returns false if nothing to fan.
+ */
+export function fanBegin(master: HTMLElement): boolean {
+  const name = master.dataset.name;
+  if (!name) return false;
+  if (fannedName) fanClose();
+
+  const cardH = master.getBoundingClientRect().height || 329;
+  fanCollapsedMargin = -cardH; // every copy fully hidden behind the one above
+  fanTopMargin = parseFloat(getComputedStyle(master).marginTop) || 0;
+
+  expandMaster(master); // inserts per-instance tiles after master, hides master
+  const tiles: HTMLElement[] = [];
+  let n = master.nextElementSibling as HTMLElement | null;
+  while (n && n.dataset.cloneOf === name) {
+    n.classList.add('fan-tile');
+    tiles.push(n);
+    n = n.nextElementSibling as HTMLElement | null;
+  }
+  if (tiles.length <= 1) {
+    collapseMaster(master);
+    return false;
+  }
+
+  fanTiles = tiles;
+  fannedName = name;
+  // Seed stacked + upright: first tile holds the master's slot, the rest overlap
+  // it completely; the arc is applied via transform (layout stays a tidy stack).
+  tiles.forEach((t, i) => {
+    t.style.transition = 'none';
+    t.style.transformOrigin = '50% 118%'; // pivot below the card, like a held hand
+    t.style.transform = 'rotate(0deg)';
+    t.style.marginTop = i === 0 ? `${fanTopMargin}px` : `${fanCollapsedMargin}px`;
+    t.style.zIndex = String(20 + i);
+  });
+  return true;
+}
+
+/** Drive the hand-arc by drag progress 0..1 (0 = stacked, 1 = full tight fan). */
+export function fanSetProgress(p: number): void {
+  const e = easeInFan(Math.max(0, Math.min(1, p)));
+  clearFanTransition();
+  const n = fanTiles.length;
+  fanTiles.forEach((tile, i) => {
+    const deg = arcAngle(i, n) * e;
+    const lift = -Math.abs(Math.sin((deg * Math.PI) / 180)) * FAN_ARC_LIFT;
+    tile.style.transform = `translateY(${lift}px) rotate(${deg}deg)`;
+  });
+}
+
+/** Release past threshold → settle to the fully-expanded column (stays open),
+ *  cascading the last copies out so the motion continues the emergence. */
+export function fanSettleOpen(): void {
+  if (!fannedName) return;
+  const reduce = prefersReducedMotion();
+  fanTiles.forEach((tile, i) => {
+    // Un-rotate the hand-arc and, for the copies beneath the first, spread down
+    // into the real vertical column. Both animate together into the unstack.
+    tile.style.transition = reduce
+      ? ''
+      : `transform ${FAN_SPRING_MS}ms ${FAN_SPRING}, margin-top ${FAN_SPRING_MS}ms ${FAN_SPRING}`;
+    tile.style.transitionDelay = reduce ? '' : `${Math.min(i * 10, 120)}ms`;
+    tile.style.transform = 'rotate(0deg)';
+    if (i !== 0) tile.style.marginTop = `${FAN_GAP}px`;
+  });
+  if (!reduce) {
+    window.setTimeout(() => {
+      clearFanTransition();
+      fanTiles.forEach((t) => (t.style.transform = ''));
+    }, FAN_SPRING_MS + 160);
+  } else {
+    fanTiles.forEach((t) => (t.style.transform = ''));
+  }
+}
+
+/** Collapse the fan back to the stacked master (below-threshold release, or a
+ *  transient close via outside-interaction / completed re-tag). `after` runs once
+ *  the spring-back has finished and the clones are gone — a completed re-tag uses
+ *  it to relocate/re-render only AFTER the rubber-back has played. */
+export function fanClose(after?: () => void): void {
+  if (!fannedName) {
+    after?.();
+    return;
+  }
+  const name = fannedName;
+  const tiles = fanTiles;
+  fannedName = null;
+  fanTiles = [];
+
+  const master = Array.from(
+    document.querySelectorAll<HTMLElement>('.card[data-name]:not([data-clone-of])'),
+  ).find((m) => m.dataset.name === name && m.classList.contains('is-stacked-hidden'));
+
+  const finish = () => {
+    tiles.forEach((t) => {
+      t.classList.remove('fan-tile');
+      t.style.transition = '';
+      t.style.transitionDelay = '';
+      t.style.transform = '';
+      t.style.transformOrigin = '';
+      t.style.marginTop = '';
+      t.style.zIndex = '';
+    });
+    if (master) collapseMaster(master); // remove tiles, show the stacked master
+    applyStacking(); // re-assert the correct stacked/expanded state + overlap
+    after?.();
+  };
+
+  if (prefersReducedMotion() || tiles.length === 0) {
+    finish();
+    return;
+  }
+  // Rubber-band the arc back to the upright stack (margins are already stacked).
+  tiles.forEach((tile) => {
+    tile.style.transition = `transform ${FAN_BACK_MS}ms ${FAN_BACK}`;
+    tile.style.transform = 'rotate(0deg)';
+  });
+  window.setTimeout(finish, FAN_BACK_MS);
 }
 
 /* ------------------------------------------------------------------ *
@@ -209,20 +528,17 @@ function regroupWrap(wrap: HTMLElement, mode: GroupMode): void {
 
 function applyGrouping(mode: GroupMode): void {
   currentGrouping = mode;
+  // Collapse any expanded copies first so only master nodes are re-bucketed;
+  // stacking is re-applied afterward. Keeps the DOM canonical across regroups.
+  collapseAll();
   // Regroup every visual stacks view (main deck + considerations pool).
   document.querySelectorAll<HTMLElement>('.stacks-view').forEach((wrap) => regroupWrap(wrap, mode));
 
-  document.querySelectorAll<HTMLElement>('[data-group-btn]').forEach((btn) => {
-    const active = btn.dataset.groupBtn === mode;
-    btn.setAttribute('aria-pressed', String(active));
-    btn.classList.toggle('is-active', active);
-  });
-
-  // New .stack elements need their overlap re-applied, then re-filter for the view.
-  applyDensity((document.documentElement.dataset.density as 'art' | 'compact') ?? 'art');
-  updateColumnCounts();
-  applyView(currentView);
+  // Re-expand per the current toggles, re-apply overlap + counts + view filter.
+  applyStacking();
 }
+
+export { applyGrouping, applyView };
 
 /* ------------------------------------------------------------------ *
  * Floating info pane (v2.3)
@@ -429,30 +745,26 @@ function updateColumnCounts(): void {
   document.querySelectorAll<HTMLElement>('.stacks-view .column').forEach((col) => {
     const cards = col.querySelectorAll<HTMLElement>('.card[data-name]');
     // Quantity-weighted so a basic-land pile (Plains x15) counts as 15, not 1.
+    // A stacked-hidden master is represented by its expanded clones — skip it so
+    // it isn't double-counted alongside them.
     let qty = 0;
+    let count = 0;
     cards.forEach((card) => {
+      if (card.classList.contains('is-stacked-hidden')) return;
       qty += Number(card.dataset.qty ?? '1') || 1;
+      count += 1;
     });
     const c = col.querySelector<HTMLElement>('.count');
     if (c) c.textContent = String(qty);
-    col.dataset.empty = cards.length === 0 ? 'true' : '';
+    col.dataset.empty = count === 0 ? 'true' : '';
   });
 }
 
 function initView(): void {
+  // Group-by / density / stacking / mode are now driven by the dropdown facets
+  // (see facets.ts). The six-view switcher stays a segmented control here.
   document.querySelectorAll<HTMLElement>('[data-view-btn]').forEach((btn) => {
     btn.addEventListener('click', () => applyView(btn.dataset.viewBtn as ViewName));
-  });
-  document.querySelectorAll<HTMLElement>('[data-density-btn]').forEach((btn) => {
-    btn.addEventListener('click', () => applyDensity(btn.dataset.densityBtn as 'art' | 'compact'));
-  });
-  document.querySelectorAll<HTMLElement>('[data-group-btn]').forEach((btn) => {
-    btn.addEventListener('click', () => applyGrouping(btn.dataset.groupBtn as GroupMode));
-  });
-
-  const textToggle = document.querySelector<HTMLInputElement>('[data-text-toggle]');
-  textToggle?.addEventListener('change', () => {
-    document.documentElement.dataset.mode = textToggle.checked ? 'text' : 'image';
   });
 
   document.querySelectorAll<HTMLElement>('.card[data-name]').forEach(wireCard);
@@ -464,19 +776,28 @@ function initView(): void {
 
   document.addEventListener('curation-changed', () => {
     // Physically move re-tagged cards between the main stacks and the
-    // Considerations section (FLIP-animated), then re-apply the active view.
-    relocateCards();
-    applyView(currentView);
+    // Considerations section (FLIP-animated). Collapse expansions first so the
+    // relocation moves canonical master nodes, then re-apply stacking + view.
+    const rerender = () => {
+      collapseAll();
+      relocateCards();
+      applyStacking();
+    };
+    // If a re-tag came from an OPEN fan, let its spring-back rubber-band play to
+    // completion first, THEN re-render (v4.4). Otherwise re-render immediately.
+    if (isFanned()) fanClose(rerender);
+    else rerender();
   });
 
   window.addEventListener('resize', () => {
-    if (document.documentElement.dataset.density === 'compact') applyDensity('compact');
+    if (currentDensity === 'compact') applyDensity('compact');
   });
 
   const hash = window.location.hash.slice(1) as ViewName;
   const start: ViewName = hash in VIEW_MEMBERSHIPS ? hash : 'all';
   applyView(start);
-  applyDensity('art');
+  // Baseline look until facets restore persisted state (art / stacked).
+  applyStacking();
 }
 
 export { initView };
