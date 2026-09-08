@@ -63,6 +63,7 @@ _CARD_COLUMNS = (
     'power',
     'toughness',
     'art_crop',
+    'image_normal',
     'scryfall_uri',
     'set_name',
 )
@@ -136,6 +137,7 @@ def _card_from_scryfall(data: dict[str, Any]) -> Card:
         power=data.get('power') if data.get('power') is not None else face.get('power'),
         toughness=data.get('toughness') if data.get('toughness') is not None else face.get('toughness'),
         art_crop=image_uris.get('art_crop'),
+        image_normal=image_uris.get('normal'),
         scryfall_uri=data.get('scryfall_uri'),
         set_name=data.get('set_name'),
     )
@@ -231,6 +233,7 @@ def _project_scryfall(card: dict[str, Any]) -> dict[str, Any]:
         'power': card.get('power') if card.get('power') is not None else face.get('power'),
         'toughness': card.get('toughness') if card.get('toughness') is not None else face.get('toughness'),
         'art_crop': image_uris.get('art_crop'),
+        'image_normal': image_uris.get('normal'),
         'scryfall_uri': card.get('scryfall_uri'),
         'set_name': card.get('set_name'),
     }
@@ -430,6 +433,7 @@ def _card_from_row(record: dict[str, Any], otags: Iterable[str]) -> Card:
         power=_opt_str(record.get('power')),
         toughness=_opt_str(record.get('toughness')),
         art_crop=record.get('art_crop'),
+        image_normal=record.get('image_normal'),
         scryfall_uri=record.get('scryfall_uri'),
         set_name=record.get('set_name'),
         otags=otag_list,

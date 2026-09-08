@@ -1,0 +1,95 @@
+---
+import type { TaggedCard } from '../lib/types';
+import { stackBadge, type BadgeKind } from '../lib/instances';
+interface Props {
+  card: TaggedCard;
+  /** Per-name netted copy counts (v3.2) for client-side expand/stack. */
+  untouchedQty?: number;
+  droppedQty?: number;
+  addedQty?: number;
+}
+const { card, untouchedQty, droppedQty, addedQty } = Astro.props;
+
+// Copy counts drive expand/stack. Default to the card's own qty on the tile's
+// membership when explicit counts aren't supplied (e.g. considerations).
+const hasCounts =
+  untouchedQty !== undefined || droppedQty !== undefined || addedQty !== undefined;
+const u = untouchedQty ?? (card.membership === 'untouched' ? card.qty : 0);
+const r = droppedQty ?? (card.membership === 'drop' ? card.qty : 0);
+const a = addedQty ?? (card.membership === 'add' ? card.qty : 0);
+const total = u + r + a || card.qty || 1;
+
+// v3.2: the stacked delta badge is the SINGLE source of the master tile's badge
+// text AND its border kind. When explicit counts are supplied the border derives
+// from the netted quantities (unchanged→neutral, add→green, drop→red,
+// mixed→amber); considerations (no counts) fall back to their membership border.
+function kindBorder(kind: BadgeKind): string {
+  if (kind === 'add') return 'add';
+  if (kind === 'drop') return 'drop';
+  if (kind === 'mixed') return 'mixed';
+  return 'neutral';
+}
+function membershipBorder(m: string): string {
+  if (m === 'add') return 'add';
+  if (m === 'drop') return 'drop';
+  if (m === 'consideration') return 'consideration';
+  return 'neutral';
+}
+const badge = hasCounts
+  ? stackBadge({ untouchedQty: u, droppedQty: r, addedQty: a })
+  : null;
+const borderClass = badge ? kindBorder(badge.kind) : membershipBorder(card.membership);
+const badgeText = badge ? badge.text : `×${total}`;
+const badgeKind = badge ? badge.kind : 'unchanged';
+
+const isBasic = /\bBasic\b/.test(card.type_line ?? '');
+---
+
+<div
+  class={`card ${borderClass} relative`}
+  data-membership={card.membership}
+  data-name={card.name}
+  data-qty={total}
+  data-untouched-qty={u}
+  data-dropped-qty={r}
+  data-added-qty={a}
+  data-basic={String(isBasic)}
+  data-cmc={card.cmc}
+  data-colors={(card.colors ?? []).join(',')}
+  data-type-line={card.type_line}
+  data-labels={(card.labels ?? []).join('|')}
+  data-role={card.role ?? ''}
+  data-reason={card.reason ?? ''}
+  data-usd={card.usd == null ? '' : String(card.usd)}
+  data-mana-cost={card.mana_cost ?? ''}
+  data-cut={card.cut ?? ''}
+  title={card.name}
+>
+  {
+    total > 1 && (
+      <span
+        class={`qty-badge qty-badge--${badgeKind} absolute left-1 top-1 z-10 rounded bg-black/85 px-1.5 py-0.5 text-xs font-bold text-white ring-1 ring-white/25`}
+      >
+        {badgeText}
+      </span>
+    )
+  }
+  <span class="state-chip" aria-hidden="true"></span>
+  {
+    card.image_normal ? (
+      <img
+        class="card-img"
+        src={card.image_normal}
+        alt={card.name}
+        loading="lazy"
+        width="488"
+        height="680"
+        draggable="false"
+      />
+    ) : (
+      <div class="card-img flex aspect-[488/680] items-center justify-center bg-zinc-800 p-2 text-center text-xs text-zinc-300">
+        {card.name}
+      </div>
+    )
+  }
+</div>

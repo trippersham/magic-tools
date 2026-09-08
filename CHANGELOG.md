@@ -12,8 +12,26 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-09-08
+
+A **non-breaking** release (a *patch* under this project's `0.y.z` convention). Adds an
+external-deck ingestor and a full-card-image lake column; everything existing is
+unchanged and no store or Airtable schema changes.
+
 ### Added
 
+- **Full card image in the lake** (`image_normal`) — the Scryfall oracle-card projection
+  now carries `image_uris.normal` (the full framed card, alongside the existing
+  `art_crop`), threaded through the resolver's select/live/lake paths and the `Card`
+  contract. `get-card` serves the full image **lake-backed**, with a live fetch only on a
+  true miss — so bulk image resolution is deterministic and network-free for cards already
+  in the lake. Additive / non-breaking (a new nullable column; DFC/split faces are null,
+  mirroring `art_crop`).
+- **`app/` deck-diff viewer** — a static Astro app under the repo-root `app/` (dev tooling,
+  outside the shipped `make-magic` plugin boundary) that renders a deck alongside a proposed
+  changeset — six diff views, quantity-aware/per-instance curation, faceted grouping
+  (type / color / labels). Not part of the plugin package; consumes make-magic deck data
+  and the new `image_normal` lake column.
 - **Deck ingestor layer** — `collection import-deck <url|file|->` imports an external
   deck into an ephemeral draft, then every downstream verb (`get-deck`, `factsheet`,
   `deck-swap`, …) works on it. Supported sources: **Archidekt** and **EDHREC** URLs

@@ -1,0 +1,695 @@
+@import 'tailwindcss';
+
+/* NOTE: This file is a partial recovery. The v1 core (below) + the drag/donut,
+   section, relocation, and metadata blocks are verbatim from history. The v2
+   info-pane / action-button / pip-symbol / state-chip / consideration-border /
+   note-popover styles marked "reconstructed" were never captured in full and are
+   best-effort — refine as a follow-up. */
+
+/* Diff border tokens — theme-aware. */
+:root {
+  --add: #16a34a;
+  --add-glow: rgba(22, 163, 74, 0.5);
+  --drop: #dc2626;
+  --drop-glow: rgba(220, 38, 38, 0.5);
+  --neutral: #3f3f46;
+}
+
+/* Fanned stack: cards overlap so only the top name-bar strip shows; hover raises. */
+.stack {
+  --overlap: 178px; /* how much of each card is hidden under the next */
+  display: flex;
+  flex-direction: column;
+}
+.stack .card {
+  margin-top: calc(-1 * var(--overlap));
+  transition:
+    transform 0.14s ease,
+    margin 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.stack .card:first-child {
+  margin-top: 0;
+}
+/* A master card whose copies are shown expanded is hidden but kept in the DOM
+   (canonical node for regroup / relocation). Distinct from view-filter [hidden]. */
+.stack .card.is-stacked-hidden {
+  display: none !important;
+}
+/* A card in a transient in-place fan lifts above adjacent columns while the
+   group spreads vertically (v4.4). Margin-top is driven inline by the gesture. */
+.stack .card.fan-tile {
+  position: relative;
+  z-index: 30;
+}
+/* Full density: no overlap — cards stack with a small gap, fully visible. */
+:root[data-density='full'] .stack {
+  gap: 0.5rem;
+}
+:root[data-density='full'] .stack .card {
+  margin-top: 0 !important;
+}
+:root[data-density='full'] .stack .card:hover {
+  margin-bottom: 0;
+}
+/* Raise the hovered card fully into view above its neighbors. */
+.stack .card:hover {
+  transform: translateY(-6px) scale(1.02);
+  z-index: 50;
+  margin-bottom: var(--overlap);
+}
+
+.card-img {
+  border-radius: 4.75% / 3.5%;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.card.add {
+  outline: 3px solid var(--add);
+  outline-offset: -1px;
+  box-shadow: 0 0 0 1px var(--add-glow);
+  border-radius: 4.75% / 3.5%;
+}
+.card.drop {
+  outline: 3px solid var(--drop);
+  outline-offset: -1px;
+  box-shadow: 0 0 0 1px var(--drop-glow);
+  border-radius: 4.75% / 3.5%;
+}
+.card.neutral {
+  outline: 2px solid var(--neutral);
+  outline-offset: -1px;
+  border-radius: 4.75% / 3.5%;
+}
+/* v3.2: mixed name (some copies dropped AND some added on the same name) — an
+   amber split border distinct from pure add (green) / drop (red). */
+.card.mixed {
+  outline: 3px solid #f59e0b;
+  outline-offset: -1px;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.5);
+  border-radius: 4.75% / 3.5%;
+}
+.card:hover.mixed {
+  box-shadow: 0 10px 30px rgba(245, 158, 11, 0.45);
+}
+/* Delta-badge tint by kind (the master stacked tile). */
+.qty-badge--add {
+  color: #6ee7b7;
+}
+.qty-badge--drop {
+  color: #fca5a5;
+}
+.qty-badge--mixed {
+  color: #fcd34d;
+}
+/* reconstructed: considerations pool border (amber, distinct from add/drop) */
+.card.consideration {
+  outline: 2px dashed #a16207;
+  outline-offset: -1px;
+  border-radius: 4.75% / 3.5%;
+}
+.card:hover.add {
+  box-shadow: 0 10px 30px var(--add-glow);
+}
+.card:hover.drop {
+  box-shadow: 0 10px 30px var(--drop-glow);
+}
+.card:hover.neutral {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+/* reconstructed: dismissed cards are hidden everywhere */
+.card.is-dismissed {
+  display: none !important;
+}
+
+/* View filtering — the client script toggles [data-active-view]; cards hidden
+   when they don't belong to the active view. */
+[hidden] {
+  display: none !important;
+}
+
+/* Column layout */
+.column {
+  width: 236px;
+  flex: 0 0 auto;
+}
+.column-title {
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a1a1aa;
+}
+.column-title .count {
+  margin-left: 0.25rem;
+  color: #71717a;
+  font-weight: 500;
+}
+
+/* Segmented control */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  border-radius: 0.5rem;
+  background: #27272a;
+  padding: 3px;
+}
+.seg-btn {
+  cursor: pointer;
+  border-radius: 0.375rem;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #d4d4d8;
+  background: transparent;
+  border: none;
+  transition: background 0.12s ease;
+}
+.seg-btn:hover {
+  background: #3f3f46;
+}
+.seg-btn.is-active {
+  background: #10b981;
+  color: #052e16;
+}
+
+/* ------------------------------------------------------------------ *
+ * v3.3 — dropdown-button menus (Group By / Render)
+ * ------------------------------------------------------------------ */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+.dropdown-btn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.5rem;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e4e4e7;
+  transition: background 0.12s ease;
+}
+.dropdown-btn:hover {
+  background: #3f3f46;
+}
+.dropdown-btn[aria-expanded='true'] {
+  border-color: #10b981;
+}
+/* CSS-drawn chevron so it never depends on a font glyph rendering. */
+.dd-caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-left: 0.15em;
+  border-right: 2px solid #a1a1aa;
+  border-bottom: 2px solid #a1a1aa;
+  transform: rotate(45deg) translateY(-0.1em);
+}
+.dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 700;
+  min-width: 180px;
+  padding: 0.4rem;
+  border-radius: 0.5rem;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+.dropdown-panel[hidden] {
+  display: none;
+}
+.dd-heading {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #71717a;
+  padding: 0.2rem 0.35rem;
+}
+.dd-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.4rem;
+  border-radius: 0.35rem;
+  font-size: 0.85rem;
+  color: #d4d4d8;
+  cursor: pointer;
+}
+.dd-opt:hover {
+  background: #27272a;
+}
+.dd-opt input {
+  accent-color: #10b981;
+}
+.dd-rule {
+  border: none;
+  border-top: 1px solid #3f3f46;
+  margin: 0.35rem 0;
+}
+.dd-cards-only[hidden] {
+  display: none;
+}
+
+/* reconstructed: action buttons (export / reset) */
+.action-btn {
+  cursor: pointer;
+  border-radius: 0.375rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #052e16;
+  background: #10b981;
+  border: none;
+  transition: background 0.12s ease;
+}
+.action-btn:hover {
+  background: #34d399;
+}
+.action-btn-ghost {
+  background: transparent;
+  color: #d4d4d8;
+  border: 1px solid #3f3f46;
+}
+.action-btn-ghost:hover {
+  background: #3f3f46;
+}
+
+/* Metadata band */
+.stat-grid {
+  display: flex;
+  gap: 1.25rem;
+}
+.stat-grid dt {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #71717a;
+}
+.stat-grid dd {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.stat-grid dd.pos {
+  color: #34d399;
+}
+.stat-grid dd.neg {
+  color: #f87171;
+}
+.curve {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 72px;
+}
+.curve-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  width: 16px;
+}
+.curve-col .bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+}
+.curve-col .clabel {
+  margin-top: 2px;
+  font-size: 0.6rem;
+  color: #71717a;
+}
+.pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+.pip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  background: #3f3f46;
+  color: #e4e4e7;
+}
+.pip.pos {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+.pip.neg {
+  background: rgba(220, 38, 38, 0.2);
+  color: #f87171;
+}
+
+/* Text view — hidden unless data-mode="text" */
+.text-view {
+  display: none;
+  columns: 3;
+  column-gap: 2rem;
+}
+:root[data-mode='text'] .stacks-view {
+  display: none;
+}
+:root[data-mode='text'] .text-view {
+  display: block;
+}
+.text-column {
+  break-inside: avoid;
+  margin-bottom: 1.25rem;
+}
+.text-row {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr auto 1.4rem;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.15rem 0.4rem;
+  border-left: 3px solid var(--neutral);
+  font-size: 0.85rem;
+}
+.text-row.add {
+  border-left-color: var(--add);
+}
+.text-row.drop {
+  border-left-color: var(--drop);
+}
+.text-row .tr-qty {
+  color: #a1a1aa;
+  text-align: right;
+}
+.text-row .tr-cost {
+  color: #a1a1aa;
+  font-size: 0.75rem;
+}
+.text-row .tr-cmc {
+  color: #71717a;
+  text-align: right;
+}
+
+/* ------------------------------------------------------------------ *
+ * v2.4 — considerations section
+ * ------------------------------------------------------------------ */
+.section-heading {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #e4e4e7;
+  margin-bottom: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px dashed #3f3f46;
+}
+.section-sub {
+  margin-left: 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #71717a;
+}
+
+/* A card in flight between the main stacks and Considerations rides above its
+   neighbors (FLIP animation driven inline by view.ts). */
+.card.is-relocating {
+  position: relative;
+  z-index: 60;
+  will-change: transform;
+}
+/* A type column emptied by relocation collapses (overrides the considerations
+   pool's always-visible rule). */
+.column[data-empty='true'] {
+  display: none;
+}
+
+/* reconstructed: state chip on the card face */
+.state-chip {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  z-index: 10;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+.card.consideration .state-chip {
+  background: #a16207;
+}
+
+/* ------------------------------------------------------------------ *
+ * reconstructed: floating info pane (v2.3)
+ * ------------------------------------------------------------------ */
+#info-pane {
+  position: absolute;
+  z-index: 800;
+  max-width: 320px;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  font-size: 0.8rem;
+  color: #e4e4e7;
+  pointer-events: none;
+}
+#info-pane[hidden] {
+  display: none;
+}
+.ip-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.ip-name {
+  font-weight: 700;
+}
+.ip-state {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a1a1aa;
+}
+.ip-text {
+  color: #d4d4d8;
+  line-height: 1.35;
+}
+.ip-cut,
+.ip-note {
+  font-size: 0.72rem;
+  color: #a1a1aa;
+}
+.ip-cost {
+  margin-top: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.ip-price {
+  font-weight: 700;
+  color: #34d399;
+}
+.pip-sym {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: #3f3f46;
+  color: #fff;
+}
+.pip-W { background: #f8f4e3; color: #3f3f46; }
+.pip-U { background: #2563eb; }
+.pip-B { background: #27272a; }
+.pip-R { background: #dc2626; }
+.pip-G { background: #16a34a; }
+.pip-C,
+.pip-generic { background: #6b7280; }
+
+/* ------------------------------------------------------------------ *
+ * v2.6 — drag fade + full-screen SVG donut
+ * ------------------------------------------------------------------ */
+body[data-dragging='true'] .stacks-view,
+body[data-dragging='true'] header,
+body[data-dragging='true'] .metadata-band,
+body[data-dragging='true'] nav.segmented,
+body[data-dragging='true'] .considerations-section {
+  opacity: 0.28;
+  transition: opacity 0.15s ease;
+}
+body[data-dragging='true'] .card.is-dragging {
+  opacity: 1 !important;
+  z-index: 1000;
+  position: relative;
+  outline-width: 4px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  cursor: grabbing;
+  filter: none;
+}
+
+#drag-donut {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+}
+#drag-donut[hidden] {
+  display: none;
+}
+.donut-svg {
+  position: fixed;
+  inset: 0;
+  display: block;
+}
+
+/* Full-screen ring: wedges fill from the dead-center hole out to the edges. */
+.donut-wedge {
+  stroke: rgba(9, 9, 11, 0.85);
+  stroke-width: 2;
+  opacity: 0.82;
+  transition:
+    opacity 0.1s ease,
+    fill 0.1s ease;
+}
+.donut-wedge.seg-red {
+  fill: #b91c1c;
+}
+.donut-wedge.seg-green {
+  fill: #15803d;
+}
+.donut-wedge.seg-gray {
+  fill: #52525b;
+}
+.donut-wedge.is-hot {
+  opacity: 1;
+}
+.donut-wedge.seg-red.is-hot {
+  fill: #ef4444;
+}
+.donut-wedge.seg-green.is-hot {
+  fill: #22c55e;
+}
+.donut-wedge.seg-gray.is-hot {
+  fill: #a1a1aa;
+}
+
+.donut-label {
+  fill: #fff;
+  font-weight: 800;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+.donut-label.is-hot {
+  font-size: 1.2rem;
+}
+
+/* The empty center — the donut hole (cancel zone). */
+.donut-hole {
+  fill: rgba(9, 9, 11, 0.72);
+  stroke: #52525b;
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+}
+.donut-hole.is-hot {
+  stroke: #d4d4d8;
+  fill: rgba(24, 24, 27, 0.82);
+}
+.donut-cancel {
+  fill: #a1a1aa;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+.donut-cancel.is-hot {
+  fill: #e4e4e7;
+}
+
+/* ------------------------------------------------------------------ *
+ * v4.4 — shake-to-unstack fan
+ * ------------------------------------------------------------------ */
+/* A stacked master being shaked below the unstack threshold rides above its
+   neighbors so the wobble reads clearly. */
+.card[data-shaking='true'] {
+  z-index: 200;
+  position: relative;
+  will-change: transform;
+}
+/* The transient fan overlay — a stacked group's copies spread here in place. */
+#fan-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 850;
+  pointer-events: none; /* empty area passes through; tiles re-enable below */
+}
+#fan-layer[hidden] {
+  display: none;
+}
+#fan-layer .fan-tile {
+  pointer-events: auto;
+  will-change: left, opacity;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  cursor: grab;
+}
+
+/* ------------------------------------------------------------------ *
+ * reconstructed: note popover
+ * ------------------------------------------------------------------ */
+#note-popover {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1100;
+  width: 320px;
+  padding: 0.85rem;
+  border-radius: 0.6rem;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+}
+#note-popover[hidden] {
+  display: none;
+}
+.np-label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a1a1aa;
+  margin-bottom: 0.35rem;
+}
+.np-input {
+  width: 100%;
+  resize: vertical;
+  border-radius: 0.4rem;
+  border: 1px solid #3f3f46;
+  background: #09090b;
+  color: #e4e4e7;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+}
+.np-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}

@@ -1,0 +1,1045 @@
+[
+  {
+    "name": "Ardenn, Intrepid Archaeologist",
+    "labels": ["Commander / carrier"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{W}",
+    "type_line": "Legendary Creature — Kor Scout",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": "commander"
+  },
+  {
+    "name": "Rograkh, Son of Rohgahh",
+    "labels": ["Commander / carrier"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "{0}",
+    "type_line": "Legendary Creature — Kobold Warrior",
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "role": "commander"
+  },
+  {
+    "name": "Bonesplitter",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Dead-Iron Sledge",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Prowler's Helm",
+    "labels": ["Equipment", "Evasion"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Vorrac Battlehorns",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Vulshok Morningstar",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Banshee's Blade",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Fireshrieker",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{3}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Mithril Coat",
+    "labels": ["Equipment", "Protection / resilience"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{3}",
+    "type_line": "Legendary Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Twin Blades",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{R}",
+    "type_line": "Artifact — Equipment",
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "Gimli's Axe",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{R}",
+    "type_line": "Artifact — Equipment",
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "Dragon Mantle",
+    "labels": ["Aura", "Card draw"],
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{R}",
+    "type_line": "Enchantment — Aura",
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "Blessed Breath",
+    "labels": ["Protection / resilience"],
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{W}",
+    "type_line": "Instant — Arcane",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Hakoda, Selfless Commander",
+    "labels": ["Protection / resilience"],
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{3}{W}",
+    "type_line": "Legendary Creature — Human Warrior Ally",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Chimil, the Inner Sun",
+    "labels": ["Card draw", "Protection / resilience"],
+    "quantity": 1,
+    "mana_value": 6.0,
+    "mana_cost": "{6}",
+    "type_line": "Legendary Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Sigil of the New Dawn",
+    "labels": ["Recursion"],
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{3}{W}",
+    "type_line": "Enchantment",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Hammer of Purphoros",
+    "labels": ["Anthem / support"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{1}{R}{R}",
+    "type_line": "Legendary Enchantment Artifact",
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "You Cannot Pass!",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{W}",
+    "type_line": "Instant",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Shatter",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{R}",
+    "type_line": "Instant",
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "Pacifism",
+    "labels": ["Aura", "Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Enchantment — Aura",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Topple",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{W}",
+    "type_line": "Sorcery",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Altar's Light",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{2}{W}{W}",
+    "type_line": "Instant",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Cathartic Pyre",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{R}",
+    "type_line": "Instant",
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "Lembas",
+    "labels": ["Card draw"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact — Food",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Mirror of Galadriel",
+    "labels": ["Card draw"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Legendary Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Auriok Steelshaper",
+    "labels": ["Equipment payoff"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Creature — Human Soldier",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Leonin Den-Guard",
+    "labels": ["Equipment payoff"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Creature — Cat Soldier",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Éowyn, Lady of Rohan",
+    "labels": ["Equipment payoff"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{W}",
+    "type_line": "Legendary Creature — Human Noble",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Skyhunter Cub",
+    "labels": ["Equipment payoff"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{W}",
+    "type_line": "Creature — Cat Knight",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Myr Adapter",
+    "labels": ["Equipment payoff"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{3}",
+    "type_line": "Artifact Creature — Myr",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Taj-Nar Swordsmith",
+    "labels": ["Equipment payoff"],
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{3}{W}",
+    "type_line": "Creature — Cat Soldier",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Loxodon Punisher",
+    "labels": ["Equipment payoff"],
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{3}{W}",
+    "type_line": "Creature — Elephant Soldier",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Master Piandao",
+    "labels": ["Equipment payoff"],
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{4}{W}",
+    "type_line": "Legendary Creature — Human Warrior Ally",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Suki, Kyoshi Captain",
+    "labels": ["Anthem / support"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{W}",
+    "type_line": "Legendary Creature — Human Warrior Ally",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Myr Retriever",
+    "labels": ["Recursion"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact Creature — Myr",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Moraug, Fury of Akoum",
+    "labels": ["Extra combat"],
+    "quantity": 1,
+    "mana_value": 6.0,
+    "mana_cost": "{4}{R}{R}",
+    "type_line": "Legendary Creature — Minotaur Warrior",
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "Command Tower",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Ancient Den",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Artifact Land",
+    "colors": [],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Great Furnace",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Artifact Land",
+    "colors": [],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "The Grey Havens",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Legendary Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Ice Floe",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Shimmerdrift Vale",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Snow Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "White Lotus Hideout",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Rumble Arena",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Crown of Awe",
+    "labels": ["Aura", "Protection / resilience"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Enchantment — Aura",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Barrels of Blasting Jelly",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Shire Scarecrow",
+    "labels": ["Card draw"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact Creature — Scarecrow",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Slagwurm Armor",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Darksteel Citadel",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Artifact Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Ash Barrens",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Dúnedain Blade",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Artifact — Equipment",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Mechanical Glider",
+    "labels": ["Equipment", "Evasion"],
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Thriving Bluff",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "Thriving Heath",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Rip Apart",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{R}{W}",
+    "type_line": "Sorcery",
+    "colors": [
+      "R",
+      "W"
+    ],
+    "color_identity": [
+      "R",
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Make Your Move",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{W}",
+    "type_line": "Instant",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Destroy Evil",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Instant",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Path of Ancestry",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Nesting Grounds",
+    "labels": ["Mana base (land)"],
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Plains",
+    "labels": ["Mana base (land)"],
+    "quantity": 15,
+    "mana_value": null,
+    "mana_cost": null,
+    "type_line": "Basic Land — Plains",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Mountain",
+    "labels": ["Mana base (land)"],
+    "quantity": 7,
+    "mana_value": null,
+    "mana_cost": null,
+    "type_line": "Basic Land — Mountain",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Silent Arbiter",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{4}",
+    "type_line": "Artifact Creature — Construct",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Exploding Barrel",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{3}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Fanatical Devotion",
+    "labels": ["Protection / resilience"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{W}",
+    "type_line": "Enchantment",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Indomitable Will",
+    "labels": ["Aura"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Enchantment — Aura",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Chimeric Coils",
+    "quantity": 1,
+    "mana_value": 1,
+    "mana_cost": "{1}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Hawkeye's Bow",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{R}",
+    "type_line": "Artifact — Equipment",
+    "colors": [
+      "R"
+    ],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "Kyoshi Battle Fan",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Pteron Ghost",
+    "labels": ["Protection / resilience"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Creature — Dinosaur Spirit",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Quiet Purity",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{W}",
+    "type_line": "Instant — Arcane",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Terashi's Verdict",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Instant — Arcane",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Shadowfax, Lord of Horses",
+    "labels": ["Anthem / support"],
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{3}{R}{W}",
+    "type_line": "Legendary Creature — Horse",
+    "colors": [
+      "R",
+      "W"
+    ],
+    "color_identity": [
+      "R",
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Meteor Sword",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 7.0,
+    "mana_cost": "{7}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Soul Nova",
+    "labels": ["Removal / interaction"],
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{3}{W}{W}",
+    "type_line": "Instant",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Leonin Scimitar",
+    "labels": ["Equipment"],
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact — Equipment",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Gold Myr",
+    "labels": ["Ramp / fast mana"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact Creature — Myr",
+    "colors": [],
+    "color_identity": [
+      "W"
+    ],
+    "role": null
+  },
+  {
+    "name": "Iron Myr",
+    "labels": ["Ramp / fast mana"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact Creature — Myr",
+    "colors": [],
+    "color_identity": [
+      "R"
+    ],
+    "role": null
+  },
+  {
+    "name": "Serum Tank",
+    "labels": ["Card draw"],
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{3}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  },
+  {
+    "name": "Coldsteel Heart",
+    "labels": ["Ramp / fast mana"],
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Snow Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null
+  }
+]

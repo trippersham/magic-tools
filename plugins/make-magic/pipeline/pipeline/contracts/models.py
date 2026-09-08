@@ -114,6 +114,10 @@ class Card(BaseModel):
         default=None,
         description='Art-crop image URL (Scryfall `image_uris.art_crop`); None if unresolved.',
     )
+    image_normal: str | None = Field(
+        default=None,
+        description='Full card image URL (Scryfall `image_uris.normal`); None if unresolved.',
+    )
     scryfall_uri: str | None = Field(
         default=None,
         description='Canonical Scryfall page URL for the card (Scryfall `scryfall_uri`); None if unresolved.',

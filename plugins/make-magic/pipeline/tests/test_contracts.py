@@ -150,12 +150,14 @@ def test_card_dim_presentation_fields() -> None:
         power='1',
         toughness='1',
         art_crop='https://cards.scryfall.io/art_crop/front/6/a/6a0b230b.jpg',
+        image_normal='https://cards.scryfall.io/normal/front/6/a/6a0b230b.jpg',
         scryfall_uri='https://scryfall.com/card/fdn/227/llanowar-elves',
         set_name='Foundations',
     )
     assert card.power == '1'
     assert card.toughness == '1'
     assert card.art_crop.startswith('https://')
+    assert card.image_normal == 'https://cards.scryfall.io/normal/front/6/a/6a0b230b.jpg'
     assert card.scryfall_uri.startswith('https://')
     assert card.set_name == 'Foundations'
 
@@ -166,6 +168,7 @@ def test_card_dim_presentation_defaults_none() -> None:
     assert card.power is None
     assert card.toughness is None
     assert card.art_crop is None
+    assert card.image_normal is None
     assert card.scryfall_uri is None
     assert card.set_name is None
 
