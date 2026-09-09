@@ -18,7 +18,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from pipeline import store
@@ -31,12 +32,26 @@ NORMALIZED_TABLE = 'combo'
 
 @dataclass(frozen=True)
 class Combo:
-    """A normalized combo: its variant id, the concrete cards it uses, the result."""
+    """A normalized combo: its variant id, the concrete cards it uses, the result.
+
+    The projection also carries the human-facing detail the raw Spellbook variant already
+    holds — the ORDERED assembly ``steps``, the non-empty ``prerequisites``, and the typed
+    ``produces`` (per-feature ``name`` / ``status`` / ``win``). These default to empty so every
+    legacy ``Combo(...)`` call site (seeds, tests, driver-batch reconstruction) stays valid; they
+    are populated by :func:`_combo_from_variant` and round-tripped through the normalized lake.
+    """
 
     variant_id: str
     card_names: tuple[str, ...]
     card_oracle_ids: tuple[str, ...]
     result: str
+    #: Ordered assembly steps (the raw ``description``, split on newlines, stripped, empties dropped).
+    steps: tuple[str, ...] = ()
+    #: Non-empty prerequisite strings in source order: easy, notable, then mana needed.
+    prerequisites: tuple[str, ...] = ()
+    #: Typed produced features: ``{'name', 'status', 'win'}`` where ``win`` is the per-feature
+    #: :func:`is_game_win_result` verdict on that feature's name.
+    produces: tuple[Mapping[str, object], ...] = field(default_factory=tuple)
 
 
 def _norm_name(name: str) -> str:
@@ -68,17 +83,45 @@ def _combo_from_variant(variant: dict) -> Combo | None:
             oracle_ids.append(str(oid) if oid is not None else '')
     if not names:
         return None
-    results = [
-        p['feature']['name']
+    features = [
+        p['feature']
         for p in (variant.get('produces') or [])
         if isinstance(p, dict) and p.get('feature') and p['feature'].get('name')
     ]
+    produces = tuple(
+        {
+            'name': str(f['name']),
+            'status': str(f.get('status') or ''),
+            'win': is_game_win_result(str(f['name'])),
+        }
+        for f in features
+    )
     return Combo(
         variant_id=str(variant.get('id')),
         card_names=tuple(names),
         card_oracle_ids=tuple(oracle_ids),
-        result='; '.join(results),
+        result='; '.join(str(f['name']) for f in features),
+        steps=_split_steps(variant.get('description')),
+        prerequisites=_prerequisites(variant),
+        produces=produces,
     )
+
+
+def _split_steps(description: object) -> tuple[str, ...]:
+    """Split a raw ``description`` into ordered steps (newline-split, stripped, empties dropped)."""
+    if not isinstance(description, str):
+        return ()
+    return tuple(line.strip() for line in description.splitlines() if line.strip())
+
+
+def _prerequisites(variant: dict) -> tuple[str, ...]:
+    """The non-empty prerequisite strings in source order: easy, notable, then mana needed."""
+    ordered = (
+        variant.get('easyPrerequisites'),
+        variant.get('notablePrerequisites'),
+        variant.get('manaNeeded'),
+    )
+    return tuple(str(p).strip() for p in ordered if isinstance(p, str) and p.strip())
 
 
 def normalize_variants(variants: list[dict]) -> list[Combo]:
@@ -334,13 +377,25 @@ def win_combos_in_deck(
 
 
 def _load_raw_variants() -> list[dict]:
-    """Read ``raw/combos`` back as dicts (id/uses/produces)."""
+    """Read ``raw/combos`` back as dicts (id/uses/produces + description/prereqs for projection)."""
     with store.connect() as conn:
         rel = store.read_parquet(conn, 'raw', RAW_SOURCE)
-        rows = rel.select('id, uses, produces').fetchall()
+        rows = rel.select(
+            'id, uses, produces, description, easyPrerequisites, notablePrerequisites, manaNeeded'
+        ).fetchall()
     variants: list[dict] = []
-    for vid, uses, produces in rows:
-        variants.append({'id': vid, 'uses': uses or [], 'produces': produces or []})
+    for vid, uses, produces, description, easy, notable, mana in rows:
+        variants.append(
+            {
+                'id': vid,
+                'uses': uses or [],
+                'produces': produces or [],
+                'description': description or '',
+                'easyPrerequisites': easy or '',
+                'notablePrerequisites': notable or '',
+                'manaNeeded': mana or '',
+            }
+        )
     return variants
 
 
@@ -352,6 +407,9 @@ def _materialize(combos: list[Combo]) -> Path:
             'card_names': list(c.card_names),
             'card_oracle_ids': list(c.card_oracle_ids),
             'result': c.result,
+            'steps': list(c.steps),
+            'prerequisites': list(c.prerequisites),
+            'produces': [dict(p) for p in c.produces],
         }
         for c in combos
     ]
@@ -367,7 +425,10 @@ def _materialize(combos: list[Combo]) -> Path:
                     'SELECT NULL::VARCHAR AS variant_id, '
                     '[]::VARCHAR[] AS card_names, '
                     '[]::VARCHAR[] AS card_oracle_ids, '
-                    'NULL::VARCHAR AS result WHERE 1=0'
+                    'NULL::VARCHAR AS result, '
+                    '[]::VARCHAR[] AS steps, '
+                    '[]::VARCHAR[] AS prerequisites, '
+                    '[]::STRUCT(name VARCHAR, status VARCHAR, win BOOLEAN)[] AS produces WHERE 1=0'
                 )
             path = store.write_parquet(conn, rel, 'normalized', NORMALIZED_TABLE)
         finally:
@@ -379,16 +440,30 @@ def load_combos() -> list[Combo]:
     """Load the landed ``normalized/combo`` table back into ``Combo`` objects."""
     with store.connect() as conn:
         rel = store.read_parquet(conn, 'normalized', NORMALIZED_TABLE)
-        rows = rel.select('variant_id, card_names, card_oracle_ids, result').fetchall()
+        rows = rel.select('variant_id, card_names, card_oracle_ids, result, steps, prerequisites, produces').fetchall()
     return [
         Combo(
             variant_id=str(vid),
             card_names=tuple(names or []),
             card_oracle_ids=tuple(oids or []),
             result=result or '',
+            steps=tuple(steps or []),
+            prerequisites=tuple(prereqs or []),
+            produces=tuple(_coerce_feature(p) for p in (produces or [])),
         )
-        for vid, names, oids, result in rows
+        for vid, names, oids, result, steps, prereqs, produces in rows
     ]
+
+
+def _coerce_feature(feature: object) -> Mapping[str, object]:
+    """Normalize a stored produced-feature row back into a ``{'name', 'status', 'win'}`` dict."""
+    if isinstance(feature, Mapping):
+        return {
+            'name': str(feature.get('name') or ''),
+            'status': str(feature.get('status') or ''),
+            'win': bool(feature.get('win')),
+        }
+    return {'name': '', 'status': '', 'win': False}
 
 
 def _combo_parquet_path() -> Path:
