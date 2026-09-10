@@ -20,11 +20,13 @@ import pytest
 
 from pipeline.sim import forge_runtime
 from pipeline.sim import run as sim_run
+from pipeline.sim import xmage_runtime
 from pipeline.sim.core import Comparison, OpponentResult, SimResult, TelemetryProfile
 from pipeline.sim.engine import EngineInstall, EngineUnavailableError
 from pipeline.sim.forge_runtime import FORGE_VERSION, ForgeInstall, ForgeUnavailableError
 from pipeline.sim.runner import GameOutcome, MatchResult
 from pipeline.sim.telemetry import PilotingProfile, unavailable_piloting
+from pipeline.sim.xmage_runtime import XMAGE_VERSION, XMageInstall, XMageUnavailableError
 
 # A minimal but FLOOR-VALID deck body (>= 40 cards, all basics so they're always
 # Forge-loadable) — used by the dispatch tests that mock the engine but still pass
@@ -145,6 +147,27 @@ def mock_resolve(monkeypatch: pytest.MonkeyPatch, install: ForgeInstall) -> Forg
     return install
 
 
+@pytest.fixture()
+def xmage_install() -> XMageInstall:
+    """A dummy resolved XMage install (paths never touched — resolve is mocked)."""
+    return XMageInstall(mage_tests_dir=Path('/tmp/xmage/Mage.Tests'), classpath='/tmp/xmage/harness.jar', java=Path('/tmp/java'))
+
+
+@pytest.fixture()
+def mock_xmage_resolve(monkeypatch: pytest.MonkeyPatch, xmage_install: XMageInstall) -> XMageInstall:
+    """Patch the XMage runtime's ``resolve``/``ensure`` to return a dummy install.
+
+    XMage is the DEFAULT engine, so verbs that omit ``--engine`` route through
+    ``XMageEngine.resolve`` -> :func:`pipeline.sim.xmage_runtime.resolve`. Mirrors
+    :func:`mock_resolve` for Forge so the CLI suite exercises the real engine wrapper
+    without any real fetch/locate.
+    """
+    monkeypatch.setattr(xmage_runtime, 'resolve', lambda **_: xmage_install)
+    monkeypatch.setattr(xmage_runtime, 'ensure', lambda **_: xmage_install)
+    monkeypatch.setenv('MAKE_MAGIC_BACKEND', 'local')
+    return xmage_install
+
+
 # --------------------------------------------------------------------------- #
 # main dispatch
 # --------------------------------------------------------------------------- #
@@ -210,10 +233,12 @@ def test_match_dispatches_run_matchup(
         )
 
     # `match` now calls the engine, which delegates to runner.run_matchup — patch
-    # the runner so the real ForgeEngine wrapper is exercised end-to-end.
+    # the runner so the real ForgeEngine wrapper is exercised end-to-end. Pin
+    # `--engine forge` since XMage is the default now and does not route through
+    # runner.run_matchup (this test targets the Forge wrapper's dispatch contract).
     monkeypatch.setattr('pipeline.sim.runner.run_matchup', _fake_run_matchup)
 
-    sim_run.main(['match', str(dck_a), str(dck_b), '-n', '10', '-s', '99', '--format', 'commander'])
+    sim_run.main(['match', str(dck_a), str(dck_b), '-n', '10', '-s', '99', '--format', 'commander', '--engine', 'forge'])
 
     assert seen['n'] == 10
     assert seen['seed'] == 99
@@ -600,12 +625,12 @@ def test_top_level_help_lists_verbs(capsys: pytest.CaptureFixture[str]) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_deck_defaults_to_forge_engine(
+def test_deck_defaults_to_xmage_engine(
     monkeypatch: pytest.MonkeyPatch,
-    mock_resolve: ForgeInstall,
+    mock_xmage_resolve: XMageInstall,
     tmp_path: Path,
 ) -> None:
-    """With no --engine, the deck verb routes to the Forge engine."""
+    """With no --engine, the deck verb routes to the XMage engine (the default)."""
     dck = tmp_path / 'D.dck'
     dck.write_text('[metadata]\nName=D\n' + _VALID_CONSTRUCTED)
     seen: dict[str, object] = {}
@@ -613,7 +638,7 @@ def test_deck_defaults_to_forge_engine(
 
     sim_run.main(['deck', str(dck)])
 
-    assert seen['engine'].name == 'forge'  # type: ignore[union-attr]
+    assert seen['engine'].name == 'xmage'  # type: ignore[union-attr]
 
 
 def test_deck_engine_flag_routes_to_selected_engine(
@@ -861,10 +886,12 @@ def test_engine_both_rejected_on_non_deck_verbs(
 def test_doctor_available(
     monkeypatch: pytest.MonkeyPatch,
     install: ForgeInstall,
+    xmage_install: XMageInstall,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """doctor with a resolvable Forge prints version + pool size + paths, exit 0."""
-    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)
+    """doctor with a resolvable XMage (the DEFAULT) prints version + pool size, exit 0."""
+    monkeypatch.setattr(xmage_runtime, 'resolve', lambda **_: xmage_install)  # xmage (default) available.
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)  # legacy forge also available (paths).
     monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
     monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
     monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
@@ -872,24 +899,26 @@ def test_doctor_available(
     sim_run.main(['doctor'])  # no SystemExit -> exit 0.
 
     out = capsys.readouterr().out
-    assert FORGE_VERSION in out  # engine install version (the pinned Forge version)
+    assert 'xmage: available' in out  # the default engine reported available.
+    assert XMAGE_VERSION in out  # engine install version (the pinned XMage version).
     assert '4' in out  # pool size.
-    assert str(install.jar) in out
-    assert str(install.java) in out
     assert '12.5' in out and '88.0' in out  # RAM/disk snapshot.
 
 
 def test_doctor_unavailable_graceful(
     monkeypatch: pytest.MonkeyPatch,
+    install: ForgeInstall,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """doctor with an unavailable Forge prints an actionable message, exits non-zero, no traceback."""
+    """doctor with an unavailable XMage (the DEFAULT) prints an actionable XMage how-to,
+    exits non-zero, no traceback — and NOT the legacy Forge ~350MB/FORGE_HOME advice."""
 
-    def _raise(**_: object) -> ForgeInstall:
-        raise ForgeUnavailableError('No Forge install found. Set MAKE_MAGIC_FORGE_HOME ...')
+    def _raise(**_: object) -> XMageInstall:
+        raise XMageUnavailableError('No XMage install found; run `simulate doctor --provision`.')
 
-    monkeypatch.setattr(forge_runtime, 'resolve', _raise)
-    # Still report the runtime snapshot even when Forge is absent.
+    monkeypatch.setattr(xmage_runtime, 'resolve', _raise)  # xmage (default) absent -> fails exit code.
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)  # legacy forge available (not default).
+    # Still report the runtime snapshot even when the default engine is absent.
     monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
     monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
     monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
@@ -900,29 +929,34 @@ def test_doctor_unavailable_graceful(
 
     captured = capsys.readouterr()
     combined = captured.out + captured.err
-    assert 'not available' in combined.lower() or 'no forge' in combined.lower()
-    assert 'MAKE_MAGIC_FORGE_HOME' in combined  # actionable: names the override.
+    assert 'not available' in combined.lower() or 'no xmage' in combined.lower()
+    assert '76MB' in combined  # actionable: the XMage shaded-jar how-to.
+    # The legacy Forge how-to (size + env override) must NOT fire for a missing default.
+    assert '350MB' not in combined and 'MAKE_MAGIC_FORGE_HOME' not in combined
     assert 'Traceback' not in combined  # graceful — no raw traceback.
 
 
 def test_doctor_provision_fetches_via_ensure(
     monkeypatch: pytest.MonkeyPatch,
     install: ForgeInstall,
+    xmage_install: XMageInstall,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """`doctor --provision` fetches via ensure() (not the read-only resolve)."""
+    """`doctor --provision` fetches the DEFAULT (XMage) via ensure() (not read-only resolve)."""
 
-    def _resolve_raises(**_: object) -> ForgeInstall:
-        raise ForgeUnavailableError('No Forge install found.')
+    def _resolve_raises(**_: object) -> XMageInstall:
+        raise XMageUnavailableError('No XMage install found.')
 
     called: dict[str, bool] = {}
 
-    def _ensure(**_: object) -> ForgeInstall:
+    def _ensure(**_: object) -> XMageInstall:
         called['ensure'] = True
-        return install
+        return xmage_install
 
-    monkeypatch.setattr(forge_runtime, 'resolve', _resolve_raises)  # read-only path would fail…
-    monkeypatch.setattr(forge_runtime, 'ensure', _ensure)  # …but --provision fetches (via the engine).
+    monkeypatch.setattr(xmage_runtime, 'resolve', _resolve_raises)  # read-only path would fail…
+    monkeypatch.setattr(xmage_runtime, 'ensure', _ensure)  # …but --provision fetches (via the engine).
+    # Legacy forge available read-only so --provision does not attempt a real fetch for it.
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)
     monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
     monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
     monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
@@ -938,12 +972,13 @@ def test_doctor_provision_fetches_via_ensure(
 def test_doctor_optin_engine_absent_is_informational_exit_zero(
     monkeypatch: pytest.MonkeyPatch,
     install: ForgeInstall,
+    xmage_install: XMageInstall,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """doctor loops EVERY registered engine: an available Forge (the DEFAULT) + an
+    """doctor loops EVERY registered engine: an available XMage (the DEFAULT) + an
     unavailable OPT-IN engine → both reported, but exit 0 (only a DEFAULT-engine
-    failure fails the exit code). The opt-in engine gets its OWN message, NOT
-    Forge's ~350MB/MAKE_MAGIC_FORGE_HOME how-to."""
+    failure fails the exit code). The opt-in engine gets its OWN message, NOT the
+    default's provision how-to."""
     import types
 
     from pipeline.sim import engine as engine_mod
@@ -962,22 +997,22 @@ def test_doctor_optin_engine_absent_is_informational_exit_zero(
 
     fake = types.SimpleNamespace(name='zzfake', capabilities=lambda: caps, resolve=_resolve_raises)
     monkeypatch.setitem(engine_mod._REGISTRY, 'zzfake', fake)  # type: ignore[arg-type]
-    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)  # forge (default) available.
+    monkeypatch.setattr(xmage_runtime, 'resolve', lambda **_: xmage_install)  # xmage (default) available.
+    monkeypatch.setattr(forge_runtime, 'resolve', lambda **_: install)  # legacy forge available (not default).
     monkeypatch.setattr(sim_run, 'derive_pool_size', lambda **_: 4)
     monkeypatch.setattr(sim_run, 'free_ram_gib', lambda: 12.5)
     monkeypatch.setattr(sim_run, 'free_disk_gib', lambda: 88.0)
 
-    sim_run.main(['doctor'])  # default forge available -> no SystemExit (exit 0).
+    sim_run.main(['doctor'])  # default xmage available -> no SystemExit (exit 0).
 
     captured = capsys.readouterr()
     combined = captured.out + captured.err
-    assert 'forge: available' in captured.out  # the default engine reported.
+    assert 'xmage: available' in captured.out  # the default engine reported.
     assert 'zzfake: NOT AVAILABLE' in combined  # the opt-in engine reported (informational).
     assert 'this is the fake how-to' in combined  # its own message surfaced.
-    # MINOR-2: the Forge-specific provision advice must NOT be printed for zzfake.
+    # The default's provision how-to must NOT be printed for the opt-in engine.
     assert '350MB' not in combined and 'MAKE_MAGIC_FORGE_HOME' not in combined
-    # MINOR-2: the Forge-specific provision advice must NOT be printed for zzfake.
-    assert '350MB' not in combined and 'MAKE_MAGIC_FORGE_HOME' not in combined
+    assert '76MB' not in combined  # the xmage default how-to only fires for a MISSING default.
 
 
 def test_match_auto_provisions_via_ensure(
@@ -986,7 +1021,11 @@ def test_match_auto_provisions_via_ensure(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A game verb (`match`) auto-provisions via ensure() when resolve() misses."""
+    """A game verb (`match`) auto-provisions via ensure() when resolve() misses.
+
+    Pins `--engine forge` (XMage is the default now) to target the Forge runtime's
+    resolve-miss → ensure() provisioning seam this test exercises.
+    """
     dck_a, dck_b = tmp_path / 'A.dck', tmp_path / 'B.dck'
     dck_a.write_text('Name=A\n[Main]\n40 Mountain\n')
     dck_b.write_text('Name=B\n[Main]\n40 Plains\n')
@@ -1013,7 +1052,7 @@ def test_match_auto_provisions_via_ensure(
 
     monkeypatch.setattr('pipeline.sim.runner.run_matchup', _fake_run_matchup)
 
-    sim_run.main(['match', str(dck_a), str(dck_b), '-n', '1'])
+    sim_run.main(['match', str(dck_a), str(dck_b), '-n', '1', '--engine', 'forge'])
 
     out = capsys.readouterr().out
     assert 'A: 1 wins' in out
