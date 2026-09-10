@@ -203,16 +203,25 @@ def _confirm_engine_download(engine_name: str, *, assume_yes: bool) -> None:
         )
 
 
-#: Default engine when ``--engine`` is omitted (Forge is the only backend this
-#: phase; the choices are the registry contents so a future engine auto-appears).
+#: Default engine when ``--engine`` is omitted. Forge is now DEPRECATED (legacy) in
+#: favour of XMage (CP7), which is the recommended engine — but the default is still
+#: ``'forge'`` for backward compatibility. Flipping it to ``'xmage'`` is a deliberate
+#: follow-up (it also moves ``doctor``'s exit-code pivot to XMage; see the DEFAULT-engine
+#: branches in ``_cmd_doctor`` and the tests that assert the forge default). The choices
+#: are the registry contents so a future engine auto-appears.
 _DEFAULT_ENGINE = 'forge'
 #: The ``deck`` verb's pseudo-engine that runs EVERY registered engine and prints a
 #: side-by-side comparison (task 3.1). Not a registered backend — a CLI-level fan-out.
 _BOTH_ENGINE = 'both'
-_ENGINE_HELP = 'Sim engine to use (default forge). Registry-driven — additional engines appear as they register.'
+_ENGINE_HELP = (
+    'Sim engine to use. XMage (CP7) is the recommended engine; forge is DEPRECATED (legacy), '
+    'retained only for comparison. Default is still forge for now. Registry-driven — additional engines '
+    'appear as they register.'
+)
 _ENGINE_HELP_BOTH = (
-    "Sim engine to use (default forge), or 'both' to run every registered engine and print a "
-    'side-by-side win-rate + piloting comparison. Registry-driven; one engine unavailable is reported + skipped.'
+    "Sim engine to use, or 'both' to run every registered engine and print a side-by-side win-rate + "
+    'piloting comparison. XMage (CP7) is the recommended engine; forge is DEPRECATED (legacy), retained '
+    'for comparison. Default is still forge for now. Registry-driven; one engine unavailable is reported + skipped.'
 )
 
 
@@ -1068,13 +1077,15 @@ def _doctor(argv: list[str]) -> None:
     """
     parser = argparse.ArgumentParser(
         prog='simulate doctor',
-        description='Report Forge/Java availability, the runtime-derived safe JVM pool size, and a '
-        'free-RAM/disk snapshot. Read-only unless --provision is passed.',
+        description='Report each registered sim engine (XMage recommended; forge deprecated legacy) and '
+        'Java availability, the runtime-derived safe JVM pool size, and a free-RAM/disk snapshot. '
+        'Read-only unless --provision is passed.',
     )
     parser.add_argument(
         '--provision',
         action='store_true',
-        help='Download + cache Forge + a JRE now if not already available (one-time ~350MB).',
+        help='Download + cache every registered engine now if not already available '
+        '(one-time; XMage ~76MB, legacy Forge ~350MB + a JRE).',
     )
     args = parser.parse_args(argv)
 
@@ -1156,7 +1167,7 @@ def _log(argv: list[str]) -> None:
 
     parser = argparse.ArgumentParser(
         prog='simulate log',
-        description='Retrieve a stored per-game verbose Forge log for a past matchup (offline, from DuckDB) — '
+        description='Retrieve a stored per-game verbose engine log for a past matchup (offline, from DuckDB) — '
         'for forensic deep-diving. Without --game, lists matching matchups; with --game N, prints that game.',
     )
     parser.add_argument('deck_a', help='Deck A: a .dck path (offline) or an Airtable deck name (live lookup).')
@@ -1164,7 +1175,7 @@ def _log(argv: list[str]) -> None:
     parser.add_argument('--format', dest='fmt', choices=_FORMAT_CHOICES, default=None, help='Narrow to a format.')
     parser.add_argument('--seed', type=int, default=None, help='Narrow to a specific run seed.')
     parser.add_argument('--games', type=int, default=None, dest='n_games', help='Narrow to a specific game count.')
-    parser.add_argument('--forge', default=None, help='Narrow to a specific Forge version.')
+    parser.add_argument('--forge', default=None, help='Narrow to a specific (legacy) Forge version.')
     parser.add_argument('--game', type=int, default=None, help='Print this game index (0-based) full log.')
     parser.add_argument('--engine', choices=available_engines(), default=None, help='Narrow to a specific sim engine.')
     args = parser.parse_args(argv)

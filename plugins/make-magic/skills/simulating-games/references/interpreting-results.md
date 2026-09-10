@@ -1,8 +1,13 @@
-# Interpreting Forge Simulation Results
+# Interpreting Simulation Results
 
 Depth reference for the `simulating-games` skill. Read this when you need the exact
-meaning of a result field, the sample-size math behind a CI claim, the archetypes Forge's
+meaning of a result field, the sample-size math behind a CI claim, the archetypes the sim
 AI mis-rates, or the caching/seed mechanics that shape a run.
+
+> **Engine note.** The recommended engine is **XMage**, running **CP7** (a counter-casting
+> minimax). **Forge is deprecated legacy** (`--engine forge`); the blind-spot catalog in §4
+> is anchored to CP7. Where a mechanic below is engine-agnostic (caching, seeds, the governor)
+> it holds for both; where it is Forge-specific it is called out as legacy.
 
 ---
 
@@ -89,46 +94,59 @@ means anything.
 
 ---
 
-## 4. Forge AI blind spots (why a win is weak evidence)
+## 4. AI blind spots (why a win is weak evidence)
 
-The gauntlet opponents run Forge's rule-based heuristic AI. It is a competent goldfish and
-a passable beatdown/midrange pilot, but it systematically mis-plays whole archetypes.
-Calibrate every verdict against this list:
+The recommended engine's opponents run **CP7** — XMage's counter-casting minimax. It is a
+real step up from Forge's deprecated heuristic AI: it sequences interaction, counters, and
+tempo far better, which is a large part of *why* Forge was deprecated. But it is still not a
+skilled human, and **bare CP7** (a deck with no driver) has a specific, load-bearing blind
+spot. Calibrate every verdict against this list.
 
-**Forge UNDER-rates (a low win-rate here may be the AI, not the deck):**
-- **Control** — sequences counters/removal poorly, taps out when it shouldn't, doesn't
-  hold up interaction. A control candidate can look worse than it is.
-- **Combo** — rarely assembles or protects multi-card combos; may never find the line.
-  A low combo win-rate is often un-piloted, not un-viable.
-- **Stax / prison / resource denial** — doesn't exploit locks; a stax deck's whole
-  premise is invisible to it.
-- **Intricate value engines** — misjudges long-horizon card-advantage loops.
+**The combo lever — DRIVE drivers.** Bare CP7 rarely assembles or protects a multi-card
+win-combo on its own — it does not search for the line. The fix is a **DRIVE quad driver**
+(see `authoring-drivers`): it seeds the deck's win-combo into CP7's own search so it actually
+pilots the line. On the XMage path a valid DRIVE driver is applied automatically; a deck
+without one runs **bare CP7** (a THIN driver is behaviorally bare CP7). So a low combo
+win-rate on bare CP7 is usually *un-piloted, not un-viable* — author a driver and re-sim.
 
-**Forge OVER-rates (a win here is especially weak evidence):**
-- **Linear aggro / go-wide beatdown** — the AI pilots this near-optimally, so the bot
-  *and* your candidate both play it well; beating a fair deck proves little about a real pod.
+**The AI UNDER-rates (a low win-rate here may be the AI, not the deck):**
+- **Combo (bare CP7, no driver)** — may never find or protect the line. This is the blind
+  spot the DRIVE driver system exists to close; author one before condemning the deck.
+- **Intricate value engines / long-horizon loops** — even CP7's bounded search misjudges
+  deep card-advantage engines.
+- **Stax / prison / resource denial** — exploits locks less than a human would; a stax
+  deck's full premise can be under-realized.
+- **Legacy Forge only** — Forge's heuristic AI *additionally* under-pilots plain **control**
+  (taps out, sequences counters/removal poorly). CP7 handles control far better, so a
+  control candidate that looked weak under legacy Forge deserves a fresh XMage read.
+
+**The AI OVER-rates (a win here is especially weak evidence):**
+- **Linear aggro / go-wide beatdown** — the AI pilots this well, so the bot *and* your
+  candidate both play it competently; beating a fair deck proves little about a real pod.
 - **Fair midrange curve-out** — the AI's comfort zone.
 
-**Practical rule:** if the candidate is control/combo/stax and posts a low win-rate,
-**suspect the AI's piloting before the deck's construction** — read the telemetry
-(did the wincon ever fire? what's the kill-turn spread?) and say so. If the candidate is
-linear aggro and posts a high win-rate, discount it: it cleared the AI's *strongest*
-suit. Failure remains the trustworthy signal; success only confirms *functional*.
+**Practical rule:** if the candidate is combo/engine/stax and posts a low win-rate on bare
+CP7, **suspect the AI's piloting before the deck's construction** — author a DRIVE driver,
+re-sim, and read the telemetry (did the wincon ever fire? what's the kill-turn spread?) and
+say so. If the candidate is linear aggro and posts a high win-rate, discount it: it cleared
+the AI's *strongest* suit. Failure remains the trustworthy signal; success only confirms
+*functional*.
 
 ---
 
 ## 5. Caching, `--force`, seeds, and the governor
 
 **Content-addressed cache.** Each matchup is keyed by its decks + games + seed + format +
-the pinned Forge version. A matchup already run is **served from cache with zero JVM
-launches** — that's why a re-run is near-instant and per-opponent rows show `[cached]`.
-A Forge-version bump self-invalidates the cache automatically.
+the engine + its pinned version (and the driver, when one is applied). A matchup already run
+is **served from cache with zero JVM launches** — that's why a re-run is near-instant and
+per-opponent rows show `[cached]`. An engine-version bump (or a driver change) self-invalidates
+the cache automatically, and a run under a different `--engine` never collides with another's.
 
 **`--force`** bypasses the cache and re-runs every matchup fresh. Use it when you suspect
 staleness or want new RNG draws; otherwise leave the cache on — it's what makes iterating
 on one variant cheap.
 
-**Seeds.** `--seed` (default 42) seeds the run, but Forge's own `-s` is **not reliably
+**Seeds.** `--seed` (default 42) seeds the run, but the engine's own seed is **not reliably
 reproducible** — do not promise bit-identical replays. Because same-seed A/B is not a
 paired test (§1), the seed is for coarse reproducibility, not for a CRN variance-reduction
 claim. To grow the sample rather than replay it, raise `--games` (or `--force` with a new
@@ -140,8 +158,8 @@ and budgets ~2 GiB per JVM (`-Xmx2g` + overhead), with a floor of 1 so even a st
 runs one game at a time. It **never exhausts the machine**. `simulate doctor` prints the
 derived pool plus a free-RAM/disk snapshot; check it before a large gauntlet.
 
-**Runtime expectations.** Forge is fetched at runtime and reused if present, so the first
-run may pay a one-time provisioning cost. Large gauntlets take **minutes**, and
+**Runtime expectations.** The engine is fetched at runtime and reused if present, so the first
+run may pay a one-time provisioning cost (XMage ~76MB; legacy Forge ~350MB + a JRE). Large gauntlets take **minutes**, and
 **Commander runs ~8× slower** than constructed (longer games, bigger board states) — size
 `--games` and `--format` with that in mind, and lean on the cache so you only pay for the
 matchups that actually changed.

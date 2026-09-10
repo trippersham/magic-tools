@@ -1,7 +1,8 @@
 ---
 name: simulating-games
 description: >
-  Empirically test MTG decks by running real headless Forge games via the `simulate` CLI.
+  Empirically test MTG decks by running real headless MTG games via the `simulate` CLI
+  (XMage/CP7 is the primary engine; Forge is deprecated legacy).
   TRIGGER when: user asks to "test how a deck plays", "does deck X actually work",
   "confirm this swap", "validate this change", "simulate deck X", "run a gauntlet",
   "A/B these two lists", "what's the win-rate", "play deck X against deck Y", or wants
@@ -14,27 +15,41 @@ user-invocable: true
 
 # Simulating Games
 
-Empirically test decks with real headless MTG Forge games via the `simulate` CLI: a
+Empirically test decks with real headless MTG games via the `simulate` CLI: a
 candidate deck plays a **gauntlet** of opponents, and you read the resulting
 **win-rate ± CI** plus a **telemetry profile** (kill-turn, win-margin, wincon mix,
 ramp curve) to confirm how the deck actually plays.
 
+> **Engine: XMage (CP7) is primary; Forge is DEPRECATED (legacy).** The recommended
+> engine is **XMage**, running **CP7** — a counter-casting minimax that pilots control,
+> tempo, and (with a driver) combo far better than Forge's retired heuristic AI. Select it
+> explicitly with `--engine xmage` on any game verb. **Forge remains only as legacy
+> `--engine forge`** for comparison — no longer the recommended engine. (The CLI's built-in
+> `--engine` *default* is still `forge` for backward compatibility; flipping it to `xmage`
+> is a tracked follow-up, so pass `--engine xmage` until then.)
+
 <primary-constraint>
-**A Forge win-rate is directional evidence, not ground truth. NEVER report a bare
+**An AI win-rate is directional evidence, not ground truth. NEVER report a bare
 win-rate — ALWAYS report it with its 95% CI, and frame the verdict correctly.**
 
-Why: Forge's opponents are driven by a **rule-based heuristic AI**, not a skilled
-pilot. It plays fair beatdown and midrange competently but is **weak at control,
-combo, stax, and intricate lines** — so an absolute win-rate is a measurement of *this
-AI on this gauntlet*, never a ladder rating. The asymmetry is the load-bearing part:
+Why: even XMage's **CP7** — a real counter-casting minimax, far stronger than Forge's
+deprecated heuristic AI — is not a skilled human pilot. **Bare CP7** (no driver) plays
+fair beatdown, midrange, control, and tempo competently, but still **under-pilots intricate
+combo and long-horizon engines**: it rarely assembles or protects a multi-card win line on
+its own. The lever for that is the **driver system** — a **DRIVE quad driver**
+(see `authoring-drivers`) seeds a deck's win-combo into CP7's own search so it actually
+pilots the line; without one you get bare CP7, which may never find the combo. So an
+absolute win-rate is a measurement of *this AI (driven or bare) on this gauntlet*, never a
+ladder rating. The asymmetry is the load-bearing part:
 
 - A deck that **CANNOT** beat the gauntlet is **genuinely flawed** — if it can't even
-  clear a rule-based bot, it will not clear real opponents. Failure is trustworthy.
+  clear a minimax bot, it will not clear real opponents. Failure is trustworthy.
 - A deck that **BEATS** the gauntlet is only confirmed **functional** (it does the
   thing it's built to do), **NOT confirmed good** — the bot didn't punish it. Success
   is weak evidence.
-- Combo/control candidates especially: a low Forge win-rate may be the AI failing to
-  pilot them, not the deck being bad. Say so; don't condemn the deck on the number.
+- Combo/engine candidates especially: a low win-rate on **bare CP7** may be the AI
+  failing to pilot the line, not the deck being bad — author a DRIVE driver and re-sim
+  before condemning it. Say so; don't condemn the deck on the number.
 
 So: report `win-rate [95% CI lo–hi]`, and rank on the metric that matches the QUESTION
 (fastest clock → kill-turn; most resilient → win-margin/spread; "did the plan fire?" →
@@ -48,8 +63,9 @@ If you catch yourself about to:
   a shrug, not a verdict. The interval IS the finding.
 - **Declare a deck "good" because it won the gauntlet** — STOP. It's confirmed
   *functional*, not good. The bot is beatable; real pods aren't.
-- **Condemn a control/combo deck for a low win-rate** — STOP. Suspect the AI's piloting
-  before the deck's construction. Read the telemetry, not just the tally.
+- **Condemn a combo/engine deck for a low win-rate on bare CP7** — STOP. Suspect the AI's
+  piloting before the deck's construction: bare CP7 under-pilots intricate combo. Author a
+  DRIVE driver (`authoring-drivers`) and re-sim, and read the telemetry, not just the tally.
 - **Draw a conclusion from ~20 games** — STOP. That's ±~20 points; it's directional.
   Say "directional," or run more games.
 - **Invent a flag** (`--iterations`, `--vs`, `--verbose`, `--json`) — STOP. The real
@@ -73,33 +89,36 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/simulate <verb> [args...]
 - an **Airtable deck NAME** — resolved via the collection store and rendered to `.dck`.
 
 The collection backend auto-resolves (override with `MAKE_MAGIC_BACKEND=local|airtable`);
-Forge/Java auto-resolve (override with `MAKE_MAGIC_FORGE_HOME` + `MAKE_MAGIC_JAVA`).
+the engine + Java auto-resolve. **Add `--engine xmage`** to game verbs to run the recommended
+XMage/CP7 engine (legacy Forge is `--engine forge`, and can be pointed at an existing install
+with `MAKE_MAGIC_FORGE_HOME` + `MAKE_MAGIC_JAVA`).
 
 **Check the environment first.** `doctor` and `gauntlet show` run offline (no game JVM);
-`match` / `deck` / `ab` spawn real Forge, so confirm Forge is reachable before a long run:
+`match` / `deck` / `ab` spawn a real engine JVM, so confirm the engine is reachable before a
+long run:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/simulate doctor              # read-only check
-${CLAUDE_PLUGIN_ROOT}/scripts/simulate doctor --provision  # fetch Forge + JRE now (one-time ~350MB)
+${CLAUDE_PLUGIN_ROOT}/scripts/simulate doctor              # read-only check (reports every engine)
+${CLAUDE_PLUGIN_ROOT}/scripts/simulate doctor --provision  # fetch engines now (XMage ~76MB; legacy Forge ~350MB + JRE)
 ```
 Plain `doctor` prints the runtime-derived **safe pool size** (concurrent JVMs), a
-free-RAM/disk snapshot, and whether Forge is available (with an actionable "how to
-enable" if not) — and never downloads. `doctor --provision` performs the one-time
-Forge + JRE fetch up front (otherwise the first `match`/`deck`/`ab` auto-provisions it).
-If `doctor` reports Forge NOT AVAILABLE and you don't want to provision, stop and surface
-its message — do not attempt a run.
+free-RAM/disk snapshot, and each registered engine's availability (with an actionable "how to
+enable" if not) — and never downloads. `doctor --provision` performs the one-time engine fetch
+up front (otherwise the first `match`/`deck`/`ab` auto-provisions the engine it needs).
+If `doctor` reports your chosen engine NOT AVAILABLE and you don't want to provision, stop and
+surface its message — do not attempt a run.
 
 **`--allow-missing`.** Game verbs hard-fail before spawning a JVM if a deck references a
-card absent from Forge's DB (a genuinely unloadable name — not just a name-only card).
-Pass `--allow-missing` to proceed anyway (that card is simply dropped by Forge). Prefer
+card the engine can't load (a genuinely unloadable name — not just a name-only card).
+Pass `--allow-missing` to proceed anyway (that card is simply dropped). Prefer
 fixing the deck; use the flag only when you deliberately want to sim the loadable subset.
 
 ## Prerequisites
 
 - **uv** — the wrapper runs via `uv run --script` (PEP 723 inline metadata).
-- **Java + Forge** — auto-fetched at runtime and reused if already present; verify with
-  `doctor`. A game verb without a resolvable Forge exits with a clean `error:`, not a
-  traceback.
+- **Java + a sim engine** — XMage (CP7, recommended) or legacy Forge, auto-fetched at runtime
+  and reused if already present; verify with `doctor`. A game verb without a resolvable engine
+  exits with a clean `error:`, not a traceback.
 - **A backend** (only when addressing decks by NAME rather than `.dck` path) — local YAML
   or Airtable, same as the other make-magic skills. `--gauntlet mine|both` also needs the
   store (it pulls your own decks); `--gauntlet curated` never touches it.
@@ -111,7 +130,7 @@ fixing the deck; use the flag only when you deliberately want to sim the loadabl
 | "How does deck X play?" / "test deck X" / "run the gauntlet" | `deck` | [Evaluate a deck](#1-evaluate-a-deck-vs-the-gauntlet) |
 | "Is variant B better than A?" / "confirm this swap" / "validate this change" | `ab` | [A/B a change](#2-ab-a-change) |
 | "Play X against Y" / "X vs Y head-to-head" | `match` | [Head-to-head](#3-head-to-head) |
-| "Check Forge / how many games can I run" | `doctor` | [above](#the-cli-simulate) |
+| "Check the sim engine / how many games can I run" | `doctor` | [above](#the-cli-simulate) |
 | "What's in the gauntlet?" / "show the field" | `gauntlet show` | [Inspect the field](#4-inspect-the-gauntlet) |
 | "Why did X lose to Y?" / "pull up that game" / "what happened in game N" | `log` | [Replay a past game](#5-replay-a-past-game) |
 
@@ -128,8 +147,12 @@ size the run accordingly.
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/simulate deck "<Airtable deck name>" \
-  --gauntlet both --format commander --games 30
+  --engine xmage --gauntlet both --format commander --games 30
 ```
+- `--engine xmage|forge|both` — **`xmage` (CP7) is recommended**; `forge` is deprecated legacy;
+  `both` runs every registered engine and prints a side-by-side win-rate + piloting comparison.
+  A DRIVE quad driver (from `authoring-drivers`) is applied automatically on the XMage path so
+  CP7 pilots the deck's combo line; a deck without one runs bare CP7.
 - `--gauntlet curated|mine|both|<bundle>` — `curated` is the small default bundled opponent
   set (offline, no store); `mine` is your own decks; `both` merges them (curated first);
   `<bundle>` is a packaged named tier set. Default `curated`. The shipped named bundle is
@@ -164,7 +187,7 @@ proposal. Run both variants over the **same** gauntlet and compare the deltas.
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/simulate ab "<A>" "<variant B .dck or name>" \
-  --gauntlet curated --games 30
+  --engine xmage --gauntlet curated --games 30
 ```
 `<A>` and `<B>` are each a deck name or a `.dck` path — so "A = the live deck, B = the
 same deck with one card swapped" is a natural A/B: export B to a `.dck`, or save it as a
@@ -183,17 +206,17 @@ error bars; the same delta on 300 games is a signal.
 aggregation).
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/simulate match "<A>" "<B>" -n 30
+${CLAUDE_PLUGIN_ROOT}/scripts/simulate match "<A>" "<B>" --engine xmage -n 30
 ```
 - `-n N` — number of games (default 4). `-s / --seed N` — RNG seed (default 42).
-- `--format constructed|commander`.
+- `--engine xmage|forge` (xmage/CP7 recommended; forge legacy). `--format constructed|commander`.
 
 Output: `A: W wins   B: W wins   draws: D`. Use this for a targeted "does X beat Y?"
 question; use `deck` when you want a win-rate against a *field*.
 
 ## 4. Inspect the gauntlet
 
-See the field a candidate is measured against (offline — no Forge, no store, no network):
+See the field a candidate is measured against (offline — no engine JVM, no store, no network):
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/simulate gauntlet show --format commander
@@ -206,10 +229,10 @@ this verb — read them via the collection skills.)
 
 "Why did X lose to Y?" / "pull up that specific game" — a **forensic** deep-dive into an
 already-simulated matchup, with **no re-run**. Every `deck` / `ab` run persists the full
-verbose Forge log of each game to DuckDB, so a past game is replayable exactly as it
-happened. This matters because **Forge's seed is not reproducible** — re-running the same
-matchup yields a *different* game, so the only faithful record is the one captured at run
-time.
+verbose engine log of each game to DuckDB, so a past game is replayable exactly as it
+happened. This matters because **the engine's seed is not reliably reproducible** — re-running
+the same matchup can yield a *different* game, so the only faithful record is the one captured
+at run time.
 
 ```bash
 # List the stored matchup(s) for a deck pair + each game's index/outcome:
@@ -224,9 +247,10 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/simulate log "<A>" "<B>" --game 0
   if the deck was edited since the run, its hash no longer matches and the logs won't be
   found. Prefer the `.dck` path that was simulated for reliable forensics.
 - `--game N` prints game `N` (0-based); omit it to list the games first. Narrow ambiguous
-  matches (multiple seeds / game-counts / Forge versions) with `--seed` / `--games` /
-  `--format` / `--forge`; the listing shows an 8-char matchup-key prefix to tell runs apart.
-- No Forge needed: reads straight from DuckDB. Use it to explain an upset turn-by-turn,
+  matches (multiple seeds / game-counts / engines) with `--seed` / `--games` / `--format` /
+  `--engine` (and legacy `--forge` for a specific Forge version); the listing shows an 8-char
+  matchup-key prefix to tell runs apart.
+- No engine JVM needed: reads straight from DuckDB. Use it to explain an upset turn-by-turn,
   confirm a wincon, or check whether a loss was mana screw vs. getting outclassed.
 
 ---
@@ -272,8 +296,9 @@ clock, most resilient, or "the plan actually fired" — never win-rate in isolat
 <reference file="interpreting-results.md">
 Read references/interpreting-results.md for the full telemetry-field reference (exact
 semantics of every SimResult / TelemetryProfile field and its source), the Wilson-CI
-sample-size table, the AI-blind-spots catalog (which archetypes Forge under- and
-over-rates), and the caching / `--force` / seed mechanics.
+sample-size table, the AI-blind-spots catalog (which archetypes the AI under- and
+over-rates, and how a DRIVE driver closes the combo gap), and the caching / `--force` /
+seed mechanics.
 </reference>
 
 ## Relationship to building-decks
@@ -281,7 +306,7 @@ over-rates), and the caching / `--force` / seed mechanics.
 **building-decks is a-priori; simulating-games is a-posteriori.** building-decks reasons
 about card fit and deck balance *before* a game is played — it proposes a swap on
 Strategy/Focus-Otags/Quadrant reasoning. This skill **closes that loop**: it runs real
-Forge games to CONFIRM (or refute) the proposal empirically.
+headless games (XMage/CP7) to CONFIRM (or refute) the proposal empirically.
 
 The intended workflow:
 1. **building-decks** proposes a change (e.g. "cut X for Y — better Losing-quadrant answer").
