@@ -10,7 +10,15 @@ fields or the detection / litmus behavior.
 
 from __future__ import annotations
 
-from pipeline.transforms.combo_detect import _combo_from_variant, is_game_win_result
+from pathlib import Path
+
+from pipeline.transforms.combo_detect import (
+    Combo,
+    _combo_from_variant,
+    _materialize,
+    is_game_win_result,
+    load_combos,
+)
 
 
 def _fixture_variant() -> dict:
@@ -80,3 +88,59 @@ def test_project_leaves_existing_fields_unchanged() -> None:
     assert combo.card_oracle_ids == ('oid-a', 'oid-b')
     # result stays the '; '-joined feature names, order preserved.
     assert combo.result == 'Target opponent loses the game; Infinite card draw'
+
+
+# --------------------------------------------------------------------------- #
+# Lake round-trip: _materialize -> load_combos over the widened schema.
+# The projection above is pure; these prove the new `steps VARCHAR[]`,
+# `prerequisites VARCHAR[]`, and `produces STRUCT(name,status,win)[]` columns
+# survive a real write-then-read through the normalized DuckDB lake (the one
+# path the pure-projection tests can't reach). Uses the isolated `data_dir`
+# store fixture from conftest.
+# --------------------------------------------------------------------------- #
+
+
+def test_materialize_load_roundtrip_preserves_widened_fields(data_dir: Path) -> None:
+    projected = _combo_from_variant(_fixture_variant())
+    assert projected is not None
+
+    _materialize([projected])
+    loaded = load_combos()
+
+    assert len(loaded) == 1
+    got = loaded[0]
+    # Every field survives the parquet round-trip byte-for-byte, including the
+    # STRUCT(name,status,win)[] produces with its per-feature `win` booleans.
+    assert got.variant_id == projected.variant_id
+    assert got.card_names == projected.card_names
+    assert got.card_oracle_ids == projected.card_oracle_ids
+    assert got.result == projected.result
+    assert got.steps == projected.steps
+    assert got.prerequisites == projected.prerequisites
+    assert tuple(dict(p) for p in got.produces) == tuple(dict(p) for p in projected.produces)
+    # `win` is a real bool after the DuckDB BOOLEAN round-trip, not truthy junk.
+    assert [p['win'] for p in got.produces] == [True, False]
+    assert all(isinstance(p['win'], bool) for p in got.produces)
+
+
+def test_materialize_empty_yields_empty_schema_template(data_dir: Path) -> None:
+    # The empty-input branch writes a typed 0-row template (the STRUCT column
+    # is declared explicitly); loading it back must yield no combos, not error.
+    _materialize([])
+    assert load_combos() == []
+
+
+def test_materialize_load_roundtrip_empty_widened_fields(data_dir: Path) -> None:
+    # A legacy-shaped Combo (no steps/prereqs/produces) round-trips to the same
+    # empty tuples — the defaults land as empty lists, not nulls.
+    legacy = Combo(
+        variant_id='legacy-1',
+        card_names=('Card A',),
+        card_oracle_ids=('oid-a',),
+        result='',
+    )
+    _materialize([legacy])
+    got = load_combos()[0]
+    assert got.steps == ()
+    assert got.prerequisites == ()
+    assert got.produces == ()
