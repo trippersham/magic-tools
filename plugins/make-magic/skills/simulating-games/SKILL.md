@@ -23,10 +23,9 @@ ramp curve) to confirm how the deck actually plays.
 > **Engine: XMage (CP7) is primary; Forge is DEPRECATED (legacy).** The recommended
 > engine is **XMage**, running **CP7** — a counter-casting minimax that pilots control,
 > tempo, and (with a driver) combo far better than Forge's retired heuristic AI. Select it
-> explicitly with `--engine xmage` on any game verb. **Forge remains only as legacy
-> `--engine forge`** for comparison — no longer the recommended engine. (The CLI's built-in
-> `--engine` *default* is still `forge` for backward compatibility; flipping it to `xmage`
-> is a tracked follow-up, so pass `--engine xmage` until then.)
+> **XMage is now the CLI's built-in `--engine` default** — every game verb runs it unless
+> you opt out. **Forge remains only as legacy `--engine forge`** for comparison — no longer
+> the recommended engine and no longer the default.
 
 <primary-constraint>
 **An AI win-rate is directional evidence, not ground truth. NEVER report a bare
