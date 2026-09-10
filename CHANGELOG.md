@@ -12,6 +12,18 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`collection deck-combos` returns the full combo line, not just a label.** Each detected
+  combo now carries the ORDERED assembly `steps` (the Spellbook `description`, newline-split
+  and stripped), the non-empty `prerequisites` (easy → notable → mana needed, in source
+  order), a typed `produces` list (`{name, status, win}` with a per-feature game-win litmus),
+  and a `spellbookUrl`, alongside the existing `variant_id` / `cards` / `result`. Purely
+  **additive / non-breaking**: a pure projection widening — combo detection and the
+  game-win litmus are untouched, the widened fields default to empty and round-trip through
+  a new `steps` / `prerequisites` / `produces` column set in the normalized lake, and every
+  legacy `Combo(...)` call site (seeds, driver-batch reconstruction) stays valid.
+
 ## [0.7.2] — 2026-09-11
 
 A **non-breaking** simulation-integrity release (a *patch* under this project's `0.y.z`
