@@ -95,7 +95,10 @@ log = logging.getLogger('make_magic.sim.transcript_parser')
 __all__ = (
     'GameFeatures',
     'ingest_transcript',
+    'is_fake_macro_win',
+    'loser_life',
     'parse_transcript',
+    'win_lethality',
 )
 
 # --- marker regexes (grounded in MakeMagicHooks.java / XMageBatch.java) ----- #
@@ -397,6 +400,67 @@ def _extract_win_margin(lines: list[str], winner: str) -> int | None:
         if rm:
             return int(rm.group(4)) if winner == 'a' else int(rm.group(5))
     return None
+
+
+# --- win-lethality guardrail ----------------------------------------------- #
+#
+# A win is REAL only if the loser reached a substantive terminal (life <= 0 covers
+# lethal damage, burn, and drain collapse; deckout/poison/commander damage also drive
+# the loser to a rules loss). A decided win where the loser is still ALIVE is NON-LETHAL:
+# either a macro-fire spurious end (the cheating driver — the sim awards a win the deck
+# never played) or an opponent-AI concede. These functions expose that split for the
+# honest-win-rate audit and the goldfish/gate lethality checks, WITHOUT touching the
+# frozen ``GameFeatures``/``classify_validity`` schema.
+
+
+def _as_lines(text_or_lines: str | Iterable[str]) -> list[str]:
+    return text_or_lines.splitlines() if isinstance(text_or_lines, str) else list(text_or_lines)
+
+
+def loser_life(text_or_lines: str | Iterable[str]) -> int | None:
+    """The LOSER's remaining life from the ``XMAGEBATCH RESULT`` line.
+
+    Complements ``win_margin_life`` (the WINNER's life). Returns ``None`` when the game is
+    not a decided win (``DRAW/UNFINISHED``) or no RESULT line is present.
+    """
+    for raw in _as_lines(text_or_lines):
+        rm = _XMAGEBATCH_RESULT_RE.match(raw.strip())
+        if rm:
+            win = rm.group(1)
+            if win == 'PlayerA':
+                return int(rm.group(5))  # loser = PlayerB
+            if win == 'PlayerB':
+                return int(rm.group(4))  # loser = PlayerA
+            return None  # DRAW/UNFINISHED — no loser
+    return None
+
+
+def win_lethality(text_or_lines: str | Iterable[str]) -> str:
+    """Classify a game's terminal as ``'lethal'`` / ``'nonlethal'`` / ``'undecided'``.
+
+    ``'lethal'`` — a decided win with the loser at <= 0 life (a real kill).
+    ``'nonlethal'`` — a decided win with the loser still ALIVE (a macro-fire spurious end
+    or an opponent concede) — never our deck reducing the opponent to lethal.
+    ``'undecided'`` — a draw / unfinished / unparseable game.
+    """
+    life = loser_life(text_or_lines)
+    if life is None:
+        return 'undecided'
+    return 'lethal' if life <= 0 else 'nonlethal'
+
+
+def is_fake_macro_win(text_or_lines: str | Iterable[str]) -> bool:
+    """A macro-attributed non-lethal win — the "cheating driver" artifact.
+
+    True iff the driven combo macro really committed (``MACRO_FIRE_REAL``) AND the game
+    was credited a win with the loser still ALIVE. Distinguishes the driver bug from an
+    opponent-AI concede (no macro) and from a real lethal (loser at <= 0). The honest
+    win-rate audit excludes these from W/L.
+    """
+    lines = _as_lines(text_or_lines)
+    if win_lethality(lines) != 'nonlethal':
+        return False
+    return any(_MACRO_FIRE_REAL_RE.match(ln.strip()) for ln in lines)
 
 
 # --- persistence ----------------------------------------------------------- #

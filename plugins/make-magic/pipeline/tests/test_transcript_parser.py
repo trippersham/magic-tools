@@ -100,6 +100,47 @@ def test_parse_accepts_lines_iterable() -> None:
     assert f.winner == 'b'
 
 
+# --- win-lethality (the cheating-driver guardrail signal) ------------------ #
+#
+# A win is REAL only if the loser reached a substantive terminal (life <= 0 / deckout
+# / poison / commander damage). A decided win with the loser still alive is NON-LETHAL:
+# a macro-fire spurious end (the cheating driver) or an opponent-AI concede — neither is
+# our deck reducing the opponent to lethal. ``loser_life`` reads the LOSER's remaining
+# life from the RESULT line (complementing ``win_margin_life`` = the WINNER's life).
+
+
+def test_loser_life_reads_the_losing_seat() -> None:
+    # driverless_loss: winner=b, lifeA=0 lifeB=14 -> loser (A) at 0.
+    assert tp.loser_life(DRIVERLESS_LOSS) == 0
+    # driven_combo_win: winner=a, lifeA=20 lifeB=20 -> loser (B) at 20.
+    assert tp.loser_life(DRIVEN_COMBO_WIN) == 20
+    # a draw / undecided transcript has no loser life.
+    assert tp.loser_life(TIMEOUT_BRICK) is None
+
+
+def test_win_lethality_lethal_on_real_kill() -> None:
+    assert tp.win_lethality(DRIVERLESS_LOSS) == 'lethal'  # loser at 0.
+
+
+def test_win_lethality_nonlethal_on_macro_fire_opponent_alive() -> None:
+    # The canonical "driven combo win" fixture is itself the bug: MACRO_FIRE_REAL fires,
+    # the opponent is untouched at 20, and it is credited a win. That is NON-LETHAL.
+    assert tp.win_lethality(DRIVEN_COMBO_WIN) == 'nonlethal'
+
+
+def test_win_lethality_undecided_for_draw() -> None:
+    assert tp.win_lethality(TIMEOUT_BRICK) == 'undecided'
+
+
+def test_is_fake_macro_win_flags_macro_attributed_nonlethal() -> None:
+    # macro fired + winner decided + loser alive -> a fabricated ("cheating") win.
+    assert tp.is_fake_macro_win(DRIVEN_COMBO_WIN) is True
+    # a real lethal kill (even driverless) is never a fake macro win.
+    assert tp.is_fake_macro_win(DRIVERLESS_LOSS) is False
+    # a draw is not a win at all.
+    assert tp.is_fake_macro_win(TIMEOUT_BRICK) is False
+
+
 # --- persistence tests ----------------------------------------------------- #
 
 
