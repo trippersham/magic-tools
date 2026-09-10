@@ -479,6 +479,19 @@ def gate_driver(
             f'proactive quad never emitted {MACRO_FIRE_REAL_MARKER} over {games} solo games '
             f'(the deterministic win never REALLY executed in act(){reach})'
         )
+    if is_proactive and driven_median < 0:
+        # LETHALITY INVARIANT (the cheating-driver fix). The macro COMMITTED (MACRO_FIRE_REAL) but
+        # the driven goldfish never reduced the opponent to a real lethal — driven medianKillsOwn is
+        # the -1 no-kill sentinel (the harness now counts a kill only on lifeB<=0, not a bare
+        # engine hasLost()). A macro that "wins" with the opponent alive is a non-lethal engine
+        # artifact, not the deck executing its line, so it must NOT pass — even when the baseline
+        # also never kills (where the never-slower check below would pass +inf <= +inf + tolerance).
+        return _fail(
+            f'proactive quad fired {MACRO_FIRE_REAL_MARKER} but the driven goldfish never reduced '
+            f'the opponent to LETHAL over {games} solo games (medianKillsOwn={driven_median}, the '
+            'no-kill sentinel) — a non-lethal engine artifact, not a real kill (the deck must play '
+            'the win, not have the engine adjudicate a win with the opponent alive)'
+        )
     if not never_slower:
         floor = 'never-worse-solo floor' if not is_proactive else 'never-slower-than-CP7 check'
         return _fail(

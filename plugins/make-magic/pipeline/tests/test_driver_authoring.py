@@ -226,6 +226,19 @@ def test_seed_quad_from_combo_produces_drive_quad() -> None:
     da.check_quad_guardrails(src)
 
 
+def test_seed_applicable_ignores_dead_pieces_in_graveyard_and_exile() -> None:
+    """A milled/exiled combo piece is UNCASTABLE — it can never complete the line — so it must
+    NOT make the macro fire (firing on an unassemblable combo is the cheating-driver waste, and
+    it produces the non-lethal spurious 'win'). ``applicable()`` accounts only HAND + BATTLEFIELD
+    pieces (in hand = castable, on the battlefield = already resolved this turn)."""
+    spec = da.seed_quad_from_combo(_win_combo(), archetype='drive-capable')
+    ab = spec.macro.applicable_body
+    assert 'getHand' in ab  # still requires a piece in hand to cast next
+    assert 'getBattlefield' in ab  # a resolved piece on the battlefield still counts
+    assert 'getGraveyard' not in ab  # a dead piece in the graveyard does NOT trigger a fire
+    assert 'getExile' not in ab  # nor an exiled piece
+
+
 def test_seed_macro_generates_no_forbidden_terminal_calls() -> None:
     """No-terminal-API rule: the authoring seed must NEVER generate a macro that calls a
     game/player terminal or zone-fabrication API. Every seeded macro (plain + nudge) and the

@@ -624,14 +624,15 @@ return score;"""
 def _seed_applicable_body(card_names: tuple[str, ...]) -> str:
     """P body: gate the priority-fair, one-piece-per-priority macro line.
 
-    Fires only when the stack is empty on the driver's own priority AND every combo piece is
-    ACCOUNTED FOR in an owned zone (hand, battlefield, graveyard, or exile — so a piece that has
-    already resolved this turn still counts) AND at least one piece is still IN HAND to cast. The
-    accounted-for check keeps the line firing ACROSS priority steps (the macro casts one piece and
-    yields; on the driver's next priority the resolved piece has left hand but is still accounted
-    for, so P re-fires to cast the next). The in-hand check STOPS the line once the last piece has
-    been cast (no piece left in hand -> false -> no spin), and a countered piece that lands in the
-    graveyard leaves nothing new to cast, so the line winds down cleanly rather than retry-looping.
+    Fires only when the stack is empty on the driver's own priority AND every combo piece is in a
+    CASTABLE-or-RESOLVED zone — HAND (castable) or BATTLEFIELD (already resolved this turn) — AND at
+    least one piece is still IN HAND to cast. A piece in the graveyard or exile is UNCASTABLE: the
+    combo can never complete from there, so a dead piece must NOT keep the macro firing (that is the
+    cheating-driver waste — firing on an unassemblable combo, which the engine then adjudicates as a
+    spurious non-lethal win). The hand+battlefield accounting still resumes the line across priority
+    steps (cast one piece, yield; the resolved piece has left hand but is on the battlefield, so P
+    re-fires to cast the next) and stops once the hand is out of pieces (no spin). A countered piece
+    lands in the graveyard → no longer accounted → the line winds down cleanly.
     """
     names = _java_name_set(card_names)
     total = len(card_names)
@@ -646,9 +647,9 @@ if (me == null) {{
 if (!pid.equals(game.getActivePlayerId()) || !game.getStack().isEmpty()) {{
     return false;
 }}
-// Every combo piece must be ACCOUNTED FOR (hand/battlefield/graveyard/exile) and at least one
-// still IN HAND to cast — the one-piece-per-priority line resumes across steps and stops when
-// the hand is out of pieces (no spin).
+// Every combo piece must be in a CASTABLE-or-RESOLVED zone (hand or battlefield) and at least one
+// still IN HAND to cast. Graveyard/exile are NOT counted — a dead piece is uncastable, so it must
+// not keep the macro firing on an unassemblable combo (the cheating-driver spurious-win waste).
 java.util.Set<String> want = new java.util.HashSet<>(java.util.Arrays.asList({names}));
 java.util.Set<String> accounted = new java.util.HashSet<>();
 int inHand = 0;
@@ -661,16 +662,6 @@ for (Card c : me.getHand().getCards(game)) {{
 for (Permanent p : game.getBattlefield().getAllActivePermanents(pid)) {{
     if (want.contains(p.getName())) {{
         accounted.add(p.getName());
-    }}
-}}
-for (Card c : me.getGraveyard().getCards(game)) {{
-    if (want.contains(c.getName())) {{
-        accounted.add(c.getName());
-    }}
-}}
-for (Card c : game.getExile().getAllCards(game)) {{
-    if (pid.equals(c.getOwnerId()) && want.contains(c.getName())) {{
-        accounted.add(c.getName());
     }}
 }}
 return accounted.size() == {total} && inHand >= 1;"""
