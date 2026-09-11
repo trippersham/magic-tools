@@ -12,6 +12,38 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-09-11
+
+A **non-breaking** simulation-integrity release (a *patch* under this project's `0.y.z`
+convention). Closes a lethality hole in the sim that credited fabricated combo wins;
+everything existing is unchanged — no CLI removals, no store or Airtable schema changes,
+and no XMage-dist re-pin (the fix is Python plus a local harness-jar recompile against
+the existing `-3` dist).
+
+### Fixed
+
+- **Lethality invariant — drivers can no longer cheat their wincons.** A driven combo
+  driver's macro-fold could fire on a mere `applicable()` precondition and be credited a
+  win with the opponent still alive and the combo unassembled. Across the durable 16k-game
+  corpus this fabricated **887 wins (6.8% of decided games, 17.5% of driven games)** and
+  affected **91% of driven decks** — e.g. a Paul/Queza build's reported 58.3% was an honest
+  32.0%. A win is now real only if the loser reached a **substantive terminal** (life ≤ 0 /
+  deckout / poison / commander damage):
+  - the goldfish `killed` signal requires a real lethal (`lifeB ≤ 0`), dropping the
+    `|| hasLost()` hole (committed harness jar rebuilt against the `-3` dist, `javac
+    --release 17`);
+  - the driver gate **fails** a proactive quad that fires its macro but never reaches a
+    real lethal, even when the baseline also never kills;
+  - the seed `applicable()` no longer scans graveyard/exile (an uncastable piece can't
+    complete the combo, so it must not keep the macro firing).
+
+### Added
+
+- **Win-lethality audit** (`python -m pipeline.sim.win_audit`) — honest per-deck win-rates
+  that exclude fabricated macro wins, plus `transcript_parser` helpers (`loser_life()`,
+  `win_lethality()`, `is_fake_macro_win()`) that make existing corpora honest without a
+  re-run.
+
 ## [0.7.1] — 2026-09-08
 
 A **non-breaking** release (a *patch* under this project's `0.y.z` convention). Adds an
