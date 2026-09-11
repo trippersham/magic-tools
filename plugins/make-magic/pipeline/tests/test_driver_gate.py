@@ -123,6 +123,26 @@ def test_proactive_passes_when_registers_really_fires_and_not_slower(_store: Pat
     assert drivers.driver_valid(deck, data_dir=_store) is True
 
 
+def test_proactive_macro_fires_but_no_real_kill_fails(_store: Path) -> None:
+    """The cheating-driver invariant: a proactive macro that COMMITS (MACRO_FIRE_REAL) but whose
+    driven goldfish never reduces the opponent to lethal (median_kills_own = -1, the no-kill
+    sentinel) is a NON-LETHAL engine artifact — not a real kill — and must FAIL. This holds even
+    when the baseline also never kills, where the never-slower check would otherwise pass
+    (+inf <= +inf + tol). Nothing is stamped."""
+    deck = _deck()
+    output = f'{_REG} fqcn=x playerId=1\n{_MACRO} pid=1\n{_REAL} name=A turn=9\nGOLDFISH SUMMARY (OWN TURNS) ...\n'
+    eng = _FakeEngine(driven=_res(-1.0), driven_output=output, baseline=_res(-1.0))
+
+    result = dg.gate_driver(
+        deck, ('D', 'dck'), spec=_proactive_spec(), install=object(), games=_GAMES, engine=eng, data_dir=_store
+    )
+
+    assert result.passed is False
+    assert result.macro_fired is True  # the macro DID commit...
+    assert 'lethal' in result.reason.lower()  # ...but never to a real lethal.
+    assert drivers.read_meta(deck, data_dir=_store) is None
+
+
 def test_passing_gate_stamps_driver_class_drive_for_macro_bearing(_store: Path) -> None:
     """DRIVE/THIN richness stamp: a macro-bearing (proactive) quad that passes stamps
     driver_class='drive' — Speed will run a DRIVEN goldfish. Derived from macro presence

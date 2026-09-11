@@ -912,6 +912,12 @@ def _launch_xmage(
     keeps the driverless argv unchanged.
     """
     cmd = _compose_launch_cmd(handle, args, heap=_XMAGE_HEAP, driver=driver)
+    if driver is not None:
+        # A driven run loads Java-21 driver bytecode; version-gate the launcher up front so an
+        # older JRE fails with an actionable error instead of an opaque UnsupportedClassVersionError
+        # deep in the harness that only surfaces as "no DRIVER_REGISTERED". Driverless runs need
+        # only the harness/dist target (Java 17) and are not gated.
+        xmage_runtime.gate_jre_major(Path(handle.java))
     # When a per-game stall bound is requested, MERGE stderr into stdout so the single stream
     # carries both the GOLDFISH heartbeat (stdout) and the DRIVER_* markers (stderr) for the
     # watchdog reader; otherwise keep the two pipes separate for the classic communicate() path.
@@ -967,6 +973,15 @@ def _launch_xmage(
     # stdout.
     if driver is not None and 'DRIVER_REGISTERED' not in combined:
         _, fqcn = driver
+        if 'UnsupportedClassVersionError' in combined or 'DRIVER_LOAD_VERSION_ERROR' in combined:
+            # The driver could not be LOADED because its bytecode is newer than the run JRE.
+            # Per-deck drivers are ECJ-compiled to Java 21; the run JRE is older. Harness backstop
+            # for the up-front _gate_jre_major check — name the fix, not the generic text.
+            raise XMageError(
+                f'XMage {what}: driver {fqcn} could not be LOADED — its bytecode is newer than the '
+                'run JRE (UnsupportedClassVersionError). Per-deck drivers are compiled to Java 21; '
+                f'point MAKE_MAGIC_JAVA at a Java 21+ launcher. Output tail:\n{combined[-600:]}'
+            )
         raise XMageError(
             f'XMage {what}: driver {fqcn} was requested (-Dmakemagic.driver) but the run '
             'emitted no DRIVER_REGISTERED line — the Driver never registered on PlayerA '

@@ -288,3 +288,32 @@ def test_ensure_crash_after_partial_write_leaves_no_trusted_jar(
         xr.ensure(data_dir=tmp_path)
     assert not final.exists()  # never a truncated jar at the trusted path
     assert not staging.exists()  # staging cleaned up too
+
+
+# --------------------------------------------------------------------------- #
+# JRE version gate — fail fast when the run JRE is older than the driver       #
+# bytecode target (Java 21). Prevents the opaque UnsupportedClassVersionError  #
+# deep in the harness that only surfaces as "driver never registered".         #
+# --------------------------------------------------------------------------- #
+
+
+def _java_banner(version: str) -> str:
+    return f'openjdk version "{version}" 2026-01-01\nOpenJDK Runtime Environment (build {version})'
+
+
+def test_jre_gate_rejects_older_than_driver_target() -> None:
+    with pytest.raises(XMageUnavailableError, match='Java 21'):
+        xr.gate_jre_major(Path('/x/java'), probe=lambda _p: _java_banner('17.0.9'))
+
+
+def test_jre_gate_accepts_the_driver_target() -> None:
+    xr.gate_jre_major(Path('/x/java'), probe=lambda _p: _java_banner('21.0.12'))  # no raise
+
+
+def test_jre_gate_accepts_a_newer_runtime() -> None:
+    xr.gate_jre_major(Path('/x/java'), probe=lambda _p: _java_banner('26.0.2'))  # 65.0 loads on >=21
+
+
+def test_jre_gate_refuses_an_unidentifiable_runtime() -> None:
+    with pytest.raises(XMageUnavailableError, match=r'parse|unidentifiable'):
+        xr.gate_jre_major(Path('/x/java'), probe=lambda _p: 'gibberish, no version here')

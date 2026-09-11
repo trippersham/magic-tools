@@ -405,7 +405,13 @@ public class XMageBatch {
                 }
                 long ms = System.currentTimeMillis() - t0;
 
-                boolean killed = !deadline.timedOut() && (playerB.getLife() <= 0 || playerB.hasLost());
+                // LETHALITY: a goldfish "kill" is a REAL lethal only — the passive opponent reduced
+                // to <= 0 life (combat / burn / drain collapse here). A bare hasLost() with life > 0
+                // is the macro-fire spurious end (the cheating driver: the engine adjudicates a win
+                // the deck never played, opponent untouched) and must NOT count as a kill, or the
+                // gate certifies a driver on fabricated kills. A deckout-at-cap "kill" is separately
+                // rejected as a brick by the gate's brick-cap check.
+                boolean killed = !deadline.timedOut() && playerB.getLife() <= 0;
                 int globalTurn = game.getTurnNum();
                 // getTurnNum() is the GLOBAL turn counter (both players' turns). PlayerA is
                 // ALWAYS on the play, so its OWN turns are the ODD global turns (1,3,5,...):
@@ -855,13 +861,19 @@ public class XMageBatch {
             if (loser.getLife() <= 0) {
                 return "lethal_damage";
             }
-            // Any other rule/effect loss — INCLUDING a genuine mid-game concession, which 1.4.60
-            // does not distinguish from an ordinary rule loss (hasLeft() is set for every loser).
+            // The loser lost/left with life > 0 and no substantive terminal above. 1.4.60 cannot
+            // distinguish a genuine concession from a macro-fire fabrication (hasLeft() is set for
+            // every loser), so this is a NON-LETHAL win we cannot verify — the opponent never
+            // reached a losing board. The Python classifier buckets nonlethal_win as NONDECISIVE
+            // (excluded from W/L + topped up) for every matchup type, so a match can never bank the
+            // same unverified win the goldfish/gate already reject.
             if (loser.hasLost() || loser.hasLeft()) {
-                return "state_loss";
+                return "nonlethal_win";
             }
         } catch (RuntimeException ex) {
-            return "state_loss";
+            // Could not read the loser's end-state to confirm a substantive terminal — do not
+            // credit an unverifiable win; treat it as non-lethal (topped up), not decisive.
+            return "nonlethal_win";
         }
         return "unknown";
     }
@@ -1012,7 +1024,19 @@ public class XMageBatch {
         if (fqcn.isEmpty()) {
             return; // no driver → pure CP7 (the intelligence-preserving default).
         }
-        Class<?> driverClass = Class.forName(fqcn);
+        Class<?> driverClass;
+        try {
+            driverClass = Class.forName(fqcn);
+        } catch (UnsupportedClassVersionError e) {
+            // The driver bytecode is newer than THIS JRE (per-deck drivers are ECJ-compiled to
+            // Java 21). Surface an actionable line instead of letting the opaque LinkageError
+            // bubble up as a bare "no DRIVER_REGISTERED" — the Python side keys on this marker.
+            System.err.println("DRIVER_LOAD_VERSION_ERROR fqcn=" + fqcn
+                    + " runJre=" + System.getProperty("java.version")
+                    + " — driver bytecode is newer than this JRE (" + e.getMessage()
+                    + "). Per-deck drivers are compiled to Java 21; run under a Java 21+ JRE.");
+            throw e;
+        }
         driverClass.getMethod("register", UUID.class).invoke(null, playerId);
         System.out.println("DRIVER_REGISTERED fqcn=" + fqcn + " playerId=" + playerId);
     }

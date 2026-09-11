@@ -40,6 +40,7 @@ __all__ = (
     'XMageUnavailableError',
     'effective_dist_sha256',
     'ensure',
+    'gate_jre_major',
     'resolve',
 )
 
@@ -62,6 +63,12 @@ ENV_XMAGE_DIST_JAR = 'MAKE_MAGIC_XMAGE_DIST_JAR'
 
 #: The pinned XMage version the harness is compiled + verified against.
 XMAGE_VERSION = '1.4.60'
+
+#: The minimum JRE major version the sim can run under. Per-deck drivers are ECJ-compiled to
+#: Java-21 bytecode (``driver_compile.DRIVER_RELEASE_LEVEL``), so a Java <21 runtime cannot load
+#: them — it raises an opaque ``UnsupportedClassVersionError`` deep in the harness that surfaces
+#: only as "driver never registered". :func:`_resolve_java` version-gates the launcher up front.
+_MIN_JRE_MAJOR = 21
 
 #: The reactor build command surfaced in "how to enable" errors. Names, beyond Mage.Tests,
 #: the mad-bot module (mage-player-ai-ma = ComputerPlayer7) and the CommanderDuel module
@@ -154,6 +161,38 @@ def _resolve_java() -> Path:
             'compatible (Java 21+) launcher, or install one on PATH.'
         )
     return Path(found)
+
+
+def gate_jre_major(java: Path, *, probe: Callable[[Path], str] | None = None) -> None:
+    """Raise :class:`XMageUnavailableError` if ``java`` is older than :data:`_MIN_JRE_MAJOR`.
+
+    The fail-fast counterpart to the harness backstop: a DRIVEN game loads per-deck driver classes
+    compiled to Java-21 bytecode, so launching one under a Java <21 runtime dies with an opaque
+    ``UnsupportedClassVersionError`` that only surfaces as "driver never registered". The launch
+    path (:func:`~pipeline.sim.engines.xmage._launch_xmage`) probes the resolved launcher once,
+    up front, for DRIVEN runs — turning that into an actionable config error naming
+    :data:`ENV_JAVA`. (Driverless runs need only the harness/dist target and are not gated here.)
+    ``probe`` (returns the ``java -version`` banner) is injectable for tests.
+    """
+    from pipeline.sim.simd.preflight import default_java_probe, java_major_version
+
+    run = probe or default_java_probe
+    try:
+        banner = run(java)
+    except (FileNotFoundError, OSError) as exc:
+        raise XMageUnavailableError(f'could not run `{java} -version` to version-gate the JRE: {exc}') from exc
+    major = java_major_version(banner)
+    if major is None:
+        raise XMageUnavailableError(
+            f'could not parse a Java version from `{java} -version` — refusing to run the sim '
+            f'against an unidentifiable runtime. Output:\n{banner.strip()}'
+        )
+    if major < _MIN_JRE_MAJOR:
+        raise XMageUnavailableError(
+            f'{ENV_JAVA}={java} resolves to Java {major}, but per-deck drivers are compiled to Java '
+            f'{_MIN_JRE_MAJOR} bytecode (ECJ --release {_MIN_JRE_MAJOR}); a Java {major} runtime cannot '
+            f'load them (UnsupportedClassVersionError). Point {ENV_JAVA} at a Java {_MIN_JRE_MAJOR}+ launcher.'
+        )
 
 
 def _dist_override() -> Path | None:
