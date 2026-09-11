@@ -116,6 +116,25 @@ def test_resolve_cached_jar_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     assert install.mage_tests_dir == tmp_path / 'xmage'  # cwd where CardScanner builds db/
 
 
+def test_cached_and_override_build_identical_classpath(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The override and cached-dist paths resolve the SAME make-magic-xmage-dist.jar; they
+    differ only in how it is discovered (env var vs fetched cache), so they MUST build the
+    same classpath. This is the invariant whose violation was the lethality-invariant hole
+    — the override path prepended the harness jar and the cached path did not. Complements
+    the cross-tree `killed`-parity guard: this catches a classpath-composition divergence
+    even if both source trees score `killed` identically."""
+    monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    # Cached path: a fetched jar under <data_dir>/xmage/.
+    cached_jar = _stage_cached_jar(monkeypatch, tmp_path, b'PK\x03\x04 same dist jar')
+    cached_cp = xr.resolve(data_dir=tmp_path).classpath.split(os.pathsep)
+    # Override path: the identical jar named directly. Only the tail (the dist jar's own
+    # path) differs; the harness-jar prefix + arity must match.
+    monkeypatch.setenv('MAKE_MAGIC_XMAGE_DIST_JAR', str(cached_jar))
+    override_cp = xr.resolve(data_dir=tmp_path).classpath.split(os.pathsep)
+    assert cached_cp[0] == override_cp[0] == str(xr._HARNESS_JAR)
+    assert len(cached_cp) == len(override_cp) == 2
+
+
 def test_resolve_rejects_tampered_cached_jar(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A cached jar whose bytes no longer match the pinned SHA (swapped/corrupted after
     caching) is REFUSED on cache-hit — not launched — so `ensure` re-fetches over it."""
