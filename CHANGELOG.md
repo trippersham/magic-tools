@@ -12,6 +12,13 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.3] — 2026-09-11
+
+A **non-breaking** simulation-integrity release (a *patch* under this project's `0.y.z`
+convention). Delivers 0.7.2's lethality fix to the path every normal run actually uses;
+everything existing is unchanged — no CLI removals, no store or Airtable schema changes,
+and no XMage-dist re-pin (the classpath prepend makes the existing `-3` dist carry the fix).
+
 ### Fixed
 
 - **0.7.2's lethality fix now actually loads on the default run path.** The `killed =
