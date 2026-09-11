@@ -221,9 +221,11 @@ def harness_version(*, data_dir: str | os.PathLike[str] | None = None) -> str:
     * When :data:`pipeline.sim.xmage_runtime.XMAGE_DIST_SHA256` is PINNED (a cut
       release) that pinned SHA *is* the identity — no jar read needed.
     * In LOCAL-DEV (pin is ``None``) there is no published SHA, so fall back to hashing
-      the resolved jar file itself (the first classpath entry: the harness jar in
-      reactor mode, the dist jar in fetched-jar mode) so staleness still tracks the
-      actual built bytes.
+      the resolved jar file itself — the first classpath entry, which is ALWAYS the
+      committed harness jar now (it is prepended in every resolve mode to shadow the
+      stale shaded ``XMageBatch``). That is the right staleness signal: a dist-jar change
+      ships with a ``_DIST_TAG`` bump AND a re-pinned SHA, so ``pinned`` is then set and
+      this branch never runs for it — the only jar devs rebuild here is the harness jar.
     """
     pinned = xr.XMAGE_DIST_SHA256
     if pinned is not None:

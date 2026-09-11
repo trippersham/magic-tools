@@ -409,14 +409,19 @@ def test_harness_version_uses_pinned_sha(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
 def test_harness_version_hashes_jar_when_unpinned(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Local-dev (pin=None): fall back to hashing the resolved jar so staleness still
-    tracks the actual built jar bytes."""
+    tracks the actual built bytes.
+
+    The first classpath entry is now ALWAYS the committed harness jar (it is prepended in
+    every resolve mode to shadow the stale shaded XMageBatch), so the unpinned identity is
+    the harness jar's SHA. That is the correct signal: a real dist-jar change ships with a
+    `_DIST_TAG` bump AND a re-pinned SHA, so `pinned is not None` and this fallback never
+    runs for it — the only thing devs rebuild on the unpinned path is the harness jar."""
     import hashlib
 
     monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', None)
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
-    body = b'PK\x03\x04 built jar bytes'
     xmage = tmp_path / 'xmage'
     xmage.mkdir()
-    (xmage / xr._DIST_JAR_NAME).write_bytes(body)
+    (xmage / xr._DIST_JAR_NAME).write_bytes(b'PK\x03\x04 built jar bytes')
     got = drivers.harness_version(data_dir=tmp_path)
-    assert got == hashlib.sha256(body).hexdigest()
+    assert got == hashlib.sha256(xr._HARNESS_JAR.read_bytes()).hexdigest()  # harness jar is cp[0]
