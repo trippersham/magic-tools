@@ -220,9 +220,10 @@ Two parts, and the second keeps the first honest.
    ```
    It reports the named-card combos present in the deck plus a `combo_data_available` flag.
    - **Combos present** (or the deck is a voltron / free-mana engine by your reasoning):
-     Forge under-pilots these archetypes, so treat the sim as a **FLOOR, not a verdict.**
-     Do NOT discard a good combo swap on a low win-rate — the engine can't pilot the
-     combo, so the low number is a measurement artifact, not evidence the swap is bad.
+     the sim AI (bare CP7, without a DRIVE driver) under-pilots these archetypes, so treat
+     the sim as a **FLOOR, not a verdict.** Do NOT discard a good combo swap on a low
+     win-rate — bare CP7 can't pilot the combo, so the low number is a measurement artifact,
+     not evidence the swap is bad; author a DRIVE driver (`authoring-drivers`) and re-sim.
    - **`combo_data_available: false`** (sparse lake — the check couldn't run): this is
      **INCONCLUSIVE, not a clean bill.** Say so plainly: "the combo check couldn't run, so
      I can't confirm the sim captured the deck's fastest line." Never present an

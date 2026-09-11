@@ -352,8 +352,8 @@ what you need to supply its two inputs.
 
 **CRISPI is a deterministic engine with exactly two reasoning inputs — you supply only those
 two; the engine computes everything else.** It is a *static, a-priori* analysis that does NOT
-depend on a deck being pilotable by Forge, so it is a load-bearing complement to
-`simulating-games`, not a redundant one (a combo/turbo deck Forge under-pilots can still
+depend on a deck being pilotable by the sim engine's AI, so it is a load-bearing complement to
+`simulating-games`, not a redundant one (a combo/turbo deck bare CP7 under-pilots can still
 score Speed 9 / Resilience 9 here).
 
 **The two inputs you reason (from the pre-mortem you just did):**
@@ -395,8 +395,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/collection crispi "<deck>" --fundamental-turn <N> 
 and fold a one-line summary into the Assessment prose you write in Step 8, e.g.
 `CRISPI 6.25 · S7/C6/I7/R5 · Bracket 3`. The structured stamp is what a later
 building-decks VALIDATE step can cross-check against a sim verdict (a change that drops on
-BOTH sim and CRISPI is true worsening; one that drops on sim but holds on CRISPI is Forge
-archetype under-representation).
+BOTH sim and CRISPI is true worsening; one that drops on sim but holds on CRISPI is sim-AI
+archetype under-representation, e.g. a combo line bare CP7 under-pilots).
 
 <cedh-anchoring-note>
 **cEDH scope — CRISPI vs the quadrant diagnosis are different.** The quadrant pre-mortem

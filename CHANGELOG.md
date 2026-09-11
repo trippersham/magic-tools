@@ -12,6 +12,20 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **XMage (CP7) is now the primary simulation engine; Forge is deprecated.** The
+  `simulate` CLI's built-in `--engine` default flips from `forge` to **`xmage`**, so every
+  game verb (`deck`, `match`, `ab`) auto-provisions and runs XMage/CP7 — a counter-casting
+  minimax that pilots control, tempo, and (with a driver) combo far better than Forge's
+  retired heuristic AI. `simulate doctor`'s "how to enable" guidance is now engine-aware
+  (the XMage ~76MB shaded-jar path for the default; the Forge ~350MB + `MAKE_MAGIC_FORGE_HOME`
+  path retained only for the legacy engine). Forge remains fully reachable via
+  `--engine forge` for comparison — it is no longer the default or the recommended engine.
+  The `simulating-games`, `assessing-decks`, and `building-decks` skills are reframed
+  XMage-primary / Forge-legacy accordingly. Non-breaking for anyone already passing an
+  explicit `--engine`; scripts that relied on the implicit Forge default now get XMage.
+
 ## [0.7.2] — 2026-09-11
 
 A **non-breaking** simulation-integrity release (a *patch* under this project's `0.y.z`
