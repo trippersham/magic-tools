@@ -405,7 +405,14 @@ public class XMageBatch {
                 }
                 long ms = System.currentTimeMillis() - t0;
 
-                boolean killed = !deadline.timedOut() && (playerB.getLife() <= 0 || playerB.hasLost());
+                // LETHALITY: a goldfish "kill" is a REAL lethal only — the passive opponent reduced
+                // to <= 0 life (combat / burn / drain collapse here). A bare hasLost() with life > 0
+                // is the macro-fire spurious end (the cheating driver: the engine adjudicates a win
+                // the deck never played, opponent untouched) and must NOT count as a kill, or the
+                // gate certifies a driver on fabricated kills. A deckout-at-cap "kill" is separately
+                // rejected as a brick by the gate's brick-cap check. Kept byte-identical to the
+                // committed harness tree (xmage/src) — CI asserts the two never diverge.
+                boolean killed = !deadline.timedOut() && playerB.getLife() <= 0;
                 int globalTurn = game.getTurnNum();
                 // getTurnNum() is the GLOBAL turn counter (both players' turns). PlayerA is
                 // ALWAYS on the play, so its OWN turns are the ODD global turns (1,3,5,...):

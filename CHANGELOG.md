@@ -12,6 +12,22 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **0.7.2's lethality fix now actually loads on the default run path.** The `killed =
+  getLife() <= 0` fix (dropping the `|| hasLost()` hole) was applied to the committed harness
+  tree (`xmage/src`) and its jar, but `xmage_runtime.resolve()`'s **cached-dist** branch — the
+  all-users path every normal run uses — returned the shaded dist jar *alone* as the classpath,
+  never prepending the committed harness jar the way the reactor + override branches do. So the
+  stale `XMageBatch` shaded into the pinned `-3` dist won the class-load, the fix never ran, and
+  macro-firing drivers could still be credited fabricated `hasLost()` wins with the opponent
+  alive. The cached-dist branch now prepends the harness jar (`[harness, dist]`), so the fixed
+  `XMageBatch` shadows the stale one — closing the hole on the path that matters. The shaded
+  `xmage-dist/src` tree is brought to byte-identical parity so a future dist re-cut carries the
+  fix too, and a new test asserts the two trees' `killed` logic can never again diverge (plus the
+  cached-dist classpath tests, which previously *pinned* the single-jar bug, now assert the
+  harness jar leads).
+
 ## [0.7.2] — 2026-09-11
 
 A **non-breaking** simulation-integrity release (a *patch* under this project's `0.y.z`

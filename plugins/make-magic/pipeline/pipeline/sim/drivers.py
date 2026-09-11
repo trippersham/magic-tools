@@ -221,16 +221,20 @@ def harness_version(*, data_dir: str | os.PathLike[str] | None = None) -> str:
     * When :data:`pipeline.sim.xmage_runtime.XMAGE_DIST_SHA256` is PINNED (a cut
       release) that pinned SHA *is* the identity — no jar read needed.
     * In LOCAL-DEV (pin is ``None``) there is no published SHA, so fall back to hashing
-      the resolved jar file itself (the first classpath entry: the harness jar in
-      reactor mode, the dist jar in fetched-jar mode) so staleness still tracks the
-      actual built bytes.
+      the resolved classpath's jars (harness jar + dist/reactor jars, in classpath order)
+      so staleness tracks the actual built bytes of BOTH the harness (XMageBatch) and the
+      dist the driver is compiled against — a change to either invalidates the driver.
     """
     pinned = xr.XMAGE_DIST_SHA256
     if pinned is not None:
         return pinned
     install = xr.resolve(data_dir=data_dir)
-    jar = Path(install.classpath.split(os.pathsep)[0])
-    return hashlib.sha256(jar.read_bytes()).hexdigest()
+    digest = hashlib.sha256()
+    for entry in install.classpath.split(os.pathsep):
+        p = Path(entry)
+        if p.is_file():
+            digest.update(p.read_bytes())
+    return digest.hexdigest()
 
 
 def driver_valid(deck: Deck, *, data_dir: str | os.PathLike[str] | None = None) -> bool:
