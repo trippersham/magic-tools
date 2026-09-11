@@ -1024,7 +1024,19 @@ public class XMageBatch {
         if (fqcn.isEmpty()) {
             return; // no driver → pure CP7 (the intelligence-preserving default).
         }
-        Class<?> driverClass = Class.forName(fqcn);
+        Class<?> driverClass;
+        try {
+            driverClass = Class.forName(fqcn);
+        } catch (UnsupportedClassVersionError e) {
+            // The driver bytecode is newer than THIS JRE (per-deck drivers are ECJ-compiled to
+            // Java 21). Surface an actionable line instead of letting the opaque LinkageError
+            // bubble up as a bare "no DRIVER_REGISTERED" — the Python side keys on this marker.
+            System.err.println("DRIVER_LOAD_VERSION_ERROR fqcn=" + fqcn
+                    + " runJre=" + System.getProperty("java.version")
+                    + " — driver bytecode is newer than this JRE (" + e.getMessage()
+                    + "). Per-deck drivers are compiled to Java 21; run under a Java 21+ JRE.");
+            throw e;
+        }
         driverClass.getMethod("register", UUID.class).invoke(null, playerId);
         System.out.println("DRIVER_REGISTERED fqcn=" + fqcn + " playerId=" + playerId);
     }

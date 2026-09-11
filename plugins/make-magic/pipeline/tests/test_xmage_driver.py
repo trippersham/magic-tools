@@ -21,7 +21,17 @@ from pipeline.sim import driver_compile as dc
 from pipeline.sim import drivers
 from pipeline.sim import xmage_runtime as xr
 from pipeline.sim.engines import xmage as xe
-from pipeline.sim.xmage_runtime import XMageInstall
+from pipeline.sim.xmage_runtime import XMageInstall, XMageUnavailableError
+
+
+@pytest.fixture(autouse=True)
+def _pass_jre_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests never launch a real JVM, so default the driven-launch JRE version gate's probe
+    to a valid Java 21 banner. A test wanting the gate to FIRE re-patches the probe locally."""
+    monkeypatch.setattr(
+        'pipeline.sim.simd.preflight.default_java_probe',
+        lambda _p: 'openjdk version "21.0.12" 2026-08-18',
+    )
 
 
 def _install(tmp_path: Path) -> XMageInstall:
@@ -132,6 +142,38 @@ def test_launch_driver_requested_with_registered_line_ok(monkeypatch: pytest.Mon
     )
     assert rc == 0
     assert 'DRIVER_REGISTERED' in output
+
+
+def test_launch_driven_run_gates_old_jre(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A DRIVEN launch under a Java <21 runtime FAILS FAST with an actionable version error
+    (before spawning) — per-deck drivers are Java-21 bytecode, so an older JRE would otherwise die
+    with an opaque UnsupportedClassVersionError surfacing only as 'no DRIVER_REGISTERED'."""
+    monkeypatch.setattr(
+        'pipeline.sim.simd.preflight.default_java_probe',
+        lambda _p: 'openjdk version "17.0.9" 2026-01-01',
+    )
+    install = _install(tmp_path)
+    with pytest.raises(XMageUnavailableError, match='Java 21'):
+        xe._launch_xmage(
+            install,
+            ['deckA.txt', '--solo', '1', '6'],
+            cwd=tmp_path,
+            timeout_s=5,
+            what='goldfish',
+            driver=(str(tmp_path / 'classes'), 'makemagic.driver.X'),
+        )
+
+
+def test_launch_no_driver_does_not_gate_jre(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A DRIVERLESS run under an old JRE is NOT gated — it needs only the harness/dist target."""
+    monkeypatch.setattr(
+        'pipeline.sim.simd.preflight.default_java_probe',
+        lambda _p: 'openjdk version "17.0.9" 2026-01-01',
+    )
+    install = _install(tmp_path)
+    _patch_launch(monkeypatch, 'GOLDFISH SUMMARY ... (no driver)\n')
+    _, rc = xe._launch_xmage(install, ['deckA.txt', '--solo', '1', '6'], cwd=tmp_path, timeout_s=5, what='goldfish')
+    assert rc == 0
 
 
 def test_launch_no_driver_never_raises_on_missing_registered(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
