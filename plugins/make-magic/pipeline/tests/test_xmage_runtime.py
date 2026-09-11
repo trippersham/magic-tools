@@ -97,12 +97,42 @@ def test_resolve_dist_override_prepends_harness_jar(monkeypatch: pytest.MonkeyPa
 
 def test_resolve_cached_jar_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """No reactor env, but a fetched shaded jar cached under <data_dir>/xmage/ →
-    a self-contained install: classpath is the ONE jar, cwd is that dir."""
+    a self-contained install whose classpath is [committed harness jar, cached dist jar]
+    in that order, cwd is the dist dir.
+
+    The committed harness jar MUST sort FIRST so its fresh XMageBatch shadows the STALE
+    shaded XMageBatch bundled in the cached dist jar — identical to the reactor + override
+    branches. Regression guard: this branch previously returned the ONE dist jar alone, so
+    any harness fix newer than the pinned dist (e.g. the lethality `killed = getLife() <= 0`
+    fix) never loaded on the all-users cached-dist path — silently reinstating fabricated
+    macro wins on every normal run."""
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
     jar = _stage_cached_jar(monkeypatch, tmp_path, b'PK\x03\x04 fake jar')
     install = xr.resolve(data_dir=tmp_path)
-    assert install.classpath == str(jar)  # the shaded jar IS the classpath
+    parts = install.classpath.split(os.pathsep)
+    assert parts[0] == str(xr._HARNESS_JAR)  # committed harness shadows the stale dist class
+    assert parts[1] == str(jar)
+    assert len(parts) == 2
     assert install.mage_tests_dir == tmp_path / 'xmage'  # cwd where CardScanner builds db/
+
+
+def test_cached_and_override_build_identical_classpath(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The override and cached-dist paths resolve the SAME make-magic-xmage-dist.jar; they
+    differ only in how it is discovered (env var vs fetched cache), so they MUST build the
+    same classpath. This is the invariant whose violation was the lethality-invariant hole
+    — the override path prepended the harness jar and the cached path did not. Complements
+    the cross-tree `killed`-parity guard: this catches a classpath-composition divergence
+    even if both source trees score `killed` identically."""
+    monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
+    # Cached path: a fetched jar under <data_dir>/xmage/.
+    cached_jar = _stage_cached_jar(monkeypatch, tmp_path, b'PK\x03\x04 same dist jar')
+    cached_cp = xr.resolve(data_dir=tmp_path).classpath.split(os.pathsep)
+    # Override path: the identical jar named directly. Only the tail (the dist jar's own
+    # path) differs; the harness-jar prefix + arity must match.
+    monkeypatch.setenv('MAKE_MAGIC_XMAGE_DIST_JAR', str(cached_jar))
+    override_cp = xr.resolve(data_dir=tmp_path).classpath.split(os.pathsep)
+    assert cached_cp[0] == override_cp[0] == str(xr._HARNESS_JAR)
+    assert len(cached_cp) == len(override_cp) == 2
 
 
 def test_resolve_rejects_tampered_cached_jar(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -126,7 +156,29 @@ def test_resolve_tolerates_cached_jar_when_sha_unpinned(monkeypatch: pytest.Monk
     jar = xmage / xr._DIST_JAR_NAME
     jar.write_bytes(b'PK\x03\x04 unverifiable but present')
     monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', None)
-    assert xr.resolve(data_dir=tmp_path).classpath == str(jar)
+    parts = xr.resolve(data_dir=tmp_path).classpath.split(os.pathsep)
+    assert parts == [str(xr._HARNESS_JAR), str(jar)]  # harness jar shadows the cached dist
+
+
+def test_both_xmage_source_trees_score_killed_identically() -> None:
+    """The committed harness tree (xmage/src) and the shaded dist tree (xmage-dist/src) MUST
+    compute the goldfish `killed` flag byte-identically. They are separate source files that
+    build separate jars; a fix applied to only one (as the 0.7.2 lethality fix originally was)
+    silently reinstates the bug in whichever jar actually loads. This guards that divergence."""
+    root = Path(xr.__file__).parent / 'java'
+    harness = (root / 'xmage' / 'src' / 'org' / 'makemagic' / 'xmage' / 'XMageBatch.java').read_text()
+    dist = (
+        root / 'xmage-dist' / 'src' / 'main' / 'java' / 'org' / 'makemagic' / 'xmage' / 'XMageBatch.java'
+    ).read_text()
+
+    def killed_line(src: str) -> str:
+        line = next((ln.strip() for ln in src.splitlines() if 'boolean killed =' in ln), '')
+        assert line, 'no `boolean killed =` line found in XMageBatch.java'
+        return line
+
+    assert killed_line(harness) == killed_line(dist)
+    # And neither may reinstate the `|| hasLost()` lethality hole.
+    assert 'hasLost' not in killed_line(harness)
 
 
 def test_resolve_neither_names_both_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -153,7 +205,10 @@ def test_ensure_fetches_on_miss(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     fetched: list[bool] = []
     install = xr.ensure(data_dir=tmp_path, on_fetch=lambda: fetched.append(True))
     assert fetched == [True]  # the notice fired once, on the fetch path
-    assert install.classpath == str(tmp_path / 'xmage' / xr._DIST_JAR_NAME)
+    assert install.classpath.split(os.pathsep) == [
+        str(xr._HARNESS_JAR),
+        str(tmp_path / 'xmage' / xr._DIST_JAR_NAME),
+    ]  # harness jar shadows the cached dist class
 
 
 def test_ensure_fetch_failure_cleans_up_and_raises(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -181,7 +236,10 @@ def test_ensure_prefers_existing_install(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
     monkeypatch.setattr('pipeline.sim.forge_runtime._download_verified', _never)
     install = xr.ensure(data_dir=tmp_path)
-    assert install.classpath == str(tmp_path / 'xmage' / xr._DIST_JAR_NAME)
+    assert install.classpath.split(os.pathsep) == [
+        str(xr._HARNESS_JAR),
+        str(tmp_path / 'xmage' / xr._DIST_JAR_NAME),
+    ]  # harness jar shadows the cached dist class
 
 
 def test_ensure_stages_then_atomically_publishes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -203,7 +261,7 @@ def test_ensure_stages_then_atomically_publishes(monkeypatch: pytest.MonkeyPatch
     assert seen['dest'].name.endswith('.incomplete')  # staged, not written in place
     assert final.is_file()  # atomically published
     assert not seen['dest'].exists()  # staging consumed by os.replace
-    assert install.classpath == str(final)
+    assert install.classpath.split(os.pathsep) == [str(xr._HARNESS_JAR), str(final)]
 
 
 def test_local_dist_override_resolves_that_jar(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

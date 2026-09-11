@@ -408,9 +408,10 @@ def test_harness_version_uses_pinned_sha(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
 
 def test_harness_version_hashes_jar_when_unpinned(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Local-dev (pin=None): fall back to hashing the resolved jar so staleness still
-    tracks the actual built jar bytes."""
+    """Local-dev (pin=None): fall back to hashing the resolved classpath jars (harness jar
+    + dist jar, in classpath order) so staleness tracks the actual built bytes of both."""
     import hashlib
+    import os
 
     monkeypatch.setattr(xr, 'XMAGE_DIST_SHA256', None)
     monkeypatch.delenv('MAKE_MAGIC_XMAGE_HOME', raising=False)
@@ -418,5 +419,8 @@ def test_harness_version_hashes_jar_when_unpinned(monkeypatch: pytest.MonkeyPatc
     xmage = tmp_path / 'xmage'
     xmage.mkdir()
     (xmage / xr._DIST_JAR_NAME).write_bytes(body)
-    got = drivers.harness_version(data_dir=tmp_path)
-    assert got == hashlib.sha256(body).hexdigest()
+    # classpath is [harness jar, dist jar]; harness_version hashes both, in that order.
+    expected = hashlib.sha256()
+    for entry in xr.resolve(data_dir=tmp_path).classpath.split(os.pathsep):
+        expected.update(Path(entry).read_bytes())
+    assert drivers.harness_version(data_dir=tmp_path) == expected.hexdigest()

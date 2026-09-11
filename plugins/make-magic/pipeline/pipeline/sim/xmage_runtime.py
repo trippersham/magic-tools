@@ -286,7 +286,15 @@ def resolve(data_dir: str | os.PathLike[str] | None = None) -> XMageInstall:
     # the fetch path itself never leaves a partial here — this guards external damage.)
     if dist_jar.is_file() and dist_jar.stat().st_size > 0:
         _verify_cached_jar_integrity(dist_jar)
-        return XMageInstall(mage_tests_dir=dist_jar.parent, classpath=str(dist_jar), java=_resolve_java())
+        # Prepend the COMMITTED harness jar so its fresh XMageBatch shadows the STALE shaded
+        # XMageBatch bundled inside the dist jar — identical to the override + reactor branches.
+        # Class-loading takes the FIRST match on the classpath; without this the dist jar's
+        # OLD XMageBatch wins, and any harness fix newer than the pinned dist (e.g. the
+        # lethality `killed = getLife() <= 0` fix, which dropped the `|| hasLost()` hole) never
+        # loads — silently reinstating the fabricated-win behavior on the all-users cached-dist
+        # path that every normal run uses.
+        classpath = os.pathsep.join((str(_HARNESS_JAR), str(dist_jar)))
+        return XMageInstall(mage_tests_dir=dist_jar.parent, classpath=classpath, java=_resolve_java())
 
     raise XMageUnavailableError(
         f'no XMage install. Run `simulate doctor --provision` to auto-download the shaded XMage '
