@@ -60,6 +60,17 @@ def test_draw_game_is_decisive_fill() -> None:
     assert classify_validity(_r(winner='DRAW', end_cause='draw_game')) is Validity.DECISIVE
 
 
+def test_nonlethal_win_is_nondecisive_even_when_credited() -> None:
+    # THE match-guard: a decided game whose loser is ALIVE with no substantive terminal
+    # (the harness emits end_cause='nonlethal_win') is a credited win we cannot verify —
+    # a macro-fire fabrication or a CP7 concede, indistinguishable at end-state. It must be
+    # NONDECISIVE (excluded from W/L + topped up) EVEN THOUGH a winner is credited, so a match
+    # can never bank the same fake win the goldfish/gate already reject. Not INVALID: under the
+    # uniform predicate this bucket is expected (~19% of decided), not a data-integrity alarm.
+    assert classify_validity(_r(winner='A', end_cause='nonlethal_win')) is Validity.NONDECISIVE
+    assert classify_validity(_r(winner='B', end_cause='nonlethal_win')) is Validity.NONDECISIVE
+
+
 def test_timeout_cause_nondecisive() -> None:
     assert classify_validity(_r(winner='none', end_cause='timeout', reason='timeout')) is Validity.NONDECISIVE
 

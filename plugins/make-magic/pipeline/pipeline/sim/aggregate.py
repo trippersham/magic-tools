@@ -140,6 +140,17 @@ _CONCEDE_CAUSE = 'concede'
 #: Terminal causes that are non-decisive (excluded from W/L + a top-up dispatched).
 _NONDECISIVE_CAUSES = frozenset({'timeout'})
 
+#: The lethality-invariant cause: a decided game whose LOSER is ALIVE with no substantive terminal
+#: (lethal / deckout / poison / commander damage). At end-state XMage 1.4.60 cannot distinguish a
+#: macro-fire fabrication from a CP7 concede (every loser is marked ``hasLeft()``), so a credited
+#: win here is one we CANNOT verify — the deck never reduced the opponent to a losing board. Unlike
+#: ``timeout``/``draw_game`` the harness still credits a winner (``hasWon()`` is true), so this is
+#: handled as its own case: NONDECISIVE regardless of the credited winner, never INVALID (under the
+#: uniform predicate it is an expected ~19%-of-decided bucket, not a data-integrity alarm). Emitted
+#: by the harness in place of the legacy ``state_loss`` for this state; legacy ``state_loss`` rows
+#: keep their historical decisive semantics for frozen-replay compatibility.
+_NONLETHAL_WIN_CAUSE = 'nonlethal_win'
+
 
 def classify_validity(result: GameResult, *, hard_floor_ms: int = BAILOUT_HARD_FLOOR_MS) -> Validity:
     """Bucket one game by its terminal cause — the correctness predicate replacing the ms floor.
@@ -171,6 +182,13 @@ def classify_validity(result: GameResult, *, hard_floor_ms: int = BAILOUT_HARD_F
         # paired with a non-decisive reason is a cross-field contradiction → INVALID.
         return Validity.INVALID if credited else Validity.NONDECISIVE
     c = result.end_cause.strip().lower()
+    if c == _NONLETHAL_WIN_CAUSE:
+        # The lethality invariant, enforced for EVERY matchup type at this one chokepoint: a
+        # credited win whose loser is alive with no substantive terminal is unverifiable (a
+        # macro-fire fabrication or a CP7 concede, indistinguishable at end-state) → NONDECISIVE,
+        # excluded from W/L and topped up. Handled BEFORE the credited-winner cross-field checks
+        # precisely because this case IS credited (hasWon() true) yet must never bank a win.
+        return Validity.NONDECISIVE
     if c in _NONDECISIVE_CAUSES:
         # timeout: non-decisive, must credit no winner.
         return Validity.INVALID if credited else Validity.NONDECISIVE

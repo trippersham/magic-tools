@@ -861,13 +861,19 @@ public class XMageBatch {
             if (loser.getLife() <= 0) {
                 return "lethal_damage";
             }
-            // Any other rule/effect loss — INCLUDING a genuine mid-game concession, which 1.4.60
-            // does not distinguish from an ordinary rule loss (hasLeft() is set for every loser).
+            // The loser lost/left with life > 0 and no substantive terminal above. 1.4.60 cannot
+            // distinguish a genuine concession from a macro-fire fabrication (hasLeft() is set for
+            // every loser), so this is a NON-LETHAL win we cannot verify — the opponent never
+            // reached a losing board. The Python classifier buckets nonlethal_win as NONDECISIVE
+            // (excluded from W/L + topped up) for every matchup type, so a match can never bank the
+            // same unverified win the goldfish/gate already reject.
             if (loser.hasLost() || loser.hasLeft()) {
-                return "state_loss";
+                return "nonlethal_win";
             }
         } catch (RuntimeException ex) {
-            return "state_loss";
+            // Could not read the loser's end-state to confirm a substantive terminal — do not
+            // credit an unverifiable win; treat it as non-lethal (topped up), not decisive.
+            return "nonlethal_win";
         }
         return "unknown";
     }
