@@ -1,0 +1,1623 @@
+[
+  {
+    "name": "Queza, Augur of Agonies",
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{1}{W}{U}{B}",
+    "type_line": "Legendary Creature \u2014 Octopus Advisor",
+    "colors": [
+      "B",
+      "U",
+      "W"
+    ],
+    "color_identity": [
+      "B",
+      "U",
+      "W"
+    ],
+    "role": "commander",
+    "labels": [
+      "Draw \u2192 drain",
+      "Infinite combo piece"
+    ]
+  },
+  {
+    "name": "Command Tower",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Ancient Tomb",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Underground Sea",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land \u2014 Island Swamp",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Tundra",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land \u2014 Plains Island",
+    "colors": [],
+    "color_identity": [
+      "U",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Scrubland",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land \u2014 Plains Swamp",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Watery Grave",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land \u2014 Island Swamp",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Hallowed Fountain",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land \u2014 Plains Island",
+    "colors": [],
+    "color_identity": [
+      "U",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Godless Shrine",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land \u2014 Plains Swamp",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Polluted Delta",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Flooded Strand",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Marsh Flats",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Prismatic Vista",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Fabled Passage",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Urborg, Tomb of Yawgmoth",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Legendary Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "City of Brass",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Mana Confluence",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Gemstone Mine",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Reflecting Pool",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Morphic Pool",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Sunken Ruins",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Fetid Heath",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Mystic Gate",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "U",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Darkslick Shores",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Seachrome Coast",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "U",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Concealed Courtyard",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Drowned Catacomb",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Isolated Chapel",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Island",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Basic Land \u2014 Island",
+    "colors": [],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Swamp",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Basic Land \u2014 Swamp",
+    "colors": [],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Sol Ring",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Ramp / fast mana"
+    ]
+  },
+  {
+    "name": "Mana Vault",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Ramp / fast mana"
+    ]
+  },
+  {
+    "name": "Chrome Mox",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "{0}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Ramp / fast mana"
+    ]
+  },
+  {
+    "name": "Mox Diamond",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "{0}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Ramp / fast mana"
+    ]
+  },
+  {
+    "name": "Lotus Petal",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "{0}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Ramp / fast mana"
+    ]
+  },
+  {
+    "name": "Arcane Signet",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Ramp / fast mana"
+    ]
+  },
+  {
+    "name": "Azorius Signet",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [
+      "U",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Ramp / fast mana"
+    ]
+  },
+  {
+    "name": "Orzhov Signet",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [
+      "B",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Ramp / fast mana"
+    ]
+  },
+  {
+    "name": "Rhystic Study",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{U}",
+    "type_line": "Enchantment",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Card draw engine"
+    ]
+  },
+  {
+    "name": "Bolas's Citadel",
+    "quantity": 1,
+    "mana_value": 6.0,
+    "mana_cost": "{3}{B}{B}{B}",
+    "type_line": "Legendary Artifact",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Infinite combo piece",
+      "Cast-fuel (non-draw)"
+    ]
+  },
+  {
+    "name": "Esper Sentinel",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{W}",
+    "type_line": "Artifact Creature \u2014 Human Soldier",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Card draw engine"
+    ]
+  },
+  {
+    "name": "Consecrated Sphinx",
+    "quantity": 1,
+    "mana_value": 6.0,
+    "mana_cost": "{4}{U}{U}",
+    "type_line": "Creature \u2014 Sphinx",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Card draw engine"
+    ]
+  },
+  {
+    "name": "Phyrexian Arena",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{1}{B}{B}",
+    "type_line": "Enchantment",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Card draw engine"
+    ]
+  },
+  {
+    "name": "Alhammarret's Archive",
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{5}",
+    "type_line": "Legendary Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Draw doubler",
+      "Gain \u2192 draw"
+    ]
+  },
+  {
+    "name": "Windfall",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{U}",
+    "type_line": "Sorcery",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Mass draw / wheel"
+    ]
+  },
+  {
+    "name": "Timetwister",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{U}",
+    "type_line": "Sorcery",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Mass draw / wheel"
+    ]
+  },
+  {
+    "name": "Peer into the Abyss",
+    "quantity": 1,
+    "mana_value": 7.0,
+    "mana_cost": "{4}{B}{B}{B}",
+    "type_line": "Sorcery",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Draw \u2192 drain",
+      "Infinite combo piece",
+      "Mass draw / wheel"
+    ]
+  },
+  {
+    "name": "Brainstorm",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{U}",
+    "type_line": "Instant",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Card selection"
+    ]
+  },
+  {
+    "name": "Sensei's Divining Top",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Infinite combo piece",
+      "Card selection"
+    ]
+  },
+  {
+    "name": "Sheoldred, the Apocalypse",
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{2}{B}{B}",
+    "type_line": "Legendary Creature \u2014 Phyrexian Praetor",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Draw \u2192 drain",
+      "Opp-draw punisher",
+      "Lifegain igniter"
+    ]
+  },
+  {
+    "name": "Psychosis Crawler",
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{5}",
+    "type_line": "Artifact Creature \u2014 Phyrexian Horror",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Draw \u2192 drain"
+    ]
+  },
+  {
+    "name": "Notion Thief",
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{2}{U}{B}",
+    "type_line": "Creature \u2014 Human Rogue",
+    "colors": [
+      "B",
+      "U"
+    ],
+    "color_identity": [
+      "B",
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Card draw engine"
+    ]
+  },
+  {
+    "name": "Sanguine Bond",
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{3}{B}{B}",
+    "type_line": "Enchantment",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 drain",
+      "Infinite combo piece"
+    ]
+  },
+  {
+    "name": "Exquisite Blood",
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{4}{B}",
+    "type_line": "Enchantment",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 drain",
+      "Infinite combo piece"
+    ]
+  },
+  {
+    "name": "Vito, Thorn of the Dusk Rose",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{B}",
+    "type_line": "Legendary Creature \u2014 Vampire Cleric",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 drain",
+      "Infinite combo piece"
+    ]
+  },
+  {
+    "name": "Demonic Tutor",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{B}",
+    "type_line": "Sorcery",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Tutor"
+    ]
+  },
+  {
+    "name": "Enlightened Tutor",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{W}",
+    "type_line": "Instant",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Tutor"
+    ]
+  },
+  {
+    "name": "Force of Will",
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{3}{U}{U}",
+    "type_line": "Instant",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Counterspell"
+    ]
+  },
+  {
+    "name": "Force of Negation",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{1}{U}{U}",
+    "type_line": "Instant",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Counterspell"
+    ]
+  },
+  {
+    "name": "Fierce Guardianship",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{U}",
+    "type_line": "Instant",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Counterspell"
+    ]
+  },
+  {
+    "name": "Mana Drain",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{U}{U}",
+    "type_line": "Instant",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Counterspell",
+      "Ramp / fast mana"
+    ]
+  },
+  {
+    "name": "Counterspell",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{U}{U}",
+    "type_line": "Instant",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Counterspell"
+    ]
+  },
+  {
+    "name": "Pact of Negation",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "{0}",
+    "type_line": "Instant",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Counterspell"
+    ]
+  },
+  {
+    "name": "Dovin's Veto",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{W}{U}",
+    "type_line": "Instant",
+    "colors": [
+      "U",
+      "W"
+    ],
+    "color_identity": [
+      "U",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Counterspell"
+    ]
+  },
+  {
+    "name": "Swords to Plowshares",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{W}",
+    "type_line": "Instant",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Removal / sweep"
+    ]
+  },
+  {
+    "name": "Toxic Deluge",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{B}",
+    "type_line": "Sorcery",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Removal / sweep"
+    ]
+  },
+  {
+    "name": "Cyclonic Rift",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{U}",
+    "type_line": "Instant",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Removal / sweep"
+    ]
+  },
+  {
+    "name": "Teferi's Protection",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{W}",
+    "type_line": "Instant",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Protection"
+    ]
+  },
+  {
+    "name": "Grand Abolisher",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{W}{W}",
+    "type_line": "Creature \u2014 Human Cleric",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Protection"
+    ]
+  },
+  {
+    "name": "Drogskol Reaver",
+    "quantity": 1,
+    "mana_value": 7.0,
+    "mana_cost": "{5}{W}{U}",
+    "type_line": "Creature \u2014 Spirit",
+    "colors": [
+      "U",
+      "W"
+    ],
+    "color_identity": [
+      "U",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Infinite combo piece",
+      "Gain \u2192 draw"
+    ]
+  },
+  {
+    "name": "Elixir of Immortality",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Lifegain igniter",
+      "Deck-out insurance"
+    ]
+  },
+  {
+    "name": "Reliquary Tower",
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base",
+      "No-max hand size"
+    ]
+  },
+  {
+    "name": "Marauding Blight-Priest",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{B}",
+    "type_line": "Creature \u2014 Vampire Cleric",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 drain",
+      "Infinite combo piece"
+    ]
+  },
+  {
+    "name": "Orcish Bowmasters",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{B}",
+    "type_line": "Creature \u2014 Orc Archer",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Opp-draw punisher"
+    ]
+  },
+  {
+    "name": "Laboratory Maniac",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{2}{U}",
+    "type_line": "Creature \u2014 Human Wizard",
+    "colors": [
+      "U"
+    ],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Alt-wincon (mill)"
+    ]
+  },
+  {
+    "name": "Feldon's Cane",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{1}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Deck-out insurance"
+    ]
+  },
+  {
+    "name": "Thought Vessel",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{2}",
+    "type_line": "Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Ramp / fast mana",
+      "No-max hand size"
+    ]
+  },
+  {
+    "name": "Venser's Journal",
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{5}",
+    "type_line": "Artifact \u2014 Book",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Lifegain igniter",
+      "No-max hand size"
+    ]
+  },
+  {
+    "name": "Anguished Unmaking",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{1}{W}{B}",
+    "type_line": "Instant",
+    "colors": [
+      "B",
+      "W"
+    ],
+    "color_identity": [
+      "B",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Removal / sweep"
+    ]
+  },
+  {
+    "name": "Baleful Mastery",
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{3}{B}",
+    "type_line": "Instant",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Removal / sweep"
+    ]
+  },
+  {
+    "name": "Vizkopa Guildmage",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{W}{B}",
+    "type_line": "Creature \u2014 Human Wizard",
+    "colors": [
+      "B",
+      "W"
+    ],
+    "color_identity": [
+      "B",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 drain",
+      "Infinite combo piece"
+    ]
+  },
+  {
+    "name": "Cliffhaven Vampire",
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{2}{W}{B}",
+    "type_line": "Creature \u2014 Vampire Warrior Ally",
+    "colors": [
+      "B",
+      "W"
+    ],
+    "color_identity": [
+      "B",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 drain",
+      "Infinite combo piece"
+    ]
+  },
+  {
+    "name": "Vampiric Tutor",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{B}",
+    "type_line": "Instant",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Tutor"
+    ]
+  },
+  {
+    "name": "Otawara, Soaring City",
+    "quantity": 1,
+    "mana_value": 0.0,
+    "mana_cost": "",
+    "type_line": "Legendary Land",
+    "colors": [],
+    "color_identity": [
+      "U"
+    ],
+    "role": null,
+    "labels": [
+      "Removal / sweep",
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Farewell",
+    "quantity": 1,
+    "mana_value": 6.0,
+    "mana_cost": "{4}{W}{W}",
+    "type_line": "Sorcery",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Removal / sweep"
+    ]
+  },
+  {
+    "name": "Angel's Grace",
+    "quantity": 1,
+    "mana_value": 1.0,
+    "mana_cost": "{W}",
+    "type_line": "Instant",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Protection"
+    ]
+  },
+  {
+    "name": "Archangel of Thune",
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{3}{W}{W}",
+    "type_line": "Creature \u2014 Angel",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Lifegain igniter"
+    ]
+  },
+  {
+    "name": "Niv-Mizzet, Ghost Counsel",
+    "quantity": 1,
+    "mana_value": 6.0,
+    "mana_cost": "{2}{W}{W}{B}{B}",
+    "type_line": "Legendary Creature \u2014 Spirit Dragon",
+    "colors": [
+      "W",
+      "B"
+    ],
+    "color_identity": [
+      "B",
+      "W"
+    ],
+    "role": null,
+    "image_normal": "https://cards.scryfall.io/normal/front/0/a/0ad0e168-ac5c-4e1b-83f2-0488067a58d7.jpg?1789644348",
+    "labels": [
+      "Gain \u2192 draw",
+      "Gain \u2192 drain"
+    ]
+  },
+  {
+    "name": "Blood Tithe",
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{3}{B}",
+    "type_line": "Sorcery",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 drain",
+      "Gain \u2192 draw"
+    ]
+  },
+  {
+    "name": "Blind Obedience",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Enchantment",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 drain",
+      "Lifegain igniter"
+    ]
+  },
+  {
+    "name": "Doctor Doom, Unrivaled",
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{2}{B}{B}",
+    "type_line": "Legendary Creature \u2014 Human Sorcerer Villain",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Alt-wincon (mill)",
+      "Card draw engine",
+      "Lifegain igniter"
+    ]
+  },
+  {
+    "name": "Enduring Tenacity",
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{2}{B}{B}",
+    "type_line": "Enchantment Creature \u2014 Snake Glimmer",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 drain",
+      "Infinite combo piece"
+    ]
+  },
+  {
+    "name": "Plains",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Basic Land \u2014 Plains",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Mana base"
+    ]
+  },
+  {
+    "name": "Oloro, Ageless Ascetic",
+    "quantity": 1,
+    "mana_value": 6.0,
+    "mana_cost": "{3}{W}{U}{B}",
+    "type_line": "Legendary Creature \u2014 Giant Soldier",
+    "colors": [
+      "B",
+      "U",
+      "W"
+    ],
+    "color_identity": [
+      "B",
+      "U",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 draw",
+      "Lifegain igniter"
+    ]
+  },
+  {
+    "name": "Bloodthirsty Conqueror",
+    "quantity": 1,
+    "mana_value": 5.0,
+    "mana_cost": "{3}{B}{B}",
+    "type_line": "Creature \u2014 Vampire Knight",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 drain",
+      "Infinite combo piece"
+    ]
+  },
+  {
+    "name": "Teferi, Time Raveler",
+    "quantity": 1,
+    "mana_value": 3.0,
+    "mana_cost": "{1}{W}{U}",
+    "type_line": "Legendary Planeswalker \u2014 Teferi",
+    "colors": [
+      "U",
+      "W"
+    ],
+    "color_identity": [
+      "U",
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Protection",
+      "Removal / sweep"
+    ]
+  },
+  {
+    "name": "Vilis, Broker of Blood",
+    "quantity": 1,
+    "mana_value": 8.0,
+    "mana_cost": "{5}{B}{B}{B}",
+    "type_line": "Legendary Creature \u2014 Demon",
+    "colors": [
+      "B"
+    ],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Gain \u2192 draw",
+      "Card draw engine"
+    ]
+  },
+  {
+    "name": "The One Ring",
+    "quantity": 1,
+    "mana_value": 4.0,
+    "mana_cost": "{4}",
+    "type_line": "Legendary Artifact",
+    "colors": [],
+    "color_identity": [],
+    "role": null,
+    "labels": [
+      "Card draw engine",
+      "Protection"
+    ]
+  },
+  {
+    "name": "Castle Locthwain",
+    "quantity": 1,
+    "mana_value": 0,
+    "mana_cost": "",
+    "type_line": "Land",
+    "colors": [],
+    "color_identity": [
+      "B"
+    ],
+    "role": null,
+    "labels": [
+      "Mana base",
+      "Card draw engine"
+    ]
+  },
+  {
+    "name": "Soul Partition",
+    "quantity": 1,
+    "mana_value": 2.0,
+    "mana_cost": "{1}{W}",
+    "type_line": "Instant",
+    "colors": [
+      "W"
+    ],
+    "color_identity": [
+      "W"
+    ],
+    "role": null,
+    "labels": [
+      "Removal / sweep"
+    ]
+  }
+]

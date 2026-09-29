@@ -10,10 +10,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "astro": "^5.13.0"
+    "astro": "^5.13.0",
+    "d3-force": "^3.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.0",
+    "@types/d3-force": "^3.0.10",
     "tailwindcss": "^4.1.0",
     "vitest": "^3.0.0"
   }
