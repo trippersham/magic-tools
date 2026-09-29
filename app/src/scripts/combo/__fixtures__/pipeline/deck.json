@@ -1,0 +1,9 @@
+[
+  { "name": "Sanguine Bond", "quantity": 1, "type_line": "Enchantment", "colors": ["B"] },
+  { "name": "Exquisite Blood", "quantity": 1, "type_line": "Enchantment", "colors": ["B"] },
+  { "name": "Vito, Thorn of the Dusk Rose", "quantity": 1, "type_line": "Legendary Creature", "colors": ["B"] },
+  { "name": "Soul Warden", "quantity": 1, "type_line": "Creature", "colors": ["W"] },
+  { "name": "Alhammarret's Archive", "quantity": 1, "type_line": "Legendary Artifact", "colors": [] },
+  { "name": "Queza, Augur of Agonies", "quantity": 1, "type_line": "Legendary Creature", "colors": ["W", "U", "B"] },
+  { "name": "Children of Korlis", "quantity": 1, "type_line": "Creature", "colors": ["W"] }
+]

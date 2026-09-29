@@ -1,0 +1,50 @@
+{
+  "deck": "Golden Fixture Deck",
+  "combo_data_available": true,
+  "combos": [
+    {
+      "variant_id": "test-combo-1",
+      "cards": ["Sanguine Bond", "Exquisite Blood"],
+      "steps": [
+        "Gain life.",
+        "Sanguine Bond triggers, causing an opponent to lose 1 life.",
+        "Exquisite Blood triggers, causing you to gain 1 life.",
+        "Repeat."
+      ],
+      "prerequisites": ["You have a way to gain life."],
+      "produces": [
+        { "name": "Infinite lifeloss", "status": "S", "win": true },
+        { "name": "Infinite lifegain", "status": "S", "win": false }
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/test-combo-1/"
+    },
+    {
+      "variant_id": "test-combo-2",
+      "cards": ["Vito, Thorn of the Dusk Rose", "Exquisite Blood"],
+      "steps": [
+        "Gain life.",
+        "Vito triggers, causing an opponent to lose life.",
+        "Exquisite Blood triggers, causing you to gain life.",
+        "Repeat."
+      ],
+      "prerequisites": ["You have a way to gain life."],
+      "produces": [
+        { "name": "Infinite lifeloss", "status": "S", "win": true }
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/test-combo-2/"
+    },
+    {
+      "variant_id": "test-combo-3",
+      "cards": ["Alhammarret's Archive", "Peer into the Abyss"],
+      "steps": [
+        "Cast Peer into the Abyss targeting an opponent.",
+        "Alhammarret's Archive doubles the draw."
+      ],
+      "prerequisites": ["All permanents on the battlefield."],
+      "produces": [
+        { "name": "Near-infinite card draw", "status": "C", "win": false }
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/test-combo-3/"
+    }
+  ]
+}

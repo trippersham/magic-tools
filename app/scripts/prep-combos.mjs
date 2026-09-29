@@ -35,7 +35,7 @@ if (!process.env.__PREP_COMBOS_REEXEC) {
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA = join(__dirname, '..', 'src', 'data');
+const DATA = process.env.PREP_DATA_DIR || join(__dirname, '..', 'src', 'data');
 
 const { outcomeTypesFor, outcomeTypeIdsFor, OUTCOME_TYPES } = await import(
   pathToFileURL(join(__dirname, '..', 'src', 'scripts', 'combo', 'outcomes.ts')).href
@@ -515,7 +515,7 @@ const output = {
   enablerNodes,
 };
 
-const outPath = join(DATA, 'combos.json');
+const outPath = process.env.PREP_OUT || join(DATA, 'combos.json');
 writeFileSync(outPath, JSON.stringify(output, null, 2));
 
 const cardNodes = nodes.filter((n) => n.kind === 'card').length;
