@@ -56,6 +56,15 @@ class StrategyConfig:
     conf_high: float = 0.66
     conf_low: float = 0.42
 
+    # ---- strategy-identity set (top-N identity; replaces single-label collapse) --
+    #: A deck's identity is a ranked SET, not one privileged primary — primacy is a
+    #: per-deck *relation* over strategies, not an intrinsic strategy property. The
+    #: set includes eligible strategies whose ``weighted_quantity`` is at least
+    #: ``identity_ratio`` * the leader's, capped at ``max_identity`` — the measured
+    #: "top 2-3 with a steep drop-off". Both are tunable knobs.
+    identity_ratio: float = 0.5
+    max_identity: int = 3
+
     # ---- T3 typal concentration --------------------------------------------
     typal_dom_share: float = 0.70
 

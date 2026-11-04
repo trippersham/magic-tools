@@ -196,8 +196,44 @@ def name_deck(ctx: FactsContext) -> dict:
                   for arch, st in sorted(strategies.items(), key=lambda kv: (-kv[1]['weighted_quantity'], kv[0]))
                   if st['is_identity']][:6]
 
+    # ---- strategy_identity: the ranked identity SET (top-N), the authoritative
+    # read that replaces the single-label collapse. Primacy is a per-deck relation,
+    # so the set hangs off the deck as a ranked list of strategy refs. Derived from
+    # the eligible `ranked` list (the same gate that feeds the headline label):
+    # include strategies with wq >= identity_ratio * leader, capped at max_identity.
+    # Combo is a SEPARATE axis (`combo_identity`) and does not enter this set.
+    strategy_identity: list[dict] = []
+    identity_gap = None
+    if ranked:
+        lead_wq = ranked[0][1]['weighted_quantity'] or 1e-6
+        im = ctx.identity_mass or 1e-6
+        for arch, st in ranked[:cfg.max_identity]:
+            wq = st['weighted_quantity']
+            if wq < cfg.identity_ratio * lead_wq:
+                break
+            strategy_identity.append({'strategy': arch, 'weighted_quantity': wq,
+                                      'share': round(min(1.0, wq / im), 3)})
+        inc = len(strategy_identity)
+        if inc < len(ranked):
+            # set-boundary cleanliness: the drop from the last included to the
+            # first excluded. High gap = clean boundary (confident set); a small
+            # gap = the tail bled past the cutoff (fuzzy set).
+            last_in = ranked[inc - 1][1]['weighted_quantity'] or 1e-6
+            first_out = ranked[inc][1]['weighted_quantity']
+            identity_gap = round(max(0.0, 1.0 - first_out / last_in), 3)
+        else:
+            identity_gap = 1.0
+    if not strategy_identity and name is not None and not combo_override_applied:
+        # fallback-named deck (spellslinger / ramp only-support) with no `ranked`
+        # entry — keep the invariant that a non-combo named deck has a non-empty set.
+        wq = (strategies.get(name) or {}).get('weighted_quantity', 0.0)
+        strategy_identity = [{'strategy': name, 'weighted_quantity': wq, 'share': 1.0}]
+        identity_gap = 1.0
+
     return {
         'named_strategy': name,
+        'strategy_identity': strategy_identity,
+        'strategy_identity_gap': identity_gap,
         'tribe': ctx.tribe_info['top'],
         'tribe_names_strategy': name == 'typal/tribal',
         'tribes_ranked': [(d['tribe'], d['score']) for d in ctx.tribe_info['ranked'][:5]],
