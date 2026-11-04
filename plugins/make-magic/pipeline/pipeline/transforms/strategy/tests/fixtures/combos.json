@@ -1,0 +1,938 @@
+[
+{
+"card_names": [
+"Narset, Parter of Veils",
+"Teferi's Puzzle Box"
+],
+"mana": false,
+"norm_names": [
+"narset, parter of veils",
+"teferi's puzzle box"
+],
+"oids": [
+"ab26fbe2-e808-48b9-8d0d-3fbb6c3d554f",
+"37abcc92-9466-47ea-9e0b-5eda2eb62c8e"
+],
+"result": "Each opponent shuffles their hand into their library during their draw step; Opponents can't draw cards during their turn; Lock",
+"variant_id": "1177-2286",
+"win": false
+},
+{
+"card_names": [
+"Shelob, Child of Ungoliant",
+"Thornbite Staff",
+"Viridian Longbow"
+],
+"mana": false,
+"norm_names": [
+"shelob, child of ungoliant",
+"thornbite staff",
+"viridian longbow"
+],
+"oids": [
+"8372115d-c963-4a41-8759-72f7f6a8935a",
+"dae4815e-9025-4993-ab46-52a3f1a7219e",
+"8b9119b0-9948-497f-aa92-2879d07bed1c"
+],
+"result": "Destroy each creature that enters the battlefield under an opponent's control; Destroy all creatures opponents control; Lock",
+"variant_id": "1284-1729-2178",
+"win": false
+},
+{
+"card_names": [
+"Tainted Pact",
+"Thassa's Oracle"
+],
+"mana": false,
+"norm_names": [
+"tainted pact",
+"thassa's oracle"
+],
+"oids": [
+"1a85ba2b-ae10-4917-954a-7709b75a9740",
+"1de1b591-a73f-4974-b507-8c63e07a0868"
+],
+"result": "Win the game",
+"variant_id": "1295-3093",
+"win": true
+},
+{
+"card_names": [
+"Emry, Lurker of the Loch",
+"Mirran Spy",
+"Lotus Petal"
+],
+"mana": true,
+"norm_names": [
+"emry, lurker of the loch",
+"mirran spy",
+"lotus petal"
+],
+"oids": [
+"da3e7d3d-2ca0-40c3-9602-fca37c92f507",
+"8e5d72a1-6ae0-445d-bac7-62da3bd3a8d6",
+"32e5339e-9e4f-46f8-b305-f9d6d3ba8bb5"
+],
+"result": "Infinite artifact ETB; Infinite artifact LTB; Infinite artifact sacrifice triggers; Infinite colored mana; Infinite storm count",
+"variant_id": "1329-1414-3338",
+"win": false
+},
+{
+"card_names": [
+"Emry, Lurker of the Loch",
+"Mirran Spy",
+"Mishra's Bauble"
+],
+"mana": false,
+"norm_names": [
+"emry, lurker of the loch",
+"mirran spy",
+"mishra's bauble"
+],
+"oids": [
+"da3e7d3d-2ca0-40c3-9602-fca37c92f507",
+"8e5d72a1-6ae0-445d-bac7-62da3bd3a8d6",
+"63afc3d1-7653-476e-838f-fc18d4a62a21"
+],
+"result": "Infinite artifact ETB; Infinite artifact LTB; Infinite artifact sacrifice triggers; Infinite storm count; Infinite card draw at the beginning of the next upkeep; Infinite draw triggers at the beginning of the next upkeep",
+"variant_id": "1329-2478-3338",
+"win": false
+},
+{
+"card_names": [
+"Emry, Lurker of the Loch",
+"Mirran Spy",
+"Urza's Bauble"
+],
+"mana": false,
+"norm_names": [
+"emry, lurker of the loch",
+"mirran spy",
+"urza's bauble"
+],
+"oids": [
+"da3e7d3d-2ca0-40c3-9602-fca37c92f507",
+"8e5d72a1-6ae0-445d-bac7-62da3bd3a8d6",
+"17dbbca3-ac1c-4d4e-9618-3e66ac3ccd24"
+],
+"result": "Infinite artifact ETB; Infinite artifact LTB; Infinite artifact sacrifice triggers; Infinite storm count; Infinite card draw at the beginning of the next upkeep; Infinite draw triggers at the beginning of the next upkeep",
+"variant_id": "1329-3200-3338",
+"win": false
+},
+{
+"card_names": [
+"Sanctum Weaver",
+"Aggravated Assault"
+],
+"mana": true,
+"norm_names": [
+"sanctum weaver",
+"aggravated assault"
+],
+"oids": [
+"acfe7ec0-0606-4d5e-b1fa-25f0c7aeec47",
+"20129459-a386-41eb-899d-1aede3427300"
+],
+"result": "Infinite colored mana; Infinite combat phases; Infinite untap of creatures you control; Infinite mana creatures you control can produce",
+"variant_id": "1355-3750",
+"win": false
+},
+{
+"card_names": [
+"Underworld Breach",
+"Lotus Petal",
+"Brain Freeze"
+],
+"mana": false,
+"norm_names": [
+"underworld breach",
+"lotus petal",
+"brain freeze"
+],
+"oids": [
+"27e0948b-9916-473b-8d8c-a51bdfbc7457",
+"32e5339e-9e4f-46f8-b305-f9d6d3ba8bb5",
+"464c0150-3dbc-403b-9ada-fef25ab1f29d"
+],
+"result": "Infinite self-mill; Near-infinite magecraft triggers; Near-infinite mill",
+"variant_id": "1368-1414-4856",
+"win": true
+},
+{
+"card_names": [
+"Underworld Breach",
+"Wheel of Fortune",
+"Jeska's Will"
+],
+"mana": false,
+"norm_names": [
+"underworld breach",
+"wheel of fortune",
+"jeska's will"
+],
+"oids": [
+"27e0948b-9916-473b-8d8c-a51bdfbc7457",
+"a8abd966-de7b-46a3-8ac7-8747ab35653a",
+"0fd114c4-092b-4e28-b0dc-ef529f3bc73e"
+],
+"result": "Infinite draw triggers for all players; Infinite looting for all players; Near-infinite magecraft triggers; Near-infinite storm count",
+"variant_id": "1368-1878-2706",
+"win": false
+},
+{
+"card_names": [
+"Underworld Breach",
+"Lion's Eye Diamond",
+"Wheel of Fortune"
+],
+"mana": false,
+"norm_names": [
+"underworld breach",
+"lion's eye diamond",
+"wheel of fortune"
+],
+"oids": [
+"27e0948b-9916-473b-8d8c-a51bdfbc7457",
+"ee6099b0-fb1f-42f1-b862-7708c6e36d05",
+"a8abd966-de7b-46a3-8ac7-8747ab35653a"
+],
+"result": "Infinite draw triggers; Infinite looting; Infinite looting for opponents; Near-infinite storm count",
+"variant_id": "1368-2706-3518",
+"win": false
+},
+{
+"card_names": [
+"Underworld Breach",
+"Lion's Eye Diamond",
+"Brain Freeze"
+],
+"mana": true,
+"norm_names": [
+"underworld breach",
+"lion's eye diamond",
+"brain freeze"
+],
+"oids": [
+"27e0948b-9916-473b-8d8c-a51bdfbc7457",
+"ee6099b0-fb1f-42f1-b862-7708c6e36d05",
+"464c0150-3dbc-403b-9ada-fef25ab1f29d"
+],
+"result": "Infinite self-mill; Near-infinite colored mana; Near-infinite magecraft triggers; Near-infinite mill; Near-infinite storm count",
+"variant_id": "1368-3518-4856",
+"win": true
+},
+{
+"card_names": [
+"Peregrine Drake",
+"Deadeye Navigator"
+],
+"mana": true,
+"norm_names": [
+"peregrine drake",
+"deadeye navigator"
+],
+"oids": [
+"0bd67481-6bd9-48d6-92bd-8933b5ea1eae",
+"ebef6d84-b724-4a84-bcde-8eb6dc06717d"
+],
+"result": "Infinite blinking; Infinite creature ETB; Infinite creature LTB; Infinite mana lands you control can produce",
+"variant_id": "1409-3821",
+"win": false
+},
+{
+"card_names": [
+"Skirge Familiar",
+"Peer into the Abyss",
+"Exsanguinate"
+],
+"mana": false,
+"norm_names": [
+"skirge familiar",
+"peer into the abyss",
+"exsanguinate"
+],
+"oids": [
+"ba95f24d-42da-48ce-bcf1-1b7c4b3c45b5",
+"21fa2442-6eac-4dce-a9cc-76f0053fdb8f",
+"8164b1e8-3350-465e-8a17-75f57d326344"
+],
+"result": "Near-infinite draw triggers; Near-infinite lifegain; Near-infinite lifeloss; Near-infinite looting; Near-infinite self-discard triggers",
+"variant_id": "1561-1742-3245",
+"win": true
+},
+{
+"card_names": [
+"Sheoldred, the Apocalypse",
+"Peer into the Abyss"
+],
+"mana": false,
+"norm_names": [
+"sheoldred, the apocalypse",
+"peer into the abyss"
+],
+"oids": [
+"34f34409-326d-4994-a0ea-1a69aa278f03",
+"21fa2442-6eac-4dce-a9cc-76f0053fdb8f"
+],
+"result": "Near-infinite card draw for target opponent; Near-infinite draw triggers for target opponent; Near-infinite lifeloss for target opponent; Target opponent loses the game",
+"variant_id": "1561-2498",
+"win": true
+},
+{
+"card_names": [
+"Orcish Bowmasters",
+"Peer into the Abyss"
+],
+"mana": false,
+"norm_names": [
+"orcish bowmasters",
+"peer into the abyss"
+],
+"oids": [
+"ea5103f5-27e0-4eb1-902c-7f34652d6bf3",
+"21fa2442-6eac-4dce-a9cc-76f0053fdb8f"
+],
+"result": "Infinite +1/+1 counters on a creature; Near-infinite card draw for target opponent; Near-infinite damage; Near-infinite draw triggers for target opponent; Target opponent loses the game",
+"variant_id": "1561-3862",
+"win": true
+},
+{
+"card_names": [
+"Peer into the Abyss",
+"Teferi's Ageless Insight"
+],
+"mana": false,
+"norm_names": [
+"peer into the abyss",
+"teferi's ageless insight"
+],
+"oids": [
+"21fa2442-6eac-4dce-a9cc-76f0053fdb8f",
+"1c9e1f75-73f0-4846-b53f-458a0984b1bb"
+],
+"result": "Infinite card draw; Infinite draw triggers",
+"variant_id": "1561-5042",
+"win": false
+},
+{
+"card_names": [
+"Sozin's Comet",
+"Aggravated Assault",
+"Leyline Tyrant"
+],
+"mana": true,
+"norm_names": [
+"sozin's comet",
+"aggravated assault",
+"leyline tyrant"
+],
+"oids": [
+"bc0da02c-2b85-4ddc-9ce0-63934dd14164",
+"20129459-a386-41eb-899d-1aede3427300",
+"f92aaa00-6ece-4033-b3df-b2fc2c4718d9"
+],
+"result": "Infinite combat phases; Infinite red mana; Infinite untap of creatures you control; Infinite mana creatures you control can produce; Infinite damage to one opponent",
+"variant_id": "1693-3750-6999",
+"win": true
+},
+{
+"card_names": [
+"Sheoldred, the Apocalypse",
+"Vilis, Broker of Blood",
+"Skirge Familiar"
+],
+"mana": true,
+"norm_names": [
+"sheoldred, the apocalypse",
+"vilis, broker of blood",
+"skirge familiar"
+],
+"oids": [
+"34f34409-326d-4994-a0ea-1a69aa278f03",
+"7c209753-121b-4859-944b-4e33f885e777",
+"ba95f24d-42da-48ce-bcf1-1b7c4b3c45b5"
+],
+"result": "Infinite draw triggers; Near-infinite black mana; Near-infinite card draw; Near-infinite lifegain; Near-infinite lifegain triggers; Near-infinite looting; Near-infinite self-discard triggers",
+"variant_id": "1742-2498-4691",
+"win": false
+},
+{
+"card_names": [
+"Sensei's Divining Top",
+"Sheoldred, the Apocalypse",
+"Bolas's Citadel"
+],
+"mana": false,
+"norm_names": [
+"sensei's divining top",
+"sheoldred, the apocalypse",
+"bolas's citadel"
+],
+"oids": [
+"13575cf9-65c1-4861-b21e-eb2155e07766",
+"34f34409-326d-4994-a0ea-1a69aa278f03",
+"2bd111bb-ce02-414c-b5b7-e0e037d8d96b"
+],
+"result": "Infinite card draw; Infinite draw triggers; Near-infinite lifegain; Near-infinite lifegain triggers; Near-infinite storm count",
+"variant_id": "2173-2498-5078",
+"win": false
+},
+{
+"card_names": [
+"Sensei's Divining Top",
+"Aetherflux Reservoir",
+"Bolas's Citadel"
+],
+"mana": false,
+"norm_names": [
+"sensei's divining top",
+"aetherflux reservoir",
+"bolas's citadel"
+],
+"oids": [
+"13575cf9-65c1-4861-b21e-eb2155e07766",
+"5f15125e-ae89-471e-b055-226a783bc7c1",
+"2bd111bb-ce02-414c-b5b7-e0e037d8d96b"
+],
+"result": "Infinite card draw; Infinite draw triggers; Near-infinite damage; Near-infinite lifegain; Near-infinite lifegain triggers; Near-infinite storm count",
+"variant_id": "2173-4740-5078",
+"win": true
+},
+{
+"card_names": [
+"Sheoldred, the Apocalypse",
+"Vilis, Broker of Blood",
+"Blood Celebrant"
+],
+"mana": false,
+"norm_names": [
+"sheoldred, the apocalypse",
+"vilis, broker of blood",
+"blood celebrant"
+],
+"oids": [
+"34f34409-326d-4994-a0ea-1a69aa278f03",
+"7c209753-121b-4859-944b-4e33f885e777",
+"695ce90b-a5a2-4d8c-ac05-07f04010603e"
+],
+"result": "Infinite card draw; Infinite draw triggers; Near-infinite lifegain; Near-infinite lifegain triggers",
+"variant_id": "2358-2498-4691",
+"win": false
+},
+{
+"card_names": [
+"Sheoldred, the Apocalypse",
+"Vilis, Broker of Blood",
+"K'rrik, Son of Yawgmoth"
+],
+"mana": false,
+"norm_names": [
+"sheoldred, the apocalypse",
+"vilis, broker of blood",
+"k'rrik, son of yawgmoth"
+],
+"oids": [
+"34f34409-326d-4994-a0ea-1a69aa278f03",
+"7c209753-121b-4859-944b-4e33f885e777",
+"cbe3a4e7-5dbe-4f58-8ee6-a1762b65acfd"
+],
+"result": "Infinite card draw; Infinite draw triggers; Near-infinite lifegain; Near-infinite lifegain triggers",
+"variant_id": "2498-3260-4691",
+"win": false
+},
+{
+"card_names": [
+"Sheoldred, the Apocalypse",
+"Vilis, Broker of Blood",
+"Necropotence"
+],
+"mana": false,
+"norm_names": [
+"sheoldred, the apocalypse",
+"vilis, broker of blood",
+"necropotence"
+],
+"oids": [
+"34f34409-326d-4994-a0ea-1a69aa278f03",
+"7c209753-121b-4859-944b-4e33f885e777",
+"94a844d2-0574-45a7-b347-e0e329767c42"
+],
+"result": "Infinite card draw; Infinite draw triggers; Near-infinite lifegain; Near-infinite lifegain triggers; Near-infinite self-discard triggers; Near-infinite looting",
+"variant_id": "2498-3591-4691",
+"win": false
+},
+{
+"card_names": [
+"The Gitrog Monster",
+"Dakmor Salvage"
+],
+"mana": false,
+"norm_names": [
+"the gitrog monster",
+"dakmor salvage"
+],
+"oids": [
+"a5e54d2b-aad8-4ddd-af4b-13668913762b",
+"cdc4048a-73ec-4ec1-a179-2b36c397bf1a"
+],
+"result": "Infinite self-mill; Near-infinite self-discard triggers",
+"variant_id": "250-779",
+"win": false
+},
+{
+"card_names": [
+"The Gitrog Monster",
+"Dakmor Salvage",
+"Skirge Familiar"
+],
+"mana": true,
+"norm_names": [
+"the gitrog monster",
+"dakmor salvage",
+"skirge familiar"
+],
+"oids": [
+"a5e54d2b-aad8-4ddd-af4b-13668913762b",
+"cdc4048a-73ec-4ec1-a179-2b36c397bf1a",
+"ba95f24d-42da-48ce-bcf1-1b7c4b3c45b5"
+],
+"result": "Infinite self-mill; Near-infinite black mana; Near-infinite self-discard triggers",
+"variant_id": "250-779-1742",
+"win": false
+},
+{
+"card_names": [
+"Power Artifact",
+"Grim Monolith"
+],
+"mana": true,
+"norm_names": [
+"power artifact",
+"grim monolith"
+],
+"oids": [
+"9a8c8d52-1701-4ae0-9d2d-cce4e476673b",
+"229d6627-1292-4ae1-8849-b0f956fa6540"
+],
+"result": "Infinite colorless mana",
+"variant_id": "2585-5149",
+"win": false
+},
+{
+"card_names": [
+"Tainted Pact",
+"Laboratory Maniac"
+],
+"mana": false,
+"norm_names": [
+"tainted pact",
+"laboratory maniac"
+],
+"oids": [
+"1a85ba2b-ae10-4917-954a-7709b75a9740",
+"aa286dd5-aa19-446d-9003-684d81eb57ca"
+],
+"result": "Win the game",
+"variant_id": "2836-3093",
+"win": true
+},
+{
+"card_names": [
+"Tainted Pact",
+"Jace, Wielder of Mysteries"
+],
+"mana": false,
+"norm_names": [
+"tainted pact",
+"jace, wielder of mysteries"
+],
+"oids": [
+"1a85ba2b-ae10-4917-954a-7709b75a9740",
+"5277a68e-1ceb-4b40-8e10-3d0564f5d7be"
+],
+"result": "Win the game",
+"variant_id": "3093-3096",
+"win": true
+},
+{
+"card_names": [
+"Karn, the Great Creator",
+"Mycosynth Lattice"
+],
+"mana": false,
+"norm_names": [
+"karn, the great creator",
+"mycosynth lattice"
+],
+"oids": [
+"a20dd48d-d344-4db1-b0e9-a2b71c3cc9d1",
+"ae1f2ab5-c6a5-4d49-a746-3cb4668bf805"
+],
+"result": "Activated abilities of permanents your opponents control can't be activated; Activated abilities can't be activated; Lock; Mass Land Denial",
+"variant_id": "3263-5089",
+"win": false
+},
+{
+"card_names": [
+"Chainer, Dementia Master",
+"K'rrik, Son of Yawgmoth",
+"Gray Merchant of Asphodel",
+"Carrion Feeder"
+],
+"mana": false,
+"norm_names": [
+"chainer, dementia master",
+"k'rrik, son of yawgmoth",
+"gray merchant of asphodel",
+"carrion feeder"
+],
+"oids": [
+"cb905eb0-bb20-41c0-9695-0f5c71972561",
+"cbe3a4e7-5dbe-4f58-8ee6-a1762b65acfd",
+"38f3b157-0df4-409b-89cc-086e1531cd5b",
+"a1cc5e37-b09a-4b7f-afd5-77c1c35aa425"
+],
+"result": "Infinite +1/+1 counters on a creature; Infinite death triggers; Infinite creature ETB; Infinite lifegain; Infinite lifegain triggers; Infinite lifeloss; Infinite creature LTB; Infinite creature sacrifice triggers; Return all creature cards from all graveyards to the battlefield under your control",
+"variant_id": "328-2438-3260-4078",
+"win": true
+},
+{
+"card_names": [
+"Mind Over Matter",
+"The One Ring"
+],
+"mana": true,
+"norm_names": [
+"mind over matter",
+"the one ring"
+],
+"oids": [
+"656afde2-cdf3-4907-a0fc-7ac93f5d3e03",
+"3aa83ed2-f48b-4ce6-a614-2c54ddf50538"
+],
+"result": "Near-infinite card draw; Infinite self-discard triggers; Infinite draw triggers; Infinite looting; Near-infinite untap of permanents you control; Near-infinite mana permanents you control can produce",
+"variant_id": "3363-4067",
+"win": false
+},
+{
+"card_names": [
+"Aggravated Assault",
+"Bear Umbra"
+],
+"mana": false,
+"norm_names": [
+"aggravated assault",
+"bear umbra"
+],
+"oids": [
+"20129459-a386-41eb-899d-1aede3427300",
+"44661108-d72f-4d02-9303-7e4b0ecf7e9c"
+],
+"result": "Infinite combat phases",
+"variant_id": "3750-4228",
+"win": false
+},
+{
+"card_names": [
+"Neheb, the Eternal",
+"Aggravated Assault"
+],
+"mana": true,
+"norm_names": [
+"neheb, the eternal",
+"aggravated assault"
+],
+"oids": [
+"b0d3fd57-1420-4dd1-8410-9d659655287f",
+"20129459-a386-41eb-899d-1aede3427300"
+],
+"result": "Infinite combat phases; Infinite red mana; Infinite mana creatures you control can produce; Infinite untap of creatures you control",
+"variant_id": "3750-4945",
+"win": false
+},
+{
+"card_names": [
+"Sozin's Comet",
+"Aggravated Assault",
+"Electro, Assaulting Battery"
+],
+"mana": true,
+"norm_names": [
+"sozin's comet",
+"aggravated assault",
+"electro, assaulting battery"
+],
+"oids": [
+"bc0da02c-2b85-4ddc-9ce0-63934dd14164",
+"20129459-a386-41eb-899d-1aede3427300",
+"3db16fb8-5650-4568-b975-42ad3d44ebcd"
+],
+"result": "Infinite combat phases; Infinite red mana; Infinite untap of creatures you control; Infinite mana creatures you control can produce; Infinite damage to one opponent",
+"variant_id": "3750-6898-6999",
+"win": true
+},
+{
+"card_names": [
+"Sozin's Comet",
+"Aggravated Assault",
+"Ozai, the Phoenix King"
+],
+"mana": true,
+"norm_names": [
+"sozin's comet",
+"aggravated assault",
+"ozai, the phoenix king"
+],
+"oids": [
+"bc0da02c-2b85-4ddc-9ce0-63934dd14164",
+"20129459-a386-41eb-899d-1aede3427300",
+"7472af8e-2e93-43b2-bc32-a3741f6d7502"
+],
+"result": "Infinite combat phases; Infinite red mana; Infinite untap of creatures you control; Infinite mana creatures you control can produce",
+"variant_id": "3750-6999-7020",
+"win": false
+},
+{
+"card_names": [
+"Rings of Brighthearth",
+"Basalt Monolith"
+],
+"mana": true,
+"norm_names": [
+"rings of brighthearth",
+"basalt monolith"
+],
+"oids": [
+"bbf9494c-c4bb-4d36-98fe-8387846b342e",
+"6b8cf2a0-b045-4d91-9d91-c602d40c6237"
+],
+"result": "Infinite colorless mana",
+"variant_id": "4131-4235",
+"win": false
+},
+{
+"card_names": [
+"Power Artifact",
+"Basalt Monolith"
+],
+"mana": true,
+"norm_names": [
+"power artifact",
+"basalt monolith"
+],
+"oids": [
+"9a8c8d52-1701-4ae0-9d2d-cce4e476673b",
+"6b8cf2a0-b045-4d91-9d91-c602d40c6237"
+],
+"result": "Infinite colorless mana",
+"variant_id": "4131-5149",
+"win": false
+},
+{
+"card_names": [
+"Karn, the Great Creator",
+"Aetherflux Reservoir"
+],
+"mana": false,
+"norm_names": [
+"karn, the great creator",
+"aetherflux reservoir"
+],
+"oids": [
+"a20dd48d-d344-4db1-b0e9-a2b71c3cc9d1",
+"5f15125e-ae89-471e-b055-226a783bc7c1"
+],
+"result": "Infinite damage; Infinite lifegain triggers",
+"variant_id": "4740-5089",
+"win": true
+},
+{
+"card_names": [
+"Dramatic Reversal",
+"Isochron Scepter"
+],
+"mana": true,
+"norm_names": [
+"dramatic reversal",
+"isochron scepter"
+],
+"oids": [
+"da46904c-8fb8-44c2-b2ab-775a1cc12ec3",
+"ddd649f4-dbaf-48ec-8ff7-95581257772d"
+],
+"result": "Infinite magecraft triggers; Infinite mana nonland permanents you control can produce; Infinite storm count; Infinite untap of nonland permanents you control",
+"variant_id": "4821-5261",
+"win": false
+},
+{
+"card_names": [
+"Hullbreaker Horror",
+"Mana Vault"
+],
+"mana": true,
+"norm_names": [
+"hullbreaker horror",
+"mana vault"
+],
+"oids": [
+"d4a84e78-d9b9-4c67-8a4b-4329e65f0f15",
+"736892cb-a34b-4bb9-b56c-e26e3db207a2"
+],
+"result": "Infinite colorless mana; Infinite storm count",
+"variant_id": "513-2364--47",
+"win": false
+},
+{
+"card_names": [
+"Hullbreaker Horror",
+"Mox Amber"
+],
+"mana": true,
+"norm_names": [
+"hullbreaker horror",
+"mox amber"
+],
+"oids": [
+"d4a84e78-d9b9-4c67-8a4b-4329e65f0f15",
+"7a43bd27-fdd8-41f0-9bc4-92568f3408f1"
+],
+"result": "Infinite creature ETB; Infinite creature LTB; Infinite colored mana; Infinite storm count",
+"variant_id": "513-3682",
+"win": false
+},
+{
+"card_names": [
+"Hullbreaker Horror",
+"Sol Ring"
+],
+"mana": true,
+"norm_names": [
+"hullbreaker horror",
+"sol ring"
+],
+"oids": [
+"d4a84e78-d9b9-4c67-8a4b-4329e65f0f15",
+"6ad8011d-3471-4369-9d68-b264cc027487"
+],
+"result": "Infinite colorless mana; Infinite storm count",
+"variant_id": "513-5034--46",
+"win": false
+},
+{
+"card_names": [
+"Basalt Monolith",
+"Mana Reflection"
+],
+"mana": true,
+"norm_names": [
+"basalt monolith",
+"mana reflection"
+],
+"oids": [
+"6b8cf2a0-b045-4d91-9d91-c602d40c6237",
+"a3a8a044-283d-443e-bc40-c2f826d70c22"
+],
+"result": "Infinite colorless mana",
+"variant_id": "579-4131",
+"win": false
+},
+{
+"card_names": [
+"Demonic Consultation",
+"Thassa's Oracle"
+],
+"mana": false,
+"norm_names": [
+"demonic consultation",
+"thassa's oracle"
+],
+"oids": [
+"9a1412db-45ad-46ea-8f12-a85d203113d8",
+"1de1b591-a73f-4974-b507-8c63e07a0868"
+],
+"result": "Exile your library; Win the game",
+"variant_id": "742-1295",
+"win": true
+},
+{
+"card_names": [
+"Demonic Consultation",
+"Laboratory Maniac"
+],
+"mana": false,
+"norm_names": [
+"demonic consultation",
+"laboratory maniac"
+],
+"oids": [
+"9a1412db-45ad-46ea-8f12-a85d203113d8",
+"aa286dd5-aa19-446d-9003-684d81eb57ca"
+],
+"result": "Exile your library; Win the game",
+"variant_id": "742-2836",
+"win": true
+},
+{
+"card_names": [
+"Demonic Consultation",
+"Jace, Wielder of Mysteries"
+],
+"mana": false,
+"norm_names": [
+"demonic consultation",
+"jace, wielder of mysteries"
+],
+"oids": [
+"9a1412db-45ad-46ea-8f12-a85d203113d8",
+"5277a68e-1ceb-4b40-8e10-3d0564f5d7be"
+],
+"result": "Exile your library; Win the game",
+"variant_id": "742-3096",
+"win": true
+},
+{
+"card_names": [
+"Asmodeus the Archfiend",
+"Necrotic Ooze",
+"Skirge Familiar"
+],
+"mana": true,
+"norm_names": [
+"asmodeus the archfiend",
+"necrotic ooze",
+"skirge familiar"
+],
+"oids": [
+"1e4032f6-9741-4845-9325-781c9e489172",
+"2fdeb920-2e48-4308-9517-743eec219c04",
+"ba95f24d-42da-48ce-bcf1-1b7c4b3c45b5"
+],
+"result": "Infinite card draw; Infinite draw triggers; Infinite looting; Infinite self-discard triggers; Near-infinite black mana",
+"variant_id": "970-1656-1742",
+"win": false
+},
+{
+"card_names": [
+"Asmodeus the Archfiend",
+"Necrotic Ooze",
+"K'rrik, Son of Yawgmoth",
+"Sheoldred, the Apocalypse"
+],
+"mana": false,
+"norm_names": [
+"asmodeus the archfiend",
+"necrotic ooze",
+"k'rrik, son of yawgmoth",
+"sheoldred, the apocalypse"
+],
+"oids": [
+"1e4032f6-9741-4845-9325-781c9e489172",
+"2fdeb920-2e48-4308-9517-743eec219c04",
+"cbe3a4e7-5dbe-4f58-8ee6-a1762b65acfd",
+"34f34409-326d-4994-a0ea-1a69aa278f03"
+],
+"result": "Infinite card draw; Near-infinite lifegain; Near-infinite lifegain triggers; Infinite draw triggers",
+"variant_id": "970-1656-2498-3260",
+"win": false
+}
+]
