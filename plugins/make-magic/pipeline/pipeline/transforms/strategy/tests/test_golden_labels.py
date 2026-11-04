@@ -80,6 +80,56 @@ def test_faceless_menace_is_morph(load_deck, combos):
     assert rec['facts']['strategies']['morph']['n_member_cards'] >= 12
 
 
+def test_peace_offering_is_group_hug(load_deck, combos):
+    # Ms. Bumbleflower (Bloomburrow) group-hug/food precon. Before the vocab add it
+    # shattered onto +1/+1 counters; the dedicated archetype recovers group-hug as
+    # the clean lead (19 member cards) — the engine's cleanest politics-family win.
+    rec = resolve(load_deck('precon__peace-offering'), combos)
+    assert rec['named_strategy'] == 'group-hug'
+    assert rec['strategy_identity'][0]['strategy'] == 'group-hug'
+    assert rec['facts']['strategies']['group-hug']['requires_met'] is True
+
+
+def test_blame_game_surfaces_pillowfort(load_deck, combos):
+    # Nelly Borca (Karlov Manor) goad/forced-combat precon. The deck legitimately
+    # leads combat/aggro (goad IS forced combat), but its fog/prevent-attack shell
+    # was invisible before the vocab add; pillowfort now recovers as a real second
+    # axis of the identity set (12 member cards).
+    rec = resolve(load_deck('precon__blame-game'), combos)
+    sid = [s['strategy'] for s in rec['strategy_identity']]
+    assert rec['named_strategy'] == 'combat/aggro'
+    assert 'pillowfort' in sid
+    assert rec['facts']['strategies']['pillowfort']['requires_met'] is True
+
+
+def test_political_puppets_is_pillowfort(load_deck, combos):
+    # Zedruu the Greathearted (Commander 2011) reads pillowfort — its true top
+    # EDHREC theme (fog/propaganda donate-shell). The `politics` family routes
+    # correctly (monarch/vote/goad), but the 2011 deck predates all three mechanics,
+    # so pillowfort is the dense, correct lead; group-hug (donate) rides secondary.
+    rec = resolve(load_deck('precon__political-puppets'), combos)
+    assert rec['named_strategy'] == 'pillowfort'
+    assert rec['facts']['strategies']['group-hug']['requires_met'] is True
+
+
+def test_new_archetypes_route_their_anchor_slugs():
+    # The three added identities route their EXACT anchor slugs (hermetic, no lake);
+    # the answer/body slugs stay unrouted. This pins the vocab wiring independent of
+    # any deck surfacing them.
+    from pipeline.transforms.strategy.assets import load_assets
+    a = load_assets()
+    assert a.archetype_of_attr('pillowfort') == 'pillowfort'
+    assert a.archetype_of_attr('fog') == 'pillowfort'
+    assert a.archetype_of_attr('prevent-attack') == 'pillowfort'
+    assert a.archetype_of_attr('group-hug') == 'group-hug'
+    assert a.archetype_of_attr('selective-group-hug') == 'group-hug'
+    assert a.archetype_of_attr('monarch-matters') == 'politics'
+    assert a.archetype_of_attr('synergy-vote') == 'politics'
+    assert a.archetype_of_attr('synergy-goad') == 'politics'   # the goad PAYOFF
+    assert a.archetype_of_attr('hate-goad') is None            # the goad ANSWER
+    assert a.archetype_of_attr('evasion') is None              # broad body, never a primary
+
+
 def test_welcoming_vampire_goodstuff_abstains(load_deck, combos):
     rec = resolve(load_deck('owned__welcoming-vampire'), combos)
     assert rec['abstain'] is True

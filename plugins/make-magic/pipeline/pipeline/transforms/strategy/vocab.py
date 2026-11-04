@@ -98,6 +98,15 @@ ANTHEM_DECONF_IDENTITIES: list[tuple[str, str]] = [
 #: facts-only ``enchantments`` archetype lists the enchantment-*synergy* members
 #: (the removal/hate/disenchant slugs the old broad regex also swept up are not an
 #: enchantment strategy); the real synergy payoffs route to ``enchantress`` first.
+#: The later additions are likewise exact OR-lists: ``pillowfort`` (fog /
+#: prevent-attack), ``group-hug`` (the two group-hug payoffs), and ``politics``
+#: (monarch / vote / the ``synergy-goad`` payoff — ``hate-goad`` is the answer, not
+#: the strategy). An identity only fires on slugs the facts layer SURFACES; the
+#: non-payoff anchors (``pillowfort``/``fog``/``group-hug``/…) are surfaced by their
+#: entries in the committed ``payoff_attributes`` membership set, exactly as the
+#: ``*-matters`` / ``synergy-*`` payoffs already are. An unsurfaced slug in a query
+#: (``buttstrike``, ``high-flying``) is inert belt-and-suspenders, never a false
+#: positive.
 BASE_IDENTITIES: list[tuple[str, str]] = [
     ('typal/tribal', 'otag:typal OR otag:changeling'),
     ('tokens/go-wide', 'otag:tokens OR otag:token-increaser OR otag:repeatable-token-generator '
@@ -146,6 +155,21 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
     ('morph', 'otag:morph OR otag:synergy-face-down OR otag:face-up-face-down-effects '
               'OR otag:turn-face-down OR otag:synergy-manifest OR otag:synergy-manifest-dread '
               'OR otag:synergy-disguise'),
+    # pillowfort / fog (Zedruu/Derevi/Nelly Borca): prevent-combat-damage +
+    # can't-attack-you defense. An explicit exact OR-list of the fog/prevent-attack
+    # payoffs — NOT the broad `combat` family (first-match order already puts this
+    # after combat/aggro, but these slugs are disjoint from it).
+    ('pillowfort', 'otag:pillowfort OR otag:fog OR otag:pseudo-fog OR otag:fog-selective '
+                   'OR otag:prevent-attack'),
+    # group-hug (Ms. Bumbleflower/Kynaios): symmetric card/mana/token gifting. The
+    # two group-hug payoff slugs (the broad `group-hug` parent + the one-sided
+    # `selective-group-hug`); no clean single otag parents both.
+    ('group-hug', 'otag:group-hug OR otag:selective-group-hug'),
+    # politics (Zedruu/monarch/vote/goad decks): monarch-matters, council's-vote,
+    # and goad payoffs. Thin (~60 cards) but a distinct identity the political
+    # precons need (`political-puppets`). The goad payoff slug is `synergy-goad`
+    # (`hate-goad` is the ANSWER, deliberately excluded).
+    ('politics', 'otag:monarch-matters OR otag:synergy-vote OR otag:synergy-goad'),
     ('alt-wincon/combo', 'otag:wincon OR otag:alternate-win-condition'),
     ('enchantments', 'otag:synergy-enchantment OR otag:synergy-enchantment-creature '
                      'OR otag:synergy-aura OR otag:synergy-shrine OR otag:synergy-saga '
@@ -193,6 +217,9 @@ ARCHETYPE_EDGES: dict[str, str] = {
     'combat/aggro': 'combat/aggro',
     'toughness-matters': 'toughness-matters',
     'morph': 'morph',
+    'pillowfort': 'pillowfort',
+    'group-hug': 'group-hug',
+    'politics': 'politics',
     'alt-wincon/combo': 'alt-wincon/combo',
     'enchantments': 'enchantments',
 }

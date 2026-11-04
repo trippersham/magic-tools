@@ -57,4 +57,7 @@ GOLDEN_SLUGS = {
     'gauntlet__urza-lord-high-artificer': 'Urza, Lord High Artificer',
     'gauntlet__krrik-son-of-yawgmoth': "K'rrik, Son of Yawgmoth",
     'gauntlet__baral-chief-of-compliance': 'Baral, Chief of Compliance',
+    'precon__blame-game': 'Blame Game (Nelly Borca)',
+    'precon__peace-offering': 'Peace Offering (Ms. Bumbleflower)',
+    'precon__political-puppets': 'Political Puppets (Zedruu)',
 }

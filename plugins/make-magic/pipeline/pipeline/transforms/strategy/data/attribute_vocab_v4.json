@@ -5114,9 +5114,51 @@
       "patterns": [
         "recursion-*"
       ]
+    },
+    "pillowfort": {
+      "count": 62,
+      "patterns": [
+        "archetype-anchor:pillowfort"
+      ]
+    },
+    "fog": {
+      "count": 96,
+      "patterns": [
+        "archetype-anchor:pillowfort"
+      ]
+    },
+    "pseudo-fog": {
+      "count": 76,
+      "patterns": [
+        "archetype-anchor:pillowfort"
+      ]
+    },
+    "fog-selective": {
+      "count": 60,
+      "patterns": [
+        "archetype-anchor:pillowfort"
+      ]
+    },
+    "prevent-attack": {
+      "count": 169,
+      "patterns": [
+        "archetype-anchor:pillowfort"
+      ]
+    },
+    "group-hug": {
+      "count": 436,
+      "patterns": [
+        "archetype-anchor:group-hug"
+      ]
+    },
+    "selective-group-hug": {
+      "count": 220,
+      "patterns": [
+        "archetype-anchor:group-hug"
+      ]
     }
   },
-  "n_payoff_attributes": 815,
+  "n_payoff_attributes": 822,
   "payoff_patterns_used": [
     "*-matters",
     "*cares-about*",
