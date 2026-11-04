@@ -38,10 +38,14 @@ def test_broad_power_matters_does_not_feed_anthem_by_default():
     # broad slugs are no longer folded into the anthem bucket...
     for slug in _BROAD:
         assert slug not in assets.buckets['anthem']
-    # ...and do not route to the anthem archetype directly
+    # ...and NEITHER routes to the anthem archetype (the J2/B6 anti-over-fire fix)
     for slug in _BROAD:
         assert assets.archetype_of_attr(slug) != 'anthem/go-wide'
-        assert assets.archetype_of_attr(slug) is None
+    # power-matters stays unrouted by default; toughness-matters now has its OWN
+    # dedicated archetype (the toughness-matters/defenders vocab add) — NOT anthem,
+    # so the Doran/Felothar identity is captured without the broad anthem over-fire.
+    assert assets.archetype_of_attr('power-matters') is None
+    assert assets.archetype_of_attr('toughness-matters') == 'toughness-matters'
 
 
 def test_narrow_anthem_node_still_routes():

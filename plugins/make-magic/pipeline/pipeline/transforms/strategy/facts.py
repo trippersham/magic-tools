@@ -164,6 +164,13 @@ def compute_facts(
                 pips: Counter = Counter(re.findall(r'\{([WUBRG])\}', mc))
                 if (pips and max(pips.values()) >= 2) or 'devotion' in ot:
                     attrs.add('devotion-signal')
+        # morph / face-down body: the Morph/Megamorph/Disguise/Cloak keywords mark a
+        # face-down creature, which Scryfall's otags do NOT tag cleanly — they tag the
+        # face-down *payoffs*, not the vanilla morph body. Synthesize the attribute
+        # from the keyword so the morph archetype sees the whole body of creatures,
+        # not just the handful of flip-trigger payoffs.
+        if {str(k).lower() for k in (c.get('keywords') or [])} & {'morph', 'megamorph', 'disguise', 'cloak'}:
+            attrs.add('morph')
         card_attrs[i] = attrs
 
     # -------------------------------------------------- combo detection (per deck)
