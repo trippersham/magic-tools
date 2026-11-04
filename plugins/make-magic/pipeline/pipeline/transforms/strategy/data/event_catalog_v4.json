@@ -1,0 +1,1074 @@
+{
+  "_note": "PATTERN-DERIVED from event_catalog.json over the full lake slug universe (Phase-0 correction 2). recursion-*/reanimate-* now consume the graveyard events (fixes recursion-land drop).",
+  "_derivation_patterns": {
+    "land-enters-battlefield": {
+      "produced_by": [
+        "ramp",
+        "extra-land",
+        "reanimate-land",
+        "recursion-land"
+      ],
+      "triggered_by": [
+        "islandfall",
+        "land-count-matters",
+        "landfall",
+        "landfall-other",
+        "lands-in-graveyard-matter",
+        "lands-matter",
+        "opponent-land-count-matters"
+      ]
+    },
+    "creature-enters-battlefield": {
+      "produced_by": [
+        "tokens",
+        "flicker",
+        "reanimate-artifact-creature",
+        "reanimate-creature",
+        "reanimate-nonland",
+        "reanimate-permanent",
+        "flicker-creature",
+        "repeatable-creature-tokens",
+        "repeatable-token-generator"
+      ],
+      "triggered_by": [
+        "creature-count-matters",
+        "enters-in-company",
+        "flicker",
+        "leaves-body-behind",
+        "synergy-token-creature"
+      ]
+    },
+    "permanent-leaves-battlefield": {
+      "produced_by": [
+        "flicker",
+        "sac",
+        "removal",
+        "flicker",
+        "flicker-artifact",
+        "flicker-creature",
+        "flicker-enchantment",
+        "flicker-land",
+        "flicker-nonenchantment",
+        "flicker-nonland",
+        "flicker-permanent",
+        "flicker-planeswalker",
+        "flicker-self",
+        "flicker-slow",
+        "flicker-vehicle"
+      ],
+      "triggered_by": [
+        "enters-and-leaves-trigger-self",
+        "leaves-battlefield-trigger",
+        "leaves-body-behind",
+        "leaves-trigger-self"
+      ]
+    },
+    "permanent-dies": {
+      "produced_by": [
+        "sac",
+        "removal",
+        "free-sacrifice-outlet",
+        "removal-sacrifice",
+        "sacrifice-outlet",
+        "sacrifice-outlet-artifact",
+        "sacrifice-outlet-creature",
+        "sacrifice-outlet-enchantment",
+        "sacrifice-outlet-land",
+        "sacrifice-outlet-nonland",
+        "sacrifice-outlet-planeswalker",
+        "sacrifice-outlet-token",
+        "sacrifice-outlet-universal",
+        "sacrifice-self"
+      ],
+      "triggered_by": [
+        "cheat-death",
+        "cheat-death-self",
+        "death-trigger",
+        "death-trigger-opponent",
+        "death-trigger-self",
+        "life-and-death-trigger-self",
+        "splits-on-death"
+      ]
+    },
+    "permanent-sacrificed": {
+      "produced_by": [
+        "sac",
+        "alternate-cost-sacrifice",
+        "free-sacrifice-outlet",
+        "removal-sacrifice",
+        "repeatable-sacrifice-outlet",
+        "sacrifice-outlet",
+        "sacrifice-outlet-artifact",
+        "sacrifice-outlet-creature",
+        "sacrifice-outlet-enchantment",
+        "sacrifice-outlet-land",
+        "sacrifice-outlet-nonland",
+        "sacrifice-outlet-planeswalker",
+        "sacrifice-outlet-token",
+        "sacrifice-outlet-universal",
+        "sacrifice-self"
+      ],
+      "triggered_by": [
+        "death-trigger",
+        "death-trigger-opponent",
+        "death-trigger-self",
+        "opponent-sacrifice-matters",
+        "sacrifice-matters",
+        "your-sacrifice-matters"
+      ]
+    },
+    "card-enters-graveyard": {
+      "produced_by": [
+        "sac",
+        "discard",
+        "discard-outlet",
+        "discard-outlet-artifact",
+        "discard-outlet-creature",
+        "discard-outlet-land",
+        "discard-outlet-last-drawn",
+        "discard-outlet-legendary",
+        "discard-outlet-nonland",
+        "discard-outlet-random",
+        "loot",
+        "mill",
+        "mill-self",
+        "rummage",
+        "sacrifice-self",
+        "wheel"
+      ],
+      "triggered_by": [
+        "activate-from-graveyard",
+        "affinity-for-graveyard",
+        "card-types-in-graveyard-matter",
+        "cards-in-graveyard-matter",
+        "castable-from-graveyard",
+        "graveyard-fuel",
+        "graveyard-fuel-artifact",
+        "graveyard-fuel-creature",
+        "graveyard-fuel-enchantment",
+        "graveyard-fuel-historic",
+        "graveyard-fuel-instant",
+        "graveyard-fuel-land",
+        "graveyard-fuel-legendary",
+        "graveyard-fuel-noncreature",
+        "graveyard-fuel-nonland",
+        "graveyard-fuel-permanent",
+        "graveyard-fuel-saga",
+        "graveyard-fuel-self",
+        "graveyard-fuel-sorcery",
+        "lands-in-graveyard-matter",
+        "leaving-graveyard-matters",
+        "synergy-graveyard-cast",
+        "trigger-from-graveyard",
+        "reanimate",
+        "reanimate-artifact",
+        "reanimate-artifact-creature",
+        "reanimate-aura",
+        "reanimate-battle",
+        "reanimate-cast",
+        "reanimate-creature",
+        "reanimate-enchantment",
+        "reanimate-equipment",
+        "reanimate-face-down",
+        "reanimate-from-any",
+        "reanimate-from-opponent",
+        "reanimate-historic",
+        "reanimate-instant-sorcery",
+        "reanimate-land",
+        "reanimate-legendary",
+        "reanimate-matters",
+        "reanimate-noncreature",
+        "reanimate-nonland",
+        "reanimate-permanent",
+        "reanimate-planeswalker",
+        "reanimate-saga",
+        "reanimate-self",
+        "reanimate-spacecraft",
+        "reanimate-vehicle",
+        "recursion",
+        "recursion-any",
+        "recursion-artifact",
+        "recursion-battle",
+        "recursion-creature",
+        "recursion-enchantment",
+        "recursion-from-exile",
+        "recursion-instant",
+        "recursion-land",
+        "recursion-permanent",
+        "recursion-planeswalker",
+        "recursion-self",
+        "recursion-sorcery"
+      ]
+    },
+    "recursion-from-graveyard": {
+      "produced_by": [
+        "discard",
+        "discard-outlet",
+        "discard-outlet-artifact",
+        "discard-outlet-creature",
+        "discard-outlet-land",
+        "discard-outlet-last-drawn",
+        "discard-outlet-legendary",
+        "discard-outlet-nonland",
+        "discard-outlet-random",
+        "mill",
+        "mill-self",
+        "sac"
+      ],
+      "triggered_by": [
+        "reanimate",
+        "reanimate-artifact",
+        "reanimate-artifact-creature",
+        "reanimate-aura",
+        "reanimate-battle",
+        "reanimate-cast",
+        "reanimate-creature",
+        "reanimate-enchantment",
+        "reanimate-equipment",
+        "reanimate-face-down",
+        "reanimate-from-any",
+        "reanimate-from-opponent",
+        "reanimate-historic",
+        "reanimate-instant-sorcery",
+        "reanimate-land",
+        "reanimate-legendary",
+        "reanimate-matters",
+        "reanimate-noncreature",
+        "reanimate-nonland",
+        "reanimate-permanent",
+        "reanimate-planeswalker",
+        "reanimate-saga",
+        "reanimate-self",
+        "reanimate-spacecraft",
+        "reanimate-vehicle",
+        "recursion",
+        "recursion-any",
+        "recursion-artifact",
+        "recursion-battle",
+        "recursion-creature",
+        "recursion-enchantment",
+        "recursion-from-exile",
+        "recursion-instant",
+        "recursion-land",
+        "recursion-permanent",
+        "recursion-planeswalker",
+        "recursion-self",
+        "recursion-sorcery",
+        "castable-from-graveyard",
+        "graveyard-fuel",
+        "graveyard-fuel-artifact",
+        "graveyard-fuel-creature",
+        "graveyard-fuel-enchantment",
+        "graveyard-fuel-historic",
+        "graveyard-fuel-instant",
+        "graveyard-fuel-land",
+        "graveyard-fuel-legendary",
+        "graveyard-fuel-noncreature",
+        "graveyard-fuel-nonland",
+        "graveyard-fuel-permanent",
+        "graveyard-fuel-saga",
+        "graveyard-fuel-self",
+        "graveyard-fuel-sorcery",
+        "synergy-graveyard-cast"
+      ]
+    },
+    "spell-cast": {
+      "produced_by": [
+        "copy-instant",
+        "copy-sorcery",
+        "copy-spell"
+      ],
+      "triggered_by": [
+        "cast-trigger",
+        "cast-trigger-other",
+        "cast-trigger-self",
+        "cast-trigger-you",
+        "prowess-like",
+        "second-spell-matters",
+        "storm-count-matters",
+        "synergy-instant",
+        "synergy-noncreature",
+        "synergy-sorcery",
+        "times-resolved-matters"
+      ]
+    },
+    "creature-attacks": {
+      "produced_by": [
+        "combat",
+        "tokens",
+        "extra-combat-phase",
+        "force-attacker",
+        "forced-attacker",
+        "gives-haste"
+      ],
+      "triggered_by": [
+        "attack-trigger",
+        "attacking-matters",
+        "attacking-matters-any",
+        "attacking-matters-self",
+        "attacking-opponents-matters",
+        "synergy-solo-attack"
+      ]
+    },
+    "combat-damage-dealt": {
+      "produced_by": [
+        "combat",
+        "damage-multiplier",
+        "gains-double-strike",
+        "gives-double-strike",
+        "gives-evasion",
+        "gives-trample"
+      ],
+      "triggered_by": [
+        "combat-neutral-damage-trigger",
+        "retaliate-to-damage",
+        "scales-with-damage-dealt"
+      ]
+    },
+    "lifegain": {
+      "produced_by": [
+        "lifegain",
+        "drain-life",
+        "gains-lifelink",
+        "gives-lifelink",
+        "lifegain",
+        "repeatable-lifegain"
+      ],
+      "triggered_by": [
+        "life-total-matters-self",
+        "lifegain-increaser",
+        "lifegain-matters",
+        "lifegain-to-damage"
+      ]
+    },
+    "life-loss-drain": {
+      "produced_by": [
+        "burn",
+        "sac",
+        "burn-player",
+        "burn-player-each",
+        "drain-life",
+        "opponent-loses-life"
+      ],
+      "triggered_by": [
+        "life-loss-matters",
+        "self-life-loss-matters"
+      ]
+    },
+    "counter-placed": {
+      "produced_by": [
+        "counters",
+        "counter-increaser",
+        "gives-mm-counters",
+        "gives-pp-counters",
+        "gives-pp-counters-to-all",
+        "repeatable-pp-counters",
+        "repeatable-proliferate"
+      ],
+      "triggered_by": [
+        "counter-fuel",
+        "counter-fuel-aesthetic",
+        "counter-fuel-any",
+        "counter-fuel-charge",
+        "counter-fuel-energy",
+        "counter-fuel-fade",
+        "counter-fuel-keyword",
+        "counter-fuel-lore",
+        "counter-fuel-loyalty",
+        "counter-fuel-mm",
+        "counter-fuel-oil",
+        "counter-fuel-other",
+        "counter-fuel-pp",
+        "counter-fuel-pt",
+        "counter-fuel-shield",
+        "counter-fuel-stun",
+        "counter-fuel-time",
+        "counters-matter",
+        "gains-mm-counters",
+        "gains-pp-counters",
+        "mm-counters-matter",
+        "pp-counters-matter"
+      ]
+    },
+    "proliferate": {
+      "produced_by": [
+        "pseudo-proliferate",
+        "repeatable-proliferate",
+        "synergy-proliferate"
+      ],
+      "triggered_by": [
+        "counter-fuel",
+        "counter-fuel-aesthetic",
+        "counter-fuel-any",
+        "counter-fuel-charge",
+        "counter-fuel-energy",
+        "counter-fuel-fade",
+        "counter-fuel-keyword",
+        "counter-fuel-lore",
+        "counter-fuel-loyalty",
+        "counter-fuel-mm",
+        "counter-fuel-oil",
+        "counter-fuel-other",
+        "counter-fuel-pp",
+        "counter-fuel-pt",
+        "counter-fuel-shield",
+        "counter-fuel-stun",
+        "counter-fuel-time",
+        "counters-matter",
+        "pp-counters-matter"
+      ]
+    },
+    "token-created": {
+      "produced_by": [
+        "tokens",
+        "artifacts",
+        "repeatable-artifact-tokens",
+        "repeatable-clues",
+        "repeatable-creature-tokens",
+        "repeatable-food",
+        "repeatable-noncreature-tokens",
+        "repeatable-token-generator",
+        "repeatable-treasures"
+      ],
+      "triggered_by": [
+        "artifact-count-matters",
+        "creature-count-matters",
+        "synergy-token",
+        "synergy-token-creature",
+        "sac"
+      ]
+    },
+    "artifact-enters": {
+      "produced_by": [
+        "artifacts",
+        "animate-artifact",
+        "artifactify",
+        "repeatable-artifact-tokens",
+        "repeatable-treasures"
+      ],
+      "triggered_by": [
+        "affinity-for-artifacts",
+        "artifact-count-matters",
+        "artifactfall",
+        "synergy-artifact",
+        "synergy-artifact-creature"
+      ]
+    },
+    "food-created": {
+      "produced_by": [
+        "repeatable-food",
+        "repeatable-treasures"
+      ],
+      "triggered_by": [
+        "eat-food",
+        "lifegain-matters",
+        "synergy-food"
+      ]
+    },
+    "draw-a-card": {
+      "produced_by": [
+        "draw",
+        "burst-draw",
+        "draw",
+        "draw-engine",
+        "repeatable-draw"
+      ],
+      "triggered_by": [
+        "draw-matters",
+        "hand-size-matters",
+        "second-draw-matters",
+        "third-draw-matters"
+      ]
+    },
+    "discard": {
+      "produced_by": [
+        "discard-outlet",
+        "discard-outlet-artifact",
+        "discard-outlet-creature",
+        "discard-outlet-land",
+        "discard-outlet-last-drawn",
+        "discard-outlet-legendary",
+        "discard-outlet-nonland",
+        "discard-outlet-random",
+        "free-discard-outlet",
+        "loot",
+        "rummage",
+        "wheel"
+      ],
+      "triggered_by": [
+        "castable-from-graveyard",
+        "discard-matters",
+        "discarded-type-matters",
+        "self-discard-matters"
+      ]
+    },
+    "deathtouch-combat": {
+      "produced_by": [
+        "deathtouch-counter",
+        "gains-deathtouch",
+        "gives-deathtouch"
+      ],
+      "triggered_by": [
+        "combat",
+        "old-blocking-deathtouch",
+        "old-damage-deathtouch",
+        "synergy-deathtouch"
+      ]
+    },
+    "monarch-or-extra-turn": {
+      "produced_by": [
+        "extra-turn"
+      ],
+      "triggered_by": [
+        "monarch-matters",
+        "off-turn-casting-matters"
+      ]
+    }
+  },
+  "events": {
+    "land-enters-battlefield": {
+      "rule": "CR 305: a land entering the battlefield (play/fetch/extra land drop)",
+      "produced_by": [
+        "extra-land",
+        "ramp",
+        "reanimate-land",
+        "recursion-land",
+        "tutor-land-to-battlefield"
+      ],
+      "triggered_by": [
+        "islandfall",
+        "land-count-matters",
+        "landfall",
+        "landfall-other",
+        "lands-in-graveyard-matter",
+        "lands-matter",
+        "opponent-land-count-matters"
+      ]
+    },
+    "creature-enters-battlefield": {
+      "rule": "CR 603.6: ETB triggered abilities; tokens/reanimation/flicker put creatures onto the battlefield",
+      "produced_by": [
+        "flicker",
+        "flicker-creature",
+        "reanimate-artifact-creature",
+        "reanimate-creature",
+        "reanimate-nonland",
+        "reanimate-permanent",
+        "repeatable-creature-tokens",
+        "repeatable-token-generator",
+        "tokens"
+      ],
+      "triggered_by": [
+        "creature-count-matters",
+        "enters-in-company",
+        "flicker",
+        "leaves-body-behind",
+        "synergy-token-creature"
+      ]
+    },
+    "permanent-leaves-battlefield": {
+      "rule": "CR 603.6d: leaves-the-battlefield triggers; flicker/blink and bounce cause leaves events",
+      "produced_by": [
+        "flicker",
+        "flicker-artifact",
+        "flicker-creature",
+        "flicker-enchantment",
+        "flicker-land",
+        "flicker-nonenchantment",
+        "flicker-nonland",
+        "flicker-permanent",
+        "flicker-planeswalker",
+        "flicker-self",
+        "flicker-slow",
+        "flicker-vehicle",
+        "removal",
+        "sac"
+      ],
+      "triggered_by": [
+        "enters-and-leaves-trigger-self",
+        "leaves-battlefield-trigger",
+        "leaves-body-behind",
+        "leaves-trigger-self"
+      ]
+    },
+    "permanent-dies": {
+      "rule": "CR 700.4: a creature/permanent going to the graveyard from the battlefield (dies)",
+      "produced_by": [
+        "free-sacrifice-outlet",
+        "removal",
+        "removal-sacrifice",
+        "sac",
+        "sacrifice-outlet",
+        "sacrifice-outlet-artifact",
+        "sacrifice-outlet-creature",
+        "sacrifice-outlet-enchantment",
+        "sacrifice-outlet-land",
+        "sacrifice-outlet-nonland",
+        "sacrifice-outlet-planeswalker",
+        "sacrifice-outlet-token",
+        "sacrifice-outlet-universal",
+        "sacrifice-self"
+      ],
+      "triggered_by": [
+        "cheat-death",
+        "cheat-death-self",
+        "death-trigger",
+        "death-trigger-opponent",
+        "death-trigger-self",
+        "life-and-death-trigger-self",
+        "splits-on-death"
+      ]
+    },
+    "permanent-sacrificed": {
+      "rule": "CR 701.17: sacrifice as a cost/effect; a sacrifice is also a death event",
+      "produced_by": [
+        "alternate-cost-sacrifice",
+        "free-sacrifice-outlet",
+        "removal-sacrifice",
+        "repeatable-sacrifice-outlet",
+        "sac",
+        "sacrifice-outlet",
+        "sacrifice-outlet-artifact",
+        "sacrifice-outlet-creature",
+        "sacrifice-outlet-enchantment",
+        "sacrifice-outlet-land",
+        "sacrifice-outlet-nonland",
+        "sacrifice-outlet-planeswalker",
+        "sacrifice-outlet-token",
+        "sacrifice-outlet-universal",
+        "sacrifice-self"
+      ],
+      "triggered_by": [
+        "death-trigger",
+        "death-trigger-opponent",
+        "death-trigger-self",
+        "opponent-sacrifice-matters",
+        "sacrifice-matters",
+        "your-sacrifice-matters"
+      ]
+    },
+    "card-enters-graveyard": {
+      "rule": "CR 404: graveyard zone; mill/discard/death/sacrifice fill the graveyard",
+      "produced_by": [
+        "discard",
+        "discard-outlet",
+        "discard-outlet-artifact",
+        "discard-outlet-creature",
+        "discard-outlet-land",
+        "discard-outlet-last-drawn",
+        "discard-outlet-legendary",
+        "discard-outlet-nonland",
+        "discard-outlet-random",
+        "loot",
+        "mill",
+        "mill-self",
+        "rummage",
+        "sac",
+        "sacrifice-self",
+        "wheel"
+      ],
+      "triggered_by": [
+        "activate-from-graveyard",
+        "affinity-for-graveyard",
+        "card-types-in-graveyard-matter",
+        "cards-in-graveyard-matter",
+        "castable-from-graveyard",
+        "graveyard-fuel",
+        "graveyard-fuel-artifact",
+        "graveyard-fuel-creature",
+        "graveyard-fuel-enchantment",
+        "graveyard-fuel-historic",
+        "graveyard-fuel-instant",
+        "graveyard-fuel-land",
+        "graveyard-fuel-legendary",
+        "graveyard-fuel-noncreature",
+        "graveyard-fuel-nonland",
+        "graveyard-fuel-permanent",
+        "graveyard-fuel-saga",
+        "graveyard-fuel-self",
+        "graveyard-fuel-sorcery",
+        "lands-in-graveyard-matter",
+        "leaving-graveyard-matters",
+        "reanimate",
+        "reanimate-artifact",
+        "reanimate-artifact-creature",
+        "reanimate-aura",
+        "reanimate-battle",
+        "reanimate-cast",
+        "reanimate-creature",
+        "reanimate-enchantment",
+        "reanimate-equipment",
+        "reanimate-face-down",
+        "reanimate-from-any",
+        "reanimate-from-opponent",
+        "reanimate-historic",
+        "reanimate-instant-sorcery",
+        "reanimate-land",
+        "reanimate-legendary",
+        "reanimate-matters",
+        "reanimate-noncreature",
+        "reanimate-nonland",
+        "reanimate-permanent",
+        "reanimate-planeswalker",
+        "reanimate-saga",
+        "reanimate-self",
+        "reanimate-spacecraft",
+        "reanimate-vehicle",
+        "recursion",
+        "recursion-any",
+        "recursion-artifact",
+        "recursion-battle",
+        "recursion-creature",
+        "recursion-enchantment",
+        "recursion-from-exile",
+        "recursion-instant",
+        "recursion-land",
+        "recursion-permanent",
+        "recursion-planeswalker",
+        "recursion-self",
+        "recursion-sorcery",
+        "synergy-graveyard-cast",
+        "trigger-from-graveyard"
+      ]
+    },
+    "spell-cast": {
+      "rule": "CR 601: casting a spell; noncreature/instant-sorcery casts drive magecraft/spellslinger/storm",
+      "produced_by": [
+        "copy-instant",
+        "copy-sorcery",
+        "copy-spell"
+      ],
+      "triggered_by": [
+        "cast-trigger",
+        "cast-trigger-other",
+        "cast-trigger-self",
+        "cast-trigger-you",
+        "prowess-like",
+        "second-spell-matters",
+        "storm-count-matters",
+        "synergy-instant",
+        "synergy-noncreature",
+        "synergy-sorcery",
+        "times-resolved-matters"
+      ]
+    },
+    "creature-attacks": {
+      "rule": "CR 508: declare attackers; attack-trigger payoffs and go-wide",
+      "produced_by": [
+        "combat",
+        "extra-combat-phase",
+        "force-attacker",
+        "forced-attacker",
+        "gives-haste",
+        "tokens"
+      ],
+      "triggered_by": [
+        "attack-trigger",
+        "attacking-matters",
+        "attacking-matters-any",
+        "attacking-matters-self",
+        "attacking-opponents-matters",
+        "synergy-solo-attack"
+      ]
+    },
+    "combat-damage-dealt": {
+      "rule": "CR 510: combat damage; double-strike/evasion convert attacks to damage",
+      "produced_by": [
+        "combat",
+        "damage-multiplier",
+        "gains-double-strike",
+        "gives-double-strike",
+        "gives-evasion",
+        "gives-trample"
+      ],
+      "triggered_by": [
+        "combat-neutral-damage-trigger",
+        "retaliate-to-damage",
+        "scales-with-damage-dealt"
+      ]
+    },
+    "lifegain": {
+      "rule": "CR 119.3: gaining life; lifelink/drain/incidental gain",
+      "produced_by": [
+        "drain-life",
+        "gains-lifelink",
+        "gives-lifelink",
+        "lifegain",
+        "repeatable-lifegain"
+      ],
+      "triggered_by": [
+        "life-total-matters-self",
+        "lifegain-increaser",
+        "lifegain-matters",
+        "lifegain-to-damage"
+      ]
+    },
+    "life-loss-drain": {
+      "rule": "CR 119.3: losing life; drain and symmetric life-loss payoffs (aristocrats)",
+      "produced_by": [
+        "burn",
+        "burn-player",
+        "burn-player-each",
+        "drain-life",
+        "opponent-loses-life",
+        "sac"
+      ],
+      "triggered_by": [
+        "life-loss-matters",
+        "self-life-loss-matters"
+      ]
+    },
+    "counter-placed": {
+      "rule": "CR 122: counters; +1/+1 and other counters placed on permanents",
+      "produced_by": [
+        "counter-increaser",
+        "counters",
+        "gives-mm-counters",
+        "gives-pp-counters",
+        "gives-pp-counters-to-all",
+        "repeatable-pp-counters",
+        "repeatable-proliferate"
+      ],
+      "triggered_by": [
+        "counter-fuel",
+        "counter-fuel-aesthetic",
+        "counter-fuel-any",
+        "counter-fuel-charge",
+        "counter-fuel-energy",
+        "counter-fuel-fade",
+        "counter-fuel-keyword",
+        "counter-fuel-lore",
+        "counter-fuel-loyalty",
+        "counter-fuel-mm",
+        "counter-fuel-oil",
+        "counter-fuel-other",
+        "counter-fuel-pp",
+        "counter-fuel-pt",
+        "counter-fuel-shield",
+        "counter-fuel-stun",
+        "counter-fuel-time",
+        "counters-matter",
+        "gains-mm-counters",
+        "gains-pp-counters",
+        "mm-counters-matter",
+        "pp-counters-matter"
+      ]
+    },
+    "proliferate": {
+      "rule": "CR 701.27: proliferate adds another of each kind of counter",
+      "produced_by": [
+        "pseudo-proliferate",
+        "repeatable-proliferate",
+        "synergy-proliferate"
+      ],
+      "triggered_by": [
+        "counter-fuel",
+        "counter-fuel-aesthetic",
+        "counter-fuel-any",
+        "counter-fuel-charge",
+        "counter-fuel-energy",
+        "counter-fuel-fade",
+        "counter-fuel-keyword",
+        "counter-fuel-lore",
+        "counter-fuel-loyalty",
+        "counter-fuel-mm",
+        "counter-fuel-oil",
+        "counter-fuel-other",
+        "counter-fuel-pp",
+        "counter-fuel-pt",
+        "counter-fuel-shield",
+        "counter-fuel-stun",
+        "counter-fuel-time",
+        "counters-matter",
+        "pp-counters-matter"
+      ]
+    },
+    "token-created": {
+      "rule": "CR 111 / 701.6: creating token permanents (creatures, Treasure, Food, Clue)",
+      "produced_by": [
+        "artifacts",
+        "repeatable-artifact-tokens",
+        "repeatable-clues",
+        "repeatable-creature-tokens",
+        "repeatable-food",
+        "repeatable-noncreature-tokens",
+        "repeatable-token-generator",
+        "repeatable-treasures",
+        "tokens"
+      ],
+      "triggered_by": [
+        "artifact-count-matters",
+        "creature-count-matters",
+        "sac",
+        "synergy-token",
+        "synergy-token-creature"
+      ]
+    },
+    "artifact-enters": {
+      "rule": "CR 603.6: artifact ETB; Treasure/Clue/Food and artifact tokens",
+      "produced_by": [
+        "animate-artifact",
+        "artifactify",
+        "artifacts",
+        "repeatable-artifact-tokens",
+        "repeatable-treasures"
+      ],
+      "triggered_by": [
+        "affinity-for-artifacts",
+        "artifact-count-matters",
+        "artifactfall",
+        "synergy-artifact",
+        "synergy-artifact-creature"
+      ]
+    },
+    "food-created": {
+      "rule": "CR 701.6: Food token creation and consumption (eat Food to gain life)",
+      "produced_by": [
+        "repeatable-food",
+        "repeatable-treasures"
+      ],
+      "triggered_by": [
+        "eat-food",
+        "lifegain-matters",
+        "synergy-food"
+      ]
+    },
+    "draw-a-card": {
+      "rule": "CR 120: drawing cards",
+      "produced_by": [
+        "burst-draw",
+        "draw",
+        "draw-engine",
+        "repeatable-draw"
+      ],
+      "triggered_by": [
+        "draw-matters",
+        "hand-size-matters",
+        "second-draw-matters",
+        "third-draw-matters"
+      ]
+    },
+    "discard": {
+      "rule": "CR 701.8: discard; enables madness/graveyard recursion",
+      "produced_by": [
+        "discard-outlet",
+        "discard-outlet-artifact",
+        "discard-outlet-creature",
+        "discard-outlet-land",
+        "discard-outlet-last-drawn",
+        "discard-outlet-legendary",
+        "discard-outlet-nonland",
+        "discard-outlet-random",
+        "free-discard-outlet",
+        "loot",
+        "rummage",
+        "wheel"
+      ],
+      "triggered_by": [
+        "castable-from-graveyard",
+        "discard-matters",
+        "discarded-type-matters",
+        "self-discard-matters"
+      ]
+    },
+    "recursion-from-graveyard": {
+      "rule": "CR 404 + reanimation/regrowth: returning cards from the graveyard",
+      "produced_by": [
+        "discard",
+        "discard-outlet",
+        "discard-outlet-artifact",
+        "discard-outlet-creature",
+        "discard-outlet-land",
+        "discard-outlet-last-drawn",
+        "discard-outlet-legendary",
+        "discard-outlet-nonland",
+        "discard-outlet-random",
+        "mill",
+        "mill-self",
+        "sac"
+      ],
+      "triggered_by": [
+        "castable-from-graveyard",
+        "graveyard-fuel",
+        "graveyard-fuel-artifact",
+        "graveyard-fuel-creature",
+        "graveyard-fuel-enchantment",
+        "graveyard-fuel-historic",
+        "graveyard-fuel-instant",
+        "graveyard-fuel-land",
+        "graveyard-fuel-legendary",
+        "graveyard-fuel-noncreature",
+        "graveyard-fuel-nonland",
+        "graveyard-fuel-permanent",
+        "graveyard-fuel-saga",
+        "graveyard-fuel-self",
+        "graveyard-fuel-sorcery",
+        "reanimate",
+        "reanimate-artifact",
+        "reanimate-artifact-creature",
+        "reanimate-aura",
+        "reanimate-battle",
+        "reanimate-cast",
+        "reanimate-creature",
+        "reanimate-enchantment",
+        "reanimate-equipment",
+        "reanimate-face-down",
+        "reanimate-from-any",
+        "reanimate-from-opponent",
+        "reanimate-historic",
+        "reanimate-instant-sorcery",
+        "reanimate-land",
+        "reanimate-legendary",
+        "reanimate-matters",
+        "reanimate-noncreature",
+        "reanimate-nonland",
+        "reanimate-permanent",
+        "reanimate-planeswalker",
+        "reanimate-saga",
+        "reanimate-self",
+        "reanimate-spacecraft",
+        "reanimate-vehicle",
+        "recursion",
+        "recursion-any",
+        "recursion-artifact",
+        "recursion-battle",
+        "recursion-creature",
+        "recursion-enchantment",
+        "recursion-from-exile",
+        "recursion-instant",
+        "recursion-land",
+        "recursion-permanent",
+        "recursion-planeswalker",
+        "recursion-self",
+        "recursion-sorcery",
+        "synergy-graveyard-cast"
+      ]
+    },
+    "deathtouch-combat": {
+      "rule": "CR 702.2: deathtouch; any damage is lethal \u2014 a combat/removal pseudo-event",
+      "produced_by": [
+        "deathtouch-counter",
+        "gains-deathtouch",
+        "gives-deathtouch"
+      ],
+      "triggered_by": [
+        "combat",
+        "old-blocking-deathtouch",
+        "old-damage-deathtouch",
+        "synergy-deathtouch"
+      ]
+    },
+    "monarch-or-extra-turn": {
+      "rule": "CR 720/726: taking extra turns / becoming the monarch (repeatable advantage engines)",
+      "produced_by": [
+        "extra-turn"
+      ],
+      "triggered_by": [
+        "monarch-matters",
+        "off-turn-casting-matters"
+      ]
+    }
+  },
+  "_note_v3": "identical to event_catalog_v2; v3 narrowing is naming-level.",
+  "_note_v4": "v3 + tutor-land-to-battlefield as a land-enters-battlefield PRODUCER (landfall EVENT enabler, NOT a landfall-bucket member). Injected by the runner only when the 'dual' group is enabled."
+}
