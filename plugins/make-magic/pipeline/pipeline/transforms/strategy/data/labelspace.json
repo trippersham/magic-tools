@@ -1,0 +1,678 @@
+{
+  "_what": "T5.5 EDHREC label-space realization: 86 NEW-NODE attribute-strategies keyed on EXISTING otag families + 4 buildable-GAP signals. Density-rank naming; new nodes ADD candidates, never displace a stronger identity (no-displacement guard).",
+  "_authoritative": "`new_nameable_labels_added` is the SINGLE SOURCE OF TRUTH for the EDHREC new-label space: assets.EDHREC_NEW_LABELS is loaded from it at import (data-authoritative), so code+data cannot diverge. It is the full set of every label archetype_of_attr can emit under edhrec_labels that is NOT a legacy v4 bucket (includes BOTH `energy` and `-1/-1 counters`). Keep it sorted and in sync with the router.",
+  "counts": {
+    "DEFINED-DORMANT_themes": 11,
+    "DEFINED-UNFIRED_themes": 0,
+    "FIRED-NAMED_themes": 75,
+    "collapses-to-typal_themes": 4,
+    "unkeyable_themes": 0
+  },
+  "firing_summary": {
+    "defined_dormant_labels": {
+      "-1/-1 counters": 1,
+      "devotion": 3,
+      "discard/wheels": 8,
+      "extra-turns": 4,
+      "planeswalkers": 6
+    },
+    "defined_unfired_labels": [
+      "energy"
+    ],
+    "fired_named_labels": {
+      "enchantress": 3,
+      "mill": 2,
+      "theft": 4,
+      "treasure/food": 1,
+      "vehicles": 1
+    }
+  },
+  "gap_signals_4": {
+    "devotion": {
+      "built_from": "color-pip count from mana_cost + 'devotion' oracle text",
+      "fired_named": 0,
+      "new_attribute": "devotion-signal",
+      "present_as_node": 3,
+      "verdict": "DEFINED-DORMANT (payoff cards too thin on corpus; e.g. Erebos/Heliod have the signal but lose density-rank)"
+    },
+    "energy": {
+      "built_from": "energy otag family + '{E}'/'energy counter' oracle text",
+      "fired_named": 0,
+      "new_attribute": "energy-text + energy-generator/counter-fuel-energy otags",
+      "present_as_node": 0,
+      "verdict": "DEFINED-UNFIRED (no energy deck in the 189-deck corpus)"
+    },
+    "extra-turns": {
+      "built_from": "extra-turn otag + 'extra turn' oracle text",
+      "fired_named": 0,
+      "new_attribute": "extra-turn-text + extra-turn/extra-upkeep otags",
+      "present_as_node": 4,
+      "verdict": "DEFINED-DORMANT (fires as fact on Narset/Aminatou; always loses to the combo override or a bigger identity)"
+    },
+    "vehicles": {
+      "built_from": "Vehicle type_line + crew/synergy-vehicle otags",
+      "fired_named": 1,
+      "new_attribute": "vehicle-type + synergy-vehicle/crew otags",
+      "present_as_node": 4,
+      "verdict": "FIRED-NAMED (Shorikai, Genesis Engine -> vehicles; EDHREC-confirmed)"
+    }
+  },
+  "n_new_node_themes": 86,
+  "new_nameable_labels_added": [
+    "-1/-1 counters",
+    "devotion",
+    "discard/wheels",
+    "enchantress",
+    "energy",
+    "extra-turns",
+    "mill",
+    "planeswalkers",
+    "theft",
+    "treasure/food",
+    "vehicles"
+  ],
+  "new_node_spec": [
+    {
+      "maps_to_label": "artifacts",
+      "node_kind": "existing-node",
+      "requires_sketch": "requires synergy-artifact density; pays_off artifact-count-matters/affinity (v4)",
+      "status": "FIRED-NAMED",
+      "theme": "Artifacts"
+    },
+    {
+      "maps_to_label": "spellslinger",
+      "node_kind": "existing-node",
+      "requires_sketch": "requires cast-trigger family + I/S density; pays_off magecraft/prowess (v4; DENSITY caveat)",
+      "status": "FIRED-NAMED",
+      "theme": "Spellslinger"
+    },
+    {
+      "maps_to_label": "graveyard/reanimator",
+      "node_kind": "existing-node",
+      "requires_sketch": "requires reanimate-* + graveyard-fuel; pays_off big-creature ETB (v4 graveyard)",
+      "status": "FIRED-NAMED",
+      "theme": "Reanimator"
+    },
+    {
+      "maps_to_label": "lifegain",
+      "node_kind": "existing-node",
+      "requires_sketch": "requires lifegain-density; pays_off lifegain-matters/lifegain-to-damage (v4 bucket)",
+      "status": "FIRED-NAMED",
+      "theme": "Lifegain"
+    },
+    {
+      "maps_to_label": "aristocrats/sacrifice",
+      "node_kind": "existing-node",
+      "requires_sketch": "COMPOSITE weighted-OR: requires sacrifice-outlet + death-trigger(UNBUCKETED) + drain-life; pays_off opponent-loses-life. No single slug -> must be a Strategy node (sac x death x drain), not a bucket",
+      "status": "FIRED-NAMED",
+      "theme": "Aristocrats"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "requires lands-matter/land-count-matters (v4 landfall)",
+      "status": "FIRED-NAMED",
+      "theme": "Lands Matter"
+    },
+    {
+      "maps_to_label": "enchantress",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "requires synergy-enchantment density; pays_off draw-on-enchantment (card-advantage)",
+      "status": "FIRED-NAMED",
+      "theme": "Enchantress"
+    },
+    {
+      "maps_to_label": "voltron/equipment",
+      "node_kind": "existing-node",
+      "requires_sketch": "requires synergy-equipment/quick-equip; pays_off attach triggers (v4)",
+      "status": "FIRED-NAMED",
+      "theme": "Equipment"
+    },
+    {
+      "maps_to_label": "mill",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "requires mill/synergy-mill targeting OPP library; pays_off library-size/alt-win",
+      "status": "FIRED-NAMED",
+      "theme": "Mill"
+    },
+    {
+      "maps_to_label": "graveyard/reanimator",
+      "node_kind": "existing-node",
+      "requires_sketch": "requires cards-in-graveyard-matter/graveyard-fuel (v4 graveyard)",
+      "status": "FIRED-NAMED",
+      "theme": "Graveyard"
+    },
+    {
+      "maps_to_label": "discard/wheels",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "requires discard-matters/self-discard-matters",
+      "status": "DEFINED-DORMANT (present as fact, lost density-rank)",
+      "theme": "Discard"
+    },
+    {
+      "maps_to_label": "typal/tribal",
+      "node_kind": "collapses-to-typal",
+      "requires_sketch": "synergy-legendary (historic)",
+      "status": "FIRED-NAMED",
+      "theme": "Legends"
+    },
+    {
+      "maps_to_label": "treasure/food",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "requires synergy-treasure; pays_off ramp/sac (artifact-token)",
+      "status": "FIRED-NAMED",
+      "theme": "Treasure"
+    },
+    {
+      "maps_to_label": "spellslinger",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-copy",
+      "status": "FIRED-NAMED",
+      "theme": "Clones"
+    },
+    {
+      "maps_to_label": "enchantress",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "requires synergy-aura/quick-attach; pays_off aura ETB (v4 folds into equipment node)",
+      "status": "FIRED-NAMED",
+      "theme": "Auras"
+    },
+    {
+      "maps_to_label": "discard/wheels",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "discard-matters + draw (symmetric refill)",
+      "status": "DEFINED-DORMANT (present as fact, lost density-rank)",
+      "theme": "Wheels"
+    },
+    {
+      "maps_to_label": "graveyard/reanimator",
+      "node_kind": "existing-node",
+      "requires_sketch": "graveyard-fuel-self + mill-self (feeds graveyard node)",
+      "status": "FIRED-NAMED",
+      "theme": "Self-Mill"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "requires landfall/landfall-other (v4 landfall)",
+      "status": "FIRED-NAMED",
+      "theme": "Landfall"
+    },
+    {
+      "maps_to_label": "theft",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "requires theft-creature/artifact/spell (v4 theft)",
+      "status": "FIRED-NAMED",
+      "theme": "Theft"
+    },
+    {
+      "maps_to_label": "-1/-1 counters",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "synergy-poison/synergy-toxic + mm_counters (THIN otags - near GAP)",
+      "status": "DEFINED-DORMANT (present as fact, lost density-rank)",
+      "theme": "Infect"
+    },
+    {
+      "maps_to_label": "typal/tribal",
+      "node_kind": "collapses-to-typal",
+      "requires_sketch": "commander-matters/recasting-commander-matters",
+      "status": "FIRED-NAMED",
+      "theme": "Commander Matters"
+    },
+    {
+      "maps_to_label": "planeswalkers",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "requires synergy-planeswalker density (superfriends)",
+      "status": "DEFINED-DORMANT (present as fact, lost density-rank)",
+      "theme": "Planeswalkers"
+    },
+    {
+      "maps_to_label": "spellslinger",
+      "node_kind": "existing-node",
+      "requires_sketch": "x-cost-matters/high-x-matters (thin)",
+      "status": "FIRED-NAMED",
+      "theme": "X Spells"
+    },
+    {
+      "maps_to_label": "vehicles",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "synergy-vehicle (artifact subtype)",
+      "status": "FIRED-NAMED",
+      "theme": "Vehicles"
+    },
+    {
+      "maps_to_label": "-1/-1 counters",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "requires gives-mm-counters/mm-counters-matter (v4 mm_counters)",
+      "status": "DEFINED-DORMANT (present as fact, lost density-rank)",
+      "theme": "-1/-1 Counters"
+    },
+    {
+      "maps_to_label": "blink/flicker",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-exile-cast + exiling",
+      "status": "FIRED-NAMED",
+      "theme": "Exile"
+    },
+    {
+      "maps_to_label": "graveyard/reanimator",
+      "node_kind": "existing-node",
+      "requires_sketch": "graveyard-fuel-self + self-mill",
+      "status": "FIRED-NAMED",
+      "theme": "Dredge"
+    },
+    {
+      "maps_to_label": "+1/+1 counters",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-proliferate + counters (thin; keys on counters bucket)",
+      "status": "FIRED-NAMED",
+      "theme": "Proliferate"
+    },
+    {
+      "maps_to_label": "spellslinger",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-copy + cast-trigger",
+      "status": "FIRED-NAMED",
+      "theme": "Spell Copy"
+    },
+    {
+      "maps_to_label": "combat/aggro",
+      "node_kind": "existing-node",
+      "requires_sketch": "toughness-matters",
+      "status": "FIRED-NAMED",
+      "theme": "Toughness Matters"
+    },
+    {
+      "maps_to_label": "artifacts",
+      "node_kind": "existing-node",
+      "requires_sketch": "artifact-count + affinity-for-artifacts",
+      "status": "FIRED-NAMED",
+      "theme": "Affinity"
+    },
+    {
+      "maps_to_label": "treasure/food",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "requires synergy-food/eat-food (v4 food)",
+      "status": "FIRED-NAMED",
+      "theme": "Food"
+    },
+    {
+      "maps_to_label": "combat/aggro",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-defender + toughness (walls)",
+      "status": "FIRED-NAMED",
+      "theme": "Defenders"
+    },
+    {
+      "maps_to_label": "enchantress",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "synergy-saga",
+      "status": "FIRED-NAMED",
+      "theme": "Sagas"
+    },
+    {
+      "maps_to_label": "voltron/equipment",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-modified (counters+equipment+aura composite)",
+      "status": "FIRED-NAMED",
+      "theme": "Modified Creatures"
+    },
+    {
+      "maps_to_label": "discard/wheels",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "synergy-cycling",
+      "status": "DEFINED-DORMANT (present as fact, lost density-rank)",
+      "theme": "Cycling"
+    },
+    {
+      "maps_to_label": "combat/aggro",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-tapped/untapped (tappers)",
+      "status": "FIRED-NAMED",
+      "theme": "Tap / Untap"
+    },
+    {
+      "maps_to_label": "blink/flicker",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-face-down + face-down-cast",
+      "status": "FIRED-NAMED",
+      "theme": "Morph"
+    },
+    {
+      "maps_to_label": "burn",
+      "node_kind": "existing-node",
+      "requires_sketch": "burn + repeatable-damage (ping)",
+      "status": "FIRED-NAMED",
+      "theme": "Pingers"
+    },
+    {
+      "maps_to_label": "treasure/food",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "synergy-clue (draw/artifact-token)",
+      "status": "FIRED-NAMED",
+      "theme": "Clues"
+    },
+    {
+      "maps_to_label": "tokens/go-wide",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-dungeon",
+      "status": "FIRED-NAMED",
+      "theme": "Dungeon"
+    },
+    {
+      "maps_to_label": "graveyard/reanimator",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-flashback + graveyard-cast",
+      "status": "FIRED-NAMED",
+      "theme": "Flashback"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-snow",
+      "status": "FIRED-NAMED",
+      "theme": "Snow"
+    },
+    {
+      "maps_to_label": "voltron/equipment",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-mutate",
+      "status": "FIRED-NAMED",
+      "theme": "Mutate"
+    },
+    {
+      "maps_to_label": "spellslinger",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-flash + flash-density (instant-speed creatures)",
+      "status": "FIRED-NAMED",
+      "theme": "Flash"
+    },
+    {
+      "maps_to_label": "combat/aggro",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-fight (combat/removal)",
+      "status": "FIRED-NAMED",
+      "theme": "Fight"
+    },
+    {
+      "maps_to_label": "discard/wheels",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "self-discard-matters",
+      "status": "DEFINED-DORMANT (present as fact, lost density-rank)",
+      "theme": "Self-Discard"
+    },
+    {
+      "maps_to_label": "spellslinger",
+      "node_kind": "existing-node",
+      "requires_sketch": "prowess-like + cast-trigger",
+      "status": "FIRED-NAMED",
+      "theme": "Prowess"
+    },
+    {
+      "maps_to_label": "treasure/food",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "sac + artifacts (sac-for-value)",
+      "status": "FIRED-NAMED",
+      "theme": "Eggs"
+    },
+    {
+      "maps_to_label": "blink/flicker",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-bounce (tempo/ETB reuse)",
+      "status": "FIRED-NAMED",
+      "theme": "Bounce"
+    },
+    {
+      "maps_to_label": "typal/tribal",
+      "node_kind": "collapses-to-typal",
+      "requires_sketch": "synergy-multicolor",
+      "status": "FIRED-NAMED",
+      "theme": "Multicolor Matters"
+    },
+    {
+      "maps_to_label": "spellslinger",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-scry (minor)",
+      "status": "FIRED-NAMED",
+      "theme": "Scry"
+    },
+    {
+      "maps_to_label": "+1/+1 counters",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-army token (tokens+counters composite)",
+      "status": "FIRED-NAMED",
+      "theme": "Amass"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-gate (land subtype)",
+      "status": "FIRED-NAMED",
+      "theme": "Guildgates"
+    },
+    {
+      "maps_to_label": "typal/tribal",
+      "node_kind": "collapses-to-typal",
+      "requires_sketch": "synergy-party",
+      "status": "FIRED-NAMED",
+      "theme": "Party"
+    },
+    {
+      "maps_to_label": "spellslinger",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-dice",
+      "status": "FIRED-NAMED",
+      "theme": "Die Roll"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "land-assembly (landfall-adjacent)",
+      "status": "FIRED-NAMED",
+      "theme": "Tron"
+    },
+    {
+      "maps_to_label": "blink/flicker",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-foretell + exile-cast",
+      "status": "FIRED-NAMED",
+      "theme": "Foretell"
+    },
+    {
+      "maps_to_label": "combat/aggro",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-ring",
+      "status": "FIRED-NAMED",
+      "theme": "The Ring"
+    },
+    {
+      "maps_to_label": "enchantress",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "synergy-curse",
+      "status": "FIRED-NAMED",
+      "theme": "Curses"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-creatureland + landfall",
+      "status": "FIRED-NAMED",
+      "theme": "Land Animation"
+    },
+    {
+      "maps_to_label": "graveyard/reanimator",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-surveil + graveyard-fuel",
+      "status": "FIRED-NAMED",
+      "theme": "Surveil"
+    },
+    {
+      "maps_to_label": "+1/+1 counters",
+      "node_kind": "existing-node",
+      "requires_sketch": "experience-counter (non-+1/+1 counter type)",
+      "status": "FIRED-NAMED",
+      "theme": "Experience Counters"
+    },
+    {
+      "maps_to_label": "discard/wheels",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "synergy-connive (draw/discard/counters)",
+      "status": "DEFINED-DORMANT (present as fact, lost density-rank)",
+      "theme": "Connive"
+    },
+    {
+      "maps_to_label": "enchantress",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "synergy-shrine",
+      "status": "FIRED-NAMED",
+      "theme": "Shrines"
+    },
+    {
+      "maps_to_label": "discard/wheels",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "synergy-madness + discard (thin)",
+      "status": "DEFINED-DORMANT (present as fact, lost density-rank)",
+      "theme": "Madness"
+    },
+    {
+      "maps_to_label": "blink/flicker",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-suspend + time-counters",
+      "status": "FIRED-NAMED",
+      "theme": "Suspend"
+    },
+    {
+      "maps_to_label": "treasure/food",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "synergy-blood (discard/artifact-token)",
+      "status": "FIRED-NAMED",
+      "theme": "Blood"
+    },
+    {
+      "maps_to_label": "blink/flicker",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-adventure",
+      "status": "FIRED-NAMED",
+      "theme": "Adventures"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-desert (land subtype -> landfall-adjacent)",
+      "status": "FIRED-NAMED",
+      "theme": "Deserts"
+    },
+    {
+      "maps_to_label": "discard/wheels",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "hand-size-matters/synergy-full-hand",
+      "status": "DEFINED-DORMANT (present as fact, lost density-rank)",
+      "theme": "Hand Size"
+    },
+    {
+      "maps_to_label": "discard/wheels",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "draw + discard (rummage)",
+      "status": "DEFINED-DORMANT (present as fact, lost density-rank)",
+      "theme": "Looting"
+    },
+    {
+      "maps_to_label": "lifegain",
+      "node_kind": "existing-node",
+      "requires_sketch": "lifegain + life-total-matters-self",
+      "status": "FIRED-NAMED",
+      "theme": "Life Exchange"
+    },
+    {
+      "maps_to_label": "enchantress",
+      "node_kind": "NEW-nameable(T5.5)",
+      "requires_sketch": "synergy-room",
+      "status": "FIRED-NAMED",
+      "theme": "Rooms"
+    },
+    {
+      "maps_to_label": "blink/flicker",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-transform",
+      "status": "FIRED-NAMED",
+      "theme": "Transform"
+    },
+    {
+      "maps_to_label": "graveyard/reanimator",
+      "node_kind": "existing-node",
+      "requires_sketch": "graveyard card-type diversity (thin)",
+      "status": "FIRED-NAMED",
+      "theme": "Delirium"
+    },
+    {
+      "maps_to_label": "blink/flicker",
+      "node_kind": "existing-node",
+      "requires_sketch": "day-night (werewolf/transform)",
+      "status": "FIRED-NAMED",
+      "theme": "Day / Night"
+    },
+    {
+      "maps_to_label": "combat/aggro",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-battle (siege permanents)",
+      "status": "FIRED-NAMED",
+      "theme": "Battles"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-town (land subtype)",
+      "status": "FIRED-NAMED",
+      "theme": "Towns"
+    },
+    {
+      "maps_to_label": "graveyard/reanimator",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy graveyard permanents (descend)",
+      "status": "FIRED-NAMED",
+      "theme": "Descend"
+    },
+    {
+      "maps_to_label": "artifacts",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-artifact + improvise",
+      "status": "FIRED-NAMED",
+      "theme": "Improvise"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "synergy-cave (land subtype)",
+      "status": "FIRED-NAMED",
+      "theme": "Caves"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "land-type-matters (basic Swamp) -> landfall/devotion-adjacent",
+      "status": "FIRED-NAMED",
+      "theme": "Swamps Matter"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "land-type-matters (basic Island)",
+      "status": "FIRED-NAMED",
+      "theme": "Islands Matter"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "land-type-matters (basic Forest)",
+      "status": "FIRED-NAMED",
+      "theme": "Forests Matter"
+    },
+    {
+      "maps_to_label": "lands-matter",
+      "node_kind": "existing-node",
+      "requires_sketch": "land-type-matters (basic Mountain)",
+      "status": "FIRED-NAMED",
+      "theme": "Mountains Matter"
+    }
+  ]
+}
