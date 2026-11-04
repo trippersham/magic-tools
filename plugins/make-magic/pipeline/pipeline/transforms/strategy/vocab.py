@@ -130,7 +130,7 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
                  'OR otag:lifegain-to-damage OR otag:repeatable-lifegain'),
     ('stax/prison', 'otag:stax OR otag:tax OR otag:tax-attack OR otag:tax-block OR otag:cast-tax'),
     ('deathtouch', 'otag:deathtouch-combat OR otag:deathtouch-counter '
-                   'OR otag:deathtouch-to-planeswalkers OR otag:gains-deathtouch '
+                   'OR otag:deathtouch-to-planeswalkers '
                    'OR otag:hate-deathtouch OR otag:old-blocking-deathtouch '
                    'OR otag:old-damage-deathtouch OR otag:removes-deathtouch '
                    'OR otag:synergy-deathtouch OR otag:tutor-creature-deathtouch'),
