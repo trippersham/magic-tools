@@ -191,9 +191,7 @@
       "sacrifice-outlet-land"
     ],
     "spellslinger": [
-      "cast-trigger",
       "cast-trigger-you",
-      "cast-trigger-self",
       "cast-trigger-other",
       "second-spell-matters",
       "storm-count-matters",
@@ -6276,9 +6274,7 @@
       "landfall-other"
     ],
     "spellslinger": [
-      "cast-trigger",
       "cast-trigger-you",
-      "cast-trigger-self",
       "cast-trigger-other",
       "second-spell-matters",
       "storm-count-matters",

@@ -187,7 +187,12 @@ class StrategyAssets:
                 'cards-in-graveyard-matter', 'castable-from-graveyard', 'graveyard-fuel', 'graveyard-fuel-self',
                 'activate-from-graveyard', 'mill-self'):
             return 'graveyard/reanimator'
-        if a == 'spellslinger' or a.startswith('cast-trigger') or a in (
+        # spellslinger = a spells-MATTER identity. Only the "whenever you cast A
+        # spell" PAYOFFS (cast-trigger-you/-other = magecraft/prowess) count — NOT
+        # `cast-trigger-self` ("when you cast THIS spell") or the bare `cast-trigger`
+        # parent, which are a per-card on-cast body (Eldrazi/Animar creatures) and
+        # over-fire spellslinger on creature-ramp decks.
+        if a == 'spellslinger' or a.startswith(('cast-trigger-you', 'cast-trigger-other')) or a in (
                 'second-spell-matters', 'storm-count-matters', 'synergy-instant', 'synergy-sorcery',
                 'synergy-noncreature', 'prowess-like', 'copy-instant', 'copy-sorcery'):
             return 'spellslinger'
@@ -216,6 +221,19 @@ class StrategyAssets:
             return 'burn'
         if a == 'combat' or a.startswith('attacking-matters') or a in ('attack-trigger',):
             return 'combat/aggro'
+        # toughness-matters / defenders (Doran/Arcades/Felothar): assign-damage-by-
+        # toughness, Walls-attack, high-toughness payoffs. A real identity that was
+        # otherwise shattered across lifegain/anthem/counters. Excludes the broad
+        # `toughness-boost-to-all` anthem slug (stays in anthem/go-wide).
+        if a in ('toughness-matters', 'toughness-matters-self', 'buttstrike',
+                 'turns-off-defender', 'turns-off-defender-self', 'synergy-defender'):
+            return 'toughness-matters'
+        # morph / face-down (Faceless Menace & co.): the morph/megamorph/disguise/
+        # manifest mechanics all produce FACE-DOWN creatures, so the face-down otag
+        # family is the unifying signal (there is no clean `morph` slug in-lake).
+        if a == 'morph' or a in ('synergy-face-down', 'face-up-face-down-effects', 'turn-face-down',
+                                 'synergy-manifest', 'synergy-manifest-dread', 'synergy-disguise'):
+            return 'morph'
         if a in ('wincon', 'alternate-win-condition'):
             return 'alt-wincon/combo'
         if self.ench_attr_re.search(a):
