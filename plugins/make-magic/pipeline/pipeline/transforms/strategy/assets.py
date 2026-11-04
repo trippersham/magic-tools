@@ -4,8 +4,19 @@ Loads the promoted data files (``data/attribute_vocab_v4.json``,
 ``data/event_catalog_v4.json``) and assembles, as a function of a
 :class:`~.config.StrategyConfig`, every derived constant the facts/naming layers
 need: the bucket set, payoff/support vocab, density thresholds, event anchors,
-the T5.5 EDHREC new-node families, and the deterministic
-``attr → identity archetype`` router.
+the EDHREC membership family, the compiled synth-attribute predicates, and the
+config-bound :class:`~.vocab.Router`.
+
+Where identity lives
+--------------------
+Routing is NOT written here. An attribute NAME becomes a strategy through the two
+declarative maps in :mod:`.vocab` (``ATTRIBUTES`` for membership, ``ARCHETYPE_EDGES``
+for the edge), compiled into a :class:`~.vocab.Router`;
+``StrategyAssets.archetype_of_attr`` is a thin call into it. This module owns only
+the *membership* families the facts layer unions onto each card — the buckets, the
+payoff/anchor/enchantment-regex surfacing, and ``EDHREC_ATTR_SLUGS`` — plus the
+compiled synth predicates (vehicle/energy/extra-turn/devotion/morph). Membership
+and edge never mix.
 
 ``load_assets(cfg)`` is memoized per config so repeated ``resolve`` calls reuse
 one immutable :class:`StrategyAssets`.
@@ -20,6 +31,8 @@ from functools import cache
 from pathlib import Path
 
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG, REFINED_GROUPS, StrategyConfig
+from pipeline.transforms.strategy.query import Predicate
+from pipeline.transforms.strategy.vocab import Router, build_router, compile_synth
 
 DATA_DIR = Path(__file__).resolve().parent / 'data'
 VOCAB_FILE = DATA_DIR / 'attribute_vocab_v4.json'
@@ -30,13 +43,23 @@ EVENTS_FILE = DATA_DIR / 'event_catalog_v4.json'
 LABELSPACE_FILE = DATA_DIR / 'labelspace.json'
 
 # --- static control vocab (independent of config) ---------------------------
+#: The spellslinger "on-cast payoff" children, read by the facts substantiveness
+#: guard (``cast-trigger-you``/``-other`` = magecraft/prowess count; the bare
+#: ``cast-trigger`` parent and ``-self`` are a per-card body, not a payoff).
 _CAST_CHILDREN = frozenset({
     'cast-trigger-you', 'cast-trigger-self', 'cast-trigger-other',
     'second-spell-matters', 'storm-count-matters', 'prowess-like',
 })
+#: The enchantment-family surfacing regex: any card otag containing one of these
+#: substrings is surfaced (as itself) onto the card as a density attribute.
 _ENCH_ATTR_RE = re.compile(r'(enchant|aura|constellation|shrine|saga)')
 
-# T5.5 EDHREC NEW-NODE otag families (all existing in-lake slugs).
+# EDHREC membership family: the in-lake otag slugs the facts layer surfaces onto a
+# card (as themselves) when ``cfg.edhrec_labels`` is on, so the EDHREC identities
+# can see them. This is MEMBERSHIP surfacing, distinct from routing (which the
+# vocab owns); it is kept explicit because some members (e.g. ``crew``,
+# ``poisonous``) are neither payoff nor event-anchor slugs and would otherwise
+# never surface.
 _MILL_OPP_SLUGS = frozenset({'mill-opponent', 'mill-any', 'synergy-mill'})
 _PW_SLUGS = frozenset({'synergy-planeswalker', 'recursion-planeswalker', 'protects-planeswalker', 'superfriends'})
 _DISCARD_SLUGS = frozenset({'discard-matters', 'self-discard-matters', 'wheel', 'wheel-one-sided',
@@ -57,12 +80,6 @@ EDHREC_ATTR_SLUGS = (_MILL_OPP_SLUGS | _PW_SLUGS | _DISCARD_SLUGS | _TREASURE_SL
 EDHREC_NEW_LABELS: frozenset[str] = frozenset(
     json.loads(LABELSPACE_FILE.read_text())['new_nameable_labels_added']
 )
-_ENCH_IDENTITY = frozenset({
-    'synergy-enchantment', 'synergy-aura', 'synergy-shrine', 'synergy-enchantment-creature',
-    'enchantmentfall', 'enchantment-engine', 'constellation', 'repeatable-enchantment-tokens',
-    'repeatable-aura-tokens', 'affinity-for-enchantments', 'creature-type-enchantress',
-    'quick-enchant', 'auto-attach', 'cast-enchantment-trigger', 'enchantment-cost-reducer',
-})
 
 # T5 correction B: directed hate-* answers map (FACTS only; scoring deferred).
 ANSWERS_MAP: dict[str, list[str]] = {
@@ -112,10 +129,10 @@ class StrategyAssets:
     new_bucket_names: frozenset[str]
     arch_newbuckets: bool
     arch_anthem_deconf: bool
-    food_set: frozenset[str]
-    mm_set: frozenset[str]
-    theft_set: frozenset[str]
-    anthem_deconf_set: frozenset[str]
+    #: Compiled routing: attribute NAME -> strategy, from the vocab's two maps.
+    router: Router
+    #: Compiled synth-attribute predicates (name, predicate), card-field queries.
+    synth_predicates: tuple[tuple[str, Predicate], ...]
     spell_re: re.Pattern
     art_re: re.Pattern
     ench_re: re.Pattern
@@ -125,120 +142,9 @@ class StrategyAssets:
     cast_children: frozenset[str] = _CAST_CHILDREN
     ench_attr_re: re.Pattern = _ENCH_ATTR_RE
 
-    # ---------------------------------------------------- routing (T5.5 + v4)
-    def edhrec_route(self, a: str) -> str | None:
-        """Tier-1 EDHREC NEW-NODE router, checked before the coarse v4 router."""
-        if a == 'devotion-signal':
-            return 'devotion'
-        if a in _VEHICLE_SLUGS or a == 'vehicle-type':
-            return 'vehicles'
-        if a in _ENERGY_SLUGS or a == 'energy-text':
-            return 'energy'
-        if a in _EXTRATURN_SLUGS or a == 'extra-turn-text':
-            return 'extra-turns'
-        if a in _MILL_OPP_SLUGS:
-            return 'mill'
-        if a in _PW_SLUGS:
-            return 'planeswalkers'
-        if a in _DISCARD_SLUGS:
-            return 'discard/wheels'
-        if a in _TREASURE_SLUGS:
-            return 'treasure/food'
-        if a in _THEFT_WIDE:
-            return 'theft'
-        return None
-
     def archetype_of_attr(self, a: str) -> str | None:
-        """Deterministic attr → identity archetype router (v4 surface + T5.5)."""
-        if self.cfg.edhrec_labels:
-            r = self.edhrec_route(a)
-            if r is not None:
-                return r
-            if a in _POISON_SLUGS:
-                return '-1/-1 counters'
-            if a in _ENCH_IDENTITY:
-                return 'enchantress'
-        if self.arch_newbuckets:
-            if a in self.food_set:
-                return 'food'
-            if a in self.mm_set:
-                return '-1/-1 counters'
-            if a in self.theft_set:
-                return 'theft'
-        if self.arch_anthem_deconf and a in self.anthem_deconf_set:
-            return 'anthem/go-wide'
-        if a.startswith('gives-'):
-            return None  # granted keyword = payload mechanic, not an identity
-        if a.startswith('typal') or a == 'changeling':
-            return 'typal/tribal'
-        if a in ('tokens', 'token-increaser') or a.startswith(('repeatable-token', 'repeatable-creature-token',
-                                                               'repeatable-noncreature-token', 'synergy-token')):
-            return 'tokens/go-wide'
-        if a == 'counters' or 'pp-counters' in a or a in ('counters-matter', 'counter-increaser') or a == 'proliferate':
-            return '+1/+1 counters'
-        if a == 'sac' or a.startswith('sacrifice-outlet') or a in ('your-sacrifice-matters', 'sacrifice-matters',
-                                                                    'death-trigger', 'death-trigger-self',
-                                                                    'free-sacrifice-outlet', 'sacrifice-self'):
-            return 'aristocrats/sacrifice'
-        if a in ('landfall', 'lands-matter', 'land-count-matters', 'extra-land') or a in ('recursion-land',
-                                                                                          'reanimate-land'):
-            return 'lands-matter'
-        if a == 'graveyard' or a.startswith(('recursion', 'reanimate')) or a in (
-                'cards-in-graveyard-matter', 'castable-from-graveyard', 'graveyard-fuel', 'graveyard-fuel-self',
-                'activate-from-graveyard', 'mill-self'):
-            return 'graveyard/reanimator'
-        # spellslinger = a spells-MATTER identity. Only the "whenever you cast A
-        # spell" PAYOFFS (cast-trigger-you/-other = magecraft/prowess) count — NOT
-        # `cast-trigger-self` ("when you cast THIS spell") or the bare `cast-trigger`
-        # parent, which are a per-card on-cast body (Eldrazi/Animar creatures) and
-        # over-fire spellslinger on creature-ramp decks.
-        if a == 'spellslinger' or a.startswith(('cast-trigger-you', 'cast-trigger-other')) or a in (
-                'second-spell-matters', 'storm-count-matters', 'synergy-instant', 'synergy-sorcery',
-                'synergy-noncreature', 'prowess-like', 'copy-instant', 'copy-sorcery'):
-            return 'spellslinger'
-        if a == 'artifacts' or a.startswith('synergy-artifact') or a in ('artifact-count-matters',
-                                                                         'affinity-for-artifacts',
-                                                                         'repeatable-treasures', 'artifactfall'):
-            return 'artifacts'
-        if a == 'flicker' or a.startswith('flicker'):
-            return 'blink/flicker'
-        if a in ('equipment', 'auras') or a.startswith(('synergy-equipment', 'synergy-aura')) or a in (
-                'quick-equip', 'auto-equip'):
-            return 'voltron/equipment'
-        if a == 'lifegain' or a.startswith('lifegain') or a in ('repeatable-lifegain', 'gives-lifelink'):
-            return 'lifegain'
-        if a == 'stax' or a.startswith('tax') or a == 'cast-tax':
-            return 'stax/prison'
-        if a in ('deathtouch-combat',) or 'deathtouch' in a:
-            return 'deathtouch'
-        if a in ('counterspells', 'counterspell'):
-            return 'control/permission'
-        if a == 'anthem' or a in ('power-boost-to-all', 'toughness-boost-to-all'):
-            return 'anthem/go-wide'
-        if a in ('extra_combat', 'extra-combat-phase'):
-            return 'extra-combat'
-        if a == 'burn' or a in ('burn-player', 'opponent-loses-life', 'drain-life'):
-            return 'burn'
-        if a == 'combat' or a.startswith('attacking-matters') or a in ('attack-trigger',):
-            return 'combat/aggro'
-        # toughness-matters / defenders (Doran/Arcades/Felothar): assign-damage-by-
-        # toughness, Walls-attack, high-toughness payoffs. A real identity that was
-        # otherwise shattered across lifegain/anthem/counters. Excludes the broad
-        # `toughness-boost-to-all` anthem slug (stays in anthem/go-wide).
-        if a in ('toughness-matters', 'toughness-matters-self', 'buttstrike',
-                 'turns-off-defender', 'turns-off-defender-self', 'synergy-defender'):
-            return 'toughness-matters'
-        # morph / face-down (Faceless Menace & co.): the morph/megamorph/disguise/
-        # manifest mechanics all produce FACE-DOWN creatures, so the face-down otag
-        # family is the unifying signal (there is no clean `morph` slug in-lake).
-        if a == 'morph' or a in ('synergy-face-down', 'face-up-face-down-effects', 'turn-face-down',
-                                 'synergy-manifest', 'synergy-manifest-dread', 'synergy-disguise'):
-            return 'morph'
-        if a in ('wincon', 'alternate-win-condition'):
-            return 'alt-wincon/combo'
-        if self.ench_attr_re.search(a):
-            return 'enchantments'
-        return None
+        """Deterministic attr-name -> identity archetype: one call into the vocab Router."""
+        return self.router.route(a)
 
 
 def _enabled_groups(cfg: StrategyConfig, all_groups: frozenset[str]) -> set[str]:
@@ -273,12 +179,6 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
             if s not in buckets['anthem']:
                 buckets['anthem'].append(s)
 
-    routing = vocab['_v4_archetype_routing']
-    food_set = frozenset(routing['_anchor_food']) | {'food'}
-    mm_set = frozenset(routing['_anchor_mm']) | {'mm_counters'}
-    theft_set = frozenset(routing['_anchor_theft']) | {'theft'}
-    anthem_deconf_set = frozenset(routing['_anchor_anthem_deconf'])
-
     events = json.loads(EVENTS_FILE.read_text())['events']
     # tutor-land producer injection (idempotent on v4, matches the prototype's
     # "dual"/"dual_land"-gated widening of the landfall event producers)
@@ -302,6 +202,12 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
             if ref not in bucket_names:
                 event_anchors.add(ref)
 
+    arch_newbuckets = 'new_buckets' in enabled
+    arch_anthem_deconf = 'deconf_anthem' in enabled
+    router = build_router(
+        edhrec=cfg.edhrec_labels, newbuckets=arch_newbuckets, anthem_deconf=arch_anthem_deconf)
+    synth_predicates = tuple(compile_synth(edhrec=cfg.edhrec_labels))
+
     return StrategyAssets(
         cfg=cfg,
         buckets=buckets,
@@ -313,12 +219,10 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
         event_anchors=frozenset(event_anchors),
         tutor_land_slugs=tutor_land_slugs,
         new_bucket_names=new_bucket_names,
-        arch_newbuckets='new_buckets' in enabled,
-        arch_anthem_deconf='deconf_anthem' in enabled,
-        food_set=food_set,
-        mm_set=mm_set,
-        theft_set=theft_set,
-        anthem_deconf_set=anthem_deconf_set,
+        arch_newbuckets=arch_newbuckets,
+        arch_anthem_deconf=arch_anthem_deconf,
+        router=router,
+        synth_predicates=synth_predicates,
         spell_re=re.compile(density['spell-density']['regex']),
         art_re=re.compile(density['artifact-density']['regex']),
         ench_re=re.compile(r'\bEnchantment\b'),

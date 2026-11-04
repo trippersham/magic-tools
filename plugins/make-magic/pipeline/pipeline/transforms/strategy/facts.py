@@ -13,7 +13,6 @@ they are reported as ``facts["engines"]`` and never decide the label.
 
 from __future__ import annotations
 
-import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from itertools import combinations
@@ -22,6 +21,7 @@ from pipeline.transforms.strategy import _graph
 from pipeline.transforms.strategy.assets import (
     ANSWERS_MAP,
     ANSWERS_MAP_ALL_SLUGS,
+    EDHREC_ATTR_SLUGS,
     StrategyAssets,
     is_graveyard_attr,
     is_land,
@@ -36,6 +36,7 @@ from pipeline.transforms.strategy.combo import (
 from pipeline.transforms.strategy.config import StrategyConfig
 from pipeline.transforms.strategy.degree import compute_degree_axes, power_profile
 from pipeline.transforms.strategy.tribes import compute_tribes, creature_subtypes
+from pipeline.transforms.strategy.vocab import synth_attrs_for
 
 TYPAL = 'typal/tribal'
 
@@ -147,30 +148,15 @@ def compute_facts(
         attrs |= closure & payoff_slugs
         attrs |= closure & event_anchors
         attrs |= {t for t in closure if ench_attr_re.search(t)}
+        # EDHREC otag membership surfacing (edhrec-gated): put the EDHREC family
+        # slugs onto the card as themselves so the EDHREC identities can route them.
         if cfg.edhrec_labels:
-            from pipeline.transforms.strategy.assets import EDHREC_ATTR_SLUGS
-
             attrs |= closure & EDHREC_ATTR_SLUGS
-            tl = c.get('type_line') or ''
-            ot = (c.get('oracle_text') or '').lower()
-            mc = c.get('mana_cost') or ''
-            if 'Vehicle' in tl:
-                attrs.add('vehicle-type')
-            if ('energy counter' in ot) or ('{e}' in ot):
-                attrs.add('energy-text')
-            if 'extra turn' in ot:
-                attrs.add('extra-turn-text')
-            if 'devotion' in ot:
-                pips: Counter = Counter(re.findall(r'\{([WUBRG])\}', mc))
-                if (pips and max(pips.values()) >= 2) or 'devotion' in ot:
-                    attrs.add('devotion-signal')
-        # morph / face-down body: the Morph/Megamorph/Disguise/Cloak keywords mark a
-        # face-down creature, which Scryfall's otags do NOT tag cleanly — they tag the
-        # face-down *payoffs*, not the vanilla morph body. Synthesize the attribute
-        # from the keyword so the morph archetype sees the whole body of creatures,
-        # not just the handful of flip-trigger payoffs.
-        if {str(k).lower() for k in (c.get('keywords') or [])} & {'morph', 'megamorph', 'disguise', 'cloak'}:
-            attrs.add('morph')
+        # Synth attributes (vehicle/energy/extra-turn/devotion from card fields,
+        # morph from keywords) come from the compiled vocab predicates — one
+        # resolution path, no hand-coded field tests. The EDHREC-field synths are
+        # already gated out of `synth_predicates` when `edhrec_labels` is off.
+        attrs |= synth_attrs_for(c, assets.synth_predicates)
         card_attrs[i] = attrs
 
     # -------------------------------------------------- combo detection (per deck)
