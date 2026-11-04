@@ -56,7 +56,9 @@ packages = ["pipeline"]
 "pipeline/sim/java/forge-simai/make-magic-forge-simai.jar" = "pipeline/sim/java/forge-simai/make-magic-forge-simai.jar"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# `tests` is the repo suite; the strategy subpackage keeps its hermetic suite
+# next to its code, so collect both roots.
+testpaths = ["tests", "pipeline/transforms/strategy/tests"]
 # `live` tests hit the real Airtable base + Scryfall (creds required); deselected
 # by default so the normal suite stays offline + fast. Run with creds sourced:
 #   set -a && . ../.env && set +a && uv run --extra dev pytest -m live -q
