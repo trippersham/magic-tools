@@ -57,6 +57,10 @@ def resolve(
         'ramp_over_served': ramp_axis['over_served'],
         'ramp_cedh_level': ramp_axis['cedh_level'],
         'protection_reading': ctx.protection_degree['reading'],
+        # evasion degree axis (measure-only; never names): evasion-heavy vs -light
+        'evasion_count': ctx.facts['degree_axes']['evasion']['n'],
+        'evasion_over_served': ctx.facts['degree_axes']['evasion']['over_served'],
+        'evasion_under_served': ctx.facts['degree_axes']['evasion']['under_served'],
         'power_mean_efficiency': ctx.power['mean_efficiency'],
         'removal_mean_efficiency': ctx.power['removal_mean_efficiency'],
         # ---- combo surface (T5)

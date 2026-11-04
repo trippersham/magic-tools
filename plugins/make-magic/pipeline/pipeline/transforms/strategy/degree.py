@@ -27,6 +27,12 @@ FROZEN_BASELINE: dict[str, dict[str, float]] = {
     'draw':          {'precon_cnt': 16.0,  'cedh_cnt': 12.739, 'precon_frac': 0.219, 'cedh_frac': 0.17},
     'stax':          {'precon_cnt': 1.833, 'cedh_cnt': 2.348, 'precon_frac': 0.025, 'cedh_frac': 0.031},
     'protection':    {'precon_cnt': 2.417, 'cedh_cnt': 2.174, 'precon_frac': 0.033, 'cedh_frac': 0.029},
+    # evasion is a universal combat MEANS (like ramp/draw/removal), measured but
+    # NEVER named — the naming layer does not consume it. Inverts (precon
+    # creature-heavy 11.3 > cEDH combo-light 5.0): over_served = evasion-heavy,
+    # under_served = evasion-light. Baseline computed over the same precon(12)/
+    # cEDH(23) anchors (method cross-checks removal exactly).
+    'evasion':       {'precon_cnt': 11.333, 'cedh_cnt': 5.043, 'precon_frac': 0.1551, 'cedh_frac': 0.0683},
 }
 DEGREE_AXES: dict[str, set[str]] = {
     'counterspells': {'counterspell'},
@@ -38,6 +44,9 @@ DEGREE_AXES: dict[str, set[str]] = {
     # read-only reuse of the committed crosswalk root so the axis can't drift
     # from the canonical protection bucket (import-only; crosswalk is unmodified)
     'protection': set(BUCKET_ROOTS['protection']),
+    # measure-only: the broad "this creature can get through" population (not the
+    # flying-*matters* payoffs, which over-fire as an identity). Degree, never a label.
+    'evasion': {'evasion'},
 }
 _EXILE_SLUGS = {'removal-exile', 'tuck'}
 _FREE_SLUGS = {'potentially-free', 'pitch-spell', 'counterspell-free'}

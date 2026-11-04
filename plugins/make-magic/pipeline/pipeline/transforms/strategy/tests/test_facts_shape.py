@@ -27,9 +27,10 @@ def test_record_and_facts_shape(slug, load_deck, combos):
     facts = rec['facts']
     assert set(facts) >= _FACTS_KEYS, f'{slug} missing facts keys: {_FACTS_KEYS - set(facts)}'
 
-    # degree axes carry the seven frozen-baseline axes
+    # degree axes carry the frozen-baseline axes (evasion is measure-only: a degree
+    # axis that is never consumed by the naming layer)
     assert set(facts['degree_axes']) == {
-        'counterspells', 'removal', 'ramp', 'tutor', 'draw', 'stax', 'protection'}
+        'counterspells', 'removal', 'ramp', 'tutor', 'draw', 'stax', 'protection', 'evasion'}
 
     # every strategy exposes its weighted quantity + member cards + requires_met
     for arch, st in facts['strategies'].items():
@@ -40,6 +41,22 @@ def test_record_and_facts_shape(slug, load_deck, combos):
     # tribes block is always exposed (a fact for every deck, not only typal ones)
     assert 'top' in facts['tribes']
     assert 'ranked' in facts['tribes']
+
+
+def test_evasion_is_a_measure_only_degree_axis(load_deck, combos):
+    # evasion is a universal combat MEANS (like ramp/draw): a degree axis surfaced
+    # as a fact + over/under-served flag, inverted (precon creature-heavy > cEDH
+    # combo-light), and NEVER a label — the naming layer does not consume it.
+    from pipeline.transforms.strategy import vocab
+    assert 'evasion' not in set(vocab.ARCHETYPE_EDGES.values())  # not in the label space
+
+    baral = resolve(load_deck('gauntlet__baral-chief-of-compliance'), combos)  # control = evasion-light
+    ev = baral['facts']['degree_axes']['evasion']
+    assert ev['inverts'] is True
+    assert {'n', 'over_served', 'under_served'} <= set(ev)
+    assert baral['evasion_under_served'] is True and baral['evasion_over_served'] is False
+    assert baral['evasion_count'] == ev['n']
+    assert baral['named_strategy'] != 'evasion'
 
 
 def test_compute_facts_then_name_deck_matches_resolve(load_deck, combos):
