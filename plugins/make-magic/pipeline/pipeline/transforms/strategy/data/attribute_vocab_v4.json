@@ -1,0 +1,6505 @@
+{
+  "_note": "authored deck-blind at 2026-11-03T19:49:28Z from (a) crosswalk/rules + (b) otag taxonomy ONLY; no target deck inspected.",
+  "_sources": {
+    "crosswalk": "plugins/make-magic/pipeline/pipeline/transforms/crosswalk.py (BUCKET_ROOTS, verbatim)",
+    "taxonomy": "~/.local/share/make-magic/normalized/card_otag.parquet via taxonomy_probe.py",
+    "n_distinct_slugs_in_lake": 4569
+  },
+  "bucket_attributes": {
+    "removal": [
+      "removal"
+    ],
+    "ramp": [
+      "ramp",
+      "land-ramp",
+      "multi-land-ramp",
+      "tutor-land",
+      "tutor-land-any",
+      "tutor-land-basic",
+      "tutor-land-basic-forest",
+      "tutor-land-basic-island",
+      "tutor-land-basic-mountain",
+      "tutor-land-basic-plains",
+      "tutor-land-basic-swamp",
+      "tutor-land-cave",
+      "tutor-land-desert",
+      "tutor-land-forest",
+      "tutor-land-gate",
+      "tutor-land-island",
+      "tutor-land-mountain",
+      "tutor-land-plains",
+      "tutor-land-snow",
+      "tutor-land-specific",
+      "tutor-land-swamp",
+      "tutor-land-to-battlefield",
+      "tutor-land-town"
+    ],
+    "draw": [
+      "card-advantage"
+    ],
+    "tokens": [
+      "token-increaser",
+      "repeatable-token-generator",
+      "repeatable-creature-tokens",
+      "repeatable-artifact-tokens",
+      "copy-artifact",
+      "sacrifice-outlet-token"
+    ],
+    "counters": [
+      "counter-increaser",
+      "pp-counters-matter",
+      "counters-matter",
+      "gives-pp-counters",
+      "gives-pp-counters-to-all",
+      "gains-pp-counters",
+      "repeatable-pp-counters"
+    ],
+    "burn": [
+      "burn",
+      "opponent-loses-life",
+      "drain-life"
+    ],
+    "tutor": [
+      "tutor"
+    ],
+    "sac": [
+      "sacrifice-outlet",
+      "free-sacrifice-outlet",
+      "repeatable-sacrifice-outlet",
+      "sacrifice-outlet-land",
+      "sacrifice-outlet-token",
+      "hate-removal-sacrifice"
+    ],
+    "counterspells": [
+      "counterspell"
+    ],
+    "flicker": [
+      "flicker"
+    ],
+    "typal": [
+      "typal",
+      "typal-creature",
+      "typal-hero",
+      "typal-share",
+      "noncreature-typal",
+      "changeling",
+      "cost-reducer-creature"
+    ],
+    "anthem": [
+      "power-boost-to-all",
+      "toughness-boost-to-all",
+      "anthem",
+      "power-matters",
+      "toughness-matters"
+    ],
+    "combat": [
+      "attacking-matters",
+      "attacking-matters-self",
+      "attack-trigger",
+      "gives-double-strike",
+      "gives-evasion",
+      "gives-flying",
+      "gives-trample",
+      "gives-menace"
+    ],
+    "protection": [
+      "protection",
+      "protects-creature",
+      "protects-all",
+      "gives-indestructible",
+      "gives-hexproof"
+    ],
+    "stax": [
+      "tax",
+      "cast-tax",
+      "tax-attack",
+      "tax-block"
+    ],
+    "extra_combat": [
+      "extra-combat-phase"
+    ],
+    "wincon": [
+      "alternate-win-condition"
+    ],
+    "lifegain": [
+      "lifegain",
+      "repeatable-lifegain",
+      "lifegain-matters",
+      "lifegain-to-damage",
+      "lifegain-increaser",
+      "life-total-matters-self"
+    ],
+    "artifacts": [
+      "synergy-artifact",
+      "artifact-count-matters",
+      "affinity-for-artifacts",
+      "synergy-artifact-creature",
+      "repeatable-artifact-tokens",
+      "metalcraft",
+      "improvise",
+      "recursion-artifact",
+      "reanimate-artifact",
+      "regrowth-artifact",
+      "copy-artifact",
+      "cost-reducer-artifact"
+    ],
+    "graveyard": [
+      "cards-in-graveyard-matter",
+      "graveyard-fuel",
+      "graveyard-fuel-self",
+      "castable-from-graveyard",
+      "activate-from-graveyard",
+      "synergy-graveyard-cast",
+      "leaving-graveyard-matters",
+      "recursion-land",
+      "reanimate-land",
+      "regrowth-land",
+      "recursion-artifact",
+      "reanimate-artifact",
+      "regrowth-artifact",
+      "recursion-enchantment",
+      "reanimate-aura",
+      "regrowth-enchantment",
+      "reanimate-equipment",
+      "lands-in-graveyard-matter",
+      "synergy-land-graveyard"
+    ],
+    "equipment": [
+      "synergy-equipment",
+      "quick-equip",
+      "auto-equip",
+      "synergy-aura",
+      "quick-attach",
+      "recursion-enchantment",
+      "reanimate-aura",
+      "regrowth-enchantment",
+      "reanimate-equipment"
+    ],
+    "landfall": [
+      "landfall",
+      "lands-matter",
+      "extra-land",
+      "land-count-matters",
+      "landfall-other",
+      "recursion-land",
+      "reanimate-land",
+      "regrowth-land",
+      "lands-in-graveyard-matter",
+      "synergy-land-graveyard",
+      "land-ramp",
+      "multi-land-ramp",
+      "sacrifice-outlet-land"
+    ],
+    "spellslinger": [
+      "cast-trigger-you",
+      "cast-trigger-other",
+      "second-spell-matters",
+      "storm-count-matters",
+      "prowess-like"
+    ],
+    "food": [
+      "repeatable-food",
+      "synergy-food",
+      "eat-food"
+    ],
+    "mm_counters": [
+      "gives-mm-counters",
+      "gains-mm-counters",
+      "mm-counters-matter",
+      "removes-mm-counters-self"
+    ],
+    "theft": [
+      "theft-creature",
+      "theft-artifact",
+      "theft-land",
+      "theft-planeswalker",
+      "theft-spell"
+    ]
+  },
+  "n_bucket_attributes": 26,
+  "support_buckets": [
+    "removal",
+    "ramp",
+    "draw",
+    "tutor"
+  ],
+  "payoff_attributes": {
+    "power-matters": {
+      "count": 1579,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "attacking-matters": {
+      "count": 1259,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "mana-value-matters": {
+      "count": 1040,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "name-matters": {
+      "count": 513,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "creature-count-matters": {
+      "count": 335,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "hand-size-matters": {
+      "count": 298,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "land-count-matters": {
+      "count": 281,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "lifegain-matters": {
+      "count": 246,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "low-mana-value-matters": {
+      "count": 231,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "mana-spent-matters": {
+      "count": 223,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "toughness-matters": {
+      "count": 216,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "discard-matters": {
+      "count": 211,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "artifact-count-matters": {
+      "count": 191,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "draw-matters": {
+      "count": 180,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "self-discard-matters": {
+      "count": 174,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "life-loss-matters": {
+      "count": 162,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "sacrifice-matters": {
+      "count": 139,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "your-sacrifice-matters": {
+      "count": 121,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "discarded-type-matters": {
+      "count": 120,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "color-spent-matters": {
+      "count": 116,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "amount-spent-matters": {
+      "count": 109,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "top-matters": {
+      "count": 82,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "high-mana-value-matters": {
+      "count": 80,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "second-spell-matters": {
+      "count": 70,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "second-draw-matters": {
+      "count": 69,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "speech-matters": {
+      "count": 61,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "commander-matters": {
+      "count": 54,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "leaving-graveyard-matters": {
+      "count": 54,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "monarch-matters": {
+      "count": 49,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "opponent-land-count-matters": {
+      "count": 48,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "high-x-matters": {
+      "count": 40,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "self-life-loss-matters": {
+      "count": 37,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "art-matters": {
+      "count": 36,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "opponent-discard-matters": {
+      "count": 34,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "mana-cost-matters": {
+      "count": 32,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "off-turn-casting-matters": {
+      "count": 32,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "times-resolved-matters": {
+      "count": 31,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "attacking-opponents-matters": {
+      "count": 28,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "draft-matters": {
+      "count": 28,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "storm-count-matters": {
+      "count": 27,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "even-odd-matters": {
+      "count": 26,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "graveyard-order-matters": {
+      "count": 23,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "x-cost-matters": {
+      "count": 23,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "specific-power-matters": {
+      "count": 23,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "library-size-matters": {
+      "count": 22,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "reanimate-matters": {
+      "count": 22,
+      "patterns": [
+        "*-matters",
+        "reanimate-*"
+      ]
+    },
+    "set-matters": {
+      "count": 22,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "artist-matters": {
+      "count": 20,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "table-order-matters": {
+      "count": 20,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "recasting-commander-matters": {
+      "count": 19,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "team-matters": {
+      "count": 19,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "opponent-sacrifice-matters": {
+      "count": 18,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "commander-tax-matters": {
+      "count": 17,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "specific-toughness-matters": {
+      "count": 17,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "starting-player-matters": {
+      "count": 17,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "rules-text-matters": {
+      "count": 17,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "flavor-text-matters": {
+      "count": 14,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "watermark-matters": {
+      "count": 13,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "bottom-of-library-matters": {
+      "count": 12,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "speed-matters": {
+      "count": 11,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "clothing-matters": {
+      "count": 10,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "commander-identity-matters": {
+      "count": 10,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "ante-matters": {
+      "count": 9,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "border-color-matters": {
+      "count": 9,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "time-matters": {
+      "count": 9,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "format-matters": {
+      "count": 9,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "third-draw-matters": {
+      "count": 8,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "phasing-matters": {
+      "count": 8,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "rarity-matters": {
+      "count": 8,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "color-count-matters": {
+      "count": 7,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "cycle-scg-mv-matters": {
+      "count": 6,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "greatest-power-matters": {
+      "count": 6,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "sideboard-matters": {
+      "count": 6,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "cycle-ust-u-watermark-matters": {
+      "count": 5,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "cycle-jou-land-type-matters": {
+      "count": 5,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "card-style-matters": {
+      "count": 5,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "cycle-ons-cycling-matters": {
+      "count": 5,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "prepare-matters": {
+      "count": 5,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "collector-number-matters": {
+      "count": 4,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "third-spell-matters": {
+      "count": 4,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "singleton-matters": {
+      "count": 3,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "flavor-matters": {
+      "count": 3,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "fourth-spell-matters": {
+      "count": 3,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "high-five-matters": {
+      "count": 3,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "ip-matters": {
+      "count": 3,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "reminder-text-matters": {
+      "count": 3,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "low-x-matters": {
+      "count": 3,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "unspent-mana-matters": {
+      "count": 3,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "age-matters": {
+      "count": 3,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "night-matters": {
+      "count": 3,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "location-matters": {
+      "count": 2,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "gender-matters": {
+      "count": 1,
+      "patterns": [
+        "*-matters"
+      ]
+    },
+    "synergy-artifact": {
+      "count": 1105,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-instant": {
+      "count": 581,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-sorcery": {
+      "count": 578,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-noncreature": {
+      "count": 330,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-legendary": {
+      "count": 291,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-enchantment": {
+      "count": 267,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-planeswalker": {
+      "count": 257,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-equipment": {
+      "count": 253,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-token": {
+      "count": 239,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-white": {
+      "count": 213,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-blocker-self": {
+      "count": 212,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-aura": {
+      "count": 200,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-green": {
+      "count": 197,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-commander": {
+      "count": 195,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-red": {
+      "count": 188,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-target": {
+      "count": 187,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-black": {
+      "count": 182,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-blue": {
+      "count": 168,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-color-share": {
+      "count": 161,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-artifact-creature": {
+      "count": 154,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-vehicle": {
+      "count": 130,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-forest": {
+      "count": 128,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-flying": {
+      "count": 116,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-token-creature": {
+      "count": 113,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-blocker": {
+      "count": 105,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-solo-attack": {
+      "count": 105,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-swamp": {
+      "count": 102,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-low-power": {
+      "count": 100,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-mountain": {
+      "count": 99,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-mill": {
+      "count": 96,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-multicolor": {
+      "count": 94,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-food": {
+      "count": 92,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-graveyard-cast": {
+      "count": 92,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-island": {
+      "count": 91,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-saga": {
+      "count": 85,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-arcane": {
+      "count": 81,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-sticker": {
+      "count": 79,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-exile-cast": {
+      "count": 77,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-specific": {
+      "count": 68,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-historic": {
+      "count": 66,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-activated-ability": {
+      "count": 66,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-color-each": {
+      "count": 65,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-burn": {
+      "count": 65,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-basic": {
+      "count": 65,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-plains": {
+      "count": 64,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-colorless": {
+      "count": 63,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-snow": {
+      "count": 61,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-treasure": {
+      "count": 52,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-tapped": {
+      "count": 52,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-haste": {
+      "count": 51,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-dice": {
+      "count": 50,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-library-cast": {
+      "count": 49,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-party": {
+      "count": 49,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-modified": {
+      "count": 48,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-cycling": {
+      "count": 48,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-poison": {
+      "count": 42,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-copy": {
+      "count": 37,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-gate": {
+      "count": 35,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-battle": {
+      "count": 35,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-clue": {
+      "count": 34,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-desert": {
+      "count": 31,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-deathtouch": {
+      "count": 30,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-trample": {
+      "count": 30,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-scry": {
+      "count": 30,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-lesson": {
+      "count": 29,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-face-down": {
+      "count": 29,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-theft": {
+      "count": 29,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-shrine": {
+      "count": 28,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-vigilance": {
+      "count": 28,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-first-strike": {
+      "count": 26,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-room": {
+      "count": 26,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-suspend": {
+      "count": 25,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-exiling": {
+      "count": 25,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-defender": {
+      "count": 24,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-menace": {
+      "count": 24,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-dungeon": {
+      "count": 24,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-double-strike": {
+      "count": 24,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-warp": {
+      "count": 22,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-color-choose": {
+      "count": 22,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-name-sticker": {
+      "count": 22,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-enchantment-creature": {
+      "count": 22,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-lifelink": {
+      "count": 22,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-creatureland": {
+      "count": 21,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-reach": {
+      "count": 21,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-surveil": {
+      "count": 21,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-indestructible": {
+      "count": 20,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-blood": {
+      "count": 18,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-hexproof": {
+      "count": 18,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-no-flying": {
+      "count": 18,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-adventure": {
+      "count": 18,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-transform": {
+      "count": 16,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-sacrifice-self": {
+      "count": 15,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-kicker": {
+      "count": 15,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-spacecraft": {
+      "count": 15,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-attraction": {
+      "count": 14,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-cave": {
+      "count": 13,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-ring": {
+      "count": 13,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-flashback": {
+      "count": 13,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-bounce": {
+      "count": 12,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-land-graveyard": {
+      "count": 12,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-full-hand": {
+      "count": 11,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-untapped": {
+      "count": 10,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-toxic": {
+      "count": 10,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-1-1": {
+      "count": 10,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-suspect": {
+      "count": 10,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-flash": {
+      "count": 10,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-incubator": {
+      "count": 10,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-art-sticker": {
+      "count": 10,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-color-every": {
+      "count": 9,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-jace": {
+      "count": 9,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-initiative": {
+      "count": 9,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-protection": {
+      "count": 9,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-vote": {
+      "count": 8,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-explore": {
+      "count": 8,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-augment": {
+      "count": 8,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-goad": {
+      "count": 8,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-exhaust": {
+      "count": 8,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-proliferate": {
+      "count": 7,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-bobblehead": {
+      "count": 7,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-playtest": {
+      "count": 7,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-locus": {
+      "count": 7,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-face-down-cast": {
+      "count": 7,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-foretell": {
+      "count": 7,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-multicolor-pair": {
+      "count": 7,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-chandra": {
+      "count": 7,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-colored": {
+      "count": 7,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-town": {
+      "count": 7,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-mutate": {
+      "count": 7,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-vanilla": {
+      "count": 6,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-monocolor": {
+      "count": 6,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-contraption": {
+      "count": 6,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-nonbasic-land": {
+      "count": 6,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-shadow": {
+      "count": 6,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-counterspell": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-gideon": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-curse": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-power-up": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-liliana": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-tutor": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-planet": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-dfc": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-bolas": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-chorus": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-landwalk": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-banding": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-exert": {
+      "count": 5,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-modal": {
+      "count": 4,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-fear": {
+      "count": 4,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-clash": {
+      "count": 4,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-conjure": {
+      "count": 4,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-fight": {
+      "count": 4,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-connive": {
+      "count": 4,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-garruk": {
+      "count": 4,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-self-burn": {
+      "count": 4,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-omen": {
+      "count": 4,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-exploit": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-ability-sticker": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-boast": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-colorless-mana": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-nissa": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-disturb": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-shroud": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-unearth": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-convoke": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-leaves-creature": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-collect-evidence": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-seek": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-level-up": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-ninjutsu": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-cascade": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-sphere": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-flanking": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-renown": {
+      "count": 3,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-backup": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-islandwalk": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-infect": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-skulk": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-devoid": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-modular": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-emblem": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-doctor-s-companion": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-manifest-dread": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-powerstone": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-forage": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-junk": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-freerunning": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-choose": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-tyvar": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-tezzeret": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-multicolor-trio": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-investigate": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-energy": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-vivien": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-life-payment": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-ajani": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-p-t-sticker": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-plan": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-hybrid": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-rune": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-soulbond": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-cumulative-upkeep": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-teamwork": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-lander": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-teferi": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-tuck": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-discover": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-vraska": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-yanling": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pin": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-manifest": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-wastes": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-horsemanship": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-morph": {
+      "count": 2,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-eternalize": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-waterbending": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-ashiok": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-spectacle": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-saddle": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-earthbending": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-davriel": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-bargain": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-urza-s": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-oko": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-villainous-choice": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-yanggu": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-tantrum": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-dimension": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-haunt": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-map": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-type-change": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-blitz": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-changeling": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-rowan": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-angrath": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-damage-prevention": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-dovin": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-class": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-banana": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-intimidate": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-wither": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-affinity": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-equipment-legendary": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-basri": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-embalm": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-case": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-boon": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-partner": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-devour": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-madness": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-role": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-sarkhan": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-regenerate": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-ingest": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-echo": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-start-your-engines": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-tamiyo": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-dash": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-sneak": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-firebending": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-domri": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-ugin": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-lukka": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-plot": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-airbending": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-disguise": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-enlist": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-ral": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-huatli": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-awaken": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-pw-elspeth": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-jump-start": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-gift": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-bushido": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-craft": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-mentor": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "synergy-color-non-share": {
+      "count": 1,
+      "patterns": [
+        "synergy-*"
+      ]
+    },
+    "typal": {
+      "count": 2920,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-creature": {
+      "count": 2920,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-coupling": {
+      "count": 341,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-dragon": {
+      "count": 139,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-elf": {
+      "count": 132,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-goblin": {
+      "count": 131,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-spirit": {
+      "count": 129,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-wizard": {
+      "count": 126,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-zombie": {
+      "count": 125,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-sliver": {
+      "count": 121,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-warrior": {
+      "count": 111,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-human": {
+      "count": 105,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-rogue": {
+      "count": 97,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-choose": {
+      "count": 95,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-merfolk": {
+      "count": 85,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-ally": {
+      "count": 85,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-vampire": {
+      "count": 84,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-cleric": {
+      "count": 81,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-share": {
+      "count": 77,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-army": {
+      "count": 74,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-pirate": {
+      "count": 67,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-dinosaur": {
+      "count": 63,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-soldier": {
+      "count": 54,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-assassin": {
+      "count": 53,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-knight": {
+      "count": 50,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-elemental": {
+      "count": 48,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-hero": {
+      "count": 44,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-wolf": {
+      "count": 41,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-bird": {
+      "count": 39,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-rat": {
+      "count": 38,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-villain": {
+      "count": 37,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-mount": {
+      "count": 36,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-giant": {
+      "count": 34,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-mercenary": {
+      "count": 33,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-faerie": {
+      "count": 33,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-werewolf": {
+      "count": 32,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-exclusion": {
+      "count": 31,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-spider": {
+      "count": 30,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-squirrel": {
+      "count": 30,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-demon": {
+      "count": 30,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-dwarf": {
+      "count": 28,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-kithkin": {
+      "count": 28,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-human": {
+      "count": 28,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-ninja": {
+      "count": 28,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-lupine": {
+      "count": 27,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-beast": {
+      "count": 26,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-phyrexian": {
+      "count": 25,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-treefolk": {
+      "count": 25,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-saproling": {
+      "count": 24,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-angel": {
+      "count": 24,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-warlock": {
+      "count": 24,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-cat": {
+      "count": 24,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-samurai": {
+      "count": 23,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-orc": {
+      "count": 20,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-coupling-distinct": {
+      "count": 20,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-outlaw": {
+      "count": 19,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-eldrazi": {
+      "count": 18,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-mutant": {
+      "count": 18,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-goblin-orc": {
+      "count": 18,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-snake": {
+      "count": 16,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-serpent": {
+      "count": 15,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-doctor": {
+      "count": 14,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-minotaur": {
+      "count": 14,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-rebel": {
+      "count": 14,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-insect": {
+      "count": 13,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-frog": {
+      "count": 13,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-shaman": {
+      "count": 13,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-octopus": {
+      "count": 13,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-wall": {
+      "count": 13,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-mouse": {
+      "count": 13,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-turtle": {
+      "count": 12,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-dog": {
+      "count": 12,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-lizard": {
+      "count": 12,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-kraken": {
+      "count": 12,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-otter": {
+      "count": 12,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-bat": {
+      "count": 12,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-golem": {
+      "count": 11,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-neo-solo-attack": {
+      "count": 11,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-robot": {
+      "count": 10,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-leviathan": {
+      "count": 10,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-fungus": {
+      "count": 10,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-multi-sea-monster": {
+      "count": 9,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-horror": {
+      "count": 9,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-rabbit": {
+      "count": 9,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-bear": {
+      "count": 9,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-detective": {
+      "count": 8,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-thopter": {
+      "count": 8,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-raccoon": {
+      "count": 8,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-illusion": {
+      "count": 8,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-share": {
+      "count": 7,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-skeleton": {
+      "count": 7,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-ooze": {
+      "count": 7,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-kavu": {
+      "count": 7,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-myr": {
+      "count": 7,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-boar": {
+      "count": 6,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-halfling": {
+      "count": 6,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-each": {
+      "count": 6,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-assembly-worker": {
+      "count": 6,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-horse": {
+      "count": 6,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-god": {
+      "count": 6,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-citizen": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-plant": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-nightmare": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-ogre": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-devil": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-zubera": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-wall": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-goat": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-fish": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-mutant-ninja-turtle": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-griffin": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-artificer": {
+      "count": 5,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-sneaky": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-pegasus": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-time-lord": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-pest": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-chimera": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-aurochs": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-wraith": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-flagbearer": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-reveler": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-berserker": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-thrull": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-imp": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-eldrazi-spawn": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-construct": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-crab": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-dalek": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-kobold": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-druid": {
+      "count": 4,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-advisor": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-fractal": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-phoenix": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-slug": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-unicorn": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-sphinx": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-eldrazi-scion": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-spirit": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-praetor": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-egg": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-gamma": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-lhurgoyf": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-shark": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-shapeshifter": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-hamster": {
+      "count": 3,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-archer": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-trilobite": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-leech": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-homarid": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-ox": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-demigod": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-angel": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-gremlin": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-scarecrow": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-barbarian": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-moogle": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-elephant": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-wurm": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-fox": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-klingon": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-whale": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-gorgon": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-hydra": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-tiefling": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-salamander": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-starfish": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-servo": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-ape": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-lobster": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-employee": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-seal": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-nautilus": {
+      "count": 2,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-tentacle": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-human-werewolf": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-villain": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-scout": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-horse": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-minion": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-worm": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-glimmer": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-tyranid": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-reflection": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-killbot": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-prism": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-rhino": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-shade": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-elder-dragon": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-camel": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-pilot": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-jellyfish": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-juggernaut": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-transformer": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-pilot": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-brainiac": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-nephilim": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-alicorn": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-noble": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-blinkmoth": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-homunculus": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-snail": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-atog": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-kor": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-rigger": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-moonfolk": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-centaur": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-sponge": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-borg": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-caribou": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-clown": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-monk": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-sculpture": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-oyster": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-shrimp": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-camarid": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-bard": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-survivor": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-pentavite": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-drake": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-nightstalker": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-squid": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-satyr": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-aetherborn": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-monkey": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-donkey": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-teddy-bear": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-scion": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-beeble": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-gamer": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-kree": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-pony": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-jackal": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-assassin": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-spawn": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-bison": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-nautilid": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-archon": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-specter": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-guest": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-clamfolk": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-symbiote": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-crocodile": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-zombie": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-balloon": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-performer": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-alien": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-archon": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-walrus": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "typal-non-lemur": {
+      "count": 1,
+      "patterns": [
+        "typal-*"
+      ]
+    },
+    "gives-pp-counters": {
+      "count": 1737,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-evasion": {
+      "count": 1199,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-castable-from-nonhand": {
+      "count": 1050,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-castable-from-exile": {
+      "count": 788,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-haste": {
+      "count": 716,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-trample": {
+      "count": 542,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-flying": {
+      "count": 493,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-first-strike": {
+      "count": 289,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-vigilance": {
+      "count": 289,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-indestructible": {
+      "count": 285,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-mm-counters": {
+      "count": 235,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-lifelink": {
+      "count": 233,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-pp-counters-to-all": {
+      "count": 206,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-unblockable": {
+      "count": 193,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-deathtouch": {
+      "count": 189,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-menace": {
+      "count": 183,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-hexproof": {
+      "count": 167,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-castable-from-graveyard": {
+      "count": 156,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-double-strike": {
+      "count": 155,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-tap-ability": {
+      "count": 143,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-protection": {
+      "count": 127,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-mana-ability": {
+      "count": 103,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-reach": {
+      "count": 97,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-castable-from-library": {
+      "count": 95,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-ward": {
+      "count": 70,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-flash": {
+      "count": 64,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-skulk": {
+      "count": 58,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-shroud": {
+      "count": 49,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-landwalk": {
+      "count": 46,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-player-ability": {
+      "count": 44,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-uncounterable": {
+      "count": 32,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-fear": {
+      "count": 29,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-player-hexproof": {
+      "count": 23,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-flashback": {
+      "count": 19,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-suspend": {
+      "count": 18,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-changeling": {
+      "count": 18,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-intimidate": {
+      "count": 18,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-cascade": {
+      "count": 18,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-affinity": {
+      "count": 17,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-loyalty-ability": {
+      "count": 16,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-defender": {
+      "count": 15,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-shadow": {
+      "count": 14,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-player-protection": {
+      "count": 14,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-banding": {
+      "count": 14,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-convoke": {
+      "count": 14,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-stalking": {
+      "count": 13,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-ingest": {
+      "count": 13,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-charge-counter": {
+      "count": 12,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-exalted": {
+      "count": 11,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-forestwalk": {
+      "count": 11,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-islandwalk": {
+      "count": 11,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-wither": {
+      "count": 10,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-horsemanship": {
+      "count": 10,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-unearth": {
+      "count": 9,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-lifelink-noncreature": {
+      "count": 9,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-toxic": {
+      "count": 9,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-myriad": {
+      "count": 9,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-infect": {
+      "count": 8,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-prowess": {
+      "count": 8,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-afflict": {
+      "count": 8,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-unstoppable": {
+      "count": 8,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-daunt": {
+      "count": 8,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-escape": {
+      "count": 7,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-swampwalk": {
+      "count": 7,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-drawlink": {
+      "count": 7,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-annihilator": {
+      "count": 7,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-persist": {
+      "count": 7,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-melee": {
+      "count": 7,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-rampage": {
+      "count": 7,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-storm": {
+      "count": 6,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-demonstrate": {
+      "count": 6,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-plot": {
+      "count": 6,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-mountainwalk": {
+      "count": 6,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-cycling": {
+      "count": 6,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-flanking": {
+      "count": 6,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-poisonous": {
+      "count": 6,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-split-second": {
+      "count": 5,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-player-shroud": {
+      "count": 5,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-rebound": {
+      "count": 5,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-cumulative-upkeep": {
+      "count": 5,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-double-team": {
+      "count": 5,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-improvise": {
+      "count": 5,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-retrace": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-miracle": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-nimble": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-riot": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-replicate": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-encore": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-firebending": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-undying": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-high-flying": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-casualty": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-foretell": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-phasing": {
+      "count": 4,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-evolve": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-warp": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-scavenge": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-fake-flying": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-jump-start": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-outlast": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-sunburst": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-provoke": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-blitz": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-mentor": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-conspire": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-decayed": {
+      "count": 3,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-devoid": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-battle-cry": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-evoke": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-exploit": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-bushido": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-tantrum": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-mobilize": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-embalm": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-offspring": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-bloodthirst": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-training": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-afterlife": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-sneak": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-deathtouch-noncreature": {
+      "count": 2,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-delve": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-fossilize": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-plainswalk": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-prowl": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-spectacle": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-fabricate": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-dredge": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-wither-noncreature": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-thoughtweft": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-echo": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-adventure": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-freerunning": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-super-haste": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-modular": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-assist": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-mayhem": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-extort": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-ripple": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-emerge": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-frenzy": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-epic": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-living-weapon": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-unleash": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-harmonize": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-absorb": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-triple-strike": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-saddle": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-disguise": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-squad": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-devour": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-umbra-armor": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-ninjutsu": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-read-ahead": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-relentless": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-basic-landcycling": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-renown": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-dethrone": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-undaunted": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-townwalk": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-madness": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "gives-web-slinging": {
+      "count": 1,
+      "patterns": [
+        "gives-*"
+      ]
+    },
+    "impulsive-recursion": {
+      "count": 21,
+      "patterns": [
+        "*-recursion"
+      ]
+    },
+    "reanimate": {
+      "count": 1107,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-creature": {
+      "count": 558,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-self": {
+      "count": 266,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-cast": {
+      "count": 150,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-from-opponent": {
+      "count": 147,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-from-any": {
+      "count": 97,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-artifact": {
+      "count": 76,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-land": {
+      "count": 71,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-permanent": {
+      "count": 63,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-enchantment": {
+      "count": 34,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-nonland": {
+      "count": 25,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-aura": {
+      "count": 21,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-planeswalker": {
+      "count": 20,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-equipment": {
+      "count": 15,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-face-down": {
+      "count": 9,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-vehicle": {
+      "count": 9,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-artifact-creature": {
+      "count": 7,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-saga": {
+      "count": 3,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-noncreature": {
+      "count": 3,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-legendary": {
+      "count": 3,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-battle": {
+      "count": 2,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-spacecraft": {
+      "count": 2,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-historic": {
+      "count": 2,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "reanimate-instant-sorcery": {
+      "count": 1,
+      "patterns": [
+        "reanimate-*"
+      ]
+    },
+    "recursion": {
+      "count": 2330,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-creature": {
+      "count": 918,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-self": {
+      "count": 522,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-artifact": {
+      "count": 159,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-permanent": {
+      "count": 119,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-land": {
+      "count": 116,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-instant": {
+      "count": 101,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-sorcery": {
+      "count": 100,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-planeswalker": {
+      "count": 85,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-enchantment": {
+      "count": 81,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-any": {
+      "count": 79,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-from-exile": {
+      "count": 21,
+      "patterns": [
+        "recursion-*"
+      ]
+    },
+    "recursion-battle": {
+      "count": 7,
+      "patterns": [
+        "recursion-*"
+      ]
+    }
+  },
+  "n_payoff_attributes": 815,
+  "payoff_patterns_used": [
+    "*-matters",
+    "*cares-about*",
+    "synergy-*",
+    "typal-*",
+    "gives-*",
+    "*-recursion",
+    "reanimate-*",
+    "recursion-*"
+  ],
+  "slug_counts": {
+    "triggered-ability": 17256,
+    "activated-ability": 10339,
+    "card-names": 8651,
+    "cycle": 8478,
+    "removal": 6712,
+    "card-advantage": 6549,
+    "evasion": 5753,
+    "removal-creature": 5740,
+    "spot-removal": 5593,
+    "single-target-instant-sorcery": 4707,
+    "hate": 4662,
+    "flavors-of-vanilla": 4539,
+    "draw": 4503,
+    "alliteration": 4441,
+    "repeatable-crime": 3708,
+    "pure-draw": 3481,
+    "burn": 3193,
+    "typal": 2920,
+    "typal-creature": 2920,
+    "repeatable-card-advantage": 2887,
+    "lifegain": 2766,
+    "removal-burn": 2524,
+    "ramp": 2427,
+    "unique-type-line": 2404,
+    "burn-creature": 2360,
+    "recursion": 2330,
+    "attack-trigger": 2270,
+    "intervening-if-clause": 2249,
+    "type-errata": 2245,
+    "gains-pp-counters": 2209,
+    "removal-planeswalker": 2072,
+    "cheaper-than-mv": 2056,
+    "repeatable-draw": 2047,
+    "repeatable-token-generator": 1959,
+    "burn-player": 1937,
+    "mana-sink": 1902,
+    "cast-trigger": 1870,
+    "drawback": 1829,
+    "repeatable-removal": 1816,
+    "removal-destroy": 1806,
+    "repeatable-pp-counters": 1804,
+    "gives-pp-counters": 1737,
+    "noncreature-typal": 1695,
+    "staple-with-set-s-mechanic": 1672,
+    "draw-engine": 1665,
+    "death-trigger": 1663,
+    "namesake-spell": 1635,
+    "attacking-matters-self": 1627,
+    "french-vanilla": 1625,
+    "virtual-vanilla": 1605,
+    "power-matters": 1579,
+    "repeatable-lifegain": 1544,
+    "multiple-targets": 1541,
+    "sacrifice-outlet": 1536,
+    "repeatable-creature-tokens": 1526,
+    "repeatable-pure-draw": 1492,
+    "blue-effect": 1484,
+    "sacrifice-self": 1424,
+    "combat-trick": 1411,
+    "discard-outlet": 1388,
+    "exile-self": 1380,
+    "protects-self": 1368,
+    "cast-trigger-you": 1349,
+    "mill": 1346,
+    "type-change": 1343,
+    "power-boost-to-all": 1322,
+    "alternative-cost": 1320,
+    "virtual-french-vanilla": 1318,
+    "delayed-trigger": 1304,
+    "counters-matter": 1300,
+    "single-english-word-name": 1298,
+    "burn-planeswalker": 1294,
+    "peek": 1293,
+    "protection": 1266,
+    "attacking-matters": 1259,
+    "removal-artifact": 1248,
+    "library-manipulation": 1234,
+    "tutor": 1222,
+    "tutor-to": 1206,
+    "gives-evasion": 1199,
+    "black-effect": 1169,
+    "thingfall": 1141,
+    "reanimate": 1107,
+    "synergy-artifact": 1105,
+    "mill-self": 1099,
+    "copy": 1094,
+    "removal-enchantment": 1090,
+    "top-deck-manipulation": 1073,
+    "more-expensive-than-mv": 1069,
+    "saboteur": 1061,
+    "type-errata-addition": 1059,
+    "peek-library": 1051,
+    "gives-castable-from-nonhand": 1050,
+    "mana-value-matters": 1040,
+    "cost-ignorer": 1021,
+    "sacrifice-outlet-creature": 1020,
+    "toughness-boost-to-all": 1007,
+    "mana-producer": 996,
+    "protects-creature": 995,
+    "sweeper": 987,
+    "bounce": 951,
+    "death-trigger-self": 929,
+    "multiple-bodies": 927,
+    "burn-battle": 925,
+    "tap-outlet": 919,
+    "recursion-creature": 918,
+    "repeatable-sacrifice-outlet": 918,
+    "burn-any": 912,
+    "opponent-loses-life": 909,
+    "castable-from-nonhand": 901,
+    "additional-cost": 893,
+    "symmetrical": 885,
+    "group-slug": 873,
+    "control-changing-effects": 862,
+    "draft-signpost": 860,
+    "modal": 855,
+    "life-payment": 828,
+    "cycle-land": 826,
+    "bottomless-mana-sink": 806,
+    "untapper": 795,
+    "gives-castable-from-exile": 788,
+    "theft": 774,
+    "pinger": 769,
+    "tap-fuel-creature": 755,
+    "hand-disruption": 747,
+    "tapper": 741,
+    "refund": 727,
+    "gives-haste": 716,
+    "bottom-deck-manipulation": 702,
+    "regrowth": 698,
+    "scales-with-power": 698,
+    "tapper-creature": 694,
+    "cantrip": 683,
+    "red-effect": 682,
+    "multi-removal": 680,
+    "cards-in-graveyard-matter": 672,
+    "burst-draw": 670,
+    "land-ramp": 658,
+    "animate": 654,
+    "removal-aura": 652,
+    "creaturefall": 652,
+    "removal-equipment": 649,
+    "utility-land": 644,
+    "multiplayer": 643,
+    "removal-vehicle": 640,
+    "removal-battle": 640,
+    "removal-spacecraft": 632,
+    "tutor-to-hand": 632,
+    "discard": 618,
+    "hate-color": 618,
+    "repeatable-artifact-tokens": 617,
+    "lands-matter": 614,
+    "tutor-land": 613,
+    "damage-prevention": 613,
+    "removal-exile": 611,
+    "removal-toughness": 608,
+    "digital-only-mechanics": 608,
+    "impulse": 591,
+    "martyr": 591,
+    "discount-self": 584,
+    "remove-counters": 583,
+    "activate-from-hand": 582,
+    "synergy-instant": 581,
+    "synergy-sorcery": 578,
+    "remove-counters-you": 577,
+    "type-addition-human": 573,
+    "anthem": 571,
+    "counterspell": 563,
+    "reanimate-creature": 558,
+    "cast-on-resolution": 550,
+    "unexile": 545,
+    "gives-trample": 542,
+    "untapper-creature": 541,
+    "adds-multiple-mana": 538,
+    "inverted-effects": 537,
+    "removal-land": 531,
+    "recursion-self": 522,
+    "potentially-black-border": 522,
+    "keyword-anthem": 519,
+    "punny-name": 518,
+    "out-of-color-token": 516,
+    "counter-fuel": 513,
+    "name-matters": 513,
+    "tutor-to-battlefield": 511,
+    "tapland": 507,
+    "indefinite-effect": 505,
+    "enters-in-company": 504,
+    "castable-from-exile": 494,
+    "gives-flying": 493,
+    "untracked-indefinite-effect": 492,
+    "characteristic-defining-ability": 485,
+    "scry": 483,
+    "tax": 481,
+    "per-player": 480,
+    "mill-opponent": 480,
+    "graveyard-fuel": 476,
+    "repeatable-noncreature-tokens": 474,
+    "dnd": 472,
+    "dual-land": 458,
+    "hate-blocker": 457,
+    "creature-count-matters": 335,
+    "hand-size-matters": 298,
+    "land-count-matters": 281,
+    "lifegain-matters": 246,
+    "low-mana-value-matters": 231,
+    "mana-spent-matters": 223,
+    "toughness-matters": 216,
+    "discard-matters": 211,
+    "artifact-count-matters": 191,
+    "draw-matters": 180,
+    "self-discard-matters": 174,
+    "life-loss-matters": 162,
+    "sacrifice-matters": 139,
+    "your-sacrifice-matters": 121,
+    "discarded-type-matters": 120,
+    "color-spent-matters": 116,
+    "amount-spent-matters": 109,
+    "top-matters": 82,
+    "high-mana-value-matters": 80,
+    "second-spell-matters": 70,
+    "second-draw-matters": 69,
+    "speech-matters": 61,
+    "commander-matters": 54,
+    "leaving-graveyard-matters": 54,
+    "monarch-matters": 49,
+    "opponent-land-count-matters": 48,
+    "high-x-matters": 40,
+    "self-life-loss-matters": 37,
+    "art-matters": 36,
+    "opponent-discard-matters": 34,
+    "mana-cost-matters": 32,
+    "off-turn-casting-matters": 32,
+    "times-resolved-matters": 31,
+    "attacking-opponents-matters": 28,
+    "draft-matters": 28,
+    "storm-count-matters": 27,
+    "even-odd-matters": 26,
+    "graveyard-order-matters": 23,
+    "x-cost-matters": 23,
+    "specific-power-matters": 23,
+    "library-size-matters": 22,
+    "reanimate-matters": 22,
+    "set-matters": 22,
+    "artist-matters": 20,
+    "table-order-matters": 20,
+    "recasting-commander-matters": 19,
+    "team-matters": 19,
+    "opponent-sacrifice-matters": 18,
+    "commander-tax-matters": 17,
+    "specific-toughness-matters": 17,
+    "starting-player-matters": 17,
+    "rules-text-matters": 17,
+    "flavor-text-matters": 14,
+    "watermark-matters": 13,
+    "bottom-of-library-matters": 12,
+    "speed-matters": 11,
+    "clothing-matters": 10,
+    "commander-identity-matters": 10,
+    "ante-matters": 9,
+    "border-color-matters": 9,
+    "time-matters": 9,
+    "format-matters": 9,
+    "third-draw-matters": 8,
+    "phasing-matters": 8,
+    "rarity-matters": 8,
+    "color-count-matters": 7,
+    "cycle-scg-mv-matters": 6,
+    "greatest-power-matters": 6,
+    "sideboard-matters": 6,
+    "cycle-ust-u-watermark-matters": 5,
+    "cycle-jou-land-type-matters": 5,
+    "card-style-matters": 5,
+    "cycle-ons-cycling-matters": 5,
+    "prepare-matters": 5,
+    "collector-number-matters": 4,
+    "third-spell-matters": 4,
+    "singleton-matters": 3,
+    "flavor-matters": 3,
+    "fourth-spell-matters": 3,
+    "high-five-matters": 3,
+    "ip-matters": 3,
+    "reminder-text-matters": 3,
+    "low-x-matters": 3,
+    "unspent-mana-matters": 3,
+    "age-matters": 3,
+    "night-matters": 3,
+    "location-matters": 2,
+    "gender-matters": 1,
+    "synergy-noncreature": 330,
+    "synergy-legendary": 291,
+    "synergy-enchantment": 267,
+    "synergy-planeswalker": 257,
+    "synergy-equipment": 253,
+    "synergy-token": 239,
+    "synergy-white": 213,
+    "synergy-blocker-self": 212,
+    "synergy-aura": 200,
+    "synergy-green": 197,
+    "synergy-commander": 195,
+    "synergy-red": 188,
+    "synergy-target": 187,
+    "synergy-black": 182,
+    "synergy-blue": 168,
+    "synergy-color-share": 161,
+    "synergy-artifact-creature": 154,
+    "synergy-vehicle": 130,
+    "synergy-forest": 128,
+    "synergy-flying": 116,
+    "synergy-token-creature": 113,
+    "synergy-blocker": 105,
+    "synergy-solo-attack": 105,
+    "synergy-swamp": 102,
+    "synergy-low-power": 100,
+    "synergy-mountain": 99,
+    "synergy-mill": 96,
+    "synergy-multicolor": 94,
+    "synergy-food": 92,
+    "synergy-graveyard-cast": 92,
+    "synergy-island": 91,
+    "synergy-saga": 85,
+    "synergy-arcane": 81,
+    "synergy-sticker": 79,
+    "synergy-exile-cast": 77,
+    "synergy-pw-specific": 68,
+    "synergy-historic": 66,
+    "synergy-activated-ability": 66,
+    "synergy-color-each": 65,
+    "synergy-burn": 65,
+    "synergy-basic": 65,
+    "synergy-plains": 64,
+    "synergy-colorless": 63,
+    "synergy-snow": 61,
+    "synergy-treasure": 52,
+    "synergy-tapped": 52,
+    "synergy-haste": 51,
+    "synergy-dice": 50,
+    "synergy-library-cast": 49,
+    "synergy-party": 49,
+    "synergy-modified": 48,
+    "synergy-cycling": 48,
+    "synergy-poison": 42,
+    "synergy-copy": 37,
+    "synergy-gate": 35,
+    "synergy-battle": 35,
+    "synergy-clue": 34,
+    "synergy-desert": 31,
+    "synergy-deathtouch": 30,
+    "synergy-trample": 30,
+    "synergy-scry": 30,
+    "synergy-lesson": 29,
+    "synergy-face-down": 29,
+    "synergy-theft": 29,
+    "synergy-shrine": 28,
+    "synergy-vigilance": 28,
+    "synergy-first-strike": 26,
+    "synergy-room": 26,
+    "synergy-suspend": 25,
+    "synergy-exiling": 25,
+    "synergy-defender": 24,
+    "synergy-menace": 24,
+    "synergy-dungeon": 24,
+    "synergy-double-strike": 24,
+    "synergy-warp": 22,
+    "synergy-color-choose": 22,
+    "synergy-name-sticker": 22,
+    "synergy-enchantment-creature": 22,
+    "synergy-lifelink": 22,
+    "synergy-creatureland": 21,
+    "synergy-reach": 21,
+    "synergy-surveil": 21,
+    "synergy-indestructible": 20,
+    "synergy-blood": 18,
+    "synergy-hexproof": 18,
+    "synergy-no-flying": 18,
+    "synergy-adventure": 18,
+    "synergy-transform": 16,
+    "synergy-sacrifice-self": 15,
+    "synergy-kicker": 15,
+    "synergy-spacecraft": 15,
+    "synergy-attraction": 14,
+    "synergy-cave": 13,
+    "synergy-ring": 13,
+    "synergy-flashback": 13,
+    "synergy-bounce": 12,
+    "synergy-land-graveyard": 12,
+    "synergy-full-hand": 11,
+    "synergy-untapped": 10,
+    "synergy-toxic": 10,
+    "synergy-1-1": 10,
+    "synergy-suspect": 10,
+    "synergy-flash": 10,
+    "synergy-incubator": 10,
+    "synergy-art-sticker": 10,
+    "synergy-color-every": 9,
+    "synergy-pw-jace": 9,
+    "synergy-initiative": 9,
+    "synergy-protection": 9,
+    "synergy-vote": 8,
+    "synergy-explore": 8,
+    "synergy-augment": 8,
+    "synergy-goad": 8,
+    "synergy-exhaust": 8,
+    "synergy-proliferate": 7,
+    "synergy-bobblehead": 7,
+    "synergy-playtest": 7,
+    "synergy-locus": 7,
+    "synergy-face-down-cast": 7,
+    "synergy-foretell": 7,
+    "synergy-multicolor-pair": 7,
+    "synergy-pw-chandra": 7,
+    "synergy-colored": 7,
+    "synergy-town": 7,
+    "synergy-mutate": 7,
+    "synergy-vanilla": 6,
+    "synergy-monocolor": 6,
+    "synergy-contraption": 6,
+    "synergy-nonbasic-land": 6,
+    "synergy-shadow": 6,
+    "synergy-counterspell": 5,
+    "synergy-pw-gideon": 5,
+    "synergy-curse": 5,
+    "synergy-power-up": 5,
+    "synergy-pw-liliana": 5,
+    "synergy-tutor": 5,
+    "synergy-planet": 5,
+    "synergy-dfc": 5,
+    "synergy-pw-bolas": 5,
+    "synergy-chorus": 5,
+    "synergy-landwalk": 5,
+    "synergy-banding": 5,
+    "synergy-exert": 5,
+    "synergy-modal": 4,
+    "synergy-fear": 4,
+    "synergy-clash": 4,
+    "synergy-conjure": 4,
+    "synergy-fight": 4,
+    "synergy-connive": 4,
+    "synergy-pw-garruk": 4,
+    "synergy-self-burn": 4,
+    "synergy-omen": 4,
+    "synergy-exploit": 3,
+    "synergy-ability-sticker": 3,
+    "synergy-boast": 3,
+    "synergy-colorless-mana": 3,
+    "synergy-pw-nissa": 3,
+    "synergy-disturb": 3,
+    "synergy-shroud": 3,
+    "synergy-unearth": 3,
+    "synergy-convoke": 3,
+    "synergy-leaves-creature": 3,
+    "synergy-collect-evidence": 3,
+    "synergy-seek": 3,
+    "synergy-level-up": 3,
+    "synergy-ninjutsu": 3,
+    "synergy-cascade": 3,
+    "synergy-sphere": 3,
+    "synergy-flanking": 3,
+    "synergy-renown": 3,
+    "synergy-backup": 2,
+    "synergy-islandwalk": 2,
+    "synergy-infect": 2,
+    "synergy-skulk": 2,
+    "synergy-devoid": 2,
+    "synergy-modular": 2,
+    "synergy-emblem": 2,
+    "synergy-doctor-s-companion": 2,
+    "synergy-manifest-dread": 2,
+    "synergy-powerstone": 2,
+    "synergy-forage": 2,
+    "synergy-junk": 2,
+    "synergy-freerunning": 2,
+    "synergy-pw-choose": 2,
+    "synergy-pw-tyvar": 2,
+    "synergy-pw-tezzeret": 2,
+    "synergy-multicolor-trio": 2,
+    "synergy-investigate": 2,
+    "synergy-energy": 2,
+    "synergy-pw-vivien": 2,
+    "synergy-life-payment": 2,
+    "synergy-pw-ajani": 2,
+    "synergy-p-t-sticker": 2,
+    "synergy-plan": 2,
+    "synergy-hybrid": 2,
+    "synergy-rune": 2,
+    "synergy-soulbond": 2,
+    "synergy-cumulative-upkeep": 2,
+    "synergy-teamwork": 2,
+    "synergy-lander": 2,
+    "synergy-pw-teferi": 2,
+    "synergy-tuck": 2,
+    "synergy-discover": 2,
+    "synergy-pw-vraska": 2,
+    "synergy-pw-yanling": 2,
+    "synergy-pin": 2,
+    "synergy-manifest": 2,
+    "synergy-wastes": 2,
+    "synergy-horsemanship": 2,
+    "synergy-morph": 2,
+    "synergy-eternalize": 1,
+    "synergy-waterbending": 1,
+    "synergy-pw-ashiok": 1,
+    "synergy-spectacle": 1,
+    "synergy-saddle": 1,
+    "synergy-earthbending": 1,
+    "synergy-pw-davriel": 1,
+    "synergy-bargain": 1,
+    "synergy-urza-s": 1,
+    "synergy-pw-oko": 1,
+    "synergy-villainous-choice": 1,
+    "synergy-pw-yanggu": 1,
+    "synergy-tantrum": 1,
+    "synergy-dimension": 1,
+    "synergy-haunt": 1,
+    "synergy-map": 1,
+    "synergy-type-change": 1,
+    "synergy-blitz": 1,
+    "synergy-changeling": 1,
+    "synergy-pw-rowan": 1,
+    "synergy-pw-angrath": 1,
+    "synergy-damage-prevention": 1,
+    "synergy-pw-dovin": 1,
+    "synergy-class": 1,
+    "synergy-banana": 1,
+    "synergy-intimidate": 1,
+    "synergy-wither": 1,
+    "synergy-affinity": 1,
+    "synergy-equipment-legendary": 1,
+    "synergy-pw-basri": 1,
+    "synergy-embalm": 1,
+    "synergy-case": 1,
+    "synergy-boon": 1,
+    "synergy-partner": 1,
+    "synergy-devour": 1,
+    "synergy-madness": 1,
+    "synergy-role": 1,
+    "synergy-pw-sarkhan": 1,
+    "synergy-regenerate": 1,
+    "synergy-ingest": 1,
+    "synergy-echo": 1,
+    "synergy-start-your-engines": 1,
+    "synergy-pw-tamiyo": 1,
+    "synergy-dash": 1,
+    "synergy-sneak": 1,
+    "synergy-firebending": 1,
+    "synergy-pw-domri": 1,
+    "synergy-pw-ugin": 1,
+    "synergy-pw-lukka": 1,
+    "synergy-plot": 1,
+    "synergy-airbending": 1,
+    "synergy-disguise": 1,
+    "synergy-enlist": 1,
+    "synergy-pw-ral": 1,
+    "synergy-pw-huatli": 1,
+    "synergy-awaken": 1,
+    "synergy-pw-elspeth": 1,
+    "synergy-jump-start": 1,
+    "synergy-gift": 1,
+    "synergy-bushido": 1,
+    "synergy-craft": 1,
+    "synergy-mentor": 1,
+    "synergy-color-non-share": 1,
+    "typal-coupling": 341,
+    "typal-dragon": 139,
+    "typal-elf": 132,
+    "typal-goblin": 131,
+    "typal-spirit": 129,
+    "typal-wizard": 126,
+    "typal-zombie": 125,
+    "typal-sliver": 121,
+    "typal-warrior": 111,
+    "typal-human": 105,
+    "typal-rogue": 97,
+    "typal-choose": 95,
+    "typal-merfolk": 85,
+    "typal-ally": 85,
+    "typal-vampire": 84,
+    "typal-cleric": 81,
+    "typal-share": 77,
+    "typal-army": 74,
+    "typal-pirate": 67,
+    "typal-dinosaur": 63,
+    "typal-soldier": 54,
+    "typal-assassin": 53,
+    "typal-knight": 50,
+    "typal-elemental": 48,
+    "typal-hero": 44,
+    "typal-wolf": 41,
+    "typal-bird": 39,
+    "typal-rat": 38,
+    "typal-villain": 37,
+    "typal-mount": 36,
+    "typal-giant": 34,
+    "typal-mercenary": 33,
+    "typal-faerie": 33,
+    "typal-werewolf": 32,
+    "typal-exclusion": 31,
+    "typal-spider": 30,
+    "typal-squirrel": 30,
+    "typal-demon": 30,
+    "typal-dwarf": 28,
+    "typal-kithkin": 28,
+    "typal-non-human": 28,
+    "typal-ninja": 28,
+    "typal-lupine": 27,
+    "typal-beast": 26,
+    "typal-phyrexian": 25,
+    "typal-treefolk": 25,
+    "typal-saproling": 24,
+    "typal-angel": 24,
+    "typal-warlock": 24,
+    "typal-cat": 24,
+    "typal-samurai": 23,
+    "typal-orc": 20,
+    "typal-coupling-distinct": 20,
+    "typal-outlaw": 19,
+    "typal-eldrazi": 18,
+    "typal-mutant": 18,
+    "typal-goblin-orc": 18,
+    "typal-snake": 16,
+    "typal-serpent": 15,
+    "typal-doctor": 14,
+    "typal-minotaur": 14,
+    "typal-rebel": 14,
+    "typal-insect": 13,
+    "typal-frog": 13,
+    "typal-shaman": 13,
+    "typal-octopus": 13,
+    "typal-wall": 13,
+    "typal-mouse": 13,
+    "typal-turtle": 12,
+    "typal-dog": 12,
+    "typal-lizard": 12,
+    "typal-kraken": 12,
+    "typal-otter": 12,
+    "typal-bat": 12,
+    "typal-golem": 11,
+    "typal-neo-solo-attack": 11,
+    "typal-robot": 10,
+    "typal-leviathan": 10,
+    "typal-fungus": 10,
+    "typal-multi-sea-monster": 9,
+    "typal-horror": 9,
+    "typal-rabbit": 9,
+    "typal-bear": 9,
+    "typal-detective": 8,
+    "typal-thopter": 8,
+    "typal-raccoon": 8,
+    "typal-illusion": 8,
+    "typal-non-share": 7,
+    "typal-skeleton": 7,
+    "typal-ooze": 7,
+    "typal-kavu": 7,
+    "typal-myr": 7,
+    "typal-boar": 6,
+    "typal-halfling": 6,
+    "typal-each": 6,
+    "typal-assembly-worker": 6,
+    "typal-horse": 6,
+    "typal-god": 6,
+    "typal-citizen": 5,
+    "typal-plant": 5,
+    "typal-nightmare": 5,
+    "typal-ogre": 5,
+    "typal-devil": 5,
+    "typal-zubera": 5,
+    "typal-non-wall": 5,
+    "typal-goat": 5,
+    "typal-fish": 5,
+    "typal-mutant-ninja-turtle": 5,
+    "typal-griffin": 5,
+    "typal-artificer": 5,
+    "typal-sneaky": 4,
+    "typal-pegasus": 4,
+    "typal-time-lord": 4,
+    "typal-pest": 4,
+    "typal-chimera": 4,
+    "typal-aurochs": 4,
+    "typal-wraith": 4,
+    "typal-flagbearer": 4,
+    "typal-reveler": 4,
+    "typal-berserker": 4,
+    "typal-thrull": 4,
+    "typal-imp": 4,
+    "typal-eldrazi-spawn": 4,
+    "typal-construct": 4,
+    "typal-crab": 4,
+    "typal-dalek": 4,
+    "typal-kobold": 4,
+    "typal-druid": 4,
+    "typal-advisor": 3,
+    "typal-fractal": 3,
+    "typal-phoenix": 3,
+    "typal-slug": 3,
+    "typal-unicorn": 3,
+    "typal-sphinx": 3,
+    "typal-eldrazi-scion": 3,
+    "typal-non-spirit": 3,
+    "typal-praetor": 3,
+    "typal-egg": 3,
+    "typal-gamma": 3,
+    "typal-lhurgoyf": 3,
+    "typal-shark": 3,
+    "typal-shapeshifter": 3,
+    "typal-hamster": 3,
+    "typal-archer": 2,
+    "typal-trilobite": 2,
+    "typal-leech": 2,
+    "typal-homarid": 2,
+    "typal-ox": 2,
+    "typal-demigod": 2,
+    "typal-non-angel": 2,
+    "typal-gremlin": 2,
+    "typal-scarecrow": 2,
+    "typal-barbarian": 2,
+    "typal-moogle": 2,
+    "typal-elephant": 2,
+    "typal-wurm": 2,
+    "typal-fox": 2,
+    "typal-klingon": 2,
+    "typal-whale": 2,
+    "typal-gorgon": 2,
+    "typal-hydra": 2,
+    "typal-tiefling": 2,
+    "typal-salamander": 2,
+    "typal-starfish": 2,
+    "typal-servo": 2,
+    "typal-ape": 2,
+    "typal-lobster": 2,
+    "typal-employee": 2,
+    "typal-seal": 2,
+    "typal-nautilus": 2,
+    "typal-tentacle": 1,
+    "typal-human-werewolf": 1,
+    "typal-non-villain": 1,
+    "typal-scout": 1,
+    "typal-non-horse": 1,
+    "typal-minion": 1,
+    "typal-worm": 1,
+    "typal-glimmer": 1,
+    "typal-tyranid": 1,
+    "typal-reflection": 1,
+    "typal-killbot": 1,
+    "typal-prism": 1,
+    "typal-rhino": 1,
+    "typal-shade": 1,
+    "typal-elder-dragon": 1,
+    "typal-camel": 1,
+    "typal-non-pilot": 1,
+    "typal-jellyfish": 1,
+    "typal-juggernaut": 1,
+    "typal-transformer": 1,
+    "typal-pilot": 1,
+    "typal-brainiac": 1,
+    "typal-nephilim": 1,
+    "typal-alicorn": 1,
+    "typal-noble": 1,
+    "typal-blinkmoth": 1,
+    "typal-homunculus": 1,
+    "typal-snail": 1,
+    "typal-atog": 1,
+    "typal-kor": 1,
+    "typal-rigger": 1,
+    "typal-moonfolk": 1,
+    "typal-centaur": 1,
+    "typal-sponge": 1,
+    "typal-non-borg": 1,
+    "typal-caribou": 1,
+    "typal-clown": 1,
+    "typal-monk": 1,
+    "typal-sculpture": 1,
+    "typal-oyster": 1,
+    "typal-shrimp": 1,
+    "typal-camarid": 1,
+    "typal-bard": 1,
+    "typal-survivor": 1,
+    "typal-pentavite": 1,
+    "typal-drake": 1,
+    "typal-nightstalker": 1,
+    "typal-squid": 1,
+    "typal-satyr": 1,
+    "typal-aetherborn": 1,
+    "typal-monkey": 1,
+    "typal-donkey": 1,
+    "typal-teddy-bear": 1,
+    "typal-scion": 1,
+    "typal-beeble": 1,
+    "typal-gamer": 1,
+    "typal-non-kree": 1,
+    "typal-pony": 1,
+    "typal-jackal": 1,
+    "typal-non-assassin": 1,
+    "typal-spawn": 1,
+    "typal-bison": 1,
+    "typal-nautilid": 1,
+    "typal-non-archon": 1,
+    "typal-specter": 1,
+    "typal-guest": 1,
+    "typal-clamfolk": 1,
+    "typal-symbiote": 1,
+    "typal-crocodile": 1,
+    "typal-non-zombie": 1,
+    "typal-balloon": 1,
+    "typal-performer": 1,
+    "typal-alien": 1,
+    "typal-archon": 1,
+    "typal-walrus": 1,
+    "typal-non-lemur": 1,
+    "gives-first-strike": 289,
+    "gives-vigilance": 289,
+    "gives-indestructible": 285,
+    "gives-mm-counters": 235,
+    "gives-lifelink": 233,
+    "gives-pp-counters-to-all": 206,
+    "gives-unblockable": 193,
+    "gives-deathtouch": 189,
+    "gives-menace": 183,
+    "gives-hexproof": 167,
+    "gives-castable-from-graveyard": 156,
+    "gives-double-strike": 155,
+    "gives-tap-ability": 143,
+    "gives-protection": 127,
+    "gives-mana-ability": 103,
+    "gives-reach": 97,
+    "gives-castable-from-library": 95,
+    "gives-ward": 70,
+    "gives-flash": 64,
+    "gives-skulk": 58,
+    "gives-shroud": 49,
+    "gives-landwalk": 46,
+    "gives-player-ability": 44,
+    "gives-uncounterable": 32,
+    "gives-fear": 29,
+    "gives-player-hexproof": 23,
+    "gives-flashback": 19,
+    "gives-suspend": 18,
+    "gives-changeling": 18,
+    "gives-intimidate": 18,
+    "gives-cascade": 18,
+    "gives-affinity": 17,
+    "gives-loyalty-ability": 16,
+    "gives-defender": 15,
+    "gives-shadow": 14,
+    "gives-player-protection": 14,
+    "gives-banding": 14,
+    "gives-convoke": 14,
+    "gives-stalking": 13,
+    "gives-ingest": 13,
+    "gives-charge-counter": 12,
+    "gives-exalted": 11,
+    "gives-forestwalk": 11,
+    "gives-islandwalk": 11,
+    "gives-wither": 10,
+    "gives-horsemanship": 10,
+    "gives-unearth": 9,
+    "gives-lifelink-noncreature": 9,
+    "gives-toxic": 9,
+    "gives-myriad": 9,
+    "gives-infect": 8,
+    "gives-prowess": 8,
+    "gives-afflict": 8,
+    "gives-unstoppable": 8,
+    "gives-daunt": 8,
+    "gives-escape": 7,
+    "gives-swampwalk": 7,
+    "gives-drawlink": 7,
+    "gives-annihilator": 7,
+    "gives-persist": 7,
+    "gives-melee": 7,
+    "gives-rampage": 7,
+    "gives-storm": 6,
+    "gives-demonstrate": 6,
+    "gives-plot": 6,
+    "gives-mountainwalk": 6,
+    "gives-cycling": 6,
+    "gives-flanking": 6,
+    "gives-poisonous": 6,
+    "gives-split-second": 5,
+    "gives-player-shroud": 5,
+    "gives-rebound": 5,
+    "gives-cumulative-upkeep": 5,
+    "gives-double-team": 5,
+    "gives-improvise": 5,
+    "gives-retrace": 4,
+    "gives-miracle": 4,
+    "gives-nimble": 4,
+    "gives-riot": 4,
+    "gives-replicate": 4,
+    "gives-encore": 4,
+    "gives-firebending": 4,
+    "gives-undying": 4,
+    "gives-high-flying": 4,
+    "gives-casualty": 4,
+    "gives-foretell": 4,
+    "gives-phasing": 4,
+    "gives-evolve": 3,
+    "gives-warp": 3,
+    "gives-scavenge": 3,
+    "gives-fake-flying": 3,
+    "gives-jump-start": 3,
+    "gives-outlast": 3,
+    "gives-sunburst": 3,
+    "gives-provoke": 3,
+    "gives-blitz": 3,
+    "gives-mentor": 3,
+    "gives-conspire": 3,
+    "gives-decayed": 3,
+    "gives-devoid": 2,
+    "gives-battle-cry": 2,
+    "gives-evoke": 2,
+    "gives-exploit": 2,
+    "gives-bushido": 2,
+    "gives-tantrum": 2,
+    "gives-mobilize": 2,
+    "gives-embalm": 2,
+    "gives-offspring": 2,
+    "gives-bloodthirst": 2,
+    "gives-training": 2,
+    "gives-afterlife": 2,
+    "gives-sneak": 2,
+    "gives-deathtouch-noncreature": 2,
+    "gives-delve": 1,
+    "gives-fossilize": 1,
+    "gives-plainswalk": 1,
+    "gives-prowl": 1,
+    "gives-spectacle": 1,
+    "gives-fabricate": 1,
+    "gives-dredge": 1,
+    "gives-wither-noncreature": 1,
+    "gives-thoughtweft": 1,
+    "gives-echo": 1,
+    "gives-adventure": 1,
+    "gives-freerunning": 1,
+    "gives-super-haste": 1,
+    "gives-modular": 1,
+    "gives-assist": 1,
+    "gives-mayhem": 1,
+    "gives-extort": 1,
+    "gives-ripple": 1,
+    "gives-emerge": 1,
+    "gives-frenzy": 1,
+    "gives-epic": 1,
+    "gives-living-weapon": 1,
+    "gives-unleash": 1,
+    "gives-harmonize": 1,
+    "gives-absorb": 1,
+    "gives-triple-strike": 1,
+    "gives-saddle": 1,
+    "gives-disguise": 1,
+    "gives-squad": 1,
+    "gives-devour": 1,
+    "gives-umbra-armor": 1,
+    "gives-ninjutsu": 1,
+    "gives-read-ahead": 1,
+    "gives-relentless": 1,
+    "gives-basic-landcycling": 1,
+    "gives-renown": 1,
+    "gives-dethrone": 1,
+    "gives-undaunted": 1,
+    "gives-townwalk": 1,
+    "gives-madness": 1,
+    "gives-web-slinging": 1,
+    "impulsive-recursion": 21,
+    "reanimate-self": 266,
+    "reanimate-cast": 150,
+    "reanimate-from-opponent": 147,
+    "reanimate-from-any": 97,
+    "reanimate-artifact": 76,
+    "reanimate-land": 71,
+    "reanimate-permanent": 63,
+    "reanimate-enchantment": 34,
+    "reanimate-nonland": 25,
+    "reanimate-aura": 21,
+    "reanimate-planeswalker": 20,
+    "reanimate-equipment": 15,
+    "reanimate-face-down": 9,
+    "reanimate-vehicle": 9,
+    "reanimate-artifact-creature": 7,
+    "reanimate-saga": 3,
+    "reanimate-noncreature": 3,
+    "reanimate-legendary": 3,
+    "reanimate-battle": 2,
+    "reanimate-spacecraft": 2,
+    "reanimate-historic": 2,
+    "reanimate-instant-sorcery": 1,
+    "recursion-artifact": 159,
+    "recursion-permanent": 119,
+    "recursion-land": 116,
+    "recursion-instant": 101,
+    "recursion-sorcery": 100,
+    "recursion-planeswalker": 85,
+    "recursion-enchantment": 81,
+    "recursion-any": 79,
+    "recursion-from-exile": 21,
+    "recursion-battle": 7
+  },
+  "ranking_only_density": {
+    "spell-density": {
+      "mechanism": "count cards whose type_line matches Instant or Sorcery",
+      "field": "type_line",
+      "regex": "\\b(Instant|Sorcery)\\b",
+      "threshold_cards": 12,
+      "rationale": "spellslinger/magecraft archetypes; the magecraft otag covers only ~31 cards lake-wide so otag-based detection is dead \u2014 density over the printed card type is the general mechanism."
+    },
+    "artifact-density": {
+      "mechanism": "count cards whose type_line matches Artifact",
+      "field": "type_line",
+      "regex": "\\bArtifact\\b",
+      "threshold_cards": 12,
+      "rationale": "affinity/artifact-matters archetypes; generic over type_line."
+    },
+    "creature-type-density": {
+      "mechanism": "max count of any single creature subtype across the deck's creatures (from type_line after the dash)",
+      "field": "type_line",
+      "threshold_cards": 8,
+      "rationale": "generic typal detector: a dominant shared creature subtype, independent of any specific tribe."
+    }
+  },
+  "_corrections": {
+    "c1_density_demote": "spell/artifact/creature-type density moved query_match_attributes -> ranking_only_density; never gates membership.",
+    "c3_spellslinger_mechanism": "added bucket 'spellslinger' = cast-trigger consumer family ['cast-trigger', 'cast-trigger-you', 'cast-trigger-self', 'cast-trigger-other', 'second-spell-matters', 'storm-count-matters', 'prowess-like']",
+    "c5_v4_augmentation": "human-approved crosswalk augmentation: new buckets food/mm_counters/theft, artifacts+metalcraft/improvise, DUAL multimaps, affinity routing, tutor-land->ramp, anthem go-tall de-conflation. Groups toggleable via GROUPS env in corpus_runner_v4."
+  },
+  "_v4_base_buckets": {
+    "removal": [
+      "removal"
+    ],
+    "ramp": [
+      "ramp"
+    ],
+    "draw": [
+      "card-advantage"
+    ],
+    "tokens": [
+      "token-increaser",
+      "repeatable-token-generator",
+      "repeatable-creature-tokens"
+    ],
+    "counters": [
+      "counter-increaser",
+      "pp-counters-matter",
+      "counters-matter",
+      "gives-pp-counters",
+      "gives-pp-counters-to-all",
+      "gains-pp-counters",
+      "repeatable-pp-counters"
+    ],
+    "burn": [
+      "burn",
+      "opponent-loses-life",
+      "drain-life"
+    ],
+    "tutor": [
+      "tutor"
+    ],
+    "sac": [
+      "sacrifice-outlet",
+      "free-sacrifice-outlet",
+      "repeatable-sacrifice-outlet"
+    ],
+    "counterspells": [
+      "counterspell"
+    ],
+    "flicker": [
+      "flicker"
+    ],
+    "typal": [
+      "typal",
+      "typal-creature",
+      "typal-hero",
+      "typal-share",
+      "noncreature-typal",
+      "changeling"
+    ],
+    "anthem": [
+      "power-boost-to-all",
+      "toughness-boost-to-all",
+      "anthem"
+    ],
+    "combat": [
+      "attacking-matters",
+      "attacking-matters-self",
+      "attack-trigger",
+      "gives-double-strike",
+      "gives-evasion",
+      "gives-flying",
+      "gives-trample",
+      "gives-menace"
+    ],
+    "protection": [
+      "protection",
+      "protects-creature",
+      "protects-all",
+      "gives-indestructible",
+      "gives-hexproof"
+    ],
+    "stax": [
+      "tax",
+      "cast-tax",
+      "tax-attack",
+      "tax-block"
+    ],
+    "extra_combat": [
+      "extra-combat-phase"
+    ],
+    "wincon": [
+      "alternate-win-condition"
+    ],
+    "lifegain": [
+      "lifegain",
+      "repeatable-lifegain",
+      "lifegain-matters",
+      "lifegain-to-damage",
+      "lifegain-increaser",
+      "life-total-matters-self"
+    ],
+    "artifacts": [
+      "synergy-artifact",
+      "artifact-count-matters",
+      "affinity-for-artifacts",
+      "synergy-artifact-creature",
+      "repeatable-artifact-tokens"
+    ],
+    "graveyard": [
+      "cards-in-graveyard-matter",
+      "graveyard-fuel",
+      "graveyard-fuel-self",
+      "castable-from-graveyard",
+      "activate-from-graveyard",
+      "synergy-graveyard-cast",
+      "leaving-graveyard-matters"
+    ],
+    "equipment": [
+      "synergy-equipment",
+      "quick-equip",
+      "auto-equip",
+      "synergy-aura",
+      "quick-attach"
+    ],
+    "landfall": [
+      "landfall",
+      "lands-matter",
+      "extra-land",
+      "land-count-matters",
+      "landfall-other"
+    ],
+    "spellslinger": [
+      "cast-trigger-you",
+      "cast-trigger-other",
+      "second-spell-matters",
+      "storm-count-matters",
+      "prowess-like"
+    ]
+  },
+  "_v4_groups": {
+    "new_buckets": {
+      "food": [
+        "repeatable-food",
+        "synergy-food",
+        "eat-food"
+      ],
+      "mm_counters": [
+        "gives-mm-counters",
+        "gains-mm-counters",
+        "mm-counters-matter",
+        "removes-mm-counters-self"
+      ],
+      "theft": [
+        "theft-creature",
+        "theft-artifact",
+        "theft-land",
+        "theft-planeswalker",
+        "theft-spell"
+      ],
+      "artifacts": [
+        "metalcraft",
+        "improvise"
+      ]
+    },
+    "dual": {
+      "graveyard": [
+        "recursion-land",
+        "reanimate-land",
+        "regrowth-land",
+        "recursion-artifact",
+        "reanimate-artifact",
+        "regrowth-artifact",
+        "recursion-enchantment",
+        "reanimate-aura",
+        "regrowth-enchantment",
+        "reanimate-equipment",
+        "lands-in-graveyard-matter",
+        "synergy-land-graveyard"
+      ],
+      "landfall": [
+        "recursion-land",
+        "reanimate-land",
+        "regrowth-land",
+        "lands-in-graveyard-matter",
+        "synergy-land-graveyard",
+        "land-ramp",
+        "multi-land-ramp",
+        "sacrifice-outlet-land"
+      ],
+      "artifacts": [
+        "recursion-artifact",
+        "reanimate-artifact",
+        "regrowth-artifact",
+        "copy-artifact",
+        "repeatable-artifact-tokens"
+      ],
+      "equipment": [
+        "recursion-enchantment",
+        "reanimate-aura",
+        "regrowth-enchantment",
+        "reanimate-equipment"
+      ],
+      "ramp": [
+        "land-ramp",
+        "multi-land-ramp"
+      ],
+      "sac": [
+        "sacrifice-outlet-land",
+        "sacrifice-outlet-token",
+        "hate-removal-sacrifice"
+      ],
+      "tokens": [
+        "repeatable-artifact-tokens",
+        "copy-artifact",
+        "sacrifice-outlet-token"
+      ]
+    },
+    "affinity": {
+      "artifacts": [
+        "cost-reducer-artifact"
+      ],
+      "typal": [
+        "cost-reducer-creature"
+      ]
+    },
+    "ramp_tutor": {
+      "ramp": [
+        "tutor-land",
+        "tutor-land-any",
+        "tutor-land-basic",
+        "tutor-land-basic-forest",
+        "tutor-land-basic-island",
+        "tutor-land-basic-mountain",
+        "tutor-land-basic-plains",
+        "tutor-land-basic-swamp",
+        "tutor-land-cave",
+        "tutor-land-desert",
+        "tutor-land-forest",
+        "tutor-land-gate",
+        "tutor-land-island",
+        "tutor-land-mountain",
+        "tutor-land-plains",
+        "tutor-land-snow",
+        "tutor-land-specific",
+        "tutor-land-swamp",
+        "tutor-land-to-battlefield",
+        "tutor-land-town"
+      ]
+    },
+    "deconf_anthem": {
+      "anthem": [
+        "power-matters",
+        "toughness-matters"
+      ]
+    },
+    "dual_land": {
+      "graveyard": [
+        "recursion-land",
+        "reanimate-land",
+        "regrowth-land",
+        "lands-in-graveyard-matter",
+        "synergy-land-graveyard"
+      ],
+      "landfall": [
+        "recursion-land",
+        "reanimate-land",
+        "regrowth-land",
+        "lands-in-graveyard-matter",
+        "synergy-land-graveyard",
+        "land-ramp",
+        "multi-land-ramp",
+        "sacrifice-outlet-land"
+      ],
+      "ramp": [
+        "land-ramp",
+        "multi-land-ramp"
+      ],
+      "sac": [
+        "sacrifice-outlet-land"
+      ]
+    },
+    "dual_art": {
+      "graveyard": [
+        "recursion-artifact",
+        "reanimate-artifact",
+        "regrowth-artifact"
+      ],
+      "artifacts": [
+        "recursion-artifact",
+        "reanimate-artifact",
+        "regrowth-artifact",
+        "copy-artifact",
+        "repeatable-artifact-tokens"
+      ],
+      "tokens": [
+        "repeatable-artifact-tokens",
+        "copy-artifact"
+      ]
+    },
+    "dual_ench": {
+      "graveyard": [
+        "recursion-enchantment",
+        "reanimate-aura",
+        "regrowth-enchantment",
+        "reanimate-equipment"
+      ],
+      "equipment": [
+        "recursion-enchantment",
+        "reanimate-aura",
+        "regrowth-enchantment",
+        "reanimate-equipment"
+      ]
+    },
+    "dual_sac": {
+      "sac": [
+        "sacrifice-outlet-token",
+        "hate-removal-sacrifice"
+      ],
+      "tokens": [
+        "sacrifice-outlet-token"
+      ]
+    }
+  },
+  "_v4_new_bucket_names": [
+    "food",
+    "mm_counters",
+    "theft"
+  ],
+  "_v4_archetype_routing": {
+    "food": "food",
+    "mm_counters": "-1/-1 counters",
+    "theft": "theft",
+    "_anchor_food": [
+      "repeatable-food",
+      "synergy-food",
+      "eat-food"
+    ],
+    "_anchor_mm": [
+      "gives-mm-counters",
+      "gains-mm-counters",
+      "mm-counters-matter",
+      "removes-mm-counters-self"
+    ],
+    "_anchor_theft": [
+      "theft-creature",
+      "theft-artifact",
+      "theft-land",
+      "theft-planeswalker",
+      "theft-spell"
+    ],
+    "_anchor_anthem_deconf": [
+      "power-matters",
+      "toughness-matters"
+    ]
+  },
+  "_v4_event_producers": {
+    "land-enters-battlefield": [
+      "tutor-land-to-battlefield"
+    ]
+  }
+}

@@ -1,0 +1,2702 @@
+{
+ "bracket": 2,
+ "bundle": "precons",
+ "cards": [
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "B",
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "{1}{B}{G}{U}",
+   "name": "Kadena, Slinking Sorcerer|C19|1",
+   "oracle_id": "4da13eb8-ca18-43f1-b54b-d3ddceb980d2",
+   "oracle_text": "The first face-down creature spell you cast each turn costs {3} less to cast.\nWhenever a face-down creature you control enters, draw a card.",
+   "otags": [
+    "alliteration",
+    "card-advantage",
+    "card-names",
+    "cost-reducer",
+    "creaturefall",
+    "cycle",
+    "cycle-c19-face-commander",
+    "draw",
+    "draw-engine",
+    "face-commander",
+    "face-up-face-down-effects",
+    "pure-draw",
+    "repeatable-card-advantage",
+    "repeatable-draw",
+    "repeatable-pure-draw",
+    "synergy-face-down",
+    "synergy-face-down-cast",
+    "thingfall",
+    "triggered-ability",
+    "type-addition-sorcerer",
+    "type-errata",
+    "type-errata-addition",
+    "type-errata-genericise",
+    "type-errata-naga",
+    "unique-type-line"
+   ],
+   "role": "commander",
+   "type_line": "Legendary Creature \u2014 Snake Wizard Sorcerer"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [
+    "Megamorph"
+   ],
+   "mana_cost": "{1}{G}",
+   "name": "Ainok Survivalist|C19|1",
+   "oracle_id": "7a5dae5f-29ab-4996-b236-c754de8769bc",
+   "oracle_text": "Megamorph {1}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its megamorph cost and put a +1/+1 counter on it.)\nWhen this creature is turned face up, destroy target artifact or enchantment an opponent controls.",
+   "otags": [
+    "alternative-cost",
+    "disenchant-naturalize",
+    "face-up-face-down-effects",
+    "gains-pp-counters",
+    "more-expensive-than-mv",
+    "naturalize-with-set-mechanic",
+    "removal",
+    "removal-artifact",
+    "removal-destroy",
+    "removal-enchantment",
+    "spot-removal",
+    "staple-with-set-s-mechanic",
+    "triggered-ability",
+    "turn-face-up-trigger-self",
+    "type-errata",
+    "type-errata-hound"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Dog Shaman"
+  },
+  {
+   "cmc": 9.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [
+    "Enrage",
+    "Fight"
+   ],
+   "mana_cost": "{7}{G}{G}",
+   "name": "Apex Altisaur|C19|1",
+   "oracle_id": "fc467fe5-85ab-4c95-8d21-49096778b107",
+   "oracle_text": "When this creature enters, it fights up to one target creature you don't control.\nEnrage \u2014 Whenever this creature is dealt damage, it fights up to one target creature you don't control.",
+   "otags": [
+    "alliteration",
+    "burn",
+    "burn-creature",
+    "card-names",
+    "enrage",
+    "fun-ruling",
+    "removal",
+    "removal-burn",
+    "removal-creature",
+    "removal-fight",
+    "repeatable-crime",
+    "repeatable-removal",
+    "spot-removal",
+    "triggered-ability"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Dinosaur"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [
+    "Landcycling",
+    "Basic landcycling",
+    "Typecycling",
+    "Cycling"
+   ],
+   "mana_cost": "",
+   "name": "Ash Barrens|C19|1",
+   "oracle_id": "58257464-278e-45fa-8e0b-bcd9a7500bc1",
+   "oracle_text": "{T}: Add {C}.\nBasic landcycling {1} ({1}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.)",
+   "otags": [
+    "activate-from-hand",
+    "activated-ability",
+    "tutor",
+    "tutor-land",
+    "tutor-land-basic",
+    "tutor-to",
+    "tutor-to-hand"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [
+    "Morph"
+   ],
+   "mana_cost": "{2}{B}{B}",
+   "name": "Bane of the Living|C19|1",
+   "oracle_id": "c99e4768-192c-49bf-8f51-c204a2248326",
+   "oracle_text": "Morph {X}{B}{B} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, all creatures get -X/-X until end of turn.",
+   "otags": [
+    "alternative-cost",
+    "breaks-ktk-morph-rule",
+    "cheaper-than-mv",
+    "face-up-face-down-effects",
+    "removal",
+    "removal-creature",
+    "removal-toughness",
+    "sweeper",
+    "symmetrical",
+    "triggered-ability",
+    "turn-face-up-trigger-self"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Insect"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "{X}{G/U}{G/U}",
+   "name": "Biomass Mutation|C19|1",
+   "oracle_id": "2dbe8aaa-2e34-4552-8da7-cf8ecbbaa7b6",
+   "oracle_text": "Creatures you control have base power and toughness X/X until end of turn.",
+   "otags": [
+    "combat-trick",
+    "cycle",
+    "cycle-block-rtr-r-hybrid",
+    "cycle-gtc-x-spell",
+    "power-boost-to-all",
+    "shapechange",
+    "toughness-boost-to-all"
+   ],
+   "role": null,
+   "type_line": "Instant"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Bojuka Bog|C19|1",
+   "oracle_id": "04b7362d-0490-4cb0-b5d7-2a7732f659ce",
+   "oracle_text": "This land enters tapped.\nWhen this land enters, exile target player's graveyard.\n{T}: Add {B}.",
+   "otags": [
+    "activated-ability",
+    "alliteration",
+    "card-names",
+    "cycle",
+    "cycle-land",
+    "cycle-mono-land",
+    "cycle-wwk-utilityland",
+    "hate",
+    "hate-graveyard",
+    "sweeper-graveyard",
+    "tapland",
+    "triggered-ability",
+    "utility-land"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "{2}{G}{U}",
+   "name": "Bounty of the Luxa|C19|1",
+   "oracle_id": "e6b20c30-88c2-4cb0-a5e4-46f1df924a7c",
+   "oracle_text": "At the beginning of your first main phase, remove all flood counters from this enchantment. If no counters were removed this way, put a flood counter on this enchantment and draw a card. Otherwise, add {C}{G}{U}.",
+   "otags": [
+    "adds-multiple-mana",
+    "aesthetic-counter",
+    "card-advantage",
+    "cycle",
+    "cycle-2x2-draft-signpost",
+    "draft-signpost",
+    "draw",
+    "draw-engine",
+    "non-mana-ability-mana",
+    "pure-draw",
+    "ramp",
+    "repeatable-card-advantage",
+    "repeatable-draw",
+    "repeatable-pure-draw",
+    "triggered-ability"
+   ],
+   "role": null,
+   "type_line": "Enchantment"
+  },
+  {
+   "cmc": 5.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [
+    "Morph"
+   ],
+   "mana_cost": "{4}{U}",
+   "name": "Chromeshell Crab|C19|1",
+   "oracle_id": "8cbac2e8-5755-433b-9f42-7fd5c214aab3",
+   "oracle_text": "Morph {4}{U} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, you may exchange control of target creature you control and target creature an opponent controls.",
+   "otags": [
+    "alliteration",
+    "alternative-cost",
+    "card-names",
+    "cheaper-than-mv",
+    "control-changing-effects",
+    "donate",
+    "exchange-control",
+    "face-up-face-down-effects",
+    "indefinite-effect",
+    "multiple-targets",
+    "theft",
+    "theft-creature",
+    "triggered-ability",
+    "turn-face-up-trigger-self",
+    "type-errata",
+    "untracked-indefinite-effect"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Crab Beast"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Command Tower|C19|1",
+   "oracle_id": "0895c9b7-ae7d-4bb3-af17-3b75deb50a25",
+   "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
+   "otags": [
+    "activated-ability",
+    "card-names",
+    "commander-identity-matters",
+    "commander-matters",
+    "rainbow-land",
+    "synergy-color-share",
+    "synergy-commander",
+    "tutored-by-name",
+    "virtual-legendary"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Cultivate|C19|1",
+   "oracle_id": "7d798e74-188f-40c2-958b-766c0cc45061",
+   "oracle_text": "",
+   "otags": [],
+   "role": null,
+   "type_line": "Card // Card"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Darkwater Catacombs|C19|1",
+   "oracle_id": "4869a530-757f-4364-8d8e-4dc8001f433c",
+   "oracle_text": "{1}, {T}: Add {U}{B}.",
+   "otags": [
+    "activated-ability",
+    "cycle",
+    "cycle-dual-land",
+    "cycle-land",
+    "cycle-ody-ally-filterland",
+    "cycle-ody-filterland",
+    "dual-land",
+    "filterland",
+    "mana-filter"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 3.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [
+    "Megamorph",
+    "Deathtouch"
+   ],
+   "mana_cost": "{1}{G}{G}",
+   "name": "Deathmist Raptor|C19|1",
+   "oracle_id": "a7d4f5aa-26d4-4363-aa5a-a26d6f791b82",
+   "oracle_text": "Deathtouch\nWhenever a permanent you control is turned face up, you may return this card from your graveyard to the battlefield face up or face down.\nMegamorph {4}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its megamorph cost and put a +1/+1 counter on it.)",
+   "otags": [
+    "alternative-cost",
+    "face-up-face-down-effects",
+    "gains-pp-counters",
+    "reanimate",
+    "reanimate-face-down",
+    "reanimate-self",
+    "recursion",
+    "recursion-self",
+    "trigger-from-graveyard",
+    "triggered-ability",
+    "turn-face-up-trigger",
+    "type-errata",
+    "type-errata-dinosaur"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Dinosaur Beast"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [
+    "Megamorph"
+   ],
+   "mana_cost": "{1}{G}",
+   "name": "Den Protector|C19|1",
+   "oracle_id": "59324efc-65b7-4b31-89c5-17aed5c7eeb1",
+   "oracle_text": "Creatures with power less than this creature's power can't block it.\nMegamorph {1}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its megamorph cost and put a +1/+1 counter on it.)\nWhen this creature is turned face up, return target card from your graveyard to your hand.",
+   "otags": [
+    "alternative-cost",
+    "card-advantage",
+    "cycle",
+    "cycle-dtk-r-megamorpher",
+    "evasion",
+    "face-up-face-down-effects",
+    "gains-pp-counters",
+    "hate",
+    "hate-low-power",
+    "howlgeist-ability",
+    "more-expensive-than-mv",
+    "power-matters",
+    "power-matters-self",
+    "recursion",
+    "recursion-any",
+    "regrowth",
+    "regrowth-any",
+    "scales-with-power",
+    "triggered-ability",
+    "turn-face-up-trigger-self"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Human Warrior"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Dimir Aqueduct|C19|1",
+   "oracle_id": "378a1d57-e2f1-4b84-9692-1564602e9e99",
+   "oracle_text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {U}{B}.",
+   "otags": [
+    "activated-ability",
+    "adds-multiple-mana",
+    "bounce",
+    "bounceland",
+    "cycle",
+    "cycle-dual-land",
+    "cycle-land",
+    "cycle-rav-bounceland",
+    "drawback",
+    "dual-land",
+    "rescue",
+    "rescue-land",
+    "tapland",
+    "triggered-ability"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "{1}{U}",
+   "name": "Echoing Truth|C19|1",
+   "oracle_id": "ef100544-3e6d-4661-a1d1-8b02e58c059c",
+   "oracle_text": "Return target nonland permanent and all other permanents with the same name as that permanent to their owners' hands.",
+   "otags": [
+    "blue-effect",
+    "bounce",
+    "cycle",
+    "cycle-dst-echoing-spell",
+    "name-matters",
+    "removal",
+    "removal-artifact",
+    "removal-aura",
+    "removal-battle",
+    "removal-bounce",
+    "removal-creature",
+    "removal-enchantment",
+    "removal-equipment",
+    "removal-nonland",
+    "removal-planeswalker",
+    "removal-spacecraft",
+    "removal-vehicle",
+    "single-target-instant-sorcery",
+    "spot-removal"
+   ],
+   "role": null,
+   "type_line": "Instant"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Evolving Wilds|C19|1",
+   "oracle_id": "a75445d3-1303-4bb5-89ad-26ea93fecd48",
+   "oracle_text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+   "otags": [
+    "activated-ability",
+    "fetchland",
+    "sacrifice-self",
+    "tutor",
+    "tutor-land",
+    "tutor-land-basic",
+    "tutor-land-to-battlefield",
+    "tutor-to",
+    "tutor-to-battlefield"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Exotic Orchard|C19|1",
+   "oracle_id": "27b047e3-0d41-45e2-98e9-9391d7923a1e",
+   "oracle_text": "{T}: Add one mana of any color that a land an opponent controls could produce.",
+   "otags": [
+    "activated-ability",
+    "rainbow-land"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "{1}{G}",
+   "name": "Explore|C19|1",
+   "oracle_id": "b8f566ea-8283-4afa-9ac8-737e26419283",
+   "oracle_text": "You may play an additional land this turn.\nDraw a card.",
+   "otags": [
+    "cantrip",
+    "card-advantage",
+    "card-names",
+    "draw",
+    "extra-land",
+    "land-ramp",
+    "play-additional-land",
+    "pure-draw",
+    "ramp",
+    "shares-name-with-a-mechanic",
+    "single-english-word-name"
+   ],
+   "role": null,
+   "type_line": "Sorcery"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Farseek|C19|1",
+   "oracle_id": "0f17c897-676f-463c-a59e-a3b4ae4a6d2d",
+   "oracle_text": "",
+   "otags": [],
+   "role": null,
+   "type_line": "Card // Card"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Forest|C19|1",
+   "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+   "oracle_text": "({T}: Add {G}.)",
+   "otags": [
+    "activated-ability",
+    "card-names",
+    "cycle",
+    "cycle-land",
+    "cycle-lea-basic-land",
+    "cycle-mono-land",
+    "eponymous",
+    "single-english-word-name",
+    "tutored-by-name",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Basic Land \u2014 Forest"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Forest|C19|1",
+   "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+   "oracle_text": "({T}: Add {G}.)",
+   "otags": [
+    "activated-ability",
+    "card-names",
+    "cycle",
+    "cycle-land",
+    "cycle-lea-basic-land",
+    "cycle-mono-land",
+    "eponymous",
+    "single-english-word-name",
+    "tutored-by-name",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Basic Land \u2014 Forest"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Forest|C19|1",
+   "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+   "oracle_text": "({T}: Add {G}.)",
+   "otags": [
+    "activated-ability",
+    "card-names",
+    "cycle",
+    "cycle-land",
+    "cycle-lea-basic-land",
+    "cycle-mono-land",
+    "eponymous",
+    "single-english-word-name",
+    "tutored-by-name",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Basic Land \u2014 Forest"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Forest|C19|1",
+   "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+   "oracle_text": "({T}: Add {G}.)",
+   "otags": [
+    "activated-ability",
+    "card-names",
+    "cycle",
+    "cycle-land",
+    "cycle-lea-basic-land",
+    "cycle-mono-land",
+    "eponymous",
+    "single-english-word-name",
+    "tutored-by-name",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Basic Land \u2014 Forest"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Forest|C19|1",
+   "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+   "oracle_text": "({T}: Add {G}.)",
+   "otags": [
+    "activated-ability",
+    "card-names",
+    "cycle",
+    "cycle-land",
+    "cycle-lea-basic-land",
+    "cycle-mono-land",
+    "eponymous",
+    "single-english-word-name",
+    "tutored-by-name",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Basic Land \u2014 Forest"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Forest|C19|1",
+   "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+   "oracle_text": "({T}: Add {G}.)",
+   "otags": [
+    "activated-ability",
+    "card-names",
+    "cycle",
+    "cycle-land",
+    "cycle-lea-basic-land",
+    "cycle-mono-land",
+    "eponymous",
+    "single-english-word-name",
+    "tutored-by-name",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Basic Land \u2014 Forest"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Forest|C19|1",
+   "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+   "oracle_text": "({T}: Add {G}.)",
+   "otags": [
+    "activated-ability",
+    "card-names",
+    "cycle",
+    "cycle-land",
+    "cycle-lea-basic-land",
+    "cycle-mono-land",
+    "eponymous",
+    "single-english-word-name",
+    "tutored-by-name",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Basic Land \u2014 Forest"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B",
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Foul Orchard|C19|1",
+   "oracle_id": "ad6a2776-801f-4743-8268-6d654122171e",
+   "oracle_text": "This land enters tapped.\n{T}: Add {B} or {G}.",
+   "otags": [
+    "activated-ability",
+    "cycle",
+    "cycle-dual-land",
+    "cycle-dual-tapland",
+    "cycle-land",
+    "cycle-soi-tapland",
+    "dual-land",
+    "tapland"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 7.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [
+    "Manifest"
+   ],
+   "mana_cost": "{5}{B}{B}",
+   "name": "Ghastly Conscription|C19|1",
+   "oracle_id": "3bf20e68-0e19-4242-bfba-a8a1bb244685",
+   "oracle_text": "Exile all creature cards from target player's graveyard in a face-down pile, shuffle that pile, then manifest those cards. (To manifest a card, put it onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)",
+   "otags": [
+    "control-changing-effects",
+    "hate",
+    "hate-graveyard",
+    "multiple-bodies",
+    "pile",
+    "reanimate",
+    "reanimate-creature",
+    "reanimate-from-any",
+    "reanimate-from-opponent",
+    "recursion",
+    "recursion-creature",
+    "single-target-instant-sorcery",
+    "theft"
+   ],
+   "role": null,
+   "type_line": "Sorcery"
+  },
+  {
+   "cmc": 5.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [
+    "Morph",
+    "Enchant"
+   ],
+   "mana_cost": "{4}{B}",
+   "name": "Gift of Doom|C19|1",
+   "oracle_id": "2dd1450e-902e-480a-9c42-1c47549d2eeb",
+   "oracle_text": "Enchant creature\nEnchanted creature has deathtouch and indestructible.\nMorph\u2014Sacrifice another creature. (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nAs this Aura is turned face up, you may attach it to a creature.",
+   "otags": [
+    "alternative-cost",
+    "cheaper-than-mv",
+    "face-up-face-down-effects",
+    "faux-targeting",
+    "gives-deathtouch",
+    "gives-indestructible",
+    "protection",
+    "protects-creature",
+    "quick-attach",
+    "quick-enchant",
+    "sacrifice-outlet",
+    "sacrifice-outlet-creature",
+    "unique-cr-reference"
+   ],
+   "role": null,
+   "type_line": "Enchantment \u2014 Aura"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B",
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Golgari Guildgate|C19|1",
+   "oracle_id": "fa2da325-6859-45bb-b185-35526b01bcc1",
+   "oracle_text": "This land enters tapped.\n{T}: Add {B} or {G}.",
+   "otags": [
+    "activated-ability",
+    "alliteration",
+    "card-names",
+    "cycle",
+    "cycle-dual-land",
+    "cycle-guildgate",
+    "cycle-land",
+    "dual-land",
+    "tapland"
+   ],
+   "role": null,
+   "type_line": "Land \u2014 Gate"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B",
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Golgari Rot Farm|C19|1",
+   "oracle_id": "1b301478-b14f-4ef8-94e6-9647d582eabe",
+   "oracle_text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {B}{G}.",
+   "otags": [
+    "activated-ability",
+    "adds-multiple-mana",
+    "bounce",
+    "bounceland",
+    "cycle",
+    "cycle-dual-land",
+    "cycle-land",
+    "cycle-rav-bounceland",
+    "drawback",
+    "dual-land",
+    "rescue",
+    "rescue-land",
+    "tapland",
+    "triggered-ability"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 6.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [
+    "Reach",
+    "Flash"
+   ],
+   "mana_cost": "{5}{G}",
+   "name": "Great Oak Guardian|C19|1",
+   "oracle_id": "5dba7746-c087-4ec1-92ca-ab9882dea24d",
+   "oracle_text": "Flash (You may cast this spell any time you could cast an instant.)\nReach\nWhen this creature enters, creatures target player controls get +2/+2 until end of turn. Untap them.",
+   "otags": [
+    "combat-trick",
+    "extra-untap",
+    "flavors-of-vanilla",
+    "power-boost-to-all",
+    "toughness-boost-to-all",
+    "triggered-ability",
+    "untapper",
+    "untapper-creature",
+    "virtual-french-vanilla"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Treefolk"
+  },
+  {
+   "cmc": 3.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [
+    "Morph"
+   ],
+   "mana_cost": "{2}{B}",
+   "name": "Grim Haruspex|C19|1",
+   "oracle_id": "72aef1d8-11df-4bc2-af83-907b05df73a8",
+   "oracle_text": "Morph {B} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhenever another nontoken creature you control dies, draw a card.",
+   "otags": [
+    "alternative-cost",
+    "card-advantage",
+    "death-trigger",
+    "draw",
+    "draw-engine",
+    "pure-draw",
+    "repeatable-card-advantage",
+    "repeatable-draw",
+    "repeatable-pure-draw",
+    "triggered-ability"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Human Wizard"
+  },
+  {
+   "cmc": 3.0,
+   "color_identity": [
+    "B",
+    "G"
+   ],
+   "keywords": [
+    "Trample"
+   ],
+   "mana_cost": "{1}{B}{G}",
+   "name": "Grismold, the Dreadsower|C19|1",
+   "oracle_id": "d0d28e2c-416e-432c-b4bf-07f6302c52ea",
+   "oracle_text": "Trample\nAt the beginning of your end step, each player creates a 1/1 green Plant creature token.\nWhenever a creature token dies, put a +1/+1 counter on Grismold.",
+   "otags": [
+    "cycle",
+    "cycle-c19-secondary-commander",
+    "death-trigger",
+    "donate-token",
+    "gains-pp-counters",
+    "group-hug",
+    "hate",
+    "hate-token",
+    "repeatable-creature-tokens",
+    "repeatable-pp-counters",
+    "repeatable-token-generator",
+    "symmetrical",
+    "synergy-token",
+    "synergy-token-creature",
+    "triggered-ability"
+   ],
+   "role": null,
+   "type_line": "Legendary Creature \u2014 Troll Shaman"
+  },
+  {
+   "cmc": 6.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [],
+   "mana_cost": "{4}{B}{B}",
+   "name": "Hex|C19|1",
+   "oracle_id": "89457fa8-b0e2-4277-b6a9-c6601c59b46d",
+   "oracle_text": "Destroy six target creatures.",
+   "otags": [
+    "card-names",
+    "multi-removal",
+    "multiple-targets",
+    "removal",
+    "removal-creature",
+    "removal-destroy",
+    "single-english-word-name",
+    "three-letter-name"
+   ],
+   "role": null,
+   "type_line": "Sorcery"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [
+    "Morph"
+   ],
+   "mana_cost": "{X}{G}{G}",
+   "name": "Hooded Hydra|C19|1",
+   "oracle_id": "637ddd65-112d-40f7-9bab-a61724d9165c",
+   "oracle_text": "This creature enters with X +1/+1 counters on it.\nWhen this creature dies, create a 1/1 green Snake creature token for each +1/+1 counter on it.\nMorph {3}{G}{G}\nAs this creature is turned face up, put five +1/+1 counters on it.",
+   "otags": [
+    "alliteration",
+    "alternative-cost",
+    "card-names",
+    "counters-matter",
+    "death-trigger",
+    "death-trigger-self",
+    "face-up-face-down-effects",
+    "gains-pp-counters",
+    "leaves-body-behind",
+    "more-expensive-than-mv",
+    "pp-counters-matter",
+    "splits-on-death",
+    "triggered-ability"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Snake Hydra"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "G",
+    "U"
+   ],
+   "keywords": [
+    "Flying",
+    "Morph"
+   ],
+   "mana_cost": "{G}{U}",
+   "name": "Icefeather Aven|C19|1",
+   "oracle_id": "9fb901db-1ff7-4a8d-8233-fe7e3dee7fd1",
+   "oracle_text": "Flying\nMorph {1}{G}{U} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, you may return another target creature to its owner's hand.",
+   "otags": [
+    "alternative-cost",
+    "bear-with-set-s-mechanic",
+    "blue-effect",
+    "bounce",
+    "cycle",
+    "cycle-ktk-draft-signpost",
+    "draft-signpost",
+    "evasion",
+    "face-up-face-down-effects",
+    "more-expensive-than-mv",
+    "removal",
+    "removal-bounce",
+    "removal-creature",
+    "spot-removal",
+    "staple-with-set-s-mechanic",
+    "triggered-ability",
+    "turn-face-up-trigger-self"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Bird Shaman"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Island|C19|1",
+   "oracle_id": "4eac18d0-a0eb-4771-8662-9eef8b2b3e32",
+   "oracle_text": "",
+   "otags": [],
+   "role": null,
+   "type_line": "Card // Card"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Island|C19|1",
+   "oracle_id": "4eac18d0-a0eb-4771-8662-9eef8b2b3e32",
+   "oracle_text": "",
+   "otags": [],
+   "role": null,
+   "type_line": "Card // Card"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Island|C19|1",
+   "oracle_id": "4eac18d0-a0eb-4771-8662-9eef8b2b3e32",
+   "oracle_text": "",
+   "otags": [],
+   "role": null,
+   "type_line": "Card // Card"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Island|C19|1",
+   "oracle_id": "4eac18d0-a0eb-4771-8662-9eef8b2b3e32",
+   "oracle_text": "",
+   "otags": [],
+   "role": null,
+   "type_line": "Card // Card"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Island|C19|1",
+   "oracle_id": "4eac18d0-a0eb-4771-8662-9eef8b2b3e32",
+   "oracle_text": "",
+   "otags": [],
+   "role": null,
+   "type_line": "Card // Card"
+  },
+  {
+   "cmc": 5.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "{3}{U}{U}",
+   "name": "Ixidron|C19|1",
+   "oracle_id": "a86587ea-14ec-45db-8bac-10b6b9eaeb25",
+   "oracle_text": "As this creature enters, turn all other nontoken creatures face down. (They're 2/2 creatures.)\nIxidron's power and toughness are each equal to the number of face-down creatures on the battlefield.",
+   "otags": [
+    "cda-power",
+    "cda-toughness",
+    "characteristic-defining-ability",
+    "face-up-face-down-effects",
+    "hate",
+    "hate-face-down",
+    "humble",
+    "multi-removal",
+    "removal",
+    "removal-creature",
+    "sweeper",
+    "synergy-face-down",
+    "turn-face-down"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Illusion"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B",
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Jungle Hollow|C19|1",
+   "oracle_id": "6de714e1-446d-4fb9-9e3d-bcd3ec6af9ca",
+   "oracle_text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {B} or {G}.",
+   "otags": [
+    "activated-ability",
+    "cycle",
+    "cycle-dual-land",
+    "cycle-ktk-gainland",
+    "cycle-land",
+    "dual-land",
+    "gainland",
+    "lifegain",
+    "tapland",
+    "triggered-ability"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [
+    "Megamorph"
+   ],
+   "mana_cost": "{1}{U}",
+   "name": "Kadena's Silencer|C19|1",
+   "oracle_id": "02095128-82cd-4531-b47e-471307746f81",
+   "oracle_text": "When this creature is turned face up, counter all abilities your opponents control.\nMegamorph {1}{U} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its megamorph cost and put a +1/+1 counter on it.)",
+   "otags": [
+    "alternative-cost",
+    "blue-effect",
+    "card-names",
+    "counterspell",
+    "counterspell-ability",
+    "counterspell-sweeper",
+    "counterspell-with-set-mechanic",
+    "cycle",
+    "cycle-c19-signature-spell",
+    "face-up-face-down-effects",
+    "gains-pp-counters",
+    "more-expensive-than-mv",
+    "namesake-spell",
+    "staple-with-set-s-mechanic",
+    "triggered-ability",
+    "turn-face-up-trigger-self",
+    "type-errata",
+    "type-errata-genericise",
+    "type-errata-naga"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Snake Wizard"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [
+    "Morph"
+   ],
+   "mana_cost": "{3}{U}",
+   "name": "Kheru Spellsnatcher|C19|1",
+   "oracle_id": "c01411e0-77b2-4e65-a369-5dbe13745769",
+   "oracle_text": "Morph {4}{U}{U} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, counter target spell. If that spell is countered this way, exile it instead of putting it into its owner's graveyard. You may cast that card without paying its mana cost for as long as it remains exiled.",
+   "otags": [
+    "alternative-cost",
+    "blue-effect",
+    "cheaper-than-mv",
+    "control-changing-effects",
+    "counterspell",
+    "counterspell-exile",
+    "counterspell-with-set-mechanic",
+    "face-up-face-down-effects",
+    "gives-castable-from-exile",
+    "gives-castable-from-nonhand",
+    "self-replacement-effect",
+    "staple-with-set-s-mechanic",
+    "theft",
+    "theft-cast",
+    "theft-spell",
+    "triggered-ability",
+    "turn-face-up-trigger-self",
+    "type-errata",
+    "type-errata-genericise",
+    "type-errata-naga"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Snake Wizard"
+  },
+  {
+   "cmc": 3.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "{2}{U}",
+   "name": "Leadership Vacuum|C19|1",
+   "oracle_id": "5f9dd005-1648-451e-b888-69ef81331c95",
+   "oracle_text": "Target player returns each commander they control from the battlefield to the command zone.\nDraw a card.",
+   "otags": [
+    "cantrip",
+    "card-advantage",
+    "draw",
+    "hate",
+    "hate-commander",
+    "multi-removal",
+    "pure-draw",
+    "removal",
+    "removal-creature",
+    "single-target-instant-sorcery",
+    "spot-removal"
+   ],
+   "role": null,
+   "type_line": "Instant"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B",
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Llanowar Wastes|C19|1",
+   "oracle_id": "32116127-cf96-4a1b-8896-a1ebc087b597",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {B} or {G}. This land deals 1 damage to you.",
+   "otags": [
+    "activated-ability",
+    "burn-you",
+    "cycle",
+    "cycle-apc-painland",
+    "cycle-dual-land",
+    "cycle-land",
+    "cycle-painland",
+    "dual-land",
+    "life-payment",
+    "mana-ability-with-extra-effect",
+    "painland"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [],
+   "mana_cost": "{1}{B}",
+   "name": "Mire in Misery|C19|1",
+   "oracle_id": "da1d1f64-e239-4b92-9eb9-fe9ea06aa18a",
+   "oracle_text": "Each opponent sacrifices a creature or enchantment of their choice.",
+   "otags": [
+    "alliteration",
+    "card-names",
+    "multi-removal",
+    "removal",
+    "removal-creature",
+    "removal-enchantment",
+    "removal-sacrifice",
+    "spot-removal"
+   ],
+   "role": null,
+   "type_line": "Sorcery"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Myriad Landscape|C19|1",
+   "oracle_id": "2549bc57-9ffb-4053-9f10-f2a5f792b845",
+   "oracle_text": "This land enters tapped.\n{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Search your library for up to two basic land cards that share a land type, put them onto the battlefield tapped, then shuffle.",
+   "otags": [
+    "activated-ability",
+    "fetchland",
+    "land-ramp",
+    "ramp",
+    "sacrifice-self",
+    "tapland",
+    "tutor",
+    "tutor-land",
+    "tutor-land-basic",
+    "tutor-land-to-battlefield",
+    "tutor-to",
+    "tutor-to-battlefield",
+    "utility-land"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [
+    "Morph"
+   ],
+   "mana_cost": "{3}{G}",
+   "name": "Nantuko Vigilante|C19|1",
+   "oracle_id": "28ea78dc-7ad6-4006-aaf8-4b25057ec019",
+   "oracle_text": "Morph {1}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, destroy target artifact or enchantment.",
+   "otags": [
+    "alternative-cost",
+    "cheaper-than-mv",
+    "disenchant-naturalize",
+    "face-up-face-down-effects",
+    "naturalize-with-set-mechanic",
+    "removal",
+    "removal-artifact",
+    "removal-destroy",
+    "removal-enchantment",
+    "spot-removal",
+    "staple-with-set-s-mechanic",
+    "triggered-ability",
+    "turn-face-up-trigger-self",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Insect Druid Mutant"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B",
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Opulent Palace|C19|1",
+   "oracle_id": "f9e7e855-1e3b-42d3-91b0-64ba8b5b8982",
+   "oracle_text": "This land enters tapped.\n{T}: Add {B}, {G}, or {U}.",
+   "otags": [
+    "activated-ability",
+    "cycle",
+    "cycle-ktk-wedgeland",
+    "cycle-land",
+    "cycle-triland",
+    "cycle-triple-tapland",
+    "tapland",
+    "triland",
+    "wedgeland"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 5.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "{3}{G}{G}",
+   "name": "Overwhelming Stampede|C19|1",
+   "oracle_id": "e1e96802-fd0c-41f1-aa21-3287d75a0e88",
+   "oracle_text": "Until end of turn, creatures you control gain trample and get +X/+X, where X is the greatest power among creatures you control.",
+   "otags": [
+    "gives-trample",
+    "overrun",
+    "power-boost-to-all",
+    "power-doubler",
+    "power-matters",
+    "scales-with-power",
+    "toughness-boost-to-all"
+   ],
+   "role": null,
+   "type_line": "Sorcery"
+  },
+  {
+   "cmc": 3.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "{3}",
+   "name": "Pendant of Prosperity|C19|1",
+   "oracle_id": "d958321b-789d-4f9a-bdbe-f907166a0216",
+   "oracle_text": "This artifact enters under the control of an opponent of your choice.\n{2}, {T}: Draw a card, then you may put a land card from your hand onto the battlefield. This artifact's owner draws a card, then that player may put a land card from their hand onto the battlefield.",
+   "otags": [
+    "activated-ability",
+    "alliteration",
+    "card-advantage",
+    "card-names",
+    "control-changing-effects",
+    "cost-ignorer",
+    "defector",
+    "draw",
+    "draw-engine",
+    "extra-land",
+    "group-hug",
+    "land-ramp",
+    "pure-draw",
+    "ramp",
+    "repeatable-card-advantage",
+    "repeatable-draw",
+    "repeatable-pure-draw",
+    "selective-group-hug",
+    "sneak",
+    "sneak-land",
+    "tome"
+   ],
+   "role": null,
+   "type_line": "Artifact"
+  },
+  {
+   "cmc": 3.0,
+   "color_identity": [
+    "B",
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "{1}{B}{G}",
+   "name": "Putrefy|C19|1",
+   "oracle_id": "9b271430-f53d-42d6-a547-2f286dd9bcb6",
+   "oracle_text": "Destroy target artifact or creature. It can't be regenerated.",
+   "otags": [
+    "card-names",
+    "cycle",
+    "cycle-mm3-draft-signpost",
+    "cycle-rvr-u-two-color",
+    "draft-signpost",
+    "hate",
+    "hate-regenerate",
+    "removal",
+    "removal-artifact",
+    "removal-creature",
+    "removal-destroy",
+    "single-english-word-name",
+    "single-target-instant-sorcery",
+    "spot-removal"
+   ],
+   "role": null,
+   "type_line": "Instant"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "B",
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "{1}{B}{G}{U}",
+   "name": "Rayami, First of the Fallen|C19|1",
+   "oracle_id": "f196ae91-be5c-461b-a69f-aecb538923b4",
+   "oracle_text": "If a nontoken creature would die, exile that card with a blood counter on it instead.\nAs long as an exiled creature card with a blood counter on it has flying, Rayami has flying. The same is true for first strike, double strike, deathtouch, haste, hexproof, indestructible, lifelink, menace, protection, reach, trample, and vigilance.",
+   "otags": [
+    "aesthetic-counter",
+    "alliteration",
+    "alt-commander",
+    "borrow-ability",
+    "card-names",
+    "cycle",
+    "cycle-c19-alt-commander",
+    "evasion",
+    "exile-with-counter",
+    "gains-deathtouch",
+    "gains-double-strike",
+    "gains-first-strike",
+    "gains-flying",
+    "gains-haste",
+    "gains-hexproof",
+    "gains-indestructible",
+    "gains-lifelink",
+    "gains-menace",
+    "gains-protection",
+    "gains-reach",
+    "gains-trample",
+    "gains-vigilance",
+    "graveyard-seal",
+    "hate",
+    "hate-deathtouch",
+    "hate-double-strike",
+    "hate-first-strike",
+    "hate-flying",
+    "hate-graveyard",
+    "hate-haste",
+    "hate-menace",
+    "hate-protection",
+    "hate-reach",
+    "hate-vigilance",
+    "keyword-soup",
+    "lifegain",
+    "protects-self",
+    "repeatable-lifegain",
+    "synergy-deathtouch",
+    "synergy-double-strike",
+    "synergy-first-strike",
+    "synergy-flying",
+    "synergy-haste",
+    "synergy-hexproof",
+    "synergy-indestructible",
+    "synergy-lifelink",
+    "synergy-menace",
+    "synergy-protection",
+    "synergy-reach",
+    "synergy-trample",
+    "synergy-vigilance"
+   ],
+   "role": null,
+   "type_line": "Legendary Creature \u2014 Vampire"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [
+    "Manifest"
+   ],
+   "mana_cost": "{1}{U}",
+   "name": "Reality Shift|C19|1",
+   "oracle_id": "70dc830e-d05b-4fc7-88dd-879e140b3fbf",
+   "oracle_text": "Exile target creature. Its controller manifests the top card of their library. (That player puts the top card of their library onto the battlefield face down as a 2/2 creature. If it's a creature card, it can be turned face up any time for its mana cost.)",
+   "otags": [
+    "drawback",
+    "removal",
+    "removal-creature",
+    "removal-exile",
+    "single-target-instant-sorcery",
+    "spot-removal",
+    "swap-removal"
+   ],
+   "role": null,
+   "type_line": "Instant"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Reliquary Tower|C19|1",
+   "oracle_id": "c23e5b80-08d2-4e24-9908-fe2aa4f30f6f",
+   "oracle_text": "You have no maximum hand size.\n{T}: Add {C}.",
+   "otags": [
+    "activated-ability",
+    "hand-size-increase",
+    "utility-land"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [
+    "Entwine"
+   ],
+   "mana_cost": "{G}{G}",
+   "name": "Road of Return|C19|1",
+   "oracle_id": "0007c283-5b7a-4c00-9ca1-b455c8dff8c3",
+   "oracle_text": "Choose one \u2014\n\u2022 Return target permanent card from your graveyard to your hand.\n\u2022 Put your commander into your hand from the command zone.\nEntwine {2} (Choose both if you pay the entwine cost.)",
+   "otags": [
+    "additional-cost",
+    "alliteration",
+    "card-advantage",
+    "card-names",
+    "commander-matters",
+    "commander-tax-evasion",
+    "modal",
+    "more-expensive-than-mv",
+    "recursion",
+    "recursion-permanent",
+    "regrowth",
+    "regrowth-permanent",
+    "single-target-instant-sorcery",
+    "synergy-commander"
+   ],
+   "role": null,
+   "type_line": "Sorcery"
+  },
+  {
+   "cmc": 6.0,
+   "color_identity": [
+    "G",
+    "U"
+   ],
+   "keywords": [
+    "Morph",
+    "Hexproof",
+    "Trample"
+   ],
+   "mana_cost": "{4}{G}{U}",
+   "name": "Sagu Mauler|C19|1",
+   "oracle_id": "8d877ee9-1751-48a1-9f2f-02897dae153b",
+   "oracle_text": "Trample, hexproof\nMorph {3}{G}{U} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)",
+   "otags": [
+    "alternative-cost",
+    "cheaper-than-mv",
+    "cycle",
+    "cycle-ktk-r-two-color",
+    "flavors-of-vanilla",
+    "french-vanilla",
+    "protects-self"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Beast"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "{1}{G}",
+   "name": "Sakura-Tribe Elder|C19|1",
+   "oracle_id": "e3afc704-220f-498f-9eaa-0821b17dc24c",
+   "oracle_text": "Sacrifice this creature: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+   "otags": [
+    "activated-ability",
+    "land-ramp",
+    "martyr",
+    "ramp",
+    "sacrifice-self",
+    "tutor",
+    "tutor-land",
+    "tutor-land-basic",
+    "tutor-land-to-battlefield",
+    "tutor-to",
+    "tutor-to-battlefield"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Snake Shaman"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "{4}",
+   "name": "Scaretiller|C19|1",
+   "oracle_id": "e4b32e47-5484-4ee9-bac3-4ba37558a56a",
+   "oracle_text": "Whenever this creature becomes tapped, choose one \u2014\n\u2022 You may put a land card from your hand onto the battlefield tapped.\n\u2022 Return target land card from your graveyard to the battlefield tapped.",
+   "otags": [
+    "cost-ignorer",
+    "extra-land",
+    "land-ramp",
+    "modal",
+    "ramp",
+    "reanimate",
+    "reanimate-land",
+    "recursion",
+    "recursion-land",
+    "sneak",
+    "sneak-land",
+    "triggered-ability",
+    "uninspired"
+   ],
+   "role": null,
+   "type_line": "Artifact Creature \u2014 Scarecrow"
+  },
+  {
+   "cmc": 3.0,
+   "color_identity": [],
+   "keywords": [
+    "Manifest"
+   ],
+   "mana_cost": "{3}",
+   "name": "Scroll of Fate|C19|1",
+   "oracle_id": "c15c13d2-8db9-4801-a1f0-f087f2551c92",
+   "oracle_text": "{T}: Manifest a card from your hand. (Put that card onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)",
+   "otags": [
+    "activated-ability"
+   ],
+   "role": null,
+   "type_line": "Artifact"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "{G}{U}",
+   "name": "Secret Plans|C19|1",
+   "oracle_id": "7d0d7480-fddf-4841-bc2a-239e03f97f60",
+   "oracle_text": "Face-down creatures you control get +0/+1.\nWhenever a permanent you control is turned face up, draw a card.",
+   "otags": [
+    "anthem",
+    "card-advantage",
+    "cycle",
+    "cycle-ktk-draft-signpost",
+    "draft-signpost",
+    "draw",
+    "draw-engine",
+    "face-up-face-down-effects",
+    "pure-draw",
+    "repeatable-card-advantage",
+    "repeatable-draw",
+    "repeatable-pure-draw",
+    "synergy-face-down",
+    "toughness-boost-to-all",
+    "triggered-ability",
+    "turn-face-up-trigger"
+   ],
+   "role": null,
+   "type_line": "Enchantment"
+  },
+  {
+   "cmc": 5.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "{3}{G}{G}",
+   "name": "Seedborn Muse|C19|1",
+   "oracle_id": "463865bc-087e-477b-9e86-84e77f1ad931",
+   "oracle_text": "Untap all permanents you control during each other player's untap step.",
+   "otags": [
+    "cycle",
+    "cycle-lgn-muse",
+    "extra-untap",
+    "untapper",
+    "untapper-artifact",
+    "untapper-creature",
+    "untapper-land",
+    "untapper-permanent"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Spirit"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Shrine of the Forsaken Gods|C19|1",
+   "oracle_id": "8ea46945-d5ab-4209-b473-4769e7b8b962",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {C}{C}. Spend this mana only to cast colorless spells. Activate only if you control seven or more lands.",
+   "otags": [
+    "activated-ability",
+    "adds-multiple-mana",
+    "land-count-matters",
+    "lands-matter",
+    "ramp",
+    "restricted-mana",
+    "sol-land",
+    "synergy-colorless"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [
+    "Megamorph"
+   ],
+   "mana_cost": "{1}{B}",
+   "name": "Silumgar Assassin|C19|1",
+   "oracle_id": "f496e8cb-1d79-4a78-be15-fdb7e3d0de71",
+   "oracle_text": "Creatures with power greater than this creature's power can't block it.\nMegamorph {2}{B} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its megamorph cost and put a +1/+1 counter on it.)\nWhen this creature is turned face up, destroy target creature with power 3 or less an opponent controls.",
+   "otags": [
+    "alternative-cost",
+    "card-names",
+    "cycle",
+    "cycle-dtk-r-megamorpher",
+    "evasion",
+    "face-up-face-down-effects",
+    "gains-pp-counters",
+    "hate",
+    "hate-high-pt",
+    "hate-low-power",
+    "more-expensive-than-mv",
+    "namesake-spell",
+    "removal",
+    "removal-creature",
+    "removal-destroy",
+    "skulk",
+    "spot-removal",
+    "triggered-ability",
+    "turn-face-up-trigger-self"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Human Assassin"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Simic Growth Chamber|C19|1",
+   "oracle_id": "046f5783-cc7b-416a-8cf6-2bcef9c2cc1a",
+   "oracle_text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {G}{U}.",
+   "otags": [
+    "activated-ability",
+    "adds-multiple-mana",
+    "bounce",
+    "bounceland",
+    "cycle",
+    "cycle-dual-land",
+    "cycle-land",
+    "cycle-rav-bounceland",
+    "drawback",
+    "dual-land",
+    "rescue",
+    "rescue-land",
+    "tapland",
+    "triggered-ability"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Simic Guildgate|C19|1",
+   "oracle_id": "e8705df9-6439-4930-91b6-229f818559af",
+   "oracle_text": "This land enters tapped.\n{T}: Add {G} or {U}.",
+   "otags": [
+    "activated-ability",
+    "cycle",
+    "cycle-dual-land",
+    "cycle-guildgate",
+    "cycle-land",
+    "dual-land",
+    "tapland"
+   ],
+   "role": null,
+   "type_line": "Land \u2014 Gate"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [
+    "Morph"
+   ],
+   "mana_cost": "{1}{B}",
+   "name": "Skinthinner|C19|1",
+   "oracle_id": "c4dee5fe-36f0-4155-9437-2c0504feba2c",
+   "oracle_text": "Morph {3}{B}{B} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, destroy target nonblack creature. It can't be regenerated.",
+   "otags": [
+    "alternative-cost",
+    "face-up-face-down-effects",
+    "hate",
+    "hate-regenerate",
+    "more-expensive-than-mv",
+    "removal",
+    "removal-creature",
+    "removal-destroy",
+    "spot-removal",
+    "triggered-ability",
+    "turn-face-up-trigger-self"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Zombie"
+  },
+  {
+   "cmc": 1.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "{1}",
+   "name": "Sol Ring|C19|1",
+   "oracle_id": "6ad8011d-3471-4369-9d68-b264cc027487",
+   "oracle_text": "{T}: Add {C}{C}.",
+   "otags": [
+    "activated-ability",
+    "adds-multiple-mana",
+    "full-refund",
+    "mana-producer",
+    "mana-rock",
+    "ramp",
+    "refund"
+   ],
+   "role": null,
+   "type_line": "Artifact"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [
+    "Flying",
+    "Megamorph"
+   ],
+   "mana_cost": "{1}{U}",
+   "name": "Stratus Dancer|C19|1",
+   "oracle_id": "5b6a821c-51e4-44dc-8353-f4d10eab7fcb",
+   "oracle_text": "Flying\nMegamorph {1}{U} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its megamorph cost and put a +1/+1 counter on it.)\nWhen this creature is turned face up, counter target instant or sorcery spell.",
+   "otags": [
+    "alternative-cost",
+    "blue-effect",
+    "counterspell",
+    "counterspell-instant",
+    "counterspell-sorcery",
+    "cycle",
+    "cycle-dtk-r-megamorpher",
+    "evasion",
+    "face-up-face-down-effects",
+    "gains-pp-counters",
+    "more-expensive-than-mv",
+    "triggered-ability",
+    "turn-face-up-trigger-self"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Djinn Monk"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "{2}",
+   "name": "Strionic Resonator|C19|1",
+   "oracle_id": "cf751552-156f-4f81-ac94-9814dce099f9",
+   "oracle_text": "{2}, {T}: Copy target triggered ability you control. You may choose new targets for the copy. (A triggered ability uses the words \"when,\" \"whenever,\" or \"at.\")",
+   "otags": [
+    "activated-ability",
+    "copy",
+    "copy-ability"
+   ],
+   "role": null,
+   "type_line": "Artifact"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [
+    "Split second"
+   ],
+   "mana_cost": "{2}{U}{U}",
+   "name": "Sudden Substitution|C19|1",
+   "oracle_id": "e5ddacfb-e5a8-4885-a4c9-fa117f321293",
+   "oracle_text": "Split second (As long as this spell is on the stack, players can't cast spells or activate abilities that aren't mana abilities.)\nExchange control of target noncreature spell and target creature. Then the spell's controller may choose new targets for it.",
+   "otags": [
+    "alliteration",
+    "card-names",
+    "change-target",
+    "control-changing-effects",
+    "exchange-control",
+    "hate",
+    "hate-counterspell",
+    "multiple-targets",
+    "synergy-noncreature",
+    "theft",
+    "theft-creature",
+    "theft-spell"
+   ],
+   "role": null,
+   "type_line": "Instant"
+  },
+  {
+   "cmc": 3.0,
+   "color_identity": [
+    "B",
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "{B}{G}{U}",
+   "name": "Sultai Charm|C19|1",
+   "oracle_id": "46ed38d1-e642-4cea-99ed-a9c17fd982b1",
+   "oracle_text": "Choose one \u2014\n\u2022 Destroy target monocolored creature.\n\u2022 Destroy target artifact or enchantment.\n\u2022 Draw two cards, then discard a card.",
+   "otags": [
+    "blue-effect",
+    "card-advantage",
+    "catalog",
+    "charm",
+    "cycle",
+    "cycle-ktk-charm",
+    "discard-outlet",
+    "disenchant-naturalize",
+    "draw",
+    "hate",
+    "hate-color",
+    "hate-monocolor",
+    "loot",
+    "modal",
+    "removal",
+    "removal-artifact",
+    "removal-creature",
+    "removal-destroy",
+    "removal-enchantment",
+    "single-target-instant-sorcery",
+    "spot-removal"
+   ],
+   "role": null,
+   "type_line": "Instant"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Sunken Hollow|C19|1",
+   "oracle_id": "cd2c90ac-2b04-461c-92f3-939871b6b6a3",
+   "oracle_text": "({T}: Add {U} or {B}.)\nThis land enters tapped unless you control two or more basic lands.",
+   "otags": [
+    "activated-ability",
+    "conditional-tapland",
+    "cycle",
+    "cycle-bfz-tangoland",
+    "cycle-dual-land",
+    "cycle-land",
+    "cycle-tangoland",
+    "dual-land",
+    "lands-matter",
+    "nonbasic-basic-land-type",
+    "synergy-basic"
+   ],
+   "role": null,
+   "type_line": "Land \u2014 Island Swamp"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Swamp|C19|1",
+   "oracle_id": "56719f6a-1a6c-4c0a-8d21-18f7d7350b68",
+   "oracle_text": "({T}: Add {B}.)",
+   "otags": [
+    "activated-ability",
+    "card-names",
+    "cycle",
+    "cycle-land",
+    "cycle-lea-basic-land",
+    "cycle-mono-land",
+    "eponymous",
+    "single-english-word-name",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Basic Land \u2014 Swamp"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Swamp|C19|1",
+   "oracle_id": "56719f6a-1a6c-4c0a-8d21-18f7d7350b68",
+   "oracle_text": "({T}: Add {B}.)",
+   "otags": [
+    "activated-ability",
+    "card-names",
+    "cycle",
+    "cycle-land",
+    "cycle-lea-basic-land",
+    "cycle-mono-land",
+    "eponymous",
+    "single-english-word-name",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Basic Land \u2014 Swamp"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Swamp|C19|1",
+   "oracle_id": "56719f6a-1a6c-4c0a-8d21-18f7d7350b68",
+   "oracle_text": "({T}: Add {B}.)",
+   "otags": [
+    "activated-ability",
+    "card-names",
+    "cycle",
+    "cycle-land",
+    "cycle-lea-basic-land",
+    "cycle-mono-land",
+    "eponymous",
+    "single-english-word-name",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Basic Land \u2014 Swamp"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Temple of the False God|C19|1",
+   "oracle_id": "cfdd5dc6-593e-495a-8cfe-3a56b3c4c7df",
+   "oracle_text": "{T}: Add {C}{C}. Activate only if you control five or more lands.",
+   "otags": [
+    "activated-ability",
+    "adds-multiple-mana",
+    "land-count-matters",
+    "lands-matter",
+    "ramp",
+    "sol-land"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [
+    "Tempting offer"
+   ],
+   "mana_cost": "{3}{G}",
+   "name": "Tempt with Discovery|C19|1",
+   "oracle_id": "4baa6145-216e-476b-b178-aaaa1e633701",
+   "oracle_text": "Tempting offer \u2014 Search your library for a land card and put it onto the battlefield. Each opponent may search their library for a land card and put it onto the battlefield. For each opponent who searches a library this way, search your library for a land card and put it onto the battlefield. Then each player who searched a library this way shuffles.",
+   "otags": [
+    "bribery",
+    "cycle",
+    "cycle-c13-tempting-offer",
+    "donate-rampant-growth",
+    "green-effect",
+    "group-hug",
+    "land-ramp",
+    "multi-land-ramp",
+    "multiplayer",
+    "per-player",
+    "ramp",
+    "ramp-with-set-s-mechanic",
+    "refund",
+    "staple-with-set-s-mechanic",
+    "tutor",
+    "tutor-land",
+    "tutor-land-any",
+    "tutor-land-to-battlefield",
+    "tutor-to",
+    "tutor-to-battlefield"
+   ],
+   "role": null,
+   "type_line": "Sorcery"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Terramorphic Expanse|C19|1",
+   "oracle_id": "1bd3e453-aa21-4ee6-95c2-d6d920ee8e7a",
+   "oracle_text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+   "otags": [
+    "activated-ability",
+    "fetchland",
+    "sacrifice-self",
+    "tutor",
+    "tutor-land",
+    "tutor-land-basic",
+    "tutor-land-to-battlefield",
+    "tutor-to",
+    "tutor-to-battlefield"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [
+    "Proliferate"
+   ],
+   "mana_cost": "{3}{U/P}",
+   "name": "Tezzeret's Gambit|C19|1",
+   "oracle_id": "b33d2b77-f068-4fdc-a1a8-0353a35e3973",
+   "oracle_text": "({U/P} can be paid with either {U} or 2 life.)\nDraw two cards, then proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)",
+   "otags": [
+    "alternate-cost-life",
+    "black-effect",
+    "card-advantage",
+    "card-names",
+    "cheaper-than-mv",
+    "counters-matter",
+    "discount-self",
+    "draw",
+    "life-for-cards",
+    "life-payment",
+    "namesake-spell",
+    "phyrexian-mana",
+    "phyrexian-mana-cost",
+    "pure-draw"
+   ],
+   "role": null,
+   "type_line": "Sorcery"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [
+    "Morph"
+   ],
+   "mana_cost": "{3}{G}",
+   "name": "Thelonite Hermit|C19|1",
+   "oracle_id": "69d2e5f3-2f4d-4a36-bcd5-181164ecd894",
+   "oracle_text": "All Saprolings get +1/+1.\nMorph {3}{G}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, create four 1/1 green Saproling creature tokens.",
+   "otags": [
+    "alternative-cost",
+    "anthem",
+    "card-names",
+    "cheaper-than-mv",
+    "cycle",
+    "cycle-tsp-r-morph-creature",
+    "face-up-face-down-effects",
+    "namesake-spell",
+    "power-boost-to-all",
+    "symmetrical",
+    "toughness-boost-to-all",
+    "triggered-ability",
+    "turn-face-up-trigger-self",
+    "typal",
+    "typal-creature",
+    "typal-saproling"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Elf Shaman"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Thespian's Stage|C19|1",
+   "oracle_id": "b01e698b-608a-4fc7-8073-b01d044743ec",
+   "oracle_text": "{T}: Add {C}.\n{2}, {T}: This land becomes a copy of target land, except it has this ability.",
+   "otags": [
+    "activated-ability",
+    "copy",
+    "copy-land",
+    "repeatable-crime",
+    "shapesharing",
+    "utility-land"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 7.0,
+   "color_identity": [
+    "B"
+   ],
+   "keywords": [
+    "Manifest"
+   ],
+   "mana_cost": "{5}{B}{B}",
+   "name": "Thieving Amalgam|C19|1",
+   "oracle_id": "f60cd1d8-eeb6-41a3-af32-3e2a54937ca2",
+   "oracle_text": "At the beginning of each opponent's upkeep, you manifest the top card of that player's library. (Put it onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)\nWhenever a creature you control but don't own dies, its owner loses 2 life and you gain 2 life.",
+   "otags": [
+    "blood-artist-ability",
+    "control-changing-effects",
+    "death-trigger",
+    "drain-life",
+    "group-slug",
+    "inverted-effects",
+    "lifegain",
+    "multiplayer",
+    "opponent-loses-life",
+    "per-player",
+    "repeatable-lifegain",
+    "synergy-theft",
+    "theft",
+    "triggered-ability",
+    "unique-type-line"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Ape Snake"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Thornwood Falls|C19|1",
+   "oracle_id": "ec96cde2-f1e6-495c-94e2-3e8ae79e556c",
+   "oracle_text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {G} or {U}.",
+   "otags": [
+    "activated-ability",
+    "cycle",
+    "cycle-dual-land",
+    "cycle-ktk-gainland",
+    "cycle-land",
+    "dual-land",
+    "gainland",
+    "lifegain",
+    "tapland",
+    "triggered-ability"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [
+    "Flash"
+   ],
+   "mana_cost": "{3}{U}",
+   "name": "Thought Sponge|C19|1",
+   "oracle_id": "256e094a-a9e8-42d9-90e2-7a24ed85e426",
+   "oracle_text": "Flash\nThis creature enters with a number of +1/+1 counters on it equal to the greatest number of cards an opponent has drawn this turn.\nWhen this creature dies, draw cards equal to its power.",
+   "otags": [
+    "burst-draw",
+    "card-advantage",
+    "death-trigger",
+    "death-trigger-self",
+    "draw",
+    "draw-hate",
+    "gains-pp-counters",
+    "hate",
+    "power-matters",
+    "power-matters-self",
+    "pure-draw",
+    "scales-with-power",
+    "triggered-ability",
+    "unnoted-tracked-information"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Sponge"
+  },
+  {
+   "cmc": 6.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [
+    "Flying",
+    "Morph"
+   ],
+   "mana_cost": "{4}{U}{U}",
+   "name": "Thousand Winds|C19|1",
+   "oracle_id": "81b50d34-d778-4606-80de-0e0780610d1f",
+   "oracle_text": "Flying\nMorph {5}{U}{U} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, return all other tapped creatures to their owners' hands.",
+   "otags": [
+    "alternative-cost",
+    "blue-effect",
+    "bounce",
+    "cheaper-than-mv",
+    "evasion",
+    "face-up-face-down-effects",
+    "hate",
+    "hate-tapped",
+    "pseudo-fog",
+    "removal",
+    "removal-bounce",
+    "removal-creature",
+    "sweeper",
+    "sweeper-one-sided",
+    "synergy-tapped",
+    "triggered-ability",
+    "turn-face-up-trigger-self"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Elemental"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [],
+   "keywords": [],
+   "mana_cost": "{4}",
+   "name": "Thran Dynamo|C19|1",
+   "oracle_id": "a699c663-8131-4045-9265-a83e86609374",
+   "oracle_text": "{T}: Add {C}{C}{C}.",
+   "otags": [
+    "activated-ability",
+    "adds-multiple-mana",
+    "mana-producer",
+    "mana-rock",
+    "ramp",
+    "refund"
+   ],
+   "role": null,
+   "type_line": "Artifact"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "{1}{G}",
+   "name": "Trail of Mystery|C19|1",
+   "oracle_id": "0e09aaba-5c32-4a45-8a07-b69e873510ef",
+   "oracle_text": "Whenever a face-down creature you control enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.\nWhenever a permanent you control is turned face up, if it's a creature, it gets +2/+2 until end of turn.",
+   "otags": [
+    "creaturefall",
+    "face-up-face-down-effects",
+    "intervening-if-clause",
+    "synergy-face-down",
+    "thingfall",
+    "triggered-ability",
+    "turn-face-up-trigger",
+    "tutor",
+    "tutor-land",
+    "tutor-land-basic",
+    "tutor-to",
+    "tutor-to-hand"
+   ],
+   "role": null,
+   "type_line": "Enchantment"
+  },
+  {
+   "cmc": 5.0,
+   "color_identity": [
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "{3}{G}{U}",
+   "name": "Urban Evolution|C19|1",
+   "oracle_id": "c715e525-fc3a-4cab-94a0-04e0a22a5013",
+   "oracle_text": "Draw three cards. You may play an additional land this turn.",
+   "otags": [
+    "burst-draw",
+    "card-advantage",
+    "cycle",
+    "cycle-mm3-draft-signpost",
+    "draft-signpost",
+    "draw",
+    "extra-land",
+    "land-ramp",
+    "play-additional-land",
+    "pure-draw",
+    "ramp"
+   ],
+   "role": null,
+   "type_line": "Sorcery"
+  },
+  {
+   "cmc": 5.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [
+    "Morph"
+   ],
+   "mana_cost": "{3}{U}{U}",
+   "name": "Vesuvan Shapeshifter|C19|1",
+   "oracle_id": "ec577886-fb25-455b-9c3d-5fd610959436",
+   "oracle_text": "As this creature enters or is turned face up, you may choose another creature on the battlefield. If you do, until this creature is turned face down, it becomes a copy of that creature, except it has \"At the beginning of your upkeep, you may turn this creature face down.\"\nMorph {1}{U}",
+   "otags": [
+    "alternative-cost",
+    "breaks-ktk-morph-rule",
+    "cheaper-than-mv",
+    "clone",
+    "copy",
+    "copy-creature",
+    "cycle",
+    "cycle-tsp-r-morph-creature",
+    "face-up-face-down-effects",
+    "faux-targeting",
+    "triggered-ability",
+    "turn-face-down-self"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Shapeshifter"
+  },
+  {
+   "cmc": 4.0,
+   "color_identity": [
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "{2}{G}{G}",
+   "name": "Voice of Many|C19|1",
+   "oracle_id": "9b40faad-1b96-4461-89d8-9a207b58e832",
+   "oracle_text": "When this creature enters, draw a card for each opponent who controls fewer creatures than you.",
+   "otags": [
+    "burst-draw",
+    "card-advantage",
+    "creature-count-matters",
+    "draw",
+    "flavors-of-vanilla",
+    "multiplayer",
+    "per-player",
+    "pure-draw",
+    "triggered-ability",
+    "virtual-vanilla"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Elf Druid"
+  },
+  {
+   "cmc": 5.0,
+   "color_identity": [
+    "B",
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "{2}{B}{G}{U}",
+   "name": "Volrath, the Shapestealer|C19|1",
+   "oracle_id": "a70d8e3d-a62d-4c4c-890b-e502e48c4475",
+   "oracle_text": "At the beginning of combat on your turn, put a -1/-1 counter on up to one target creature.\n{1}: Until your next turn, Volrath becomes a copy of target creature with a counter on it, except it's 7/5 and it has this ability.",
+   "otags": [
+    "activated-ability",
+    "alt-commander",
+    "copy",
+    "copy-creature",
+    "counters-matter",
+    "cycle",
+    "cycle-c19-alt-commander",
+    "gives-mm-counters",
+    "hate",
+    "hate-counters",
+    "removal",
+    "removal-creature",
+    "removal-toughness",
+    "repeatable-crime",
+    "repeatable-removal",
+    "shapechange",
+    "shapesharing",
+    "spot-removal",
+    "triggered-ability",
+    "type-addition-phyrexian",
+    "type-errata",
+    "type-errata-addition"
+   ],
+   "role": null,
+   "type_line": "Legendary Creature \u2014 Phyrexian Shapeshifter"
+  },
+  {
+   "cmc": 5.0,
+   "color_identity": [
+    "B",
+    "G"
+   ],
+   "keywords": [],
+   "mana_cost": "{3}{B}{G}",
+   "name": "Vraska the Unseen|C19|1",
+   "oracle_id": "0d2bbce0-8c27-4b82-ab62-51a0c3cfc9b0",
+   "oracle_text": "+1: Until your next turn, whenever a creature deals combat damage to Vraska, destroy that creature.\n\u22123: Destroy target nonland permanent.\n\u22127: Create three 1/1 black Assassin creature tokens with \"Whenever this token deals combat damage to a player, that player loses the game.\"",
+   "otags": [
+    "activated-ability",
+    "alternate-win-condition",
+    "cycle",
+    "cycle-block-rtr-m-multicolor",
+    "cycle-c19-planeswalker",
+    "cycle-rtr-m-two-color",
+    "delayed-trigger",
+    "removal",
+    "removal-artifact",
+    "removal-aura",
+    "removal-battle",
+    "removal-creature",
+    "removal-destroy",
+    "removal-enchantment",
+    "removal-equipment",
+    "removal-nonland",
+    "removal-planeswalker",
+    "removal-spacecraft",
+    "removal-vehicle",
+    "repeatable-crime",
+    "repeatable-removal",
+    "saboteur",
+    "spot-removal",
+    "triggered-ability"
+   ],
+   "role": null,
+   "type_line": "Legendary Planeswalker \u2014 Vraska"
+  },
+  {
+   "cmc": 2.0,
+   "color_identity": [
+    "U"
+   ],
+   "keywords": [
+    "Morph"
+   ],
+   "mana_cost": "{1}{U}",
+   "name": "Willbender|C19|1",
+   "oracle_id": "0aae277e-e58e-4115-b5fd-0459451e17ec",
+   "oracle_text": "Morph {1}{U} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, change the target of target spell or ability with a single target.",
+   "otags": [
+    "alternative-cost",
+    "change-target",
+    "face-up-face-down-effects",
+    "more-expensive-than-mv",
+    "triggered-ability",
+    "turn-face-up-trigger-self",
+    "type-addition-human",
+    "type-errata",
+    "type-errata-addition"
+   ],
+   "role": null,
+   "type_line": "Creature \u2014 Human Wizard"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Woodland Stream|C19|1",
+   "oracle_id": "e887fb3f-d4c9-4022-8f75-1de6ec94af96",
+   "oracle_text": "This land enters tapped.\n{T}: Add {G} or {U}.",
+   "otags": [
+    "activated-ability",
+    "cycle",
+    "cycle-dual-land",
+    "cycle-dual-tapland",
+    "cycle-land",
+    "cycle-soi-tapland",
+    "dual-land",
+    "tapland"
+   ],
+   "role": null,
+   "type_line": "Land"
+  },
+  {
+   "cmc": 0.0,
+   "color_identity": [
+    "G",
+    "U"
+   ],
+   "keywords": [],
+   "mana_cost": "",
+   "name": "Yavimaya Coast|C19|1",
+   "oracle_id": "40b36bc6-c185-4bda-99e7-0118953c2c97",
+   "oracle_text": "{T}: Add {C}.\n{T}: Add {G} or {U}. This land deals 1 damage to you.",
+   "otags": [
+    "activated-ability",
+    "burn-you",
+    "cycle",
+    "cycle-apc-painland",
+    "cycle-dual-land",
+    "cycle-land",
+    "cycle-painland",
+    "dual-land",
+    "life-payment",
+    "mana-ability-with-extra-effect",
+    "painland"
+   ],
+   "role": null,
+   "type_line": "Land"
+  }
+ ],
+ "commander_hint": null,
+ "name": "FacelessMenace_Sultai_2019",
+ "source": "gauntlet",
+ "unresolved": []
+}
