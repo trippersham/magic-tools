@@ -118,7 +118,17 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
     ('sacrifice', 'otag:sac OR otag:sacrifice-outlet OR otag:your-sacrifice-matters '
                   'OR otag:sacrifice-matters OR otag:death-trigger OR otag:death-trigger-self '
                   'OR otag:free-sacrifice-outlet OR otag:sacrifice-self'),
-    ('lands-matter', 'otag:landfall OR otag:lands-matter OR otag:land-count-matters '
+    # landfall vs lands-matter: EDHREC treats these as DISTINCT themes, so they are
+    # two identities, not one. `landfall` is the ETB-land trigger family (the exact
+    # otag parent `landfall` + its sibling `landfall-other`; the only two real
+    # landfall slugs in the lake — `islandfall`/`cycle-*-landfall-*` are puns/cycle
+    # tags, not the family). `lands-matter` keeps the broader lands-as-resource
+    # mechanics: `lands-matter`, `land-count-matters`, `extra-land`, and the two land
+    # recursion slugs (`recursion-land`/`reanimate-land` stay here as lands-matter
+    # mechanics; a later engine-layer pass handles the land-recursion hub). The two
+    # queries are disjoint, so routing precedence between them is immaterial.
+    ('landfall', 'otag:landfall OR otag:landfall-other'),
+    ('lands-matter', 'otag:lands-matter OR otag:land-count-matters '
                      'OR otag:extra-land OR otag:recursion-land OR otag:reanimate-land'),
     ('graveyard/reanimator', 'otag:graveyard OR otag:recursion OR otag:reanimate '
                              'OR otag:cards-in-graveyard-matter OR otag:castable-from-graveyard '
@@ -201,6 +211,7 @@ ARCHETYPE_EDGES: dict[str, str] = {
     'tokens/go-wide': 'tokens/go-wide',
     'counters': '+1/+1 counters',
     'sacrifice': 'aristocrats/sacrifice',
+    'landfall': 'landfall',
     'lands-matter': 'lands-matter',
     'graveyard/reanimator': 'graveyard/reanimator',
     'spellslinger': 'spellslinger',

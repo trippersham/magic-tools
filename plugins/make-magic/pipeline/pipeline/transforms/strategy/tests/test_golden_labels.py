@@ -44,13 +44,21 @@ def test_krrik_is_combo(load_deck, combos):
 
 
 def test_world_reclaimer_lands_with_fused_sacrifice_engine(load_deck, combos):
+    # World Reclaimer is landfall-dense: since the landfall split (EDHREC treats
+    # landfall and lands-matter as distinct themes) its ETB-land trigger family is
+    # the LEAD archetype, with lands-matter riding secondary. Before the split both
+    # folded into one lands-matter label.
     rec = resolve(load_deck('owned__world-reclaimer'), combos)
-    assert rec['named_strategy'] == 'lands-matter'
+    assert rec['named_strategy'] == 'landfall'
+    sid = [s['strategy'] for s in rec['archetype_identity']]
+    assert sid[0] == 'landfall'            # landfall leads the identity set...
+    assert 'lands-matter' in sid           # ...and lands-matter stays a real 2nd axis
     strategies = rec['facts']['strategies']
     # the aristocrats/sacrifice plan is a real, requires-met strategy...
     assert strategies['aristocrats/sacrifice']['requires_met'] is True
-    # ...and the top convergent engine FUSES lands + sacrifice (shared hubs)
+    # ...and the top convergent engine FUSES the land plan + sacrifice (shared hubs)
     top_engine = rec['facts']['engines']['convergent_event_components'][0]
+    assert 'landfall' in top_engine['archetypes']
     assert 'lands-matter' in top_engine['archetypes']
     assert 'aristocrats/sacrifice' in top_engine['archetypes']
 
@@ -128,6 +136,36 @@ def test_new_archetypes_route_their_anchor_slugs():
     assert a.archetype_of_attr('synergy-goad') == 'politics'   # the goad PAYOFF
     assert a.archetype_of_attr('hate-goad') is None            # the goad ANSWER
     assert a.archetype_of_attr('evasion') is None              # broad body, never a primary
+
+
+def test_landfall_splits_from_lands_matter():
+    # EDHREC treats landfall and lands-matter as DISTINCT themes. The split routes
+    # the ETB-land trigger family (`landfall`/`landfall-other`) to its own identity,
+    # while the broader lands-as-resource slugs stay lands-matter. The two queries
+    # must share NO slug (clean separation) and landfall is 1:1 with its edge.
+    import re
+
+    from pipeline.transforms.strategy.assets import load_assets
+    from pipeline.transforms.strategy.vocab import ARCHETYPE_EDGES, BASE_IDENTITIES
+    a = load_assets()
+    # landfall routes its exact family slugs to the landfall strategy ...
+    assert a.archetype_of_attr('landfall') == 'landfall'
+    assert a.archetype_of_attr('landfall-other') == 'landfall'
+    # ... and lands-matter keeps its own, disjoint family
+    assert a.archetype_of_attr('lands-matter') == 'lands-matter'
+    assert a.archetype_of_attr('land-count-matters') == 'lands-matter'
+    assert a.archetype_of_attr('extra-land') == 'lands-matter'
+    # landfall no longer routes to lands-matter (no slug leak)
+    assert a.archetype_of_attr('landfall') != 'lands-matter'
+    # 1:1 identity<->edge for the new archetype
+    assert ARCHETYPE_EDGES['landfall'] == 'landfall'
+    # the two query slug-sets are disjoint
+    queries = dict(BASE_IDENTITIES)
+    otags = lambda q: set(re.findall(r'otag:([a-z0-9-]+)', q))
+    landfall_slugs = otags(queries['landfall'])
+    lands_slugs = otags(queries['lands-matter'])
+    assert landfall_slugs == {'landfall', 'landfall-other'}
+    assert landfall_slugs & lands_slugs == set()
 
 
 def test_welcoming_vampire_goodstuff_abstains(load_deck, combos):
