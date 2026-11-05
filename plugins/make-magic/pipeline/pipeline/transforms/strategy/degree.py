@@ -48,6 +48,17 @@ DEGREE_AXES: dict[str, set[str]] = {
     # flying-*matters* payoffs, which over-fire as an identity). Degree, never a label.
     'evasion': {'evasion'},
 }
+#: Per-axis color gate (DATA): an axis listed here reports ``color_gated`` — the
+#: over-service is only credible in a deck of the gating color. Replaces the lone
+#: ``if ax == 'counterspells'`` branch; the dict membership keeps the degree_axes
+#: dict SHAPE byte-identical (only the listed axes grow the extra key).
+AXIS_COLOR_GATE: dict[str, str] = {'counterspells': 'U'}
+#: The interaction suite power_profile weights, as data (removal + counterspells).
+#: ``REMOVAL_SLUGS``/``INTERACTION_SLUGS`` are exposed as named sets so the degree
+#: functions read data, never an inline axis-name literal.
+INTERACTION_AXES: tuple[str, ...] = ('removal', 'counterspells')
+REMOVAL_SLUGS: frozenset[str] = frozenset(DEGREE_AXES['removal'])
+INTERACTION_SLUGS: frozenset[str] = frozenset().union(*(DEGREE_AXES[a] for a in INTERACTION_AXES))
 _EXILE_SLUGS = {'removal-exile', 'tuck'}
 _FREE_SLUGS = {'potentially-free', 'pitch-spell', 'counterspell-free'}
 _DRAWBACK = 'drawback'
@@ -76,8 +87,8 @@ def compute_degree_axes(cards: list[dict], color_identity: list[str] | None, *, 
             'cedh_level': bool(n >= round(base['cedh_cnt']) or frac >= cf) if not inverts else None,
             'inverts': inverts,
         }
-        if ax == 'counterspells':
-            rec['color_gated'] = 'U' not in ci
+        if ax in AXIS_COLOR_GATE:
+            rec['color_gated'] = AXIS_COLOR_GATE[ax] not in ci
         out[ax] = rec
     return out
 
@@ -103,9 +114,8 @@ def efficiency_weight(c: dict) -> float:
 def power_profile(cards: list[dict]) -> dict:
     """Reading 2: efficiency-weighted QUALITY over the counterspells+removal suite."""
     nl = [c for c in cards if not is_land(c)]
-    inter_slugs = DEGREE_AXES['removal'] | DEGREE_AXES['counterspells']
-    inter = [c for c in nl if set(c.get('otags', [])) & inter_slugs]
-    rem = [c for c in nl if set(c.get('otags', [])) & DEGREE_AXES['removal']]
+    inter = [c for c in nl if set(c.get('otags', [])) & INTERACTION_SLUGS]
+    rem = [c for c in nl if set(c.get('otags', [])) & REMOVAL_SLUGS]
     if not inter:
         return {'n_interaction': 0, 'mean_efficiency': 0.0, 'total_efficiency': 0.0,
                 'removal_count': 0, 'removal_mean_mv': None, 'removal_pct_instant': None,

@@ -33,7 +33,7 @@ from pipeline.transforms.strategy.combo import (
     combo_norm,
     combos_in_deck,
 )
-from pipeline.transforms.strategy.config import StrategyConfig
+from pipeline.transforms.strategy.config import FACTS_ONLY_WHEN_DISABLED, StrategyConfig
 from pipeline.transforms.strategy.degree import compute_degree_axes, power_profile
 from pipeline.transforms.strategy.tribes import compute_tribes, creature_subtypes
 from pipeline.transforms.strategy.vocab import synth_attrs_for
@@ -275,7 +275,7 @@ def compute_facts(
                 arch_attrs[lands].add('tutor-land[enabler]')
 
     # identity mass (each identity card counted once; for share-based guards)
-    facts_only: set[str] = set() if cfg.ench_label else {'enchantments'}
+    facts_only: set[str] = set() if cfg.ench_label else set(FACTS_ONLY_WHEN_DISABLED)
     identity_cards: set[int] = set()
     for arch, mem in arch_members.items():
         if arch in facts_only:

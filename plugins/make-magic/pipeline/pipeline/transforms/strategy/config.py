@@ -34,6 +34,12 @@ REFINED_GROUPS: frozenset[str] = frozenset(
     {'new_buckets', 'affinity', 'dual_land', 'dual_art', 'dual_sac'}
 )
 
+#: Archetypes reported as FACTS but never NAMING candidates while their enabling
+#: flag is off — the ``facts_only`` set as DATA (not an inline literal in the facts
+#: branch). The enchantments synergy strategy double-counts synergies the
+#: enchantress identity already names, so it is facts-only unless ``ench_label``.
+FACTS_ONLY_WHEN_DISABLED: frozenset[str] = frozenset({'enchantments'})
+
 
 @dataclass(frozen=True)
 class StrategyConfig:

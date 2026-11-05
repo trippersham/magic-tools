@@ -20,33 +20,21 @@ def name_deck(ctx: FactsContext) -> dict:
     cfg = ctx.cfg
     strategies = ctx.strategies
     arch_members = ctx.arch_members
-    cards = ctx.cards
     adens = ctx.adens
     nodes = ctx.nodes
     support = ctx.support
     facts_only = ctx.facts_only
-    cs_axis = ctx.cs_axis
     ramp_axis = ctx.ramp_axis
 
-    from pipeline.transforms.strategy.assets import EDHREC_NEW_LABELS
+    from pipeline.transforms.strategy.substantiveness import requirement_for
 
     def eligible(arch: str, st: dict) -> bool:
+        # Identity gating is DATA: the facts-only families are never named, and
+        # every other archetype's substantiveness bar is a Requirement selected by
+        # data (never by an ``arch == '<name>'`` branch) and dispatched on its kind.
         if arch in facts_only:
             return False
-        if not st['requires_met']:
-            return False
-        if arch == 'spellslinger' and not ctx.spell_sub:
-            return False
-        if arch == 'graveyard/reanimator' and not ctx.gy_sub:
-            return False
-        if arch == 'control/permission' and cs_axis['n'] < cfg.ctrl_min_cs:
-            return False
-        if cfg.edhrec_labels and arch in EDHREC_NEW_LABELS:
-            mem = arch_members.get(arch, set())
-            noncmd = sum(1 for i in mem if cards[i].get('role') != 'commander')
-            if len(mem) < 3 or noncmd < 2:
-                return False
-        return True
+        return requirement_for(arch, cfg).satisfied(st, ctx, arch)
 
     arch_has_cmd = ctx.arch_has_cmd
     ranked = sorted(
