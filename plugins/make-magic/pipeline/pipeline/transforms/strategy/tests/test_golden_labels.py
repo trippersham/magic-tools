@@ -68,7 +68,7 @@ def test_abzan_armor_is_toughness_matters(load_deck, combos):
     # read "diffuse"; the dedicated archetype recovers the real identity.
     rec = resolve(load_deck('gauntlet__abzanarmor_2025'), combos)
     assert rec['named_strategy'] == 'toughness-matters'
-    assert rec['strategy_identity'][0]['strategy'] == 'toughness-matters'
+    assert rec['archetype_identity'][0]['strategy'] == 'toughness-matters'
 
 
 def test_faceless_menace_is_morph(load_deck, combos):
@@ -86,7 +86,7 @@ def test_peace_offering_is_group_hug(load_deck, combos):
     # the clean lead (19 member cards) — the engine's cleanest politics-family win.
     rec = resolve(load_deck('precon__peace-offering'), combos)
     assert rec['named_strategy'] == 'group-hug'
-    assert rec['strategy_identity'][0]['strategy'] == 'group-hug'
+    assert rec['archetype_identity'][0]['strategy'] == 'group-hug'
     assert rec['facts']['strategies']['group-hug']['requires_met'] is True
 
 
@@ -96,7 +96,7 @@ def test_blame_game_surfaces_pillowfort(load_deck, combos):
     # was invisible before the vocab add; pillowfort now recovers as a real second
     # axis of the identity set (12 member cards).
     rec = resolve(load_deck('precon__blame-game'), combos)
-    sid = [s['strategy'] for s in rec['strategy_identity']]
+    sid = [s['strategy'] for s in rec['archetype_identity']]
     assert rec['named_strategy'] == 'combat/aggro'
     assert 'pillowfort' in sid
     assert rec['facts']['strategies']['pillowfort']['requires_met'] is True
@@ -137,35 +137,35 @@ def test_welcoming_vampire_goodstuff_abstains(load_deck, combos):
     # a goodstuff deck: nothing but support axes -> honest abstain (or low-conf)
     assert rec['abstain_reason'] in {'only-support-axis', 'no-coherent-engine', 'low-coverage'}
     # an abstaining deck has no identity set
-    assert rec['strategy_identity'] == []
+    assert rec['archetype_identity'] == []
 
 
-def test_grandlarceny_strategy_identity_is_ranked_set(load_deck, combos):
+def test_grandlarceny_archetype_identity_is_ranked_set(load_deck, combos):
     # the single-label collapse hid the real #2 axis; the set surfaces it.
     rec = resolve(load_deck('gauntlet__grandlarceny_2024'), combos)
-    sid = [s['strategy'] for s in rec['strategy_identity']]
+    sid = [s['strategy'] for s in rec['archetype_identity']]
     assert sid[0] == 'theft'          # leads with the headline
     assert 'mill' in sid              # ...and surfaces the real second axis
     assert len(sid) <= 3              # capped at max_identity
-    wqs = [s['weighted_quantity'] for s in rec['strategy_identity']]
+    wqs = [s['weighted_quantity'] for s in rec['archetype_identity']]
     assert wqs == sorted(wqs, reverse=True)  # ranked descending
 
 
-def test_strategy_identity_headline_matches_named_strategy(load_deck, combos):
-    # for a non-combo, non-abstaining deck, strategy_identity[0] IS the headline
+def test_archetype_identity_headline_matches_named_strategy(load_deck, combos):
+    # for a non-combo, non-abstaining deck, archetype_identity[0] IS the headline
     # (named_strategy is kept as a back-compat alias of the set's leader).
     for fx, label in [('gauntlet__grandlarceny_2024', 'theft'),
                       ('gauntlet__tuvasa-the-sunlit', 'enchantress'),
                       ('gauntlet__baral-chief-of-compliance', 'control/permission')]:
         rec = resolve(load_deck(fx), combos)
         assert rec['named_strategy'] == label
-        assert rec['strategy_identity'][0]['strategy'] == label
+        assert rec['archetype_identity'][0]['strategy'] == label
 
 
 def test_kess_combo_keeps_strategic_identity_set(load_deck, combos):
     # combo is a separate axis: the override sets named_strategy + combo_identity,
-    # but strategy_identity still reports the deck's strategic composition.
+    # but archetype_identity still reports the deck's strategic composition.
     rec = resolve(load_deck('gauntlet__kess-dissident-mage'), combos)
     assert rec['named_strategy'] == 'alt-wincon/combo'
     assert rec['combo_override_applied'] is True
-    assert 'alt-wincon/combo' not in [s['strategy'] for s in rec['strategy_identity']]
+    assert 'alt-wincon/combo' not in [s['strategy'] for s in rec['archetype_identity']]
