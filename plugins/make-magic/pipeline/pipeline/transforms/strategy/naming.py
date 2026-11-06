@@ -41,13 +41,6 @@ def name_deck(ctx: FactsContext) -> dict:
         ((arch, st) for arch, st in strategies.items() if eligible(arch, st)),
         key=lambda kv: (-kv[1]['weighted_quantity'], not arch_has_cmd.get(kv[0], False), kv[0]),
     )
-    if ranked and ranked[0][0] in cfg.weak:
-        promo = next(((a, s) for a, s in ranked
-                      if a not in cfg.weak
-                      and s['weighted_quantity'] >= cfg.weak_ratio * ranked[0][1]['weighted_quantity']),
-                     None)
-        if promo is not None:
-            ranked = [promo] + [x for x in ranked if x[0] != promo[0]]
     ranked_all = sorted(
         ((arch, st['weighted_quantity'], st['requires_met']) for arch, st in strategies.items()
          if st['is_identity']),
@@ -67,11 +60,10 @@ def name_deck(ctx: FactsContext) -> dict:
         margin = round(max(0.0, 1.0 - wq2 / wq1) if wq1 else 0.0, 3)
         tie = len(ranked) > 1 and abs(wq1 - wq2) < 1e-9
     else:
-        # DEFER #6: spellslinger last-resort fallback. Inert under DEFAULT_CONFIG
-        # (ss_rule='off' keeps spellslinger eligible so it is named via `ranked`
-        # above and never reaches here); only reachable under a non-default
-        # ss_rule that demoted spellslinger, where it would re-name the demoted
-        # deck spellslinger. Behavior intentionally left as-is.
+        # DEFER #6: spellslinger last-resort fallback. Inert: spellslinger now takes
+        # the default member_count(3) == requires_met bar, so whenever its
+        # requires_met holds it is eligible and already named via `ranked` above —
+        # this branch is never reached. Behavior intentionally left as-is.
         if ('spellslinger' in strategies and strategies['spellslinger']['requires_met']
                 and not any(st['requires_met'] and arch not in facts_only and arch != 'spellslinger'
                             for arch, st in strategies.items())):

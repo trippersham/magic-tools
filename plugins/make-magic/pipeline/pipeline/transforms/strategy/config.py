@@ -1,8 +1,16 @@
-"""Strategy-engine configuration — the validated T5.5 knobs as a frozen dataclass.
+"""Strategy-engine configuration — the validated T5.5 knobs as a frozen settings model.
 
 Every value defaults to the setting the validated prototype (``facts_naming_t55``)
 ran under (``GROUPS=all``, ``EDHREC_LABELS=on``, ``COMBO_OVERRIDE=on`` …), so a
 default-constructed :class:`StrategyConfig` reproduces the validated engine.
+
+:class:`StrategyConfig` is a ``pydantic-settings`` :class:`BaseSettings` model
+(matching :mod:`pipeline.config`): ``frozen=True`` so it stays hashable (it is the
+``@cache`` key for :func:`~.assets.load_assets` and
+:func:`~.substantiveness.build_substantiveness`), and env-overridable only through
+the opt-in, namespaced ``MAKEMAGIC_STRATEGY_`` prefix. No ``env_file`` is read, so
+a default construction with no such env set reproduces the validated engine byte
+for byte.
 
 Two fields are NEW in this consolidation (carried fix **F4** — the Ozai
 over-fire): :attr:`combo_primary_share` / :attr:`combo_primary_margin`. They
@@ -12,7 +20,7 @@ displace a dense, dominant primary plan (see :mod:`.naming`).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 #: The v4 attribute groups the prototype folds into the bucket set at the
 #: validated default. Order is fixed for determinism.
@@ -41,9 +49,17 @@ REFINED_GROUPS: frozenset[str] = frozenset(
 FACTS_ONLY_WHEN_DISABLED: frozenset[str] = frozenset({'enchantments'})
 
 
-@dataclass(frozen=True)
-class StrategyConfig:
-    """All strategy-engine knobs. Frozen + fully defaulted → deterministic."""
+class StrategyConfig(BaseSettings):
+    """All strategy-engine knobs. Frozen + fully defaulted → deterministic + hashable.
+
+    A ``pydantic-settings`` model: ``frozen=True`` keeps it hashable (so it serves
+    as the ``@cache`` key for ``load_assets`` / ``build_substantiveness``), and
+    every field is overridable only via its ``MAKEMAGIC_STRATEGY_``-prefixed env
+    var. No ``env_file`` is read, so an unconfigured construction reproduces the
+    validated engine exactly.
+    """
+
+    model_config = SettingsConfigDict(frozen=True, env_prefix='MAKEMAGIC_STRATEGY_', extra='ignore')
 
     # ---- bucket / group assembly (vocab-driven) ----------------------------
     enabled_groups: frozenset[str] = frozenset(ALL_GROUPS)
@@ -51,12 +67,9 @@ class StrategyConfig:
     anthem_payoff: frozenset[str] = frozenset({'power-matters-self'})
 
     # ---- substantiveness / density knobs -----------------------------------
-    ss_rule: str = 'off'          # spellslinger substantiveness: off|density_only|kids2_only|density_or_2kids
     gy_distinct: int = 4
     gy_ratio: float = 0.15
     ench_label: bool = False      # make the enchantments archetype a NAMING candidate
-    weak: frozenset[str] = frozenset()
-    weak_ratio: float = 0.7
 
     # ---- confidence thresholds ---------------------------------------------
     conf_high: float = 0.66
@@ -103,8 +116,8 @@ class StrategyConfig:
     cmd_weight: float = 5.0
 
     def with_overrides(self, **kw: object) -> StrategyConfig:
-        """Return a copy with the given fields replaced (frozen-dataclass copy)."""
-        return replace(self, **kw)  # type: ignore[arg-type]
+        """Return a copy with the given fields replaced (frozen-model copy)."""
+        return self.model_copy(update=kw)
 
 
 #: Reusable default instance (the validated T5.5 configuration).

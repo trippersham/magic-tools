@@ -16,8 +16,7 @@ The litmus (asserted by :mod:`.tests.test_substantiveness_generic`):
 The kinds are the two non-arbitrary ways an identity is earned:
 
 * **presence of payoffs** — :data:`member_count` (the default): >= N member cards.
-* **degree of a common utility** — :data:`type_density` (a card-TYPE density, e.g.
-  spellslinger's instant/sorcery mass), :data:`attr_density` (the mass of an
+* **degree of a common utility** — :data:`attr_density` (the mass of an
   attribute FAMILY, e.g. graveyard), :data:`axis_density` (a degree axis read as
   identity, e.g. control's counterspell count).
 
@@ -26,16 +25,21 @@ Byte-preserving 1:1 map of the legacy ``eligible()`` (see the refactor plan):
 ====================  ===========================================  ==============
 archetype             Requirement                                  legacy gate
 ====================  ===========================================  ==============
-spellslinger          ``type_density(I/S, rule=ss_rule)``          ``spell_sub``
+spellslinger          ``member_count(3)``                          ``requires_met``
 graveyard/reanimator  ``attr_density('graveyard', gy_ratio, gy_distinct)``  ``gy_sub``
 control/permission    ``axis_density('counterspells', ctrl_min_cs)``  ``cs >= ctrl_min_cs``
 EDHREC new labels     ``member_count(3, noncmd=2)``                 EDHREC 2nd gate
 all others (~33)      ``member_count(3)``                          ``requires_met``
 ====================  ===========================================  ==============
 
-The thresholds (``ss_rule`` / ``gy_ratio`` / ``gy_distinct`` / ``ctrl_min_cs``)
-are rehomed from free-floating globals into the declared PARAMS of a specific
-archetype's Requirement, sourced from the config fields for back-compat.
+Spellslinger falls to the default ``member_count(3)`` bar: its old density gate
+(``type_density`` keyed on ``ss_rule``) was vestigial — always-pass under the
+validated default, and the over-fire it once guarded is now handled in the vocab
+ROUTING layer (the ``cast-trigger-self`` slug was dropped), not at this gate.
+
+The thresholds (``gy_ratio`` / ``gy_distinct`` / ``ctrl_min_cs``) are rehomed from
+free-floating globals into the declared PARAMS of a specific archetype's
+Requirement, sourced from the config fields for back-compat.
 """
 
 from __future__ import annotations
@@ -97,12 +101,6 @@ def _eval_member_count(params: dict, st: dict, ctx: FactsContext, arch: str) -> 
     return nc >= noncmd
 
 
-def _eval_type_density(params: dict, st: dict, ctx: FactsContext, arch: str) -> bool:
-    """Density of a card TYPE (spellslinger instant/sorcery). The facts layer
-    measures it from the ``rule`` param (``cfg.ss_rule``) into ``ctx.spell_sub``."""
-    return ctx.spell_sub
-
-
 def _eval_attr_density(params: dict, st: dict, ctx: FactsContext, arch: str) -> bool:
     """Mass of an attribute FAMILY: present-node family breadth >= ``distinct`` OR
     the archetype's member mass >= ``ratio`` of the identity mass."""
@@ -124,7 +122,6 @@ def _eval_axis_density(params: dict, st: dict, ctx: FactsContext, arch: str) -> 
 
 _EVALUATORS: dict[str, Callable[[dict, dict, Any, str], bool]] = {
     'member_count': _eval_member_count,
-    'type_density': _eval_type_density,
     'attr_density': _eval_attr_density,
     'axis_density': _eval_axis_density,
 }
@@ -143,8 +140,6 @@ def build_substantiveness(cfg: StrategyConfig) -> dict[str, Requirement]:
     params are co-located and inspectable while staying back-compatible.
     """
     return {
-        'spellslinger': Requirement(
-            'type_density', {'types': ('instant', 'sorcery'), 'rule': cfg.ss_rule}),
         'graveyard/reanimator': Requirement(
             'attr_density', {'family': 'graveyard', 'ratio': cfg.gy_ratio, 'distinct': cfg.gy_distinct}),
         'control/permission': Requirement(

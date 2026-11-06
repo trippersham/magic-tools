@@ -156,7 +156,10 @@ def test_add_archetype_is_a_data_row_only(monkeypatch) -> None:
 
 
 def test_default_substantiveness_map_is_unpolluted() -> None:
-    """The oracle engine carries exactly the three declared special bars — the probe
-    machinery never leaks into the default map."""
+    """The oracle engine carries exactly the two declared special bars — the probe
+    machinery never leaks into the default map. Spellslinger is NOT special-cased:
+    it falls to the generic ``member_count(3)`` default (the vestigial density gate
+    was removed; the over-fire now lives in vocab routing)."""
     assert set(S.build_substantiveness(DEFAULT_CONFIG)) == {
-        'spellslinger', 'graveyard/reanimator', 'control/permission'}
+        'graveyard/reanimator', 'control/permission'}
+    assert S.requirement_for('spellslinger', DEFAULT_CONFIG) is S.DEFAULT_REQUIREMENT

@@ -61,7 +61,6 @@ class FactsContext:
     card_w: dict[int, float]
     identity_mass: float
     coverage: float
-    spell_sub: bool
     gy_sub: bool
     demotions: dict[str, bool]
     cs_axis: dict
@@ -77,19 +76,6 @@ class FactsContext:
     predicate_wins: list[dict]
     mana_sink_wins: list[dict]
     mana_sinks_present: list[str] = field(default_factory=list)
-
-
-def _spell_substantive(
-    node_attrs: set[str], spell_on: bool, cfg: StrategyConfig, cast_children: frozenset[str]
-) -> bool:
-    kids = sum(1 for a in node_attrs if a in cast_children)
-    if cfg.ss_rule == 'off':
-        return True
-    if cfg.ss_rule == 'density_only':
-        return spell_on
-    if cfg.ss_rule == 'kids2_only':
-        return kids >= 2
-    return spell_on or kids >= 2
 
 
 def _gy_substantive(node_attrs: set[str], gy_member_mass: float, identity_mass: float, cfg: StrategyConfig) -> bool:
@@ -284,7 +270,6 @@ def compute_facts(
     identity_mass = sum(card_w[i] for i in identity_cards) or 1e-6
 
     gy_member_mass = sum(card_w[i] for i in arch_members.get('graveyard/reanimator', set()))
-    spell_sub = _spell_substantive(nodes, density_signals['spell_density']['on'], cfg, assets.cast_children)
     gy_sub = _gy_substantive(nodes, gy_member_mass, identity_mass, cfg)
 
     def requires_met(mem: set[int]) -> bool:
@@ -470,8 +455,6 @@ def compute_facts(
     }
 
     demotions = {'spell_demoted': False, 'gy_demoted': False}
-    if 'spellslinger' in strategies and strategies['spellslinger']['requires_met'] and not spell_sub:
-        demotions['spell_demoted'] = True
     if 'graveyard/reanimator' in strategies and strategies['graveyard/reanimator']['requires_met'] and not gy_sub:
         demotions['gy_demoted'] = True
 
@@ -483,7 +466,7 @@ def compute_facts(
         facts=facts, strategies=strategies, facts_only=facts_only,
         arch_members=dict(arch_members), arch_has_cmd=arch_has_cmd, nodes=nodes,
         support=assets.support, adens=adens, card_w=card_w, identity_mass=identity_mass,
-        coverage=coverage, spell_sub=spell_sub, gy_sub=gy_sub, demotions=demotions,
+        coverage=coverage, gy_sub=gy_sub, demotions=demotions,
         cs_axis=degree_axes['counterspells'], stax_axis=degree_axes['stax'],
         ramp_axis=degree_axes['ramp'], protection_degree=protection_degree, power=power,
         tribe_info=tribe_info, density_signals=density_signals, cmd_attrs=cmd_attrs,
