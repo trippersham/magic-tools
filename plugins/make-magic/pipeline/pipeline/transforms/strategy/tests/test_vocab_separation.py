@@ -20,9 +20,8 @@ from pathlib import Path
 
 from pipeline.transforms.strategy import resolve
 from pipeline.transforms.strategy.assets import load_assets
-from pipeline.transforms.strategy.config import ALL_GROUPS, DEFAULT_CONFIG
+from pipeline.transforms.strategy.config import DEFAULT_CONFIG
 from pipeline.transforms.strategy.vocab import (
-    ANTHEM_DECONF_IDENTITIES,
     ARCHETYPE_EDGES,
     BASE_IDENTITIES,
     EDHREC_IDENTITIES,
@@ -33,7 +32,7 @@ FIX = Path(__file__).resolve().parent / 'fixtures'
 DECKS = FIX / 'decks'
 
 _ALL_IDENTITY_PAIRS = (
-    EDHREC_IDENTITIES + NEWBUCKET_IDENTITIES + ANTHEM_DECONF_IDENTITIES + BASE_IDENTITIES
+    EDHREC_IDENTITIES + NEWBUCKET_IDENTITIES + BASE_IDENTITIES
 )
 _ALL_IDENTITY_NAMES = [n for n, _ in _ALL_IDENTITY_PAIRS]
 #: Characters that only appear in a query, never in a plain name.
@@ -74,15 +73,6 @@ def test_router_is_a_total_function_over_the_identity_universe() -> None:
         routed = assets.archetype_of_attr(name)
         assert routed is None or routed in set(ARCHETYPE_EDGES.values())
         del strategy
-
-
-def test_config_gating_changes_the_active_identities() -> None:
-    """The anthem-deconf identity is off by default and on when its group is."""
-    default = load_assets(DEFAULT_CONFIG)
-    assert default.archetype_of_attr('power-matters') is None
-    deconf = load_assets(
-        DEFAULT_CONFIG.with_overrides(enabled_groups=frozenset(ALL_GROUPS) | {'deconf_anthem'}))
-    assert deconf.archetype_of_attr('power-matters') == 'anthem/go-wide'
 
 
 def test_fixture_records_match_committed_baseline() -> None:

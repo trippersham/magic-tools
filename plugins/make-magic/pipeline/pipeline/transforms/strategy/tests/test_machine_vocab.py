@@ -1,0 +1,586 @@
+"""Tests for machine_vocab.py (Phase PB -- persistence + provenance).
+
+All tests are **hermetic**: they use ``tmp_path`` for the store directory,
+NEVER write to the real ``~/.local/share/make-magic/``.
+
+Test organisation:
+
+- ``TestSerializationRoundTrip``     -- record ↔ attr fidelity
+- ``TestPersist``                    -- write, idempotency, curated rejection
+- ``TestLoadStore``                  -- read from JSONL, empty/missing, multi-line
+- ``TestLoadFrozenSnapshot``         -- JSON-array fixture loading
+- ``TestCompoundingReadPath``        -- 2nd deck reuses stored attr, no re-author
+- ``TestAllEdgeQueries``             -- curated + machine assembly helper
+- ``TestStoreEdgeMethods``           -- has_edge_for_card, edge_queries
+- ``TestHermeticity``                -- populated store does NOT shift curated SHAs
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from pipeline.transforms.strategy.machine_vocab import (
+    MachineAttribute,
+    MachineStore,
+    Provenance,
+    _attr_to_record,
+    _record_to_attr,
+    all_edge_queries,
+    empty_store,
+    load_frozen_snapshot,
+    load_store,
+    persist,
+)
+
+
+# ---------------------------------------------------------------------------
+# Shared fixture helpers
+# ---------------------------------------------------------------------------
+
+def _sample_provenance(**overrides: object) -> Provenance:
+    defaults = dict(
+        source='haiku',
+        model_id='claude-3-5-haiku-20241022',
+        authored_at='2026-11-06T10:00:00Z',
+        source_card_name='Queza, Augur of Agonies',
+        source_card_oracle_id='abc-111-222-333',
+        deck_context='queza-esper-drain',
+        scryfall_query='oracle:/draw[^.]*los/ AND otag:draw-matters',
+        scryfall_resolved_count=4,
+        verified_at='2026-11-06T10:00:05Z',
+    )
+    defaults.update(overrides)
+    return Provenance(**defaults)  # type: ignore[arg-type]
+
+
+def _sample_attr(
+    name: str = 'draw-to-drain',
+    query: str = 'oracle:/draw[^.]*los/ AND otag:draw-matters',
+    trigger_event: str = 'draw-a-card',
+    effect_event: str = 'life-loss-drain',
+    **prov_overrides: object,
+) -> MachineAttribute:
+    return MachineAttribute(
+        name=name,
+        query=query,
+        trigger_event=trigger_event,
+        effect_event=effect_event,
+        provenance=_sample_provenance(**prov_overrides),
+    )
+
+
+# =====================================================================
+# TestSerializationRoundTrip
+# =====================================================================
+
+class TestSerializationRoundTrip:
+    """Record ↔ MachineAttribute fidelity."""
+
+    def test_round_trip_preserves_all_fields(self) -> None:
+        attr = _sample_attr()
+        rec = _attr_to_record(attr)
+        restored = _record_to_attr(rec)
+        assert restored == attr
+
+    def test_record_is_flat_dict(self) -> None:
+        """No nested objects -- provenance fields are promoted to top level."""
+        rec = _attr_to_record(_sample_attr())
+        assert isinstance(rec, dict)
+        # No value should itself be a dict (flat record).
+        for v in rec.values():
+            assert not isinstance(v, dict), f'Nested dict found: {v!r}'
+
+    def test_record_contains_all_provenance_keys(self) -> None:
+        rec = _attr_to_record(_sample_attr())
+        expected_keys = {
+            'name', 'query', 'trigger_event', 'effect_event',
+            'source', 'model_id', 'authored_at', 'source_card_name',
+            'source_card_oracle_id', 'deck_context', 'scryfall_query',
+            'scryfall_resolved_count', 'verified_at', 'breadth_warning',
+        }
+        assert set(rec.keys()) == expected_keys
+
+    def test_json_serializable(self) -> None:
+        rec = _attr_to_record(_sample_attr())
+        text = json.dumps(rec, sort_keys=True, ensure_ascii=False)
+        restored_rec = json.loads(text)
+        assert restored_rec == rec
+
+    def test_record_to_attr_tolerates_missing_optional_keys(self) -> None:
+        """Minimal record (only name + query) still deserializes."""
+        minimal = {'name': 'x', 'query': 'otag:foo'}
+        attr = _record_to_attr(minimal)
+        assert attr.name == 'x'
+        assert attr.query == 'otag:foo'
+        assert attr.trigger_event == ''
+        assert attr.provenance.source == 'haiku'
+
+
+# =====================================================================
+# TestPersist
+# =====================================================================
+
+class TestPersist:
+    """Write to the durable JSONL store."""
+
+    def test_creates_directory_and_file(self, tmp_path: Path) -> None:
+        store_dir = tmp_path / 'machine_vocab'
+        attr = _sample_attr()
+        persist(attr, store_dir=store_dir)
+
+        store_file = store_dir / 'attributes.jsonl'
+        assert store_file.exists()
+        lines = store_file.read_text().strip().splitlines()
+        assert len(lines) == 1
+
+    def test_record_is_valid_json(self, tmp_path: Path) -> None:
+        store_dir = tmp_path / 'mv'
+        persist(_sample_attr(), store_dir=store_dir)
+
+        line = (store_dir / 'attributes.jsonl').read_text().strip()
+        rec = json.loads(line)
+        assert rec['name'] == 'draw-to-drain'
+        assert rec['source'] == 'haiku'
+        assert rec['source_card_oracle_id'] == 'abc-111-222-333'
+
+    def test_full_provenance_persisted(self, tmp_path: Path) -> None:
+        store_dir = tmp_path / 'mv'
+        persist(_sample_attr(), store_dir=store_dir)
+
+        rec = json.loads((store_dir / 'attributes.jsonl').read_text().strip())
+        assert rec['model_id'] == 'claude-3-5-haiku-20241022'
+        assert rec['authored_at'] == '2026-11-06T10:00:00Z'
+        assert rec['verified_at'] == '2026-11-06T10:00:05Z'
+        assert rec['deck_context'] == 'queza-esper-drain'
+        assert rec['scryfall_resolved_count'] == 4
+
+    def test_idempotent_on_same_name_and_card(self, tmp_path: Path) -> None:
+        """Same (name, source_card_oracle_id) => no duplicate."""
+        store_dir = tmp_path / 'mv'
+        attr = _sample_attr()
+        persist(attr, store_dir=store_dir)
+        persist(attr, store_dir=store_dir)  # second call, same key
+
+        lines = (store_dir / 'attributes.jsonl').read_text().strip().splitlines()
+        assert len(lines) == 1
+
+    def test_different_card_same_name_writes_both(self, tmp_path: Path) -> None:
+        """Same attr name from two different source cards => two records."""
+        store_dir = tmp_path / 'mv'
+        attr_a = _sample_attr(source_card_oracle_id='card-aaa')
+        attr_b = _sample_attr(source_card_oracle_id='card-bbb')
+        persist(attr_a, store_dir=store_dir)
+        persist(attr_b, store_dir=store_dir)
+
+        lines = (store_dir / 'attributes.jsonl').read_text().strip().splitlines()
+        assert len(lines) == 2
+
+    def test_different_name_same_card_writes_both(self, tmp_path: Path) -> None:
+        """Different attr names from the same source card => two records."""
+        store_dir = tmp_path / 'mv'
+        attr_a = _sample_attr(name='draw-to-drain')
+        attr_b = _sample_attr(name='draw-to-gain')
+        persist(attr_a, store_dir=store_dir)
+        persist(attr_b, store_dir=store_dir)
+
+        lines = (store_dir / 'attributes.jsonl').read_text().strip().splitlines()
+        assert len(lines) == 2
+
+    def test_rejects_curated_source(self, tmp_path: Path) -> None:
+        """Cannot persist ``source='curated'`` into the machine store."""
+        store_dir = tmp_path / 'mv'
+        attr = _sample_attr(source='curated')
+        with pytest.raises(ValueError, match='curated'):
+            persist(attr, store_dir=store_dir)
+
+    def test_append_to_existing_file(self, tmp_path: Path) -> None:
+        """Multiple persist calls append, not overwrite."""
+        store_dir = tmp_path / 'mv'
+        persist(_sample_attr(name='a', source_card_oracle_id='c1'), store_dir=store_dir)
+        persist(_sample_attr(name='b', source_card_oracle_id='c2'), store_dir=store_dir)
+        persist(_sample_attr(name='c', source_card_oracle_id='c3'), store_dir=store_dir)
+
+        lines = (store_dir / 'attributes.jsonl').read_text().strip().splitlines()
+        assert len(lines) == 3
+
+
+# =====================================================================
+# TestLoadStore
+# =====================================================================
+
+class TestLoadStore:
+    """Read from the durable JSONL store."""
+
+    def test_loads_persisted_attr(self, tmp_path: Path) -> None:
+        store_dir = tmp_path / 'mv'
+        original = _sample_attr()
+        persist(original, store_dir=store_dir)
+
+        store = load_store(store_dir)
+        assert not store.is_empty
+        assert len(store.attributes) == 1
+        assert store.attributes[0] == original
+
+    def test_loads_multiple_attrs(self, tmp_path: Path) -> None:
+        store_dir = tmp_path / 'mv'
+        attrs = [
+            _sample_attr(name='a', source_card_oracle_id='c1'),
+            _sample_attr(name='b', source_card_oracle_id='c2'),
+        ]
+        for a in attrs:
+            persist(a, store_dir=store_dir)
+
+        store = load_store(store_dir)
+        assert len(store.attributes) == 2
+        assert store.names() == frozenset(['a', 'b'])
+
+    def test_empty_on_missing_dir(self, tmp_path: Path) -> None:
+        store = load_store(tmp_path / 'nonexistent')
+        assert store.is_empty
+
+    def test_empty_on_empty_file(self, tmp_path: Path) -> None:
+        store_dir = tmp_path / 'mv'
+        store_dir.mkdir(parents=True)
+        (store_dir / 'attributes.jsonl').write_text('')
+
+        store = load_store(store_dir)
+        assert store.is_empty
+
+    def test_raises_on_corrupt_json(self, tmp_path: Path) -> None:
+        store_dir = tmp_path / 'mv'
+        store_dir.mkdir(parents=True)
+        (store_dir / 'attributes.jsonl').write_text('not json\n')
+
+        with pytest.raises(ValueError, match='invalid JSON'):
+            load_store(store_dir)
+
+    def test_roundtrip_preserves_provenance(self, tmp_path: Path) -> None:
+        store_dir = tmp_path / 'mv'
+        original = _sample_attr()
+        persist(original, store_dir=store_dir)
+
+        store = load_store(store_dir)
+        loaded = store.attributes[0]
+        assert loaded.provenance.source == 'haiku'
+        assert loaded.provenance.model_id == 'claude-3-5-haiku-20241022'
+        assert loaded.provenance.source_card_name == 'Queza, Augur of Agonies'
+        assert loaded.provenance.verified_at == '2026-11-06T10:00:05Z'
+        assert loaded.provenance.scryfall_resolved_count == 4
+        assert loaded.provenance.breadth_warning is False
+
+    def test_breadth_warning_roundtrip(self, tmp_path: Path) -> None:
+        """Provenance with breadth_warning=True survives persist/load."""
+        store_dir = tmp_path / 'mv'
+        attr = _sample_attr(breadth_warning=True)
+        persist(attr, store_dir=store_dir)
+
+        store = load_store(store_dir)
+        loaded = store.attributes[0]
+        assert loaded.provenance.breadth_warning is True
+
+
+# =====================================================================
+# TestLoadFrozenSnapshot
+# =====================================================================
+
+class TestLoadFrozenSnapshot:
+    """Load a frozen machine-store snapshot for tests."""
+
+    def test_loads_json_array(self, tmp_path: Path) -> None:
+        fixture = tmp_path / 'frozen.json'
+        records = [_attr_to_record(_sample_attr(name=n)) for n in ['x', 'y']]
+        fixture.write_text(json.dumps(records, indent=2))
+
+        store = load_frozen_snapshot(fixture)
+        assert len(store.attributes) == 2
+        assert store.names() == frozenset(['x', 'y'])
+
+    def test_raises_on_missing_file(self, tmp_path: Path) -> None:
+        with pytest.raises(FileNotFoundError, match='not found'):
+            load_frozen_snapshot(tmp_path / 'nope.json')
+
+    def test_raises_on_non_array(self, tmp_path: Path) -> None:
+        fixture = tmp_path / 'bad.json'
+        fixture.write_text('{"not": "an array"}')
+        with pytest.raises(ValueError, match='JSON array'):
+            load_frozen_snapshot(fixture)
+
+    def test_empty_array_gives_empty_store(self, tmp_path: Path) -> None:
+        fixture = tmp_path / 'empty.json'
+        fixture.write_text('[]')
+        store = load_frozen_snapshot(fixture)
+        assert store.is_empty
+
+    def test_snapshot_roundtrip_with_full_provenance(self, tmp_path: Path) -> None:
+        """Persist -> serialize to JSON array -> load_frozen_snapshot = identical."""
+        original = _sample_attr()
+        fixture = tmp_path / 'snap.json'
+        fixture.write_text(json.dumps([_attr_to_record(original)], indent=2))
+
+        store = load_frozen_snapshot(fixture)
+        assert store.attributes[0] == original
+
+
+# =====================================================================
+# TestCompoundingReadPath
+# =====================================================================
+
+class TestCompoundingReadPath:
+    """The compounding pattern: persist once, reuse on the 2nd deck."""
+
+    def test_second_deck_reuses_stored_attr(self, tmp_path: Path) -> None:
+        """Persist for deck A; deck B finds it without re-authoring."""
+        store_dir = tmp_path / 'mv'
+        attr = _sample_attr(
+            name='draw-to-drain',
+            source_card_oracle_id='queza-oracle-id',
+            deck_context='deck-a-queza',
+        )
+        persist(attr, store_dir=store_dir)
+
+        # Deck B loads the store and checks whether Queza already has an edge.
+        store = load_store(store_dir)
+        assert store.has_edge_for_card('queza-oracle-id')
+        assert store.get('draw-to-drain') is not None
+        assert store.get('draw-to-drain').provenance.deck_context == 'deck-a-queza'
+
+    def test_unknown_card_not_in_store(self, tmp_path: Path) -> None:
+        store_dir = tmp_path / 'mv'
+        persist(_sample_attr(source_card_oracle_id='card-a'), store_dir=store_dir)
+
+        store = load_store(store_dir)
+        assert not store.has_edge_for_card('card-b')
+
+    def test_compounding_frontier_shrinks(self, tmp_path: Path) -> None:
+        """After persisting an edge, the frontier for a 2nd deck shrinks.
+
+        This is the key compounding behaviour: a second deck containing a
+        card that's already been authored doesn't send it to haiku.
+        """
+        from pipeline.transforms.strategy.engine_hydration import (
+            curated_edge_queries,
+            frontier,
+        )
+
+        # A card with engine-relevant otags (death-trigger = trigger family,
+        # tokens = effect family) but oracle text that does NOT match any of
+        # the 6 curated draw/drain/gain edge queries.  This ensures the card
+        # lands on the frontier with curated edges alone.
+        card_frontier = {
+            'name': 'Test Frontier Card',
+            'oracle_text': 'Whenever a creature you control dies, '
+                           'create a 1/1 black Zombie creature token.',
+            'type_line': 'Enchantment',
+            'mana_cost': '{3}{B}',
+            'keywords': [],
+            'otags': ['death-trigger', 'tokens'],
+        }
+        deck_cards = [card_frontier]
+
+        # With only curated edges, this card IS on the frontier
+        # (engine-relevant otags, no curated edge match).
+        curated_only = curated_edge_queries()
+        front_before = frontier(deck_cards, curated_only)
+        assert len(front_before) == 1
+
+        # Persist a machine attr whose query MATCHES this card.
+        store_dir = tmp_path / 'mv'
+        machine_attr = _sample_attr(
+            name='death-to-tokens',
+            query='otag:death-trigger AND otag:tokens',
+            trigger_event='creature-death',
+            effect_event='token-created',
+            source_card_oracle_id='test-card-oracle',
+        )
+        persist(machine_attr, store_dir=store_dir)
+
+        # Load store and assemble full edge set.
+        store = load_store(store_dir)
+        full_edges = curated_only + store.edge_queries()
+
+        # Now the card is covered => NOT on the frontier.
+        front_after = frontier(deck_cards, full_edges)
+        assert len(front_after) == 0
+
+
+# =====================================================================
+# TestAllEdgeQueries
+# =====================================================================
+
+class TestAllEdgeQueries:
+    """The ``all_edge_queries`` helper assembles curated + machine."""
+
+    def test_empty_store_returns_curated_only(self) -> None:
+        from pipeline.transforms.strategy.engine_hydration import curated_edge_queries
+        curated = curated_edge_queries()
+        result = all_edge_queries(None)
+        assert result == curated
+
+    def test_empty_machine_store_returns_curated_only(self) -> None:
+        from pipeline.transforms.strategy.engine_hydration import curated_edge_queries
+        curated = curated_edge_queries()
+        result = all_edge_queries(empty_store())
+        assert result == curated
+
+    def test_machine_attrs_appended_after_curated(self, tmp_path: Path) -> None:
+        from pipeline.transforms.strategy.engine_hydration import curated_edge_queries
+        curated = curated_edge_queries()
+
+        store_dir = tmp_path / 'mv'
+        persist(
+            _sample_attr(name='machine-edge-1', source_card_oracle_id='c1'),
+            store_dir=store_dir,
+        )
+        store = load_store(store_dir)
+
+        result = all_edge_queries(store)
+        assert len(result) == len(curated) + 1
+        # Curated first, then machine.
+        assert result[:len(curated)] == curated
+        assert result[-1][0] == 'machine-edge-1'
+
+
+# =====================================================================
+# TestStoreEdgeMethods
+# =====================================================================
+
+class TestStoreEdgeMethods:
+    """MachineStore helper methods: has_edge_for_card, edge_queries."""
+
+    def test_edge_queries_format(self) -> None:
+        store = MachineStore(attributes=[
+            _sample_attr(name='a', query='otag:foo'),
+            _sample_attr(name='b', query='otag:bar'),
+        ])
+        queries = store.edge_queries()
+        assert queries == [('a', 'otag:foo'), ('b', 'otag:bar')]
+
+    def test_empty_store_edge_queries(self) -> None:
+        assert empty_store().edge_queries() == []
+
+    def test_has_edge_for_card_true(self) -> None:
+        store = MachineStore(attributes=[
+            _sample_attr(source_card_oracle_id='card-x'),
+        ])
+        assert store.has_edge_for_card('card-x')
+
+    def test_has_edge_for_card_false(self) -> None:
+        store = MachineStore(attributes=[
+            _sample_attr(source_card_oracle_id='card-x'),
+        ])
+        assert not store.has_edge_for_card('card-y')
+
+
+# =====================================================================
+# TestHermeticity — the crux: machine store does NOT shift curated SHAs
+# =====================================================================
+
+class TestHermeticity:
+    """Populated machine store does NOT shift the curated engine + resolve SHAs.
+
+    This is the Q4 separation invariant: the curated golden/determinism/parity
+    tests must be unaffected by the machine store.  The default ``resolve()``
+    and ``compute_facts`` path NEVER loads the machine store; tests that DO
+    need machine vocab use a FROZEN snapshot.
+
+    The test populates a machine store with several attrs (to prove it's not
+    empty), then asserts the curated composite SHAs are unchanged.
+    """
+
+    def test_curated_engine_sha_unchanged_with_populated_store(
+        self, tmp_path: Path,
+    ) -> None:
+        """Populate a machine store; curated engine isolation SHA is unchanged."""
+        from pipeline.transforms.strategy.tests.engine_parity_oracle import (
+            composite_sha,
+            compute_engine_isolation_baselines,
+        )
+
+        # --- Populate a non-trivial machine store in tmp_path ---------------
+        store_dir = tmp_path / 'machine_vocab'
+        for i in range(5):
+            persist(
+                _sample_attr(
+                    name=f'machine-edge-{i}',
+                    source_card_oracle_id=f'card-{i}',
+                    deck_context=f'deck-{i}',
+                ),
+                store_dir=store_dir,
+            )
+        store = load_store(store_dir)
+        assert not store.is_empty, 'Store should be populated for this test'
+        assert len(store.attributes) == 5
+
+        # --- Compute curated baselines (resolve + engine isolation) ---------
+        engine_baselines = compute_engine_isolation_baselines()
+        engine_sha = composite_sha(engine_baselines)
+
+        # The HELD expected SHAs from the parity oracle baseline.
+        expected_engine_sha = (
+            'fcf27cf6c04b28d8aa83236c0b7e8e116e33280b615e41003d981667d67a3d75'
+        )
+        assert engine_sha == expected_engine_sha, (
+            f'Engine isolation SHA shifted!\n'
+            f'  Expected: {expected_engine_sha}\n'
+            f'  Got:      {engine_sha}\n'
+            f'A populated machine store must NOT affect curated engine output.'
+        )
+
+    def test_curated_resolve_sha_unchanged_with_populated_store(
+        self, tmp_path: Path,
+    ) -> None:
+        """Populate a machine store; curated resolve SHA is unchanged."""
+        from pipeline.transforms.strategy.tests.engine_parity_oracle import (
+            composite_sha,
+            compute_resolve_baselines,
+        )
+
+        # --- Populate a non-trivial machine store in tmp_path ---------------
+        store_dir = tmp_path / 'machine_vocab'
+        for i in range(3):
+            persist(
+                _sample_attr(
+                    name=f'machine-edge-{i}',
+                    source_card_oracle_id=f'card-{i}',
+                ),
+                store_dir=store_dir,
+            )
+        store = load_store(store_dir)
+        assert not store.is_empty
+
+        # --- Compute curated baselines -------------------------------------
+        resolve_baselines = compute_resolve_baselines()
+        resolve_sha = composite_sha(resolve_baselines)
+
+        expected_resolve_sha = (
+            '60858cfce883db1a7957e140ef3555eee6565da2ab430362ce4c421b20385fea'
+        )
+        assert resolve_sha == expected_resolve_sha, (
+            f'Resolve SHA shifted!\n'
+            f'  Expected: {expected_resolve_sha}\n'
+            f'  Got:      {resolve_sha}\n'
+            f'A populated machine store must NOT affect curated resolve output.'
+        )
+
+    def test_curated_base_imports_never_touch_machine_store(self) -> None:
+        """The curated base path (resolve / compute_facts) does NOT import
+        or call load_store -- it only uses vocab.py + edge_roles.py."""
+        import inspect
+        from pipeline.transforms.strategy import resolve
+        from pipeline.transforms.strategy.facts import compute_facts
+
+        # Inspect the source for any reference to load_store / machine_vocab.
+        resolve_src = inspect.getsource(resolve)
+        facts_src = inspect.getsource(compute_facts)
+
+        # The resolve function delegates to compute_facts, which is the
+        # deterministic path.  Neither should reference the machine store.
+        assert 'load_store' not in facts_src, (
+            'compute_facts must not reference load_store'
+        )
+        assert 'machine_vocab' not in facts_src, (
+            'compute_facts must not reference machine_vocab'
+        )

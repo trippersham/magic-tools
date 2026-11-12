@@ -6180,6 +6180,13 @@
       "threshold_cards": 12,
       "rationale": "affinity/artifact-matters archetypes; generic over type_line."
     },
+    "enchantment-density": {
+      "mechanism": "count cards whose type_line matches Enchantment",
+      "field": "type_line",
+      "regex": "\\bEnchantment\\b",
+      "threshold_cards": 12,
+      "rationale": "enchantress/enchantments-matter archetypes; generic over type_line."
+    },
     "creature-type-density": {
       "mechanism": "max count of any single creature subtype across the deck's creatures (from type_line after the dash)",
       "field": "type_line",
@@ -6193,6 +6200,10 @@
     "c5_v4_augmentation": "human-approved crosswalk augmentation: new buckets food/mm_counters/theft, artifacts+metalcraft/improvise, DUAL multimaps, affinity routing, tutor-land->ramp, anthem go-tall de-conflation. Groups toggleable via GROUPS env in corpus_runner_v4."
   },
   "_v4_base_buckets": {
+    "clones": [
+      "copy-creature",
+      "clone"
+    ],
     "removal": [
       "removal"
     ],
@@ -6246,7 +6257,8 @@
     "anthem": [
       "power-boost-to-all",
       "toughness-boost-to-all",
-      "anthem"
+      "anthem",
+      "power-matters-self"
     ],
     "combat": [
       "attacking-matters",
@@ -6431,12 +6443,6 @@
         "tutor-land-swamp",
         "tutor-land-to-battlefield",
         "tutor-land-town"
-      ]
-    },
-    "deconf_anthem": {
-      "anthem": [
-        "power-matters",
-        "toughness-matters"
       ]
     },
     "dual_land": {

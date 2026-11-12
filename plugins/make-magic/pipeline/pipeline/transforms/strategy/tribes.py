@@ -10,18 +10,37 @@ vote sources (creature-subtype counts, oracle-text tribal references, and
   dominant one. This is the "Fantastic Four named *Human* while *Hero* dominates"
   nit: the deck's real tribe is the concentrated one, not whichever incidental
   co-printed subtype happened to out-vote it on text.
-* **C3b — pseudo-subtype filter.** Non-creature subtypes that leak in from
-  dual-subtype type lines (``— Clue Plant``, ``— Equipment …``) are dropped from
-  the vote entirely, so ``Clue`` / ``Equipment`` / ``Vehicle`` / ``Treasure`` …
-  can never register (or win) as a "tribe".
+* **C3b — allowlist subtype resolution.** Subtypes are resolved against the
+  Scryfall creature-type *catalog* (home ④ reference data, synced from the
+  authority), kept as an allowlist: only tokens/spans that ARE real creature
+  types survive. This drops anything that leaks in from a dual-subtype type line
+  (``— Clue Plant``, ``— Equipment …`` → ``Clue`` / ``Equipment`` / ``Vehicle`` /
+  ``Treasure`` never register as a "tribe") AND the basic-land types a
+  ``Land Creature — Forest Dryad`` would otherwise leak (``Forest`` is not a
+  creature type). Multi-word catalog entries (only ``Time Lord`` today) are
+  matched longest-first against the subtype span, since CR 205.3 makes
+  subtype→type attribution non-positional — the allowlist IS the resolution.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter, defaultdict
+from pathlib import Path
 
 from pipeline.transforms.strategy.assets import is_land
+
+#: home ④ reference data — the Scryfall creature-type catalog (the authority's
+#: ~377-entry list of real creature types), synced from
+#: ``https://api.scryfall.com/catalog/creature-types``, committed under ``data/``.
+_CATALOG_FILE = Path(__file__).resolve().parent / 'data' / 'creature_types_catalog.json'
+#: canonical casing, keyed by lower-case for case-insensitive span matching
+_CREATURE_TYPES_BY_LOWER: dict[str, str] = {
+    t.lower(): t for t in json.loads(_CATALOG_FILE.read_text())['data']
+}
+#: widest catalog entry in words (2, for "Time Lord") — the longest-match window
+_MAX_SPAN = max((len(t.split()) for t in _CREATURE_TYPES_BY_LOWER.values()), default=1)
 
 #: non-tribe ``typal-*`` control slugs (meta/structural, not a creature subtype)
 _TYPAL_NONTRIBE = frozenset({'creature', 'choose', 'each', 'coupling', 'coupling-distinct',
@@ -31,21 +50,6 @@ _IRREGULAR_PLURAL = {
     'thief': 'thieves', 'leaf': 'leaves', 'djinn': 'djinn', 'fish': 'fish',
     'fungus': 'fungi', 'mercenary': 'mercenaries', 'homarid': 'homarids',
 }
-
-#: C3b — subtypes that are NOT creature tribes but can appear after the dash on a
-#: dual-type permanent (artifact / enchantment / spell subtypes). Filtered out of
-#: the tribe vote so they never masquerade as a tribe.
-NON_CREATURE_SUBTYPES = frozenset({
-    # artifact subtypes
-    'Clue', 'Equipment', 'Food', 'Fortification', 'Gold', 'Treasure', 'Vehicle', 'Blood',
-    'Powerstone', 'Map', 'Junk', 'Incubator', 'Contraption', 'Attraction', 'Bobblehead',
-    # enchantment subtypes
-    'Aura', 'Background', 'Cartouche', 'Case', 'Class', 'Curse', 'Role', 'Rune', 'Saga',
-    'Shard', 'Shrine', 'Chorus',
-    # instant/sorcery (and other non-creature) subtypes
-    'Lesson', 'Arcane', 'Adventure', 'Trap', 'Omen',
-})
-
 
 def _plural(t: str) -> str:
     tl = t.lower()
@@ -59,13 +63,31 @@ def _plural(t: str) -> str:
 
 
 def creature_subtypes(card: dict) -> list[str]:
-    """Creature subtypes after the dash, with C3b pseudo-subtypes filtered out."""
+    """Creature subtypes after the dash, resolved against the catalog allowlist.
+
+    Keeps only tokens/spans that ARE real creature types (per the synced Scryfall
+    catalog), so dual-subtype leakage (``Clue``/``Equipment``/``Vehicle``…) and
+    basic-land types (``Forest``/``Island``…) never register as tribes. Multi-word
+    types (``Time Lord``) are matched longest-first against the span, returned in
+    the catalog's canonical casing.
+    """
     tl = card.get('type_line') or ''
     if 'Creature' not in tl or '—' not in tl:
         return []
     right = tl.split('—', 1)[1].split('//')[0]
-    return [w for w in right.replace('/', ' ').split()
-            if w.isalpha() and w not in NON_CREATURE_SUBTYPES]
+    words = [w for w in right.replace('/', ' ').split() if w.isalpha()]
+    out: list[str] = []
+    i, n = 0, len(words)
+    while i < n:
+        for span in range(min(_MAX_SPAN, n - i), 0, -1):
+            canon = _CREATURE_TYPES_BY_LOWER.get(' '.join(words[i:i + span]).lower())
+            if canon is not None:
+                out.append(canon)
+                i += span
+                break
+        else:
+            i += 1
+    return out
 
 
 def typal_otag_tribe(slug: str) -> str | None:

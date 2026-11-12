@@ -150,10 +150,10 @@ def build_substantiveness(cfg: StrategyConfig) -> dict[str, Requirement]:
 def requirement_for(arch: str, cfg: StrategyConfig) -> Requirement:
     """Select ``arch``'s Requirement — data lookup, never an archetype-name branch.
 
-    EDHREC new-label identities (only active when ``cfg.edhrec_labels``) take the
+    EDHREC new-label identities take the
     folded ``member_count(3, noncmd=2)`` bar; the per-archetype ``SUBSTANTIVENESS``
     entries take theirs; everything else falls to the ``member_count(3)`` default.
     """
-    if cfg.edhrec_labels and arch in EDHREC_NEW_LABELS:
+    if arch in EDHREC_NEW_LABELS:
         return EDHREC_REQUIREMENT
     return build_substantiveness(cfg).get(arch, DEFAULT_REQUIREMENT)

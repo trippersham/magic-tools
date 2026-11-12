@@ -37,7 +37,7 @@ from dataclasses import dataclass
 
 from pipeline.transforms.strategy.query import CardView, Predicate, compile_query
 
-#: EDHREC new-node identities (active when ``cfg.edhrec_labels``). Ordered: this
+#: EDHREC new-node identities (always active; the ``edhrec_labels`` knob was removed). Ordered: this
 #: block is the highest routing precedence, matching the engine's tier-1 router.
 EDHREC_IDENTITIES: list[tuple[str, str]] = [
     ('devotion', 'otag:devotion-signal'),
@@ -79,12 +79,6 @@ NEWBUCKET_IDENTITIES: list[tuple[str, str]] = [
                          'OR otag:theft-planeswalker OR otag:theft-spell OR otag:theft'),
 ]
 
-#: Anthem deconfliction identity (active only when ``deconf_anthem`` is enabled);
-#: routes the broad power/toughness-matters payoffs into the anthem archetype.
-ANTHEM_DECONF_IDENTITIES: list[tuple[str, str]] = [
-    ('anthem-deconf', 'otag:power-matters OR otag:toughness-matters'),
-]
-
 #: Always-active identities, in routing precedence. Every family is named by its
 #: exact otag parent (ancestor-closure carries the children) or, where the tag DAG
 #: does not parent the family under one root, by an explicit exact OR-list that
@@ -112,6 +106,14 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
     ('tokens/go-wide', 'otag:tokens OR otag:token-increaser OR otag:repeatable-token-generator '
                        'OR otag:repeatable-creature-tokens OR otag:repeatable-noncreature-tokens '
                        'OR otag:synergy-token'),
+    # clones / steal-via-copy (Riku/Lazav/Mimeoplasm/Damia cmdrs): copying a
+    # NONTOKEN creature (clone staples, graveyard-steal-via-copy). Keys on the
+    # `clones` bucket (copy-creature + clone) ONLY — deliberately NOT copy-token:
+    # token-copy/populate (Rhys/Trostani/Second Harvest) is a tokens plan, not a
+    # clones identity. `copy-creature` is OVERLOADED (populate carries it too), so
+    # over-fire is left to the GENERIC density-rank + ratio cutoff — a lone clone
+    # staple in a tokens/populate deck never clears it; no bespoke commander guard.
+    ('clones', 'otag:clones'),
     ('counters', 'otag:counters OR otag:gains-pp-counters OR otag:pp-counters-matter '
                  'OR otag:repeatable-pp-counters OR otag:counters-matter '
                  'OR otag:counter-increaser OR otag:proliferate'),
@@ -204,11 +206,10 @@ ARCHETYPE_EDGES: dict[str, str] = {
     'food': 'food',
     'mm-counters': '-1/-1 counters',
     'theft-newbuckets': 'theft',
-    # anthem deconfliction
-    'anthem-deconf': 'anthem/go-wide',
     # base
     'typal/tribal': 'typal/tribal',
     'tokens/go-wide': 'tokens/go-wide',
+    'clones': 'clones/steal-via-copy',
     'counters': '+1/+1 counters',
     'sacrifice': 'aristocrats/sacrifice',
     'landfall': 'landfall',
@@ -236,7 +237,7 @@ ARCHETYPE_EDGES: dict[str, str] = {
 }
 
 #: Synthesized attributes: a card gets these by card-field query, not by otag.
-#: Ordered; the EDHREC block is active only when ``cfg.edhrec_labels``. These
+#: Ordered; the EDHREC block is always active (the ``edhrec_labels`` knob was removed). These
 #: names also route — as the pseudo-otag of their identity above (``vehicle-type``
 #: is claimed by ``vehicles``; ``devotion-signal`` by ``devotion``; and so on).
 SYNTH_EDHREC_ATTRIBUTES: list[tuple[str, str]] = [
@@ -253,6 +254,50 @@ SYNTH_EDHREC_ATTRIBUTES: list[tuple[str, str]] = [
 #: otags do not tag cleanly, so the attribute is synthesized from the keyword.
 SYNTH_ALWAYS_ATTRIBUTES: list[tuple[str, str]] = [
     ('morph', 'keyword:morph OR keyword:megamorph OR keyword:disguise OR keyword:cloak'),
+    # Rad counters (Fallout) are a novel PLAYER-targeted counter with NO Scryfall
+    # otag, so membership is synthesized from the oracle text. This surfaces the
+    # rad-giving (and rad-caring) cards so the `player-counter` event can model the
+    # rad engine; it carries no archetype edge (it routes to None) — the rad engine
+    # is isolated at the ENGINE layer, it does not rename the deck.
+    ('rad-counter', "oracle:'rad counter'"),
+    # Within-card lifetrade edges (Queza family). Each names a card that couples
+    # TWO effects in ONE sentence: a trigger effect that drives a second payoff
+    # effect (draw -> drain, gain -> draw, ...). Membership is a compound query:
+    # a same-sentence `[^.]*` proximity regex over the (lowercased) oracle text,
+    # intersected with the otags that pin the card's intent (so the regex word
+    # sense is disambiguated by the matching `*-matters`/payoff otag). The
+    # proximity regex uses unbounded `[^.]*` (0 RE2 budget) to stay a single
+    # sentence yet Scryfall-pasteable. The trigger->effect ROLE pair lives only in
+    # the attribute NAME (and this comment): the synth vocab is `(name, query)`
+    # with no metadata slot, so a later edge-derivation pass reads the role off the
+    # name. Like `rad-counter` these carry NO archetype edge (route to None) — they
+    # surface the member cards for that pass, they do not rename the deck.
+    #
+    # Disjunctions (cats 1 & 3) use a parenthesized exact-otag OR-group, the same
+    # `(otag:a OR otag:b)` form the identity queries use. #7 (draw-to-drain-and-gain,
+    # the full Queza shape) is DELIBERATELY NOT registered as a 7th attribute: the
+    # vocab composes attributes as independent predicates (no query can reference
+    # another attribute's name), and #7 is exactly the set intersection of
+    # `draw-to-drain` and `draw-to-gain`. Re-inlining both regexes + otag lists into
+    # a third query would duplicate them; the derived composition (membership #1 AND
+    # membership #2) is the idiomatic, DRY form for the edge-derivation pass to take.
+    ('draw-to-drain',
+     'oracle:/draw[^.]*los/ AND otag:draw-matters '
+     'AND (otag:opponent-loses-life OR otag:drain-life)'),
+    ('draw-to-gain',
+     'oracle:/draw[^.]*gain/ AND otag:draw-matters AND otag:lifegain'),
+    ('gain-to-drain',
+     'oracle:/gain[^.]*los/ AND otag:lifegain-matters '
+     'AND (otag:opponent-loses-life OR otag:drain-life)'),
+    # `opponent` anchor drops self-life-loss false positives (e.g. Transcendence).
+    ('drain-to-gain',
+     'oracle:/opponent[^.]*los[a-z]*[^.]*gain/ AND otag:life-loss-matters AND otag:lifegain'),
+    # `life` token fixes word sense (drops "gains an ability"); the draw payoff has
+    # no narrow produce-otag, so the regex word carries the effect (no effect otag).
+    ('gain-to-draw',
+     'oracle:/gain[^.]*life[^.]*draw/ AND otag:lifegain-matters'),
+    ('drain-to-draw',
+     'oracle:/opponent[^.]*los[a-z]*[^.]*draw/ AND otag:life-loss-matters'),
 ]
 
 
@@ -275,18 +320,19 @@ def _merge_overlay(base_pairs: list[tuple[str, str]],
 
 
 def _resolve_identity_order(
-    *, edhrec: bool, newbuckets: bool, anthem_deconf: bool,
+    *, newbuckets: bool,
     overlay: Mapping | None,
 ) -> list[tuple[str, str]]:
-    """Assemble the config-gated, ordered identity list (routing precedence)."""
+    """Assemble the ordered identity list (routing precedence).
+
+    EDHREC identities are always included (the ``edhrec_labels`` knob was removed
+    as frozen configuration -- ADR 0006). ``newbuckets`` remains a real toggle.
+    """
     attr_overlay = (overlay or {}).get('attributes')
     pairs: list[tuple[str, str]] = []
-    if edhrec:
-        pairs += EDHREC_IDENTITIES
+    pairs += EDHREC_IDENTITIES
     if newbuckets:
         pairs += NEWBUCKET_IDENTITIES
-    if anthem_deconf:
-        pairs += ANTHEM_DECONF_IDENTITIES
     pairs += BASE_IDENTITIES
     return _merge_overlay(pairs, attr_overlay)
 
@@ -318,11 +364,10 @@ class Router:
 
 
 def build_router(
-    *, edhrec: bool, newbuckets: bool, anthem_deconf: bool,
+    *, newbuckets: bool,
     overlay: Mapping | None = None,
 ) -> Router:
-    pairs = _resolve_identity_order(
-        edhrec=edhrec, newbuckets=newbuckets, anthem_deconf=anthem_deconf, overlay=overlay)
+    pairs = _resolve_identity_order(newbuckets=newbuckets, overlay=overlay)
     edges = build_edges(overlay)
     compiled = tuple(
         CompiledIdentity(name=n, predicate=compile_query(q), strategy=edges[n])
@@ -332,12 +377,14 @@ def build_router(
 
 
 def compile_synth(
-    *, edhrec: bool, overlay: Mapping | None = None,
+    *, overlay: Mapping | None = None,
 ) -> list[tuple[str, Predicate]]:
-    """Compile the ordered synth-attribute (card-field) membership predicates."""
+    """Compile the ordered synth-attribute (card-field) membership predicates.
+
+    EDHREC synth attributes are always included (the ``edhrec_labels`` knob was
+    removed as frozen configuration -- ADR 0006)."""
     pairs: list[tuple[str, str]] = []
-    if edhrec:
-        pairs += SYNTH_EDHREC_ATTRIBUTES
+    pairs += SYNTH_EDHREC_ATTRIBUTES
     pairs += SYNTH_ALWAYS_ATTRIBUTES
     syn_overlay = (overlay or {}).get('synth_attributes')
     pairs = _merge_overlay(pairs, syn_overlay)

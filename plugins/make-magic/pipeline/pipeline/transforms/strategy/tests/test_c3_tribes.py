@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pipeline.transforms.strategy import resolve
-from pipeline.transforms.strategy.tribes import NON_CREATURE_SUBTYPES, compute_tribes, creature_subtypes
+from pipeline.transforms.strategy.tribes import compute_tribes, creature_subtypes
 
 
 def test_fantastic_four_tribe_is_dominant_hero_not_vote_winner_human(load_deck, combos):
@@ -32,11 +32,22 @@ def test_spiders_unaffected_no_dominant(load_deck, combos):
 
 def test_pseudo_subtypes_filtered_from_creature_subtypes():
     # a dual-subtype type line must not leak the artifact/enchantment subtype
+    # (allowlist resolution: Clue / Aura / Equipment are not creature types)
     assert creature_subtypes({'type_line': 'Artifact Creature — Clue Plant'}) == ['Plant']
     assert creature_subtypes({'type_line': 'Enchantment Creature — Aura Spirit'}) == ['Spirit']
     assert creature_subtypes({'type_line': 'Creature — Equipment'}) == []
-    assert 'Clue' in NON_CREATURE_SUBTYPES
-    assert 'Equipment' in NON_CREATURE_SUBTYPES
+
+
+def test_basic_land_types_not_leaked_as_tribe():
+    # a Land Creature must not leak its basic-land type (Forest is not a creature type)
+    assert creature_subtypes({'type_line': 'Land Creature — Forest Dryad'}) == ['Dryad']
+
+
+def test_multiword_creature_type_resolved_as_span():
+    # the only two-word creature type resolves as one span, not two tokens
+    assert creature_subtypes({'type_line': 'Creature — Time Lord'}) == ['Time Lord']
+    # longest-first: "Time Lord" is one span, then "Doctor" (itself a creature type)
+    assert creature_subtypes({'type_line': 'Legendary Creature — Time Lord Doctor'}) == ['Time Lord', 'Doctor']
 
 
 def test_pseudo_subtypes_never_win_tribe_vote():

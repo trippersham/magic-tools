@@ -14,7 +14,7 @@ declarative maps in :mod:`.vocab` (``ATTRIBUTES`` for membership, ``ARCHETYPE_ED
 for the edge), compiled into a :class:`~.vocab.Router`;
 ``StrategyAssets.archetype_of_attr`` is a thin call into it. This module owns only
 the *membership* families the facts layer unions onto each card — the buckets, the
-payoff/anchor/enchantment-regex surfacing, and ``EDHREC_ATTR_SLUGS`` — plus the
+payoff/anchor/enchantment-slug surfacing, and ``EDHREC_ATTR_SLUGS`` — plus the
 compiled synth predicates (vehicle/energy/extra-turn/devotion/morph). Membership
 and edge never mix.
 
@@ -31,8 +31,14 @@ from functools import cache
 from pathlib import Path
 
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG, REFINED_GROUPS, StrategyConfig
-from pipeline.transforms.strategy.query import Predicate
-from pipeline.transforms.strategy.vocab import Router, build_router, compile_synth
+from pipeline.transforms.strategy.query import Predicate, compile_query
+from pipeline.transforms.strategy.vocab import (
+    BASE_IDENTITIES,
+    EDHREC_IDENTITIES,
+    Router,
+    build_router,
+    compile_synth,
+)
 
 DATA_DIR = Path(__file__).resolve().parent / 'data'
 VOCAB_FILE = DATA_DIR / 'attribute_vocab_v4.json'
@@ -43,16 +49,25 @@ EVENTS_FILE = DATA_DIR / 'event_catalog_v4.json'
 LABELSPACE_FILE = DATA_DIR / 'labelspace.json'
 
 # --- static control vocab (independent of config) ---------------------------
-#: The spellslinger "on-cast payoff" children, read by the facts substantiveness
-#: guard (``cast-trigger-you``/``-other`` = magecraft/prowess count; the bare
-#: ``cast-trigger`` parent and ``-self`` are a per-card body, not a payoff).
-_CAST_CHILDREN = frozenset({
-    'cast-trigger-you', 'cast-trigger-self', 'cast-trigger-other',
-    'second-spell-matters', 'storm-count-matters', 'prowess-like',
-})
-#: The enchantment-family surfacing regex: any card otag containing one of these
-#: substrings is surfaced (as itself) onto the card as a density attribute.
-_ENCH_ATTR_RE = re.compile(r'(enchant|aura|constellation|shrine|saga)')
+#: The enchantment-family surfacing SET: the exact otag slugs the facts layer
+#: surfaces (as themselves) onto a card so the enchantment identities can route
+#: them. SINGLE SOURCE OF TRUTH: the literal ``otag:<slug>`` atoms named by the
+#: vocab's ``enchantress`` (EDHREC tier-1) and ``enchantments`` (base) identity
+#: queries, extracted here so the surfacing can never diverge from what those two
+#: identities actually look for. Replaces the old broad substring regex, which
+#: over-matched cycle/removal/hate-adjacent slugs 4.6x and missed ``auto-attach``.
+_OTAG_SLUG_RE = re.compile(r'otag:([a-z0-9-]+)')
+
+
+def _ench_attr_slugs() -> frozenset[str]:
+    queries = dict(EDHREC_IDENTITIES) | dict(BASE_IDENTITIES)
+    slugs: set[str] = set()
+    for identity in ('enchantress', 'enchantments'):
+        slugs.update(_OTAG_SLUG_RE.findall(queries[identity]))
+    return frozenset(slugs)
+
+
+ENCH_ATTR_SLUGS = _ench_attr_slugs()
 
 # EDHREC membership family: the in-lake otag slugs the facts layer surfaces onto a
 # card (as themselves) when ``cfg.edhrec_labels`` is on, so the EDHREC identities
@@ -125,10 +140,11 @@ class StrategyAssets:
     density: dict
     events: dict
     event_anchors: frozenset[str]
-    tutor_land_slugs: frozenset[str]
+    #: Compiled ``otag:tutor-land`` predicate (ancestor-closed: card otags carry the
+    #: exact parent, so exact membership of ``tutor-land`` matches the whole family).
+    tutor_land_pred: Predicate
     new_bucket_names: frozenset[str]
     arch_newbuckets: bool
-    arch_anthem_deconf: bool
     #: Compiled routing: attribute NAME -> strategy, from the vocab's two maps.
     router: Router
     #: Compiled synth-attribute predicates (name, predicate), card-field queries.
@@ -138,9 +154,8 @@ class StrategyAssets:
     ench_re: re.Pattern
     spell_t: int
     art_t: int
+    ench_t: int
     sub_t: int
-    cast_children: frozenset[str] = _CAST_CHILDREN
-    ench_attr_re: re.Pattern = _ENCH_ATTR_RE
 
     def archetype_of_attr(self, a: str) -> str | None:
         """Deterministic attr-name -> identity archetype: one call into the vocab Router."""
@@ -173,28 +188,14 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
                     buckets[b].append(s)
     buckets = {b: sl for b, sl in buckets.items() if sl or b not in new_bucket_names}
 
-    # narrow go-tall anthem payoff augmentation (deterministic)
-    if 'anthem' in buckets:
-        for s in sorted(cfg.anthem_payoff):
-            if s not in buckets['anthem']:
-                buckets['anthem'].append(s)
-
     events = json.loads(EVENTS_FILE.read_text())['events']
-    # tutor-land producer injection (idempotent on v4, matches the prototype's
-    # "dual"/"dual_land"-gated widening of the landfall event producers)
-    if 'dual' in enabled or 'dual_land' in enabled:
-        le = events['land-enters-battlefield']
-        if 'tutor-land-to-battlefield' not in le['produced_by']:
-            le['produced_by'] = sorted(set(le['produced_by']) | {'tutor-land-to-battlefield'})
 
     support = frozenset(vocab['support_buckets'])
     density = vocab['ranking_only_density']
     bucket_names = frozenset(buckets)
     payoff_slugs = frozenset(vocab['payoff_attributes'].keys())
 
-    tutor_land_slugs = frozenset(
-        s for sl in v4_groups.get('ramp_tutor', {}).values() for s in sl if s.startswith('tutor-land')
-    )
+    tutor_land_pred = compile_query('otag:tutor-land')
 
     event_anchors: set[str] = set()
     for ev in events.values():
@@ -203,10 +204,8 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
                 event_anchors.add(ref)
 
     arch_newbuckets = 'new_buckets' in enabled
-    arch_anthem_deconf = 'deconf_anthem' in enabled
-    router = build_router(
-        edhrec=cfg.edhrec_labels, newbuckets=arch_newbuckets, anthem_deconf=arch_anthem_deconf)
-    synth_predicates = tuple(compile_synth(edhrec=cfg.edhrec_labels))
+    router = build_router(newbuckets=arch_newbuckets)
+    synth_predicates = tuple(compile_synth())
 
     return StrategyAssets(
         cfg=cfg,
@@ -217,17 +216,17 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
         density=density,
         events=events,
         event_anchors=frozenset(event_anchors),
-        tutor_land_slugs=tutor_land_slugs,
+        tutor_land_pred=tutor_land_pred,
         new_bucket_names=new_bucket_names,
         arch_newbuckets=arch_newbuckets,
-        arch_anthem_deconf=arch_anthem_deconf,
         router=router,
         synth_predicates=synth_predicates,
         spell_re=re.compile(density['spell-density']['regex']),
         art_re=re.compile(density['artifact-density']['regex']),
-        ench_re=re.compile(r'\bEnchantment\b'),
+        ench_re=re.compile(density['enchantment-density']['regex']),
         spell_t=int(density['spell-density']['threshold_cards']),
         art_t=int(density['artifact-density']['threshold_cards']),
+        ench_t=int(density['enchantment-density']['threshold_cards']),
         sub_t=int(density['creature-type-density']['threshold_cards']),
     )
 

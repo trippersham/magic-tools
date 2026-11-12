@@ -58,7 +58,7 @@ def _ctx(wq_top: float, wq_second: float) -> FactsContext:
         strategies=strategies, facts_only=set(), arch_members=arch_members,
         arch_has_cmd={'burn': False, 'lifegain': False},
         nodes={'burn', 'lifegain', 'filler'}, support=frozenset(), adens=adens, card_w={},
-        identity_mass=wq_top / _SHARE, coverage=0.9, gy_sub=True, demotions={},
+        identity_mass=wq_top / _SHARE, coverage=0.9, demotions={},
         cs_axis={'n': 0}, stax_axis={}, ramp_axis={'cedh_level': False}, protection_degree={},
         power={}, tribe_info={'top': None, 'ranked': []}, density_signals={}, cmd_attrs=set(),
         detected=[], win_combos=win_combos, predicate_wins=win_combos, mana_sink_wins=[],

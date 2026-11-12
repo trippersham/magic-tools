@@ -60,19 +60,13 @@ def name_deck(ctx: FactsContext) -> dict:
         margin = round(max(0.0, 1.0 - wq2 / wq1) if wq1 else 0.0, 3)
         tie = len(ranked) > 1 and abs(wq1 - wq2) < 1e-9
     else:
-        # DEFER #6: spellslinger last-resort fallback. Inert: spellslinger now takes
-        # the default member_count(3) == requires_met bar, so whenever its
-        # requires_met holds it is eligible and already named via `ranked` above —
-        # this branch is never reached. Behavior intentionally left as-is.
-        if ('spellslinger' in strategies and strategies['spellslinger']['requires_met']
-                and not any(st['requires_met'] and arch not in facts_only and arch != 'spellslinger'
-                            for arch, st in strategies.items())):
-            name = 'spellslinger'
-            margin = 1.0
-        elif ctx.coverage < 0.30:
+        # No substantive archetype ranked. (spellslinger is named via `ranked` when
+        # eligible — member_count(3)==requires_met, ADR 0002; its old last-resort
+        # fallback here was provably dead and was removed.)
+        if ctx.coverage < 0.30:
             abstain_reason = 'low-coverage'
         elif not any(a not in support for a in nodes):
-            if cfg.ramp_label and ramp_axis['cedh_level']:
+            if ramp_axis['cedh_level']:
                 name = 'ramp/big-mana'
                 margin = 1.0
             else:
@@ -122,8 +116,7 @@ def name_deck(ctx: FactsContext) -> dict:
     combo_identity = None
     win_combos = ctx.win_combos
     override_eligible = (
-        cfg.combo_override
-        and len(win_combos) >= cfg.combo_win_min
+        len(win_combos) >= cfg.combo_win_min
         and ((name is None) or (confidence in cfg.combo_conf))
     )
     # F4 dense-primary guard: block the override when the pre-combo primary is a

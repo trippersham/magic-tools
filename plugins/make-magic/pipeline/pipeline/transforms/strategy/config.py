@@ -25,14 +25,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 #: The v4 attribute groups the prototype folds into the bucket set at the
 #: validated default. Order is fixed for determinism.
 #:
-#: Fix **J2/B6**: ``deconf_anthem`` is deliberately NOT in the default set. That
-#: group routes the BROAD ``power-matters`` / ``toughness-matters`` slugs into the
-#: ``anthem/go-wide`` archetype, the over-fire T2/B6 replaced with the NARROW
-#: ``power-matters-self`` payoff (see :attr:`StrategyConfig.anthem_payoff`). The
-#: capability is kept available as a non-default knob — it is still a valid key in
-#: ``_v4_groups`` and can be re-enabled via
-#: ``enabled_groups=DEFAULT_CONFIG.enabled_groups | {'deconf_anthem'}`` — but the
-#: default engine feeds ONLY ``power-matters-self`` to the anthem archetype.
+#: Fix **J2/B6** (now permanent): the anthem over-fire — the BROAD
+#: ``power-matters`` / ``toughness-matters`` slugs routing into ``anthem/go-wide`` —
+#: is removed. The ``deconf_anthem`` group that carried the broad routing was
+#: DELETED (no routing identity, no ``_v4_groups`` entry), so it can no longer be
+#: re-enabled. The anthem archetype is fed ONLY the NARROW ``power-matters-self``
+#: payoff, folded into the ``anthem`` bucket by the vocab data itself
+#: (``_v4_base_buckets['anthem']`` in ``attribute_vocab_v4.json``). See ADR 0006.
 ALL_GROUPS: tuple[str, ...] = (
     'new_buckets', 'dual', 'affinity', 'ramp_tutor',
     'dual_land', 'dual_art', 'dual_ench', 'dual_sac',
@@ -42,10 +41,10 @@ REFINED_GROUPS: frozenset[str] = frozenset(
     {'new_buckets', 'affinity', 'dual_land', 'dual_art', 'dual_sac'}
 )
 
-#: Archetypes reported as FACTS but never NAMING candidates while their enabling
-#: flag is off — the ``facts_only`` set as DATA (not an inline literal in the facts
-#: branch). The enchantments synergy strategy double-counts synergies the
-#: enchantress identity already names, so it is facts-only unless ``ench_label``.
+#: Archetypes reported as FACTS but never NAMING candidates — the ``facts_only`` set
+#: as DATA (not an inline literal in the facts branch). The enchantments synergy
+#: strategy double-counts synergies the enchantress identity already names, so it is
+#: always facts-only (the ``ench_label`` knob was removed — universal-or-gone, ADR 0006).
 FACTS_ONLY_WHEN_DISABLED: frozenset[str] = frozenset({'enchantments'})
 
 
@@ -63,13 +62,10 @@ class StrategyConfig(BaseSettings):
 
     # ---- bucket / group assembly (vocab-driven) ----------------------------
     enabled_groups: frozenset[str] = frozenset(ALL_GROUPS)
-    #: narrow go-tall anthem payoff slug(s) folded into the ``anthem`` bucket
-    anthem_payoff: frozenset[str] = frozenset({'power-matters-self'})
 
     # ---- substantiveness / density knobs -----------------------------------
     gy_distinct: int = 4
     gy_ratio: float = 0.15
-    ench_label: bool = False      # make the enchantments archetype a NAMING candidate
 
     # ---- confidence thresholds ---------------------------------------------
     conf_high: float = 0.66
@@ -90,14 +86,10 @@ class StrategyConfig(BaseSettings):
     # ---- T4 degree / power readings ----------------------------------------
     over_t: float = 0.5
     ctrl_min_cs: int = 3
-    ramp_label: bool = True
-    enable_tutor_land_enabler: bool = True
 
     # ---- T5 combo correction -----------------------------------------------
-    combo_override: bool = True
     combo_conf: frozenset[str] = frozenset({'LOW'})
     combo_win_min: int = 2
-    combo_mana_sink: bool = True
 
     # ---- F4 (carried fix): dense-primary guard on the win-combo override ----
     #: The win-combo override is BLOCKED when the pre-combo primary identity
@@ -108,9 +100,6 @@ class StrategyConfig(BaseSettings):
     #: share < 0.50) still flip to combo.
     combo_primary_share: float = 0.50
     combo_primary_margin: float = 0.30
-
-    # ---- T5.5 EDHREC label space -------------------------------------------
-    edhrec_labels: bool = True
 
     # ---- commander weighting -----------------------------------------------
     cmd_weight: float = 5.0

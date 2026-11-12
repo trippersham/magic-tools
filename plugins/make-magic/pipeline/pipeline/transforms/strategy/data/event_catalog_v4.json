@@ -789,6 +789,7 @@
     },
     "lifegain": {
       "rule": "CR 119.3: gaining life; lifelink/drain/incidental gain",
+      "abbrev": "gain",
       "produced_by": [
         "drain-life",
         "gains-lifelink",
@@ -805,6 +806,7 @@
     },
     "life-loss-drain": {
       "rule": "CR 119.3: losing life; drain and symmetric life-loss payoffs (aristocrats)",
+      "abbrev": "drain",
       "produced_by": [
         "burn",
         "burn-player",
@@ -885,6 +887,7 @@
     },
     "token-created": {
       "rule": "CR 111 / 701.6: creating token permanents (creatures, Treasure, Food, Clue)",
+      "abbrev": "tokens",
       "produced_by": [
         "artifacts",
         "repeatable-artifact-tokens",
@@ -935,6 +938,7 @@
     },
     "draw-a-card": {
       "rule": "CR 120: drawing cards",
+      "abbrev": "draw",
       "produced_by": [
         "burst-draw",
         "draw",
@@ -1066,6 +1070,60 @@
       "triggered_by": [
         "monarch-matters",
         "off-turn-casting-matters"
+      ]
+    },
+    "creature-copied": {
+      "rule": "CR 707 / 701.6: a token or permanent that is a COPY of a creature is minted under your control (clone, steal-via-copy of a dying creature, populate-of-a-creature-token). Producers are the copy-creature/clone identity (the `clones` bucket) plus the token-copy families (copy-token/copy-self = populate); the EVENT covers token-copy even though the clones ARCHETYPE does not. A minted copy is a new creature/token permanent, so it is consumed by the creature-/token-enters payoffs (and, when the copy is also a Food as with Shelob, by the Food/lifegain payoffs).",
+      "produced_by": [
+        "clones",
+        "copy-token",
+        "copy-self"
+      ],
+      "triggered_by": [
+        "creature-count-matters",
+        "synergy-token-creature",
+        "synergy-token",
+        "enters-in-company",
+        "leaves-body-behind",
+        "synergy-food",
+        "eat-food"
+      ]
+    },
+    "untap": {
+      "rule": "CR 701.33: untap a permanent. Untap effects re-arm tapped abilities and attackers (the madness/activated-ability reuse loop, e.g. Anje untapping herself). Producers are the untapper families; consumers are the untapped-matters payoffs. NOTE: the Anje-style reuse loop closes through the card's own ACTIVATED ABILITY, a relation the otag catalog does not express as an untap consumer, so the untap edge isolates only on decks carrying an explicit untapped-matters payoff.",
+      "produced_by": [
+        "untapper",
+        "untapper-creature",
+        "untapper-land",
+        "untapper-artifact",
+        "untapper-nonland",
+        "untapper-permanent",
+        "untapper-planeswalker",
+        "untapper-equipment",
+        "untaps-self",
+        "extra-untap",
+        "ritual-untap",
+        "etb-untapper"
+      ],
+      "triggered_by": [
+        "untapped-matters-self",
+        "synergy-untapped"
+      ]
+    },
+    "player-counter": {
+      "rule": "CR 122 + Fallout rad: a counter placed on a PLAYER (rad counters). A novel player-targeted resource with NO Scryfall otag, so the producer `rad-counter` is an oracle-text synth attribute. Rad counters fuel self-mill (and feed proliferate), so the event is consumed by the mill/proliferate payoffs (The Wise Mothman's rad -> mill -> +1/+1 engine).",
+      "produced_by": [
+        "rad-counter"
+      ],
+      "triggered_by": [
+        "synergy-mill",
+        "mill-self",
+        "mill-any",
+        "mill-opponent",
+        "mill-each",
+        "repeatable-proliferate",
+        "pseudo-proliferate",
+        "synergy-proliferate"
       ]
     }
   },

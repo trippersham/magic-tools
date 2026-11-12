@@ -22,8 +22,8 @@ from pipeline.transforms.strategy.assets import (
     ANSWERS_MAP,
     ANSWERS_MAP_ALL_SLUGS,
     EDHREC_ATTR_SLUGS,
+    ENCH_ATTR_SLUGS,
     StrategyAssets,
-    is_graveyard_attr,
     is_land,
     load_assets,
 )
@@ -35,6 +35,7 @@ from pipeline.transforms.strategy.combo import (
 )
 from pipeline.transforms.strategy.config import FACTS_ONLY_WHEN_DISABLED, StrategyConfig
 from pipeline.transforms.strategy.degree import compute_degree_axes, power_profile
+from pipeline.transforms.strategy.query import CardView
 from pipeline.transforms.strategy.tribes import compute_tribes, creature_subtypes
 from pipeline.transforms.strategy.vocab import synth_attrs_for
 
@@ -61,7 +62,6 @@ class FactsContext:
     card_w: dict[int, float]
     identity_mass: float
     coverage: float
-    gy_sub: bool
     demotions: dict[str, bool]
     cs_axis: dict
     stax_axis: dict
@@ -78,12 +78,19 @@ class FactsContext:
     mana_sinks_present: list[str] = field(default_factory=list)
 
 
-def _gy_substantive(node_attrs: set[str], gy_member_mass: float, identity_mass: float, cfg: StrategyConfig) -> bool:
-    gy = [a for a in node_attrs if is_graveyard_attr(a)]
-    if not gy:
-        return False
-    ratio = gy_member_mass / identity_mass if identity_mass else 0.0
-    return ratio >= cfg.gy_ratio or len(gy) >= cfg.gy_distinct
+def node_eligible(support_count: int, is_cmd: bool) -> bool:
+    """Substantiveness presence gate: >= 3 payoffs, or >= 2 when a commander carries
+    the attr. ONE named implementation (ADR 0004) -- requires_met, lands_signal_present,
+    and otag_typal_registered all call it."""
+    return support_count >= 3 or (is_cmd and support_count >= 2)
+
+
+def node_admitted(support_count: int, is_cmd: bool) -> bool:
+    """Graph node admission: >= 3 support cards, or a commander-carried attr admitted
+    UNCONDITIONALLY. ONE named implementation (ADR 0004) -- the facts `nodes` set and
+    engine_report's machine-attr admission both call it. Distinct from node_eligible:
+    a commander attr is admitted here at any support count."""
+    return support_count >= 3 or is_cmd
 
 
 def _compute_answered_by(cards: list[dict], strategies: dict[str, dict]) -> dict:
@@ -105,6 +112,133 @@ def _compute_answered_by(cards: list[dict], strategies: dict[str, dict]) -> dict
     return out
 
 
+def _isolate_engines(
+    nodes: set[str],
+    event_edges: list[tuple[str, str, str]],
+    adens: defaultdict[str, float],
+    assets: StrategyAssets,
+    cards: list[dict],
+) -> dict:
+    """STRUCTURE-ONLY a-priori engine isolation over the DIRECTED event graph.
+
+    Where ``convergent_event_components`` fuses everything weakly-connected into
+    one blob (so a land-recursion engine and a sacrifice engine merge through the
+    shared ``sac`` relay), this isolates engines WITHOUT transitive chaining:
+
+    * per-event convergence — each event with producer-nodes AND consumer-nodes is
+      one atomic bipartite engine (producers -> event -> consumers); no fusion.
+    * hub classification — the engine HUB is the producer that is ALSO a *relay*
+      (consumes an upstream event + mints this one): the attribute the deck's own
+      machinery feeds. A relay hub => ``recursive-engine``; an event minted only by
+      pure sources (``ramp``, ``flicker``) => ``static-payoff``.
+    * bounded forward chains — the ONLY legal fusion: engine Y feeds engine X when
+      X's relay hub consumes Y's event. DAG-bounded (the catalog is a strict
+      forward DAG: 0 SCCs), so this never grows into the weak-component blob.
+    * commander-anchored loop probe — a value LOOP cannot appear as an SCC in a
+      forward DAG, but the commander recurs every turn; seed forward reachability
+      at what the commander produces and test whether it reaches back to what the
+      commander consumes. Non-empty => a commander-anchored cycle the DAG can't hold.
+
+    Purely additive: reported under ``facts['engines']`` and never consulted by the
+    naming layer (the label is unchanged).
+    """
+    out_adj: dict[str, set[str]] = defaultdict(set)
+    in_adj: dict[str, set[str]] = defaultdict(set)
+    ev_prod: dict[str, set[str]] = defaultdict(set)
+    ev_cons: dict[str, set[str]] = defaultdict(set)
+    for p, c_, ev in event_edges:
+        out_adj[p].add(c_)
+        in_adj[c_].add(p)
+        ev_prod[ev].add(p)
+        ev_cons[ev].add(c_)
+    producers = {n for n in nodes if out_adj.get(n)}
+    consumers = {n for n in nodes if in_adj.get(n)}
+    relay = producers & consumers
+
+    def by_w(xs):
+        return sorted(xs, key=lambda a: (-adens[a], a))
+
+    def archs(xs):
+        return sorted({x for a in xs if (x := assets.archetype_of_attr(a))})
+
+    engines = []
+    for ev in sorted(ev_prod):
+        P, C = ev_prod[ev], ev_cons[ev]
+        relay_producers = by_w(p for p in P if p in relay)
+        hub = relay_producers[0] if relay_producers else None
+        engines.append({
+            'event': ev,
+            'hub': hub,
+            'enabler': hub or (by_w(P)[0] if P else None),
+            'kind': 'recursive-engine' if hub else 'static-payoff',
+            'producers': by_w(P),
+            'consumers': by_w(C),
+            'payoff_archetypes': archs(C),
+            'weight': round(sum(adens[a] for a in P | C), 1),
+        })
+    engines.sort(key=lambda e: (e['kind'] != 'recursive-engine',
+                                -len(e['payoff_archetypes']), -e['weight'], e['event']))
+
+    # bounded forward chains: feeder_event -> fed_event (fed hub consumes feeder)
+    chains = []
+    for e in engines:
+        if e['hub'] is None:
+            continue
+        for e2 in engines:
+            if e2['event'] != e['event'] and e['hub'] in e2['consumers']:
+                chains.append([e2['event'], e['event']])
+    chains.sort()
+
+    lead = next((e for e in engines if e['kind'] == 'recursive-engine'), None)
+
+    # commander-anchored loop probe
+    cmd_loop = None
+    cmd_idx = [i for i, c in enumerate(cards) if c.get('role') == 'commander']
+    if cmd_idx:
+        cmd_attrs: set[str] = set()
+        for i in cmd_idx:
+            cmd_attrs |= {t.lower() for t in cards[i].get('otags', [])} & nodes
+        cmd_prod = {a for a in cmd_attrs if a in producers}
+        cmd_cons = {a for a in cmd_attrs if a in consumers}
+        seen = set(cmd_prod)
+        stack = list(cmd_prod)
+        while stack:
+            u = stack.pop()
+            for v in out_adj.get(u, ()):
+                if v not in seen:
+                    seen.add(v)
+                    stack.append(v)
+        back = seen & cmd_cons
+        cmd_loop = {
+            'commander': sorted({cards[i]['name'] for i in cmd_idx}),
+            'produces': by_w(cmd_prod),
+            'consumes': by_w(cmd_cons),
+            'reaches_back_to': by_w(back),
+            'closes': bool(back),
+        }
+
+    if lead is not None:
+        determinism = 'forward-engine-isolated'
+    elif cmd_loop is not None and cmd_loop['closes']:
+        determinism = 'loop-commander-anchored'
+    else:
+        determinism = 'loop-or-flat-no-forward-hub'
+
+    return {
+        'relay_hubs': by_w(relay),
+        'lead_engine': (None if lead is None else
+                        {'hub': lead['hub'], 'event': lead['event'],
+                         'payoff_archetypes': lead['payoff_archetypes']}),
+        'engines': engines,
+        'forward_chains': chains,
+        'commander_loop': cmd_loop,
+        'determinism': determinism,
+        'note': 'a-priori directed-graph engine isolation (per-event convergence + '
+                'relay hub + DAG-bounded chains + commander loop probe); STRUCTURE-ONLY, '
+                'never decides the label',
+    }
+
+
 def compute_facts(
     deck: dict,
     combos: list[dict] | None = None,
@@ -117,7 +251,6 @@ def compute_facts(
     buckets = assets.buckets
     payoff_slugs = assets.payoff_slugs
     event_anchors = assets.event_anchors
-    ench_attr_re = assets.ench_attr_re
 
     if 'cards' not in deck:
         raise ValueError("deck missing 'cards'")
@@ -133,15 +266,14 @@ def compute_facts(
         attrs = {b for b, slugs in buckets.items() if closure & set(slugs)}
         attrs |= closure & payoff_slugs
         attrs |= closure & event_anchors
-        attrs |= {t for t in closure if ench_attr_re.search(t)}
-        # EDHREC otag membership surfacing (edhrec-gated): put the EDHREC family
-        # slugs onto the card as themselves so the EDHREC identities can route them.
-        if cfg.edhrec_labels:
-            attrs |= closure & EDHREC_ATTR_SLUGS
+        attrs |= closure & ENCH_ATTR_SLUGS
+        # EDHREC otag membership surfacing: put the EDHREC family slugs onto the
+        # card as themselves so the EDHREC identities can route them. (Always on;
+        # the edhrec_labels knob was removed -- ADR 0006.)
+        attrs |= closure & EDHREC_ATTR_SLUGS
         # Synth attributes (vehicle/energy/extra-turn/devotion from card fields,
         # morph from keywords) come from the compiled vocab predicates — one
-        # resolution path, no hand-coded field tests. The EDHREC-field synths are
-        # already gated out of `synth_predicates` when `edhrec_labels` is off.
+        # resolution path, no hand-coded field tests.
         attrs |= synth_attrs_for(c, assets.synth_predicates)
         card_attrs[i] = attrs
 
@@ -153,7 +285,7 @@ def compute_facts(
     mana_sinks_present = sorted(n for n in LETHAL_MANA_SINK_NAMES if combo_norm(n) in have_norm)
     predicate_wins = [c for c in detected if c['win']]
     mana_only = [c for c in detected if not c['win'] and c['mana']]
-    mana_sink_wins = mana_only if (cfg.combo_mana_sink and mana_sinks_present) else []
+    mana_sink_wins = mana_only if mana_sinks_present else []
     win_combos = predicate_wins + mana_sink_wins
 
     combo_piece_idx: set[int] = set()
@@ -176,7 +308,7 @@ def compute_facts(
     density_signals = {
         'spell_density': {'n': spell_n, 'on': spell_n >= assets.spell_t},
         'artifact_density': {'n': art_n, 'on': art_n >= assets.art_t},
-        'enchantment_density': {'n': ench_n, 'on': ench_n >= 12},
+        'enchantment_density': {'n': ench_n, 'on': ench_n >= assets.ench_t},
         'creature_type_density': {'subtype': dom_sub, 'n': dom_raw, 'on': dom_raw >= assets.sub_t,
                                   'tribes_ranked': [d['tribe'] for d in tribe_ranked[:4]]},
     }
@@ -194,7 +326,7 @@ def compute_facts(
             if c.get('role') == 'commander':
                 cmd_attrs.add(a)
 
-    nodes = {a for a in adens if len(support_cards[a]) >= 3 or a in cmd_attrs}
+    nodes = {a for a in adens if node_admitted(len(support_cards[a]), a in cmd_attrs)}
     covered = sum(1 for i, c in enumerate(cards) if not is_land(c) and (card_attrs[i] & nodes))
     coverage = covered / n_nonland if n_nonland else 0.0
 
@@ -221,7 +353,7 @@ def compute_facts(
     dominant = set(tribe_info['dominant_tribes'])
     _n_ot = len(typal_otag_members)
     _ot_has_cmd = any(cards[i].get('role') == 'commander' for i in typal_otag_members)
-    otag_typal_registered = _n_ot >= 3 or (_ot_has_cmd and _n_ot >= 2)
+    otag_typal_registered = node_eligible(_n_ot, _ot_has_cmd)
     typal_conc_members: set[int] = set()
     if dominant and not otag_typal_registered:
         for i in range(len(cards)):
@@ -239,29 +371,28 @@ def compute_facts(
 
     # ---- T2 correction 1: tutor-land ENABLER (conditional lands-matter contribution)
     lands_enabler = {'added': [], 'signal_present': False, 'n_candidates': 0, 'base_wq': 0.0}
-    if cfg.enable_tutor_land_enabler:
-        lands = 'lands-matter'
-        lands_base_mem = set(arch_members.get(lands, set()))
-        base_n = len(lands_base_mem)
-        base_has_cmd = any(cards[i].get('role') == 'commander' for i in lands_base_mem)
-        lands_signal_present = base_n >= 3 or (base_has_cmd and base_n >= 2)
-        land_tutor_cards = sorted(
-            i for i in range(len(cards))
-            if not is_land(cards[i]) and (card_closures[i] & assets.tutor_land_slugs)
-        )
-        lands_enabler['signal_present'] = lands_signal_present
-        lands_enabler['n_candidates'] = len(land_tutor_cards)
-        lands_enabler['base_wq'] = round(sum(card_w[i] for i in lands_base_mem), 1)
-        if lands_signal_present:
-            for i in land_tutor_cards:
-                if i not in arch_members[lands]:
-                    arch_members[lands].add(i)
-                    lands_enabler['added'].append(cards[i]['name'])
-            if lands_enabler['added']:
-                arch_attrs[lands].add('tutor-land[enabler]')
+    lands = 'lands-matter'
+    lands_base_mem = set(arch_members.get(lands, set()))
+    base_n = len(lands_base_mem)
+    base_has_cmd = any(cards[i].get('role') == 'commander' for i in lands_base_mem)
+    lands_signal_present = node_eligible(base_n, base_has_cmd)
+    land_tutor_cards = sorted(
+        i for i in range(len(cards))
+        if not is_land(cards[i]) and assets.tutor_land_pred(CardView.from_card(cards[i]))
+    )
+    lands_enabler['signal_present'] = lands_signal_present
+    lands_enabler['n_candidates'] = len(land_tutor_cards)
+    lands_enabler['base_wq'] = round(sum(card_w[i] for i in lands_base_mem), 1)
+    if lands_signal_present:
+        for i in land_tutor_cards:
+            if i not in arch_members[lands]:
+                arch_members[lands].add(i)
+                lands_enabler['added'].append(cards[i]['name'])
+        if lands_enabler['added']:
+            arch_attrs[lands].add('tutor-land[enabler]')
 
     # identity mass (each identity card counted once; for share-based guards)
-    facts_only: set[str] = set() if cfg.ench_label else set(FACTS_ONLY_WHEN_DISABLED)
+    facts_only: set[str] = set(FACTS_ONLY_WHEN_DISABLED)
     identity_cards: set[int] = set()
     for arch, mem in arch_members.items():
         if arch in facts_only:
@@ -269,13 +400,10 @@ def compute_facts(
         identity_cards |= mem
     identity_mass = sum(card_w[i] for i in identity_cards) or 1e-6
 
-    gy_member_mass = sum(card_w[i] for i in arch_members.get('graveyard/reanimator', set()))
-    gy_sub = _gy_substantive(nodes, gy_member_mass, identity_mass, cfg)
-
     def requires_met(mem: set[int]) -> bool:
         n = len(mem)
         has_cmd = any(cards[i].get('role') == 'commander' for i in mem)
-        return n >= 3 or (has_cmd and n >= 2)
+        return node_eligible(n, has_cmd)
 
     strategies: dict[str, dict] = {}
     for arch, mem in arch_members.items():
@@ -429,6 +557,7 @@ def compute_facts(
         'engines': {
             'convergent_event_components': comps[:4],
             'modularity_communities': engine_communities[:5],
+            'engine_isolation': _isolate_engines(nodes, event_edges, adens, assets, cards),
             'note': 'engines/communities are STRUCTURE-ONLY; they do not decide the label',
         },
         'edges': {'n_cooc': len(cooc_edges), 'n_event': len(event_edges),
@@ -455,21 +584,31 @@ def compute_facts(
     }
 
     demotions = {'spell_demoted': False, 'gy_demoted': False}
-    if 'graveyard/reanimator' in strategies and strategies['graveyard/reanimator']['requires_met'] and not gy_sub:
-        demotions['gy_demoted'] = True
 
     arch_has_cmd = {arch: any(cards[i].get('role') == 'commander' for i in mem)
                     for arch, mem in arch_members.items()}
 
-    return FactsContext(
+    ctx = FactsContext(
         deck=deck, cards=cards, n_nonland=n_nonland, assets=assets, cfg=cfg,
         facts=facts, strategies=strategies, facts_only=facts_only,
         arch_members=dict(arch_members), arch_has_cmd=arch_has_cmd, nodes=nodes,
         support=assets.support, adens=adens, card_w=card_w, identity_mass=identity_mass,
-        coverage=coverage, gy_sub=gy_sub, demotions=demotions,
+        coverage=coverage, demotions=demotions,
         cs_axis=degree_axes['counterspells'], stax_axis=degree_axes['stax'],
         ramp_axis=degree_axes['ramp'], protection_degree=protection_degree, power=power,
         tribe_info=tribe_info, density_signals=density_signals, cmd_attrs=cmd_attrs,
         detected=detected, win_combos=win_combos, predicate_wins=predicate_wins,
         mana_sink_wins=mana_sink_wins, mana_sinks_present=mana_sinks_present,
     )
+
+    # gy_demoted: the graveyard identity clears requires_met but NOT the shared graveyard
+    # attr_density Requirement (one evaluator, ADR 0002 -- no parallel copy). Equivalent to
+    # the old `requires_met and not gy_sub`: satisfied() == requires_met and density, so
+    # `requires_met and not satisfied()` == `requires_met and not density`. Evaluated
+    # post-ctx because the evaluator reads ctx.
+    from pipeline.transforms.strategy.substantiveness import requirement_for
+    gy_st = strategies.get('graveyard/reanimator')
+    if gy_st and gy_st['requires_met'] and not requirement_for(
+            'graveyard/reanimator', cfg).satisfied(gy_st, ctx, 'graveyard/reanimator'):
+        demotions['gy_demoted'] = True
+    return ctx

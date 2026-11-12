@@ -25,10 +25,8 @@ _EXPECTED_DEFAULTS = {
     'enabled_groups': frozenset(
         {'new_buckets', 'dual', 'affinity', 'ramp_tutor',
          'dual_land', 'dual_art', 'dual_ench', 'dual_sac'}),
-    'anthem_payoff': frozenset({'power-matters-self'}),
     'gy_distinct': 4,
     'gy_ratio': 0.15,
-    'ench_label': False,
     'conf_high': 0.66,
     'conf_low': 0.42,
     'identity_ratio': 0.5,
@@ -36,15 +34,10 @@ _EXPECTED_DEFAULTS = {
     'typal_dom_share': 0.70,
     'over_t': 0.5,
     'ctrl_min_cs': 3,
-    'ramp_label': True,
-    'enable_tutor_land_enabler': True,
-    'combo_override': True,
     'combo_conf': frozenset({'LOW'}),
     'combo_win_min': 2,
-    'combo_mana_sink': True,
     'combo_primary_share': 0.50,
     'combo_primary_margin': 0.30,
-    'edhrec_labels': True,
     'cmd_weight': 5.0,
 }
 
@@ -85,11 +78,9 @@ def test_default_no_env_is_byte_parity() -> None:
 def test_env_override_is_opt_in_and_namespaced(monkeypatch: pytest.MonkeyPatch) -> None:
     """A namespaced env var overrides its field; construction without it does not."""
     monkeypatch.setenv('MAKEMAGIC_STRATEGY_MAX_IDENTITY', '2')
-    monkeypatch.setenv('MAKEMAGIC_STRATEGY_COMBO_OVERRIDE', 'false')
     cfg = StrategyConfig()
     assert cfg.max_identity == 2
-    assert cfg.combo_override is False
-    # unrelated fields untouched
+    # unrelated fields untouched (no env set for them)
     assert cfg.cmd_weight == 5.0
 
 
