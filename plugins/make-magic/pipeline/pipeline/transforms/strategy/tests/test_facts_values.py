@@ -50,8 +50,8 @@ def test_degree_axis_control_vs_noncontrol_counterspells(load_deck, combos):
     ozai = resolve(load_deck('owned__ozai'), combos)['facts']['degree_axes']
 
     bcs = baral['counterspells']
-    assert bcs['n'] == 26
-    assert bcs['frac'] == pytest.approx(0.2737, abs=1e-4)
+    assert bcs['n'] == 28  # #69 fix: correct card otags → 2 more counterspells detected
+    assert bcs['frac'] == pytest.approx(0.4242, abs=1e-4)
     assert bcs['over_served'] is True
     assert bcs['under_served'] is False
     assert bcs['color_gated'] is False  # blue deck -> not gated
@@ -71,7 +71,7 @@ def test_degree_axis_removal_inverts_and_reads_frac(load_deck, combos):
     ozai = resolve(load_deck('owned__ozai'), combos)['facts']['degree_axes']
     assert baral['removal']['inverts'] is True
     assert baral['removal']['n'] == 5
-    assert baral['removal']['frac'] == pytest.approx(0.0526, abs=1e-4)
+    assert baral['removal']['frac'] == pytest.approx(0.0758, abs=1e-4)  # #69 fix
     assert ozai['removal']['n'] == 14
     assert ozai['removal']['frac'] == pytest.approx(0.2258, abs=1e-4)
 
@@ -80,7 +80,7 @@ def test_degree_axis_removal_inverts_and_reads_frac(load_deck, combos):
 def test_support_quantities_values(load_deck, combos):
     baral = resolve(load_deck('gauntlet__baral-chief-of-compliance'), combos)['facts']['support_quantities']
     assert set(baral) == {'draw', 'ramp', 'removal'}
-    assert baral['draw'] == {'weighted_quantity': 18.0, 'n_cards': 18}
+    assert baral['draw'] == {'weighted_quantity': 25.0, 'n_cards': 21}  # #69 fix: more cards tagged
     assert baral['removal'] == {'weighted_quantity': 6.0, 'n_cards': 5}
 
     ozai = resolve(load_deck('owned__ozai'), combos)['facts']['support_quantities']
@@ -91,10 +91,10 @@ def test_support_quantities_values(load_deck, combos):
 # ------------------------------------------------------------- power profile
 def test_power_profile_values_control_vs_burn(load_deck, combos):
     baral = resolve(load_deck('gauntlet__baral-chief-of-compliance'), combos)['facts']['power_profile']
-    assert baral['n_interaction'] == 28
+    assert baral['n_interaction'] == 30  # #69 fix: more cards correctly tagged
     assert baral['removal_count'] == 5
     assert baral['removal_pct_instant'] == pytest.approx(1.0)  # every removal spell is instant
-    assert baral['mean_efficiency'] == pytest.approx(0.437, abs=1e-3)
+    assert baral['mean_efficiency'] == pytest.approx(0.426, abs=1e-3)  # #69 fix
 
     ozai = resolve(load_deck('owned__ozai'), combos)['facts']['power_profile']
     assert ozai['removal_count'] == 14

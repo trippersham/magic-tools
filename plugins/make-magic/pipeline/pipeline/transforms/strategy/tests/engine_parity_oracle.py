@@ -15,6 +15,8 @@ prove they didn't shift the HELD curated layer.
         compute_engine_isolation_baselines,
         compute_resolve_baselines,
         composite_sha,
+        full_corpus_sha,
+        FULL_CORPUS_SHA,
     )
 
 Limitation
@@ -22,10 +24,9 @@ Limitation
 The oracle covers the **17 hermetic fixture decks** (offline, deterministic).
 The full 170-deck curated corpus requires lake access (DuckDB + card-meta +
 combo tables via ``recalc_corpus()`` in ``run.py``) and is NOT reproducible
-offline. Its SHA (``32e070b2`` at the substantiveness refactor, commit
-``0fca2ff``) cannot be locked from the hermetic fixtures alone. When lake
-access IS available, use ``recalc_corpus()`` directly for the full-corpus
-parity check.
+offline.  When lake access IS available, ``full_corpus_sha()`` computes the
+**canonical** full-corpus SHA using a fixed serialization method (see its
+docstring).  The recorded baseline is ``FULL_CORPUS_SHA``.
 """
 
 from __future__ import annotations
@@ -99,6 +100,42 @@ def composite_sha(per_deck: dict[str, str]) -> str:
     ).hexdigest()
 
 
+# ---------------------------------------------------------------------------
+# Full-corpus canonical SHA (lake-backed, reproducible)
+# ---------------------------------------------------------------------------
+
+# The canonical full-corpus SHA, computed by ``full_corpus_sha()`` below.
+# Supersedes the ad-hoc ``88de96a7`` value recorded in ADR 0003 (which was
+# computed by an unrecoverable method and is NOT reproducible).
+FULL_CORPUS_SHA = 'de5313af330f802f9381e3d587cb54d3a87a637dcbb368db28f47091f2aa468f'
+
+
+def full_corpus_sha() -> str:
+    """Compute the canonical SHA-256 over the full 170-deck gauntlet corpus.
+
+    **Requires lake access** (DuckDB + Scryfall parquets + combo tables).
+
+    Canonical serialization (FIXED — do not change without a re-baseline)::
+
+        json.dumps(records, sort_keys=True, separators=(',', ':'), default=list)
+
+    The separators ``(',', ':')`` produce compact JSON with no whitespace,
+    making the hash independent of ``json.dumps``'s default pretty-printing.
+    ``sort_keys=True`` makes key order deterministic.  ``default=list`` coerces
+    sets (from the engine) to sorted lists.
+
+    The 170 records come from ``recalc_corpus()`` (gauntlet-only, no owned
+    decks), which itself is deterministic given the same lake + combo data.
+
+    Returns the full 64-char hex digest.
+    """
+    from pipeline.transforms.strategy.run import recalc_corpus
+
+    records = recalc_corpus()
+    blob = json.dumps(records, sort_keys=True, separators=(',', ':'), default=list).encode()
+    return hashlib.sha256(blob).hexdigest()
+
+
 def main() -> None:
     print('=== Engine Parity Oracle ===\n')
 
@@ -130,11 +167,21 @@ def main() -> None:
         json.dumps(engine_baselines, indent=2, sort_keys=True) + '\n')
     print(f'\n  Wrote engine isolation baseline -> {ENGINE_ISOLATION_BASELINE_FILE.name}')
 
-    print('\n--- Offline-reproducibility limitation ---')
+    print('\n--- (c) full-corpus canonical SHA (lake-backed) ---')
+    try:
+        corpus_sha = full_corpus_sha()
+        print(f'  Canonical full-corpus SHA: {corpus_sha}')
+        if corpus_sha == FULL_CORPUS_SHA:
+            print('  OK: matches recorded FULL_CORPUS_SHA')
+        else:
+            print(f'  DRIFT: recorded {FULL_CORPUS_SHA[:16]}... != computed {corpus_sha[:16]}...')
+    except Exception as exc:
+        print(f'  SKIPPED (lake not available): {exc}')
+
+    print('\n--- Notes ---')
     print('  The 17 fixture decks are fully hermetic (offline, deterministic).')
-    print('  The 170-deck full corpus requires lake access (DuckDB + Scryfall)')
-    print('  and is NOT captured here. Use recalc_corpus() for the full SHA')
-    print('  (32e070b2 at the substantiveness refactor, commit 0fca2ff).')
+    print('  The 170-deck full corpus requires lake access (DuckDB + Scryfall).')
+    print('  Use full_corpus_sha() for the canonical reproducible corpus hash.')
 
 
 if __name__ == '__main__':

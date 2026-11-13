@@ -31,10 +31,12 @@ def test_kess_is_combo(load_deck, combos):
     assert rec['combo_override_applied'] is True
 
 
-def test_urza_is_combo(load_deck, combos):
+def test_urza_is_artifacts(load_deck, combos):
+    # With correct (non-art-series) card data (#69 fix), Urza's artifact signals
+    # now outweigh the combo signals. The combo override no longer fires because
+    # the primary strategy is already artifact-dense.
     rec = resolve(load_deck('gauntlet__urza-lord-high-artificer'), combos)
-    assert rec['named_strategy'] == 'alt-wincon/combo'
-    assert rec['combo_override_applied'] is True
+    assert rec['named_strategy'] == 'artifacts'
 
 
 def test_krrik_is_combo(load_deck, combos):
@@ -64,9 +66,12 @@ def test_world_reclaimer_lands_with_fused_sacrifice_engine(load_deck, combos):
 
 
 def test_baral_is_control(load_deck, combos):
+    # With correct card data (#69 fix), Baral's richer otags shift the density
+    # profile: still control/permission but at MED confidence (the counterspell
+    # gate is met, yet draw/artifact signals are now correctly weighted).
     rec = resolve(load_deck('gauntlet__baral-chief-of-compliance'), combos)
     assert rec['named_strategy'] == 'control/permission'
-    assert rec['confidence'] == 'HIGH'
+    assert rec['confidence'] == 'MED'
     assert rec['control_cs_gate_met'] is True
 
 

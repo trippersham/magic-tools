@@ -40,8 +40,8 @@ FIX = Path(__file__).resolve().parent / 'fixtures'
 RELAY_DECKS = FIX / 'relay_decks'
 
 # The two parity-oracle SHAs that MUST NOT shift.
-EXPECTED_ENGINE_SHA = 'fcf27cf6c04b28d8aa83236c0b7e8e116e33280b615e41003d981667d67a3d75'
-EXPECTED_RESOLVE_SHA = '60858cfce883db1a7957e140ef3555eee6565da2ab430362ce4c421b20385fea'
+EXPECTED_ENGINE_SHA = 'a6dfa6073324694d8068f00913aaf5e409ac993244e086ee3b5057a487559508'
+EXPECTED_RESOLVE_SHA = '7d35fe193b200b0c01a1e25b0993a73904155ca7122b3fdb13e0f1ae45863b20'
 
 
 # ---------------------------------------------------------------------------

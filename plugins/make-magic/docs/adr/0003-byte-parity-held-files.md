@@ -4,7 +4,7 @@
 |---|---|
 | Status | Accepted. In force on branch `feat/strategy-engine`. |
 | Review | ratified by the owner on 2026-11-11. (Agent-authored; owner-ratified.) |
-| Test | From `plugins/make-magic/pipeline`: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` records a composite SHA over the serialized `_isolate_engines` output plus the full `resolve()` records for the 17 hermetic fixture decks; a parity test imports `composite_sha` to assert no drift. **Honest gap:** the oracle covers only the 17 hermetic fixtures; the full 170-deck curated-corpus SHA needs lake access (DuckDB + card-meta + combo tables) and is not lockable offline. |
+| Test | From `plugins/make-magic/pipeline`: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` records a composite SHA over the serialized `_isolate_engines` output plus the full `resolve()` records for the 17 hermetic fixture decks; a parity test imports `composite_sha` to assert no drift. The full 170-deck curated-corpus SHA is now **independently checkable** via `full_corpus_sha()` in `engine_parity_oracle.py` (canonical serialization: `json.dumps(records, sort_keys=True, separators=(',',':'), default=list)` → SHA-256; pinned as `FULL_CORPUS_SHA`). A lake-gated test in `test_resolution_fidelity.py::TestFullCorpusCanonicalSha` asserts the value. |
 | Code paths | [`pipeline/.../strategy/data/attribute_vocab_v4.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_vocab_v4.json), [`event_catalog_v4.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog_v4.json), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py), [`vocab.py`](../../pipeline/pipeline/transforms/strategy/vocab.py), [`tests/fixtures/vocab_parity_baseline.json`](../../pipeline/pipeline/transforms/strategy/tests/fixtures/vocab_parity_baseline.json) |
 
 ## Context
@@ -42,8 +42,9 @@ re-baseline makes every *intended* change legible as such.
 - The consolidation re-baselines `facts.py` / `vocab.py` / the catalog (one change) and
   `query.py` (a separate change), each with equivalence proofs (e.g. 613=613). Those are
   the sanctioned re-baselines this record governs.
-- Honest gap (restated): the hermetic oracle is 17 decks; the full-corpus parity needs
-  lake access via `recalc_corpus()`.
+- The hermetic oracle is 17 decks; the full-corpus parity (170 decks) needs lake access.
+  This gap is now covered by `full_corpus_sha()` + `FULL_CORPUS_SHA` in
+  `engine_parity_oracle.py`, with a lake-gated test asserting the recorded value.
 
 ## Later changes
 - **2026-11-11 — first sanctioned re-baseline.** Two output-changing bug fixes shifted the
@@ -56,6 +57,54 @@ re-baseline makes every *intended* change legible as such.
   families with **0** `named_strategy`/identity/confidence-tier/density changes; T1 dropped a
   spurious `Forest` tribe on exactly 2/170 decks with **0** classification changes. Both are
   pure false-positive removal, reviewed per the owner's "zero-doubt-strictly-better" rule.
+
+- **2026-11-13 — resolution-fidelity re-baseline (#68 + #69).** Two data-layer bugs
+  degraded card resolution; **#69** (art-series first-row-wins) was fixed in code
+  + data, **#68** (DFC `oracle_text` drop in bulk ingest) was fixed in code only
+  (cached raw parquet lacks `card_faces` — data fix is BLOCKED until next network
+  re-ingest). All three baselines shifted from the #69 fix:
+  engine `fcf27cf6…` → `ba35052c…`; resolve `60858cfc…` → `760120d2…`;
+  full-corpus `2f32fc05…` → `c25f1a5f…`.
+  **Improvement proof:** 1,129 names changed from art-series (`Card // Card`, 0 tags)
+  to the canonical printing (real type, real tags); **0** regressions in the name→oid
+  resolution. 167/170 corpus decks shifted; 10 strategy labels changed (all from
+  corrupt-data misclassification → correct-data classification); **0** decks lost
+  cmd_attrs or tags. 19 unique gauntlet commanders previously resolving to tagless
+  art-series oracle_ids now resolve correctly (Baral 20 tags, Yawgmoth 36, Urza 26,
+  …). Fixture decks regenerated from the fixed Lake; `vocab_parity_baseline.json`
+  and `engine_isolation_baseline.json` updated in the same change.
+
+- **2026-11-13 — #68 DFC data fix (re-ingest).** The #68 code fix
+  (`scryfall_bulk._dfc_oracle_text` + `_project` reading `card_faces`) was already in
+  place but the cached `raw/oracle_cards.parquet` predated it (Oct 12 cursor). A
+  `hydrate-lake --force` re-fetched the full Scryfall oracle bulk (Nov 13,
+  `RATE_LIMIT_MS=100` throttled, ~39k cards) so DFC oracle_text is now populated from
+  `card_faces`. Combined with fixture regeneration from the refreshed lake (which also
+  re-applies the #69 art-series resolution that was previously only in uncommitted fixture
+  state). All three baselines shifted:
+  engine `ba35052c…` → `a6dfa607…`; resolve `760120d2…` → `7d35fe19…`;
+  full-corpus `c25f1a5f…` → `88de96a7…`.
+  **Monotonicity proof:** 168 cards gained oracle_text (empty→populated); 1,786 otag
+  gains; 3 otag losses (Scryfall community corrections: `activated-ability` removed from
+  Urza's Saga ×2 decks, `utility-land` removed from Urborg ×1 — both correct tag
+  housekeeping, not regressions); 152 art-series type_line fixes (`Card // Card` →
+  real type); **0** ambiguous regressions. 13/17 fixture resolve SHAs shifted, 5/17
+  engine-isolation SHAs shifted. All golden-label tests pass (Urza→`artifacts`,
+  Baral→`control/permission` MED, Peace Offering→`group-hug` — all expected by #69 test
+  code). Ral, Monsoon Mage (#68 gut-check) confirmed fixed: was NULL oracle_text, now
+  carries real spellslinger text. 3 new DFC lake tests added
+  (`test_resolution_fidelity.py::TestDfcOracleTextInLake`).
+
+- **2026-11-13 — canonical full-corpus hash.** The full-corpus SHA was previously
+  recorded as `88de96a7` by an ad-hoc method whose serialization was not committed
+  and could not be reproduced by a second party. A canonical, committed helper
+  `full_corpus_sha()` in `engine_parity_oracle.py` now defines the method: compact
+  JSON (`sort_keys=True, separators=(',',':'), default=list`) → SHA-256 over the
+  170-record gauntlet corpus from `recalc_corpus()`. The canonical value is
+  `de5313af330f802f9381e3d587cb54d3a87a637dcbb368db28f47091f2aa468f`, pinned as
+  `FULL_CORPUS_SHA` and asserted by a lake-gated test. The hermetic engine
+  (`a6dfa607`) and resolve (`7d35fe19`) baselines are unchanged. The old `88de96a7`
+  is **superseded** — same 170 records, same lake state, just a defined hash.
 
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.

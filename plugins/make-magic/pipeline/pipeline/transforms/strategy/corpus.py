@@ -13,9 +13,12 @@ This is the ONLY part of the subpackage that touches the lake; the engine itself
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from pathlib import Path
+
+log = logging.getLogger('make_magic.transforms.strategy.corpus')
 
 #: In-repo gauntlet root (relative to the pipeline package).
 GAUNTLET_DIR = Path(__file__).resolve().parents[2] / 'data' / 'gauntlet' / 'commander'
@@ -42,7 +45,18 @@ def _norm(name: str) -> str:
 
 
 class Lake:
-    """Name → oracle_id → slug/type resolution, loaded once from the lake."""
+    """Name → oracle_id → slug/type resolution, loaded once from the lake.
+
+    Resolution prefers the *canonical* (most-tagged, non-art-series) printing
+    when multiple oracle_cards rows share the same normalized name (#69).
+    Art-series duplicates (``type_line == 'Card // Card'``) have a distinct
+    oracle_id with zero otag taggings; a naive first-row-wins ``setdefault``
+    would shadow the real card whenever the art-series row comes first in the
+    parquet scan order.
+    """
+
+    #: Art-series type_line constant used by Scryfall for art cards.
+    _ART_SERIES_TYPE = 'Card // Card'
 
     def __init__(self, root: Path | None = None) -> None:
         import duckdb
@@ -51,17 +65,8 @@ class Lake:
         oracle = root / 'raw' / 'oracle_cards.parquet'
         card_otag = root / 'normalized' / 'card_otag.parquet'
         con = duckdb.connect(':memory:')
-        orc = con.execute(
-            f"SELECT oracle_id, name, type_line FROM read_parquet('{oracle}')"
-        ).fetchall()
-        self.name2oid: dict[str, str] = {}
-        self.oid2type: dict[str, str] = {}
-        for oid, name, tl in orc:
-            oid = str(oid)
-            self.oid2type[oid] = tl or ''
-            self.name2oid.setdefault(_norm(name), oid)
-            if '//' in name:
-                self.name2oid.setdefault(_norm(name.split('//')[0]), oid)
+
+        # --- Load otag counts first so the name→oid loop can rank candidates. ---
         tags = con.execute(
             f"SELECT oracle_id, slug FROM read_parquet('{card_otag}')"
         ).fetchall()
@@ -69,11 +74,64 @@ class Lake:
         for oid, slug in tags:
             self.oid2slugs.setdefault(str(oid), set()).add(slug)
 
+        # --- Build name→oid, preferring tagged/non-art-series rows. ---
+        orc = con.execute(
+            f"SELECT oracle_id, name, type_line, oracle_text FROM read_parquet('{oracle}')"
+        ).fetchall()
+        self.name2oid: dict[str, str] = {}
+        self.oid2type: dict[str, str] = {}
+        # Track the "quality score" of the current winner per name so a better
+        # candidate can override it.
+        _name_score: dict[str, int] = {}
+
+        for oid, name, tl, otxt in orc:
+            oid = str(oid)
+            self.oid2type[oid] = tl or ''
+            score = self._rank(oid, tl, otxt)
+            self._register_name(_norm(name), oid, score, _name_score)
+            if '//' in name:
+                self._register_name(_norm(name.split('//')[0]), oid, score, _name_score)
+
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _rank(oid: str, type_line: str | None, oracle_text: str | None) -> int:
+        """Score a candidate row: higher = more likely the canonical printing."""
+        # The ranking intentionally does NOT reference oid2slugs via self
+        # because _rank is called during __init__ before self is fully built;
+        # instead the caller computes the tag-count component externally.
+        s = 0
+        if type_line and type_line != 'Card // Card':
+            s += 4  # Not art-series — strong signal
+        if oracle_text:
+            s += 2  # Has oracle text
+        return s
+
+    def _register_name(
+        self, normed: str, oid: str, score: int, scores: dict[str, int]
+    ) -> None:
+        """Insert ``normed → oid`` only if ``score`` beats the incumbent."""
+        # Augment score with tag count (available because oid2slugs is loaded first).
+        full_score = score + (1 if self.oid2slugs.get(oid) else 0)
+        prev = scores.get(normed, -1)
+        if full_score > prev:
+            self.name2oid[normed] = oid
+            scores[normed] = full_score
+
+    # ------------------------------------------------------------------
+
     def resolve(self, name: str) -> tuple[str | None, str, set[str]]:
         oid = self.name2oid.get(_norm(name))
         if oid is None:
             return None, '', set()
-        return oid, self.oid2type.get(oid, ''), self.oid2slugs.get(oid, set())
+        slugs = self.oid2slugs.get(oid, set())
+        if not slugs and self.oid2type.get(oid, '') != self._ART_SERIES_TYPE:
+            log.warning(
+                'corpus.Lake: %r resolved (oid=%s) with 0 otag slugs — '
+                'possible data gap (card should have tags?).',
+                name, oid[:12],
+            )
+        return oid, self.oid2type.get(oid, ''), slugs
 
 
 def parse_dck(path: Path) -> dict:
@@ -147,8 +205,23 @@ def build_deck_from_dck(info: dict, lake: Lake) -> dict:
             'unresolved': unresolved, 'source': 'gauntlet'}
 
 
+def _meta_score(type_line: str | None, oracle_text: str | None) -> int:
+    """Rank a card-meta candidate: higher = more canonical (#69)."""
+    s = 0
+    if type_line and type_line != 'Card // Card':
+        s += 4
+    if oracle_text:
+        s += 2
+    return s
+
+
 def load_card_meta(root: Path | None = None) -> dict[str, dict]:
-    """Read-only name → {oracle_text, cmc, keywords, color_identity, …} from the lake."""
+    """Read-only name → {oracle_text, cmc, keywords, color_identity, …} from the lake.
+
+    When multiple rows share the same normalized name (e.g. a real card and an
+    art-series duplicate), the most-canonical row wins (#69): prefer non-art-series
+    rows with oracle_text present, matching ``Lake._rank``.
+    """
     import duckdb
 
     root = root or lake_root()
@@ -159,15 +232,23 @@ def load_card_meta(root: Path | None = None) -> dict[str, dict]:
         f"FROM read_parquet('{oracle}')"
     ).fetchall()
     meta: dict[str, dict] = {}
+    _scores: dict[str, int] = {}
     for name, txt, cmc, kw, ci, oid, mc, tl in rows:
         rec = {'oracle_text': txt or '', 'cmc': float(cmc) if cmc is not None else 0.0,
                'keywords': list(kw) if kw is not None else [],
                'color_identity': list(ci) if ci is not None else [],
                'oracle_id': str(oid) if oid is not None else None,
                'mana_cost': mc or '', 'type_line_full': tl or ''}
-        meta.setdefault(_norm(name), rec)
+        score = _meta_score(tl, txt)
+        normed = _norm(name)
+        if score > _scores.get(normed, -1):
+            meta[normed] = rec
+            _scores[normed] = score
         if '//' in name:
-            meta.setdefault(_norm(name.split('//')[0]), rec)
+            front = _norm(name.split('//')[0])
+            if score > _scores.get(front, -1):
+                meta[front] = rec
+                _scores[front] = score
     return meta
 
 

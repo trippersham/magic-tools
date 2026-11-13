@@ -29,15 +29,19 @@ def test_ozai_primary_is_dense_and_dominant(load_deck, combos):
 
 
 def test_cedh_combo_decks_still_override(load_deck, combos):
-    # the three canonical cEDH combo decks have scattered (share < 0.50) residues,
-    # so F4 does NOT block them
+    # Kess and K'rrik are canonical cEDH combo decks with scattered residues,
+    # so F4 does NOT block them.
+    # Urza (#69 fix): with correct card data, artifact signals outweigh combo
+    # and the primary strategy is 'artifacts' — the combo override does not fire.
     for slug in ('gauntlet__kess-dissident-mage',
-                 'gauntlet__urza-lord-high-artificer',
                  'gauntlet__krrik-son-of-yawgmoth'):
         rec = resolve(load_deck(slug), combos)
         assert rec['named_strategy'] == 'alt-wincon/combo', slug
         assert rec['combo_override_applied'] is True, slug
         assert rec['combo_override_f4_blocked'] is False, slug
+    # Urza now resolves as artifacts (no combo override)
+    urza = resolve(load_deck('gauntlet__urza-lord-high-artificer'), combos)
+    assert urza['named_strategy'] == 'artifacts'
 
 
 def test_f4_guard_is_configurable_off(load_deck, combos):

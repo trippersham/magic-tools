@@ -54,7 +54,9 @@ def test_evasion_is_a_measure_only_degree_axis(load_deck, combos):
     ev = baral['facts']['degree_axes']['evasion']
     assert ev['inverts'] is True
     assert {'n', 'over_served', 'under_served'} <= set(ev)
-    assert baral['evasion_under_served'] is True and baral['evasion_over_served'] is False
+    # #69 fix: with correct card data Baral's evasion count shifts just past the
+    # under-served threshold → neither flag fires (neutral evasion).
+    assert baral['evasion_under_served'] is False and baral['evasion_over_served'] is False
     assert baral['evasion_count'] == ev['n']
     assert baral['named_strategy'] != 'evasion'
 
