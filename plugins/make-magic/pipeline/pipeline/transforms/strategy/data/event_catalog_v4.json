@@ -1125,6 +1125,23 @@
         "pseudo-proliferate",
         "synergy-proliferate"
       ]
+    },
+    "mana-produced": {
+      "rule": "CR 106: producing mana (tapping lands, mana dorks, rituals, Treasure sacrifice). Covers 179 Spellbook mana fids (13.3% of features, 34% of corpus combos had no event home before this). Classified by feature name, not by the uncountable+mana derivation (see ADR 0007 when wired).",
+      "produced_by": [],
+      "triggered_by": []
+    },
+    "game-end": {
+      "rule": "CR 104.1/104.2/104.3: the game ends. Terminal node — the walk target. Fids map here with polarity (win/draw/loss) from the research route and scope from the feature. Rule-edges from life-loss-drain (SBA 104.3b), library-depleted (CR 104.3c), and combat-damage-dealt reach game-end through the EventEffect graph.",
+      "polarity": ["win", "draw", "loss"],
+      "scope": ["table", "target", "self"],
+      "produced_by": [],
+      "triggered_by": []
+    },
+    "library-depleted": {
+      "rule": "CR 104.3c: a player with an empty library who would draw loses. Covers mill/library-exile fids directed at opponents (32 features). Replaces the implicit 'deckout' concept with an explicit event node; a rule-edge to game-end (CR 104.3c) will be wired in the EventEffect graph when the adapter is consumed.",
+      "produced_by": [],
+      "triggered_by": []
     }
   },
   "_note_v3": "identical to event_catalog_v2; v3 narrowing is naming-level.",

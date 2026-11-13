@@ -123,18 +123,48 @@ class TestCatalogBaseline:
     def test_catalog_is_nonempty(self, events: dict[str, dict]) -> None:
         assert len(events) > 0, 'event catalog is empty'
 
-    def test_game_end_not_yet_present(self, events: dict[str, dict]) -> None:
-        """game-end is wired in Phase 2B with the fid adapter; it should not appear yet.
+    def test_game_end_present_with_polarity_and_scope(self, events: dict[str, dict]) -> None:
+        """game-end is wired in Phase 2B step 5a; it carries polarity and scope (ADR 0012)."""
+        assert 'game-end' in events, 'game-end must be present in the event catalog'
+        assert 'polarity' in events['game-end'], 'game-end is present but missing polarity'
+        assert 'scope' in events['game-end'], 'game-end is present but missing scope'
 
-        When game-end is added, this test should be replaced with a positive
-        assertion that game-end carries polarity and scope.
-        """
-        if 'game-end' in events:
-            # If game-end lands, enforce that it carries polarity + scope
-            assert 'polarity' in events['game-end'], (
-                'game-end is present but missing polarity'
-            )
-            assert 'scope' in events['game-end'], (
-                'game-end is present but missing scope'
-            )
-        # Otherwise: game-end is not yet in the catalog — expected for Phase 2A.
+
+# ────────────────────────────────────────────────────────────────────────────
+# 5. Phase 2B step 5a inert events: mana-produced, game-end, library-depleted
+# ────────────────────────────────────────────────────────────────────────────
+
+class TestPhase2BInertEvents:
+    """The 3 new events added in Phase 2B step 5a are present and INERT (empty edges)."""
+
+    _NEW_EVENTS = ('mana-produced', 'game-end', 'library-depleted')
+
+    def test_new_events_present(self, events: dict[str, dict]) -> None:
+        for slug in self._NEW_EVENTS:
+            assert slug in events, f'{slug!r} must be in the event catalog'
+
+    def test_new_events_have_required_fields(self, events: dict[str, dict]) -> None:
+        for slug in self._NEW_EVENTS:
+            ev = events[slug]
+            assert 'rule' in ev, f'{slug}: missing rule'
+            assert 'produced_by' in ev, f'{slug}: missing produced_by'
+            assert 'triggered_by' in ev, f'{slug}: missing triggered_by'
+
+    def test_new_events_are_inert(self, events: dict[str, dict]) -> None:
+        """Inert means empty produced_by and triggered_by — no edge wiring yet."""
+        for slug in self._NEW_EVENTS:
+            ev = events[slug]
+            assert ev['produced_by'] == [], f'{slug}: produced_by should be empty (inert)'
+            assert ev['triggered_by'] == [], f'{slug}: triggered_by should be empty (inert)'
+
+    def test_game_end_has_polarity_and_scope(self, events: dict[str, dict]) -> None:
+        """game-end is the ONLY event with polarity + scope fields."""
+        ge = events['game-end']
+        assert ge['polarity'] == ['win', 'draw', 'loss']
+        assert ge['scope'] == ['table', 'target', 'self']
+
+    def test_mana_produced_and_library_depleted_no_polarity_scope(self, events: dict[str, dict]) -> None:
+        for slug in ('mana-produced', 'library-depleted'):
+            ev = events[slug]
+            assert 'polarity' not in ev, f'{slug} must NOT have polarity'
+            assert 'scope' not in ev, f'{slug} must NOT have scope'

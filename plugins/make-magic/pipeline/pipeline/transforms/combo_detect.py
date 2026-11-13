@@ -90,6 +90,7 @@ def _combo_from_variant(variant: dict) -> Combo | None:
     ]
     produces = tuple(
         {
+            'fid': int(f['id']) if f.get('id') else 0,
             'name': str(f['name']),
             'status': str(f.get('status') or ''),
             'win': is_game_win_result(str(f['name'])),
@@ -428,7 +429,7 @@ def _materialize(combos: list[Combo]) -> Path:
                     'NULL::VARCHAR AS result, '
                     '[]::VARCHAR[] AS steps, '
                     '[]::VARCHAR[] AS prerequisites, '
-                    '[]::STRUCT(name VARCHAR, status VARCHAR, win BOOLEAN)[] AS produces WHERE 1=0'
+                    '[]::STRUCT(fid INTEGER, name VARCHAR, status VARCHAR, win BOOLEAN)[] AS produces WHERE 1=0'
                 )
             path = store.write_parquet(conn, rel, 'normalized', NORMALIZED_TABLE)
         finally:
@@ -456,14 +457,15 @@ def load_combos() -> list[Combo]:
 
 
 def _coerce_feature(feature: object) -> Mapping[str, object]:
-    """Normalize a stored produced-feature row back into a ``{'name', 'status', 'win'}`` dict."""
+    """Normalize a stored produced-feature row back into a ``{'fid', 'name', 'status', 'win'}`` dict."""
     if isinstance(feature, Mapping):
         return {
+            'fid': int(feature.get('fid') or 0),
             'name': str(feature.get('name') or ''),
             'status': str(feature.get('status') or ''),
             'win': bool(feature.get('win')),
         }
-    return {'name': '', 'status': '', 'win': False}
+    return {'fid': 0, 'name': '', 'status': '', 'win': False}
 
 
 def _combo_parquet_path() -> Path:
