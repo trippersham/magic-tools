@@ -1,7 +1,7 @@
-"""Tests for the curated edge-role sidecar registry (P1).
+"""Tests for the curated EventEffect sidecar registry (P1).
 
 Asserts that the 6 curated within-card edge-category attributes carry
-(trigger_event, effect_event) roles aligned to the event catalog, with
+(trigger_event, produced_event) roles aligned to the event catalog, with
 source='curated' provenance. No held file is touched — roles live in the
 sidecar ``edge_roles`` module.
 """
@@ -75,12 +75,12 @@ class TestCuratedEdgeRoles:
     def test_role_round_trip(
         self, attr_name: str, expected_trigger: str, expected_effect: str,
     ) -> None:
-        """Each attr's (trigger_event, effect_event) matches the expected mapping."""
+        """Each attr's (trigger_event, produced_event) matches the expected mapping."""
         from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES
 
         role = CURATED_EDGE_ROLES[attr_name]
         assert role.trigger_event == expected_trigger
-        assert role.effect_event == expected_effect
+        assert role.produced_event == expected_effect
 
     def test_provenance_is_curated(self) -> None:
         """Every curated edge role carries source='curated'."""
@@ -99,7 +99,7 @@ class TestCuratedEdgeRoles:
             assert isinstance(role.provenance, Provenance)
 
     def test_referenced_events_exist_in_catalog(self, event_catalog: dict) -> None:
-        """All trigger/effect slugs map to real events in event_catalog_v4."""
+        """All trigger/produced slugs map to real events in event_catalog_v4."""
         from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES
 
         catalog_events = set(event_catalog['events'].keys())
@@ -107,18 +107,18 @@ class TestCuratedEdgeRoles:
             assert role.trigger_event in catalog_events, (
                 f'{name}.trigger_event={role.trigger_event!r} not in catalog'
             )
-            assert role.effect_event in catalog_events, (
-                f'{name}.effect_event={role.effect_event!r} not in catalog'
+            assert role.produced_event in catalog_events, (
+                f'{name}.produced_event={role.produced_event!r} not in catalog'
             )
 
     def test_get_role_hit(self) -> None:
-        """get_role returns the EdgeRole for a known attr."""
+        """get_role returns the EventEffect for a known attr."""
         from pipeline.transforms.strategy.edge_roles import get_role
 
         role = get_role('draw-to-drain')
         assert role is not None
         assert role.trigger_event == 'draw-a-card'
-        assert role.effect_event == 'life-loss-drain'
+        assert role.produced_event == 'life-loss-drain'
 
     def test_get_role_miss(self) -> None:
         """get_role returns None for an unknown attr (e.g. 'morph')."""
@@ -147,7 +147,7 @@ class TestCatalogAlignment:
         referenced = set()
         for role in CURATED_EDGE_ROLES.values():
             referenced.add(role.trigger_event)
-            referenced.add(role.effect_event)
+            referenced.add(role.produced_event)
         missing = referenced - catalog_events
         assert not missing, f'Event slug(s) missing from catalog: {missing}'
 
@@ -158,5 +158,5 @@ class TestCatalogAlignment:
         referenced = set()
         for role in CURATED_EDGE_ROLES.values():
             referenced.add(role.trigger_event)
-            referenced.add(role.effect_event)
+            referenced.add(role.produced_event)
         assert referenced == REFERENCED_EVENTS

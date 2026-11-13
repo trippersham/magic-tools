@@ -18,6 +18,17 @@ which points back here.
 | [0004](0004-node-predicates.md) | Node predicates: distinct `node_eligible` (presence gate) and `node_admitted` (graph admission), one impl each | Accepted | pending owner review | facts.py, engine_report.py |
 | [0005](0005-tribe-resolution-creature-type-catalog.md) | Tribe resolution: Scryfall creature-type catalog allowlist, not a hand blocklist | Accepted | pending owner review | tribes.py, creature_types_catalog.json |
 | [0006](0006-config-universal-or-gone.md) | Configuration: universal or gone — frozen boolean knobs removed, not toggled | Accepted | pending owner review | config.py |
+| [0008](0008-canonical-normalization.md) | Canonical normalization: `CardAttribute` (one concept, provenance-tagged source in {curated, haiku, spellbook}); `ProvisionalAttributeStore` (lifecycle-named storage); no compat aliases | Accepted | pending owner review | machine_vocab.py |
+| [0011](0011-eventeffect-guards.md) | EventEffect guards: query/reference over a defined operand set at one evaluation chokepoint — characteristic CardAttribute-ref + bounded scope/identity enum + event-reachable ref + unresolved; the guard defines the producer set; per trigger-ability; scaffolded Phase 2A, evaluation 2B | Accepted | pending owner review | edge_roles.py, relay.py, machine_vocab.py |
+| [0012](0012-event-ontology.md) | Event = the game's bounded trigger taxonomy; no `role` field — sink-ness is pure topology; `polarity`/`scope` on `game-end` only; promiscuity-scaled substantiveness via ADR 0002 | Accepted | pending owner review | event_catalog_v4.json, substantiveness.py, facts.py |
+| [0017](0017-edge-derivation-native-then-haiku.md) | Within-card edge derivation: native CardAttributes first, else haiku→machine-store; never code-side prose parsing. Two distinct haiku roles (A edge-author / B engine-namer) | Accepted | pending owner review | edge_roles.py, machine_vocab.py, relay.py |
 
-*0005–0007 (tribe catalog, config universal-or-gone, combo feature-ID) are authored in the
-same change that implements them, from observed post-change behavior.*
+*0005–0006 (tribe catalog, config universal-or-gone) were authored in the same change that
+implemented them, from observed post-change behavior.*
+
+*0007–0016 (except 0011, 0012) are reserved for the Design-2/3 fold (Spellbook adapter,
+canonical normalization, query contract, ontology, Strategy, Engine election, DeckAssessment,
+closure-mechanism win-walk) and will be authored in that change. 0011 (EventEffect guards) and
+0012 (Event ontology) were authored ahead of the full fold as part of Phase 2A scaffolding.
+0017 was authored ahead of the fold because a probe prototype violated its rule; it is closely
+related to 0008/0011/0014 and may be merged into 0008 at fold time.*

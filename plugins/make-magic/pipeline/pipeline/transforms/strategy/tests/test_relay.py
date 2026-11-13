@@ -16,17 +16,17 @@ from pathlib import Path
 import pytest
 
 from pipeline.transforms.strategy.assets import load_assets
-from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES, get_role
+from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES, EventEffect, get_role
 from pipeline.transforms.strategy.facts import _isolate_engines, compute_facts
-from pipeline.transforms.strategy.machine_vocab import MachineAttribute, MachineStore, Provenance
+from pipeline.transforms.strategy.machine_vocab import CardAttribute, ProvisionalAttributeStore, Provenance
 from pipeline.transforms.strategy.relay import (
     _get_role_with_store,
     build_relay_augmented_event_edges,
     isolate_engines_with_relay,
 )
 from pipeline.transforms.strategy.machine_vocab import (
-    MachineAttribute,
-    MachineStore,
+    CardAttribute,
+    ProvisionalAttributeStore,
     Provenance,
     empty_store,
 )
@@ -175,7 +175,7 @@ class TestBuildRelayAugmentedEventEdges:
         # (the intermediate state, before the cross-product filters by nodes).
         role = get_role('draw-to-drain')
         assert role is not None
-        assert role.effect_event == 'life-loss-drain'
+        assert role.produced_event == 'life-loss-drain'
         # In a nodes set with a life-loss-drain consumer, edges would appear.
         # Prove it with a synthetic nodes set:
         synthetic_nodes = relay_ctx.nodes | {'life-loss-matters'}
@@ -389,7 +389,7 @@ def _test_provenance(**overrides: object) -> Provenance:
     return Provenance(**defaults)  # type: ignore[arg-type]
 
 
-class TestMachineStoreAugmentedEdges:
+class TestProvisionalAttributeStoreAugmentedEdges:
     """Machine-authored attributes contribute to relay injection via store."""
 
     def test_empty_store_produces_identical_edges(self, relay_ctx, assets) -> None:
@@ -415,12 +415,12 @@ class TestMachineStoreAugmentedEdges:
         (``gives-pp-counters``) also in nodes, the relay should inject
         ``test-counter-to-mana`` as consumer of ``counter-placed``.
         """
-        store = MachineStore(attributes=[
-            MachineAttribute(
+        store = ProvisionalAttributeStore(attributes=[
+            CardAttribute(
                 name='test-counter-to-mana',
                 query="oracle:'test'",
                 trigger_event='counter-placed',
-                effect_event='lifegain',
+                produced_event='lifegain',
                 provenance=_test_provenance(),
             ),
         ])
@@ -439,14 +439,14 @@ class TestMachineStoreAugmentedEdges:
         producers_feeding = {p for p, c, ev in counter_edges_to_mana}
         assert 'gives-pp-counters' in producers_feeding
 
-    def test_machine_attr_produces_into_effect_event(self, assets) -> None:
+    def test_machine_attr_produces_into_produced_event(self, assets) -> None:
         """The machine attr produces into its effect event."""
-        store = MachineStore(attributes=[
-            MachineAttribute(
+        store = ProvisionalAttributeStore(attributes=[
+            CardAttribute(
                 name='test-counter-to-mana',
                 query="oracle:'test'",
                 trigger_event='counter-placed',
-                effect_event='lifegain',
+                produced_event='lifegain',
                 provenance=_test_provenance(),
             ),
         ])
@@ -467,12 +467,12 @@ class TestMachineStoreAugmentedEdges:
 
     def test_machine_attr_not_in_nodes_is_ignored(self, assets) -> None:
         """A machine attr NOT in nodes is not injected (even if in store)."""
-        store = MachineStore(attributes=[
-            MachineAttribute(
+        store = ProvisionalAttributeStore(attributes=[
+            CardAttribute(
                 name='test-counter-to-mana',
                 query="oracle:'test'",
                 trigger_event='counter-placed',
-                effect_event='lifegain',
+                produced_event='lifegain',
                 provenance=_test_provenance(),
             ),
         ])
@@ -486,12 +486,12 @@ class TestMachineStoreAugmentedEdges:
 
     def test_curated_takes_precedence_over_machine(self, relay_ctx, assets) -> None:
         """If a machine attr has the same name as a curated edge, curated wins."""
-        store = MachineStore(attributes=[
-            MachineAttribute(
+        store = ProvisionalAttributeStore(attributes=[
+            CardAttribute(
                 name='draw-to-gain',
                 query="oracle:'wrong'",
                 trigger_event='lifegain',  # wrong events
-                effect_event='counter-placed',
+                produced_event='counter-placed',
                 provenance=_test_provenance(),
             ),
         ])
@@ -506,12 +506,12 @@ class TestMachineStoreAugmentedEdges:
 
     def test_machine_attr_with_novel_event_skipped(self, assets) -> None:
         """Machine attr whose effect event is not in the catalog is skipped."""
-        store = MachineStore(attributes=[
-            MachineAttribute(
+        store = ProvisionalAttributeStore(attributes=[
+            CardAttribute(
                 name='test-novel-event',
                 query="oracle:'test'",
                 trigger_event='counter-placed',
-                effect_event='nonexistent-event',  # not in catalog
+                produced_event='nonexistent-event',  # not in catalog
                 provenance=_test_provenance(),
             ),
         ])
@@ -525,10 +525,10 @@ class TestMachineStoreAugmentedEdges:
 # F: Machine-store -> relay path (Build 1 keystone)
 # ---------------------------------------------------------------------------
 
-class TestMachineStoreRelayPath:
+class TestProvisionalAttributeStoreRelayPath:
     """Machine-authored attributes flow through the relay via the store.
 
-    Proves: a MachineAttribute with trigger_event/effect_event is injected
+    Proves: a CardAttribute with trigger_event/produced_event is injected
     as a relay node, while an empty store produces byte-identical output.
     """
 
@@ -537,17 +537,17 @@ class TestMachineStoreRelayPath:
         edges_no_store = build_relay_augmented_event_edges(
             relay_ctx.nodes, assets.events)
         edges_empty_store = build_relay_augmented_event_edges(
-            relay_ctx.nodes, assets.events, store=MachineStore())
+            relay_ctx.nodes, assets.events, store=ProvisionalAttributeStore())
         assert edges_no_store == edges_empty_store
 
     def test_get_role_with_store_curated_first(self) -> None:
         """Curated role takes precedence over a same-named machine attr."""
-        store = MachineStore(attributes=[
-            MachineAttribute(
+        store = ProvisionalAttributeStore(attributes=[
+            CardAttribute(
                 name='draw-to-drain',
                 query="oracle:'test'",
                 trigger_event='lifegain',  # different from curated
-                effect_event='lifegain',
+                produced_event='lifegain',
                 provenance=Provenance(source='haiku'),
             ),
         ])
@@ -555,32 +555,32 @@ class TestMachineStoreRelayPath:
         # Should return the CURATED role, not the machine one.
         assert role is not None
         assert role.trigger_event == 'draw-a-card'
-        assert role.effect_event == 'life-loss-drain'
+        assert role.produced_event == 'life-loss-drain'
 
     def test_get_role_with_store_machine_attr(self) -> None:
         """Machine attr is returned when no curated role exists."""
-        store = MachineStore(attributes=[
-            MachineAttribute(
+        store = ProvisionalAttributeStore(attributes=[
+            CardAttribute(
                 name='counter-to-mana',
                 query="oracle:'number of counters on'",
                 trigger_event='counter-placed',
-                effect_event='lifegain',  # placeholder for test
+                produced_event='lifegain',  # placeholder for test
                 provenance=Provenance(source='haiku'),
             ),
         ])
         role = _get_role_with_store('counter-to-mana', store)
         assert role is not None
         assert role.trigger_event == 'counter-placed'
-        assert role.effect_event == 'lifegain'
+        assert role.produced_event == 'lifegain'
 
     def test_get_role_with_store_none_for_missing(self) -> None:
         """Missing attr returns None even with a store."""
-        store = MachineStore(attributes=[
-            MachineAttribute(
+        store = ProvisionalAttributeStore(attributes=[
+            CardAttribute(
                 name='counter-to-mana',
                 query="oracle:'test'",
                 trigger_event='counter-placed',
-                effect_event='lifegain',
+                produced_event='lifegain',
                 provenance=Provenance(source='haiku'),
             ),
         ])
@@ -588,12 +588,12 @@ class TestMachineStoreRelayPath:
 
     def test_machine_attr_injected_as_relay_node(self, assets) -> None:
         """A machine attr in nodes is injected as consumer+producer in edges."""
-        store = MachineStore(attributes=[
-            MachineAttribute(
+        store = ProvisionalAttributeStore(attributes=[
+            CardAttribute(
                 name='counter-to-mana',
                 query="oracle:'number of counters on'",
                 trigger_event='counter-placed',
-                effect_event='lifegain',  # use existing event for test
+                produced_event='lifegain',  # use existing event for test
                 provenance=Provenance(source='haiku'),
             ),
         ])
@@ -615,12 +615,12 @@ class TestMachineStoreRelayPath:
 
     def test_machine_attr_with_novel_event_skipped(self, assets) -> None:
         """A machine attr whose events are not in the catalog is safely skipped."""
-        store = MachineStore(attributes=[
-            MachineAttribute(
+        store = ProvisionalAttributeStore(attributes=[
+            CardAttribute(
                 name='counter-to-mana',
                 query="oracle:'test'",
                 trigger_event='counter-placed',
-                effect_event='mana-from-counters',  # NOT in catalog
+                produced_event='mana-from-counters',  # NOT in catalog
                 provenance=Provenance(source='haiku'),
             ),
         ])

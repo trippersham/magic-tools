@@ -1,33 +1,35 @@
-"""Machine-authored vocabulary store -- the separate, freezable layer.
+"""Provisional attribute store -- the separate, freezable layer.
 
-This module is the NAMESPACE for machine-authored (haiku-authored) vocab items:
+This module is the NAMESPACE for provisionally-authored vocab items:
 CardAttributes + within-card edges + provenance, produced by the engine-
 identification pipeline's Tier-2 hydration pass and verified by the deterministic
-gate before persistence.
+gate before persistence.  Sources include ``'haiku'`` (LLM-authored),
+``'spellbook'`` (combo-database-derived), and ``'curated'`` (hand-authored,
+which live in :mod:`.vocab` but share the provenance enum).
 
 Separation invariant
 --------------------
-Machine-authored vocab is **always distinguishable** from the curated base
+Provisionally-authored vocab is **always distinguishable** from the curated base
 (:mod:`.vocab`). Curated-base tests pin and ignore this store (or pin a frozen
 snapshot), so accumulated hydration can never retroactively flake deterministic
 tests. The store is **freezable**: tests that assert engine output do so against
-a frozen machine-store snapshot, never the live growing store.
+a frozen store snapshot, never the live growing store.
 
 On-disk format
 --------------
 The durable store is a **JSONL** file (one JSON object per line) at
 ``<store_dir>/attributes.jsonl``.  Each line is a self-contained record with
-all ``MachineAttribute`` + ``Provenance`` fields, human-inspectable::
+all ``CardAttribute`` + ``Provenance`` fields, human-inspectable::
 
     {"name": "draw-to-drain", "query": "oracle:/...", "trigger_event": "draw-a-card",
-     "effect_event": "life-loss-drain", "source": "haiku", "model_id": "claude-3-5-haiku-20241022",
+     "produced_event": "life-loss-drain", "source": "haiku", "model_id": "claude-3-5-haiku-20241022",
      "authored_at": "2026-11-06T10:00:00Z", "source_card_name": "Queza, Augur of Agonies",
      "source_card_oracle_id": "abc-123", "deck_context": "queza-esper-drain",
      "scryfall_query": "oracle:/...", "scryfall_resolved_count": 4,
      "verified_at": "2026-11-06T10:00:05Z"}
 
-Curated vs machine is always distinguishable by the ``source`` field
-(``'haiku'`` vs ``'curated'``).
+Curated vs authored is always distinguishable by the ``source`` field
+(``'haiku'``/``'spellbook'`` vs ``'curated'``).
 
 Idempotency
 -----------
@@ -73,8 +75,9 @@ class Provenance:
     Fields
     ------
     source
-        ``'haiku'`` for machine-authored, ``'curated'`` for hand-authored (curated
-        items live in :mod:`.vocab`, not here, but the enum is shared).
+        ``'haiku'`` for LLM-authored, ``'spellbook'`` for combo-database-derived,
+        ``'curated'`` for hand-authored (curated items live in :mod:`.vocab`, not
+        here, but the enum is shared).  Curated vs authored is always distinguishable.
     model_id
         The model that authored the item (e.g. ``'claude-3-5-haiku-20241022'``).
     authored_at
@@ -89,9 +92,12 @@ class Provenance:
         How many cards the query matched on Scryfall.
     verified_at
         ISO-8601 timestamp of verification-gate pass.
+    lifecycle
+        ``'provisional'`` for unverified/machine-authored, ``'verified'`` for
+        curated or gate-passed. Default ``'verified'`` (safe conservative).
     """
 
-    source: str                          # 'haiku' | 'curated'
+    source: str                          # 'haiku' | 'spellbook' | 'curated'
     model_id: str = ''
     authored_at: str = ''
     source_card_name: str = ''
@@ -101,15 +107,16 @@ class Provenance:
     scryfall_resolved_count: int = 0
     verified_at: str = ''
     breadth_warning: bool = False
+    lifecycle: str = 'verified'          # 'provisional' | 'verified'
 
 
 @dataclass(frozen=True)
-class MachineAttribute:
+class CardAttribute:
     """A single machine-authored CardAttribute with event roles + provenance.
 
     The query is a Scryfall-pasteable deterministic predicate (same form as
     curated synth attributes in :data:`.vocab.SYNTH_ALWAYS_ATTRIBUTES`).
-    ``trigger_event`` / ``effect_event`` are the within-card edge roles the P2
+    ``trigger_event`` / ``produced_event`` are the within-card edge roles the P2
     relay-node derivation reads to inject the card as consumer(trigger) +
     producer(effect) into the event graph.
 
@@ -121,8 +128,9 @@ class MachineAttribute:
         Scryfall-pasteable query string.
     trigger_event
         The event this card's trigger ability CONSUMES (e.g. ``'draw'``).
-    effect_event
+    produced_event
         The event this card's effect ability PRODUCES (e.g. ``'life-loss'``).
+        Renamed from ``effect_event`` in Phase 2A.
     provenance
         Origin metadata (always present on machine-authored items).
     """
@@ -130,27 +138,27 @@ class MachineAttribute:
     name: str
     query: str
     trigger_event: str = ''
-    effect_event: str = ''
+    produced_event: str = ''
     provenance: Provenance = field(
-        default_factory=lambda: Provenance(source='haiku'))
+        default_factory=lambda: Provenance(source='haiku', lifecycle='provisional'))
 
 
 @dataclass
-class MachineStore:
+class ProvisionalAttributeStore:
     """In-memory representation of the machine-authored vocab layer.
 
     An empty store is inert: it contributes zero attributes, zero edges, and
     does not shift the curated base's output.
     """
 
-    attributes: list[MachineAttribute] = field(default_factory=list)
+    attributes: list[CardAttribute] = field(default_factory=list)
 
     @property
     def is_empty(self) -> bool:
         """True when the store contributes nothing (the P0 default)."""
         return len(self.attributes) == 0
 
-    def get(self, name: str) -> MachineAttribute | None:
+    def get(self, name: str) -> CardAttribute | None:
         """Look up a machine-authored attribute by name."""
         for attr in self.attributes:
             if attr.name == name:
@@ -188,8 +196,8 @@ class MachineStore:
 # Serialization helpers (JSONL on-disk format)
 # ---------------------------------------------------------------------------
 
-def _attr_to_record(attr: MachineAttribute) -> dict:
-    """Flatten a MachineAttribute + Provenance into a single JSON-serializable dict.
+def _attr_to_record(attr: CardAttribute) -> dict:
+    """Flatten a CardAttribute + Provenance into a single JSON-serializable dict.
 
     The record is one line in the JSONL store.  All provenance fields are
     promoted to the top level (no nesting) for human readability and grep-ability.
@@ -199,16 +207,17 @@ def _attr_to_record(attr: MachineAttribute) -> dict:
         'name': attr.name,
         'query': attr.query,
         'trigger_event': attr.trigger_event,
-        'effect_event': attr.effect_event,
+        'produced_event': attr.produced_event,
     }
     rec.update(prov)
     return rec
 
 
-def _record_to_attr(rec: dict) -> MachineAttribute:
-    """Reconstruct a MachineAttribute from a flat JSONL record dict."""
+def _record_to_attr(rec: dict) -> CardAttribute:
+    """Reconstruct a CardAttribute from a flat JSONL record dict."""
+    source = rec.get('source', 'haiku')
     prov = Provenance(
-        source=rec.get('source', 'haiku'),
+        source=source,
         model_id=rec.get('model_id', ''),
         authored_at=rec.get('authored_at', ''),
         source_card_name=rec.get('source_card_name', ''),
@@ -218,12 +227,13 @@ def _record_to_attr(rec: dict) -> MachineAttribute:
         scryfall_resolved_count=rec.get('scryfall_resolved_count', 0),
         verified_at=rec.get('verified_at', ''),
         breadth_warning=rec.get('breadth_warning', False),
+        lifecycle=rec.get('lifecycle', 'provisional' if source == 'haiku' else 'verified'),
     )
-    return MachineAttribute(
+    return CardAttribute(
         name=rec['name'],
         query=rec['query'],
         trigger_event=rec.get('trigger_event', ''),
-        effect_event=rec.get('effect_event', ''),
+        produced_event=rec.get('produced_event', '') or rec.get('effect_event', ''),
         provenance=prov,
     )
 
@@ -239,20 +249,20 @@ _DEFAULT_STORE_DIR = Path.home() / '.local' / 'share' / 'make-magic' / 'machine_
 _STORE_FILENAME = 'attributes.jsonl'
 
 
-def empty_store() -> MachineStore:
+def empty_store() -> ProvisionalAttributeStore:
     """Return a guaranteed-empty machine store (the identity element).
 
     Code that merges machine vocab into the active asset bundle should use this
     as the default when no store is loaded, and short-circuit on ``is_empty``.
     """
-    return MachineStore()
+    return ProvisionalAttributeStore()
 
 
-def load_store(store_dir: Path | str | None = None) -> MachineStore:
+def load_store(store_dir: Path | str | None = None) -> ProvisionalAttributeStore:
     """Load the durable machine-authored vocab store from disk.
 
     Reads every line of ``<store_dir>/attributes.jsonl`` (JSONL: one JSON
-    object per line) and reconstructs the in-memory :class:`MachineStore`.
+    object per line) and reconstructs the in-memory :class:`ProvisionalAttributeStore`.
 
     Returns an **empty** store if the directory does not exist, the file is
     missing, or the file is empty.
@@ -267,12 +277,12 @@ def load_store(store_dir: Path | str | None = None) -> MachineStore:
         store_dir = Path(store_dir)
     store_path = (store_dir or _DEFAULT_STORE_DIR) / _STORE_FILENAME
     if not store_path.exists():
-        return MachineStore()
+        return ProvisionalAttributeStore()
 
-    attrs: list[MachineAttribute] = []
+    attrs: list[CardAttribute] = []
     text = store_path.read_text(encoding='utf-8').strip()
     if not text:
-        return MachineStore()
+        return ProvisionalAttributeStore()
 
     for line_no, line in enumerate(text.splitlines(), 1):
         stripped = line.strip()
@@ -286,10 +296,10 @@ def load_store(store_dir: Path | str | None = None) -> MachineStore:
             ) from exc
         attrs.append(_record_to_attr(rec))
 
-    return MachineStore(attributes=attrs)
+    return ProvisionalAttributeStore(attributes=attrs)
 
 
-def load_frozen_snapshot(path: Path) -> MachineStore:
+def load_frozen_snapshot(path: Path) -> ProvisionalAttributeStore:
     """Load a frozen machine-store snapshot from a test fixture.
 
     Engine-output tests pin against a frozen snapshot (a committed JSON fixture),
@@ -307,11 +317,11 @@ def load_frozen_snapshot(path: Path) -> MachineStore:
         raise ValueError(f'Frozen snapshot must be a JSON array, got {type(data).__name__}')
 
     attrs = [_record_to_attr(rec) for rec in data]
-    return MachineStore(attributes=attrs)
+    return ProvisionalAttributeStore(attributes=attrs)
 
 
-def persist(attr: MachineAttribute, store_dir: Path | str | None = None) -> None:
-    """Persist a verified MachineAttribute to the durable store.
+def persist(attr: CardAttribute, store_dir: Path | str | None = None) -> None:
+    """Persist a verified CardAttribute to the durable store.
 
     Appends a single JSONL record to ``<store_dir>/attributes.jsonl``.
     Creates the directory and file if they do not exist.
@@ -323,7 +333,7 @@ def persist(attr: MachineAttribute, store_dir: Path | str | None = None) -> None
     Parameters
     ----------
     attr
-        A verified :class:`MachineAttribute`.  The caller (the verification
+        A verified :class:`CardAttribute`.  The caller (the verification
         gate) is responsible for ensuring the attribute passed all checks
         before calling persist.
     store_dir
@@ -375,7 +385,7 @@ def persist(attr: MachineAttribute, store_dir: Path | str | None = None) -> None
 # Compounding read path -- assembles curated + machine for the walk
 # ---------------------------------------------------------------------------
 
-def all_edge_queries(store: MachineStore | None = None) -> list[tuple[str, str]]:
+def all_edge_queries(store: ProvisionalAttributeStore | None = None) -> list[tuple[str, str]]:
     """Assemble ``(name, query)`` pairs from curated edges + machine store.
 
     This is the helper the engine derivation (PC) calls to build the full set

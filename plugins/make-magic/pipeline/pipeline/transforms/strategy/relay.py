@@ -5,7 +5,7 @@ module injects the attribute as a **relay node** in the event graph:
 
 - **consumer** of its ``trigger_event`` (the event the card's trigger ability
   fires on)
-- **producer** of its ``effect_event`` (the event the card's effect ability
+- **producer** of its ``produced_event`` (the event the card's effect ability
   generates)
 
 This reuses the EXISTING ``produced_by x triggered_by -> event_edges``
@@ -47,21 +47,21 @@ from __future__ import annotations
 from collections import defaultdict
 
 from pipeline.transforms.strategy.assets import StrategyAssets
-from pipeline.transforms.strategy.edge_roles import EdgeRole, get_role
+from pipeline.transforms.strategy.edge_roles import EventEffect, get_role
 from pipeline.transforms.strategy.facts import _isolate_engines
-from pipeline.transforms.strategy.machine_vocab import MachineStore
+from pipeline.transforms.strategy.machine_vocab import ProvisionalAttributeStore
 
 
 def _get_role_with_store(
     attr_name: str,
-    store: MachineStore | None,
-) -> EdgeRole | None:
+    store: ProvisionalAttributeStore | None,
+) -> EventEffect | None:
     """Look up an edge role from curated roles first, then the machine store.
 
     The curated registry (:func:`get_role`) is checked first.  If it returns
     ``None`` AND a non-empty *store* is provided, the store's attributes are
-    checked for a matching name with ``trigger_event``/``effect_event`` set,
-    and a synthetic :class:`EdgeRole` is constructed on the fly.
+    checked for a matching name with ``trigger_event``/``produced_event`` set,
+    and a synthetic :class:`EventEffect` is constructed on the fly.
 
     With an empty or ``None`` store this is identical to ``get_role(attr_name)``.
     """
@@ -73,11 +73,11 @@ def _get_role_with_store(
     machine_attr = store.get(attr_name)
     if machine_attr is None:
         return None
-    if not machine_attr.trigger_event or not machine_attr.effect_event:
+    if not machine_attr.trigger_event or not machine_attr.produced_event:
         return None
-    return EdgeRole(
+    return EventEffect(
         trigger_event=machine_attr.trigger_event,
-        effect_event=machine_attr.effect_event,
+        produced_event=machine_attr.produced_event,
         provenance=machine_attr.provenance,
     )
 
@@ -86,7 +86,7 @@ def build_relay_augmented_event_edges(
     nodes: set[str],
     events: dict[str, dict],
     *,
-    store: MachineStore | None = None,
+    store: ProvisionalAttributeStore | None = None,
 ) -> list[tuple[str, str, str]]:
     """Build event-edges with relay-node injection from within-card edge attrs.
 
@@ -94,7 +94,7 @@ def build_relay_augmented_event_edges(
     curated edge-category attribute in *nodes*, the attribute is injected as:
 
     - a **consumer** of its ``trigger_event`` (appended to ``triggered_by``)
-    - a **producer** of its ``effect_event`` (appended to ``produced_by``)
+    - a **producer** of its ``produced_event`` (appended to ``produced_by``)
 
     This makes within-card edges visible to the event graph so loops can compose
     across cards (Queza consumes draw, produces drain+gain; a gain-to-draw card
@@ -130,7 +130,7 @@ def build_relay_augmented_event_edges(
         if role is None:
             continue
         tev = role.trigger_event
-        eev = role.effect_event
+        eev = role.produced_event
         # Guard: both events must exist in the catalog (they always do for the
         # 6 curated attrs, but the guard keeps the function safe for future
         # machine-authored attrs whose events might be novel).
@@ -164,7 +164,7 @@ def isolate_engines_with_relay(
     assets: StrategyAssets,
     cards: list[dict],
     *,
-    store: MachineStore | None = None,
+    store: ProvisionalAttributeStore | None = None,
 ) -> dict:
     """Run ``_isolate_engines`` over the relay-augmented event graph.
 
@@ -182,7 +182,7 @@ def isolate_engines_with_relay(
     events
         ``assets.events`` — the event catalog dict.
     store
-        Optional :class:`MachineStore` for machine-authored edge roles.
+        Optional :class:`ProvisionalAttributeStore` for machine-authored edge roles.
         When non-empty, machine-authored attributes' trigger/effect roles
         are injected into the relay graph alongside curated roles.
 

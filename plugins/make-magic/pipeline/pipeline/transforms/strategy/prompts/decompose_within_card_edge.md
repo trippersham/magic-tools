@@ -65,7 +65,7 @@ For each edge, emit a JSON object:
 {
   "source_card": "<card name>",
   "trigger_event": "<event slug>",
-  "effect_event": "<event slug>",
+  "produced_event": "<event slug>",
   "query": "<Scryfall-pasteable query>",
   "reasoning": "<1-2 sentence explanation>"
 }

@@ -258,7 +258,7 @@ def verify(
     query_str
         Scryfall-pasteable query string.
     role
-        ``(trigger_event, effect_event)`` — event-catalog slugs.
+        ``(trigger_event, produced_event)`` — event-catalog slugs.
     expected_card_names
         If given, check (b) requires these names in the captured set
         (case-insensitive match).
@@ -274,7 +274,7 @@ def verify(
         corroboration in favour of text-anchor specificity.
     """
     failing_cards: list[str] = []
-    trigger_event, effect_event = role
+    trigger_event, produced_event = role
 
     # ---- Check (a): Pasteability ----------------------------------------
     try:
@@ -393,7 +393,7 @@ def verify(
     trigger_expected = frozenset(
         events.get(trigger_event, {}).get('triggered_by', []))
     effect_expected = frozenset(
-        events.get(effect_event, {}).get('produced_by', []))
+        events.get(produced_event, {}).get('produced_by', []))
 
     corroborating = 0
     for card in captured:

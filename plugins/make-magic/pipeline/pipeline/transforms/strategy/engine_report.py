@@ -35,7 +35,7 @@ from pipeline.transforms.strategy.assets import is_land
 from pipeline.transforms.strategy.engine_hydration import frontier
 from pipeline.transforms.strategy.facts import compute_facts, node_admitted
 from pipeline.transforms.strategy.machine_vocab import (
-    MachineStore,
+    ProvisionalAttributeStore,
     all_edge_queries,
     load_store,
 )
@@ -314,7 +314,7 @@ def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
 def identify_engines(
     deck: dict,
     *,
-    store: MachineStore | None = None,
+    store: ProvisionalAttributeStore | None = None,
     store_dir: Path | None = None,
     combos: list[dict] | None = None,
 ) -> EngineReport:
@@ -330,10 +330,10 @@ def identify_engines(
         A deck dict with a ``cards`` key (same shape as ``compute_facts``
         expects).
     store
-        A pre-loaded :class:`.machine_vocab.MachineStore`.  If ``None``,
+        A pre-loaded :class:`.machine_vocab.ProvisionalAttributeStore`.  If ``None``,
         loads from *store_dir* (which defaults to
         ``~/.local/share/make-magic/machine_vocab/``).
-        Pass ``MachineStore()`` (empty) for a guaranteed-clean run.
+        Pass ``ProvisionalAttributeStore()`` (empty) for a guaranteed-clean run.
     store_dir
         Directory to load the machine store from.  Ignored if *store* is
         given.  **Pass a** ``pathlib.Path``, **not a** ``str`` — there is a
@@ -368,7 +368,7 @@ def identify_engines(
     # never executes and behavior is byte-identical to before.
     if not store.is_empty:
         for ma in store.attributes:
-            if not ma.query or not ma.trigger_event or not ma.effect_event:
+            if not ma.query or not ma.trigger_event or not ma.produced_event:
                 continue
             try:
                 pred = compile_query(ma.query)

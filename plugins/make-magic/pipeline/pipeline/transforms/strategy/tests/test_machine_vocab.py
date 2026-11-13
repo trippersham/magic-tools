@@ -23,8 +23,8 @@ from pathlib import Path
 import pytest
 
 from pipeline.transforms.strategy.machine_vocab import (
-    MachineAttribute,
-    MachineStore,
+    CardAttribute,
+    ProvisionalAttributeStore,
     Provenance,
     _attr_to_record,
     _record_to_attr,
@@ -60,14 +60,14 @@ def _sample_attr(
     name: str = 'draw-to-drain',
     query: str = 'oracle:/draw[^.]*los/ AND otag:draw-matters',
     trigger_event: str = 'draw-a-card',
-    effect_event: str = 'life-loss-drain',
+    produced_event: str = 'life-loss-drain',
     **prov_overrides: object,
-) -> MachineAttribute:
-    return MachineAttribute(
+) -> CardAttribute:
+    return CardAttribute(
         name=name,
         query=query,
         trigger_event=trigger_event,
-        effect_event=effect_event,
+        produced_event=produced_event,
         provenance=_sample_provenance(**prov_overrides),
     )
 
@@ -77,7 +77,7 @@ def _sample_attr(
 # =====================================================================
 
 class TestSerializationRoundTrip:
-    """Record ↔ MachineAttribute fidelity."""
+    """Record ↔ CardAttribute fidelity."""
 
     def test_round_trip_preserves_all_fields(self) -> None:
         attr = _sample_attr()
@@ -96,10 +96,11 @@ class TestSerializationRoundTrip:
     def test_record_contains_all_provenance_keys(self) -> None:
         rec = _attr_to_record(_sample_attr())
         expected_keys = {
-            'name', 'query', 'trigger_event', 'effect_event',
+            'name', 'query', 'trigger_event', 'produced_event',
             'source', 'model_id', 'authored_at', 'source_card_name',
             'source_card_oracle_id', 'deck_context', 'scryfall_query',
             'scryfall_resolved_count', 'verified_at', 'breadth_warning',
+            'lifecycle',
         }
         assert set(rec.keys()) == expected_keys
 
@@ -392,7 +393,7 @@ class TestCompoundingReadPath:
             name='death-to-tokens',
             query='otag:death-trigger AND otag:tokens',
             trigger_event='creature-death',
-            effect_event='token-created',
+            produced_event='token-created',
             source_card_oracle_id='test-card-oracle',
         )
         persist(machine_attr, store_dir=store_dir)
@@ -448,10 +449,10 @@ class TestAllEdgeQueries:
 # =====================================================================
 
 class TestStoreEdgeMethods:
-    """MachineStore helper methods: has_edge_for_card, edge_queries."""
+    """ProvisionalAttributeStore helper methods: has_edge_for_card, edge_queries."""
 
     def test_edge_queries_format(self) -> None:
-        store = MachineStore(attributes=[
+        store = ProvisionalAttributeStore(attributes=[
             _sample_attr(name='a', query='otag:foo'),
             _sample_attr(name='b', query='otag:bar'),
         ])
@@ -462,13 +463,13 @@ class TestStoreEdgeMethods:
         assert empty_store().edge_queries() == []
 
     def test_has_edge_for_card_true(self) -> None:
-        store = MachineStore(attributes=[
+        store = ProvisionalAttributeStore(attributes=[
             _sample_attr(source_card_oracle_id='card-x'),
         ])
         assert store.has_edge_for_card('card-x')
 
     def test_has_edge_for_card_false(self) -> None:
-        store = MachineStore(attributes=[
+        store = ProvisionalAttributeStore(attributes=[
             _sample_attr(source_card_oracle_id='card-x'),
         ])
         assert not store.has_edge_for_card('card-y')
@@ -520,7 +521,7 @@ class TestHermeticity:
 
         # The HELD expected SHAs from the parity oracle baseline.
         expected_engine_sha = (
-            'fcf27cf6c04b28d8aa83236c0b7e8e116e33280b615e41003d981667d67a3d75'
+            'a6dfa6073324694d8068f00913aaf5e409ac993244e086ee3b5057a487559508'
         )
         assert engine_sha == expected_engine_sha, (
             f'Engine isolation SHA shifted!\n'
@@ -556,7 +557,7 @@ class TestHermeticity:
         resolve_sha = composite_sha(resolve_baselines)
 
         expected_resolve_sha = (
-            '60858cfce883db1a7957e140ef3555eee6565da2ab430362ce4c421b20385fea'
+            '7d35fe193b200b0c01a1e25b0993a73904155ca7122b3fdb13e0f1ae45863b20'
         )
         assert resolve_sha == expected_resolve_sha, (
             f'Resolve SHA shifted!\n'

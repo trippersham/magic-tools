@@ -33,8 +33,8 @@ from pipeline.transforms.strategy.engine_report import (
     identify_engines,
 )
 from pipeline.transforms.strategy.machine_vocab import (
-    MachineAttribute,
-    MachineStore,
+    CardAttribute,
+    ProvisionalAttributeStore,
     Provenance,
     empty_store,
 )
@@ -85,19 +85,19 @@ def _machine_attr(
     name: str,
     query: str,
     trigger_event: str = '',
-    effect_event: str = '',
+    produced_event: str = '',
     **prov_overrides: object,
-) -> MachineAttribute:
-    return MachineAttribute(
+) -> CardAttribute:
+    return CardAttribute(
         name=name,
         query=query,
         trigger_event=trigger_event,
-        effect_event=effect_event,
+        produced_event=produced_event,
         provenance=_sample_provenance(**prov_overrides),
     )
 
 
-def _covering_store() -> MachineStore:
+def _covering_store() -> ProvisionalAttributeStore:
     """Machine store whose edge queries cover ALL 7 frontier cards in the
     relay fixture, so ``frontier()`` returns empty -> RESOLVED.
 
@@ -110,26 +110,26 @@ def _covering_store() -> MachineStore:
     - Rhox Faithmender: lifegain-increaser (but NOT lifegain-matters)
     - Erebos's Intervention: lifegain + removal (but NOT lifegain-matters)
     """
-    return MachineStore(attributes=[
+    return ProvisionalAttributeStore(attributes=[
         _machine_attr(
             name='test-lifegain-matters-edge',
             query='otag:lifegain-matters',
             trigger_event='lifegain',
-            effect_event='draw-a-card',
+            produced_event='draw-a-card',
             source_card_oracle_id='cover-1',
         ),
         _machine_attr(
             name='test-lifegain-increaser-edge',
             query='otag:lifegain-increaser',
             trigger_event='lifegain',
-            effect_event='lifegain',
+            produced_event='lifegain',
             source_card_oracle_id='cover-2',
         ),
         _machine_attr(
             name='test-removal-lifegain-edge',
             query='otag:lifegain AND otag:removal',
             trigger_event='lifegain',
-            effect_event='creature-death',
+            produced_event='creature-death',
             source_card_oracle_id='cover-3',
         ),
     ])

@@ -1,10 +1,10 @@
-"""Sidecar role registry for curated within-card edge-category attributes (P1).
+"""Sidecar role registry for curated within-card EventEffect attributes (P1).
 
 The 6 curated edge attrs registered in :data:`.vocab.SYNTH_ALWAYS_ATTRIBUTES`
 (``draw-to-drain``, ``draw-to-gain``, ``gain-to-drain``, ``drain-to-gain``,
 ``gain-to-draw``, ``drain-to-draw``) are bare ``(name, query)`` tuples with no
 metadata slot for event roles. This module is the **sidecar** that attaches
-``trigger_event`` / ``effect_event`` roles and ``source='curated'`` provenance
+``trigger_event`` / ``produced_event`` roles and ``source='curated'`` provenance
 WITHOUT disturbing the held tuples in ``vocab.py``.
 
 Why a sidecar (not editing the tuples)
@@ -19,7 +19,7 @@ within-card edges into the event graph.
 
 Event alignment
 ---------------
-Each trigger/effect role is an event slug from ``data/event_catalog_v4.json``.
+Each trigger/produced role is an event slug from ``data/event_catalog_v4.json``.
 The 6 curated edges use exactly 3 events:
 
     ``draw-a-card``     — CR 120: drawing cards
@@ -31,42 +31,87 @@ All 3 exist in the catalog. No new events are needed.
 Types reused
 ------------
 - :class:`.machine_vocab.Provenance` — shared provenance dataclass.
-- :class:`EdgeRole` — a frozen dataclass defined here that composes the above.
+- :class:`EventEffect` — a frozen dataclass defined here that composes the above.
+  (Renamed from ``EdgeRole`` in Phase 2A — the design-3 ontology name.)
 
 P2 reads this registry via :func:`get_role` to decide which event a card
-consumes (trigger) and produces (effect) for the relay-node injection.
+consumes (trigger) and produces (produced_event) for the relay-node injection.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 
 from pipeline.transforms.strategy.machine_vocab import Provenance
 
 
 # ---------------------------------------------------------------------------
-# EdgeRole: the (trigger_event, effect_event, provenance) record
+# EventEffect: the guarded directed edge (trigger_event → produced_event)
+#
+# Renamed from EdgeRole in Phase 2A (design-3 §3.2).
+# Guard scaffolding fields are ADDITIVE and DEFAULTED — no evaluation logic
+# here (that lands in Phase 2B).
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
-class EdgeRole:
-    """Within-card edge role for a single curated edge-category attribute.
+class EventEffect:
+    """A guarded directed edge in the event multigraph (design-3 §3.2).
+
+    ``trigger_event → produced_event`` with provenance and guard scaffolding.
+    Renamed from ``EdgeRole`` in Phase 2A; ``effect_event`` → ``produced_event``.
 
     Parameters
     ----------
     trigger_event
-        The event this card's trigger ability CONSUMES (e.g. ``'draw-a-card'``).
+        The event this edge fires on (e.g. ``'draw-a-card'``).
         Must be a slug in ``data/event_catalog_v4.json``.
-    effect_event
-        The event this card's effect ability PRODUCES (e.g. ``'life-loss-drain'``).
+    produced_event
+        The event this edge produces (e.g. ``'life-loss-drain'``).
         Must be a slug in ``data/event_catalog_v4.json``.
+        Renamed from ``effect_event`` in Phase 2A.
     provenance
         Origin metadata. For curated attrs: ``source='curated'``.
+
+    Guard scaffolding (Phase 2A — INERT defaults, evaluation in 2B)
+    ---------------------------------------------------------------
+    provider
+        ``'card'`` | ``'CardAttribute'`` | ``'rule'``. Default ``'card'``.
+    guard_characteristic_ref
+        CardAttribute slug the guard references (nullable).
+    guard_trigger_scope
+        ``'self'`` | ``'opponent'`` | ``'any'``. Default ``'any'``.
+    guard_identity
+        ``'any'`` | ``'another'`` | ``'self'``. Default ``'any'``.
+    guard_event_reachable_ref
+        Another Event that must be in the deck's reached set (nullable).
+    guard_unresolved
+        Deferred/warn bucket for unbounded counting / sim-only. Default ``False``.
+    magnitude
+        Local contribution: ``'infinite'`` | ``'near-infinite'`` | ``'scaled'``
+        | ``'finite'`` | ``None``. Default ``None``.
+    ability_key
+        Per trigger-ability identifier (nullable). Default ``None``.
     """
 
     trigger_event: str
-    effect_event: str
+    produced_event: str
     provenance: Provenance
+
+    # --- Guard scaffolding (additive, defaulted, inert) --------------------
+    provider: str = 'card'
+    guard_characteristic_ref: Optional[str] = None
+    guard_trigger_scope: str = 'any'
+    guard_identity: str = 'any'
+    guard_event_reachable_ref: Optional[str] = None
+    guard_unresolved: bool = False
+    magnitude: Optional[str] = None
+    ability_key: Optional[str] = None
+
+
+# Backward-compat alias so downstream code that still says EdgeRole works
+# during the transition. Tests should import EventEffect directly.
+EdgeRole = EventEffect
 
 
 # ---------------------------------------------------------------------------
@@ -77,43 +122,43 @@ _CURATED_PROVENANCE = Provenance(source='curated')
 
 
 # ---------------------------------------------------------------------------
-# The registry: attribute name -> EdgeRole
+# The registry: attribute name -> EventEffect
 # ---------------------------------------------------------------------------
 
 #: Curated edge-role registry. Keys are the 6 edge-category attribute names
 #: from ``SYNTH_ALWAYS_ATTRIBUTES``; values carry the event-catalog-aligned
-#: trigger/effect roles and curated provenance. P2's relay-node derivation
-#: reads this to inject cards as consumer(trigger) + producer(effect) into the
-#: event graph.
-CURATED_EDGE_ROLES: dict[str, EdgeRole] = {
-    'draw-to-drain': EdgeRole(
+#: trigger/produced roles and curated provenance. P2's relay-node derivation
+#: reads this to inject cards as consumer(trigger) + producer(produced_event)
+#: into the event graph.
+CURATED_EDGE_ROLES: dict[str, EventEffect] = {
+    'draw-to-drain': EventEffect(
         trigger_event='draw-a-card',
-        effect_event='life-loss-drain',
+        produced_event='life-loss-drain',
         provenance=_CURATED_PROVENANCE,
     ),
-    'draw-to-gain': EdgeRole(
+    'draw-to-gain': EventEffect(
         trigger_event='draw-a-card',
-        effect_event='lifegain',
+        produced_event='lifegain',
         provenance=_CURATED_PROVENANCE,
     ),
-    'gain-to-drain': EdgeRole(
+    'gain-to-drain': EventEffect(
         trigger_event='lifegain',
-        effect_event='life-loss-drain',
+        produced_event='life-loss-drain',
         provenance=_CURATED_PROVENANCE,
     ),
-    'drain-to-gain': EdgeRole(
+    'drain-to-gain': EventEffect(
         trigger_event='life-loss-drain',
-        effect_event='lifegain',
+        produced_event='lifegain',
         provenance=_CURATED_PROVENANCE,
     ),
-    'gain-to-draw': EdgeRole(
+    'gain-to-draw': EventEffect(
         trigger_event='lifegain',
-        effect_event='draw-a-card',
+        produced_event='draw-a-card',
         provenance=_CURATED_PROVENANCE,
     ),
-    'drain-to-draw': EdgeRole(
+    'drain-to-draw': EventEffect(
         trigger_event='life-loss-drain',
-        effect_event='draw-a-card',
+        produced_event='draw-a-card',
         provenance=_CURATED_PROVENANCE,
     ),
 }
@@ -123,7 +168,7 @@ CURATED_EDGE_ROLES: dict[str, EdgeRole] = {
 # Public API
 # ---------------------------------------------------------------------------
 
-def get_role(attr_name: str) -> EdgeRole | None:
+def get_role(attr_name: str) -> EventEffect | None:
     """Look up the edge role for an attribute name.
 
     Returns ``None`` for non-edge attrs (``morph``, ``rad-counter``, any

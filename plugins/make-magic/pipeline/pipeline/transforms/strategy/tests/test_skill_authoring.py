@@ -34,7 +34,7 @@ from pipeline.transforms.strategy.engine_report import (
     identify_engines,
 )
 from pipeline.transforms.strategy.machine_vocab import (
-    MachineStore,
+    ProvisionalAttributeStore,
     empty_store,
     load_store,
     persist as mv_persist,
@@ -119,7 +119,7 @@ def _good_edges() -> list[AuthoredEdge]:
             attr_name='self-loss-to-draw',
             query='oracle:/los[a-z]*[^.]*life[^.]*draw/ AND otag:self-life-loss-matters AND otag:draw',
             trigger_event='life-loss-drain',
-            effect_event='draw-a-card',
+            produced_event='draw-a-card',
         ),
         # Archangel of Thune: lifegain -> counters
         AuthoredEdge(
@@ -128,7 +128,7 @@ def _good_edges() -> list[AuthoredEdge]:
             attr_name='gain-to-counters',
             query='oracle:/gain[^.]*life[^.]*counter/ AND otag:lifegain-matters AND otag:counters',
             trigger_event='lifegain',
-            effect_event='counter-placed',
+            produced_event='counter-placed',
         ),
         # Well of Lost Dreams: lifegain -> draw (cost-gated).
         # NOTE: "gain...life...draw" spans two sentences in Well's text
@@ -140,7 +140,7 @@ def _good_edges() -> list[AuthoredEdge]:
             attr_name='gain-to-draw-cost-gated',
             query='otag:lifegain-matters AND otag:draw-engine',
             trigger_event='lifegain',
-            effect_event='draw-a-card',
+            produced_event='draw-a-card',
         ),
         # Trudge Garden: lifegain -> tokens
         AuthoredEdge(
@@ -149,7 +149,7 @@ def _good_edges() -> list[AuthoredEdge]:
             attr_name='gain-to-tokens',
             query='otag:lifegain-matters AND otag:tokens',
             trigger_event='lifegain',
-            effect_event='token-created',
+            produced_event='token-created',
         ),
         # Cleric of Life's Bond: lifegain -> counters.
         # Broader query (no gains-pp-counters constraint) so that Archangel
@@ -163,7 +163,7 @@ def _good_edges() -> list[AuthoredEdge]:
             attr_name='gain-to-counters-cleric',
             query='oracle:/gain[^.]*life[^.]*counter/ AND otag:lifegain-matters',
             trigger_event='lifegain',
-            effect_event='counter-placed',
+            produced_event='counter-placed',
         ),
         # Rhox Faithmender: covered by a broad lifegain-increaser query
         AuthoredEdge(
@@ -172,7 +172,7 @@ def _good_edges() -> list[AuthoredEdge]:
             attr_name='lifegain-amplifier',
             query='otag:lifegain-increaser',
             trigger_event='lifegain',
-            effect_event='lifegain',
+            produced_event='lifegain',
         ),
         # Erebos's Intervention: lifegain + removal (utility spell).
         # Erebos itself has only producer otags (no trigger otags), so a
@@ -183,7 +183,7 @@ def _good_edges() -> list[AuthoredEdge]:
             attr_name='removal-lifegain',
             query='otag:lifegain AND otag:removal',
             trigger_event='lifegain',
-            effect_event='permanent-dies',
+            produced_event='permanent-dies',
         ),
     ]
 
@@ -199,7 +199,7 @@ def _bad_edges() -> list[AuthoredEdge]:
             attr_name='bare-los-gain',
             query='oracle:/los[^.]*gain/',
             trigger_event='life-loss-drain',
-            effect_event='lifegain',
+            produced_event='lifegain',
         ),
         # Bad: lookahead (RE2 violation)
         AuthoredEdge(
@@ -208,7 +208,7 @@ def _bad_edges() -> list[AuthoredEdge]:
             attr_name='bad-regex',
             query='oracle:/(?=.*draw)gain/',
             trigger_event='lifegain',
-            effect_event='draw-a-card',
+            produced_event='draw-a-card',
         ),
         # Bad: source card not in captured set (query doesn't match it)
         AuthoredEdge(
@@ -217,7 +217,7 @@ def _bad_edges() -> list[AuthoredEdge]:
             attr_name='mismatched-source',
             query='otag:lifegain-matters',
             trigger_event='lifegain',
-            effect_event='draw-a-card',
+            produced_event='draw-a-card',
         ),
     ]
 
@@ -238,7 +238,7 @@ class TestAuthoredEdgeShape:
         edge = AuthoredEdge(
             source_card_name='X', source_card_oracle_id='id',
             attr_name='a', query='otag:foo',
-            trigger_event='lifegain', effect_event='draw-a-card',
+            trigger_event='lifegain', produced_event='draw-a-card',
         )
         assert edge.model_id == 'claude-3-5-haiku-20241022'
 
@@ -249,7 +249,7 @@ class TestAuthoredEdgeShape:
         assert edge.attr_name
         assert edge.query
         assert edge.trigger_event
-        assert edge.effect_event
+        assert edge.produced_event
 
 
 # =====================================================================
@@ -562,12 +562,12 @@ class TestStrCoercion:
 
     def test_persist_with_str_store_dir(self, tmp_path: Path) -> None:
         from pipeline.transforms.strategy.machine_vocab import (
-            MachineAttribute,
+            CardAttribute,
             Provenance,
         )
 
         store_dir_str = str(tmp_path / 'str_test')
-        attr = MachineAttribute(
+        attr = CardAttribute(
             name='test-attr',
             query='otag:foo',
             provenance=Provenance(source='haiku'),
@@ -582,12 +582,12 @@ class TestStrCoercion:
 
     def test_load_store_with_str_store_dir(self, tmp_path: Path) -> None:
         from pipeline.transforms.strategy.machine_vocab import (
-            MachineAttribute,
+            CardAttribute,
             Provenance,
         )
 
         store_dir = tmp_path / 'str_load_test'
-        attr = MachineAttribute(
+        attr = CardAttribute(
             name='test-attr',
             query='otag:bar',
             provenance=Provenance(source='haiku'),
@@ -635,7 +635,7 @@ class TestPromptFileExists:
     def test_prompt_contains_key_sections(self) -> None:
         content = DECOMPOSE_PROMPT_PATH.read_text()
         assert 'trigger_event' in content
-        assert 'effect_event' in content
+        assert 'produced_event' in content
         assert '[^.]*' in content
         assert 'RE2' in content
         assert 'otag' in content
@@ -674,7 +674,7 @@ class TestSynthBreadthReroute:
             attr_name=name,
             query=query,
             trigger_event='counter-placed',
-            effect_event='mana-from-counters',
+            produced_event='mana-from-counters',
             decision='synth',
         )
 
@@ -711,7 +711,7 @@ class TestSynthBreadthReroute:
             attr_name='counter-to-mana',
             query="oracle:'number of counters on'",
             trigger_event='counter-placed',
-            effect_event='mana-from-counters',
+            produced_event='mana-from-counters',
             decision='synth',
         )
         client = make_fixture_search_client(self._narrow_pool())
@@ -752,7 +752,7 @@ class TestSynthBreadthReroute:
 
         Uses real catalog events so corroboration can pass:
         - trigger_event='counter-placed' triggered_by includes 'counters-matter'
-        - effect_event='counter-placed' produced_by includes 'counters'
+        - produced_event='counter-placed' produced_by includes 'counters'
         """
         original = self._broad_synth_edge()
 
@@ -763,7 +763,7 @@ class TestSynthBreadthReroute:
             attr_name='counter-to-counter-otag',
             query='otag:counters-matter AND otag:counters',
             trigger_event='counter-placed',
-            effect_event='counter-placed',
+            produced_event='counter-placed',
             decision='edge',  # promoted to edge
         )
 
@@ -808,7 +808,7 @@ class TestSynthBreadthReroute:
             attr_name='counter-to-mana-tight',
             query="oracle:'number of counters on'",
             trigger_event='counter-placed',
-            effect_event='mana-from-counters',
+            produced_event='mana-from-counters',
             decision='synth',  # still synth, but tighter
         )
 
@@ -961,7 +961,7 @@ class TestSynthBreadthEndToEnd:
             attr_name='counter-mana-broad',
             query="oracle:'counter'",
             trigger_event='counter-placed',
-            effect_event='mana-from-counters',
+            produced_event='mana-from-counters',
             decision='synth',
         )
         tightened_edge = AuthoredEdge(
@@ -970,7 +970,7 @@ class TestSynthBreadthEndToEnd:
             attr_name='counter-mana-tight',
             query="oracle:'number of counters on'",
             trigger_event='counter-placed',
-            effect_event='mana-from-counters',
+            produced_event='mana-from-counters',
             decision='synth',
         )
 
@@ -1019,7 +1019,7 @@ class TestDefaultPathParity:
         )
         baselines = compute_engine_isolation_baselines()
         sha = composite_sha(baselines)
-        expected = 'fcf27cf6c04b28d8aa83236c0b7e8e116e33280b615e41003d981667d67a3d75'
+        expected = 'a6dfa6073324694d8068f00913aaf5e409ac993244e086ee3b5057a487559508'
         assert sha == expected, f'engine SHA shifted: {sha}'
 
     def test_resolve_sha_unchanged(self) -> None:
@@ -1029,5 +1029,5 @@ class TestDefaultPathParity:
         )
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        expected = '60858cfce883db1a7957e140ef3555eee6565da2ab430362ce4c421b20385fea'
+        expected = '7d35fe193b200b0c01a1e25b0993a73904155ca7122b3fdb13e0f1ae45863b20'
         assert sha == expected, f'resolve SHA shifted: {sha}'

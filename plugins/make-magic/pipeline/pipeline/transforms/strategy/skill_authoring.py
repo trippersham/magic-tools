@@ -42,7 +42,7 @@ from pipeline.transforms.strategy.engine_hydration import (
     verify,
 )
 from pipeline.transforms.strategy.machine_vocab import (
-    MachineAttribute,
+    CardAttribute,
     Provenance,
     persist,
 )
@@ -81,8 +81,8 @@ class AuthoredEdge:
         Scryfall-pasteable query string.
     trigger_event
         Event-catalog slug for the trigger side.
-    effect_event
-        Event-catalog slug for the effect side.
+    produced_event
+        Event-catalog slug for the produced side (was ``effect_event``).
     model_id
         The model that authored this edge (e.g. ``'claude-3-5-haiku-20241022'``).
     reasoning
@@ -94,7 +94,7 @@ class AuthoredEdge:
     attr_name: str
     query: str
     trigger_event: str
-    effect_event: str
+    produced_event: str
     model_id: str = 'claude-3-5-haiku-20241022'
     reasoning: str = ''
     decision: str = 'edge'
@@ -176,7 +176,7 @@ def _build_and_persist(
     now_iso: str,
     breadth_warning: bool = False,
 ) -> None:
-    """Build a MachineAttribute with provenance and persist it.
+    """Build a CardAttribute with provenance and persist it.
 
     Shared helper for the normal persist path and reroute outcomes.
     """
@@ -192,11 +192,11 @@ def _build_and_persist(
         verified_at=now_iso,
         breadth_warning=breadth_warning,
     )
-    attr = MachineAttribute(
+    attr = CardAttribute(
         name=edge.attr_name,
         query=edge.query,
         trigger_event=edge.trigger_event,
-        effect_event=edge.effect_event,
+        produced_event=edge.produced_event,
         provenance=provenance,
     )
     persist(attr, store_dir=store_dir)
@@ -243,7 +243,7 @@ def _handle_reroute(
     # Re-verify the rerouted edge.
     vr2 = verify(
         rerouted_edge.query,
-        (rerouted_edge.trigger_event, rerouted_edge.effect_event),
+        (rerouted_edge.trigger_event, rerouted_edge.produced_event),
         expected_card_names=[rerouted_edge.source_card_name],
         search_client=search_client,
         decision=rerouted_edge.decision,
@@ -320,7 +320,7 @@ def gate_and_persist(
 
     1. Run :func:`~.engine_hydration.verify` (the three-check gate:
        pasteability, resolution + expected-hit, over-capture corroboration).
-    2. If it **passes** clean, build a :class:`~.machine_vocab.MachineAttribute`
+    2. If it **passes** clean, build a :class:`~.machine_vocab.CardAttribute`
        with full provenance and persist via :func:`~.machine_vocab.persist`.
     3. If it **fails** with ``breadth_warning=True`` (synth too broad) and a
        *reauthor* callback is provided, attempt a **single** reroute:
@@ -359,7 +359,7 @@ def gate_and_persist(
         # --- Run the verification gate -----------------------------------
         vr = verify(
             edge.query,
-            (edge.trigger_event, edge.effect_event),
+            (edge.trigger_event, edge.produced_event),
             expected_card_names=[edge.source_card_name],
             search_client=search_client,
             decision=edge.decision,
@@ -419,7 +419,7 @@ def gate_and_persist(
             ))
             continue
 
-        # --- Build MachineAttribute with full provenance -----------------
+        # --- Build CardAttribute with full provenance -----------------
         _build_and_persist(
             edge, vr,
             deck_context=deck_context,
