@@ -1,50 +1,20 @@
-"""Combo detection + the game-WIN litmus (T5 correction A).
+"""Combo detection + deck-aware win classification (T5 correction A, ADR 0016).
 
 Consumes the shipped detector contract semantics
-(``pipeline.transforms.combo_detect``): exact named-card / oracle-id matching,
-the ``is_game_win_result`` litmus, and the deck-aware mana-sink promotion
-(an infinite-mana loop + an in-deck lethal mana sink reads as a win-combo).
+(``pipeline.transforms.combo_detect``): exact named-card / oracle-id matching.
 
-This module is READ-ONLY with respect to the lake. The win flag is recomputed
-at runtime from each combo's ``result`` string because the landed
-``normalized/combo`` projection predates the per-feature ``produces.win`` flag.
+Win classification is now performed by the closure-mechanism win-walk
+(``win_walk.py``, ADR 0016) which is deck-aware — a combo's win-ness depends
+on the deck's card composition. The regex path (``is_game_win_result`` +
+``LETHAL_MANA_SINK_NAMES``) was deleted in the Phase 2B step 5b-ii flip.
+
+This module is READ-ONLY with respect to the lake.
 """
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
-
-# The win litmus assumes LETHAL-SCALE phrasing: a ``result`` counts as a game
-# win only when it states an actual game-ending outcome — someone wins / loses
-# the game, infinite (or arbitrarily-large "near-infinite") damage / life loss,
-# a lethal POISON count (ten / 10+ poison counters, or a "poison counters equal
-# …" scaler), or a mill of a WHOLE opponent library. Bare "poison" and "mill
-# for N" describe a *magnitude*, not a win (e.g. "add a poison counter", "mill
-# for three"), so they deliberately do NOT match.
-_WIN_RESULT_RE = re.compile('|'.join((
-    r'win the game', r'wins the game', r'\bwin\b', r'\bwins\b',
-    r'lose the game', r'loses the game', r'losing the game',
-    r'each opponent loses the game',
-    r'infinite damage', r'\blethal\b', r'infinite turns',
-    r'\blifeloss\b', r'(?<!self-)infinite mill',
-    r'ten poison', r'\b\d{2,} poison', r'poison counters? equal',
-    r"mill[^;.]*\b(?:entire|all|their|each opponent'?s?)\b[^;.]*\blibrar",
-    r"exile (?:target |each )?opponent(?:'s|s') librar",
-)), re.IGNORECASE)
-_INFINITE_MANA_RE = re.compile(r'infinite\b[^;]*\bmana\b', re.IGNORECASE)
-
-#: X-spell / mana-sink finishers: an infinite-mana loop plus one of these in the
-#: deck promotes the loop to a win-combo (deck-aware mana-sink promotion).
-LETHAL_MANA_SINK_NAMES: tuple[str, ...] = (
-    'Fireball', 'Comet Storm', 'Crackle with Power', "Jaya's Immolating Inferno", 'Banefire',
-    'Fall of the Titans', 'Rolling Thunder', "Red Sun's Zenith", 'Exsanguinate',
-    'Torment of Hailfire', 'Debt to the Deathless', 'Profane Source', "Blue Sun's Zenith",
-    'Stroke of Genius', 'Mind Grind', 'Villainous Wealth', 'Walking Ballista',
-    'Finale of Devastation', 'Finale of Revelation', 'Hydroid Krasis', 'Helix Pinnacle',
-    'Aetherflux Reservoir',
-)
 
 
 def combo_norm(name: str) -> str:
@@ -52,28 +22,34 @@ def combo_norm(name: str) -> str:
     return ' '.join((name or '').split()).casefold()
 
 
-LETHAL_MANA_SINKS: frozenset[str] = frozenset(combo_norm(n) for n in LETHAL_MANA_SINK_NAMES)
-
-
-def is_game_win_result(result: str) -> bool:
-    return bool(_WIN_RESULT_RE.search(result or ''))
-
-
-def is_infinite_mana_result(result: str) -> bool:
-    return bool(_INFINITE_MANA_RE.search(result or ''))
-
-
 def combo_label(result: str) -> str:
-    """Name a combo by its ``produces`` result: prefer the lethal clause, else the first."""
+    """Name a combo by its ``produces`` result: prefer the terminal clause, else the first.
+
+    Uses the fid adapter's route classification to find the terminal/win clause,
+    replacing the deleted regex heuristic.
+    """
     clauses = [c.strip() for c in (result or '').split(';') if c.strip()]
     if not clauses:
         return 'combo'
-    win = next((c for c in clauses if _WIN_RESULT_RE.search(c)), None)
-    return win or clauses[0]
+    # Use the fid adapter to find a terminal/lethal clause
+    from pipeline.transforms.strategy.win_walk import fid_route, resolve_fids_from_feature_names
+    fids = resolve_fids_from_feature_names(clauses)
+    _TERMINAL_ROUTES = frozenset({'terminal-win', 'sba-drain', 'deckout-opp'})
+    for clause, fid in zip(clauses, fids):
+        if fid:
+            r = fid_route(fid)
+            if r and r['route'] in _TERMINAL_ROUTES:
+                return clause
+    return clauses[0]
 
 
 def normalize_combo(variant_id: Any, names: Any, oids: Any, result: Any) -> dict:
-    """Build a runtime combo dict (with ``win``/``mana`` flags) from raw lake fields."""
+    """Build a runtime combo dict from raw lake fields.
+
+    The ``win`` flag is a placeholder (False) — the authoritative win
+    determination is deck-dependent and computed by ``facts.py`` via the
+    closure walk (ADR 0016). The ``mana`` field is removed.
+    """
     names_l = list(names or [])
     oids_l = [str(o) for o in (oids or [])]
     res = str(result or '')
@@ -83,8 +59,7 @@ def normalize_combo(variant_id: Any, names: Any, oids: Any, result: Any) -> dict
         'oids': oids_l,
         'norm_names': [combo_norm(n) for n in names_l],
         'result': res,
-        'win': is_game_win_result(res),
-        'mana': is_infinite_mana_result(res),
+        'win': False,  # placeholder — set by facts.py via closure walk
     }
 
 

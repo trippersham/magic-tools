@@ -5,7 +5,7 @@
 | Status | Accepted. In force on branch `feat/strategy-engine`. |
 | Review | ratified by the owner on 2026-11-11. (Agent-authored; owner-ratified.) |
 | Test | From `plugins/make-magic/pipeline`: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` records a composite SHA over the serialized `_isolate_engines` output plus the full `resolve()` records for the 17 hermetic fixture decks; a parity test imports `composite_sha` to assert no drift. The full 170-deck curated-corpus SHA is now **independently checkable** via `full_corpus_sha()` in `engine_parity_oracle.py` (canonical serialization: `json.dumps(records, sort_keys=True, separators=(',',':'), default=list)` → SHA-256; pinned as `FULL_CORPUS_SHA`). A lake-gated test in `test_resolution_fidelity.py::TestFullCorpusCanonicalSha` asserts the value. |
-| Code paths | [`pipeline/.../strategy/data/attribute_vocab_v4.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_vocab_v4.json), [`event_catalog_v4.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog_v4.json), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py), [`vocab.py`](../../pipeline/pipeline/transforms/strategy/vocab.py), [`tests/fixtures/vocab_parity_baseline.json`](../../pipeline/pipeline/transforms/strategy/tests/fixtures/vocab_parity_baseline.json) |
+| Code paths | [`pipeline/.../strategy/data/attribute_vocab_v4.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_vocab_v4.json), [`event_catalog_v4.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog_v4.json), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py), [`vocab.py`](../../pipeline/pipeline/transforms/strategy/vocab.py), [`win_walk.py`](../../pipeline/pipeline/transforms/strategy/win_walk.py), [`data/card_edges.json`](../../pipeline/pipeline/transforms/strategy/data/card_edges.json), [`combo.py`](../../pipeline/pipeline/transforms/strategy/combo.py), [`tests/fixtures/vocab_parity_baseline.json`](../../pipeline/pipeline/transforms/strategy/tests/fixtures/vocab_parity_baseline.json) |
 
 ## Context
 The higher-order engine-identification work (machine-authored attributes, within-card
@@ -106,7 +106,22 @@ re-baseline makes every *intended* change legible as such.
   (`a6dfa607`) and resolve (`7d35fe19`) baselines are unchanged. The old `88de96a7`
   is **superseded** — same 170 records, same lake state, just a defined hash.
 
+- **2026-11-13 — closure-mechanism win-walk flip (ADR 0016).** The closure walk
+  (`win_walk.py`) replaces the regex win-detection path (`is_game_win_result` +
+  `LETHAL_MANA_SINK_NAMES`) as the authoritative combo win-classification in the
+  strategy engine. `combo.py`'s regex patterns and frozen sink list deleted;
+  `win_walk.py` + `data/card_edges.json` wired as authoritative via `facts.py`.
+  Engine isolation SHA **unchanged** (`a6dfa607…`). Resolve composite
+  `7d35fe19…` → `d409069e…`; full-corpus `de5313af…` → `0901bc62…`.
+  4/17 hermetic fixture decks shifted (Kess, K'rrik, Urza, Ozai).
+  **Parity-gate proof:** 253 walk promotions (new wins the regex missed), 5
+  regex false-positive drops, 25 decks flipping from zero win-combos, 0 WRONG —
+  exact match to the validated 5b-i shadow delta (blind-recall 100% adjusted).
+  `vocab_parity_baseline.json`, `engine_isolation_baseline.json`, and
+  `FULL_CORPUS_SHA` updated in the same change.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`facts.py` is shared with this record).
 - 0005 — the tribe-catalog fix in the re-baseline above.
+- 0016 — the closure-mechanism win-walk that triggered the latest re-baseline.

@@ -49,6 +49,25 @@ When `game-end` is added to the catalog (Phase 2B), it carries:
 No other event may carry these fields. Until `game-end` is wired, the invariant test
 asserts that no event carries polarity or scope at all.
 
+### Mechanic-class: CardAttribute, not Event
+
+A mechanic-class (saga, dice, dungeon, morph, energy, etc.) is modeled as a
+**CardAttribute** (ADR 0008), not as a shared Event node. The event taxonomy
+is bounded to the game's trigger rules; mechanic identity flows through the
+attribute system instead:
+
+- **Saga** → the lore counter triggers the `counter-placed` event. "Saga" itself
+  is a CardAttribute, queryable as a guard operand (ADR 0011).
+- **Dice rolling / dungeon venture** → each gets its own event slug if one exists
+  in the catalog (`die-rolled`, `ventured`), or `None` if not yet cataloged. The
+  mechanic-class ("dice", "dungeon") is a CardAttribute.
+- **Morph / manifest / disguise** → a CardAttribute synthesized from card keywords
+  (via `synth_attrs_for` in `vocab.py`). No event node — face-down entry is
+  covered by `creature-enters-battlefield`.
+
+This keeps the event catalog bounded (only game-rules-derived triggers) while
+mechanic identity remains a first-class concept in the attribute and guard systems.
+
 ### Promiscuity is gated by substantiveness (ADR 0002), as data
 
 A promiscuous event (e.g. `creature-enters-battlefield`, produced by many attributes)
@@ -93,5 +112,10 @@ evaluator (ADR 0002) already dispatches over its closed kind-set
 - 0002 — Substantiveness: the evaluator through which promiscuity-scaled Requirements flow.
 - 0003 — Byte-parity: the event catalog is a held file; this change is test-only (no
   catalog data change), so P0 SHAs are unchanged.
+- 0008 — Canonical normalization / CardAttribute: the mechanic-class clause routes
+  mechanic identity through the attribute system, not the event taxonomy.
 - 0011 — EventEffect guards: the guards define which edges fire between events; this
-  record governs the events themselves.
+  record governs the events themselves. Mechanic-class CardAttributes serve as guard
+  operands (ADR 0011 characteristic refs).
+- 0016 — Closure-mechanism win-walk: the walk consumes this taxonomy through the
+  fid-to-Event adapter (ADR 0007).

@@ -9,9 +9,9 @@ Where ``event`` is a slug from the bounded trigger taxonomy
 (``data/event_catalog_v4.json``), or ``None`` for features with no engine role
 (oneshot effects, card-class enablers, inert symmetrics).
 
-This module is DATA + LOADER only.  It is NOT consumed by ``resolve()`` or
-``_isolate_engines()`` yet — win-detection still runs on the existing regex
-path.  The adapter will be wired into win-detection in a later step (5b/6).
+This module is DATA + LOADER.  It IS consumed by ``win_walk.py`` (the
+authoritative win-detection closure walk, ADR 0016) which is imported by
+``facts.py`` and determines every combo's win flag.
 
 Owner-ruled dispositions applied during promotion:
 

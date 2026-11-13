@@ -28,10 +28,15 @@ from pipeline.transforms.strategy.assets import (
     load_assets,
 )
 from pipeline.transforms.strategy.combo import (
-    LETHAL_MANA_SINK_NAMES,
     combo_label,
     combo_norm,
     combos_in_deck,
+)
+from pipeline.transforms.strategy.win_walk import (
+    closure_walk,
+    resolve_fids_from_feature_names,
+    walk_is_win,
+    walk_win_kind,
 )
 from pipeline.transforms.strategy.config import FACTS_ONLY_WHEN_DISABLED, StrategyConfig
 from pipeline.transforms.strategy.degree import compute_degree_axes, power_profile
@@ -278,15 +283,27 @@ def compute_facts(
         card_attrs[i] = attrs
 
     # -------------------------------------------------- combo detection (per deck)
+    # Win classification via the closure-mechanism walk (ADR 0016).
+    # The walk is deck-aware: a combo's win-ness depends on the deck's card
+    # composition (e.g. infinite mana + a mana_sink card = win).
     combos = combos or []
     have_oid: set[str] = {str(c['oracle_id']) for c in cards if c.get('oracle_id')}
     have_norm: set[str] = {combo_norm(c.get('name', '')) for c in cards}
     detected = combos_in_deck(have_oid, have_norm, combos) if combos else []
-    mana_sinks_present = sorted(n for n in LETHAL_MANA_SINK_NAMES if combo_norm(n) in have_norm)
-    predicate_wins = [c for c in detected if c['win']]
-    mana_only = [c for c in detected if not c['win'] and c['mana']]
-    mana_sink_wins = mana_only if mana_sinks_present else []
-    win_combos = predicate_wins + mana_sink_wins
+
+    # Run the closure walk for each detected combo to determine win-ness
+    for c in detected:
+        feature_names = [f.strip() for f in c['result'].split(';') if f.strip()]
+        fids = resolve_fids_from_feature_names(feature_names)
+        verdict = closure_walk(fids=fids, deck_card_names=have_norm)
+        c['win'] = walk_is_win(verdict)
+        c['_walk_verdict'] = verdict
+
+    win_combos = [c for c in detected if c['win']]
+    # All wins come from the walk — no separate predicate/mana-sink categories
+    predicate_wins = win_combos
+    mana_sink_wins: list[dict] = []
+    mana_sinks_present: list[str] = []
 
     combo_piece_idx: set[int] = set()
     name2idx: dict[str, list[int]] = defaultdict(list)
@@ -529,9 +546,8 @@ def compute_facts(
                 'win': c['win'], 'win_kind': kind, 'elevated_orphan_pieces': orphan}
 
     core_combos = (
-        [_core_combo(c, 'predicate') for c in predicate_wins]
-        + [_core_combo(c, 'mana-sink') for c in mana_sink_wins]
-        + [_core_combo(c, 'non-win') for c in detected if c not in predicate_wins and c not in mana_sink_wins]
+        [_core_combo(c, walk_win_kind(c.get('_walk_verdict', {}))) for c in win_combos]
+        + [_core_combo(c, 'non-win') for c in detected if c not in win_combos]
     )
     core_combos.sort(key=lambda d: (not d['win'], d['win_kind'], d['label'], d['variant_id']))
     elevated_cards = sorted({cards[i]['name'] for i in combo_piece_idx if i not in identity_cards})

@@ -106,23 +106,27 @@ def test_core_combos_values_kess(load_deck, combos):
     rec = resolve(load_deck('gauntlet__kess-dissident-mage'), combos)
     cc = rec['facts']['core_combos']
     assert len(cc) == 6
-    assert sum(1 for c in cc if c['win']) == 4
-    assert rec['n_win_combos'] == 4
+    # ADR 0016 flip: the walk detects 6 wins (was 4 under regex — the walk
+    # promotes 2 card-closed combos the regex missed).
+    assert sum(1 for c in cc if c['win']) == 6
+    assert rec['n_win_combos'] == 6
     # wins sort first, and each combo's piece count is self-consistent
     assert cc[0]['win'] is True
     assert any(c['label'] == 'Win the game' and c['n_pieces'] == 2 for c in cc)
     for c in cc:
         assert c['n_pieces'] == len(c['requires'])
-        assert c['win_kind'] in {'predicate', 'mana-sink', 'non-win'}
+        # Walk-derived win_kinds: rule, action, card, non-win
+        assert c['win_kind'] in {'rule', 'action', 'card', 'non-win'}
 
 
-def test_core_combos_ozai_has_predicate_and_mana_sink(load_deck, combos):
-    # Ozai's win-combos come from BOTH a predicate win and a mana-sink promotion.
-    # (mana-sink entries are promoted win-combos, so they carry win_kind=='mana-sink'
-    # while their predicate `win` flag stays False.)
+def test_core_combos_ozai_has_walk_win_kinds(load_deck, combos):
+    # ADR 0016 flip: Ozai's win-combos are now classified by the walk mechanism
+    # (rule/card/action) instead of the regex predicate/mana-sink distinction.
     rec = resolve(load_deck('owned__ozai'), combos)
     kinds = {c['win_kind'] for c in rec['facts']['core_combos']}
-    assert {'predicate', 'mana-sink'} <= kinds
-    assert rec['n_win_predicate'] >= 1
-    assert rec['n_win_mana_sink'] >= 1
-    assert rec['n_win_combos'] == rec['n_win_predicate'] + rec['n_win_mana_sink']
+    # The walk classifies into rule (direct damage) and card (combat-phase closures)
+    assert {'rule', 'card'} <= kinds
+    assert rec['n_win_combos'] >= 1
+    # mana_sink category dissolved — all wins come from the walk
+    assert rec['n_win_mana_sink'] == 0
+    assert rec['mana_sinks_present'] == []

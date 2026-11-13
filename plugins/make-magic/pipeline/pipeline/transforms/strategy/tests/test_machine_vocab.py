@@ -557,7 +557,7 @@ class TestHermeticity:
         resolve_sha = composite_sha(resolve_baselines)
 
         expected_resolve_sha = (
-            '7d35fe193b200b0c01a1e25b0993a73904155ca7122b3fdb13e0f1ae45863b20'
+            'd409069e4e375729353c401ca7c60bff57de0ce317697c18dd50b184ffa1e7f9'
         )
         assert resolve_sha == expected_resolve_sha, (
             f'Resolve SHA shifted!\n'

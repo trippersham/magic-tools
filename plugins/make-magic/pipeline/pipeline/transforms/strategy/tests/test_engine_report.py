@@ -49,7 +49,7 @@ RELAY_DECKS = FIX / 'relay_decks'
 
 # The two parity-oracle SHAs that MUST NOT shift.
 EXPECTED_ENGINE_SHA = 'a6dfa6073324694d8068f00913aaf5e409ac993244e086ee3b5057a487559508'
-EXPECTED_RESOLVE_SHA = '7d35fe193b200b0c01a1e25b0993a73904155ca7122b3fdb13e0f1ae45863b20'
+EXPECTED_RESOLVE_SHA = 'd409069e4e375729353c401ca7c60bff57de0ce317697c18dd50b184ffa1e7f9'
 
 # Event catalog (with co-located abbrevs) for _characterize_engines unit calls.
 CATALOG_EVENTS = json.loads(EVENTS_FILE.read_text())['events']

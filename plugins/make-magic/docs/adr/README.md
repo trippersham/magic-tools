@@ -18,17 +18,20 @@ which points back here.
 | [0004](0004-node-predicates.md) | Node predicates: distinct `node_eligible` (presence gate) and `node_admitted` (graph admission), one impl each | Accepted | pending owner review | facts.py, engine_report.py |
 | [0005](0005-tribe-resolution-creature-type-catalog.md) | Tribe resolution: Scryfall creature-type catalog allowlist, not a hand blocklist | Accepted | pending owner review | tribes.py, creature_types_catalog.json |
 | [0006](0006-config-universal-or-gone.md) | Configuration: universal or gone — frozen boolean knobs removed, not toggled | Accepted | pending owner review | config.py |
+| [0007](0007-fid-event-adapter.md) | Spellbook fid-to-Event adapter: 1,348-row production data layer mapping features to the bounded trigger taxonomy; consumed by the win-walk (ADR 0016) | Accepted | pending owner review | fid_adapter.py, data/fid_event_adapter.json |
 | [0008](0008-canonical-normalization.md) | Canonical normalization: `CardAttribute` (one concept, provenance-tagged source in {curated, haiku, spellbook}); `ProvisionalAttributeStore` (lifecycle-named storage); no compat aliases | Accepted | pending owner review | machine_vocab.py |
 | [0011](0011-eventeffect-guards.md) | EventEffect guards: query/reference over a defined operand set at one evaluation chokepoint — characteristic CardAttribute-ref + bounded scope/identity enum + event-reachable ref + unresolved; the guard defines the producer set; per trigger-ability; scaffolded Phase 2A, evaluation 2B | Accepted | pending owner review | edge_roles.py, relay.py, machine_vocab.py |
-| [0012](0012-event-ontology.md) | Event = the game's bounded trigger taxonomy; no `role` field — sink-ness is pure topology; `polarity`/`scope` on `game-end` only; promiscuity-scaled substantiveness via ADR 0002 | Accepted | pending owner review | event_catalog_v4.json, substantiveness.py, facts.py |
+| [0012](0012-event-ontology.md) | Event = the game's bounded trigger taxonomy; no `role` field — sink-ness is pure topology; `polarity`/`scope` on `game-end` only; mechanic-class is a CardAttribute not an Event; promiscuity-scaled substantiveness via ADR 0002 | Accepted | pending owner review | event_catalog_v4.json, substantiveness.py, facts.py |
+| [0016](0016-closure-mechanism-win-walk.md) | Closure-mechanism win-walk: the authoritative combo win-detection path — graph walk over fid-adapter events + card-edge classes replaces regex + frozen sink list; deck-aware; guard-evaluated | Accepted | pending owner review | win_walk.py, data/card_edges.json, facts.py, combo.py |
 | [0017](0017-edge-derivation-native-then-haiku.md) | Within-card edge derivation: native CardAttributes first, else haiku→machine-store; never code-side prose parsing. Two distinct haiku roles (A edge-author / B engine-namer) | Accepted | pending owner review | edge_roles.py, machine_vocab.py, relay.py |
 
 *0005–0006 (tribe catalog, config universal-or-gone) were authored in the same change that
 implemented them, from observed post-change behavior.*
 
-*0007–0016 (except 0011, 0012) are reserved for the Design-2/3 fold (Spellbook adapter,
-canonical normalization, query contract, ontology, Strategy, Engine election, DeckAssessment,
-closure-mechanism win-walk) and will be authored in that change. 0011 (EventEffect guards) and
-0012 (Event ontology) were authored ahead of the full fold as part of Phase 2A scaffolding.
+*0007 (fid-to-Event adapter) and 0016 (closure-mechanism win-walk) were authored as part of
+the Phase 2B step 5b-ii flip. 0009–0010, 0013–0015 are reserved for the remaining Design-2/3
+fold (query contract, Strategy, Engine election, DeckAssessment) and will be authored in that
+change. 0011 (EventEffect guards) and 0012 (Event ontology) were authored ahead of the full
+fold as part of Phase 2A scaffolding; 0012 was updated with the mechanic-class clause in 5b-ii.
 0017 was authored ahead of the fold because a probe prototype violated its rule; it is closely
 related to 0008/0011/0014 and may be merged into 0008 at fold time.*
