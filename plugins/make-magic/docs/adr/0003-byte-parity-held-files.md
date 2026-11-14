@@ -143,9 +143,39 @@ re-baseline makes every *intended* change legible as such.
   exogenous-environmental (mode 3) anchors populate once producer-only / consumer-only
   edges exist (later execution-sequence steps) — see ADR 0014.
 
+- **2026-11-14 — step-2 landing: corrected mana-wiring + `producer_anchor` gate + `lead`
+  removal (ADR 0020, ADR 0014 amendment).** Three coupled changes in one re-baseline:
+  `mana-produced.produced_by` set to the taxonomy-derived, closure-deduplicated
+  `[adds-multiple-mana, mana-producer, repeatable-treasures, ritual]` (dropping the umbrella
+  `ramp` and the `mana-producer`-redundant `mana-dork`/`mana-rock` children, #71); a new
+  level-3 event-substantiveness gate (`event_admitted` / `producer_anchor`) filtering the
+  election candidate pool; and the `lead_engine` field dropped (output = the `elected` set
+  only — an election-neutral field drop).
+  Engine isolation `59fe5d33…` → `987f2660…`; resolve composite `82a71840…` → `85752bb9…`;
+  full-corpus `d01d8701…` → `7e5190e8…`. All 17 hermetic fixture resolve SHAs shift; the
+  170-record full corpus shifts.
+  **Behavioral-equivalence + improvement proof.** (a) *Full-170 election* vs `7b53e6a`:
+  exactly **4 elected-set changes** (Selvala, Marwyn, Helga, Derevi gain `mana-produced` — the
+  4 genuine command-zone-anchored mana engines), **0 evictions**, every other deck's elected
+  set byte-identical to the pre-wiring election; **1 `named_strategy` change** — Ghave
+  (aristocrats/sacrifice → alt-wincon/combo), from the CONSUMER-side wiring
+  (`bottomless-mana-sink` on Ghave's commander), owner-flagged as defensible. Omnath
+  (Locus of Mana) and Urza are **unchanged vs `7b53e6a`** (mana correctly not a candidate —
+  keep-ratio starvation, #72 — NOT a regression). (b) *Fixtures:* the SHA shift is the
+  additive, reported `mana-produced` unit now present in the `engines` list wherever mana
+  producers/consumers exist; **16/17 fixtures keep a byte-identical ELECTED set** (only the
+  reported unit shifts bytes), and the one election change — `owned__ozai` gains
+  `mana-produced` — is a correct `producer_anchor` admit (its commander carries
+  `adds-multiple-mana` + `mana-producer` + `ramp`; identical mechanism to Selvala/Marwyn).
+  `vocab_parity_baseline.json`, `engine_isolation_baseline.json`, and `FULL_CORPUS_SHA`
+  updated in the same change. Measurement: the real pipeline (`compute_facts` + `name_deck`)
+  over the 170-deck gauntlet, reproducing the step-2 research docs
+  (`mana-produced-correct-wiring.md` §3/§4, `event-substantiveness-empirical.md` §5) exactly.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`facts.py` is shared with this record).
 - 0005 — the tribe-catalog fix in the re-baseline above.
-- 0016 — the closure-mechanism win-walk that triggered the latest re-baseline.
-- 0014 — the mass-election flip that triggered the latest re-baseline.
+- 0016 — the closure-mechanism win-walk that triggered an earlier re-baseline.
+- 0014 — the mass-election flip; its `lead` removal re-baselined in the 2026-11-14 entry.
+- 0020 — the event-substantiveness gate + corrected mana-wiring behind the 2026-11-14 re-baseline.

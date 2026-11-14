@@ -52,6 +52,7 @@ from typing import TYPE_CHECKING, Any
 from pipeline.transforms.strategy.assets import EDHREC_NEW_LABELS, is_graveyard_attr
 
 if TYPE_CHECKING:
+    from pipeline.transforms.strategy.assets import StrategyAssets
     from pipeline.transforms.strategy.config import StrategyConfig
     from pipeline.transforms.strategy.facts import FactsContext
 
@@ -157,3 +158,75 @@ def requirement_for(arch: str, cfg: StrategyConfig) -> Requirement:
     if arch in EDHREC_NEW_LABELS:
         return EDHREC_REQUIREMENT
     return build_substantiveness(cfg).get(arch, DEFAULT_REQUIREMENT)
+
+
+# --- third substantiveness level: EVENT admission (ADR 0002 + ADR 0020) -------
+# Levels 1 (``node_admitted``, attribute) and 2 (archetype ``Requirement`` above)
+# gate ATTRIBUTES and ARCHETYPES. This third level gates whether a promiscuous
+# EVENT's engine unit may ENTER the mass election at all — the event analog of
+# ``node_admitted``'s ``is_cmd`` arm. It is a Requirement KIND reused through the
+# same closed-set dispatch (never an event-name or deck-name branch); the event
+# name reaches the evaluator only as the DATA-map key.
+#
+# The one kind so far is ``producer_anchor``: an ABSOLUTE, per-event check that
+# the command zone ANCHORS production of the event — the deck's commander carries
+# at least one of the event's own producer refs. It reads ONLY the commander's
+# attrs and the event's own wiring refs — never total/top/other-unit mass, so it
+# is answerable from the deck alone, before the election, exactly like
+# ``attr_density``. Empirically (event-substantiveness study, ADR 0020) per-event
+# *density* does NOT encode substantiveness for a resource event — incidental
+# dork-dense decks out-density genuine ones — but command-zone anchoring does.
+# The measure degenerates to set-nonemptiness: no numeric threshold to drift.
+
+
+def _eval_producer_anchor(
+    params: dict, event: str, cmd_attrs: set[str], assets: StrategyAssets
+) -> bool:
+    """Event substantiveness: the command zone anchors production of this event.
+
+    ADMIT iff the commander carries at least one attr in the event's own
+    ``params['refs']`` wiring list (default ``produced_by``) UNION the anchor-only
+    ``params['extra_refs']``. ABSOLUTE and per-event — reads only ``cmd_attrs`` and
+    the event's refs, never any unit's mass.
+
+    ``extra_refs`` is an ANCHOR-SIDE-ONLY ref set: slugs that count as a
+    command-zone production anchor but are deliberately NOT in the event's
+    ``produced_by`` (so they contribute ZERO election mass). For ``mana-produced``
+    that is ``ramp``: the umbrella tag is out of ``produced_by`` (it no longer
+    inflates mana mass — ADR 0020 / #71), but a ramp-only commander (Derevi) still
+    anchors a genuine mana engine carried by the 99's specific producers. This
+    ``ramp``-in-anchor-not-in-mass split is load-bearing and verified by the
+    full-170 re-baseline (gateB).
+    """
+    refs = set(assets.events[event][params['refs']]) | set(params.get('extra_refs', ()))
+    return bool(cmd_attrs & refs)
+
+
+#: The event-admission evaluator set (its own closed dispatch; the universal
+#: ``requires_met`` payoff gate does NOT apply to the event entity, so these are
+#: NOT in ``_EVALUATORS`` and are not wrapped by ``Requirement.satisfied``).
+_EVENT_EVALUATORS: dict[str, Callable[[dict, str, set[str], Any], bool]] = {
+    'producer_anchor': _eval_producer_anchor,
+}
+
+#: DATA — the per-EVENT substantiveness bar. Default (no row) -> admitted, i.e.
+#: today's behavior for every event except those listed. Promiscuity-targeted by
+#: DATA: only ``mana-produced`` carries a bar (owner decision — land-enters /
+#: permanent-dies extensions are each their own owner-graded measurement).
+EVENT_SUBSTANTIVENESS: dict[str, Requirement] = {
+    'mana-produced': Requirement('producer_anchor', {'refs': 'produced_by', 'extra_refs': ['ramp']}),
+}
+
+
+def event_admitted(event: str, cmd_attrs: set[str], assets: StrategyAssets) -> bool:
+    """Is ``event``'s engine unit an ELECTION candidate for this deck?
+
+    Data lookup in :data:`EVENT_SUBSTANTIVENESS`, dispatched by Requirement kind —
+    never an event-name or deck-name branch. An event with no row is admitted
+    (the default, preserving pre-gate behavior). Applies only to ELECTION
+    candidacy — the reported ``engines`` list stays complete.
+    """
+    req = EVENT_SUBSTANTIVENESS.get(event)
+    if req is None:
+        return True
+    return _EVENT_EVALUATORS[req.kind](req.params, event, cmd_attrs, assets)

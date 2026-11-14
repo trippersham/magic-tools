@@ -131,31 +131,57 @@ class TestCatalogBaseline:
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# 5. Phase 2B step 5a inert events: mana-produced, game-end, library-depleted
+# 5. Phase 2B step 5a events: mana-produced (now LIVE), game-end + library-depleted (INERT)
 # ────────────────────────────────────────────────────────────────────────────
 
 class TestPhase2BInertEvents:
-    """The 3 new events added in Phase 2B step 5a are present and INERT (empty edges)."""
+    """game-end and library-depleted remain INERT (empty edges).
 
-    _NEW_EVENTS = ('mana-produced', 'game-end', 'library-depleted')
+    mana-produced was promoted to LIVE wiring (broad mana sources/sinks) and is
+    tested separately below.
+    """
+
+    _STILL_INERT = ('game-end', 'library-depleted')
+    _ALL_PHASE2B = ('mana-produced', 'game-end', 'library-depleted')
 
     def test_new_events_present(self, events: dict[str, dict]) -> None:
-        for slug in self._NEW_EVENTS:
+        for slug in self._ALL_PHASE2B:
             assert slug in events, f'{slug!r} must be in the event catalog'
 
     def test_new_events_have_required_fields(self, events: dict[str, dict]) -> None:
-        for slug in self._NEW_EVENTS:
+        for slug in self._ALL_PHASE2B:
             ev = events[slug]
             assert 'rule' in ev, f'{slug}: missing rule'
             assert 'produced_by' in ev, f'{slug}: missing produced_by'
             assert 'triggers' in ev, f'{slug}: missing triggers'
 
-    def test_new_events_are_inert(self, events: dict[str, dict]) -> None:
-        """Inert means empty produced_by and triggers — no edge wiring yet."""
-        for slug in self._NEW_EVENTS:
+    def test_inert_events_are_inert(self, events: dict[str, dict]) -> None:
+        """game-end and library-depleted remain inert (empty edges)."""
+        for slug in self._STILL_INERT:
             ev = events[slug]
             assert ev['produced_by'] == [], f'{slug}: produced_by should be empty (inert)'
             assert ev['triggers'] == [], f'{slug}: triggers should be empty (inert)'
+
+    def test_mana_produced_is_live(self, events: dict[str, dict]) -> None:
+        """mana-produced is LIVE with the corrected, taxonomy-derived wiring.
+
+        ``produced_by`` is the closure-deduplicated producer set (ADR 0020):
+        the umbrella ``ramp`` and the ``mana-producer``-redundant ``mana-dork`` /
+        ``mana-rock`` children are OUT; ``ramp`` is carried only anchor-side in the
+        ``producer_anchor`` gate, never in the mass-producing ``produced_by``.
+        """
+        ev = events['mana-produced']
+        assert len(ev['produced_by']) > 0, 'mana-produced: produced_by should be non-empty (live)'
+        assert len(ev['triggers']) > 0, 'mana-produced: triggers should be non-empty (live)'
+        # The corrected produced_by set (exact): closure-deduplicated producers.
+        assert set(ev['produced_by']) == {
+            'adds-multiple-mana', 'mana-producer', 'repeatable-treasures', 'ritual'}
+        # The umbrella + closure-redundant children are OUT of produced_by.
+        assert 'ramp' not in ev['produced_by']
+        assert 'mana-dork' not in ev['produced_by']
+        assert 'mana-rock' not in ev['produced_by']
+        # Consumer side unchanged.
+        assert 'bottomless-mana-sink' in ev['triggers']
 
     def test_game_end_has_polarity_and_scope(self, events: dict[str, dict]) -> None:
         """game-end is the ONLY event with polarity + scope fields."""

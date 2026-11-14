@@ -7,6 +7,15 @@
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -k substantiveness`. Asserts the kind evaluators, `FAMILY_PREDICATES`, and `DEFAULT_REQUIREMENT`. |
 | Code paths | [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (`requires_met` / the presence gate; shared with 0003 and the planned 0004). |
 
+> **Three application sites, one framework.** The substantiveness question is asked at
+> three places, all through Requirement KINDS dispatched by DATA — never a name branch:
+> **(1) attribute admission** — `node_admitted` (ADR 0004), level 1; **(2) archetype
+> identity** — `requirement_for(arch, cfg)` → `_EVALUATORS`, level 2 (the body of this
+> record); **(3) EVENT admission** — `event_admitted(event, cmd_attrs, assets)` →
+> `_EVENT_EVALUATORS`, level 3, gating whether a promiscuous event's engine unit may
+> ENTER the mass election. The `producer_anchor` kind (added 2026-11-14) is the first
+> level-3 kind. See the 2026-11-14 amendment below and **[0020](0020-event-substantiveness-producer-anchor.md)**.
+
 ## Context
 Identity archetypes must be *earned* (a deck has to actually do the thing), and the bar
 differs by archetype (payoff count, family density, a degree axis). The failure mode to
@@ -41,7 +50,32 @@ is the reference implementation of ADR 0001's doctrine.
 - `_gy_substantive` in `facts.py` is a parallel inline copy of `_eval_attr_density`; the
   consolidation deletes it and derives `gy_demoted` from `requirement_for()`.
 
+## Amendment — 2026-11-14: `producer_anchor`, the third application site (EVENT admission)
+
+A fourth Requirement KIND, `producer_anchor`, was added for a NEW application site: an
+**event**'s admission to the mass election (ADR 0014). The Requirement-kind set now reads:
+
+| kind | entity | site | evaluator | registry |
+|---|---|---|---|---|
+| `member_count` | archetype | identity label | `_eval_member_count` | `_EVALUATORS` |
+| `attr_density` | archetype | identity label | `_eval_attr_density` | `_EVALUATORS` |
+| `axis_density` | archetype | identity label | `_eval_axis_density` | `_EVALUATORS` |
+| `producer_anchor` | **event** | **election candidacy** | `_eval_producer_anchor` | `_EVENT_EVALUATORS` |
+
+`producer_anchor` admits an event's unit iff the deck's commander carries at least one of
+the event's own producer refs (`params['refs']`, default `produced_by`) ∪ an anchor-only
+`params['extra_refs']`. It is ABSOLUTE and per-event — reads only commander attrs and the
+event's own refs, never any unit's mass — so it is the event analog of `node_admitted`'s
+`is_cmd` arm, not a density bar. It dispatches through its OWN entry point
+(`event_admitted` → `_EVENT_EVALUATORS`), NOT the archetype `Requirement.satisfied`
+path: the universal `requires_met` payoff gate does not apply to the event entity. The
+one data row today is `mana-produced` (DATA-targeted; one row per promiscuous event, each
+its own owner-graded measurement). The empirical case — why command-zone anchoring, and
+not any density measure, carries event substantiveness — is **[0020](0020-event-substantiveness-producer-anchor.md)**.
+
 ## Related records
 - 0001 — the doctrine this implements.
 - 0004 (planned) — the presence gate `node_eligible` dedup routes through this framework.
 - 0003 — `facts.py` is shared and byte-frozen.
+- 0014 — the mass election whose candidate pool the level-3 gate filters.
+- 0020 — event-substantiveness admission (the `producer_anchor` kind) + its empirical basis.

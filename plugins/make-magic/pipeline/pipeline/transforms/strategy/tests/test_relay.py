@@ -40,8 +40,8 @@ FIX = Path(__file__).resolve().parent / 'fixtures'
 RELAY_DECKS = FIX / 'relay_decks'
 
 # The two parity-oracle SHAs that MUST NOT shift.
-EXPECTED_ENGINE_SHA = '59fe5d335bee64958585fcefb9e7c2fb13dae80017e270f05610e6c0795a8048'
-EXPECTED_RESOLVE_SHA = '82a71840d5d575f1713da027e930422f733c97f9320fce741ab7eec050a96a68'
+EXPECTED_ENGINE_SHA = '987f2660f04421720f5e0b3162a17d313fb309a476dad482554b8f376bdf181c'
+EXPECTED_RESOLVE_SHA = '85752bb9361e03e4fce0eeb11bf4a989d45cc4ec839840f7975877072a3f5a1c'
 
 
 # ---------------------------------------------------------------------------
@@ -279,21 +279,12 @@ class TestAugmentedPathClosesLoop:
             f'Expected bidirectional chain (closed loop); got {chains}'
         )
 
-    def test_lead_engine_has_hub(self, relay_ctx, assets) -> None:
-        """The lead engine has a relay hub (not None)."""
-        iso = isolate_engines_with_relay(
-            relay_ctx.nodes, assets.events, relay_ctx.adens,
-            assets, relay_ctx.cards,
-        )
-        assert iso['lead_engine'] is not None
-        assert iso['lead_engine']['hub'] is not None
-
     def test_determinism_mass_elected(self, relay_ctx, assets) -> None:
-        """The augmented path mass-elects a lead (ADR 0014 flip: 'mass-elected').
+        """The augmented path mass-elects candidates (ADR 0014: 'mass-elected').
 
-        Formerly asserted 'forward-engine-isolated' (recursive-first lead). The
-        2C mass-election flip makes the lead the top-mass unit, so a non-empty
-        election reports determinism='mass-elected'.
+        The election produces a ranked `elected` candidate set; there is no
+        distinguished single lead field. A non-empty election reports
+        determinism='mass-elected'.
         """
         iso = isolate_engines_with_relay(
             relay_ctx.nodes, assets.events, relay_ctx.adens,

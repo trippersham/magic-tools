@@ -42,6 +42,7 @@ from pipeline.transforms.strategy.win_walk import (
 from pipeline.transforms.strategy.config import FACTS_ONLY_WHEN_DISABLED, StrategyConfig
 from pipeline.transforms.strategy.degree import compute_degree_axes, power_profile
 from pipeline.transforms.strategy.query import CardView
+from pipeline.transforms.strategy.substantiveness import event_admitted
 from pipeline.transforms.strategy.tribes import compute_tribes, creature_subtypes
 from pipeline.transforms.strategy.vocab import synth_attrs_for
 
@@ -145,14 +146,23 @@ def _isolate_engines(
       at what the commander produces and test whether it reaches back to what the
       commander consumes. Non-empty => a commander-anchored cycle the DAG can't hold.
 
-    The engine LEAD and the ranked ``elected`` set (0..n strategies) are chosen by
-    node-weighted event-neighborhood **mass** -- ``m(U) = Σ adens`` over a unit's
-    producers ∪ consumers (its ``weight``). Units are ordered by mass desc (recursive
-    status breaks an EXACT mass tie only); the lead is the top-mass unit and the
-    elected set keeps every unit within the 0.6 keep-ratio of the top that is not a
-    member-Jaccard-≥-0.5 near-duplicate of a kept unit (ADR 0014). ``recursive`` /
-    ``hub`` / ``commander_coupled`` / ``share`` / ``anchor`` / ``thin`` are reported
-    attributes, never election inputs. This replaces the earlier recursive-first lead.
+    The ranked ``elected`` set (0..n strategies) is chosen by node-weighted
+    event-neighborhood **mass** -- ``m(U) = Σ adens`` over a unit's producers ∪
+    consumers (its ``weight``). Units are ordered by mass desc (recursive status
+    breaks an EXACT mass tie only); the elected set keeps every unit within the
+    0.6 keep-ratio of the top that is not a member-Jaccard-≥-0.5 near-duplicate
+    of a kept unit (ADR 0014). ``recursive`` / ``hub`` / ``commander_coupled`` /
+    ``share`` / ``anchor`` / ``thin`` are reported attributes, never election
+    inputs. There is no distinguished single ``lead`` — consumers that need "the
+    top candidate" read ``elected[0]`` locally.
+
+    Before the election, EVENT-SUBSTANTIVENESS admission (ADR 0002 third level /
+    ADR 0020) filters the candidate pool: a unit whose event carries a
+    ``producer_anchor`` Requirement is an election candidate only when the deck's
+    command zone anchors that event's production (``event_admitted``). The gate is
+    DATA-keyed (only ``mana-produced`` today) and reads only commander attrs +
+    the event's own refs — never mass. The reported ``engines`` list stays
+    complete; exclusion applies to election candidacy only.
 
     Purely additive to the label: reported under ``facts['engines']`` and never
     consulted by the naming layer (the label is unchanged; STRUCTURE-ONLY).
@@ -192,11 +202,10 @@ def _isolate_engines(
             'weight': round(sum(adens[a] for a in P | C), 1),
         })
     # MASS ELECTION (ADR 0014): node-weighted event-neighborhood mass is the
-    # authoritative engine-lead signal. Each unit's mass m(U) = Σ adens over
+    # authoritative engine signal. Each unit's mass m(U) = Σ adens over
     # producers ∪ consumers is already computed as e['weight']. Order by mass
     # desc; recursive status breaks an EXACT mass tie only (a reported attribute,
     # never a primary sort key); event name is the final determinism tiebreak.
-    # This replaces the former recursive-first / payoff-count heuristic ordering.
     engines.sort(key=lambda e: (-e['weight'], e['kind'] != 'recursive-engine', e['event']))
 
     # bounded forward chains: feeder_event -> fed_event (fed hub consumes feeder)
@@ -239,18 +248,28 @@ def _isolate_engines(
             return 'exogenous-environmental'
         return 'bipartite'
 
+    # EVENT-SUBSTANTIVENESS admission (ADR 0002 third level / ADR 0020): before the
+    # mass election, drop any unit whose EVENT fails its ``producer_anchor`` bar for
+    # this deck — the event's engine unit is admitted to ELECTION candidacy only when
+    # the command zone anchors its production. GENERIC: keyed on the event's
+    # Requirement DATA (``EVENT_SUBSTANTIVENESS``), never an ``if mana`` / deck-name
+    # branch; an event with no data row is admitted (today's behavior). The reported
+    # ``engines`` list stays COMPLETE — exclusion applies to candidacy only, so
+    # diagnostics, chains, hubs and the loop probe are untouched.
+    pool = [e for e in engines if event_admitted(e['event'], cmd_attrs, assets)]
+
     # Engine SET (0..n): mass-sorted units; keep a unit when its mass is within
-    # the 0.6 keep-ratio of the top unit AND it is not a near-duplicate of an
-    # already-kept unit (member-Jaccard < 0.5). The list is mass-descending, so
-    # the first unit below 0.6·m(top) ends the walk. Minted constants 0.6 / 0.5
+    # the 0.6 keep-ratio of the top CANDIDATE unit AND it is not a near-duplicate
+    # of an already-kept unit (member-Jaccard < 0.5). The pool is mass-descending,
+    # so the first unit below 0.6·m(top) ends the walk. Minted constants 0.6 / 0.5
     # (ADR 0014) -- no per-strategy knobs. recursive / commander_coupled / share /
     # anchor / thin are REPORTED attributes only, never election inputs.
     elected: list[dict] = []
-    if engines:
-        top_mass = engines[0]['weight']
-        total_mass = sum(e['weight'] for e in engines) or 1e-6
+    if pool:
+        top_mass = pool[0]['weight']
+        total_mass = sum(e['weight'] for e in pool) or 1e-6
         kept_members: list[set[str]] = []
-        for e in engines:
+        for e in pool:
             if e['weight'] < 0.6 * top_mass:
                 break
             mem = _members(e)
@@ -269,10 +288,6 @@ def _isolate_engines(
                 'payoff_archetypes': e['payoff_archetypes'],
             })
             kept_members.append(mem)
-
-    # Lead = the top-mass elected unit (authoritative engine lead), replacing the
-    # former "first recursive-engine" selection.
-    lead = engines[0] if engines else None
 
     # commander-anchored loop probe
     cmd_loop = None
@@ -305,17 +320,14 @@ def _isolate_engines(
 
     return {
         'relay_hubs': by_w(relay),
-        'lead_engine': (None if lead is None else
-                        {'hub': lead['hub'], 'event': lead['event'],
-                         'payoff_archetypes': lead['payoff_archetypes']}),
         'elected': elected,
         'engines': engines,
         'forward_chains': chains,
         'commander_loop': cmd_loop,
         'determinism': determinism,
         'note': 'a-priori directed-graph engine isolation (per-event convergence + '
-                'relay hub + DAG-bounded chains + commander loop probe); the LEAD + the '
-                'ranked `elected` set come from node-weighted event-neighborhood MASS '
+                'relay hub + DAG-bounded chains + commander loop probe); the ranked '
+                '`elected` set comes from node-weighted event-neighborhood MASS '
                 '(0.6 keep-ratio + Jaccard-0.5 dedup, ADR 0014), not recursive-first; '
                 'STRUCTURE-ONLY, never decides the label',
     }

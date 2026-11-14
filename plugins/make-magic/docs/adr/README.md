@@ -25,6 +25,7 @@ which points back here.
 | [0014](0014-engine-mass-election.md) | Engine = node-weighted event-neighborhood MASS election (the "2C flip"): mass authoritative for lead + the 0..n `elected` set (0.6 keep-ratio, Jaccard-0.5 dedup); recursive/hub demoted to reported attributes; three generic anchor modes; STRUCTURE-ONLY (0 labels change); distinct from `archetype_identity` | Accepted | pending owner review | facts.py (`_isolate_engines`), engine_report.py, relay.py |
 | [0016](0016-closure-mechanism-win-walk.md) | Closure-mechanism win-walk: the authoritative combo win-detection path — graph walk over fid-adapter events + card-edge classes replaces regex + frozen sink list; deck-aware; guard-evaluated | Accepted | pending owner review | win_walk.py, data/card_edges.json, facts.py, combo.py |
 | [0017](0017-edge-derivation-native-then-haiku.md) | Within-card edge derivation: native CardAttributes first, else haiku→machine-store; never code-side prose parsing. Two distinct haiku roles (A edge-author / B engine-namer) | Accepted | pending owner review | edge_roles.py, machine_vocab.py, relay.py |
+| [0020](0020-event-substantiveness-producer-anchor.md) | Event-substantiveness admission: the `producer_anchor` Requirement kind (ADR 0002 third level) gates a promiscuous event's election candidacy by COMMAND-ZONE production anchor (absolute, threshold-free), not density; corrected taxonomy-derived `mana-produced` wiring (`ramp` out of mass, anchor-only via `extra_refs`); hooked before the mass election | Accepted | pending owner review | substantiveness.py, facts.py, event_catalog_v4.json |
 
 *0005–0006 (tribe catalog, config universal-or-gone) were authored in the same change that
 implemented them, from observed post-change behavior.*
@@ -36,4 +37,6 @@ remaining Design-2/3 fold (query contract, Strategy, DeckAssessment) and will be
 change. 0011 (EventEffect guards) and 0012 (Event ontology) were authored ahead of the full
 fold as part of Phase 2A scaffolding; 0012 was updated with the mechanic-class clause in 5b-ii.
 0017 was authored ahead of the fold because a probe prototype violated its rule; it is closely
-related to 0008/0011/0014 and may be merged into 0008 at fold time.*
+related to 0008/0011/0014 and may be merged into 0008 at fold time. 0020 (event-substantiveness
+`producer_anchor`) was authored with the step-2 landing that implemented it, from the
+empirically-validated full-170 delta; it extends 0002 (third application site) and amends 0014.*

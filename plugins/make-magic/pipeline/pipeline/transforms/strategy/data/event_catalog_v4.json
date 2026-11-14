@@ -1128,8 +1128,17 @@
     },
     "mana-produced": {
       "rule": "CR 106: producing mana (tapping lands, mana dorks, rituals, Treasure sacrifice). Covers 179 Spellbook mana fids (13.3% of features, 34% of corpus combos had no event home before this). Classified by feature name, not by the uncountable+mana derivation (see ADR 0007 when wired).",
-      "produced_by": [],
-      "triggers": []
+      "produced_by": [
+        "adds-multiple-mana",
+        "mana-producer",
+        "repeatable-treasures",
+        "ritual"
+      ],
+      "triggers": [
+        "bottomless-mana-sink",
+        "mana-increaser",
+        "mana-sink"
+      ]
     },
     "game-end": {
       "rule": "CR 104.1/104.2/104.3: the game ends. Terminal node \u2014 the walk target. Fids map here with polarity (win/draw/loss) from the research route and scope from the feature. Rule-edges from life-loss-drain (SBA 104.3b), library-depleted (CR 104.3c), and combat-damage-dealt reach game-end through the EventEffect graph.",

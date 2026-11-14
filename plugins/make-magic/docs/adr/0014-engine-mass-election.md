@@ -4,8 +4,8 @@
 |---|---|
 | Status | Accepted. In force on branch `feat/strategy-engine`. Output-changing re-baseline (ADR 0003). |
 | Review | pending owner review: agent-authored from the GATE-0 GO-WITH-FIXES design + the re-validated full-170 delta; the orchestrator reconciles, shows the owner the delta, and commits. |
-| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (453 pass). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` — engine `59fe5d33…`, resolve `82a71840…`, full-corpus `d01d8701…`. Invariant: **0 `named_strategy` labels changed** across the 170-deck gauntlet (STRUCTURE-ONLY); **0 previously-correct elections regressed** (mass-monotone; no lead→None, no lower-mass displacement). |
-| Code paths | [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (`_isolate_engines` — the mass sort + `elected` set + `lead`), [`engine_report.py`](../../pipeline/pipeline/transforms/strategy/engine_report.py) (consumes `engines`/`forward_chains`, order-invariant), [`relay.py`](../../pipeline/pipeline/transforms/strategy/relay.py) (runs the SAME `_isolate_engines` over relay-augmented edges). |
+| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (453 pass). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` — engine `987f2660…`, resolve `85752bb9…`, full-corpus `7e5190e8…` (as of the 2026-11-14 step-2 landing; see amendment). Invariant: the mass election is STRUCTURE-ONLY (the sort/keep-walk reads only `adens`; naming never reads the election). The 1 `named_strategy` change in the step-2 landing (Ghave) comes from WIRING `mana-produced`, not from the election mechanism — see [0020](0020-event-substantiveness-producer-anchor.md) + [0003](0003-byte-parity-held-files.md). |
+| Code paths | [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (`_isolate_engines` — the mass sort + the `event_admitted` candidate-pool filter + the `elected` set), [`engine_report.py`](../../pipeline/pipeline/transforms/strategy/engine_report.py) (consumes `engines`/`forward_chains`, order-invariant), [`relay.py`](../../pipeline/pipeline/transforms/strategy/relay.py) (runs the SAME `_isolate_engines` over relay-augmented edges). |
 
 ## Context
 
@@ -134,9 +134,39 @@ inputs land.
   on this election; the whole-gauntlet owner gut-check is the acceptance gate after
   all outcome-moving pieces land.
 
+## Amendment — 2026-11-14 (step-2 landing): `lead` removed + event-substantiveness hook
+
+Two coupled refinements landed with the corrected mana-wiring:
+
+1. **No distinguished single `lead`.** The output is the ranked `elected` candidate set
+   ONLY; the `lead_engine` field and the `lead = engines[0]` selector are removed.
+   Consumers that need "the top candidate" read `elected[0]` locally. This is a pure
+   field drop — **0 elected-SET changes** (the election walk is untouched). The decision
+   body above still narrates the historical `lead`; read every "lead" there as "the
+   top-mass unit = `elected[0]`".
+
+2. **Event-substantiveness admission hooks between unit construction and the keep-walk.**
+   Before the mass election, the candidate pool is filtered to
+   `[e for e in engines if event_admitted(e['event'], cmd_attrs, assets)]` (ADR 0002
+   level 3 / [0020](0020-event-substantiveness-producer-anchor.md)). The keep-walk's
+   `top_mass` and `total_mass` are then taken over the POOL, so removing a refused
+   top-mass unit lowers the 0.6 floor and lets genuine engines re-enter — this is how the
+   8 mana-wiring evictions dissolve. The reported `engines` list stays COMPLETE
+   (exclusion is candidacy-only); chains, hubs and the loop probe are untouched. The gate
+   is GENERIC — keyed on the event's Requirement DATA, never an `if mana` / deck-name
+   branch; an event with no data row is admitted (today's behavior).
+
+This supersedes the "Options not taken" bullet that dropped a substantiveness/share floor
+as "the wrong layer": that correctly rejected a *mass-share* floor inside the election.
+The level-3 gate is a different mechanism — an ABSOLUTE command-zone PRODUCTION anchor,
+read before the election from the deck alone, with no share/mass term at all (0020 §
+Options not taken records the measured rejection of every mass/density/centrality
+alternative).
+
 ## Related records
-- 0002 — substantiveness gates archetype LABELS (a different output); it does not
-  gate engine units, so promiscuity is not an election knob.
+- 0002 — substantiveness gates archetype LABELS (level 2) and, as of 2026-11-14, EVENT
+  election candidacy (level 3, `producer_anchor`) whose pool this election consumes.
+- 0020 — the event-substantiveness admission gate hooked into this election.
 - 0003 — the byte-parity held files this re-baseline updates (with the proof).
 - 0004 — `node_admitted` is the only gate on engine-unit membership.
 - 0012 — the Event ontology; `game-end` + `_RULE_TERMINAL_EVENTS` ground anchor mode 2.
