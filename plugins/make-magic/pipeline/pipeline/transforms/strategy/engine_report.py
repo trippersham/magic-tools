@@ -35,6 +35,7 @@ from pipeline.transforms.strategy.assets import is_land
 from pipeline.transforms.strategy.engine_hydration import frontier
 from pipeline.transforms.strategy.facts import compute_facts, node_admitted
 from pipeline.transforms.strategy.machine_vocab import (
+    CardAttribute,
     ProvisionalAttributeStore,
     all_edge_queries,
     load_store,
@@ -308,6 +309,80 @@ def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
 
 
 # ---------------------------------------------------------------------------
+# Phase-B assembly: select present combos' cached edges (ADR 0021 B1)
+# ---------------------------------------------------------------------------
+
+def _assemble_present_combo_edges(
+    store: ProvisionalAttributeStore,
+    detected: list[dict],
+) -> ProvisionalAttributeStore:
+    """Return a store holding only the edges that apply to THIS deck.
+
+    Phase-B assembly (ADR 0021 B1) -- selection, never re-derivation:
+
+    - Non-combo records (``combo_variant_id=''`` -- curated, haiku) pass through,
+      de-duplicated by ``name``.
+    - Combo-implied edges (``combo_variant_id`` set) are kept only when their
+      originating combo is PRESENT in the deck (``detected``).  Each such edge
+      is an existing producer attribute ``a`` carrying an extra consumer role
+      ``trigger_event`` the combo proved.  The relay stores one role per node
+      name, so for each ``a`` this picks a single, **reciprocal-grounded**
+      coupling: a role ``a: t -> p`` is grounded when the present combos also
+      imply the mirror role ``_: p -> t`` on some producer of ``t`` (so the
+      relay forms the closing 2-cycle ``p <-> t``).  Ungrounded couplings are
+      dropped -- they cannot close a loop and would only shift mass.
+
+    An already-empty store short-circuits so the committed default stays
+    byte-identical.
+    """
+    if store.is_empty:
+        return store
+
+    present: set[str] = {str(c.get('variant_id', '')) for c in (detected or [])}
+
+    kept: list[CardAttribute] = []
+    seen_names: set[str] = set()
+    combo_edges: list[CardAttribute] = []
+    for attr in store.attributes:
+        cvid = attr.provenance.combo_variant_id
+        if not cvid:
+            if attr.name in seen_names:
+                continue
+            seen_names.add(attr.name)
+            kept.append(attr)
+            continue
+        if cvid in present:
+            combo_edges.append(attr)
+
+    # Directed (produced -> trigger) couplings present, and which are grounded
+    # by their mirror (trigger -> produced) on SOME producer.
+    directed: set[tuple[str, str]] = {
+        (a.produced_event, a.trigger_event) for a in combo_edges
+    }
+    grounded = {(p, t) for (p, t) in directed if (t, p) in directed}
+
+    # One grounded role per producer-attr name (lexicographically smallest).
+    best: dict[str, tuple[str, str]] = {}
+    for a in combo_edges:
+        pair = (a.produced_event, a.trigger_event)
+        if pair not in grounded:
+            continue
+        cur = best.get(a.name)
+        if cur is None or (a.trigger_event, a.produced_event) < cur:
+            best[a.name] = (a.trigger_event, a.produced_event)
+    for a in combo_edges:
+        if a.name in seen_names:
+            continue
+        choice = best.get(a.name)
+        if choice is None or (a.trigger_event, a.produced_event) != choice:
+            continue
+        seen_names.add(a.name)
+        kept.append(a)
+
+    return ProvisionalAttributeStore(attributes=kept)
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -352,6 +427,14 @@ def identify_engines(
     # 2. Load authored edges = curated edge attrs + machine-store attrs.
     if store is None:
         store = load_store(store_dir)
+
+    # 2a. Phase-B assembly (ADR 0021 B1): keep only the cached combo-implied
+    # edges (source='spellbook', provenance.combo_variant_id set) whose combo
+    # is actually PRESENT in this deck; non-combo records (curated / haiku /
+    # single-card self-couplings, combo_variant_id='') pass through unchanged.
+    # This is selection, NOT re-derivation -- the edges were authored once, at
+    # the combo-intrinsic grain, in Phase A.
+    store = _assemble_present_combo_edges(store, ctx.detected)
     authored_edges = all_edge_queries(store)
 
     # 2b. Inject machine-store attributes into nodes/adens.
@@ -369,6 +452,20 @@ def identify_engines(
     if not store.is_empty:
         for ma in store.attributes:
             if not ma.query or not ma.trigger_event or not ma.produced_event:
+                continue
+            # A spellbook combo edge (ADR 0021 B1) is named after an existing
+            # producer attribute so the relay AUGMENTS that real node.  When the
+            # node is already in ``nodes`` from the native path its mass is
+            # already counted -- re-adding it here would double-count adens.
+            # Gate the skip on COMBO PROVENANCE (combo_variant_id set) rather
+            # than bare node presence: combo-lowered edges are by-construction
+            # named after native attrs, so the native path already counted
+            # their mass; non-combo store attrs (haiku, future sources) proceed
+            # through normal membership evaluation even if their name coincides
+            # with a native node.  This makes correctness structural (provenance)
+            # rather than reliant on the incidental invariant that query-eval
+            # membership always matches native otag membership (C3 review fix).
+            if ma.provenance.combo_variant_id and ma.name in ctx.nodes:
                 continue
             try:
                 pred = compile_query(ma.query)

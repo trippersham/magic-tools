@@ -131,6 +131,13 @@ class Provenance:
     #: ``0`` means "pre-versioning / unknown" (legacy record, always stale).
     derivation_version: int = 0
 
+    #: Stable combo identity (``combo.variant_id``) for a combo-implied edge
+    #: authored at the combo-intrinsic grain (ADR 0021 B1, source
+    #: ``'spellbook'``).  Empty for single-card / curated / haiku records.
+    #: This is the key the Phase-B assembly uses to select only the edges of
+    #: combos that are actually present in a deck.
+    combo_variant_id: str = ''
+
 
 @dataclass(frozen=True)
 class CardAttribute:
@@ -283,6 +290,7 @@ def _record_to_attr(rec: dict) -> CardAttribute:
         lifecycle=rec.get('lifecycle', 'provisional' if source == 'haiku' else 'verified'),
         extraction_version=rec.get('extraction_version', 0),
         derivation_version=rec.get('derivation_version', 0),
+        combo_variant_id=rec.get('combo_variant_id', ''),
     )
     return CardAttribute(
         name=rec['name'],
@@ -413,7 +421,18 @@ def persist(attr: CardAttribute, store_dir: Path | str | None = None) -> None:
     store_path = resolved_dir / _STORE_FILENAME
 
     # --- Idempotency check: load existing dedup keys ----------------------
-    dedup_key = (attr.name, attr.provenance.source_card_oracle_id)
+    # Keyed on (name, source_card_oracle_id, combo_variant_id): a single-card
+    # edge keeps its (name, oracle_id) identity (combo_variant_id='') while a
+    # combo-implied edge (ADR 0021 B1) is cached once per originating combo, so
+    # two combos that imply the same coupling are both recoverable for the
+    # Phase-B present-combo filter.
+    dedup_key = (
+        attr.name,
+        attr.trigger_event,
+        attr.produced_event,
+        attr.provenance.source_card_oracle_id,
+        attr.provenance.combo_variant_id,
+    )
     if store_path.exists():
         text = store_path.read_text(encoding='utf-8').strip()
         for line in text.splitlines():
@@ -424,7 +443,13 @@ def persist(attr: CardAttribute, store_dir: Path | str | None = None) -> None:
                 rec = json.loads(stripped)
             except json.JSONDecodeError:
                 continue
-            existing_key = (rec.get('name', ''), rec.get('source_card_oracle_id', ''))
+            existing_key = (
+                rec.get('name', ''),
+                rec.get('trigger_event', ''),
+                rec.get('produced_event', ''),
+                rec.get('source_card_oracle_id', ''),
+                rec.get('combo_variant_id', ''),
+            )
             if existing_key == dedup_key:
                 return  # Already persisted -- idempotent no-op
 

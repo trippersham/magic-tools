@@ -87,6 +87,13 @@ authoring) — not by bespoke regex in the transform layer.
   edge quality on double-faced commanders; it is the root cause of the one bad election
   observed in the 170-deck regression (Ral, Monsoon Mage).
 
+## Addendum (B1, 2026-11-14)
+
+A deterministic combo-lowered edge path exists (`combo_edges.py`): it lowers EventEffects
+from Spellbook combo fid-routes, provenance `source='spellbook'`.  This is NOT text-authoring
+(no regex/NLP), so it does not violate the two text-authoring sources — it is the ADR 0021
+Phase-A *Derive* box re-viewing fid structure.
+
 ## Related records
 - 0001 — knowledge placement; an edge is curated reference data or an authored provisional
   fact, never prose parsed in code.

@@ -333,6 +333,24 @@ def _isolate_engines(
     }
 
 
+def otag_derived_attrs(closure: set[str], assets: StrategyAssets) -> set[str]:
+    """Union the otag-derived CardAttributes for one card's otag closure.
+
+    This is the otag->attribute derivation shared by :func:`compute_facts`
+    (per deck) and the Phase-A combo-edge authoring (:mod:`.combo_edges`,
+    ADR 0021 B1), so the two reads of a card's attributes never drift
+    (ADR 0001 one-named-rule).  Synth attributes (card-field predicates) are
+    NOT included here -- :func:`compute_facts` unions those separately from the
+    full card via :func:`.vocab.synth_attrs_for`.
+    """
+    attrs = {b for b, slugs in assets.buckets.items() if closure & set(slugs)}
+    attrs |= closure & assets.payoff_slugs
+    attrs |= closure & assets.event_anchors
+    attrs |= closure & ENCH_ATTR_SLUGS
+    attrs |= closure & EDHREC_ATTR_SLUGS
+    return attrs
+
+
 def compute_facts(
     deck: dict,
     combos: list[dict] | None = None,
@@ -342,9 +360,6 @@ def compute_facts(
     assets = assets or load_assets()
     cfg = assets.cfg
     cmd_w = cfg.cmd_weight
-    buckets = assets.buckets
-    payoff_slugs = assets.payoff_slugs
-    event_anchors = assets.event_anchors
 
     if 'cards' not in deck:
         raise ValueError("deck missing 'cards'")
@@ -357,14 +372,10 @@ def compute_facts(
     for i, c in enumerate(cards):
         closure = {t.lower() for t in c.get('otags', [])}
         card_closures[i] = closure
-        attrs = {b for b, slugs in buckets.items() if closure & set(slugs)}
-        attrs |= closure & payoff_slugs
-        attrs |= closure & event_anchors
-        attrs |= closure & ENCH_ATTR_SLUGS
-        # EDHREC otag membership surfacing: put the EDHREC family slugs onto the
-        # card as themselves so the EDHREC identities can route them. (Always on;
-        # the edhrec_labels knob was removed -- ADR 0006.)
-        attrs |= closure & EDHREC_ATTR_SLUGS
+        # otag-derived attrs via the shared one-named-rule derivation (also used
+        # by Phase-A combo_edges, ADR 0021 B1 / 0001). EDHREC family slugs are
+        # surfaced onto the card as themselves (ADR 0006).
+        attrs = otag_derived_attrs(closure, assets)
         # Synth attributes (vehicle/energy/extra-turn/devotion from card fields,
         # morph from keywords) come from the compiled vocab predicates — one
         # resolution path, no hand-coded field tests.

@@ -107,6 +107,22 @@ In strict order:
   - **B1 — unify Phase-A derivation:** one card-decomposition feeds *both* its win-events and
     its within-card relay edges; the fid-adapter view and the EventEffect view become two
     reads of one decomposition, not two pipelines. Closes the Urza thin-capture.
+    - **Machinery built (2026-11-14, task 5.2):** The combo-intrinsic authoring
+      (`combo_edges.py`, Phase A, cached by `variant_id`, provenance
+      `source='spellbook'`) + present-combo assembly (`engine_report._assemble_present_combo_edges`,
+      Phase B) MACHINERY is built and unit-tested but **INERT until the 5.3 driver
+      populates the store** — no production caller invokes `author_combo_edges`
+      in the committed state, so the store is empty and assembly short-circuits.
+      The blast-radius (Urza closes `draw-a-card` recursion not `mana-produced`,
+      13/17 no-op, Krrik/Ozai contained, 0 win-flag changes) is scratch-harness
+      measured; end-to-end verification lands at task 5.3, with the 5.6
+      full-corpus gate as the acceptance criterion.  **Urza finding (scratch-harness):**
+      `mana-produced` closure for Urza is an emergent **deck-level cross-combo** fact that the
+      combo-intrinsic layer structurally cannot author (infinite mana is piece-interaction,
+      not piece-tagged; the reciprocal lives in a different combo).  The election surfaces
+      Urza's genuine `draw-a-card` recursion instead.  The `mana-produced` resolution is
+      deferred to role-B synthesis (task 5.5), with a generic `mana<->draw` value-loop edge
+      as the principled fallback (NOT a deck-level hook) if role-B needs it.
   - **B6 — make Phase-B ordering real:** substantiveness → election → synthesis, replacing the
     current parallel election ∥ archetype-substantiveness. `producer_anchor` living inside
     `_isolate_engines` is an implementation convenience that must *read* as substantiveness

@@ -104,6 +104,7 @@ class TestSerializationRoundTrip:
             'source_card_oracle_id', 'deck_context', 'scryfall_query',
             'scryfall_resolved_count', 'verified_at', 'breadth_warning',
             'lifecycle', 'extraction_version', 'derivation_version',
+            'combo_variant_id',
         }
         assert set(rec.keys()) == expected_keys
 

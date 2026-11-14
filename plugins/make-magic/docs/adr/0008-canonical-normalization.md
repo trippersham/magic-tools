@@ -73,6 +73,15 @@ also unaffected.
 - The `.claude/rules/adr-edge-derivation.md` rule updated to use `CardAttribute` / `ProvisionalAttributeStore`.
 - Output-preserving: both P0 hermetic SHAs identical.
 
+## Addendum (B1, 2026-11-14)
+
+`Provenance` gains an additive field `combo_variant_id: str = ''` — the stable combo
+identity for a combo-lowered edge (ADR 0021 Phase A); empty for single-card / curated /
+haiku records.  `persist()` dedup now keys on `(name, trigger_event, produced_event,
+oracle_id, combo_variant_id)` so that distinct couplings from different combos on the same
+producer attribute are both recoverable.  **No new source value** — combo-lowered edges
+reuse the existing `source='spellbook'` (combo-database-derived).
+
 ## Related records
 
 - 0001 -- knowledge placement; one name per concept, provenance on every authored fact.
