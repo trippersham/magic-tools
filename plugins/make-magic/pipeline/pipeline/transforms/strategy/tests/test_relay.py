@@ -102,7 +102,7 @@ class TestDefaultPathNoRelayEngines:
 
     The edge-category attrs (draw-to-drain, draw-to-gain, gain-to-draw) are in
     ``nodes`` but are invisible to the event graph because they appear in no
-    catalog event's ``produced_by`` / ``triggered_by`` lists.
+    catalog event's ``produced_by`` / ``triggers`` lists.
     """
 
     def test_edge_attrs_in_nodes(self, relay_ctx) -> None:
@@ -192,7 +192,7 @@ class TestBuildRelayAugmentedEventEdges:
         default_edges = []
         for evname, ev in assets.events.items():
             for p in refs_to_nodes(ev['produced_by']):
-                for c_ in refs_to_nodes(ev['triggered_by']):
+                for c_ in refs_to_nodes(ev['triggers']):
                     if p != c_:
                         default_edges.append((p, c_, evname))
 
@@ -214,7 +214,7 @@ class TestBuildRelayAugmentedEventEdges:
         default = []
         for evname, ev in assets.events.items():
             for p in refs_to_nodes(ev['produced_by']):
-                for c_ in refs_to_nodes(ev['triggered_by']):
+                for c_ in refs_to_nodes(ev['triggers']):
                     if p != c_:
                         default.append((p, c_, evname))
         assert augmented == default
@@ -360,8 +360,8 @@ class TestRelayEdgeCases:
         # So we should see: (lifegain, lifegain-matters, 'lifegain') from catalog
         #                 + (draw-to-gain, lifegain-matters, 'lifegain') from relay
         #                 + (lifegain, draw-to-gain???) wait, draw-to-gain is NOT
-        #   in the catalog's triggered_by for lifegain. It's in draw-a-card's
-        #   triggered_by. And draw-to-gain produces lifegain.
+        #   in the catalog's triggers for lifegain. It's in draw-a-card's
+        #   triggers. And draw-to-gain produces lifegain.
         #
         # Let me just check that the catalog-derived edge is still there:
         catalog_edges = [(p, c, ev) for p, c, ev in edges

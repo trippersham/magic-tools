@@ -85,7 +85,7 @@ class TestPolarityScopeRestriction:
 # ────────────────────────────────────────────────────────────────────────────
 
 # The canonical field set for a non-terminal event node.
-_ALLOWED_FIELDS = frozenset({'rule', 'produced_by', 'triggered_by', 'abbrev'})
+_ALLOWED_FIELDS = frozenset({'rule', 'produced_by', 'triggers', 'abbrev'})
 # game-end extends the allowed set with polarity/scope.
 _GAME_END_EXTRA = frozenset({'polarity', 'scope'})
 
@@ -104,8 +104,8 @@ class TestEventNodeFieldSet:
             )
 
     def test_every_event_has_required_fields(self, events: dict[str, dict]) -> None:
-        """Every event carries rule + produced_by + triggered_by."""
-        required = {'rule', 'produced_by', 'triggered_by'}
+        """Every event carries rule + produced_by + triggers."""
+        required = {'rule', 'produced_by', 'triggers'}
         for name, ev in events.items():
             missing = required - set(ev.keys())
             assert not missing, (
@@ -148,14 +148,14 @@ class TestPhase2BInertEvents:
             ev = events[slug]
             assert 'rule' in ev, f'{slug}: missing rule'
             assert 'produced_by' in ev, f'{slug}: missing produced_by'
-            assert 'triggered_by' in ev, f'{slug}: missing triggered_by'
+            assert 'triggers' in ev, f'{slug}: missing triggers'
 
     def test_new_events_are_inert(self, events: dict[str, dict]) -> None:
-        """Inert means empty produced_by and triggered_by — no edge wiring yet."""
+        """Inert means empty produced_by and triggers — no edge wiring yet."""
         for slug in self._NEW_EVENTS:
             ev = events[slug]
             assert ev['produced_by'] == [], f'{slug}: produced_by should be empty (inert)'
-            assert ev['triggered_by'] == [], f'{slug}: triggered_by should be empty (inert)'
+            assert ev['triggers'] == [], f'{slug}: triggers should be empty (inert)'
 
     def test_game_end_has_polarity_and_scope(self, events: dict[str, dict]) -> None:
         """game-end is the ONLY event with polarity + scope fields."""

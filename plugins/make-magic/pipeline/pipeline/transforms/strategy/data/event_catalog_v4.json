@@ -8,7 +8,7 @@
         "reanimate-land",
         "recursion-land"
       ],
-      "triggered_by": [
+      "triggers": [
         "islandfall",
         "land-count-matters",
         "landfall",
@@ -30,7 +30,7 @@
         "repeatable-creature-tokens",
         "repeatable-token-generator"
       ],
-      "triggered_by": [
+      "triggers": [
         "creature-count-matters",
         "enters-in-company",
         "flicker",
@@ -56,7 +56,7 @@
         "flicker-slow",
         "flicker-vehicle"
       ],
-      "triggered_by": [
+      "triggers": [
         "enters-and-leaves-trigger-self",
         "leaves-battlefield-trigger",
         "leaves-body-behind",
@@ -80,7 +80,7 @@
         "sacrifice-outlet-universal",
         "sacrifice-self"
       ],
-      "triggered_by": [
+      "triggers": [
         "cheat-death",
         "cheat-death-self",
         "death-trigger",
@@ -108,7 +108,7 @@
         "sacrifice-outlet-universal",
         "sacrifice-self"
       ],
-      "triggered_by": [
+      "triggers": [
         "death-trigger",
         "death-trigger-opponent",
         "death-trigger-self",
@@ -136,7 +136,7 @@
         "sacrifice-self",
         "wheel"
       ],
-      "triggered_by": [
+      "triggers": [
         "activate-from-graveyard",
         "affinity-for-graveyard",
         "card-types-in-graveyard-matter",
@@ -215,7 +215,7 @@
         "mill-self",
         "sac"
       ],
-      "triggered_by": [
+      "triggers": [
         "reanimate",
         "reanimate-artifact",
         "reanimate-artifact-creature",
@@ -278,7 +278,7 @@
         "copy-sorcery",
         "copy-spell"
       ],
-      "triggered_by": [
+      "triggers": [
         "cast-trigger",
         "cast-trigger-other",
         "cast-trigger-self",
@@ -301,7 +301,7 @@
         "forced-attacker",
         "gives-haste"
       ],
-      "triggered_by": [
+      "triggers": [
         "attack-trigger",
         "attacking-matters",
         "attacking-matters-any",
@@ -319,7 +319,7 @@
         "gives-evasion",
         "gives-trample"
       ],
-      "triggered_by": [
+      "triggers": [
         "combat-neutral-damage-trigger",
         "retaliate-to-damage",
         "scales-with-damage-dealt"
@@ -334,7 +334,7 @@
         "lifegain",
         "repeatable-lifegain"
       ],
-      "triggered_by": [
+      "triggers": [
         "life-total-matters-self",
         "lifegain-increaser",
         "lifegain-matters",
@@ -350,7 +350,7 @@
         "drain-life",
         "opponent-loses-life"
       ],
-      "triggered_by": [
+      "triggers": [
         "life-loss-matters",
         "self-life-loss-matters"
       ]
@@ -365,7 +365,7 @@
         "repeatable-pp-counters",
         "repeatable-proliferate"
       ],
-      "triggered_by": [
+      "triggers": [
         "counter-fuel",
         "counter-fuel-aesthetic",
         "counter-fuel-any",
@@ -396,7 +396,7 @@
         "repeatable-proliferate",
         "synergy-proliferate"
       ],
-      "triggered_by": [
+      "triggers": [
         "counter-fuel",
         "counter-fuel-aesthetic",
         "counter-fuel-any",
@@ -430,7 +430,7 @@
         "repeatable-token-generator",
         "repeatable-treasures"
       ],
-      "triggered_by": [
+      "triggers": [
         "artifact-count-matters",
         "creature-count-matters",
         "synergy-token",
@@ -446,7 +446,7 @@
         "repeatable-artifact-tokens",
         "repeatable-treasures"
       ],
-      "triggered_by": [
+      "triggers": [
         "affinity-for-artifacts",
         "artifact-count-matters",
         "artifactfall",
@@ -459,7 +459,7 @@
         "repeatable-food",
         "repeatable-treasures"
       ],
-      "triggered_by": [
+      "triggers": [
         "eat-food",
         "lifegain-matters",
         "synergy-food"
@@ -473,7 +473,7 @@
         "draw-engine",
         "repeatable-draw"
       ],
-      "triggered_by": [
+      "triggers": [
         "draw-matters",
         "hand-size-matters",
         "second-draw-matters",
@@ -495,7 +495,7 @@
         "rummage",
         "wheel"
       ],
-      "triggered_by": [
+      "triggers": [
         "castable-from-graveyard",
         "discard-matters",
         "discarded-type-matters",
@@ -508,7 +508,7 @@
         "gains-deathtouch",
         "gives-deathtouch"
       ],
-      "triggered_by": [
+      "triggers": [
         "combat",
         "old-blocking-deathtouch",
         "old-damage-deathtouch",
@@ -519,7 +519,7 @@
       "produced_by": [
         "extra-turn"
       ],
-      "triggered_by": [
+      "triggers": [
         "monarch-matters",
         "off-turn-casting-matters"
       ]
@@ -535,7 +535,7 @@
         "recursion-land",
         "tutor-land-to-battlefield"
       ],
-      "triggered_by": [
+      "triggers": [
         "islandfall",
         "land-count-matters",
         "landfall",
@@ -558,7 +558,7 @@
         "repeatable-token-generator",
         "tokens"
       ],
-      "triggered_by": [
+      "triggers": [
         "creature-count-matters",
         "enters-in-company",
         "flicker",
@@ -584,7 +584,7 @@
         "removal",
         "sac"
       ],
-      "triggered_by": [
+      "triggers": [
         "enters-and-leaves-trigger-self",
         "leaves-battlefield-trigger",
         "leaves-body-behind",
@@ -609,7 +609,7 @@
         "sacrifice-outlet-universal",
         "sacrifice-self"
       ],
-      "triggered_by": [
+      "triggers": [
         "cheat-death",
         "cheat-death-self",
         "death-trigger",
@@ -638,7 +638,7 @@
         "sacrifice-outlet-universal",
         "sacrifice-self"
       ],
-      "triggered_by": [
+      "triggers": [
         "death-trigger",
         "death-trigger-opponent",
         "death-trigger-self",
@@ -667,7 +667,7 @@
         "sacrifice-self",
         "wheel"
       ],
-      "triggered_by": [
+      "triggers": [
         "activate-from-graveyard",
         "affinity-for-graveyard",
         "card-types-in-graveyard-matter",
@@ -738,7 +738,7 @@
         "copy-sorcery",
         "copy-spell"
       ],
-      "triggered_by": [
+      "triggers": [
         "cast-trigger",
         "cast-trigger-other",
         "cast-trigger-self",
@@ -762,7 +762,7 @@
         "gives-haste",
         "tokens"
       ],
-      "triggered_by": [
+      "triggers": [
         "attack-trigger",
         "attacking-matters",
         "attacking-matters-any",
@@ -781,7 +781,7 @@
         "gives-evasion",
         "gives-trample"
       ],
-      "triggered_by": [
+      "triggers": [
         "combat-neutral-damage-trigger",
         "retaliate-to-damage",
         "scales-with-damage-dealt"
@@ -797,7 +797,7 @@
         "lifegain",
         "repeatable-lifegain"
       ],
-      "triggered_by": [
+      "triggers": [
         "life-total-matters-self",
         "lifegain-increaser",
         "lifegain-matters",
@@ -815,7 +815,7 @@
         "opponent-loses-life",
         "sac"
       ],
-      "triggered_by": [
+      "triggers": [
         "life-loss-matters",
         "self-life-loss-matters"
       ]
@@ -831,7 +831,7 @@
         "repeatable-pp-counters",
         "repeatable-proliferate"
       ],
-      "triggered_by": [
+      "triggers": [
         "counter-fuel",
         "counter-fuel-aesthetic",
         "counter-fuel-any",
@@ -863,7 +863,7 @@
         "repeatable-proliferate",
         "synergy-proliferate"
       ],
-      "triggered_by": [
+      "triggers": [
         "counter-fuel",
         "counter-fuel-aesthetic",
         "counter-fuel-any",
@@ -899,7 +899,7 @@
         "repeatable-treasures",
         "tokens"
       ],
-      "triggered_by": [
+      "triggers": [
         "artifact-count-matters",
         "creature-count-matters",
         "sac",
@@ -916,7 +916,7 @@
         "repeatable-artifact-tokens",
         "repeatable-treasures"
       ],
-      "triggered_by": [
+      "triggers": [
         "affinity-for-artifacts",
         "artifact-count-matters",
         "artifactfall",
@@ -930,7 +930,7 @@
         "repeatable-food",
         "repeatable-treasures"
       ],
-      "triggered_by": [
+      "triggers": [
         "eat-food",
         "lifegain-matters",
         "synergy-food"
@@ -945,7 +945,7 @@
         "draw-engine",
         "repeatable-draw"
       ],
-      "triggered_by": [
+      "triggers": [
         "draw-matters",
         "hand-size-matters",
         "second-draw-matters",
@@ -968,7 +968,7 @@
         "rummage",
         "wheel"
       ],
-      "triggered_by": [
+      "triggers": [
         "castable-from-graveyard",
         "discard-matters",
         "discarded-type-matters",
@@ -991,7 +991,7 @@
         "mill-self",
         "sac"
       ],
-      "triggered_by": [
+      "triggers": [
         "castable-from-graveyard",
         "graveyard-fuel",
         "graveyard-fuel-artifact",
@@ -1055,7 +1055,7 @@
         "gains-deathtouch",
         "gives-deathtouch"
       ],
-      "triggered_by": [
+      "triggers": [
         "combat",
         "old-blocking-deathtouch",
         "old-damage-deathtouch",
@@ -1067,7 +1067,7 @@
       "produced_by": [
         "extra-turn"
       ],
-      "triggered_by": [
+      "triggers": [
         "monarch-matters",
         "off-turn-casting-matters"
       ]
@@ -1079,7 +1079,7 @@
         "copy-token",
         "copy-self"
       ],
-      "triggered_by": [
+      "triggers": [
         "creature-count-matters",
         "synergy-token-creature",
         "synergy-token",
@@ -1105,7 +1105,7 @@
         "ritual-untap",
         "etb-untapper"
       ],
-      "triggered_by": [
+      "triggers": [
         "untapped-matters-self",
         "synergy-untapped"
       ]
@@ -1115,7 +1115,7 @@
       "produced_by": [
         "rad-counter"
       ],
-      "triggered_by": [
+      "triggers": [
         "synergy-mill",
         "mill-self",
         "mill-any",
@@ -1129,19 +1129,27 @@
     "mana-produced": {
       "rule": "CR 106: producing mana (tapping lands, mana dorks, rituals, Treasure sacrifice). Covers 179 Spellbook mana fids (13.3% of features, 34% of corpus combos had no event home before this). Classified by feature name, not by the uncountable+mana derivation (see ADR 0007 when wired).",
       "produced_by": [],
-      "triggered_by": []
+      "triggers": []
     },
     "game-end": {
-      "rule": "CR 104.1/104.2/104.3: the game ends. Terminal node — the walk target. Fids map here with polarity (win/draw/loss) from the research route and scope from the feature. Rule-edges from life-loss-drain (SBA 104.3b), library-depleted (CR 104.3c), and combat-damage-dealt reach game-end through the EventEffect graph.",
-      "polarity": ["win", "draw", "loss"],
-      "scope": ["table", "target", "self"],
+      "rule": "CR 104.1/104.2/104.3: the game ends. Terminal node \u2014 the walk target. Fids map here with polarity (win/draw/loss) from the research route and scope from the feature. Rule-edges from life-loss-drain (SBA 104.3b), library-depleted (CR 104.3c), and combat-damage-dealt reach game-end through the EventEffect graph.",
+      "polarity": [
+        "win",
+        "draw",
+        "loss"
+      ],
+      "scope": [
+        "table",
+        "target",
+        "self"
+      ],
       "produced_by": [],
-      "triggered_by": []
+      "triggers": []
     },
     "library-depleted": {
       "rule": "CR 104.3c: a player with an empty library who would draw loses. Covers mill/library-exile fids directed at opponents (32 features). Replaces the implicit 'deckout' concept with an explicit event node; a rule-edge to game-end (CR 104.3c) will be wired in the EventEffect graph when the adapter is consumed.",
       "produced_by": [],
-      "triggered_by": []
+      "triggers": []
     }
   },
   "_note_v3": "identical to event_catalog_v2; v3 narrowing is naming-level.",

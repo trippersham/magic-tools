@@ -8,7 +8,7 @@ module injects the attribute as a **relay node** in the event graph:
 - **producer** of its ``produced_event`` (the event the card's effect ability
   generates)
 
-This reuses the EXISTING ``produced_by x triggered_by -> event_edges``
+This reuses the EXISTING ``produced_by x triggers -> event_edges``
 construction from :func:`.facts.compute_facts` — no new edge type.  Within-card
 edges now let loops compose across cards through the event layer
 ``_isolate_engines`` already walks.
@@ -93,7 +93,7 @@ def build_relay_augmented_event_edges(
     Identical to the ``compute_facts`` event-edge construction, EXCEPT: for each
     curated edge-category attribute in *nodes*, the attribute is injected as:
 
-    - a **consumer** of its ``trigger_event`` (appended to ``triggered_by``)
+    - a **consumer** of its ``trigger_event`` (appended to ``triggers``)
     - a **producer** of its ``produced_event`` (appended to ``produced_by``)
 
     This makes within-card edges visible to the event graph so loops can compose
@@ -107,7 +107,7 @@ def build_relay_augmented_event_edges(
         support cards or commander attrs).
     events
         ``assets.events`` — the event catalog dict (keys = event slugs,
-        values have ``produced_by`` and ``triggered_by`` lists).
+        values have ``produced_by`` and ``triggers`` lists).
 
     Returns
     -------
@@ -120,11 +120,11 @@ def build_relay_augmented_event_edges(
     augmented_triggered: dict[str, list[str]] = {}
     for evname, ev in events.items():
         augmented_produced[evname] = list(ev['produced_by'])
-        augmented_triggered[evname] = list(ev['triggered_by'])
+        augmented_triggered[evname] = list(ev['triggers'])
 
     # Inject relay nodes from edge-category attrs present in nodes.
     # Sorted iteration for determinism (the injection order does not affect the
-    # cross-product, but the produced_by/triggered_by append order is stable).
+    # cross-product, but the produced_by/triggers append order is stable).
     for attr in sorted(nodes):
         role = _get_role_with_store(attr, store)
         if role is None:

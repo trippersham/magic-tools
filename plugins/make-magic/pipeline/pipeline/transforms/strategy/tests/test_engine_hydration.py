@@ -90,7 +90,7 @@ class TestEngineRelevantOtags:
     def test_some_otags_in_both(self) -> None:
         """Some otags (like ``sac``) can be both trigger and effect."""
         trigger, effect = engine_relevant_otags()
-        # `sac` is a produced_by for several events and a triggered_by for
+        # `sac` is a produced_by for several events and a triggers entry for
         # token-created, so it appears in both.
         assert 'sac' in (trigger & effect)
 
@@ -447,7 +447,7 @@ class TestVerifyEndToEnd:
                   'Whenever an opponent loses life, you gain that much life.',
                   ['life-loss-matters', 'lifegain', 'repeatable-lifegain']),
             # FP: self-loss (no opponent anchor), has self-life-loss-matters
-            # which IS in triggered_by, but missing a produced_by otag
+            # which IS in triggers, but missing a produced_by otag
             _card('Transcendence-like',
                   'Whenever you lose life, you gain that much life instead.',
                   ['self-life-loss-matters']),

@@ -468,7 +468,7 @@ def compute_facts(
     event_edges = []
     for evname, ev in assets.events.items():
         for p in refs_to_nodes(ev['produced_by']):
-            for c_ in refs_to_nodes(ev['triggered_by']):
+            for c_ in refs_to_nodes(ev['triggers']):
                 if p != c_:
                     event_edges.append((p, c_, evname))
 

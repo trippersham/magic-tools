@@ -751,7 +751,7 @@ class TestSynthBreadthReroute:
         """reauthor returns an edge-with-otag: re-gated through edge path.
 
         Uses real catalog events so corroboration can pass:
-        - trigger_event='counter-placed' triggered_by includes 'counters-matter'
+        - trigger_event='counter-placed' triggers includes 'counters-matter'
         - produced_event='counter-placed' produced_by includes 'counters'
         """
         original = self._broad_synth_edge()
@@ -771,7 +771,7 @@ class TestSynthBreadthReroute:
             return rerouted_edge
 
         # Build a pool where the otag-based query corroborates.
-        # Cards need otags from counter-placed.triggered_by ('counters-matter')
+        # Cards need otags from counter-placed.triggers ('counters-matter')
         # AND counter-placed.produced_by ('counters') for corroboration.
         pool = [
             _card('Jadzia Dax', 'number of counters on her.',

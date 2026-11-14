@@ -12,7 +12,7 @@
 The event catalog (`data/event_catalog_v4.json`) defines the **bounded trigger taxonomy**
 of the game — the complete set of game events a deck's cards can produce or respond to
 (land-ETB, creature-ETB, dies, attacks, spell-cast, lifegain, etc.). Each event node
-carries `{rule, produced_by, triggered_by}` and optionally `abbrev` for display.
+carries `{rule, produced_by, triggers}` and optionally `abbrev` for display.
 
 Design-3 (section 3.1) and design-2 (section 2) settled three questions:
 
@@ -34,7 +34,7 @@ Design-3 (section 3.1) and design-2 (section 2) settled three questions:
 
 ### No `role` or `terminal` field
 
-Event nodes carry **only** `{rule, produced_by, triggered_by}` plus the optional
+Event nodes carry **only** `{rule, produced_by, triggers}` plus the optional
 display field `abbrev`. No event carries `role`, `terminal`, `polarity`, or `scope`,
 with one reserved exception: `game-end` (to be wired in Phase 2B with the fid adapter)
 may carry `polarity` and `scope`. Reachability and sink-ness are pure topology, derived
@@ -99,7 +99,7 @@ evaluator (ADR 0002) already dispatches over its closed kind-set
 
 ## Consequences
 
-- The event catalog field vocabulary is frozen to `{rule, produced_by, triggered_by, abbrev}`
+- The event catalog field vocabulary is frozen to `{rule, produced_by, triggers, abbrev}`
   plus `{polarity, scope}` on `game-end` only. The invariant test
   (`test_event_ontology.py`) enforces this.
 - When `game-end` lands in Phase 2B, the conditional test guard flips to a positive

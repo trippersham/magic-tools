@@ -199,7 +199,7 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
 
     event_anchors: set[str] = set()
     for ev in events.values():
-        for ref in ev['produced_by'] + ev['triggered_by']:
+        for ref in ev['produced_by'] + ev['triggers']:
             if ref not in bucket_names:
                 event_anchors.add(ref)
 

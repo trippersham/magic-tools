@@ -60,14 +60,14 @@ def engine_relevant_otags() -> tuple[frozenset[str], frozenset[str]]:
 
     Returns ``(trigger_otags, effect_otags)`` where:
 
-    - **trigger_otags** = union of every event's ``triggered_by``
+    - **trigger_otags** = union of every event's ``triggers``
     - **effect_otags**  = union of every event's ``produced_by``
     """
     events = _load_events()
     trigger: set[str] = set()
     effect: set[str] = set()
     for ev in events.values():
-        trigger.update(ev['triggered_by'])
+        trigger.update(ev['triggers'])
         effect.update(ev['produced_by'])
     return frozenset(trigger), frozenset(effect)
 
@@ -144,7 +144,7 @@ def frontier(
 #: Over-capture rejection threshold.
 #:
 #: The minimum fraction of captured cards that must **corroborate** — their lake
-#: otags intersect BOTH the trigger-event's ``triggered_by`` AND the
+#: otags intersect BOTH the trigger-event's ``triggers`` AND the
 #: effect-event's ``produced_by``.
 #:
 #: **Why 0.5 (50%):**
@@ -243,7 +243,7 @@ def verify(
         *expected_card_names* is given) includes the source card(s).
     (c) **Over-capture corroboration** — at least *threshold* fraction of
         captured cards have lake otags intersecting BOTH the trigger-event's
-        ``triggered_by`` AND the effect-event's ``produced_by``.
+        ``triggers`` AND the effect-event's ``produced_by``.
 
     For ``decision='synth'``, check (c) is **bypassed** in favour of a
     regex/literal-specificity check.  A synth is by definition a mechanic with
@@ -391,7 +391,7 @@ def verify(
 
     events = _load_events()
     trigger_expected = frozenset(
-        events.get(trigger_event, {}).get('triggered_by', []))
+        events.get(trigger_event, {}).get('triggers', []))
     effect_expected = frozenset(
         events.get(produced_event, {}).get('produced_by', []))
 
