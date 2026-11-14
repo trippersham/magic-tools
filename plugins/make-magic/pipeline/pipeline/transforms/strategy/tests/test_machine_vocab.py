@@ -12,6 +12,7 @@ Test organisation:
 - ``TestCompoundingReadPath``        -- 2nd deck reuses stored attr, no re-author
 - ``TestAllEdgeQueries``             -- curated + machine assembly helper
 - ``TestStoreEdgeMethods``           -- has_edge_for_card, edge_queries
+- ``TestStalenessVersion``           -- two-layer version key (5.1 / ADR 0021)
 - ``TestHermeticity``                -- populated store does NOT shift curated SHAs
 """
 
@@ -23,6 +24,8 @@ from pathlib import Path
 import pytest
 
 from pipeline.transforms.strategy.machine_vocab import (
+    DERIVATION_VERSION,
+    EXTRACTION_VERSION,
     CardAttribute,
     ProvisionalAttributeStore,
     Provenance,
@@ -100,7 +103,7 @@ class TestSerializationRoundTrip:
             'source', 'model_id', 'authored_at', 'source_card_name',
             'source_card_oracle_id', 'deck_context', 'scryfall_query',
             'scryfall_resolved_count', 'verified_at', 'breadth_warning',
-            'lifecycle',
+            'lifecycle', 'extraction_version', 'derivation_version',
         }
         assert set(rec.keys()) == expected_keys
 
@@ -473,6 +476,216 @@ class TestStoreEdgeMethods:
             _sample_attr(source_card_oracle_id='card-x'),
         ])
         assert not store.has_edge_for_card('card-y')
+
+
+# =====================================================================
+# TestStalenessVersion — two-layer version key (Phase 5.1 / ADR 0021)
+# =====================================================================
+
+class TestStalenessVersion:
+    """Two-layer staleness key: extraction_version + derivation_version.
+
+    Version constants start at 1.  Legacy records (pre-versioning, no version
+    fields) deserialize with version 0 and are therefore stale.  A record is
+    "fresh" only when both stored versions >= current constants.
+    """
+
+    # --- Version constants exist and start at 1 ---
+
+    def test_version_constants_are_positive_ints(self) -> None:
+        assert isinstance(EXTRACTION_VERSION, int)
+        assert isinstance(DERIVATION_VERSION, int)
+        assert EXTRACTION_VERSION >= 1
+        assert DERIVATION_VERSION >= 1
+
+    # --- Provenance carries version fields ---
+
+    def test_provenance_default_versions_are_zero(self) -> None:
+        """Default Provenance (no explicit versions) has version 0 (legacy)."""
+        prov = Provenance(source='haiku')
+        assert prov.extraction_version == 0
+        assert prov.derivation_version == 0
+
+    def test_provenance_accepts_explicit_versions(self) -> None:
+        prov = Provenance(source='haiku', extraction_version=1, derivation_version=2)
+        assert prov.extraction_version == 1
+        assert prov.derivation_version == 2
+
+    # --- Serialization round-trip with versions ---
+
+    def test_round_trip_with_versions(self) -> None:
+        """Attr with explicit versions survives serialize -> deserialize."""
+        attr = _sample_attr(extraction_version=3, derivation_version=5)
+        rec = _attr_to_record(attr)
+        restored = _record_to_attr(rec)
+        assert restored.provenance.extraction_version == 3
+        assert restored.provenance.derivation_version == 5
+        assert restored == attr
+
+    def test_record_includes_version_fields(self) -> None:
+        attr = _sample_attr(extraction_version=1, derivation_version=1)
+        rec = _attr_to_record(attr)
+        assert 'extraction_version' in rec
+        assert 'derivation_version' in rec
+        assert rec['extraction_version'] == 1
+        assert rec['derivation_version'] == 1
+
+    def test_legacy_record_without_versions_loads_as_zero(self) -> None:
+        """A record from before versioning (no version keys) loads with 0."""
+        legacy_rec = {
+            'name': 'old-edge',
+            'query': 'otag:foo',
+            'source': 'haiku',
+            'source_card_oracle_id': 'old-card',
+        }
+        attr = _record_to_attr(legacy_rec)
+        assert attr.provenance.extraction_version == 0
+        assert attr.provenance.derivation_version == 0
+
+    # --- Persist + load round-trip with versions ---
+
+    def test_persist_load_preserves_versions(self, tmp_path: Path) -> None:
+        store_dir = tmp_path / 'mv'
+        attr = _sample_attr(extraction_version=2, derivation_version=3)
+        persist(attr, store_dir=store_dir)
+
+        store = load_store(store_dir)
+        loaded = store.attributes[0]
+        assert loaded.provenance.extraction_version == 2
+        assert loaded.provenance.derivation_version == 3
+
+    # --- Freshness checks ---
+
+    def test_current_version_is_fresh(self) -> None:
+        """A record at current version constants is fresh."""
+        attr = _sample_attr(
+            extraction_version=EXTRACTION_VERSION,
+            derivation_version=DERIVATION_VERSION,
+        )
+        store = ProvisionalAttributeStore(attributes=[attr])
+        assert store.has_fresh_edge_for_card(
+            'abc-111-222-333',
+            extraction_version=EXTRACTION_VERSION,
+            derivation_version=DERIVATION_VERSION,
+        )
+
+    def test_higher_version_is_fresh(self) -> None:
+        """A record at a HIGHER version than current is still fresh."""
+        attr = _sample_attr(
+            extraction_version=EXTRACTION_VERSION + 1,
+            derivation_version=DERIVATION_VERSION + 1,
+        )
+        store = ProvisionalAttributeStore(attributes=[attr])
+        assert store.has_fresh_edge_for_card(
+            'abc-111-222-333',
+            extraction_version=EXTRACTION_VERSION,
+            derivation_version=DERIVATION_VERSION,
+        )
+
+    def test_lower_extraction_version_is_stale(self) -> None:
+        """A record with extraction_version < current is stale."""
+        attr = _sample_attr(
+            extraction_version=EXTRACTION_VERSION - 1,
+            derivation_version=DERIVATION_VERSION,
+        )
+        store = ProvisionalAttributeStore(attributes=[attr])
+        assert not store.has_fresh_edge_for_card(
+            'abc-111-222-333',
+            extraction_version=EXTRACTION_VERSION,
+            derivation_version=DERIVATION_VERSION,
+        )
+
+    def test_lower_derivation_version_is_stale(self) -> None:
+        """A record with derivation_version < current is stale."""
+        attr = _sample_attr(
+            extraction_version=EXTRACTION_VERSION,
+            derivation_version=DERIVATION_VERSION - 1,
+        )
+        store = ProvisionalAttributeStore(attributes=[attr])
+        assert not store.has_fresh_edge_for_card(
+            'abc-111-222-333',
+            extraction_version=EXTRACTION_VERSION,
+            derivation_version=DERIVATION_VERSION,
+        )
+
+    def test_legacy_record_is_stale(self) -> None:
+        """A legacy record (versions 0/0) is always stale."""
+        # Default Provenance has extraction_version=0, derivation_version=0
+        attr = _sample_attr()  # uses _sample_provenance which has defaults -> 0
+        store = ProvisionalAttributeStore(attributes=[attr])
+        assert not store.has_fresh_edge_for_card(
+            'abc-111-222-333',
+            extraction_version=EXTRACTION_VERSION,
+            derivation_version=DERIVATION_VERSION,
+        )
+
+    def test_has_edge_for_card_unchanged_version_agnostic(self) -> None:
+        """has_edge_for_card is still version-agnostic (backward compat)."""
+        # A stale-versioned record still returns True for has_edge_for_card
+        attr = _sample_attr(extraction_version=0, derivation_version=0)
+        store = ProvisionalAttributeStore(attributes=[attr])
+        assert store.has_edge_for_card('abc-111-222-333')
+
+    def test_idempotent_same_version_persist(self, tmp_path: Path) -> None:
+        """Persisting the same (name, oracle_id) at the same version is a no-op."""
+        store_dir = tmp_path / 'mv'
+        attr = _sample_attr(
+            extraction_version=EXTRACTION_VERSION,
+            derivation_version=DERIVATION_VERSION,
+        )
+        persist(attr, store_dir=store_dir)
+        persist(attr, store_dir=store_dir)  # idempotent
+
+        lines = (store_dir / 'attributes.jsonl').read_text().strip().splitlines()
+        assert len(lines) == 1
+
+    def test_fresh_edge_for_unknown_card_is_false(self) -> None:
+        """has_fresh_edge_for_card returns False for a card not in the store."""
+        store = ProvisionalAttributeStore(attributes=[
+            _sample_attr(
+                extraction_version=EXTRACTION_VERSION,
+                derivation_version=DERIVATION_VERSION,
+            ),
+        ])
+        assert not store.has_fresh_edge_for_card(
+            'nonexistent-oracle-id',
+            extraction_version=EXTRACTION_VERSION,
+            derivation_version=DERIVATION_VERSION,
+        )
+
+    def test_multiple_attrs_for_card_all_must_be_fresh(self) -> None:
+        """If a card has multiple attrs, has_fresh_edge_for_card is True only
+        when ALL attrs for that card are fresh (no stale attr for that oracle_id)."""
+        fresh = _sample_attr(
+            name='edge-a',
+            source_card_oracle_id='card-x',
+            extraction_version=EXTRACTION_VERSION,
+            derivation_version=DERIVATION_VERSION,
+        )
+        stale = _sample_attr(
+            name='edge-b',
+            source_card_oracle_id='card-x',
+            extraction_version=0,
+            derivation_version=0,
+        )
+        store = ProvisionalAttributeStore(attributes=[fresh, stale])
+        # Card has a stale attr -> not fully fresh
+        assert not store.has_fresh_edge_for_card(
+            'card-x',
+            extraction_version=EXTRACTION_VERSION,
+            derivation_version=DERIVATION_VERSION,
+        )
+
+    def test_frozen_snapshot_with_versions(self, tmp_path: Path) -> None:
+        """Frozen snapshot round-trips version fields."""
+        attr = _sample_attr(extraction_version=2, derivation_version=3)
+        fixture = tmp_path / 'snap.json'
+        fixture.write_text(json.dumps([_attr_to_record(attr)], indent=2))
+
+        store = load_frozen_snapshot(fixture)
+        loaded = store.attributes[0]
+        assert loaded.provenance.extraction_version == 2
+        assert loaded.provenance.derivation_version == 3
 
 
 # =====================================================================

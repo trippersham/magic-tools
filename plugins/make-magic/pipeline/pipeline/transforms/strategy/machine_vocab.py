@@ -64,6 +64,20 @@ if TYPE_CHECKING:
     pass
 
 
+# ---------------------------------------------------------------------------
+# Version constants (ADR 0021 Phase A -- two-layer staleness key)
+# ---------------------------------------------------------------------------
+
+#: Bump when text-to-features extraction logic or prompt changes.
+#: This is the only layer that can trigger a haiku re-run (and then only for
+#: candidate cards whose text could carry a newly-added concept).
+EXTRACTION_VERSION: int = 1
+
+#: Bump when features-to-events/edges derivation logic changes (pure
+#: deterministic re-walk on catalog/adapter change -- no haiku).
+DERIVATION_VERSION: int = 1
+
+
 @dataclass(frozen=True)
 class Provenance:
     """Tracks the origin of a machine-authored vocab item.
@@ -108,6 +122,14 @@ class Provenance:
     verified_at: str = ''
     breadth_warning: bool = False
     lifecycle: str = 'verified'          # 'provisional' | 'verified'
+
+    #: Extraction-logic version that produced this record (ADR 0021).
+    #: ``0`` means "pre-versioning / unknown" (legacy record, always stale).
+    extraction_version: int = 0
+
+    #: Derivation-logic version that produced this record (ADR 0021).
+    #: ``0`` means "pre-versioning / unknown" (legacy record, always stale).
+    derivation_version: int = 0
 
 
 @dataclass(frozen=True)
@@ -181,6 +203,37 @@ class ProvisionalAttributeStore:
             for a in self.attributes
         )
 
+    def has_fresh_edge_for_card(
+        self,
+        source_card_oracle_id: str,
+        *,
+        extraction_version: int = EXTRACTION_VERSION,
+        derivation_version: int = DERIVATION_VERSION,
+    ) -> bool:
+        """Version-aware freshness check (ADR 0021 Phase A staleness key).
+
+        Returns ``True`` only when the store contains at least one edge for
+        the given ``oracle_id`` **and** every such edge's stored versions
+        are ``>=`` the requested versions.  A record stamped with an older
+        version is **stale** and needs reprocessing (but is NOT deleted here;
+        the 5.3 driver decides reprocessing).
+
+        Unlike :meth:`has_edge_for_card` (which is version-agnostic and
+        always available), this method is the gate the Phase-A process-once
+        driver uses to decide whether a card needs re-extraction/re-derivation.
+        """
+        matching = [
+            a for a in self.attributes
+            if a.provenance.source_card_oracle_id == source_card_oracle_id
+        ]
+        if not matching:
+            return False
+        return all(
+            a.provenance.extraction_version >= extraction_version
+            and a.provenance.derivation_version >= derivation_version
+            for a in matching
+        )
+
     def edge_queries(self) -> list[tuple[str, str]]:
         """Return ``(name, query)`` pairs for all machine-authored edge attrs.
 
@@ -228,6 +281,8 @@ def _record_to_attr(rec: dict) -> CardAttribute:
         verified_at=rec.get('verified_at', ''),
         breadth_warning=rec.get('breadth_warning', False),
         lifecycle=rec.get('lifecycle', 'provisional' if source == 'haiku' else 'verified'),
+        extraction_version=rec.get('extraction_version', 0),
+        derivation_version=rec.get('derivation_version', 0),
     )
     return CardAttribute(
         name=rec['name'],
