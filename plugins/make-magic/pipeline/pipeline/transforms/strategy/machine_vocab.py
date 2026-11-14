@@ -241,6 +241,36 @@ class ProvisionalAttributeStore:
             for a in matching
         )
 
+    def has_fresh_edges_for_combo(
+        self,
+        combo_variant_id: str,
+        *,
+        derivation_version: int = DERIVATION_VERSION,
+    ) -> bool:
+        """Version-aware freshness check for combo-implied edges (ADR 0021 B1).
+
+        Returns ``True`` only when the store contains at least one edge keyed
+        to the given ``combo_variant_id`` **and** every such edge's stored
+        ``derivation_version`` is ``>=`` the requested version.  A combo that
+        produced 0 edges (``|E(C)| < 2``) will always return ``False`` (no
+        records to find), so the driver will re-derive it — acceptably cheap
+        because derivation is deterministic and produces nothing.
+
+        This is the combo-level analogue of :meth:`has_fresh_edge_for_card`
+        (which checks ``source_card_oracle_id``).  Combo edges have an empty
+        ``source_card_oracle_id`` and are keyed by ``combo_variant_id``.
+        """
+        matching = [
+            a for a in self.attributes
+            if a.provenance.combo_variant_id == combo_variant_id
+        ]
+        if not matching:
+            return False
+        return all(
+            a.provenance.derivation_version >= derivation_version
+            for a in matching
+        )
+
     def edge_queries(self) -> list[tuple[str, str]]:
         """Return ``(name, query)`` pairs for all machine-authored edge attrs.
 
@@ -459,6 +489,92 @@ def persist(attr: CardAttribute, store_dir: Path | str | None = None) -> None:
     line = json.dumps(record, sort_keys=True, ensure_ascii=False)
     with store_path.open('a', encoding='utf-8') as f:
         f.write(line + '\n')
+
+
+def persist_batch(
+    attrs: list[CardAttribute],
+    store_dir: Path | str | None = None,
+) -> int:
+    """Persist a batch of CardAttributes to the durable store in one pass.
+
+    Like :func:`persist`, but reads the existing dedup keys **once** and
+    appends all new records in a single file write.  Returns the number of
+    new records actually written (0 on a full no-op re-run).
+
+    **Idempotency:** deduplicates on the same 5-tuple key as :func:`persist`.
+
+    Parameters
+    ----------
+    attrs
+        A list of :class:`CardAttribute` records to persist.
+    store_dir
+        Directory to write the store into.  Defaults to the XDG default.
+
+    Raises
+    ------
+    ValueError
+        If any attribute has ``source='curated'``.
+    """
+    if not attrs:
+        return 0
+
+    for attr in attrs:
+        if attr.provenance.source == 'curated':
+            raise ValueError(
+                f'Cannot persist curated attribute {attr.name!r} to the '
+                f'machine store.  Curated attrs belong in vocab.py.'
+            )
+
+    if store_dir is not None:
+        store_dir = Path(store_dir)
+    resolved_dir = store_dir or _DEFAULT_STORE_DIR
+    store_path = resolved_dir / _STORE_FILENAME
+
+    # Load existing dedup keys once.
+    existing_keys: set[tuple[str, ...]] = set()
+    if store_path.exists():
+        text = store_path.read_text(encoding='utf-8').strip()
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                rec = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+            existing_keys.add((
+                rec.get('name', ''),
+                rec.get('trigger_event', ''),
+                rec.get('produced_event', ''),
+                rec.get('source_card_oracle_id', ''),
+                rec.get('combo_variant_id', ''),
+            ))
+
+    # Compute new records, deduplicating against existing AND within the batch.
+    new_lines: list[str] = []
+    for attr in attrs:
+        key = (
+            attr.name,
+            attr.trigger_event,
+            attr.produced_event,
+            attr.provenance.source_card_oracle_id,
+            attr.provenance.combo_variant_id,
+        )
+        if key in existing_keys:
+            continue
+        existing_keys.add(key)
+        record = _attr_to_record(attr)
+        new_lines.append(json.dumps(record, sort_keys=True, ensure_ascii=False))
+
+    if not new_lines:
+        return 0
+
+    resolved_dir.mkdir(parents=True, exist_ok=True)
+    with store_path.open('a', encoding='utf-8') as f:
+        for line in new_lines:
+            f.write(line + '\n')
+
+    return len(new_lines)
 
 
 # ---------------------------------------------------------------------------

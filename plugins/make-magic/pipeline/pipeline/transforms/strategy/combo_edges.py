@@ -32,7 +32,9 @@ This module is READ-ONLY with respect to the lake.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 
 from pipeline.transforms.strategy.assets import StrategyAssets, load_assets
 from pipeline.transforms.strategy.facts import otag_derived_attrs
@@ -41,6 +43,8 @@ from pipeline.transforms.strategy.machine_vocab import (
     EXTRACTION_VERSION,
     CardAttribute,
     Provenance,
+    load_store,
+    persist_batch,
 )
 from pipeline.transforms.strategy.win_walk import (
     fid_route,
@@ -299,3 +303,162 @@ def author_combo_edges(
     for combo in sorted(combos, key=lambda c: str(c.get('variant_id', ''))):
         out.extend(derive_combo_edges(combo, otag_index, assets, authored_at=stamp))
     return out
+
+
+# ---------------------------------------------------------------------------
+# Phase-A population driver (ADR 0021, task 5.3a)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class PopulationResult:
+    """Summary of a :func:`populate_combo_edges` run.
+
+    Attributes
+    ----------
+    total_combos
+        Number of combos iterated.
+    authored
+        Number of new edges persisted (0 on a no-op re-run).
+    skipped
+        Number of combos with fresh edges already in the store (idempotent).
+    derived
+        Number of combos for which derivation ran (``total_combos - skipped``).
+    edges_derived
+        Total edge records produced by derivation (includes 0-edge combos).
+    """
+
+    total_combos: int
+    authored: int
+    skipped: int
+    derived: int
+    edges_derived: int
+
+
+def build_otag_index_from_lake(
+    oracle_parquet_dir: Path | None = None,
+) -> dict[str, set[str]]:
+    """Build ``oracle_id -> {otag slugs}`` from ``card_otag.parquet`` (deck-agnostic).
+
+    This is the universal otag index the Phase-A population driver needs.  It
+    reads the normalized ``card_otag.parquet`` (one row per ``(oracle_id, slug)``
+    pair) and groups by ``oracle_id``.
+
+    Parameters
+    ----------
+    oracle_parquet_dir
+        Explicit base directory for the lake.  ``None`` resolves via
+        ``MAKE_MAGIC_DATA_DIR`` / XDG default, same as
+        :func:`.combo.load_combos_from_lake`.
+    """
+    import duckdb
+
+    path = _otag_parquet_path(oracle_parquet_dir)
+    con = duckdb.connect(':memory:')
+    rows = con.execute(
+        f"SELECT oracle_id, slug FROM read_parquet('{path}')"
+    ).fetchall()
+    index: dict[str, set[str]] = {}
+    for oid, slug in rows:
+        index.setdefault(str(oid), set()).add(slug)
+    return index
+
+
+def _otag_parquet_path(explicit: Path | None) -> Path:
+    """Resolve ``card_otag.parquet`` path, same resolution as ``combo.py``."""
+    if explicit is not None:
+        return Path(explicit) / 'normalized' / 'card_otag.parquet'
+    try:
+        from pipeline import store as store_mod
+        return store_mod.StorePaths.resolve().layer_dir('normalized') / 'card_otag.parquet'
+    except Exception:
+        import os
+        base = os.environ.get('MAKE_MAGIC_DATA_DIR')
+        root = Path(base) if base else (Path.home() / '.local' / 'share' / 'make-magic')
+        return root / 'normalized' / 'card_otag.parquet'
+
+
+def populate_combo_edges(
+    store_dir: Path | None = None,
+    *,
+    combos: list[dict] | None = None,
+    otag_index: Mapping[str, set[str]] | None = None,
+    oracle_parquet_dir: Path | None = None,
+) -> PopulationResult:
+    """Phase-A population driver: author all combo edges into the store.
+
+    Deterministic, deck-agnostic, cached, idempotent.  Iterates every combo
+    in ``combo.parquet`` (or the provided *combos* list), calls
+    :func:`derive_combo_edges` for each, and persists the resulting
+    :class:`.machine_vocab.CardAttribute` records to the store.
+
+    **Idempotent**: combos whose edges are already fresh in the store at the
+    current :data:`DERIVATION_VERSION` are skipped (no re-derivation).  For
+    combos that ARE derived, :func:`.machine_vocab.persist` deduplicates at
+    the record level, so re-running at the same version is a no-op.
+
+    **Does NOT auto-run inside** ``compute_facts`` / ``resolve()`` (those
+    stay frozen/empty-store).  This is a separate Phase-A population step.
+
+    Parameters
+    ----------
+    store_dir
+        Directory for the machine store.  ``None`` uses the default
+        ``~/.local/share/make-magic/machine_vocab/``.
+    combos
+        Pre-loaded combo dicts.  ``None`` loads from ``combo.parquet`` via
+        :func:`.combo.load_combos_from_lake`.
+    otag_index
+        Pre-built ``oracle_id -> {otag slugs}`` index.  ``None`` builds from
+        ``card_otag.parquet`` via :func:`build_otag_index_from_lake`.
+    oracle_parquet_dir
+        Explicit lake base directory (forwarded to combo + otag loaders when
+        *combos* / *otag_index* are ``None``).
+
+    Returns
+    -------
+    PopulationResult
+        Summary of the run: how many combos were processed, skipped, and how
+        many edges were authored.
+    """
+    from pipeline.transforms.strategy.combo import load_combos_from_lake
+
+    assets = load_assets()
+
+    if combos is None:
+        combos = load_combos_from_lake(oracle_parquet_dir)
+    if otag_index is None:
+        otag_index = build_otag_index_from_lake(oracle_parquet_dir)
+
+    existing_store = load_store(store_dir)
+
+    stamp = datetime.now(UTC).isoformat()
+    skipped = 0
+    derived = 0
+    edges_derived = 0
+    all_edges: list[CardAttribute] = []
+
+    for combo in sorted(combos, key=lambda c: str(c.get('variant_id', ''))):
+        vid = str(combo.get('variant_id', ''))
+
+        # Version-aware idempotency: skip if the store already has fresh edges.
+        if existing_store.has_fresh_edges_for_combo(
+            vid, derivation_version=DERIVATION_VERSION,
+        ):
+            skipped += 1
+            continue
+
+        derived += 1
+        edges = derive_combo_edges(combo, otag_index, assets, authored_at=stamp)
+        edges_derived += len(edges)
+        all_edges.extend(edges)
+
+    # Batch-write all new edges in one pass (O(n) dedup, not O(n^2)).
+    authored = persist_batch(all_edges, store_dir=store_dir)
+
+    return PopulationResult(
+        total_combos=len(combos),
+        authored=authored,
+        skipped=skipped,
+        derived=derived,
+        edges_derived=edges_derived,
+    )
