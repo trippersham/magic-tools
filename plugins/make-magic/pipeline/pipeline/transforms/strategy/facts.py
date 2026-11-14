@@ -33,6 +33,7 @@ from pipeline.transforms.strategy.combo import (
     combos_in_deck,
 )
 from pipeline.transforms.strategy.win_walk import (
+    _RULE_TERMINAL_EVENTS,
     closure_walk,
     resolve_fids_from_feature_names,
     walk_is_win,
@@ -144,8 +145,17 @@ def _isolate_engines(
       at what the commander produces and test whether it reaches back to what the
       commander consumes. Non-empty => a commander-anchored cycle the DAG can't hold.
 
-    Purely additive: reported under ``facts['engines']`` and never consulted by the
-    naming layer (the label is unchanged).
+    The engine LEAD and the ranked ``elected`` set (0..n strategies) are chosen by
+    node-weighted event-neighborhood **mass** -- ``m(U) = Σ adens`` over a unit's
+    producers ∪ consumers (its ``weight``). Units are ordered by mass desc (recursive
+    status breaks an EXACT mass tie only); the lead is the top-mass unit and the
+    elected set keeps every unit within the 0.6 keep-ratio of the top that is not a
+    member-Jaccard-≥-0.5 near-duplicate of a kept unit (ADR 0014). ``recursive`` /
+    ``hub`` / ``commander_coupled`` / ``share`` / ``anchor`` / ``thin`` are reported
+    attributes, never election inputs. This replaces the earlier recursive-first lead.
+
+    Purely additive to the label: reported under ``facts['engines']`` and never
+    consulted by the naming layer (the label is unchanged; STRUCTURE-ONLY).
     """
     out_adj: dict[str, set[str]] = defaultdict(set)
     in_adj: dict[str, set[str]] = defaultdict(set)
@@ -181,8 +191,13 @@ def _isolate_engines(
             'payoff_archetypes': archs(C),
             'weight': round(sum(adens[a] for a in P | C), 1),
         })
-    engines.sort(key=lambda e: (e['kind'] != 'recursive-engine',
-                                -len(e['payoff_archetypes']), -e['weight'], e['event']))
+    # MASS ELECTION (ADR 0014): node-weighted event-neighborhood mass is the
+    # authoritative engine-lead signal. Each unit's mass m(U) = Σ adens over
+    # producers ∪ consumers is already computed as e['weight']. Order by mass
+    # desc; recursive status breaks an EXACT mass tie only (a reported attribute,
+    # never a primary sort key); event name is the final determinism tiebreak.
+    # This replaces the former recursive-first / payoff-count heuristic ordering.
+    engines.sort(key=lambda e: (-e['weight'], e['kind'] != 'recursive-engine', e['event']))
 
     # bounded forward chains: feeder_event -> fed_event (fed hub consumes feeder)
     chains = []
@@ -194,15 +209,74 @@ def _isolate_engines(
                 chains.append([e2['event'], e['event']])
     chains.sort()
 
-    lead = next((e for e in engines if e['kind'] == 'recursive-engine'), None)
+    # commander attrs (used by commander_coupled below AND the loop probe)
+    cmd_idx = [i for i, c in enumerate(cards) if c.get('role') == 'commander']
+    cmd_attrs: set[str] = set()
+    for i in cmd_idx:
+        cmd_attrs |= {t.lower() for t in cards[i].get('otags', [])} & nodes
+
+    def _members(e: dict) -> set[str]:
+        return set(e['producers']) | set(e['consumers'])
+
+    def _jaccard(a: set[str], b: set[str]) -> float:
+        return len(a & b) / len(a | b) if (a or b) else 0.0
+
+    def _anchor(e: dict) -> str:
+        # Generic + structure-derived; NO hardcoded payoff list. The current
+        # event_edges are in-deck producer -> in-deck consumer, so every unit is
+        # bipartite (anchor mode 1). The terminal-producer (mode 2) and
+        # exogenous-environmental (mode 3) anchors populate only once producer-
+        # only / consumer-only edges exist (later pipeline steps: mana-wiring,
+        # role-A hydration, exogenous-source modelling). The terminal set is the
+        # game-rules-derived reachable-to-game-end set (``_RULE_TERMINAL_EVENTS``),
+        # never a frozen payoff literal.
+        has_p, has_c = bool(e['producers']), bool(e['consumers'])
+        if has_p and has_c:
+            return 'bipartite'
+        if has_p and e['event'] in _RULE_TERMINAL_EVENTS:
+            return 'terminal-producer'
+        if has_c and not has_p:
+            return 'exogenous-environmental'
+        return 'bipartite'
+
+    # Engine SET (0..n): mass-sorted units; keep a unit when its mass is within
+    # the 0.6 keep-ratio of the top unit AND it is not a near-duplicate of an
+    # already-kept unit (member-Jaccard < 0.5). The list is mass-descending, so
+    # the first unit below 0.6·m(top) ends the walk. Minted constants 0.6 / 0.5
+    # (ADR 0014) -- no per-strategy knobs. recursive / commander_coupled / share /
+    # anchor / thin are REPORTED attributes only, never election inputs.
+    elected: list[dict] = []
+    if engines:
+        top_mass = engines[0]['weight']
+        total_mass = sum(e['weight'] for e in engines) or 1e-6
+        kept_members: list[set[str]] = []
+        for e in engines:
+            if e['weight'] < 0.6 * top_mass:
+                break
+            mem = _members(e)
+            if any(_jaccard(mem, km) >= 0.5 for km in kept_members):
+                continue
+            anchor = _anchor(e)
+            elected.append({
+                'event': e['event'],
+                'hub': e['hub'],
+                'mass': e['weight'],
+                'share': round(e['weight'] / total_mass, 3),
+                'anchor': anchor,
+                'recursive': e['kind'] == 'recursive-engine',
+                'commander_coupled': bool(mem & cmd_attrs),
+                'thin': anchor == 'exogenous-environmental',
+                'payoff_archetypes': e['payoff_archetypes'],
+            })
+            kept_members.append(mem)
+
+    # Lead = the top-mass elected unit (authoritative engine lead), replacing the
+    # former "first recursive-engine" selection.
+    lead = engines[0] if engines else None
 
     # commander-anchored loop probe
     cmd_loop = None
-    cmd_idx = [i for i, c in enumerate(cards) if c.get('role') == 'commander']
     if cmd_idx:
-        cmd_attrs: set[str] = set()
-        for i in cmd_idx:
-            cmd_attrs |= {t.lower() for t in cards[i].get('otags', [])} & nodes
         cmd_prod = {a for a in cmd_attrs if a in producers}
         cmd_cons = {a for a in cmd_attrs if a in consumers}
         seen = set(cmd_prod)
@@ -222,8 +296,8 @@ def _isolate_engines(
             'closes': bool(back),
         }
 
-    if lead is not None:
-        determinism = 'forward-engine-isolated'
+    if elected:
+        determinism = 'mass-elected'
     elif cmd_loop is not None and cmd_loop['closes']:
         determinism = 'loop-commander-anchored'
     else:
@@ -234,13 +308,16 @@ def _isolate_engines(
         'lead_engine': (None if lead is None else
                         {'hub': lead['hub'], 'event': lead['event'],
                          'payoff_archetypes': lead['payoff_archetypes']}),
+        'elected': elected,
         'engines': engines,
         'forward_chains': chains,
         'commander_loop': cmd_loop,
         'determinism': determinism,
         'note': 'a-priori directed-graph engine isolation (per-event convergence + '
-                'relay hub + DAG-bounded chains + commander loop probe); STRUCTURE-ONLY, '
-                'never decides the label',
+                'relay hub + DAG-bounded chains + commander loop probe); the LEAD + the '
+                'ranked `elected` set come from node-weighted event-neighborhood MASS '
+                '(0.6 keep-ratio + Jaccard-0.5 dedup, ADR 0014), not recursive-first; '
+                'STRUCTURE-ONLY, never decides the label',
     }
 
 

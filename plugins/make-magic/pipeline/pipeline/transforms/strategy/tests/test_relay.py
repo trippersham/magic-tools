@@ -40,8 +40,8 @@ FIX = Path(__file__).resolve().parent / 'fixtures'
 RELAY_DECKS = FIX / 'relay_decks'
 
 # The two parity-oracle SHAs that MUST NOT shift.
-EXPECTED_ENGINE_SHA = 'a6dfa6073324694d8068f00913aaf5e409ac993244e086ee3b5057a487559508'
-EXPECTED_RESOLVE_SHA = 'd409069e4e375729353c401ca7c60bff57de0ce317697c18dd50b184ffa1e7f9'
+EXPECTED_ENGINE_SHA = '59fe5d335bee64958585fcefb9e7c2fb13dae80017e270f05610e6c0795a8048'
+EXPECTED_RESOLVE_SHA = '82a71840d5d575f1713da027e930422f733c97f9320fce741ab7eec050a96a68'
 
 
 # ---------------------------------------------------------------------------
@@ -288,13 +288,18 @@ class TestAugmentedPathClosesLoop:
         assert iso['lead_engine'] is not None
         assert iso['lead_engine']['hub'] is not None
 
-    def test_determinism_forward_engine_isolated(self, relay_ctx, assets) -> None:
-        """The augmented path's determinism is 'forward-engine-isolated'."""
+    def test_determinism_mass_elected(self, relay_ctx, assets) -> None:
+        """The augmented path mass-elects a lead (ADR 0014 flip: 'mass-elected').
+
+        Formerly asserted 'forward-engine-isolated' (recursive-first lead). The
+        2C mass-election flip makes the lead the top-mass unit, so a non-empty
+        election reports determinism='mass-elected'.
+        """
         iso = isolate_engines_with_relay(
             relay_ctx.nodes, assets.events, relay_ctx.adens,
             assets, relay_ctx.cards,
         )
-        assert iso['determinism'] == 'forward-engine-isolated'
+        assert iso['determinism'] == 'mass-elected'
 
 
 # ---------------------------------------------------------------------------

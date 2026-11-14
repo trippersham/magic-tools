@@ -120,8 +120,32 @@ re-baseline makes every *intended* change legible as such.
   `vocab_parity_baseline.json`, `engine_isolation_baseline.json`, and
   `FULL_CORPUS_SHA` updated in the same change.
 
+- **2026-11-13 — mass-election flip (ADR 0014, "2C flip").** Node-weighted
+  event-neighborhood **mass** is now the authoritative engine-lead signal in
+  `facts.py::_isolate_engines`, replacing the former recursive-first ordering (the
+  `kind != 'recursive-engine'` primary sort key + `next(recursive)` lead). The lead
+  is the top-mass unit; a new `elected` field reports the ranked 0..n Engine set
+  (0.6 keep-ratio + member-Jaccard-0.5 dedup); `determinism` gains `'mass-elected'`.
+  Engine isolation `a6dfa607…` → `59fe5d33…`; resolve composite
+  `d409069e…` → `82a71840…`; full-corpus `0901bc62…` → `d01d8701…`.
+  5/17 hermetic fixture engine-isolation SHAs shifted; 13/17 resolve SHAs shifted
+  (the embedded `engine_isolation` sub-dict drives the resolve shift).
+  **0-regression proof (full 170-deck gauntlet):** 131/170 leads changed — 108
+  none→lead (committed had no recursive lead), 23 recursive-flips (each to a
+  strictly-higher-or-equal-mass unit; identical to the GATE-0 shadow's 23). **0**
+  `named_strategy` labels changed (STRUCTURE-ONLY invariant intact — naming never
+  reads the election). Mass-monotonicity verified: no lead dropped to None, no
+  lower-mass unit displaced a higher-mass one. E3 fixes reproduced (Karador→gy,
+  Aesi→lands, Kykar/Prosper→tokens, Urza None→artifact-enters m=47, Muldrotha
+  unchanged). `vocab_parity_baseline.json`, `engine_isolation_baseline.json`, and
+  `FULL_CORPUS_SHA` updated in the same change. Anchor-mode distribution is
+  all-bipartite (mode 1) at this step; terminal-producer (mode 2) and
+  exogenous-environmental (mode 3) anchors populate once producer-only / consumer-only
+  edges exist (later execution-sequence steps) — see ADR 0014.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`facts.py` is shared with this record).
 - 0005 — the tribe-catalog fix in the re-baseline above.
 - 0016 — the closure-mechanism win-walk that triggered the latest re-baseline.
+- 0014 — the mass-election flip that triggered the latest re-baseline.
