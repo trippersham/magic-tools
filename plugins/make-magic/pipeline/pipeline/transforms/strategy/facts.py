@@ -32,6 +32,12 @@ from pipeline.transforms.strategy.combo import (
     combo_norm,
     combos_in_deck,
 )
+from pipeline.transforms.strategy.config import FACTS_ONLY_WHEN_DISABLED, StrategyConfig
+from pipeline.transforms.strategy.degree import compute_degree_axes, power_profile
+from pipeline.transforms.strategy.query import CardView
+from pipeline.transforms.strategy.substantiveness import event_admitted
+from pipeline.transforms.strategy.tribes import compute_tribes, creature_subtypes
+from pipeline.transforms.strategy.vocab import synth_attrs_for
 from pipeline.transforms.strategy.win_walk import (
     _RULE_TERMINAL_EVENTS,
     closure_walk,
@@ -39,12 +45,6 @@ from pipeline.transforms.strategy.win_walk import (
     walk_is_win,
     walk_win_kind,
 )
-from pipeline.transforms.strategy.config import FACTS_ONLY_WHEN_DISABLED, StrategyConfig
-from pipeline.transforms.strategy.degree import compute_degree_axes, power_profile
-from pipeline.transforms.strategy.query import CardView
-from pipeline.transforms.strategy.substantiveness import event_admitted
-from pipeline.transforms.strategy.tribes import compute_tribes, creature_subtypes
-from pipeline.transforms.strategy.vocab import synth_attrs_for
 
 TYPAL = 'typal/tribal'
 

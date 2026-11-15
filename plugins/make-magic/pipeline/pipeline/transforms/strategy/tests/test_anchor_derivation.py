@@ -569,3 +569,102 @@ class TestExclusivityValidator:
                 f'{event_name}: ramp precision {res.precision:.3f} '
                 f'>= {EXCLUSIVITY_PRECISION_MIN}'
             )
+
+    def test_ramp_as_seed_caught_by_validator(self) -> None:
+        """Adding ``ramp`` as a seed to land-enters.produced_by or
+        mana-produced.produced_by MUST make ``validate_anchor_map()`` return a
+        violation.
+
+        This is the NON-TAUTOLOGICAL acceptance test: the leave-one-out
+        exclusivity check catches a cross-mechanic umbrella hand-listed as a
+        seed — the validator is no longer a tautology.
+        """
+        import copy
+
+        from pipeline.transforms.strategy.anchor_derivation import (
+            ANCHOR_MAP,
+            validate_anchor_map,
+        )
+
+        for event_name in ('land-enters-battlefield', 'mana-produced'):
+            poisoned = copy.deepcopy(ANCHOR_MAP)
+            poisoned[event_name]['produced_by']['anchors'].append('ramp')
+            violations = validate_anchor_map(anchor_map=poisoned)
+            ramp_violations = [v for v in violations if 'ramp' in v]
+            assert ramp_violations, (
+                f'Adding ramp as a seed to {event_name}.produced_by did NOT '
+                f'trigger a violation — the validator is tautological. '
+                f'All violations: {violations}'
+            )
+
+    def test_climb_to_frontier_removed(self) -> None:
+        """``climb_to_frontier`` is deleted (was dead code with zero callers)."""
+        import pipeline.transforms.strategy.anchor_derivation as ad
+
+        assert not hasattr(ad, 'climb_to_frontier'), (
+            'climb_to_frontier still exists — it was dead code and should be deleted'
+        )
+
+
+# ---------------------------------------------------------------------------
+# 8. event_admitted gate test (Gate-2 test gap)
+# ---------------------------------------------------------------------------
+
+class TestEventAdmittedGate:
+    """``event_admitted`` gates the mana-produced engine unit into the mass
+    election based on whether the command zone anchors mana production.
+
+    A mana commander (commander carries a producer_anchor ref like
+    ``mana-producer``) passes; a non-mana commander whose mana unit lacks the
+    anchor is refused.
+    """
+
+    def test_mana_commander_admitted(self) -> None:
+        """A commander with a mana-production attr admits mana-produced."""
+        from pipeline.transforms.strategy.assets import load_assets
+        from pipeline.transforms.strategy.substantiveness import event_admitted
+
+        assets = load_assets()
+        # A commander carrying 'mana-producer' (or 'ramp' via extra_refs)
+        # anchors mana-produced election candidacy.
+        cmd_attrs_mana = {'mana-producer', 'lifegain-matters'}
+        assert event_admitted('mana-produced', cmd_attrs_mana, assets), (
+            'A mana-producer commander should admit mana-produced'
+        )
+
+    def test_ramp_commander_admitted(self) -> None:
+        """A commander carrying 'ramp' (via extra_refs) still anchors mana."""
+        from pipeline.transforms.strategy.assets import load_assets
+        from pipeline.transforms.strategy.substantiveness import event_admitted
+
+        assets = load_assets()
+        # 'ramp' is in extra_refs for mana-produced (anchor-side-only).
+        cmd_attrs_ramp = {'ramp', 'landfall'}
+        assert event_admitted('mana-produced', cmd_attrs_ramp, assets), (
+            'A ramp-only commander (e.g. Derevi) should still admit mana-produced '
+            'via the extra_refs anchor'
+        )
+
+    def test_non_mana_commander_refused(self) -> None:
+        """A commander with no mana-production attrs refuses mana-produced."""
+        from pipeline.transforms.strategy.assets import load_assets
+        from pipeline.transforms.strategy.substantiveness import event_admitted
+
+        assets = load_assets()
+        # A pure combat commander carries no mana-production ref.
+        cmd_attrs_combat = {'attack-trigger', 'saboteur', 'gives-haste'}
+        assert not event_admitted('mana-produced', cmd_attrs_combat, assets), (
+            'A non-mana commander should refuse mana-produced election candidacy'
+        )
+
+    def test_non_gated_event_always_admitted(self) -> None:
+        """Events without a substantiveness bar are always admitted."""
+        from pipeline.transforms.strategy.assets import load_assets
+        from pipeline.transforms.strategy.substantiveness import event_admitted
+
+        assets = load_assets()
+        # creature-enters-battlefield has no EVENT_SUBSTANTIVENESS entry.
+        cmd_attrs_empty: set[str] = set()
+        assert event_admitted('creature-enters-battlefield', cmd_attrs_empty, assets), (
+            'An ungated event should always be admitted'
+        )

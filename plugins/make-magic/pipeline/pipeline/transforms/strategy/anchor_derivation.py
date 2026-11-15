@@ -36,21 +36,32 @@ sets).  A node is mechanic-exclusive iff it passes BOTH, generically:
 The rule is GENERIC: no per-event branch, no hand-coded umbrella blocklist.
 ``ramp`` is rejected from mana-produced AND land-enters by the same predicate
 and the same thresholds — see :func:`validate_anchor_map` and the
-``TestExclusivityValidator`` gate tests.  The derivation never *climbs into*
-``ramp`` (:func:`climb_to_frontier` stops below it), so ``ramp`` cannot appear
-in any derived list — the hand-removal it used to require is now the rule's own
-consequence.
+``TestExclusivityValidator`` gate tests.  The derivation never admits ``ramp``
+into the derived output (it is not a listed seed, and
+:func:`refused_climb_targets` refuses all ancestor umbrellas), so ``ramp``
+cannot appear in any derived list — the hand-removal it used to require is now
+the rule's own consequence.
 
-Known boundary (reported, not hand-patched)
---------------------------------------------
-A purely structural/card-evidence check cannot separate ``ramp`` from a
-legitimate broad-mechanic ROOT (``recursion``, ``draw``, ``sacrifice-outlet``)
-when the umbrella is hand-*listed* as a seed: structurally they are identical,
-and the distinction (land-fetch is not mana) is semantic.  So the enforcement
-guards the thing that is cleanly decidable — the **climb** can never ascend into
-a mechanic-diluting ancestor, and the **output** never contains one — while the
-seeds themselves stay owner-approved DATA.  Listing an umbrella AS a seed is a
-map-authoring error caught by review, not by a structural classifier.
+Enforcement boundary (honest)
+-----------------------------
+The rule has **two facets** under the one-named-rule doctrine (ADR 0001):
+
+1. **Anchor selection** — the seeds themselves are owner-approved DATA.  A
+   cross-mechanic umbrella hand-listed as a seed IS caught by the (fixed)
+   :func:`validate_anchor_map` cross-mechanic umbrella check (CI-enforced; see
+   ``MAKE_MAGIC_VALIDATE_ANCHORS``): an anchor whose descendant-closure covers
+   >= 50% of a *disjoint* foreign event-side's seed set is flagged.  ``ramp``
+   added as a seed is caught because its closure covers 50% of
+   ``mana-produced.produced_by`` and 50% of ``land-enters.produced_by`` —
+   it IS both mechanics.  Related event-sides (which share seeds) are not
+   compared, so legitimate cross-event anchors like ``sac`` are not flagged.
+2. **Mechanic-exclusivity** — the ``is_mechanic_exclusive`` predicate refuses
+   any candidate ancestor that dilutes the mechanic (the climb guard), and
+   ``refused_climb_targets`` proves no refused umbrella leaks into the output.
+
+Together: **seeds are reviewable data now CAUGHT by the CI validator** (a
+``ramp`` hand-added as a seed is a data error detected at validation time, not
+silently derived).  The output never contains a refused umbrella.
 
 Derived view — authoritative (task 6.5 flip, ADR 0022)
 ------------------------------------------------------
@@ -74,6 +85,7 @@ stays the same.
 from __future__ import annotations
 
 import enum
+import os as _os
 from collections import deque
 from dataclasses import dataclass, field
 from functools import cache, lru_cache
@@ -904,30 +916,6 @@ def proper_ancestors(slug: str, taxonomy: dict[str, dict[str, Any]]) -> frozense
     return frozenset(visited)
 
 
-def climb_to_frontier(seed: str, mechanic: frozenset[str]) -> str:
-    """Climb *seed* child->parent to the maximal mechanic-exclusive ancestor.
-
-    Returns the highest ancestor that still :func:`is_mechanic_exclusive` vs
-    *mechanic*; stops one level below the first ancestor that admits a different
-    mechanic.  For the curated seeds (already at the frontier) this is a no-op
-    and returns *seed* — but it is the rule that REFUSES to ascend into ``ramp``
-    and friends.  When *seed* has several parents it climbs the first exclusive
-    one (ties do not occur in the current catalog).
-    """
-    taxonomy = load_taxonomy()
-    current = seed
-    while current in taxonomy:
-        climbed = False
-        for parent in taxonomy[current].get('parents', []):
-            if is_mechanic_exclusive(parent, mechanic).ok:
-                current = parent
-                climbed = True
-                break
-        if not climbed:
-            break
-    return current
-
-
 def refused_climb_targets(anchors: list[str]) -> dict[str, ExclusivityResult]:
     """Ancestors of *anchors* the rule REFUSES (the cross-mechanic umbrellas).
 
@@ -949,8 +937,19 @@ def refused_climb_targets(anchors: list[str]) -> dict[str, ExclusivityResult]:
     return refused
 
 
-def validate_anchor_map() -> list[str]:
-    """Enforce the exclusivity rule over :data:`ANCHOR_MAP`.  Returns violations.
+#: A single anchor covering >= this fraction of a disjoint foreign event-side's
+#: seed set is a cross-mechanic umbrella (it IS the other mechanic).
+UMBRELLA_COVERAGE_MIN: float = 0.5
+
+#: The foreign event-side must have at least this many anchors for the umbrella
+#: check to apply (trivially small seed sets are not a meaningful mechanic).
+UMBRELLA_FOREIGN_MIN_ANCHORS: int = 3
+
+
+def validate_anchor_map(
+    anchor_map: dict[str, dict[str, Any]] | None = None,
+) -> list[str]:
+    """Enforce the exclusivity rule over *anchor_map*.  Returns violations.
 
     Hard invariants (empty list == clean):
 
@@ -959,21 +958,37 @@ def validate_anchor_map() -> list[str]:
     2. **Output purity** — the refused cross-mechanic umbrella ancestors (e.g.
        ``ramp``, discovered generically via :func:`refused_climb_targets`) never
        appear in the side's derived closure-union output.
-    3. **Frontier soundness** — every anchor that carries cards is itself
-       mechanic-exclusive against its side's mechanic (a listed anchor never
-       dilutes its own side below the precision floor).
+    3. **Cross-mechanic umbrella** (NON-TAUTOLOGICAL) — for each anchor A, if
+       A's descendant-closure covers >= :data:`UMBRELLA_COVERAGE_MIN` of a
+       *disjoint* foreign event-side's seed set (where the foreign side has >=
+       :data:`UMBRELLA_FOREIGN_MIN_ANCHORS`), A is flagged as a cross-mechanic
+       umbrella.  "Disjoint" = the two sides share no direct seeds; related
+       events (sacrifice→death) naturally share seeds and are not compared.
+       This check is non-tautological because a poisoned seed like ``ramp``
+       whose closure spans ``mana-producer``/``ritual`` (50% of
+       ``mana-produced.produced_by``) AND ``land-ramp``/``extra-land``/
+       ``sneak-land`` (50% of ``land-enters.produced_by``) is caught, while
+       legitimate same-mechanic anchors whose closures reach into related events
+       (via shared seeds) are not compared.  A ``ramp`` hand-added as a seed is
+       a reviewable data error now CAUGHT at validation time.
 
-    The ``ramp``-shaped regression (a diluting ancestor re-listed) is proven
-    excluded by :func:`refused_climb_targets` (``ramp`` is refused for both
-    mana-produced and land-enters) together with the ``TestExclusivityValidator``
-    gate.  A fully-structural auto-reject of a hand-*listed* umbrella is not
-    derivable (a documented semantic boundary, see the module docstring), so the
-    curated seeds remain owner-approved DATA checked by invariants 1 & 3.
+    Parameters
+    ----------
+    anchor_map
+        Override for testing; defaults to the module-level :data:`ANCHOR_MAP`.
     """
+    if anchor_map is None:
+        anchor_map = ANCHOR_MAP
     taxonomy = load_taxonomy()
     violations: list[str] = []
 
-    for event_name, entry in ANCHOR_MAP.items():
+    # Pre-compute seed sets for the umbrella check.
+    seed_sets: dict[tuple[str, str], set[str]] = {}
+    for ev, entry in anchor_map.items():
+        for s in ('produced_by', 'triggers'):
+            seed_sets[(ev, s)] = set(entry[s]['anchors'])
+
+    for event_name, entry in anchor_map.items():
         for side in ('produced_by', 'triggers'):
             anchors = entry[side]['anchors']
             if not anchors:
@@ -985,8 +1000,6 @@ def validate_anchor_map() -> list[str]:
                     violations.append(
                         f'{event_name}.{side}: anchor {anchor!r} has empty closure'
                     )
-
-            mechanic = mechanic_population(anchors)
 
             # (2) output purity: no refused umbrella ancestor leaks into the
             # derived closure-union output.
@@ -1000,16 +1013,27 @@ def validate_anchor_map() -> list[str]:
                         f'{umbrella!r} leaked into the derived output'
                     )
 
-            # (3) frontier soundness: each carded anchor is self-exclusive.
+            # (3) Cross-mechanic umbrella check (NON-TAUTOLOGICAL).
+            own_seeds = set(anchors)
             for anchor in anchors:
-                if not card_set(anchor):
-                    continue
-                res = is_mechanic_exclusive(anchor, mechanic)
-                if not res.ok:
-                    violations.append(
-                        f'{event_name}.{side}: anchor {anchor!r} is not '
-                        f'mechanic-exclusive ({res.reason})'
-                    )
+                closure = descendant_closure(anchor, taxonomy)
+                for (e2, s2), seeds2 in seed_sets.items():
+                    if e2 == event_name or s2 != side:
+                        continue
+                    # Only compare disjoint event-sides (no shared seeds).
+                    if own_seeds & seeds2:
+                        continue
+                    if len(seeds2) < UMBRELLA_FOREIGN_MIN_ANCHORS:
+                        continue
+                    overlap = closure & seeds2
+                    coverage = len(overlap) / len(seeds2)
+                    if coverage >= UMBRELLA_COVERAGE_MIN:
+                        violations.append(
+                            f'{event_name}.{side}: anchor {anchor!r} is a '
+                            f'cross-mechanic umbrella — its closure covers '
+                            f'{len(overlap)}/{len(seeds2)} '
+                            f'({coverage:.0%}) of {e2}.{s2} anchors'
+                        )
 
     return violations
 
@@ -1075,6 +1099,25 @@ def derive_event_adjacency(
 # and its ``active_events`` gate are retired — there is no longer an enumerated
 # path to toggle; the hand-enumerated catalog lists are the frozen seed that the
 # derivation expands over the taxonomy.
+
+
+# ---------------------------------------------------------------------------
+# CI-enforced anchor-map validation (``MAKE_MAGIC_VALIDATE_ANCHORS=1``)
+# ---------------------------------------------------------------------------
+#
+# Full validation (card-set loads from parquet + leave-one-out exclusivity) is
+# too expensive for every import (~0.5 s + I/O + DuckDB).  It runs at module
+# load when the env flag is set, which CI MUST set.  The fail-fast ensures a
+# poisoned seed (e.g. ``ramp`` hand-listed as an anchor) is CAUGHT, not
+# silently derived.
+
+if _os.environ.get('MAKE_MAGIC_VALIDATE_ANCHORS') == '1':
+    _violations = validate_anchor_map()
+    if _violations:
+        raise RuntimeError(
+            f'ANCHOR_MAP validation failed ({len(_violations)} violations):\n'
+            + '\n'.join(f'  - {v}' for v in _violations)
+        )
 
 
 # ---------------------------------------------------------------------------

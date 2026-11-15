@@ -4,7 +4,7 @@
 |---|---|
 | Status | **Accepted.** In force on branch `feat/strategy-engine`. Output-moving re-baseline (ADR 0003) carried at the 2026-11-14 flip (task 6.5). |
 | Review | Agent-authored from the empirically-validated build design (`research/adjacency-build-design.md`) and the three-round shadow measurement (`research/derived-adjacency-shadow-delta.md`); the orchestrator reconciled, ran the full-170 gauntlet (0 genuine regressions), showed the owner the delta + old→new SHAs, and committed + re-baselined. (Supersedes the `0018-DRAFT` proposal; 0018–0019 remain unused.) |
-| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (545 pass). Anchor rule: `test_anchor_derivation.py` (superset `derived ⊇ enumerated`, 0 drops; `validate_anchor_map()` 0 violations; `TestExclusivityValidator` gate — `ramp` refused for both `mana-produced` and `land-enters-battlefield`). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` + `test_event_ontology.py` + the re-baselined `FULL_CORPUS_SHA`. |
+| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (547 passed, 4 skipped). Anchor rule: `test_anchor_derivation.py` (superset `derived ⊇ enumerated` except the intended ramp-correction; `validate_anchor_map()` 0 violations; `TestExclusivityValidator` gate — `ramp` refused for both `mana-produced` and `land-enters-battlefield`; `test_ramp_as_seed_caught_by_validator` — non-tautological acceptance test; `TestEventAdmittedGate` — producer-anchor admission). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` + `test_event_ontology.py` + the re-baselined `FULL_CORPUS_SHA`. |
 | Code paths | [`anchor_derivation.py`](../../pipeline/pipeline/transforms/strategy/anchor_derivation.py) (`ANCHOR_MAP`, `derive_event_adjacency`, the enforced exclusivity validator), [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py) + [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (derive-at-load), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (`_isolate_engines` rank-don't-cut), [`event_catalog_v4.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog_v4.json) (the frozen enumerated seed, now overwritten at load). |
 
 ## Context
@@ -41,8 +41,10 @@ Two coupled changes, each one named rule (ADR 0001 — one rule, one implementat
 - **The adjacency is a *view over the live taxonomy*, not a frozen list.** `ANCHOR_MAP`
   (`anchor_derivation.py`) holds, per event side, the owner-approved mechanic-exclusive **anchor
   seeds**; `derive_event_adjacency(events)` replaces each side's list with the sorted
-  descendant-closure union of its anchors. The committed enumerated lists are a strict **subset**
-  (derived ⊇ enumerated, 0 drops).
+  descendant-closure union of its anchors. The committed enumerated lists are a strict **subset
+  except the intended ramp-correction**: `ramp` was in `land-enters-battlefield.produced_by` in the
+  enumerated catalog; the derived adjacency intentionally drops it because `land-ramp` (not `ramp`)
+  is the mechanic-exclusive concept for "puts a land onto the battlefield."
 - **Authoritative at catalog load.** The derivation is applied where the catalog is loaded —
   `assets.load_assets` (the election/density path) and `engine_hydration._load_events` (the role-A
   hydration path) — so every downstream reader (relay, facts, combo_edges, substantiveness,
@@ -54,16 +56,20 @@ Two coupled changes, each one named rule (ADR 0001 — one rule, one implementat
   with any descendant already carries the ancestor — 0 violations / 5,439 instances), so
   corroboration is `anchor ∈ card.otags`; new/specific otags a tagger adds later are covered for
   free.
-- **Exclusivity is ENFORCED code, not just review.** `is_mechanic_exclusive` /
-  `climb_to_frontier` / `validate_anchor_map` (task 6.1b) measure a candidate ancestor against the
+- **Exclusivity is enforced code with an honest boundary.** `is_mechanic_exclusive` /
+  `validate_anchor_map` (task 6.1b) measure a candidate ancestor against the
   side's own mechanic population: a node is mechanic-exclusive iff (b) its cards stay ≥
   `EXCLUSIVITY_PRECISION_MIN` inside the mechanic AND (a) it has no foreign heavy child. `ramp` is
   refused for BOTH `mana-produced` (precision 0.56) and `land-enters-battlefield` (0.28) by the
-  **same predicate and thresholds** — no per-event special-casing. The climb never ascends into a
-  mechanic-diluting umbrella, and `validate_anchor_map` proves no refused umbrella leaks into any
-  derived output. (Boundary, documented not hand-patched: a purely structural classifier cannot
-  reject an umbrella that is hand-*listed* as a seed — that is a map-authoring error caught by
-  review; the enforcement guards the cleanly-decidable climb + output.)
+  **same predicate and thresholds** — no per-event special-casing. The output purity check proves no
+  refused umbrella leaks into any derived output. The cross-mechanic umbrella check (invariant 3 of
+  `validate_anchor_map`, CI-enforced via `MAKE_MAGIC_VALIDATE_ANCHORS=1`) catches a `ramp`
+  hand-added as a seed: an anchor whose closure covers ≥ 50% of a disjoint foreign event-side's
+  seed set is flagged. Seeds are owner-approved DATA; a `ramp` hand-listed as a seed is a
+  reviewable data error now CAUGHT by the CI validator, not silently derived.
+  The rule has two facets under the one-named-rule doctrine (ADR 0001):
+  *anchor selection* (what seeds are approved — data, validated by CI) and *mechanic exclusivity*
+  (the generic climb/output guard — code).
 
 ### B. Engine keep is rank-don't-cut (#72)
 
@@ -80,7 +86,9 @@ ADR 0014** (the Jaccard-0.5 dedup is retained).
 - **Adjacency unlock** (role-A edges, build design): enumerated 28.4% → rule-derived 62.9%
   (+40 edges; trigger 72%→82%, produce 42%→77%).
 - **Full-170 gauntlet flip** (vs committed `3ab4034`): 147 decks change election — **142
-  improvements, 5 baseline-ramp-corrections, 23 neutral, 0 genuine regressions**; elected sizes
+  elected-set changes** (removals exhaustively audited: 0 genuine regressions, 9 ramp-corrections
+  + 6 Jaccard-dedups; additions not individually audited and include low-share land-enters units —
+  fetchland noise, see #76), **23 neutral**; elected sizes
   bounded (mean 3.95, max 10, both legitimately multi-axis). **1 `named_strategy` change** (Shiko →
   `alt-wincon/combo`, a real infinite-combo deck with a non-dominant primary — the textbook
   override case, via the event-anchor expansion deflating one span-confidence signal MED→LOW).
