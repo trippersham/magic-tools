@@ -88,7 +88,12 @@ ADR 0014** (the Jaccard-0.5 dedup is retained).
 - **Full-170 gauntlet flip** (vs committed `3ab4034`): 147 decks change election — **142
   elected-set changes** (removals exhaustively audited: 0 genuine regressions, 9 ramp-corrections
   + 6 Jaccard-dedups; additions not individually audited and include low-share land-enters units —
-  fetchland noise, see #76), **23 neutral**; elected sizes
+  fetchland noise, see #76 — **NOT retired by B6** (2026-11-15): B6's archetype-grain election
+  gate keeps the Alesha `land-enters-battlefield` unit because its `landfall` claim clears the
+  default `member_count(3)` bar (3 generic ramp/removal cards tagged `landfall`), so it is
+  exempt under policy (a); retiring #76 would need a landfall-specific density `Requirement`
+  — an owner-graded [0002] DATA decision, outside B6's generic reuse of the existing bar), **23
+  neutral**; elected sizes
   bounded (mean 3.95, max 10, both legitimately multi-axis). **1 `named_strategy` change** (Shiko →
   `alt-wincon/combo`, a real infinite-combo deck with a non-dominant primary — the textbook
   override case, via the event-anchor expansion deflating one span-confidence signal MED→LOW).

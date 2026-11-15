@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | **Accepted** (2026-11-15). Phase 5.6 full-corpus role-B validation passed: **187 decks, 7/7 B-test anchors RIGHT, 0 wrong, 0 empty, 0 genuine F4 violations** (the 20 initial F4 flags were all R1 false positives — winning combos aligned to their own archetype, e.g. Korvold aristocrats-combo; the heuristic was tightened). Confidence: 82 HIGH / 84 MED / 21 LOW. The derived-adjacency flip (`0d89930`) + rank-don't-cut (#72, `3ab4034`) + combo-edge B1 machinery (`442b826`) + self-healing loop (`efd1b1a`) all landed and re-baselined (P0 SHAs: engine `a7edab20`, resolve `25f50a23`, full-corpus `5ce447ef`). Suite: 547 passed, 4 skipped. **OPEN items (Accepted, not yet fully wired):** **(B6)** archetype-grain substantiveness still runs PARALLEL to the election in the naming layer — only event-grain (`producer_anchor`) is upstream of the election; the ordering invariant (substantiveness → centrality → synthesis) is not yet fully enforced at the archetype grain. **(B.3)** role-B production wiring: synthesis runs at the AGENT LAYER (no pipeline API key); production materialization — caching the per-deck Engine via the #65 `ship-materialized` pattern + a pipeline reader — is a TRACKED FOLLOW-UP. **(B1)** store population: `populate_combo_edges` is test-only → store empty → P0 byte-identical; the combo-edge authoring machinery is built but inert until a production caller populates it. |
+| Status | **Accepted** (2026-11-15). Phase 5.6 full-corpus role-B validation passed: **187 decks, 7/7 B-test anchors RIGHT, 0 wrong, 0 empty, 0 genuine F4 violations** (the 20 initial F4 flags were all R1 false positives — winning combos aligned to their own archetype, e.g. Korvold aristocrats-combo; the heuristic was tightened). Confidence: 82 HIGH / 84 MED / 21 LOW. The derived-adjacency flip (`0d89930`) + rank-don't-cut (#72, `3ab4034`) + combo-edge B1 machinery (`442b826`) + self-healing loop (`efd1b1a`) all landed and re-baselined. **B6 realized (2026-11-15):** archetype-grain substantiveness is now UPSTREAM of the election — `_isolate_engines` gates a candidate whose SOLE basis is an UNEARNED archetype claim, via the same `requirement_for(arch).satisfied` verdict the naming layer uses (0001/0002). The ordering invariant (substantiveness → centrality → synthesis) is now fully implemented at all three grains (attribute 0004 / event 0020 / archetype 0002), not partial. B6 is OUTPUT-CHANGING on the frozen P0 path (re-baselined P0 SHAs: engine `afcffc8a`, resolve `3010be2a`, full-corpus `4acf0f41`; prior `a7edab20` / `25f50a23` / `5ce447ef`). Full-170 delta: **28/170 decks change their elected set, 28 units removed (0 added), 0 genuine regressions, 0 `named_strategy` changes, 1 determinism flip (Xanathar → `loop-or-flat`, elected empties)**; every removed unit is an incidental `graveyard/reanimator` engine on a deck the engine ALREADY demotes (`gy_demoted`), so the gate introduces no new judgment. Measurement: `research/b6-election-gate-170-delta.md`. Suite: 547 passed, 4 skipped. **OPEN items (Accepted, not yet fully wired):** **(B.3)** role-B production wiring: synthesis runs at the AGENT LAYER (no pipeline API key); production materialization — caching the per-deck Engine via the #65 `ship-materialized` pattern + a pipeline reader — is a TRACKED FOLLOW-UP. **(B1)** store population landed in production (`369f209`, combo-edges ON). |
 | Review | Accepted 2026-11-15 after full-corpus validation. |
 | Scope | The whole strategy pipeline. This ADR owns the **seams between** the piece-ADRs (0001–0020), which each own one primitive or rule. It adds no new primitive. |
 | Code paths | Spans the package: `machine_vocab.py` (card-intrinsic store), `fid_adapter.py` + `edge_roles.py` + `relay.py` (derivation), `substantiveness.py` (all grains), `facts.py` (`_isolate_engines`, election), role-B synthesis (to build). The composition map below points each stage at its owning ADR. |
@@ -24,11 +24,15 @@ Unwritten superstructure is where bolt-ons breed, and it already has:
   (0017). A card's combo can be *seen* by win-detection yet author **zero relay edges** for
   the mass-election graph — the Urza thin-capture (the fid adapter recognizes Urza's combo
   for the walk but contributes nothing to the election graph).
-- **Election ∥ substantiveness (B6).** `_isolate_engines` (election, 0014) and the archetype
-  `requires_met` check (substantiveness, 0002) run as *independent* reads of the deck;
-  election never consults archetype-substantiveness. They are parallel, not ordered — which
-  inverts the ontology: **Strategy is defined as the substantive sub-graph**, so
-  substantiveness is *prior* to election, not beside it.
+- **Election ∥ substantiveness (B6).** *(Historical — resolved 2026-11-15.)* Originally
+  `_isolate_engines` (election, 0014) and the archetype substantiveness check (0002) ran as
+  *independent* reads of the deck; election never consulted archetype-substantiveness. They
+  were parallel, not ordered — which inverted the ontology: **Strategy is defined as the
+  substantive sub-graph**, so substantiveness is *prior* to election, not beside it. B6 fixes
+  this: `_isolate_engines` now consults `requirement_for(arch).satisfied` (the one-named 0002
+  evaluator) to gate a candidate whose SOLE basis is an unearned archetype claim, with the
+  owner-approved structural exemptions (commander-coupled / non-bipartite anchor / no
+  archetype claim). Substantiveness is now upstream of centrality at the archetype grain too.
 
 0001 (knowledge-placement / four-homes) is the closest existing doctrine, but it is an
 **orthogonal axis**: it says *where* knowledge lives by *what it quantifies over*, never
@@ -123,10 +127,21 @@ In strict order:
       Urza's genuine `draw-a-card` recursion instead.  The `mana-produced` resolution is
       deferred to role-B synthesis (task 5.5), with a generic `mana<->draw` value-loop edge
       as the principled fallback (NOT a deck-level hook) if role-B needs it.
-  - **B6 — make Phase-B ordering real:** substantiveness → election → synthesis, replacing the
-    current parallel election ∥ archetype-substantiveness. `producer_anchor` living inside
-    `_isolate_engines` is an implementation convenience that must *read* as substantiveness
-    qualifying the graph before centrality ranks it.
+  - **B6 — make Phase-B ordering real (REALIZED 2026-11-15):** substantiveness → election →
+    synthesis, replacing the former parallel election ∥ archetype-substantiveness.
+    `_isolate_engines` now takes `earned_archetypes` (the deck's archetypes clearing their 0002
+    `Requirement.satisfied` bar) and, after the event grain (`producer_anchor`, 0020), gates a
+    candidate whose payoff archetypes are ALL unearned AND that is not structurally anchored.
+    The earned verdict is the EXISTING per-archetype data (0002) — no new threshold/knob, no
+    deck-specific branch. Owner-approved exemptions keep a unit that (a) has ≥1 earned payoff
+    archetype, (b) is structurally anchored (commander-coupled OR a non-bipartite anchor mode),
+    or (c) makes no archetype claim. Scope: the P0 election in `compute_facts` only; the
+    structure-only relay-augmentation path (`relay.py`, feeding `engine_report`) passes
+    `earned_archetypes=None` and is unchanged. Because the gate consults the SAME `satisfied`
+    verdict that already governs naming demotion (`gy_demoted`), it introduces no judgment the
+    shipped engine did not already make — the full-170 re-baseline removed only incidental
+    graveyard units from already-`gy_demoted` decks (0 genuine regressions). See the Status
+    line and `research/b6-election-gate-170-delta.md`.
 - **Role-A** builds the Phase-A universal process-once driver (inert→no-op, native-else-haiku,
   versioned store) to this spec — not a scoped "frontier." The design-doc "Incompleteness
   Frontier (3 buckets)" framing is retired in favor of universal process-once; its

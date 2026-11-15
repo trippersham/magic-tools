@@ -125,6 +125,7 @@ def _isolate_engines(
     adens: defaultdict[str, float],
     assets: StrategyAssets,
     cards: list[dict],
+    earned_archetypes: set[str] | None = None,
 ) -> dict:
     """STRUCTURE-ONLY a-priori engine isolation over the DIRECTED event graph.
 
@@ -164,6 +165,23 @@ def _isolate_engines(
     DATA-keyed (only ``mana-produced`` today) and reads only commander attrs +
     the event's own refs — never mass. The reported ``engines`` list stays
     complete; exclusion applies to election candidacy only.
+
+    ARCHETYPE-SUBSTANTIVENESS admission (ADR 0002 second level / ADR 0021 B6)
+    completes the ordering invariant (substantiveness -> centrality -> synthesis)
+    at the ARCHETYPE grain. When ``earned_archetypes`` is supplied (the set of this
+    deck's archetypes that clear their ``Requirement.satisfied`` bar — the SAME
+    one-named evaluator the naming layer consults), a candidate is admitted unless
+    its SOLE basis is an UNEARNED archetype claim. The owner-approved exemption
+    policy KEEPS a unit that (a) has >=1 EARNED ``payoff_archetype``, or (b) is
+    STRUCTURALLY anchored (``commander_coupled``, or a non-bipartite anchor mode —
+    terminal-producer / exogenous-environmental), or (c) makes NO archetype claim
+    (empty ``payoff_archetypes`` — a pure structural event-loop). Only a unit whose
+    payoff archetypes are ALL unearned AND that is not structurally anchored is
+    gated. GENERIC — the earned verdict is the existing per-archetype data, no new
+    threshold/knob. ``earned_archetypes=None`` (the default) disables the grain for
+    the structure-only relay-augmentation path (:mod:`.relay`), which is not the P0
+    election. The reported ``engines`` list stays complete; exclusion applies to
+    election candidacy only.
 
     Purely additive to the label: reported under ``facts['engines']`` and never
     consulted by the naming layer (the label is unchanged; STRUCTURE-ONLY).
@@ -258,6 +276,30 @@ def _isolate_engines(
     # ``engines`` list stays COMPLETE — exclusion applies to candidacy only, so
     # diagnostics, chains, hubs and the loop probe are untouched.
     pool = [e for e in engines if event_admitted(e['event'], cmd_attrs, assets)]
+
+    # ARCHETYPE-SUBSTANTIVENESS admission (ADR 0002 second level / ADR 0021 B6):
+    # after the EVENT grain, gate a candidate whose SOLE basis is an UNEARNED
+    # archetype claim. ``earned_archetypes`` is the deck's set of archetypes that
+    # clear ``requirement_for(arch).satisfied`` — the SAME one-named evaluator the
+    # naming layer uses (ADR 0001/0002), passed in by ``compute_facts`` (it is the
+    # only caller that gates; the relay path passes None). Exemptions (keep the
+    # unit) are owner-approved and GENERIC — no deck-specific logic, no new
+    # threshold: (a) >=1 EARNED payoff_archetype, (b) structurally anchored
+    # (commander-coupled OR a non-bipartite anchor mode), (c) no archetype claim.
+    def _archetype_admitted(e: dict) -> bool:
+        claims = e['payoff_archetypes']
+        if not claims:  # (c) pure structural event-loop — no archetype claim
+            return True
+        if any(a in earned_archetypes for a in claims):  # (a) >=1 earned claim
+            return True
+        if _members(e) & cmd_attrs:  # (b) structural: commander-coupled
+            return True
+        # (b) structural: a non-bipartite anchor mode (terminal/exogenous); else the
+        # unit's SOLE basis is an unearned archetype claim -> gate.
+        return _anchor(e) != 'bipartite'
+
+    if earned_archetypes is not None:
+        pool = [e for e in pool if _archetype_admitted(e)]
 
     # Engine SET (0..n): RANK-DON'T-CUT (ADR 0022, #72).  Keep ALL substantive
     # units ranked by mass desc, with ONLY the Jaccard<0.5 near-duplicate dedup —
@@ -676,7 +718,10 @@ def compute_facts(
         'engines': {
             'convergent_event_components': comps[:4],
             'modularity_communities': engine_communities[:5],
-            'engine_isolation': _isolate_engines(nodes, event_edges, adens, assets, cards),
+            # engine_isolation is computed AFTER ctx (below): the ARCHETYPE-grain
+            # election gate (ADR 0021 B6) consults each archetype's
+            # ``Requirement.satisfied`` verdict, which reads ctx.
+            'engine_isolation': None,
             'note': 'engines/communities are STRUCTURE-ONLY; they do not decide the label',
         },
         'edges': {'n_cooc': len(cooc_edges), 'n_event': len(event_edges),
@@ -720,12 +765,25 @@ def compute_facts(
         mana_sink_wins=mana_sink_wins, mana_sinks_present=mana_sinks_present,
     )
 
+    from pipeline.transforms.strategy.substantiveness import requirement_for
+
+    # ARCHETYPE-grain election gate (ADR 0021 B6): the set of this deck's archetypes
+    # that clear their substantiveness bar, via the ONE named evaluator
+    # (``requirement_for(arch).satisfied``, ADR 0001/0002) — the SAME verdict the
+    # naming layer consults. ``satisfied`` reads ctx, so this runs post-ctx; the
+    # resulting engine_isolation is then placed into the (shared) facts dict.
+    earned_archetypes = {
+        arch for arch, st in strategies.items()
+        if requirement_for(arch, cfg).satisfied(st, ctx, arch)
+    }
+    facts['engines']['engine_isolation'] = _isolate_engines(
+        nodes, event_edges, adens, assets, cards, earned_archetypes)
+
     # gy_demoted: the graveyard identity clears requires_met but NOT the shared graveyard
     # attr_density Requirement (one evaluator, ADR 0002 -- no parallel copy). Equivalent to
     # the old `requires_met and not gy_sub`: satisfied() == requires_met and density, so
     # `requires_met and not satisfied()` == `requires_met and not density`. Evaluated
     # post-ctx because the evaluator reads ctx.
-    from pipeline.transforms.strategy.substantiveness import requirement_for
     gy_st = strategies.get('graveyard/reanimator')
     if gy_st and gy_st['requires_met'] and not requirement_for(
             'graveyard/reanimator', cfg).satisfied(gy_st, ctx, 'graveyard/reanimator'):

@@ -11,7 +11,10 @@
 > three places, all through Requirement KINDS dispatched by DATA — never a name branch:
 > **(1) attribute admission** — `node_admitted` (ADR 0004), level 1; **(2) archetype
 > identity** — `requirement_for(arch, cfg)` → `_EVALUATORS`, level 2 (the body of this
-> record); **(3) EVENT admission** — `event_admitted(event, cmd_attrs, assets)` →
+> record) — and, as of 2026-11-15 (B6, [0014]/[0021]), this SAME level-2 verdict also gates
+> **election candidacy** (`_isolate_engines`'s `earned_archetypes`), so one `satisfied` reading
+> drives both the archetype LABEL and whether an archetype-claiming engine unit is elected (no
+> model change, a second consumer); **(3) EVENT admission** — `event_admitted(event, cmd_attrs, assets)` →
 > `_EVENT_EVALUATORS`, level 3, gating whether a promiscuous event's engine unit may
 > ENTER the mass election. The `producer_anchor` kind (added 2026-11-14) is the first
 > level-3 kind. See the 2026-11-14 amendment below and **[0020](0020-event-substantiveness-producer-anchor.md)**.
