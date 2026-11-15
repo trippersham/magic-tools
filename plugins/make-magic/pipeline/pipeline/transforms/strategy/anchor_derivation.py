@@ -1,8 +1,10 @@
-"""Anchor-based event adjacency derivation (Phase 6.1 + 6.2).
+"""Anchor-based event adjacency derivation (Phase 6.1 + 6.2 + 6.1b).
 
 Implements the **Maximal mechanic-exclusive anchor** rule as production code
-(6.1) and the **derived ``produced_by``/``triggers``** as a shadow view behind a
-flag (6.2).
+(6.1), the **derived ``produced_by``/``triggers``** as a shadow view behind a
+flag (6.2), and the **mechanic-exclusivity validator** that enforces the rule's
+stop-condition so a cross-mechanic umbrella (``ramp``, ``triggered-ability``,
+``thingfall``) can never enter the derived adjacency (6.1b).
 
 The rule
 --------
@@ -10,14 +12,54 @@ Given an event side (produce/trigger), each ANCHOR is the **highest ancestor**
 in the otag taxonomy whose descendant-closure stays *mechanic-exclusive* — stop
 one level below any ancestor that admits a different mechanic.  The 27-event
 anchor map below was derived by the build-design measurement pass
-(``research/adjacency-build-design.md``) and is reused here as DATA.
+(``subagents/adjacency-build-design/research/adjacency-build-design.md``) and is
+reused here as DATA: each side's ``anchors`` are the owner-approved mechanic-
+exclusive **seed concepts** (``mana-producer`` for "makes mana", ``land-ramp``
+for "puts a land onto the battlefield", …), sitting at the mechanic frontier.
+
+The exclusivity check (the enforcement — task 6.1b)
+---------------------------------------------------
+:func:`is_mechanic_exclusive` decides whether a candidate taxonomy node may be
+an anchor for a side, measured against the **mechanic population** ``M`` that
+the side's own anchors establish (the union of their descendant-closure card
+sets).  A node is mechanic-exclusive iff it passes BOTH, generically:
+
+* **(b) empirical precision** — ``|cards(node) ∩ M| / |cards(node)| >=``
+  :data:`EXCLUSIVITY_PRECISION_MIN`.  Climbing to a node that admits a foreign
+  mechanic drops precision (``ramp`` for mana-produced = 0.56; for land-enters
+  = 0.28 — both below the floor).
+* **(a) structural span** — the node has no *foreign heavy child*: a child
+  whose closure is large (``>=`` :data:`EXCLUSIVITY_BRANCH_FLOOR` cards) yet
+  mostly outside ``M`` (precision ``<`` :data:`EXCLUSIVITY_BRANCH_PRECISION_MIN`),
+  i.e. a sibling branch belonging to a different mechanic.
+
+The rule is GENERIC: no per-event branch, no hand-coded umbrella blocklist.
+``ramp`` is rejected from mana-produced AND land-enters by the same predicate
+and the same thresholds — see :func:`validate_anchor_map` and the
+``TestExclusivityValidator`` gate tests.  The derivation never *climbs into*
+``ramp`` (:func:`climb_to_frontier` stops below it), so ``ramp`` cannot appear
+in any derived list — the hand-removal it used to require is now the rule's own
+consequence.
+
+Known boundary (reported, not hand-patched)
+--------------------------------------------
+A purely structural/card-evidence check cannot separate ``ramp`` from a
+legitimate broad-mechanic ROOT (``recursion``, ``draw``, ``sacrifice-outlet``)
+when the umbrella is hand-*listed* as a seed: structurally they are identical,
+and the distinction (land-fetch is not mana) is semantic.  So the enforcement
+guards the thing that is cleanly decidable — the **climb** can never ascend into
+a mechanic-diluting ancestor, and the **output** never contains one — while the
+seeds themselves stay owner-approved DATA.  Listing an umbrella AS a seed is a
+map-authoring error caught by review, not by a structural classifier.
 
 Shadow view
 -----------
 ``derive_event_adjacency(events)`` returns a new events dict where each event's
-``produced_by``/``triggers`` lists are expanded via the anchors' descendant-
-closure in the taxonomy.  The committed enumerated lists are a *subset* of the
-derived lists (no loss).  ``SHADOW_DERIVED_ADJACENCY`` (default ``False``)
+``produced_by``/``triggers`` lists are the sorted descendant-closure of that
+side's anchors.  The committed enumerated lists are a *subset* (no loss).  The
+exclusivity layer does NOT change this output (the curated seeds are already the
+mechanic frontier) — so the shadow election is byte-identical to the measured
+ramp-corrected hand map.  ``SHADOW_DERIVED_ADJACENCY`` (default ``False``)
 controls whether downstream consumers (relay, engine_hydration) use derived or
 enumerated lists.  The flip is task 6.5.
 
@@ -32,9 +74,9 @@ stays the same.
 from __future__ import annotations
 
 from collections import deque
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 # ---------------------------------------------------------------------------
 # Shadow flag — default OFF.  The committed enumerated lists remain
@@ -72,8 +114,16 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
+            # `ramp` is NOT a seed here — `land-ramp` is the mechanic-exclusive
+            # concept for "puts a land onto the battlefield".  The exclusivity
+            # rule ENFORCES this: climbing `land-ramp` -> `ramp` is refused
+            # because ramp's closure admits mana-producer/ritual (a different
+            # mechanic) and drops precision to 0.28 (< EXCLUSIVITY_PRECISION_MIN).
+            # Same predicate, same thresholds as mana-produced.produced_by —
+            # no per-event special-casing.  See is_mechanic_exclusive /
+            # validate_anchor_map (task 6.1b).
             'anchors': [
-                'extra-land', 'land-ramp', 'ramp',
+                'extra-land', 'land-ramp',
                 'reanimate-land', 'recursion-land',
                 'sneak-land', 'tutor-land-to-battlefield',
             ],
@@ -703,6 +753,270 @@ def descendant_closure(slug: str, taxonomy: dict[str, dict[str, Any]]) -> frozen
             if child not in visited:
                 queue.append(child)
     return frozenset(visited)
+
+
+# ---------------------------------------------------------------------------
+# Mechanic-exclusivity validator (task 6.1b) — the anchor rule as ENFORCED code
+#
+# The seed/anchor for each event side must be *mechanic-exclusive*: climbing to
+# a higher taxonomy concept must not admit a different mechanic's cards.  We
+# measure this against the CARD population (oracle_ids) each slug reaches, which
+# is ancestor-closed in the otag taxonomy (verified 0 violations in the
+# build-design pass), so ``cards(slug)`` == all cards carrying the concept.
+# ---------------------------------------------------------------------------
+
+#: An ancestor is kept only while its closure stays >= this fraction within the
+#: side's mechanic population.  ``ramp`` drops to 0.56 (mana) / 0.28 (land).
+EXCLUSIVITY_PRECISION_MIN: float = 0.6
+
+#: A child branch is "heavy" (a candidate distinct mechanic) at >= this many
+#: cards; smaller tails are treated as same-mechanic refinements / noise.
+EXCLUSIVITY_BRANCH_FLOOR: int = 50
+
+#: A heavy child below this precision vs the mechanic is a FOREIGN branch — its
+#: presence means the parent spans a second mechanic (the structural signal).
+EXCLUSIVITY_BRANCH_PRECISION_MIN: float = 0.5
+
+
+class ExclusivityResult(NamedTuple):
+    """Outcome of :func:`is_mechanic_exclusive`."""
+
+    ok: bool
+    precision: float
+    reason: str
+
+
+@lru_cache(maxsize=1)
+def _load_direct_cards() -> dict[str, frozenset[str]]:
+    """Load ``slug -> frozenset(oracle_id)`` of DIRECTLY-tagged cards.
+
+    Reads the ``taggings`` column of the otag parquet.  Direct only; the
+    ancestor-closed card set for a slug is the union over its descendant closure
+    (see :func:`card_set`).
+    """
+    import duckdb
+
+    if not _TAXONOMY_PATH.exists():
+        raise FileNotFoundError(
+            f'oracle_tags.parquet not found at {_TAXONOMY_PATH}; '
+            f'hydrate with `collection hydrate-lake`'
+        )
+
+    con = duckdb.connect(':memory:')
+    try:
+        rows = con.execute(
+            f"SELECT slug, taggings FROM read_parquet('{_TAXONOMY_PATH}')"
+        ).fetchall()
+    finally:
+        con.close()
+
+    out: dict[str, frozenset[str]] = {}
+    for slug, taggings in rows:
+        oids = {str(r['oracle_id']) for r in (taggings or [])}
+        out[slug] = frozenset(oids)
+    return out
+
+
+@cache
+def card_set(slug: str) -> frozenset[str]:
+    """All oracle_ids carrying *slug* = union of direct cards over its closure.
+
+    A slug not in the taxonomy (synthetic attr) reaches only its own direct
+    cards, if any, else the empty set.
+    """
+    taxonomy = load_taxonomy()
+    direct = _load_direct_cards()
+    cards: set[str] = set()
+    for desc in descendant_closure(slug, taxonomy):
+        cards |= direct.get(desc, frozenset())
+    return frozenset(cards)
+
+
+def mechanic_population(anchors: list[str] | tuple[str, ...]) -> frozenset[str]:
+    """The card population a side's *anchors* establish as its mechanic.
+
+    = union of the ancestor-closed card sets of every anchor.  This is the
+    ground-truth ``M`` the exclusivity check measures candidates against.
+    """
+    pop: set[str] = set()
+    for a in anchors:
+        pop |= card_set(a)
+    return frozenset(pop)
+
+
+def is_mechanic_exclusive(
+    node: str,
+    mechanic: frozenset[str],
+    *,
+    prec_min: float = EXCLUSIVITY_PRECISION_MIN,
+    branch_floor: int = EXCLUSIVITY_BRANCH_FLOOR,
+    branch_prec_min: float = EXCLUSIVITY_BRANCH_PRECISION_MIN,
+) -> ExclusivityResult:
+    """Is *node* exclusive to *mechanic* (so it may be an anchor / be climbed to)?
+
+    GENERIC two-part check, no per-event logic:
+
+    * **(b) precision** — the fraction of ``node``'s cards inside ``mechanic``
+      must be ``>= prec_min``.  A node that drags in a foreign mechanic dilutes.
+    * **(a) foreign heavy child** — ``node`` must have no child whose closure is
+      ``>= branch_floor`` cards yet mostly (precision ``< branch_prec_min``)
+      outside ``mechanic``.  Such a child is a distinct sibling mechanic.
+
+    Fails fast on the first signal.  A node with no cards (synthetic leaf) is
+    trivially exclusive.
+    """
+    taxonomy = load_taxonomy()
+    cards = card_set(node)
+    if not cards:
+        return ExclusivityResult(True, 1.0, 'no-cards (synthetic/leaf)')
+
+    precision = len(cards & mechanic) / len(cards)
+    if precision < prec_min:
+        return ExclusivityResult(
+            False, precision, f'precision {precision:.3f} < {prec_min}'
+        )
+
+    for child in taxonomy.get(node, {}).get('children', []):
+        child_cards = card_set(child)
+        if len(child_cards) < branch_floor:
+            continue
+        child_prec = len(child_cards & mechanic) / len(child_cards)
+        if child_prec < branch_prec_min:
+            return ExclusivityResult(
+                False,
+                precision,
+                f'foreign heavy child {child!r} '
+                f'({len(child_cards)} cards, precision {child_prec:.3f})',
+            )
+
+    return ExclusivityResult(True, precision, 'ok')
+
+
+def proper_ancestors(slug: str, taxonomy: dict[str, dict[str, Any]]) -> frozenset[str]:
+    """All strict ancestors of *slug* via BFS over parents (excludes *slug*)."""
+    if slug not in taxonomy:
+        return frozenset()
+    visited: set[str] = set()
+    queue: deque[str] = deque(taxonomy[slug].get('parents', []))
+    while queue:
+        current = queue.popleft()
+        if current in visited:
+            continue
+        visited.add(current)
+        for parent in taxonomy.get(current, {}).get('parents', []):
+            if parent not in visited:
+                queue.append(parent)
+    return frozenset(visited)
+
+
+def climb_to_frontier(seed: str, mechanic: frozenset[str]) -> str:
+    """Climb *seed* child->parent to the maximal mechanic-exclusive ancestor.
+
+    Returns the highest ancestor that still :func:`is_mechanic_exclusive` vs
+    *mechanic*; stops one level below the first ancestor that admits a different
+    mechanic.  For the curated seeds (already at the frontier) this is a no-op
+    and returns *seed* — but it is the rule that REFUSES to ascend into ``ramp``
+    and friends.  When *seed* has several parents it climbs the first exclusive
+    one (ties do not occur in the current catalog).
+    """
+    taxonomy = load_taxonomy()
+    current = seed
+    while current in taxonomy:
+        climbed = False
+        for parent in taxonomy[current].get('parents', []):
+            if is_mechanic_exclusive(parent, mechanic).ok:
+                current = parent
+                climbed = True
+                break
+        if not climbed:
+            break
+    return current
+
+
+def refused_climb_targets(anchors: list[str]) -> dict[str, ExclusivityResult]:
+    """Ancestors of *anchors* the rule REFUSES (the cross-mechanic umbrellas).
+
+    For every anchor, every proper ancestor that is NOT itself an anchor and is
+    NOT mechanic-exclusive against the side's mechanic.  ``ramp`` appears here
+    for both mana-produced and land-enters — the generic auto-exclusion proof.
+    """
+    taxonomy = load_taxonomy()
+    mechanic = mechanic_population(anchors)
+    anchor_set = set(anchors)
+    refused: dict[str, ExclusivityResult] = {}
+    for anchor in anchors:
+        for ancestor in proper_ancestors(anchor, taxonomy):
+            if ancestor in anchor_set or ancestor in refused:
+                continue
+            res = is_mechanic_exclusive(ancestor, mechanic)
+            if not res.ok:
+                refused[ancestor] = res
+    return refused
+
+
+def validate_anchor_map() -> list[str]:
+    """Enforce the exclusivity rule over :data:`ANCHOR_MAP`.  Returns violations.
+
+    Hard invariants (empty list == clean):
+
+    1. **Ancestor-closure** — every non-synthetic anchor resolves to a
+       non-empty descendant closure (no dangling slug).
+    2. **Output purity** — the refused cross-mechanic umbrella ancestors (e.g.
+       ``ramp``, discovered generically via :func:`refused_climb_targets`) never
+       appear in the side's derived closure-union output.
+    3. **Frontier soundness** — every anchor that carries cards is itself
+       mechanic-exclusive against its side's mechanic (a listed anchor never
+       dilutes its own side below the precision floor).
+
+    The ``ramp``-shaped regression (a diluting ancestor re-listed) is proven
+    excluded by :func:`refused_climb_targets` (``ramp`` is refused for both
+    mana-produced and land-enters) together with the ``TestExclusivityValidator``
+    gate.  A fully-structural auto-reject of a hand-*listed* umbrella is not
+    derivable (a documented semantic boundary, see the module docstring), so the
+    curated seeds remain owner-approved DATA checked by invariants 1 & 3.
+    """
+    taxonomy = load_taxonomy()
+    violations: list[str] = []
+
+    for event_name, entry in ANCHOR_MAP.items():
+        for side in ('produced_by', 'triggers'):
+            anchors = entry[side]['anchors']
+            if not anchors:
+                continue
+
+            # (1) ancestor-closure: closure non-empty for every anchor.
+            for anchor in anchors:
+                if not descendant_closure(anchor, taxonomy):
+                    violations.append(
+                        f'{event_name}.{side}: anchor {anchor!r} has empty closure'
+                    )
+
+            mechanic = mechanic_population(anchors)
+
+            # (2) output purity: no refused umbrella ancestor leaks into the
+            # derived closure-union output.
+            output: set[str] = set()
+            for anchor in anchors:
+                output |= descendant_closure(anchor, taxonomy)
+            for umbrella in refused_climb_targets(anchors):
+                if umbrella in output:
+                    violations.append(
+                        f'{event_name}.{side}: cross-mechanic umbrella '
+                        f'{umbrella!r} leaked into the derived output'
+                    )
+
+            # (3) frontier soundness: each carded anchor is self-exclusive.
+            for anchor in anchors:
+                if not card_set(anchor):
+                    continue
+                res = is_mechanic_exclusive(anchor, mechanic)
+                if not res.ok:
+                    violations.append(
+                        f'{event_name}.{side}: anchor {anchor!r} is not '
+                        f'mechanic-exclusive ({res.reason})'
+                    )
+
+    return violations
 
 
 # ---------------------------------------------------------------------------

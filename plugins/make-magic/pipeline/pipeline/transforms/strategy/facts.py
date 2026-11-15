@@ -119,6 +119,18 @@ def _compute_answered_by(cards: list[dict], strategies: dict[str, dict]) -> dict
     return out
 
 
+# ---------------------------------------------------------------------------
+# Shadow flag — rank-don't-cut centrality (default OFF, #72 fix).
+# When True, the elected-set walk drops the 0.6·top_mass relative cut and
+# keeps ALL substantive units ranked by mass desc, with only the Jaccard<0.5
+# near-duplicate dedup.  Rationale: units are already substantive by
+# construction (node_admitted + event-admission), so a relative-mass cut
+# discards earned engines on a density-sensitive ratio.
+# ---------------------------------------------------------------------------
+
+SHADOW_RANK_DONT_CUT: bool = False
+
+
 def _isolate_engines(
     nodes: set[str],
     event_edges: list[tuple[str, str, str]],
@@ -258,19 +270,28 @@ def _isolate_engines(
     # diagnostics, chains, hubs and the loop probe are untouched.
     pool = [e for e in engines if event_admitted(e['event'], cmd_attrs, assets)]
 
-    # Engine SET (0..n): mass-sorted units; keep a unit when its mass is within
-    # the 0.6 keep-ratio of the top CANDIDATE unit AND it is not a near-duplicate
-    # of an already-kept unit (member-Jaccard < 0.5). The pool is mass-descending,
-    # so the first unit below 0.6·m(top) ends the walk. Minted constants 0.6 / 0.5
-    # (ADR 0014) -- no per-strategy knobs. recursive / commander_coupled / share /
-    # anchor / thin are REPORTED attributes only, never election inputs.
+    # Engine SET (0..n): mass-sorted units with Jaccard<0.5 near-duplicate dedup.
+    #
+    # Default (SHADOW_RANK_DONT_CUT=False / ADR 0014): keep units while mass >=
+    # 0.6·top, with Jaccard<0.5 dedup.  The first unit below 0.6·m(top) ends the
+    # walk.  Minted constants 0.6 / 0.5.
+    #
+    # Rank-don't-cut (SHADOW_RANK_DONT_CUT=True / #72 fix): keep ALL units ranked
+    # by mass desc, with ONLY the Jaccard<0.5 dedup — drop the 0.6·top relative
+    # cut entirely.  Units are already substantive by construction (node_admitted +
+    # event-admission upstream), so a relative-mass cut among them discards earned
+    # engines on a density-sensitive ratio.  Centrality ranks, not cuts;
+    # substantiveness (upstream) already decided which units exist.
+    #
+    # recursive / commander_coupled / share / anchor / thin are REPORTED attributes
+    # only, never election inputs in either mode.
     elected: list[dict] = []
     if pool:
         top_mass = pool[0]['weight']
         total_mass = sum(e['weight'] for e in pool) or 1e-6
         kept_members: list[set[str]] = []
         for e in pool:
-            if e['weight'] < 0.6 * top_mass:
+            if not SHADOW_RANK_DONT_CUT and e['weight'] < 0.6 * top_mass:
                 break
             mem = _members(e)
             if any(_jaccard(mem, km) >= 0.5 for km in kept_members):

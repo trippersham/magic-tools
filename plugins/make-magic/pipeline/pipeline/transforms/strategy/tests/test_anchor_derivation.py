@@ -211,16 +211,33 @@ class TestAncestorClosure:
 # ---------------------------------------------------------------------------
 
 class TestDerivedSupersetOfEnumerated:
-    """Derived lists ⊇ enumerated for every event (no loss)."""
+    """Derived lists ⊇ enumerated for every event, except slugs the exclusivity
+    rule refuses as cross-mechanic umbrellas.
+
+    The committed ``event_catalog_v4.json`` (ADR 0012 byte-parity) still lists
+    ``ramp`` in ``land-enters-battlefield.produced_by``.  The anchor rule now
+    REFUSES ``ramp`` there (it dilutes the land mechanic), so the single
+    documented superset exception is exactly the rule's refused set — not a
+    hardcode.  When the catalog is re-based (task 6.5 flip), the exception
+    disappears on its own.
+    """
 
     def test_derived_produced_by_superset(self, catalog_events: dict[str, dict]) -> None:
-        from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
+        from pipeline.transforms.strategy.anchor_derivation import (
+            ANCHOR_MAP,
+            derive_event_adjacency,
+            refused_climb_targets,
+        )
 
         derived = derive_event_adjacency(catalog_events)
         for event_name, ev in catalog_events.items():
             enum_pb = set(ev['produced_by'])
             derived_pb = set(derived[event_name]['produced_by'])
-            missing = enum_pb - derived_pb
+            # The exclusivity rule may refuse enumerated slugs that are
+            # cross-mechanic umbrellas (e.g. `ramp`); those are allowed drops.
+            anchors = ANCHOR_MAP.get(event_name, {}).get('produced_by', {}).get('anchors', [])
+            refused = set(refused_climb_targets(anchors)) if anchors else set()
+            missing = (enum_pb - derived_pb) - refused
             assert not missing, (
                 f'{event_name}: derived produced_by lost enumerated slugs: {missing}'
             )
@@ -395,4 +412,151 @@ class TestDerivedAdjacencyShape:
             )
             assert ev['triggers'] == sorted(ev['triggers']), (
                 f'{event_name}: derived triggers not sorted'
+            )
+
+
+# ---------------------------------------------------------------------------
+# 7. Exclusivity validator — the anchor rule as ENFORCED code (task 6.1b)
+# ---------------------------------------------------------------------------
+
+class TestExclusivityValidator:
+    """``ramp`` is auto-excluded from mana-produced AND land-enters by the
+    generic mechanic-exclusivity rule — no per-event special-casing.
+
+    The rule: an anchor/climb-target X is admitted to an event side only if
+    ``is_mechanic_exclusive(X, M)`` holds, where ``M`` is the card population
+    the side's own anchors establish.  ``ramp`` fails this for every side whose
+    mechanic it would dilute — the same predicate, same thresholds, for both
+    events.  This is the generic proof the exclusion is enforced, not the
+    hand-removal it replaces.
+    """
+
+    def test_is_mechanic_exclusive_rejects_ramp_both_events_generic(self) -> None:
+        """``ramp`` is non-exclusive for mana-produced AND land-enters.
+
+        Found by iterating every event/side (no ``if event == ...``): for every
+        side where ``ramp`` is a proper ancestor of a listed anchor, the SAME
+        predicate must classify ``ramp`` as non-exclusive.  Both historically
+        relevant sides must be discovered and must fail.
+        """
+        from pipeline.transforms.strategy.anchor_derivation import (
+            ANCHOR_MAP,
+            is_mechanic_exclusive,
+            load_taxonomy,
+            mechanic_population,
+            proper_ancestors,
+        )
+
+        taxonomy = load_taxonomy()
+        ramp_sides: list[tuple[str, str]] = []
+        for event_name, entry in ANCHOR_MAP.items():
+            for side in ('produced_by', 'triggers'):
+                anchors = entry[side]['anchors']
+                if not anchors:
+                    continue
+                reaches_ramp = any(
+                    'ramp' in proper_ancestors(a, taxonomy) for a in anchors
+                )
+                if not reaches_ramp:
+                    continue
+                m = mechanic_population(anchors)
+                res = is_mechanic_exclusive('ramp', m)
+                assert not res.ok, (
+                    f'{event_name}.{side}: ramp passed exclusivity '
+                    f'(precision={res.precision:.3f}) — the rule is WRONG'
+                )
+                ramp_sides.append((event_name, side))
+
+        # The two historically relevant sides MUST be among those discovered.
+        assert ('mana-produced', 'produced_by') in ramp_sides
+        assert ('land-enters-battlefield', 'produced_by') in ramp_sides
+
+    def test_ramp_absent_from_every_derived_output(self) -> None:
+        """Output purity: ``ramp`` is in NO derived produced_by/triggers list."""
+        from pipeline.transforms.strategy.anchor_derivation import (
+            derive_event_adjacency,
+        )
+        from pipeline.transforms.strategy.engine_hydration import _load_events
+
+        derived = derive_event_adjacency(_load_events())
+        for event_name, ev in derived.items():
+            assert 'ramp' not in ev['produced_by'], (
+                f'{event_name}: ramp leaked into derived produced_by'
+            )
+            assert 'ramp' not in ev['triggers'], (
+                f'{event_name}: ramp leaked into derived triggers'
+            )
+
+    def test_mana_producer_is_mechanic_exclusive(self) -> None:
+        """mana-producer passes exclusivity for mana-produced (the kept anchor)."""
+        from pipeline.transforms.strategy.anchor_derivation import (
+            ANCHOR_MAP,
+            is_mechanic_exclusive,
+            mechanic_population,
+        )
+
+        anchors = ANCHOR_MAP['mana-produced']['produced_by']['anchors']
+        m = mechanic_population(anchors)
+        assert is_mechanic_exclusive('mana-producer', m).ok, (
+            'mana-producer wrongly flagged non-exclusive for mana-produced'
+        )
+
+    def test_validate_anchor_map_clean(self) -> None:
+        """The committed anchor map passes the exclusivity validator (0 violations)."""
+        from pipeline.transforms.strategy.anchor_derivation import validate_anchor_map
+
+        violations = validate_anchor_map()
+        assert violations == [], f'Anchor-map exclusivity violations: {violations}'
+
+    def test_derived_output_byte_identical_to_enumerated_expansion(
+        self, catalog_events: dict[str, dict],
+    ) -> None:
+        """The exclusivity layer does NOT change the derived output.
+
+        derive_event_adjacency still returns the closure-union of the curated
+        anchors, so the shadow election is byte-identical to the measured
+        (ramp-corrected) hand map — the re-confirmed shadow numbers carry over.
+        """
+        from pipeline.transforms.strategy.anchor_derivation import (
+            ANCHOR_MAP,
+            derive_event_adjacency,
+            descendant_closure,
+            load_taxonomy,
+        )
+
+        taxonomy = load_taxonomy()
+        derived = derive_event_adjacency(catalog_events)
+        for event_name, entry in ANCHOR_MAP.items():
+            for side in ('produced_by', 'triggers'):
+                anchors = entry[side]['anchors']
+                if not anchors:
+                    continue
+                expected: set[str] = set()
+                for a in anchors:
+                    expected |= descendant_closure(a, taxonomy)
+                assert set(derived[event_name][side]) == expected, (
+                    f'{event_name}.{side}: derived output drifted from the '
+                    f'curated closure-union'
+                )
+
+    def test_ramp_precision_margins(self) -> None:
+        """The empirical margins: ramp precision < PREC_MIN for both events.
+
+        Confirms the measured 0.56 (mana) / 0.28 (land) over-capture figures
+        that motivated the exclusion.
+        """
+        from pipeline.transforms.strategy.anchor_derivation import (
+            ANCHOR_MAP,
+            EXCLUSIVITY_PRECISION_MIN,
+            is_mechanic_exclusive,
+            mechanic_population,
+        )
+
+        for event_name in ('mana-produced', 'land-enters-battlefield'):
+            anchors = ANCHOR_MAP[event_name]['produced_by']['anchors']
+            m = mechanic_population(anchors)
+            res = is_mechanic_exclusive('ramp', m)
+            assert res.precision < EXCLUSIVITY_PRECISION_MIN, (
+                f'{event_name}: ramp precision {res.precision:.3f} '
+                f'>= {EXCLUSIVITY_PRECISION_MIN}'
             )
