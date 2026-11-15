@@ -51,63 +51,28 @@ def load_deck(slug: str) -> dict:
 
 
 def extract_one(slug: str, deck: dict, combos: list[dict]) -> dict:
-    """Run compute_facts + name_deck and extract the synthesis input for one deck."""
-    from pipeline.transforms.strategy.facts import compute_facts
-    from pipeline.transforms.strategy.naming import name_deck
+    """Run compute_facts + name_deck and extract the synthesis input for one deck.
 
-    ctx = compute_facts(deck, combos)
-    named = name_deck(ctx)
+    Thin delegate to the packaged single-source builder so the extraction tool
+    and the production reader (``engine_synthesis.resolve_engine``) can never
+    drift apart (task 7.4).  Any trailing extra fields the gauntlet path adds
+    (``_sparse``/``_failed``) are layered on by the caller.
+    """
+    from pipeline.transforms.strategy.engine_synthesis import build_synthesis_input
 
-    # ---- Commanders ----
-    commanders = [
-        {'name': c['name'], 'oracle_text': (c.get('oracle_text') or '')[:500]}
-        for c in ctx.cards if c.get('role') == 'commander'
-    ]
-
-    # ---- Elected engine candidates ----
-    iso = ctx.facts['engines']['engine_isolation']
-    elected = iso.get('elected', [])
-
-    # ---- Archetype identity (ranked set from naming) ----
-    archetype_identity = named['archetype_identity']
-
-    # ---- Detected combos (with win classification) ----
-    detected_combos = []
-    for c in ctx.facts['core_combos']:
-        detected_combos.append({
-            'variant_id': c['variant_id'],
-            'label': c['label'],
-            'result': c['result'],
-            'requires': c['requires'],
-            'n_pieces': c['n_pieces'],
-            'win': c['win'],
-            'win_kind': c['win_kind'],
-        })
-
-    # ---- Commander loop probe ----
-    cmd_loop = iso.get('commander_loop')
-
-    # ---- The naming-layer's resolution (for reference / comparison) ----
-    naming_resolution = {
-        'named_strategy': named['named_strategy'],
-        'combo_override_applied': named['combo_override_applied'],
-        'combo_identity': named['combo_identity'],
-        'pre_combo_name': named['pre_combo_name'],
-        'confidence': named['confidence'],
-        'combo_override_f4_blocked': named['combo_override_f4_blocked'],
-    }
-
+    inp = build_synthesis_input(deck, combos, slug=slug)
     return {
-        'slug': slug,
-        'deck_name': deck.get('name', slug),
-        'commanders': commanders,
-        'elected': elected,
-        'archetype_identity': archetype_identity,
-        'detected_combos': detected_combos,
-        'commander_loop': cmd_loop,
-        'naming_resolution': naming_resolution,
-        'n_nonland': ctx.n_nonland,
-        'n_cards': len(ctx.cards),
+        'slug': inp['slug'],
+        'deck_name': inp['deck_name'],
+        'commanders': inp['commanders'],
+        'elected': inp['elected'],
+        'archetype_identity': inp['archetype_identity'],
+        'detected_combos': inp['detected_combos'],
+        'commander_loop': inp['commander_loop'],
+        'naming_resolution': inp['naming_resolution'],
+        'in_deck_cards': inp['in_deck_cards'],
+        'n_nonland': inp['n_nonland'],
+        'n_cards': inp['n_cards'],
     }
 
 
