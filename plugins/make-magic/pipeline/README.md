@@ -10,6 +10,17 @@ This package is normally driven through the plugin's PEP-723 CLI wrappers
 `pipeline.sim` also exposes a small documented API surface (see
 `pipeline/sim/__init__.py`).
 
+The **strategy engine** (`pipeline.transforms.strategy`) resolves each deck's
+higher-order Strategy and Engine identity. See the
+[output contract](../docs/strategy-engine-output-contract.md) for the consumer-facing
+API and guarantees, and the [ADR index](../docs/adr/README.md) for the governing
+design decisions. Key modules:
+
+- `engine_synthesis.py` — Tier-2 production reader (`resolve_engine`), `claude -p`
+  synthesis backend, input builder, parse/validate.
+- `engine_cache.py` — materialized Engine cache (JSONL, two-layer staleness key).
+- `scripts/materialize_engines.py` — batch materialization driver.
+
 - **Plugin usage, install, quickstart, and the `simulate` feature:** see the
   [plugin README](../README.md).
 - **License:** GPL-3.0-or-later. See the repository [LICENSE](../../../LICENSE) and
