@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed. The superstructure of record; the code is being brought into line by implementation-plan **Phase 5** (tasks B2/B1/B3+B4/B6 + role-B). **Flips to Accepted when Phase 5.6 — the full-corpus 170-deck acceptance gate — passes** (i.e. 5.1–5.5 landed AND the spine's intended results hold with 0 regressions). Describes + prescribes ordering; the realization tasks are output-changing (re-baselined under ADR 0003), this ADR is not. |
-| Review | pending owner review: authored in the `/planning` fold (2026-11-14) as the capstone the piece-ADRs compose under. The orchestrator reconciles and commits after owner sign-off. |
+| Status | **Accepted** (2026-11-15). Phase 5.6 full-corpus role-B validation passed: **187 decks, 7/7 B-test anchors RIGHT, 0 wrong, 0 empty, 0 genuine F4 violations** (the 20 initial F4 flags were all R1 false positives — winning combos aligned to their own archetype, e.g. Korvold aristocrats-combo; the heuristic was tightened). Confidence: 82 HIGH / 84 MED / 21 LOW. The derived-adjacency flip (`0d89930`) + rank-don't-cut (#72, `3ab4034`) + combo-edge B1 machinery (`442b826`) + self-healing loop (`efd1b1a`) all landed and re-baselined (P0 SHAs: engine `a7edab20`, resolve `25f50a23`, full-corpus `5ce447ef`). **Caveat:** role-B synthesis runs at the AGENT LAYER (no pipeline API key); **production materialization** — caching the per-deck Engine via the #65 `ship-materialized` pattern + a pipeline reader — is a TRACKED FOLLOW-UP (the layer is validated; the wiring is the remaining productionization). Role-B = engine-namer per ADR 0017. |
+| Review | Accepted 2026-11-15 after full-corpus validation. |
 | Scope | The whole strategy pipeline. This ADR owns the **seams between** the piece-ADRs (0001–0020), which each own one primitive or rule. It adds no new primitive. |
 | Code paths | Spans the package: `machine_vocab.py` (card-intrinsic store), `fid_adapter.py` + `edge_roles.py` + `relay.py` (derivation), `substantiveness.py` (all grains), `facts.py` (`_isolate_engines`, election), role-B synthesis (to build). The composition map below points each stage at its owning ADR. |
 
