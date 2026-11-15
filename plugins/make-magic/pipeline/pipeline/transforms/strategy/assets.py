@@ -25,6 +25,7 @@ one immutable :class:`StrategyAssets`.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from functools import cache
@@ -247,9 +248,26 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
     # owner-approved anchors (the taxonomy view), replaced in place here so every
     # downstream reader (relay, facts, combo_edges, substantiveness) sees the
     # derived view. One named rule: ``derive_event_adjacency`` (anchor_derivation).
-    from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
+    #
+    # Graceful offline fallback: when the taxonomy parquet is absent (CI / no
+    # lake), the committed hand-enumerated adjacency is used.  Tests that
+    # specifically verify derived adjacency gate on ``LAKE_AVAILABLE`` in the
+    # strategy conftest.
+    raw_events = json.loads(EVENTS_FILE.read_text())['events']
+    try:
+        from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
 
-    events = derive_event_adjacency(json.loads(EVENTS_FILE.read_text())['events'])
+        events = derive_event_adjacency(raw_events)
+    except FileNotFoundError:
+        # No lake (offline CI / unhydrated): fall back to the committed
+        # hand-enumerated adjacency. Observable, not silent — a production run
+        # must hydrate the lake to get the derived view (ADR 0022).
+        logging.getLogger(__name__).warning(
+            'oracle-tag taxonomy absent; using committed enumerated event '
+            'adjacency (derived adjacency disabled — hydrate the lake for '
+            'production). ADR 0022.'
+        )
+        events = raw_events
 
     support = frozenset(vocab['support_buckets'])
     density = vocab['ranking_only_density']

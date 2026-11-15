@@ -4,15 +4,32 @@ The golden decks are committed as fully-attached deck dicts (post lake
 resolution + meta attach) and the combo registry is a pruned, detection-complete
 slice of ``normalized/combo``, so the whole suite runs offline — no lake, no
 DuckDB, no network — and is byte-deterministic.
+
+Tests that genuinely need the live lake (taxonomy derivation, exclusivity
+validation, P0 SHAs computed under derived adjacency) gate on
+:data:`LAKE_AVAILABLE` via ``@pytest.mark.skipif(not LAKE_AVAILABLE, ...)``,
+matching the convention in ``test_resolution_fidelity.py``.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from functools import cache
 from pathlib import Path
 
 import pytest
+
+
+def _check_lake() -> bool:
+    """True when the lake parquets (including taxonomy) are present."""
+    base = os.environ.get('MAKE_MAGIC_DATA_DIR')
+    root = Path(base) if base else (Path.home() / '.local' / 'share' / 'make-magic')
+    return (root / 'raw' / 'oracle_tags.parquet').exists()
+
+
+#: ``False`` on offline CI; ``True`` locally with a hydrated lake.
+LAKE_AVAILABLE = _check_lake()
 
 FIX = Path(__file__).resolve().parent / 'fixtures'
 DECKS = FIX / 'decks'

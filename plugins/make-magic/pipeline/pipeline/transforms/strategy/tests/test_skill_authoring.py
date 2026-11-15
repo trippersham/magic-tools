@@ -47,6 +47,9 @@ from pipeline.transforms.strategy.skill_authoring import (
     AuthoredEdge,
     gate_and_persist,
 )
+from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
+
+_skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not available')
 
 FIX = Path(__file__).resolve().parent / 'fixtures'
 RELAY_DECKS = FIX / 'relay_decks'
@@ -261,6 +264,7 @@ class TestAuthoredEdgeShape:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestGateAndPersistAccept:
     """Good edges pass the gate and get persisted."""
 
@@ -349,6 +353,7 @@ class TestGateAndPersistAccept:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestGateAndPersistReject:
     """Bad edges are rejected by the gate."""
 
@@ -427,6 +432,7 @@ class TestGateAndPersistReject:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestGateAndPersistMixed:
     """Mix of good + bad edges: good persist, bad rejected."""
 
@@ -474,6 +480,7 @@ class TestGateAndPersistMixed:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestEndToEndProvisionalToResolved:
     """The full canned end-to-end: frontier -> canned haiku -> gate -> RESOLVED.
 
@@ -578,6 +585,7 @@ class TestEndToEndProvisionalToResolved:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestStrCoercion:
     """persist() and load_store() accept str store_dir (PB fix)."""
 
@@ -675,6 +683,7 @@ class TestPromptFileExists:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestSynthBreadthReroute:
     """Soft over-breadth gate and reroute handling in gate_and_persist.
 
@@ -1039,6 +1048,7 @@ class TestSynthBreadthEndToEnd:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestDefaultPathParity:
     """Importing skill_authoring does NOT shift the curated SHAs."""
 

@@ -18,6 +18,7 @@ utilities only.
 from __future__ import annotations
 
 import json
+import logging
 import re as _re_mod
 import time
 import urllib.parse
@@ -58,10 +59,20 @@ def _load_events() -> dict[str, dict]:
     ``derive_event_adjacency`` — the same view ``assets.load_assets`` serves, so
     the role-A hydration universes never drift from the election path.
     """
-    from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
-
     with _CATALOG_PATH.open() as f:
-        return derive_event_adjacency(json.load(f)['events'])
+        raw_events = json.load(f)['events']
+    try:
+        from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
+
+        return derive_event_adjacency(raw_events)
+    except FileNotFoundError:
+        # No lake (offline CI / unhydrated): committed enumerated adjacency.
+        # Observable, not silent — production must hydrate the lake (ADR 0022).
+        logging.getLogger(__name__).warning(
+            'oracle-tag taxonomy absent; using committed enumerated event '
+            'adjacency (derived adjacency disabled — hydrate the lake). ADR 0022.'
+        )
+        return raw_events
 
 
 def engine_relevant_otags() -> tuple[frozenset[str], frozenset[str]]:

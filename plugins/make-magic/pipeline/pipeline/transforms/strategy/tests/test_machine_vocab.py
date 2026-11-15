@@ -37,6 +37,9 @@ from pipeline.transforms.strategy.machine_vocab import (
     load_store,
     persist,
 )
+from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
+
+_skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not available')
 
 # ---------------------------------------------------------------------------
 # Shared fixture helpers
@@ -378,6 +381,7 @@ class TestCompoundingReadPath:
         store = load_store(store_dir)
         assert not store.has_edge_for_card('card-b')
 
+    @_skip_no_lake
     def test_compounding_frontier_shrinks(self, tmp_path: Path) -> None:
         """After persisting an edge, the frontier for a 2nd deck shrinks.
 
@@ -726,6 +730,7 @@ class TestStalenessVersion:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestHermeticity:
     """Populated machine store does NOT shift the curated engine + resolve SHAs.
 

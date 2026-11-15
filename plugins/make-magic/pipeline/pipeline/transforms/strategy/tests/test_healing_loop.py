@@ -11,6 +11,10 @@ from pathlib import Path
 
 import pytest
 
+from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
+
+_skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not available')
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -123,6 +127,7 @@ class TestCandidatePromotion:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_lake
 class TestUmbrellaRejection:
     """An umbrella candidate (e.g. ``ramp``) is REJECTED by the exclusivity
     gate and can never promote, regardless of corroboration count."""
@@ -180,6 +185,7 @@ class TestUmbrellaRejection:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_lake
 class TestThreeWayGate:
     """The three-way gate correctly classifies otags."""
 
@@ -230,6 +236,7 @@ class TestThreeWayGate:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_lake
 class TestGenericDiscovery:
     """Candidate discovery is generic — no event-specific branches."""
 
@@ -256,6 +263,7 @@ class TestGenericDiscovery:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_lake
 class TestP0SHAIntact:
     """The self-healing mechanism is shadow + flagged; P0 SHAs are held."""
 

@@ -29,11 +29,14 @@ from pipeline.transforms.strategy.relay import (
     build_relay_augmented_event_edges,
     isolate_engines_with_relay,
 )
+from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
 from pipeline.transforms.strategy.tests.engine_parity_oracle import (
     composite_sha,
     compute_engine_isolation_baselines,
     compute_resolve_baselines,
 )
+
+_skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not available')
 
 FIX = Path(__file__).resolve().parent / 'fixtures'
 RELAY_DECKS = FIX / 'relay_decks'
@@ -70,6 +73,7 @@ def assets():
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_lake
 class TestDefaultPathParity:
     """The default compute_facts / resolve path stays byte-identical.
 
@@ -417,6 +421,7 @@ class TestProvisionalAttributeStoreAugmentedEdges:
         )
         assert edges_none == edges_empty
 
+    @_skip_no_lake
     def test_empty_store_sha_parity(self) -> None:
         """Composite engine SHA is unchanged with an explicit empty store."""
         baselines = compute_engine_isolation_baselines()

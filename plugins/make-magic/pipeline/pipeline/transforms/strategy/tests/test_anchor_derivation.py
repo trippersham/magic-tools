@@ -12,6 +12,10 @@ from pathlib import Path
 
 import pytest
 
+from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
+
+_skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not available')
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -30,6 +34,7 @@ def catalog_events() -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_lake
 class TestManaProducedSoundness:
     """The anchor rule re-derives mana-produced: mana-producer IN, ramp OUT.
 
@@ -149,6 +154,7 @@ class TestAnchorMapCompleteness:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_lake
 class TestAncestorClosure:
     """Taxonomy anchors exist; synthetic catalog slugs are known exceptions."""
 
@@ -216,6 +222,7 @@ class TestAncestorClosure:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_lake
 class TestDerivedSupersetOfEnumerated:
     """Derived lists ⊇ enumerated for every event, except slugs the exclusivity
     rule refuses as cross-mechanic umbrellas.
@@ -265,6 +272,7 @@ class TestDerivedSupersetOfEnumerated:
 _EDGES_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent / 'subagents' / '5.3b-work'
 
 
+@_skip_no_lake
 class TestUnlockOnRoleAEdges:
     """Derived-adjacency corroboration on the 116 role-A edges exceeds 63%."""
 
@@ -338,6 +346,7 @@ class TestUnlockOnRoleAEdges:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_lake
 class TestP0SHAUnchanged:
     """The re-baselined parity SHAs (derived adjacency + rank-don't-cut now the
     default path; the ``SHADOW_DERIVED_ADJACENCY`` flag is retired)."""
@@ -382,6 +391,7 @@ class TestP0SHAUnchanged:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_lake
 class TestDerivedAdjacencyShape:
     """Derived events dict has the same shape as the original."""
 
@@ -421,6 +431,7 @@ class TestDerivedAdjacencyShape:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_lake
 class TestExclusivityValidator:
     """``ramp`` is auto-excluded from mana-produced AND land-enters by the
     generic mechanic-exclusivity rule — no per-event special-casing.

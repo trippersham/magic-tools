@@ -31,6 +31,9 @@ from pipeline.transforms.strategy.engine_hydration import (
     make_fixture_search_client,
     verify,
 )
+from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
+
+_skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not available')
 
 FIX = Path(__file__).resolve().parent / 'fixtures'
 
@@ -66,6 +69,7 @@ def _card(
 # =====================================================================
 
 
+@_skip_no_lake
 class TestEngineRelevantOtags:
     """Catalog-derived TRIGGER and EFFECT otag universes."""
 
@@ -133,6 +137,7 @@ class TestCuratedEdgeQueries:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestFrontier:
     """Frontier computation on the Queza relay fixture."""
 
@@ -216,6 +221,7 @@ class TestFrontier:
 class TestVerifyPasteability:
     """Check (a): RE2 pasteability guard."""
 
+    @_skip_no_lake
     def test_valid_regex_passes(self) -> None:
         query = 'oracle:/gain[^.]*life[^.]*draw/ AND otag:lifegain-matters'
         client = make_fixture_search_client(
@@ -269,6 +275,7 @@ class TestVerifyResolution:
         assert result.resolves is False
         assert result.hit_count == 0
 
+    @_skip_no_lake
     def test_resolves_nonempty(self) -> None:
         query = 'otag:lifegain-matters'
         client = make_fixture_search_client(
@@ -280,6 +287,7 @@ class TestVerifyResolution:
         assert result.resolves is True
         assert result.hit_count == 1
 
+    @_skip_no_lake
     def test_expected_card_present(self) -> None:
         query = 'otag:life-loss-matters AND otag:lifegain'
         client = make_fixture_search_client(
@@ -299,6 +307,7 @@ class TestVerifyResolution:
         )
         assert result.expected_cards_hit is True
 
+    @_skip_no_lake
     def test_expected_card_missing_fails(self) -> None:
         query = 'otag:lifegain-matters'
         client = make_fixture_search_client(
@@ -321,6 +330,7 @@ class TestVerifyResolution:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestVerifyCorroboration:
     """Check (c): deterministic over-capture oracle."""
 
@@ -420,6 +430,7 @@ class TestVerifyCorroboration:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestVerifyEndToEnd:
     """Full gate: pass and reject end-to-end on the Queza fixture."""
 
@@ -613,6 +624,7 @@ class TestVerifySynthBypass:
         assert result.passed is False
         assert result.expected_cards_hit is False
 
+    @_skip_no_lake
     def test_edge_decision_no_otags_does_NOT_bypass(self) -> None:
         """decision='edge' (default) with no-otag cards does NOT bypass.
 
@@ -637,6 +649,7 @@ class TestVerifySynthBypass:
         assert result.corroboration_rate == 0.0
         assert result.passed is False
 
+    @_skip_no_lake
     def test_edge_normal_otag_path_unchanged(self) -> None:
         """Normal edge decision with otag cards runs corroboration as before."""
         query = 'oracle:/opponent[^.]*los[a-z]*[^.]*gain/ AND otag:life-loss-matters AND otag:lifegain'
@@ -768,6 +781,7 @@ class TestSynthBreadthWarning:
         # Hard check failed -> breadth_warning not set.
         assert result.breadth_warning is False
 
+    @_skip_no_lake
     def test_edge_decision_never_sets_breadth_warning(self) -> None:
         """Edge decision (default) never sets breadth_warning, regardless of hit count."""
         query = 'oracle:/opponent[^.]*los[a-z]*[^.]*gain/ AND otag:life-loss-matters AND otag:lifegain'
@@ -787,6 +801,7 @@ class TestSynthBreadthWarning:
         assert result.breadth_warning is False
         assert result.passed is True  # all corroborate
 
+    @_skip_no_lake
     def test_edge_path_unchanged_regression(self) -> None:
         """Edge path output is byte-identical to pre-breadth-warning behavior.
 

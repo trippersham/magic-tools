@@ -36,11 +36,14 @@ from pipeline.transforms.strategy.machine_vocab import (
     ProvisionalAttributeStore,
     empty_store,
 )
+from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
 from pipeline.transforms.strategy.tests.engine_parity_oracle import (
     composite_sha,
     compute_engine_isolation_baselines,
     compute_resolve_baselines,
 )
+
+_skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not available')
 
 FIX = Path(__file__).resolve().parent / 'fixtures'
 RELAY_DECKS = FIX / 'relay_decks'
@@ -601,6 +604,7 @@ class TestFindSCCs:
 # =====================================================================
 
 
+@_skip_no_lake
 class TestDefaultPathParity:
     """Importing and using engine_report does NOT shift the curated SHAs.
 

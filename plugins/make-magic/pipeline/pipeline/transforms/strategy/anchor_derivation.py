@@ -918,7 +918,12 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
 # Taxonomy loader
 # ---------------------------------------------------------------------------
 
-_TAXONOMY_PATH = Path.home() / '.local' / 'share' / 'make-magic' / 'raw' / 'oracle_tags.parquet'
+
+def _taxonomy_path() -> Path:
+    """Resolve the oracle_tags.parquet path, respecting ``MAKE_MAGIC_DATA_DIR``."""
+    base = _os.environ.get('MAKE_MAGIC_DATA_DIR')
+    root = Path(base) if base else (Path.home() / '.local' / 'share' / 'make-magic')
+    return root / 'raw' / 'oracle_tags.parquet'
 
 
 @lru_cache(maxsize=1)
@@ -934,10 +939,9 @@ def load_taxonomy() -> dict[str, dict[str, Any]]:
     """
     import duckdb
 
-    if not _TAXONOMY_PATH.exists():
-        raise FileNotFoundError(
-            f'oracle_tags.parquet not found at {_TAXONOMY_PATH}; hydrate with `collection hydrate-lake`'
-        )
+    path = _taxonomy_path()
+    if not path.exists():
+        raise FileNotFoundError(f'oracle_tags.parquet not found at {path}; hydrate with `collection hydrate-lake`')
 
     con = duckdb.connect(':memory:')
     try:
@@ -945,7 +949,7 @@ def load_taxonomy() -> dict[str, dict[str, Any]]:
             f'SELECT CAST(id AS VARCHAR) AS id, slug, '
             f"COALESCE(description, '') AS description, "
             f'parent_ids, child_ids '
-            f"FROM read_parquet('{_TAXONOMY_PATH}')"
+            f"FROM read_parquet('{path}')"
         ).fetchall()
     finally:
         con.close()
@@ -1037,14 +1041,13 @@ def _load_direct_cards() -> dict[str, frozenset[str]]:
     """
     import duckdb
 
-    if not _TAXONOMY_PATH.exists():
-        raise FileNotFoundError(
-            f'oracle_tags.parquet not found at {_TAXONOMY_PATH}; hydrate with `collection hydrate-lake`'
-        )
+    path = _taxonomy_path()
+    if not path.exists():
+        raise FileNotFoundError(f'oracle_tags.parquet not found at {path}; hydrate with `collection hydrate-lake`')
 
     con = duckdb.connect(':memory:')
     try:
-        rows = con.execute(f"SELECT slug, taggings FROM read_parquet('{_TAXONOMY_PATH}')").fetchall()
+        rows = con.execute(f"SELECT slug, taggings FROM read_parquet('{path}')").fetchall()
     finally:
         con.close()
 

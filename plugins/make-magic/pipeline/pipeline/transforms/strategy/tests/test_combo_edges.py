@@ -37,10 +37,13 @@ from pipeline.transforms.strategy.machine_vocab import (
     load_store,
     persist,
 )
+from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
 from pipeline.transforms.strategy.win_walk import (
     fid_route,
     resolve_fids_from_feature_names,
 )
+
+_skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not available')
 
 
 @pytest.fixture(scope='module')
@@ -668,6 +671,7 @@ class TestPopulateComboEdgesDriver:
             assert attr.provenance.combo_variant_id != '', f'combo edge {attr.name!r} missing combo_variant_id'
             assert attr.provenance.derivation_version == DERIVATION_VERSION
 
+    @_skip_no_lake
     def test_p0_shas_held_after_population(self, tmp_path: Path) -> None:
         """Populating the store does NOT touch compute_facts/resolve — P0 SHAs
         are byte-identical (the hard gate)."""

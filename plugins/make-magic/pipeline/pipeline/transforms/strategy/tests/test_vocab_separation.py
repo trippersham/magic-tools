@@ -18,15 +18,20 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from pipeline.transforms.strategy import resolve
 from pipeline.transforms.strategy.assets import load_assets
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG
+from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
 from pipeline.transforms.strategy.vocab import (
     ARCHETYPE_EDGES,
     BASE_IDENTITIES,
     EDHREC_IDENTITIES,
     NEWBUCKET_IDENTITIES,
 )
+
+_skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not available')
 
 FIX = Path(__file__).resolve().parent / 'fixtures'
 DECKS = FIX / 'decks'
@@ -73,6 +78,7 @@ def test_router_is_a_total_function_over_the_identity_universe() -> None:
         del strategy
 
 
+@_skip_no_lake
 def test_fixture_records_match_committed_baseline() -> None:
     """Drift #3: byte-parity over the hermetic fixtures vs the committed hashes."""
     baseline = json.loads((FIX / 'vocab_parity_baseline.json').read_text())
