@@ -40,11 +40,9 @@ consumes (trigger) and produces (produced_event) for the relay-node injection.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 from pipeline.transforms.strategy.machine_vocab import Provenance
-
 
 # ---------------------------------------------------------------------------
 # EventEffect: the guarded directed edge (trigger_event → produced_event)
@@ -53,6 +51,7 @@ from pipeline.transforms.strategy.machine_vocab import Provenance
 # Guard scaffolding fields are ADDITIVE and DEFAULTED — no evaluation logic
 # here (that lands in Phase 2B).
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class EventEffect:
@@ -100,13 +99,13 @@ class EventEffect:
 
     # --- Guard scaffolding (additive, defaulted, inert) --------------------
     provider: str = 'card'
-    guard_characteristic_ref: Optional[str] = None
+    guard_characteristic_ref: str | None = None
     guard_trigger_scope: str = 'any'
     guard_identity: str = 'any'
-    guard_event_reachable_ref: Optional[str] = None
+    guard_event_reachable_ref: str | None = None
     guard_unresolved: bool = False
-    magnitude: Optional[str] = None
-    ability_key: Optional[str] = None
+    magnitude: str | None = None
+    ability_key: str | None = None
 
 
 # Backward-compat alias so downstream code that still says EdgeRole works
@@ -167,6 +166,7 @@ CURATED_EDGE_ROLES: dict[str, EventEffect] = {
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def get_role(attr_name: str) -> EventEffect | None:
     """Look up the edge role for an attribute name.

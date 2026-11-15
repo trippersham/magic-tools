@@ -70,8 +70,10 @@ def _summary(records: list[dict]) -> str:
         f'  combo-override fired: {len(overrides)}  (F4-blocked dense primaries: {len(f4_blocked)})',
     ]
     for r in sorted(f4_blocked, key=lambda r: r['name'] or ''):
-        lines.append(f"    F4-blocked: {(r.get('commander_hint') or r['name'])[:34]:35} "
-                     f"kept {r['pre_combo_name']} (share/margin dense)")
+        lines.append(
+            f'    F4-blocked: {(r.get("commander_hint") or r["name"])[:34]:35} '
+            f'kept {r["pre_combo_name"]} (share/margin dense)'
+        )
     return '\n'.join(lines)
 
 

@@ -1,0 +1,186 @@
+{
+  "slug": "resilience30__timeywimey_who",
+  "deck_name": "TimeyWimey_WHO",
+  "commanders": [
+    {
+      "name": "The Tenth Doctor",
+      "oracle_text": "Allons-y! — Whenever you attack, exile cards from the top of your library until you exile a nonland card. Put three time counters on it. If it doesn't have suspend, it gains suspend.\nTimey-Wimey — {7}: Time travel three times. Activate only as a sorcery. (For each suspended card you own and each permanent you control with a time counter on it, you may add or remove a time counter. Then do it two more times.)"
+    },
+    {
+      "name": "Rose Tyler",
+      "oracle_text": "Rose Tyler gets +1/+1 for each time counter on it.\nBad Wolf — Whenever Rose Tyler attacks, put a time counter on it for each suspended card you own and each other permanent you control with a time counter on it.\nDoctor's companion (You can have two commanders if the other is the Doctor.)"
+    }
+  ],
+  "elected": [
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 76.0,
+      "share": 0.576,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "combat-damage-dealt",
+      "hub": null,
+      "mass": 40.0,
+      "share": 0.303,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 16.0,
+      "share": 0.121,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "combat/aggro",
+      "weighted_quantity": 21.0,
+      "share": 0.512
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Rose Tyler",
+      "The Tenth Doctor"
+    ],
+    "produces": [
+      "gives-haste",
+      "gives-suspend"
+    ],
+    "consumes": [
+      "attack-trigger",
+      "mana-sink",
+      "attacking-matters-self",
+      "attacking-matters"
+    ],
+    "reaches_back_to": [
+      "attack-trigger",
+      "attacking-matters-self",
+      "attacking-matters"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "combat/aggro",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "combat/aggro",
+    "confidence": "MED",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Adipose Offspring",
+    "All of History, All at Once",
+    "Amy Pond",
+    "Arcane Signet",
+    "As Foretold",
+    "Astrid Peth",
+    "Atraxi Warden",
+    "Clockspinning",
+    "Command Tower",
+    "Coward // Killer",
+    "Crack in Time",
+    "Deserted Beach",
+    "Dinosaurs on a Spaceship",
+    "Donna Noble",
+    "Ecstatic Beauty",
+    "Everybody Lives!",
+    "Everything Comes to Dust",
+    "Evolving Wilds",
+    "Exotic Orchard",
+    "Farewell",
+    "Fiery Islet",
+    "Flesh Duplicate",
+    "Four Knocks",
+    "Fractured Identity",
+    "Frostboil Snarl",
+    "Furycalm Snarl",
+    "Gallifrey Falls // No More",
+    "Glacial Fortress",
+    "Grasp of Fate",
+    "Idris, Soul of the TARDIS",
+    "Inspiring Refrain",
+    "Irrigated Farmland",
+    "Jenny, Generated Anomaly",
+    "Judoon Enforcers",
+    "Kate Stewart",
+    "Lightning Greaves",
+    "Martha Jones",
+    "Mind Stone",
+    "Myriad Landscape",
+    "Mystic Monastery",
+    "Nanogene Conversion",
+    "Ominous Cemetery",
+    "Out of Time",
+    "Path of Ancestry",
+    "Port Town",
+    "Prairie Stream",
+    "Psychic Paper",
+    "RMS Titanic",
+    "Regenerations Restored",
+    "Rogue's Passage",
+    "Rory Williams",
+    "Rose Tyler",
+    "Rotating Fireplace",
+    "Run for Your Life",
+    "Sally Sparrow",
+    "Sibylline Soothsayer",
+    "Skycloud Expanse",
+    "Sol Ring",
+    "Sonic Screwdriver",
+    "Star Whale",
+    "Stormcarved Coast",
+    "Sunbaked Canyon",
+    "Sundown Pass",
+    "TARDIS",
+    "Talisman of Conviction",
+    "Talisman of Creativity",
+    "Temple of Enlightenment",
+    "Temple of Epiphany",
+    "Temple of Triumph",
+    "Temple of the False God",
+    "The Day of the Doctor",
+    "The Eleventh Doctor",
+    "The Eleventh Hour",
+    "The Face of Boe",
+    "The Girl in the Fireplace",
+    "The Moment",
+    "The Ninth Doctor",
+    "The Pandorica",
+    "The Parting of the Ways",
+    "The Tenth Doctor",
+    "The War Doctor",
+    "The Wedding of River Song",
+    "Thespian's Stage",
+    "Thought Vessel",
+    "Thriving Bluff",
+    "Time Beetle",
+    "Trenzalore Clocktower",
+    "War Room",
+    "Wedding Ring",
+    "Wibbly-wobbly, Timey-wimey",
+    "Wilfred Mott"
+  ],
+  "n_nonland": 63,
+  "n_cards": 100
+}

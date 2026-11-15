@@ -1,0 +1,187 @@
+{
+  "slug": "resilience30__virtueandvalor_woc",
+  "deck_name": "VirtueAndValor_WOC",
+  "commanders": [
+    {
+      "name": "Ellivere of the Wild Court",
+      "oracle_text": "Whenever Ellivere enters or attacks, create a Virtuous Role token attached to another target creature you control. (If you control another Role on it, put that one into the graveyard. Enchanted creature gets +1/+1 for each enchantment you control.)\nWhenever an enchanted creature you control deals combat damage to a player, draw a card."
+    }
+  ],
+  "elected": [
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 60.0,
+      "share": 0.359,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "combat-damage-dealt",
+      "hub": null,
+      "mass": 45.0,
+      "share": 0.269,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "permanent-dies",
+      "hub": null,
+      "mass": 32.0,
+      "share": 0.192,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "recursion-from-graveyard",
+      "hub": "recursion",
+      "mass": 19.0,
+      "share": 0.114,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 11.0,
+      "share": 0.066,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "enchantress",
+      "weighted_quantity": 35.0,
+      "share": 0.7
+    },
+    {
+      "strategy": "voltron/equipment",
+      "weighted_quantity": 24.0,
+      "share": 0.48
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Ellivere of the Wild Court"
+    ],
+    "produces": [],
+    "consumes": [
+      "attack-trigger",
+      "attacking-matters-self",
+      "saboteur",
+      "titan-trigger",
+      "curiosity",
+      "curiosity-like"
+    ],
+    "reaches_back_to": [],
+    "closes": false
+  },
+  "naming_resolution": {
+    "named_strategy": "enchantress",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "enchantress",
+    "confidence": "MED",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Ajani's Chosen",
+    "Ancestral Mask",
+    "Angelic Destiny",
+    "Arcane Signet",
+    "Archon of Sun's Grace",
+    "Aura Gnarlid",
+    "Austere Command",
+    "Bear Umbra",
+    "Canopy Vista",
+    "Careful Cultivation",
+    "Castle Ardenvale",
+    "Celestial Archon",
+    "Command Tower",
+    "Danitha Capashen, Paragon",
+    "Daybreak Coronet",
+    "Destiny Spinner",
+    "Eidolon of Blossoms",
+    "Eidolon of Countless Battles",
+    "Ellivere of the Wild Court",
+    "Enchantress's Presence",
+    "Ethereal Armor",
+    "Fertile Ground",
+    "Fortified Village",
+    "Generous Gift",
+    "Giant Inheritance",
+    "Gylwain, Casting Director",
+    "Hall of Heliod's Generosity",
+    "Indomitable Might",
+    "Jukai Naturalist",
+    "Kenrith's Transformation",
+    "Knickknack Ouphe",
+    "Kor Spiritdancer",
+    "Krosan Verge",
+    "Liberated Livestock",
+    "Loamcrafter Faun",
+    "Mantle of the Ancients",
+    "Myriad Landscape",
+    "Ox Drover",
+    "Paradise Druid",
+    "Pollenbright Wings",
+    "Realm-Cloaked Giant // Cast Off",
+    "Retether",
+    "Rishkar's Expertise",
+    "Sage's Reverie",
+    "Sanctum Weaver",
+    "Setessan Champion",
+    "Shalai, Voice of Plenty",
+    "Siona, Captain of the Pyleas",
+    "Snake Umbra",
+    "Sol Ring",
+    "Songbirds' Blessing",
+    "Spectral Steel",
+    "Starfield Mystic",
+    "Sun Titan",
+    "Sungrass Prairie",
+    "Swords to Plowshares",
+    "Sylvan Ranger",
+    "Syr Armont, the Redeemer",
+    "Tanglespan Lookout",
+    "Temple of Plenty",
+    "Timber Paladin",
+    "Timely Ward",
+    "Tithe Taker",
+    "Transcendent Envoy",
+    "Umbra Mystic",
+    "Unfinished Business",
+    "Utopia Sprawl",
+    "Verdant Embrace",
+    "Vitu-Ghazi, the City-Tree",
+    "Warbriar Blessing",
+    "Winds of Rath"
+  ],
+  "n_nonland": 61,
+  "n_cards": 100
+}

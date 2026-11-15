@@ -15,7 +15,6 @@ import pytest
 
 from pipeline.transforms.strategy.machine_vocab import Provenance
 
-
 # ---------------------------------------------------------------------------
 # The 6 curated edge attrs (from SYNTH_ALWAYS_ATTRIBUTES in vocab.py)
 # ---------------------------------------------------------------------------
@@ -37,11 +36,10 @@ REFERENCED_EVENTS = frozenset({'draw-a-card', 'lifegain', 'life-loss-drain'})
 # Fixture: event catalog for cross-validation
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def event_catalog() -> dict:
-    catalog_path = (
-        Path(__file__).resolve().parent.parent / 'data' / 'event_catalog_v4.json'
-    )
+    catalog_path = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog_v4.json'
     with open(catalog_path) as f:
         return json.load(f)
 
@@ -49,6 +47,7 @@ def event_catalog() -> dict:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestCuratedEdgeRoles:
     """The 6 curated edge attrs round-trip their roles + provenance."""
@@ -66,14 +65,14 @@ class TestCuratedEdgeRoles:
 
     @pytest.mark.parametrize(
         'attr_name,expected_trigger,expected_effect',
-        [
-            (name, trig, eff)
-            for name, (trig, eff) in EXPECTED_CURATED_EDGES.items()
-        ],
+        [(name, trig, eff) for name, (trig, eff) in EXPECTED_CURATED_EDGES.items()],
         ids=list(EXPECTED_CURATED_EDGES.keys()),
     )
     def test_role_round_trip(
-        self, attr_name: str, expected_trigger: str, expected_effect: str,
+        self,
+        attr_name: str,
+        expected_trigger: str,
+        expected_effect: str,
     ) -> None:
         """Each attr's (trigger_event, produced_event) matches the expected mapping."""
         from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES
@@ -104,9 +103,7 @@ class TestCuratedEdgeRoles:
 
         catalog_events = set(event_catalog['events'].keys())
         for name, role in CURATED_EDGE_ROLES.items():
-            assert role.trigger_event in catalog_events, (
-                f'{name}.trigger_event={role.trigger_event!r} not in catalog'
-            )
+            assert role.trigger_event in catalog_events, f'{name}.trigger_event={role.trigger_event!r} not in catalog'
             assert role.produced_event in catalog_events, (
                 f'{name}.produced_event={role.produced_event!r} not in catalog'
             )

@@ -12,15 +12,15 @@ from __future__ import annotations
 
 import json
 import os
-import textwrap
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Bug #68 — DFC oracle_text dropped by _project
 # ---------------------------------------------------------------------------
+
 
 class TestDfcOracleTextProject:
     """scryfall_bulk._project must join card_faces oracle_text for DFCs."""
@@ -46,7 +46,11 @@ class TestDfcOracleTextProject:
             'card_faces': [
                 {
                     'name': 'Esika, God of the Tree',
-                    'oracle_text': '{T}: Add one mana of any color.\nOther legendary creatures you control have vigilance and "{T}: Add one mana of any color."',
+                    'oracle_text': (
+                        '{T}: Add one mana of any color.\n'
+                        'Other legendary creatures you control have vigilance'
+                        ' and "{T}: Add one mana of any color."'
+                    ),
                     'mana_cost': '{1}{G}{G}',
                     'type_line': 'Legendary Creature — God',
                     'power': '1',
@@ -54,7 +58,13 @@ class TestDfcOracleTextProject:
                 },
                 {
                     'name': 'The Prismatic Bridge',
-                    'oracle_text': 'At the beginning of your upkeep, reveal cards from the top of your library until you reveal a creature or planeswalker card. Put that card onto the battlefield and the rest on the bottom of your library in a random order.',
+                    'oracle_text': (
+                        'At the beginning of your upkeep, reveal cards from'
+                        ' the top of your library until you reveal a creature'
+                        ' or planeswalker card. Put that card onto the'
+                        ' battlefield and the rest on the bottom of your'
+                        ' library in a random order.'
+                    ),
                     'mana_cost': '{W}{U}{B}{R}{G}',
                     'type_line': 'Legendary Enchantment',
                 },
@@ -68,12 +78,8 @@ class TestDfcOracleTextProject:
         card = self._make_dfc_card()
         projected = _project(card)
 
-        assert projected['oracle_text'] is not None, (
-            'DFC oracle_text must not be None after projection'
-        )
-        assert projected['oracle_text'] != '', (
-            'DFC oracle_text must not be empty after projection'
-        )
+        assert projected['oracle_text'] is not None, 'DFC oracle_text must not be None after projection'
+        assert projected['oracle_text'] != '', 'DFC oracle_text must not be empty after projection'
         # Should contain the front face text at minimum
         assert 'Add one mana of any color' in projected['oracle_text']
 
@@ -116,6 +122,7 @@ class TestDfcOracleTextProject:
 # ---------------------------------------------------------------------------
 # Bug #69 — Art-series first-row-wins in Lake and load_card_meta
 # ---------------------------------------------------------------------------
+
 
 def _make_test_parquets(tmp_path: Path) -> Path:
     """Build minimal oracle_cards + card_otag parquets that reproduce the art-series bug.
@@ -165,7 +172,11 @@ def _make_test_parquets(tmp_path: Path) -> Path:
             'color_identity': ['U'],
             'produced_mana': [],
             'keywords': [],
-            'oracle_text': 'Instant and sorcery spells you cast cost {1} less to cast.\nWhenever a spell or ability you control counters a spell, you may draw a card. If you do, discard a card.',
+            'oracle_text': (
+                'Instant and sorcery spells you cast cost {1} less to cast.\n'
+                'Whenever a spell or ability you control counters a spell,'
+                ' you may draw a card. If you do, discard a card.'
+            ),
             'power': '1',
             'toughness': '3',
             'art_crop': 'https://example.com/baral_art.jpg',
@@ -176,7 +187,8 @@ def _make_test_parquets(tmp_path: Path) -> Path:
     ]
     tmp_json = raw_dir / '_test_oracle.json'
     tmp_json.write_text(json.dumps(oracle_data))
-    con.execute(f"COPY (SELECT * FROM read_json('{tmp_json}')) TO '{raw_dir / 'oracle_cards.parquet'}' (FORMAT PARQUET)")
+    out_parquet = raw_dir / 'oracle_cards.parquet'
+    con.execute(f"COPY (SELECT * FROM read_json('{tmp_json}')) TO '{out_parquet}' (FORMAT PARQUET)")
     tmp_json.unlink()
 
     # card_otag: tags ONLY for the real card's oracle_id
@@ -203,16 +215,12 @@ class TestLakeArtSeriesResolution:
         root = _make_test_parquets(tmp_path)
         lake = Lake(root=root)
 
-        oid, type_line, slugs = lake.resolve('Baral, Chief of Compliance')
+        oid, type_line, _slugs = lake.resolve('Baral, Chief of Compliance')
 
         assert oid is not None, 'Baral should resolve'
-        assert type_line != 'Card // Card', (
-            f'Resolved to art-series type_line: {type_line}'
-        )
+        assert type_line != 'Card // Card', f'Resolved to art-series type_line: {type_line}'
         assert 'Legendary Creature' in type_line
-        assert oid == 'bbbbbbbb-0000-0000-0000-real00000001', (
-            f'Resolved to art-series oracle_id: {oid}'
-        )
+        assert oid == 'bbbbbbbb-0000-0000-0000-real00000001', f'Resolved to art-series oracle_id: {oid}'
 
     def test_resolve_returns_nonempty_slugs(self, tmp_path: Path):
         """Resolved slugs must be non-empty for a card that has tags."""
@@ -221,11 +229,9 @@ class TestLakeArtSeriesResolution:
         root = _make_test_parquets(tmp_path)
         lake = Lake(root=root)
 
-        oid, type_line, slugs = lake.resolve('Baral, Chief of Compliance')
+        oid, _type_line, slugs = lake.resolve('Baral, Chief of Compliance')
 
-        assert len(slugs) > 0, (
-            f'Baral should have otag slugs, got empty set (resolved oid={oid})'
-        )
+        assert len(slugs) > 0, f'Baral should have otag slugs, got empty set (resolved oid={oid})'
         assert 'cost-reduction' in slugs
 
 
@@ -234,7 +240,7 @@ class TestLoadCardMetaArtSeries:
 
     def test_meta_has_real_oracle_text(self, tmp_path: Path):
         """load_card_meta for a name with both art-series and real rows returns real oracle_text."""
-        from pipeline.transforms.strategy.corpus import load_card_meta, _norm
+        from pipeline.transforms.strategy.corpus import _norm, load_card_meta
 
         root = _make_test_parquets(tmp_path)
         meta = load_card_meta(root=root)
@@ -243,16 +249,12 @@ class TestLoadCardMetaArtSeries:
         assert key in meta, f'Baral not found in meta (keys={list(meta.keys())[:5]})'
         rec = meta[key]
 
-        assert rec['oracle_text'] != '', (
-            'oracle_text should be the real card text, not empty art-series'
-        )
-        assert 'cost' in rec['oracle_text'].lower(), (
-            f'Expected cost-reduction text, got: {rec["oracle_text"][:80]}'
-        )
+        assert rec['oracle_text'] != '', 'oracle_text should be the real card text, not empty art-series'
+        assert 'cost' in rec['oracle_text'].lower(), f'Expected cost-reduction text, got: {rec["oracle_text"][:80]}'
 
     def test_meta_has_real_cmc(self, tmp_path: Path):
         """load_card_meta must return the real card's CMC, not the art-series 0.0."""
-        from pipeline.transforms.strategy.corpus import load_card_meta, _norm
+        from pipeline.transforms.strategy.corpus import _norm, load_card_meta
 
         root = _make_test_parquets(tmp_path)
         meta = load_card_meta(root=root)
@@ -266,13 +268,12 @@ class TestLoadCardMetaArtSeries:
 # Bug #69 — Integration: affected gauntlet commander resolves correctly
 # ---------------------------------------------------------------------------
 
+
 def _check_lake() -> bool:
     """Check if the lake parquets are available at the configured or default path."""
     base = os.environ.get('MAKE_MAGIC_DATA_DIR')
     root = Path(base) if base else (Path.home() / '.local/share/make-magic')
-    return (root / 'raw' / 'oracle_cards.parquet').exists() and (
-        root / 'normalized' / 'card_otag.parquet'
-    ).exists()
+    return (root / 'raw' / 'oracle_cards.parquet').exists() and (root / 'normalized' / 'card_otag.parquet').exists()
 
 
 _LAKE_AVAILABLE = _check_lake()
@@ -283,7 +284,7 @@ class TestGauntletCommanderResolution:
     """Known-affected gauntlet commanders (#69) must resolve with real otags from the live lake."""
 
     # 22 known-affected commanders from the bug report
-    AFFECTED_COMMANDERS = [
+    AFFECTED_COMMANDERS: ClassVar[list[str]] = [
         'Baral, Chief of Compliance',
         "K'rrik, Son of Yawgmoth",
         'Yawgmoth, Thran Physician',
@@ -312,13 +313,11 @@ class TestGauntletCommanderResolution:
         lake = Lake()
         empty = []
         for name in self.AFFECTED_COMMANDERS:
-            oid, type_line, slugs = lake.resolve(name)
+            _oid, _type_line, slugs = lake.resolve(name)
             if not slugs:
                 empty.append(name)
 
-        assert not empty, (
-            f'{len(empty)} commanders still resolve with empty otags: {empty}'
-        )
+        assert not empty, f'{len(empty)} commanders still resolve with empty otags: {empty}'
 
     def test_affected_commanders_not_art_series(self):
         """No known-affected commander should resolve to a Card // Card type_line."""
@@ -327,13 +326,11 @@ class TestGauntletCommanderResolution:
         lake = Lake()
         art_series = []
         for name in self.AFFECTED_COMMANDERS:
-            oid, type_line, slugs = lake.resolve(name)
+            _oid, type_line, _slugs = lake.resolve(name)
             if type_line == 'Card // Card':
                 art_series.append(name)
 
-        assert not art_series, (
-            f'{len(art_series)} commanders resolve to art-series: {art_series}'
-        )
+        assert not art_series, f'{len(art_series)} commanders resolve to art-series: {art_series}'
 
 
 # ---------------------------------------------------------------------------
@@ -347,11 +344,11 @@ class TestDfcOracleTextInLake:
 
     def test_ral_monsoon_mage_has_oracle_text(self):
         """Ral, Monsoon Mage (#68 gut-check) must have non-empty oracle_text from the lake."""
-        from pipeline.transforms.strategy.corpus import load_card_meta, _norm
+        from pipeline.transforms.strategy.corpus import _norm, load_card_meta
 
         meta = load_card_meta()
         key = _norm('Ral, Monsoon Mage // Ral, Leyline Prodigy')
-        assert key in meta, f'Ral not found in card_meta (lake stale?)'
+        assert key in meta, 'Ral not found in card_meta (lake stale?)'
         rec = meta[key]
         assert rec['oracle_text'], (
             'Ral, Monsoon Mage must have non-empty oracle_text after #68 data fix '
@@ -363,19 +360,17 @@ class TestDfcOracleTextInLake:
 
     def test_birgi_has_oracle_text(self):
         """Birgi, God of Storytelling (transform DFC) must have oracle_text from the lake."""
-        from pipeline.transforms.strategy.corpus import load_card_meta, _norm
+        from pipeline.transforms.strategy.corpus import _norm, load_card_meta
 
         meta = load_card_meta()
         key = _norm('Birgi, God of Storytelling')
-        assert key in meta, f'Birgi not found in card_meta'
+        assert key in meta, 'Birgi not found in card_meta'
         rec = meta[key]
-        assert rec['oracle_text'], (
-            'Birgi must have non-empty oracle_text after #68 data fix'
-        )
+        assert rec['oracle_text'], 'Birgi must have non-empty oracle_text after #68 data fix'
 
     def test_known_dfcs_have_oracle_text(self):
         """A sample of known DFCs must all have non-empty oracle_text from the lake."""
-        from pipeline.transforms.strategy.corpus import load_card_meta, _norm
+        from pipeline.transforms.strategy.corpus import _norm, load_card_meta
 
         meta = load_card_meta()
         known_dfcs = [
@@ -393,14 +388,13 @@ class TestDfcOracleTextInLake:
             if rec is None or not rec['oracle_text']:
                 empty.append(name)
 
-        assert not empty, (
-            f'{len(empty)} known DFCs still have empty oracle_text: {empty}'
-        )
+        assert not empty, f'{len(empty)} known DFCs still have empty oracle_text: {empty}'
 
 
 # ---------------------------------------------------------------------------
 # Full-corpus canonical SHA (lake-gated)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.skipif(not _LAKE_AVAILABLE, reason='lake parquets not available')
 class TestFullCorpusCanonicalSha:
@@ -409,14 +403,13 @@ class TestFullCorpusCanonicalSha:
     def test_full_corpus_sha_matches_baseline(self):
         """full_corpus_sha() must equal the committed FULL_CORPUS_SHA constant."""
         from pipeline.transforms.strategy.tests.engine_parity_oracle import (
-            full_corpus_sha,
             FULL_CORPUS_SHA,
+            full_corpus_sha,
         )
 
         computed = full_corpus_sha()
         assert computed == FULL_CORPUS_SHA, (
-            f'Full-corpus SHA drift: recorded {FULL_CORPUS_SHA[:16]}... '
-            f'!= computed {computed[:16]}...'
+            f'Full-corpus SHA drift: recorded {FULL_CORPUS_SHA[:16]}... != computed {computed[:16]}...'
         )
 
     def test_full_corpus_record_count(self):
@@ -424,6 +417,4 @@ class TestFullCorpusCanonicalSha:
         from pipeline.transforms.strategy.run import recalc_corpus
 
         records = recalc_corpus()
-        assert len(records) == 170, (
-            f'Expected 170 gauntlet decks, got {len(records)}'
-        )
+        assert len(records) == 170, f'Expected 170 gauntlet decks, got {len(records)}'

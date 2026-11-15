@@ -59,6 +59,7 @@ def load_prompt_rules() -> str:
 # Deterministic role-B input builder (no LLM) -- single source of truth
 # ---------------------------------------------------------------------------
 
+
 def build_synthesis_input(
     deck: dict,
     combos: list[dict] | None = None,
@@ -98,15 +99,17 @@ def build_synthesis_input(
 
     detected_combos = []
     for c in ctx.facts['core_combos']:
-        detected_combos.append({
-            'variant_id': c['variant_id'],
-            'label': c['label'],
-            'result': c['result'],
-            'requires': c['requires'],
-            'n_pieces': c['n_pieces'],
-            'win': c['win'],
-            'win_kind': c['win_kind'],
-        })
+        detected_combos.append(
+            {
+                'variant_id': c['variant_id'],
+                'label': c['label'],
+                'result': c['result'],
+                'requires': c['requires'],
+                'n_pieces': c['n_pieces'],
+                'win': c['win'],
+                'win_kind': c['win_kind'],
+            }
+        )
 
     cmd_loop = iso.get('commander_loop')
 
@@ -123,11 +126,9 @@ def build_synthesis_input(
     # can ground ``key_pieces`` in cards that are ACTUALLY present (R5).  Without
     # this the model can only safely cite commanders + combo pieces and tends to
     # name plausible archetype staples that aren't in this particular list.
-    in_deck_cards = sorted({
-        _canonical_card_name(c['name'])
-        for c in ctx.cards
-        if c.get('name') and not _is_basic_land(c)
-    })
+    in_deck_cards = sorted(
+        {_canonical_card_name(c['name']) for c in ctx.cards if c.get('name') and not _is_basic_land(c)}
+    )
 
     return {
         'slug': slug if slug is not None else deck.get('name', 'deck'),
@@ -149,13 +150,14 @@ def _is_basic_land(card: dict) -> bool:
     name = _canonical_card_name(card.get('name', ''))
     if name in {'Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes'}:
         return True
-    type_line = (card.get('type_line') or card.get('type') or '')
+    type_line = card.get('type_line') or card.get('type') or ''
     return 'Basic' in type_line and 'Land' in type_line
 
 
 # ---------------------------------------------------------------------------
 # Prompt assembly
 # ---------------------------------------------------------------------------
+
 
 def build_prompt(roleb_input: dict) -> str:
     """Assemble the synthesis prompt: vendored rules + one deck's input.
@@ -177,6 +179,7 @@ def build_prompt(roleb_input: dict) -> str:
 # ---------------------------------------------------------------------------
 # Backends
 # ---------------------------------------------------------------------------
+
 
 class SynthError(RuntimeError):
     """Raised when the synthesis backend fails or returns unusable output."""
@@ -215,9 +218,12 @@ class ClaudeCliBackend:
     def synthesize(self, prompt: str) -> str:
         cmd = [
             self.claude_bin,
-            '-p', prompt,
-            '--output-format', 'json',
-            '--model', self.model,
+            '-p',
+            prompt,
+            '--output-format',
+            'json',
+            '--model',
+            self.model,
         ]
         try:
             proc = subprocess.run(
@@ -231,16 +237,12 @@ class ClaudeCliBackend:
             raise SynthError(f'claude -p invocation failed: {exc}') from exc
 
         if proc.returncode != 0:
-            raise SynthError(
-                f'claude -p exited {proc.returncode}: {proc.stderr.strip()[:500]}'
-            )
+            raise SynthError(f'claude -p exited {proc.returncode}: {proc.stderr.strip()[:500]}')
 
         try:
             envelope = json.loads(proc.stdout)
         except json.JSONDecodeError as exc:
-            raise SynthError(
-                f'claude -p output was not JSON: {exc}; head={proc.stdout[:300]!r}'
-            ) from exc
+            raise SynthError(f'claude -p output was not JSON: {exc}; head={proc.stdout[:300]!r}') from exc
 
         if envelope.get('is_error'):
             raise SynthError(f'claude -p reported error: {envelope.get("result", "")[:300]}')
@@ -394,6 +396,7 @@ def deck_card_names(deck: dict) -> set[str]:
 # Synthesis (one deck)
 # ---------------------------------------------------------------------------
 
+
 def synthesize_engine(
     roleb_input: dict,
     backend: SynthBackend,
@@ -420,6 +423,7 @@ def synthesize_engine(
 # ---------------------------------------------------------------------------
 # Production reader
 # ---------------------------------------------------------------------------
+
 
 def resolve_engine(
     deck: dict,
@@ -451,7 +455,11 @@ def resolve_engine(
     * ``error``        -- synthesis attempted but failed; ``engine`` is ``None``.
     """
     roleb_input = build_synthesis_input(
-        deck, combos, slug=slug, cfg=cfg, assets=assets,
+        deck,
+        combos,
+        slug=slug,
+        cfg=cfg,
+        assets=assets,
     )
     resolved_slug = roleb_input['slug']
     ih = engine_cache.input_hash(roleb_input)
@@ -479,7 +487,9 @@ def resolve_engine(
 
     try:
         engine = synthesize_engine(
-            roleb_input, backend, card_names=deck_card_names(deck),
+            roleb_input,
+            backend,
+            card_names=deck_card_names(deck),
         )
     except SynthError as exc:
         return None, {

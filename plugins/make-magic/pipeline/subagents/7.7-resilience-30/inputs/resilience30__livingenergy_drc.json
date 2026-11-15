@@ -1,0 +1,305 @@
+{
+  "slug": "resilience30__livingenergy_drc",
+  "deck_name": "LivingEnergy_DRC",
+  "commanders": [
+    {
+      "name": "Saheeli, Radiant Creator",
+      "oracle_text": "Whenever you cast an Artificer or artifact spell, you get {E} (an energy counter).\nAt the beginning of combat on your turn, you may pay {E}{E}{E}. When you do, create a token that's a copy of target permanent you control, except it's a 5/5 artifact creature in addition to its other types and has haste. Sacrifice it at the beginning of the next end step."
+    }
+  ],
+  "elected": [
+    {
+      "event": "token-created",
+      "hub": "enters-in-company",
+      "mass": 105.0,
+      "share": 0.22,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 102.0,
+      "share": 0.214,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters",
+        "energy"
+      ]
+    },
+    {
+      "event": "artifact-enters",
+      "hub": null,
+      "mass": 66.0,
+      "share": 0.138,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "artifacts"
+      ]
+    },
+    {
+      "event": "permanent-dies",
+      "hub": "sac",
+      "mass": 51.0,
+      "share": 0.107,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 34.0,
+      "share": 0.071,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "creature-copied",
+      "hub": null,
+      "mass": 23.0,
+      "share": 0.048,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "permanent-sacrificed",
+      "hub": "sac",
+      "mass": 17.0,
+      "share": 0.036,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "combat-damage-dealt",
+      "hub": null,
+      "mass": 8.0,
+      "share": 0.017,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": []
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "energy",
+      "weighted_quantity": 28.0,
+      "share": 0.549
+    },
+    {
+      "strategy": "+1/+1 counters",
+      "weighted_quantity": 25.0,
+      "share": 0.49
+    },
+    {
+      "strategy": "artifacts",
+      "weighted_quantity": 22.0,
+      "share": 0.431
+    }
+  ],
+  "detected_combos": [
+    {
+      "variant_id": "1783-4918",
+      "label": "Infinite combat phases",
+      "result": "Infinite combat phases; Infinite energy counters; Infinite mana creatures you control can produce; Infinite untap of creatures you control",
+      "requires": [
+        "Aetherwind Basker",
+        "Lightning Runner"
+      ],
+      "n_pieces": 2,
+      "win": true,
+      "win_kind": "action"
+    },
+    {
+      "variant_id": "1783-4918-6320",
+      "label": "Infinite creature LTB",
+      "result": "Infinite creature LTB; Infinite creature ETB; Infinite creature sacrifice triggers; Infinite death triggers; Infinite combat phases; Infinite creature tokens with haste; Infinite untap of creatures you control; Infinite mana creatures you control can produce; Infinite energy counters",
+      "requires": [
+        "Aetherwind Basker",
+        "Lightning Runner",
+        "Saheeli, Radiant Creator"
+      ],
+      "n_pieces": 3,
+      "win": true,
+      "win_kind": "action"
+    },
+    {
+      "variant_id": "4918-5225-6320",
+      "label": "Infinite creature LTB",
+      "result": "Infinite creature LTB; Infinite creature ETB; Infinite creature sacrifice triggers; Infinite death triggers; Infinite combat phases; Infinite creature tokens with haste; Infinite untap of creatures you control; Infinite mana creatures you control can produce; Infinite energy counters",
+      "requires": [
+        "Lightning Runner",
+        "Peema Aether-Seer",
+        "Saheeli, Radiant Creator"
+      ],
+      "n_pieces": 3,
+      "win": true,
+      "win_kind": "action"
+    },
+    {
+      "variant_id": "1287-2397-6318",
+      "label": "Infinite creature LTB",
+      "result": "Infinite creature LTB; Infinite creature ETB; Infinite storm count",
+      "requires": [
+        "Aethertide Whale",
+        "Nissa, Worldsoul Speaker",
+        "Panharmonicon"
+      ],
+      "n_pieces": 3,
+      "win": false,
+      "win_kind": "non-win"
+    }
+  ],
+  "commander_loop": {
+    "commander": [
+      "Saheeli, Radiant Creator"
+    ],
+    "produces": [
+      "repeatable-token-generator",
+      "repeatable-artifact-tokens",
+      "repeatable-creature-tokens",
+      "creates-bigger-body",
+      "copy-creature",
+      "gives-haste",
+      "animate-artifact",
+      "artifactify",
+      "copy-permanent"
+    ],
+    "consumes": [
+      "counters-matter",
+      "counter-fuel",
+      "counter-fuel-energy",
+      "synergy-artifact"
+    ],
+    "reaches_back_to": [
+      "synergy-artifact"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "alt-wincon/combo",
+    "combo_override_applied": true,
+    "combo_identity": "Infinite combat phases combo [Aetherwind Basker+Lightning Runner]",
+    "pre_combo_name": "energy",
+    "confidence": "MED",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Academy Ruins",
+    "Adaptive Omnitool",
+    "Aether Hub",
+    "Aetherflux Conduit",
+    "Aetheric Amplifier",
+    "Aethersquall Ancient",
+    "Aethertide Whale",
+    "Aetherwind Basker",
+    "Aetherworks Marvel",
+    "Arcane Denial",
+    "Arcane Signet",
+    "Architect of the Untamed",
+    "Attune with Aether",
+    "Bespoke Battlewagon",
+    "Blasphemous Act",
+    "Bootleggers' Stash",
+    "Chain Reaction",
+    "Chaos Warp",
+    "Chromatic Lantern",
+    "Combustible Gearhulk",
+    "Command Tower",
+    "Commander's Sphere",
+    "Confiscation Coup",
+    "Conjurer's Closet",
+    "Cultivator's Caravan",
+    "Decoction Module",
+    "Disallow",
+    "Druid of Purification",
+    "Duplicant",
+    "Elder Gargaroth",
+    "Era of Innovation",
+    "Evolving Wilds",
+    "Exotic Orchard",
+    "Explosive Vegetation",
+    "Frontier Bivouac",
+    "Frostboil Snarl",
+    "Glimmer of Genius",
+    "Hinterland Harbor",
+    "Karplusan Forest",
+    "Lightning Greaves",
+    "Lightning Runner",
+    "Loyal Apprentice",
+    "Midnight Clock",
+    "Nissa, Worldsoul Speaker",
+    "One with the Machine",
+    "Ornithopter of Paradise",
+    "Overflowing Basin",
+    "Panharmonicon",
+    "Path of Ancestry",
+    "Peema Aether-Seer",
+    "Peema Trailblazer",
+    "Pia Nalaar, Chief Mechanic",
+    "Pia and Kiran Nalaar",
+    "Rampaging Aetherhood",
+    "Reality Shift",
+    "Reckless Fireweaver",
+    "Retrofitter Foundry",
+    "Rogue Refiner",
+    "Rootbound Crag",
+    "Saheeli, Radiant Creator",
+    "Saheeli, Sublime Artificer",
+    "Sai, Master Thopterist",
+    "Servant of the Conduit",
+    "Sheltered Thicket",
+    "Shivan Reef",
+    "Slagwoods Bridge",
+    "Sol Ring",
+    "Solar Transformer",
+    "Solemn Simulacrum",
+    "Soul-Guide Lantern",
+    "Spire of Industry",
+    "Stridehangar Automaton",
+    "Sulfur Falls",
+    "Talisman of Curiosity",
+    "Tanglepool Bridge",
+    "Temple of Epiphany",
+    "Territorial Aetherkite",
+    "Thopter Spy Network",
+    "Treasure Vault",
+    "Triplicate Titan",
+    "Vineglimmer Snarl",
+    "Whirler Rogue",
+    "Whirler Virtuoso",
+    "Yavimaya Coast"
+  ],
+  "n_nonland": 62,
+  "n_cards": 100
+}

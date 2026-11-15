@@ -1,0 +1,258 @@
+{
+  "slug": "resilience30__paradoxpower_who",
+  "deck_name": "ParadoxPower_WHO",
+  "commanders": [
+    {
+      "name": "The Thirteenth Doctor",
+      "oracle_text": "Paradox — Whenever you cast a spell from anywhere other than your hand, put a +1/+1 counter on target creature.\nTeam TARDIS — At the beginning of your end step, untap each creature you control with a counter on it."
+    },
+    {
+      "name": "Yasmin Khan",
+      "oracle_text": "{T}: Exile the top card of your library. Until your next end step, you may play it.\nDoctor's companion (You can have two commanders if the other is the Doctor.)"
+    }
+  ],
+  "elected": [
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 64.0,
+      "share": 0.183,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    },
+    {
+      "event": "recursion-from-graveyard",
+      "hub": "recursion",
+      "mass": 60.0,
+      "share": 0.172,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "permanent-dies",
+      "hub": null,
+      "mass": 46.0,
+      "share": 0.132,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 35.0,
+      "share": 0.1,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "creature-enters-battlefield",
+      "hub": null,
+      "mass": 29.0,
+      "share": 0.083,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "artifact-enters",
+      "hub": null,
+      "mass": 21.0,
+      "share": 0.06,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "artifacts"
+      ]
+    },
+    {
+      "event": "land-enters-battlefield",
+      "hub": null,
+      "mass": 21.0,
+      "share": 0.06,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "landfall"
+      ]
+    },
+    {
+      "event": "discard",
+      "hub": null,
+      "mass": 13.0,
+      "share": 0.037,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "graveyard/reanimator",
+      "weighted_quantity": 24.0,
+      "share": 0.462
+    },
+    {
+      "strategy": "+1/+1 counters",
+      "weighted_quantity": 17.0,
+      "share": 0.327
+    },
+    {
+      "strategy": "spellslinger",
+      "weighted_quantity": 17.0,
+      "share": 0.327
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "The Thirteenth Doctor",
+      "Yasmin Khan"
+    ],
+    "produces": [
+      "repeatable-pp-counters",
+      "gives-pp-counters"
+    ],
+    "consumes": [
+      "gains-pp-counters",
+      "paradox",
+      "synergy-graveyard-cast",
+      "counters-matter"
+    ],
+    "reaches_back_to": [
+      "gains-pp-counters",
+      "counters-matter"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "graveyard/reanimator",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "graveyard/reanimator",
+    "confidence": "LOW",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Arcane Signet",
+    "Beast Within",
+    "Become the Pilot",
+    "Bigger on the Inside",
+    "Bill Potts",
+    "Carpet of Flowers",
+    "Chaos Warp",
+    "Cinder Glade",
+    "Clara Oswald",
+    "Command Tower",
+    "Confession Dial",
+    "Cultivate",
+    "Cursed Mirror",
+    "Dan Lewis",
+    "Danny Pink",
+    "Decaying Time Loop",
+    "Desolate Lighthouse",
+    "Dreamroot Cascade",
+    "Exotic Orchard",
+    "Farseek",
+    "Fiery Islet",
+    "Flaming Tyrannosaurus",
+    "Flatline",
+    "Frontier Bivouac",
+    "Frost Fair Lure Fish",
+    "Frostboil Snarl",
+    "Fugitive of the Judoon",
+    "Gallifrey Council Chamber",
+    "Game Trail",
+    "Graham O'Brien",
+    "Growth Spiral",
+    "Heaven Sent",
+    "Impending Flux",
+    "Into the Time Vortex",
+    "Iraxxa, Empress of Mars",
+    "Jenny Flint",
+    "Karvanista, Loyal Lupari // Lupari Shield",
+    "Last Night Together",
+    "Lunar Hatchling",
+    "Madame Vastra",
+    "Me, the Immortal",
+    "Memory Worm",
+    "Myriad Landscape",
+    "Nardole, Resourceful Cyborg",
+    "Ominous Cemetery",
+    "Osgood, Operation Double",
+    "Path of Ancestry",
+    "Ponder",
+    "Preordain",
+    "Psychic Paper",
+    "Quantum Misalignment",
+    "Reliquary Tower",
+    "Return the Past",
+    "River Song",
+    "River Song's Diary",
+    "Rockfall Vale",
+    "Rogue's Passage",
+    "Rootbound Crag",
+    "Ryan Sinclair",
+    "Search for Tomorrow",
+    "Sheltered Thicket",
+    "Sisterhood of Karn",
+    "Sol Ring",
+    "Sonic Screwdriver",
+    "Start the TARDIS",
+    "Stormcarved Coast",
+    "Strax, Sontaran Nurse",
+    "Surge of Brilliance",
+    "TARDIS",
+    "Talisman of Curiosity",
+    "Talisman of Impulse",
+    "Temple of Abandon",
+    "Temple of Epiphany",
+    "Temple of Mystery",
+    "Temple of the False God",
+    "The Flux",
+    "The Foretold Soldier",
+    "The Fugitive Doctor",
+    "The Thirteenth Doctor",
+    "The Twelfth Doctor",
+    "Thijarian Witness",
+    "Think Twice",
+    "Throes of Chaos",
+    "Truth or Consequences",
+    "Twice Upon a Time // Unlikely Meeting",
+    "Vineglimmer Snarl",
+    "Waterlogged Grove",
+    "Wreck and Rebuild",
+    "Yasmin Khan"
+  ],
+  "n_nonland": 64,
+  "n_cards": 100
+}

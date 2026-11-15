@@ -25,6 +25,8 @@ from pathlib import Path
 import pytest
 
 from pipeline.transforms.strategy.engine_hydration import (
+    SYNTH_BREADTH_WARN,
+    VerificationResult,
     curated_edge_queries,
     frontier,
     make_fixture_search_client,
@@ -34,20 +36,15 @@ from pipeline.transforms.strategy.engine_report import (
     identify_engines,
 )
 from pipeline.transforms.strategy.machine_vocab import (
-    ProvisionalAttributeStore,
     empty_store,
     load_store,
-    persist as mv_persist,
 )
-from pipeline.transforms.strategy.engine_hydration import (
-    SYNTH_BREADTH_WARN,
-    VerificationResult,
+from pipeline.transforms.strategy.machine_vocab import (
+    persist as mv_persist,
 )
 from pipeline.transforms.strategy.skill_authoring import (
     DECOMPOSE_PROMPT_PATH,
     AuthoredEdge,
-    GateAndPersistResult,
-    GateResult,
     gate_and_persist,
 )
 
@@ -59,16 +56,19 @@ RELAY_DECKS = FIX / 'relay_decks'
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 def _load_relay_fixture() -> dict:
-    return json.loads(
-        (RELAY_DECKS / 'relay__queza-lichs-mastery.json').read_text()
-    )
+    return json.loads((RELAY_DECKS / 'relay__queza-lichs-mastery.json').read_text())
 
 
 def _card(
-    name: str, oracle_text: str, otags: list[str],
-    *, keywords: list[str] | None = None,
-    type_line: str = 'Creature', mana_cost: str = '{1}',
+    name: str,
+    oracle_text: str,
+    otags: list[str],
+    *,
+    keywords: list[str] | None = None,
+    type_line: str = 'Creature',
+    mana_cost: str = '{1}',
 ) -> dict:
     return {
         'name': name,
@@ -104,7 +104,7 @@ def _search_pool() -> list[dict]:
     The small relay fixture lacks cards that corroborate the Erebos edge,
     so one synthetic card is added (as would exist in a real 40K-card pool).
     """
-    return _fixture_cards() + [_CORROBORATION_FRIEND]
+    return [*_fixture_cards(), _CORROBORATION_FRIEND]
 
 
 # Canned "good" authored edges that SHOULD pass the gate
@@ -226,6 +226,7 @@ def _bad_edges() -> list[AuthoredEdge]:
 # TestAuthoredEdgeShape
 # =====================================================================
 
+
 class TestAuthoredEdgeShape:
     """AuthoredEdge dataclass basics."""
 
@@ -236,9 +237,12 @@ class TestAuthoredEdgeShape:
 
     def test_default_model_id(self) -> None:
         edge = AuthoredEdge(
-            source_card_name='X', source_card_oracle_id='id',
-            attr_name='a', query='otag:foo',
-            trigger_event='lifegain', produced_event='draw-a-card',
+            source_card_name='X',
+            source_card_oracle_id='id',
+            attr_name='a',
+            query='otag:foo',
+            trigger_event='lifegain',
+            produced_event='draw-a-card',
         )
         assert edge.model_id == 'claude-3-5-haiku-20241022'
 
@@ -256,6 +260,7 @@ class TestAuthoredEdgeShape:
 # TestGateAndPersistAccept
 # =====================================================================
 
+
 class TestGateAndPersistAccept:
     """Good edges pass the gate and get persisted."""
 
@@ -264,8 +269,10 @@ class TestGateAndPersistAccept:
         edge = _good_edges()[0]  # Vilis: self-loss -> draw
 
         result = gate_and_persist(
-            [edge], deck_context='test-deck',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [edge],
+            deck_context='test-deck',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
         )
         assert len(result.persisted) == 1
         assert len(result.rejected) == 0
@@ -277,8 +284,10 @@ class TestGateAndPersistAccept:
 
         store_dir = tmp_path / 'mv'
         gate_and_persist(
-            [edge], deck_context='queza-test',
-            store_dir=store_dir, search_client=client,
+            [edge],
+            deck_context='queza-test',
+            store_dir=store_dir,
+            search_client=client,
         )
         store = load_store(store_dir)
         assert not store.is_empty
@@ -295,8 +304,10 @@ class TestGateAndPersistAccept:
 
         store_dir = tmp_path / 'mv'
         gate_and_persist(
-            [edge], deck_context='test-deck',
-            store_dir=store_dir, search_client=client,
+            [edge],
+            deck_context='test-deck',
+            store_dir=store_dir,
+            search_client=client,
         )
         jsonl = (store_dir / 'attributes.jsonl').read_text().strip()
         rec = json.loads(jsonl)
@@ -308,8 +319,10 @@ class TestGateAndPersistAccept:
         edge = _good_edges()[0]
 
         result = gate_and_persist(
-            [edge], deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [edge],
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
         )
         vr = result.persisted[0].verification
         assert vr.passed is True
@@ -322,8 +335,10 @@ class TestGateAndPersistAccept:
         edges = _good_edges()
 
         result = gate_and_persist(
-            edges, deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            edges,
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
         )
         assert len(result.persisted) == 7
         assert len(result.rejected) == 0
@@ -333,6 +348,7 @@ class TestGateAndPersistAccept:
 # TestGateAndPersistReject
 # =====================================================================
 
+
 class TestGateAndPersistReject:
     """Bad edges are rejected by the gate."""
 
@@ -340,25 +356,23 @@ class TestGateAndPersistReject:
         """Bare regex without otag constraints -> over-capture rejection."""
         # Build a card pool with false positives.
         cards = [
-            _card('Exquisite Blood',
-                  'Whenever an opponent loses life, you gain that much life.',
-                  ['life-loss-matters', 'lifegain', 'repeatable-lifegain']),
-            _card('Drain Spell',
-                  'Target player loses 2 life and you gain 2 life.',
-                  ['burn-player']),
-            _card('Combat Trick',
-                  'Target creature loses all abilities and gains trample.',
-                  ['gives-trample']),
-            _card('Over-Capture Card',
-                  'You lose life and gain stuff.',
-                  ['burn-player']),
+            _card(
+                'Exquisite Blood',
+                'Whenever an opponent loses life, you gain that much life.',
+                ['life-loss-matters', 'lifegain', 'repeatable-lifegain'],
+            ),
+            _card('Drain Spell', 'Target player loses 2 life and you gain 2 life.', ['burn-player']),
+            _card('Combat Trick', 'Target creature loses all abilities and gains trample.', ['gives-trample']),
+            _card('Over-Capture Card', 'You lose life and gain stuff.', ['burn-player']),
         ]
         client = make_fixture_search_client(cards)
         edge = _bad_edges()[0]  # bare oracle:/los[^.]*gain/
 
         result = gate_and_persist(
-            [edge], deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [edge],
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
         )
         assert len(result.rejected) == 1
         assert len(result.persisted) == 0
@@ -370,8 +384,10 @@ class TestGateAndPersistReject:
         edge = _bad_edges()[1]  # oracle:/(?=.*draw)gain/
 
         result = gate_and_persist(
-            [edge], deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [edge],
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
         )
         assert len(result.rejected) == 1
         assert 'pasteability' in result.rejected[0].reason
@@ -382,8 +398,10 @@ class TestGateAndPersistReject:
         edge = _bad_edges()[2]  # 'Nonexistent Card XYZ' not in fixture
 
         result = gate_and_persist(
-            [edge], deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [edge],
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
         )
         assert len(result.rejected) == 1
         assert 'expected-hit' in result.rejected[0].reason
@@ -395,8 +413,10 @@ class TestGateAndPersistReject:
 
         store_dir = tmp_path / 'mv'
         gate_and_persist(
-            bad, deck_context='test',
-            store_dir=store_dir, search_client=client,
+            bad,
+            deck_context='test',
+            store_dir=store_dir,
+            search_client=client,
         )
         store = load_store(store_dir)
         assert store.is_empty
@@ -406,32 +426,30 @@ class TestGateAndPersistReject:
 # TestGateAndPersistMixed
 # =====================================================================
 
+
 class TestGateAndPersistMixed:
     """Mix of good + bad edges: good persist, bad rejected."""
 
     def test_mixed_batch(self, tmp_path: Path) -> None:
         # Use a card pool that exercises both good and bad edges.
-        pool = _search_pool() + [
-            _card('Over-Capture Card',
-                  'You lose life and gain stuff.',
-                  ['burn-player']),
-            _card('Drain Spell',
-                  'Target player loses 2 life and you gain 2 life.',
-                  ['burn-player']),
-            _card('Combat Trick',
-                  'Target creature loses all abilities and gains trample.',
-                  ['gives-trample']),
+        pool = [
+            *_search_pool(),
+            _card('Over-Capture Card', 'You lose life and gain stuff.', ['burn-player']),
+            _card('Drain Spell', 'Target player loses 2 life and you gain 2 life.', ['burn-player']),
+            _card('Combat Trick', 'Target creature loses all abilities and gains trample.', ['gives-trample']),
         ]
         client = make_fixture_search_client(pool)
 
         good = _good_edges()[:2]  # Vilis + Archangel
-        bad = _bad_edges()[:2]    # over-capture + regex
+        bad = _bad_edges()[:2]  # over-capture + regex
         batch = good + bad
 
         store_dir = tmp_path / 'mv'
         result = gate_and_persist(
-            batch, deck_context='test',
-            store_dir=store_dir, search_client=client,
+            batch,
+            deck_context='test',
+            store_dir=store_dir,
+            search_client=client,
         )
         assert len(result.persisted) == 2
         assert len(result.rejected) == 2
@@ -454,6 +472,7 @@ class TestGateAndPersistMixed:
 # =====================================================================
 # TestEndToEndProvisionalToResolved
 # =====================================================================
+
 
 class TestEndToEndProvisionalToResolved:
     """The full canned end-to-end: frontier -> canned haiku -> gate -> RESOLVED.
@@ -481,21 +500,19 @@ class TestEndToEndProvisionalToResolved:
         good = _good_edges()
         bad = _bad_edges()
 
-        extended_pool = _search_pool() + [
-            _card('Over-Capture Card',
-                  'You lose life and gain stuff.', ['burn-player']),
-            _card('Drain Spell',
-                  'Target player loses 2 life and you gain 2 life.',
-                  ['burn-player']),
-            _card('Combat Trick',
-                  'Target creature loses all abilities and gains trample.',
-                  ['gives-trample']),
+        extended_pool = [
+            *_search_pool(),
+            _card('Over-Capture Card', 'You lose life and gain stuff.', ['burn-player']),
+            _card('Drain Spell', 'Target player loses 2 life and you gain 2 life.', ['burn-player']),
+            _card('Combat Trick', 'Target creature loses all abilities and gains trample.', ['gives-trample']),
         ]
         ext_client = make_fixture_search_client(extended_pool)
 
         result = gate_and_persist(
-            good + bad, deck_context='queza-e2e',
-            store_dir=store_dir, search_client=ext_client,
+            good + bad,
+            deck_context='queza-e2e',
+            store_dir=store_dir,
+            search_client=ext_client,
         )
         assert len(result.persisted) == 7
         assert len(result.rejected) == 3
@@ -526,8 +543,10 @@ class TestEndToEndProvisionalToResolved:
         # Gate + persist.
         store_dir = tmp_path / 'mv'
         gate_and_persist(
-            _good_edges(), deck_context='test',
-            store_dir=store_dir, search_client=client,
+            _good_edges(),
+            deck_context='test',
+            store_dir=store_dir,
+            search_client=client,
         )
         enriched_store = load_store(store_dir)
         full_edges = curated + enriched_store.edge_queries()
@@ -545,7 +564,8 @@ class TestEndToEndProvisionalToResolved:
         gate_and_persist(
             [_good_edges()[0]],  # Vilis
             deck_context='deck-1',
-            store_dir=store_dir, search_client=client,
+            store_dir=store_dir,
+            search_client=client,
         )
 
         # Second deck: store already has Vilis -> no re-authoring needed.
@@ -556,6 +576,7 @@ class TestEndToEndProvisionalToResolved:
 # =====================================================================
 # TestStrCoercion
 # =====================================================================
+
 
 class TestStrCoercion:
     """persist() and load_store() accept str store_dir (PB fix)."""
@@ -606,8 +627,10 @@ class TestStrCoercion:
 
         store_dir_str = str(tmp_path / 'str_gate_test')
         result = gate_and_persist(
-            [edge], deck_context='test',
-            store_dir=store_dir_str, search_client=client,
+            [edge],
+            deck_context='test',
+            store_dir=store_dir_str,
+            search_client=client,
         )
         assert len(result.persisted) == 1
 
@@ -620,13 +643,12 @@ class TestStrCoercion:
 # TestPromptFileExists
 # =====================================================================
 
+
 class TestPromptFileExists:
     """The decomposition prompt is a real file on disk."""
 
     def test_prompt_path_exists(self) -> None:
-        assert DECOMPOSE_PROMPT_PATH.exists(), (
-            f'Decomposition prompt not found at {DECOMPOSE_PROMPT_PATH}'
-        )
+        assert DECOMPOSE_PROMPT_PATH.exists(), f'Decomposition prompt not found at {DECOMPOSE_PROMPT_PATH}'
 
     def test_prompt_not_empty(self) -> None:
         content = DECOMPOSE_PROMPT_PATH.read_text()
@@ -651,6 +673,7 @@ class TestPromptFileExists:
 # =====================================================================
 # TestSynthBreadthReroute — the soft over-breadth gate + reroute seam
 # =====================================================================
+
 
 class TestSynthBreadthReroute:
     """Soft over-breadth gate and reroute handling in gate_and_persist.
@@ -681,10 +704,7 @@ class TestSynthBreadthReroute:
     @staticmethod
     def _broad_pool(n: int = 150) -> list[dict]:
         """A card pool with n cards all matching ``oracle:'counter'``."""
-        cards = [
-            _card(f'Noise {i}', f'Put a counter on something.', [])
-            for i in range(n)
-        ]
+        cards = [_card(f'Noise {i}', 'Put a counter on something.', []) for i in range(n)]
         cards[0] = _card('Jadzia Dax', 'number of counters on her.', [])
         return cards
 
@@ -692,12 +712,8 @@ class TestSynthBreadthReroute:
     def _narrow_pool() -> list[dict]:
         """A card pool with few cards matching ``oracle:'number of counters on'``."""
         return [
-            _card('Jadzia Dax',
-                  'add an amount of {G} equal to the number of counters on her.',
-                  []),
-            _card('Fungal Behemoth',
-                  'power and toughness equal to the number of counters on it.',
-                  []),
+            _card('Jadzia Dax', 'add an amount of {G} equal to the number of counters on her.', []),
+            _card('Fungal Behemoth', 'power and toughness equal to the number of counters on it.', []),
             _card('Irrelevant', 'Flying', []),
         ]
 
@@ -717,8 +733,10 @@ class TestSynthBreadthReroute:
         client = make_fixture_search_client(self._narrow_pool())
 
         result = gate_and_persist(
-            [edge], deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [edge],
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
         )
         assert len(result.persisted) == 1
         assert len(result.rejected) == 0
@@ -734,8 +752,10 @@ class TestSynthBreadthReroute:
         client = make_fixture_search_client(self._broad_pool())
 
         result = gate_and_persist(
-            [edge], deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [edge],
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
             # No reauthor callback — default None.
         )
         assert len(result.persisted) == 0
@@ -774,17 +794,18 @@ class TestSynthBreadthReroute:
         # Cards need otags from counter-placed.triggers ('counters-matter')
         # AND counter-placed.produced_by ('counters') for corroboration.
         pool = [
-            _card('Jadzia Dax', 'number of counters on her.',
-                  ['counters-matter', 'counters']),
-            _card('Corroborator', 'Another counters card.',
-                  ['counters-matter', 'counters']),
-        ] + self._broad_pool()  # original broad pool for the first verify
+            _card('Jadzia Dax', 'number of counters on her.', ['counters-matter', 'counters']),
+            _card('Corroborator', 'Another counters card.', ['counters-matter', 'counters']),
+            *self._broad_pool(),  # original broad pool for the first verify
+        ]
 
         client = make_fixture_search_client(pool)
 
         result = gate_and_persist(
-            [original], deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [original],
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
             reauthor=stub_reauthor,
         )
         assert len(result.persisted) == 1
@@ -820,8 +841,10 @@ class TestSynthBreadthReroute:
         client = make_fixture_search_client(pool)
 
         result = gate_and_persist(
-            [original], deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [original],
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
             reauthor=stub_reauthor,
         )
         assert len(result.persisted) == 1
@@ -843,8 +866,10 @@ class TestSynthBreadthReroute:
         client = make_fixture_search_client(self._broad_pool())
 
         result = gate_and_persist(
-            [original], deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [original],
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
             reauthor=stub_reauthor,
         )
         # Option A: accepted with flag, not dropped.
@@ -871,8 +896,10 @@ class TestSynthBreadthReroute:
         client = make_fixture_search_client(self._broad_pool())
 
         gate_and_persist(
-            [original], deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [original],
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
             reauthor=counting_reauthor,
         )
         assert call_count == 1
@@ -896,8 +923,10 @@ class TestSynthBreadthReroute:
         client = make_fixture_search_client(_search_pool())
 
         result = gate_and_persist(
-            [edge], deck_context='test',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [edge],
+            deck_context='test',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
             reauthor=fail_reauthor,
         )
         assert len(result.persisted) == 1
@@ -908,6 +937,7 @@ class TestSynthBreadthReroute:
 # =====================================================================
 # TestSynthBreadthEndToEnd — canned demo of the reroute pipeline
 # =====================================================================
+
 
 class TestSynthBreadthEndToEnd:
     """Canned end-to-end: broad oracle:'counter' -> breadth_warning ->
@@ -923,10 +953,7 @@ class TestSynthBreadthEndToEnd:
         # Step 1: Build a card pool where oracle:'counter' is VERY broad
         # (>100 synthetic noise cards all containing 'counter') but
         # oracle:'number of counters on' is narrow (2-3 cards).
-        noise_cards = [
-            _card(f'Noise {i}', f'Put a counter on target creature.', [])
-            for i in range(120)
-        ]
+        noise_cards = [_card(f'Noise {i}', 'Put a counter on target creature.', []) for i in range(120)]
         source_card = _card(
             'Jadzia Dax, Living Legacy',
             'At the beginning of your first main phase, put a +1/+1 counter on '
@@ -939,7 +966,7 @@ class TestSynthBreadthEndToEnd:
             'power and toughness are each equal to the number of counters on it.',
             [],
         )
-        all_cards = [source_card, narrow_card] + noise_cards
+        all_cards = [source_card, narrow_card, *noise_cards]
         client = make_fixture_search_client(all_cards)
 
         # Step 2: Verify the broad query — should trigger breadth_warning.
@@ -981,8 +1008,10 @@ class TestSynthBreadthEndToEnd:
 
         # Step 4: Gate with the reroute callback.
         result = gate_and_persist(
-            [broad_edge], deck_context='jadzia-demo',
-            store_dir=tmp_path / 'mv', search_client=client,
+            [broad_edge],
+            deck_context='jadzia-demo',
+            store_dir=tmp_path / 'mv',
+            search_client=client,
             reauthor=demo_reauthor,
         )
 
@@ -1009,6 +1038,7 @@ class TestSynthBreadthEndToEnd:
 # TestDefaultPathParity
 # =====================================================================
 
+
 class TestDefaultPathParity:
     """Importing skill_authoring does NOT shift the curated SHAs."""
 
@@ -1017,6 +1047,7 @@ class TestDefaultPathParity:
             composite_sha,
             compute_engine_isolation_baselines,
         )
+
         baselines = compute_engine_isolation_baselines()
         sha = composite_sha(baselines)
         expected = 'afcffc8a6cee9d771bcb71b758d1de75664edb469da7da4d4bcfaf2f7f35c047'
@@ -1027,6 +1058,7 @@ class TestDefaultPathParity:
             composite_sha,
             compute_resolve_baselines,
         )
+
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
         expected = '3010be2a0d1d5def69f6d63974d75d3023837c39fc8c04c056cfa88565931769'

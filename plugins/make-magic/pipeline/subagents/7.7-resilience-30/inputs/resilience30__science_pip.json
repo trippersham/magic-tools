@@ -1,0 +1,275 @@
+{
+  "slug": "resilience30__science_pip",
+  "deck_name": "Science_PIP",
+  "commanders": [
+    {
+      "name": "Dr. Madison Li",
+      "oracle_text": "Whenever you cast an artifact spell, you get {E} (an energy counter).\n{T}, Pay {E}: Target creature gets +1/+0 and gains trample and haste until end of turn.\n{T}, Pay {E}{E}{E}: Draw a card.\n{T}, Pay {E}{E}{E}{E}{E}: Return target artifact card from your graveyard to the battlefield tapped."
+    }
+  ],
+  "elected": [
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 87.0,
+      "share": 0.174,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters",
+        "energy"
+      ]
+    },
+    {
+      "event": "artifact-enters",
+      "hub": null,
+      "mass": 81.0,
+      "share": 0.162,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "artifacts"
+      ]
+    },
+    {
+      "event": "permanent-dies",
+      "hub": null,
+      "mass": 78.0,
+      "share": 0.156,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "token-created",
+      "hub": null,
+      "mass": 73.0,
+      "share": 0.146,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "artifacts"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 50.0,
+      "share": 0.1,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "card-enters-graveyard",
+      "hub": null,
+      "mass": 49.0,
+      "share": 0.098,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "combat-damage-dealt",
+      "hub": null,
+      "mass": 26.0,
+      "share": 0.052,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "permanent-sacrificed",
+      "hub": null,
+      "mass": 17.0,
+      "share": 0.034,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "artifacts",
+      "weighted_quantity": 34.0,
+      "share": 0.654
+    },
+    {
+      "strategy": "+1/+1 counters",
+      "weighted_quantity": 20.0,
+      "share": 0.385
+    },
+    {
+      "strategy": "energy",
+      "weighted_quantity": 20.0,
+      "share": 0.385
+    }
+  ],
+  "detected_combos": [
+    {
+      "variant_id": "2047-6465",
+      "label": "Win the game",
+      "result": "Win the game",
+      "requires": [
+        "James, Wandering Dad // Follow Him",
+        "Mechanized Production"
+      ],
+      "n_pieces": 2,
+      "win": true,
+      "win_kind": "rule"
+    }
+  ],
+  "commander_loop": {
+    "commander": [
+      "Dr. Madison Li"
+    ],
+    "produces": [
+      "recursion",
+      "recursion-artifact",
+      "reanimate",
+      "reanimate-artifact",
+      "gives-haste",
+      "gives-trample"
+    ],
+    "consumes": [
+      "synergy-artifact",
+      "counters-matter",
+      "counter-fuel",
+      "counter-fuel-energy",
+      "recursion",
+      "recursion-artifact",
+      "reanimate",
+      "reanimate-artifact"
+    ],
+    "reaches_back_to": [
+      "recursion",
+      "recursion-artifact",
+      "reanimate",
+      "reanimate-artifact"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "artifacts",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "artifacts",
+    "confidence": "MED",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Arcade Gannon",
+    "Arcane Signet",
+    "Ash Barrens",
+    "Assaultron Dominator",
+    "Austere Command",
+    "Automated Assembly Line",
+    "Behemoth of Vault 0",
+    "Bottle-Cap Blast",
+    "Brotherhood Scribe",
+    "Brotherhood Vertibird",
+    "Buried Ruin",
+    "C.A.M.P.",
+    "Clifftop Retreat",
+    "Command Tower",
+    "Crush Contraband",
+    "Curie, Emergent Intelligence",
+    "Dispatch",
+    "Dr. Madison Li",
+    "Elder Owyn Lyons",
+    "Electrosiphon",
+    "Endurance Bobblehead",
+    "Everflowing Chalice",
+    "Evolving Wilds",
+    "Exotic Orchard",
+    "Expert-Level Safe",
+    "Ferrous Lake",
+    "Glacial Fortress",
+    "Glimmer of Genius",
+    "HELIOS One",
+    "Intelligence Bobblehead",
+    "Irrigated Farmland",
+    "James, Wandering Dad // Follow Him",
+    "Liberty Prime, Recharged",
+    "Lightning Greaves",
+    "Loyal Apprentice",
+    "Mechanized Production",
+    "Mind Stone",
+    "Myriad Landscape",
+    "Mystic Forge",
+    "Mystic Monastery",
+    "Nerd Rage",
+    "Nick Valentine, Private Eye",
+    "Nuka-Cola Vending Machine",
+    "One with the Machine",
+    "Open the Vaults",
+    "Overencumbered",
+    "Paladin Danse, Steel Maverick",
+    "Panharmonicon",
+    "Path of Ancestry",
+    "Plasma Caster",
+    "Prairie Stream",
+    "Razortide Bridge",
+    "Red Death, Shipwrecker",
+    "Rex, Cyber-Hound",
+    "Robobrain War Mind",
+    "Rustvale Bridge",
+    "Sentinel Sarah Lyons",
+    "Sentry Bot",
+    "Shaun, Father of Synths",
+    "Silverbluff Bridge",
+    "Skycloud Expanse",
+    "Sol Ring",
+    "Solemn Simulacrum",
+    "Spire of Industry",
+    "Steel Overseer",
+    "Sulfur Falls",
+    "Swords to Plowshares",
+    "Synth Eradicator",
+    "Synth Infiltrator",
+    "T-45 Power Armor",
+    "Talisman of Conviction",
+    "Talisman of Creativity",
+    "Talisman of Progress",
+    "Temple of Enlightenment",
+    "Temple of Epiphany",
+    "Terramorphic Expanse",
+    "The Motherlode, Excavator",
+    "The Prydwen, Steel Flagship",
+    "Thirst for Knowledge",
+    "Thought Vessel",
+    "Treasure Vault",
+    "Unexpected Windfall",
+    "Vault 112: Sadistic Simulation",
+    "Vault 13: Dweller's Journey",
+    "Wake the Past",
+    "Wayfarer's Bauble",
+    "Whirler Rogue"
+  ],
+  "n_nonland": 63,
+  "n_cards": 100
+}

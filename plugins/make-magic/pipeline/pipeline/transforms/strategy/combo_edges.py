@@ -207,17 +207,19 @@ def derive_combo_edges(
                 # once the reciprocal direction (authored symmetrically below) is
                 # also present.  ``ability_key`` records the lowered coupling so
                 # the Phase-B assembly can pick a reciprocal-grounded role.
-                edges.append(CardAttribute(
-                    name=a,
-                    query=_attr_query(a, assets),
-                    trigger_event=e_prime,
-                    produced_event=e,
-                    provenance=_provenance(
-                        combo_variant_id=variant_id,
-                        source_card_oracle_id='',
-                        authored_at=authored_at,
-                    ),
-                ))
+                edges.append(
+                    CardAttribute(
+                        name=a,
+                        query=_attr_query(a, assets),
+                        trigger_event=e_prime,
+                        produced_event=e,
+                        provenance=_provenance(
+                            combo_variant_id=variant_id,
+                            source_card_oracle_id='',
+                            authored_at=authored_at,
+                        ),
+                    )
+                )
     return edges
 
 
@@ -268,17 +270,19 @@ def derive_self_couplings(
                 if key in seen:
                     continue
                 seen.add(key)
-                edges.append(CardAttribute(
-                    name=f'{COMBO_EDGE_SOURCE}::{a}::{e_prime}=>{e}',
-                    query=_attr_query(a, assets),
-                    trigger_event=e_prime,
-                    produced_event=e,
-                    provenance=_provenance(
-                        combo_variant_id='',
-                        source_card_oracle_id=oracle_id,
-                        authored_at=authored_at,
-                    ),
-                ))
+                edges.append(
+                    CardAttribute(
+                        name=f'{COMBO_EDGE_SOURCE}::{a}::{e_prime}=>{e}',
+                        query=_attr_query(a, assets),
+                        trigger_event=e_prime,
+                        produced_event=e,
+                        provenance=_provenance(
+                            combo_variant_id='',
+                            source_card_oracle_id=oracle_id,
+                            authored_at=authored_at,
+                        ),
+                    )
+                )
     return edges
 
 
@@ -308,6 +312,7 @@ def author_combo_edges(
 # ---------------------------------------------------------------------------
 # Phase-A population driver (ADR 0021, task 5.3a)
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class PopulationResult:
@@ -354,9 +359,7 @@ def build_otag_index_from_lake(
 
     path = _otag_parquet_path(oracle_parquet_dir)
     con = duckdb.connect(':memory:')
-    rows = con.execute(
-        f"SELECT oracle_id, slug FROM read_parquet('{path}')"
-    ).fetchall()
+    rows = con.execute(f"SELECT oracle_id, slug FROM read_parquet('{path}')").fetchall()
     index: dict[str, set[str]] = {}
     for oid, slug in rows:
         index.setdefault(str(oid), set()).add(slug)
@@ -369,9 +372,11 @@ def _otag_parquet_path(explicit: Path | None) -> Path:
         return Path(explicit) / 'normalized' / 'card_otag.parquet'
     try:
         from pipeline import store as store_mod
+
         return store_mod.StorePaths.resolve().layer_dir('normalized') / 'card_otag.parquet'
     except Exception:
         import os
+
         base = os.environ.get('MAKE_MAGIC_DATA_DIR')
         root = Path(base) if base else (Path.home() / '.local' / 'share' / 'make-magic')
         return root / 'normalized' / 'card_otag.parquet'
@@ -442,7 +447,8 @@ def populate_combo_edges(
 
         # Version-aware idempotency: skip if the store already has fresh edges.
         if existing_store.has_fresh_edges_for_combo(
-            vid, derivation_version=DERIVATION_VERSION,
+            vid,
+            derivation_version=DERIVATION_VERSION,
         ):
             skipped += 1
             continue

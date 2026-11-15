@@ -41,42 +41,71 @@ from pipeline.transforms.strategy.query import CardView, Predicate, compile_quer
 #: block is the highest routing precedence, matching the engine's tier-1 router.
 EDHREC_IDENTITIES: list[tuple[str, str]] = [
     ('devotion', 'otag:devotion-signal'),
-    ('vehicles', 'otag:synergy-vehicle OR otag:crew OR otag:bring-your-own-crew '
-                 'OR otag:alternative-crewing OR otag:animate-vehicle OR otag:crewless-vehicle '
-                 'OR otag:vehicle-type'),
-    ('energy', 'otag:energy-generator OR otag:counter-fuel-energy OR otag:energy-increaser '
-               'OR otag:synergy-energy OR otag:energy-text'),
+    (
+        'vehicles',
+        'otag:synergy-vehicle OR otag:crew OR otag:bring-your-own-crew '
+        'OR otag:alternative-crewing OR otag:animate-vehicle OR otag:crewless-vehicle '
+        'OR otag:vehicle-type',
+    ),
+    (
+        'energy',
+        'otag:energy-generator OR otag:counter-fuel-energy OR otag:energy-increaser '
+        'OR otag:synergy-energy OR otag:energy-text',
+    ),
     ('extra-turns', 'otag:extra-turn OR otag:extra-upkeep OR otag:extra-turn-text'),
     ('mill', 'otag:mill-opponent OR otag:mill-any OR otag:synergy-mill'),
-    ('planeswalkers', 'otag:synergy-planeswalker OR otag:recursion-planeswalker '
-                      'OR otag:protects-planeswalker OR otag:superfriends'),
-    ('discard-wheels', 'otag:discard-matters OR otag:self-discard-matters OR otag:wheel '
-                       'OR otag:wheel-one-sided OR otag:wheel-symmetrical '
-                       'OR otag:wheel-symmetrical-optional OR otag:miniwheel'),
-    ('treasure-food', 'otag:repeatable-treasures OR otag:synergy-treasure OR otag:repeatable-clues '
-                      'OR otag:synergy-clue OR otag:repeatable-blood OR otag:synergy-blood '
-                      'OR otag:repeatable-food OR otag:synergy-food OR otag:eat-food OR otag:food'),
-    ('theft-edhrec', 'otag:theft OR otag:theft-creature OR otag:theft-artifact OR otag:theft-land '
-                     'OR otag:theft-planeswalker OR otag:theft-spell OR otag:theft-cast '
-                     'OR otag:nightveil-theft'),
-    ('poison', 'otag:synergy-poison OR otag:poison-opponents OR otag:poison-mechanics '
-               'OR otag:poisonous OR otag:synergy-toxic OR otag:synergy-infect'),
-    ('enchantress', 'otag:synergy-enchantment OR otag:synergy-aura OR otag:synergy-shrine '
-                    'OR otag:synergy-enchantment-creature OR otag:enchantmentfall '
-                    'OR otag:enchantment-engine OR otag:constellation '
-                    'OR otag:repeatable-enchantment-tokens OR otag:repeatable-aura-tokens '
-                    'OR otag:affinity-for-enchantments OR otag:creature-type-enchantress '
-                    'OR otag:quick-enchant OR otag:auto-attach OR otag:cast-enchantment-trigger '
-                    'OR otag:enchantment-cost-reducer'),
+    (
+        'planeswalkers',
+        'otag:synergy-planeswalker OR otag:recursion-planeswalker OR otag:protects-planeswalker OR otag:superfriends',
+    ),
+    (
+        'discard-wheels',
+        'otag:discard-matters OR otag:self-discard-matters OR otag:wheel '
+        'OR otag:wheel-one-sided OR otag:wheel-symmetrical '
+        'OR otag:wheel-symmetrical-optional OR otag:miniwheel',
+    ),
+    (
+        'treasure-food',
+        'otag:repeatable-treasures OR otag:synergy-treasure OR otag:repeatable-clues '
+        'OR otag:synergy-clue OR otag:repeatable-blood OR otag:synergy-blood '
+        'OR otag:repeatable-food OR otag:synergy-food OR otag:eat-food OR otag:food',
+    ),
+    (
+        'theft-edhrec',
+        'otag:theft OR otag:theft-creature OR otag:theft-artifact OR otag:theft-land '
+        'OR otag:theft-planeswalker OR otag:theft-spell OR otag:theft-cast '
+        'OR otag:nightveil-theft',
+    ),
+    (
+        'poison',
+        'otag:synergy-poison OR otag:poison-opponents OR otag:poison-mechanics '
+        'OR otag:poisonous OR otag:synergy-toxic OR otag:synergy-infect',
+    ),
+    (
+        'enchantress',
+        'otag:synergy-enchantment OR otag:synergy-aura OR otag:synergy-shrine '
+        'OR otag:synergy-enchantment-creature OR otag:enchantmentfall '
+        'OR otag:enchantment-engine OR otag:constellation '
+        'OR otag:repeatable-enchantment-tokens OR otag:repeatable-aura-tokens '
+        'OR otag:affinity-for-enchantments OR otag:creature-type-enchantress '
+        'OR otag:quick-enchant OR otag:auto-attach OR otag:cast-enchantment-trigger '
+        'OR otag:enchantment-cost-reducer',
+    ),
 ]
 
 #: New-bucket identities (active when the ``new_buckets`` group is enabled).
 NEWBUCKET_IDENTITIES: list[tuple[str, str]] = [
     ('food', 'otag:repeatable-food OR otag:synergy-food OR otag:eat-food OR otag:food'),
-    ('mm-counters', 'otag:gives-mm-counters OR otag:gains-mm-counters OR otag:mm-counters-matter '
-                    'OR otag:removes-mm-counters-self OR otag:mm_counters'),
-    ('theft-newbuckets', 'otag:theft-creature OR otag:theft-artifact OR otag:theft-land '
-                         'OR otag:theft-planeswalker OR otag:theft-spell OR otag:theft'),
+    (
+        'mm-counters',
+        'otag:gives-mm-counters OR otag:gains-mm-counters OR otag:mm-counters-matter '
+        'OR otag:removes-mm-counters-self OR otag:mm_counters',
+    ),
+    (
+        'theft-newbuckets',
+        'otag:theft-creature OR otag:theft-artifact OR otag:theft-land '
+        'OR otag:theft-planeswalker OR otag:theft-spell OR otag:theft',
+    ),
 ]
 
 #: Always-active identities, in routing precedence. Every family is named by its
@@ -103,9 +132,12 @@ NEWBUCKET_IDENTITIES: list[tuple[str, str]] = [
 #: positive.
 BASE_IDENTITIES: list[tuple[str, str]] = [
     ('typal/tribal', 'otag:typal OR otag:changeling'),
-    ('tokens/go-wide', 'otag:tokens OR otag:token-increaser OR otag:repeatable-token-generator '
-                       'OR otag:repeatable-creature-tokens OR otag:repeatable-noncreature-tokens '
-                       'OR otag:synergy-token'),
+    (
+        'tokens/go-wide',
+        'otag:tokens OR otag:token-increaser OR otag:repeatable-token-generator '
+        'OR otag:repeatable-creature-tokens OR otag:repeatable-noncreature-tokens '
+        'OR otag:synergy-token',
+    ),
     # clones / steal-via-copy (Riku/Lazav/Mimeoplasm/Damia cmdrs): copying a
     # NONTOKEN creature (clone staples, graveyard-steal-via-copy). Keys on the
     # `clones` bucket (copy-creature + clone) ONLY — deliberately NOT copy-token:
@@ -114,12 +146,18 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
     # over-fire is left to the GENERIC density-rank + ratio cutoff — a lone clone
     # staple in a tokens/populate deck never clears it; no bespoke commander guard.
     ('clones', 'otag:clones'),
-    ('counters', 'otag:counters OR otag:gains-pp-counters OR otag:pp-counters-matter '
-                 'OR otag:repeatable-pp-counters OR otag:counters-matter '
-                 'OR otag:counter-increaser OR otag:proliferate'),
-    ('sacrifice', 'otag:sac OR otag:sacrifice-outlet OR otag:your-sacrifice-matters '
-                  'OR otag:sacrifice-matters OR otag:death-trigger OR otag:death-trigger-self '
-                  'OR otag:free-sacrifice-outlet OR otag:sacrifice-self'),
+    (
+        'counters',
+        'otag:counters OR otag:gains-pp-counters OR otag:pp-counters-matter '
+        'OR otag:repeatable-pp-counters OR otag:counters-matter '
+        'OR otag:counter-increaser OR otag:proliferate',
+    ),
+    (
+        'sacrifice',
+        'otag:sac OR otag:sacrifice-outlet OR otag:your-sacrifice-matters '
+        'OR otag:sacrifice-matters OR otag:death-trigger OR otag:death-trigger-self '
+        'OR otag:free-sacrifice-outlet OR otag:sacrifice-self',
+    ),
     # landfall vs lands-matter: EDHREC treats these as DISTINCT themes, so they are
     # two identities, not one. `landfall` is the ETB-land trigger family (the exact
     # otag parent `landfall` + its sibling `landfall-other`; the only two real
@@ -130,49 +168,77 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
     # mechanics; a later engine-layer pass handles the land-recursion hub). The two
     # queries are disjoint, so routing precedence between them is immaterial.
     ('landfall', 'otag:landfall OR otag:landfall-other'),
-    ('lands-matter', 'otag:lands-matter OR otag:land-count-matters '
-                     'OR otag:extra-land OR otag:recursion-land OR otag:reanimate-land'),
-    ('graveyard/reanimator', 'otag:graveyard OR otag:recursion OR otag:reanimate '
-                             'OR otag:cards-in-graveyard-matter OR otag:castable-from-graveyard '
-                             'OR otag:graveyard-fuel OR otag:graveyard-fuel-self '
-                             'OR otag:activate-from-graveyard OR otag:mill-self'),
-    ('spellslinger', 'otag:spellslinger OR otag:cast-trigger-you OR otag:cast-trigger-other '
-                     'OR otag:second-spell-matters OR otag:storm-count-matters OR otag:synergy-instant '
-                     'OR otag:synergy-sorcery OR otag:synergy-noncreature OR otag:prowess-like '
-                     'OR otag:copy-instant OR otag:copy-sorcery'),
-    ('artifacts', 'otag:artifacts OR otag:synergy-artifact OR otag:synergy-artifact-creature '
-                  'OR otag:artifact-count-matters OR otag:affinity-for-artifacts '
-                  'OR otag:repeatable-treasures OR otag:artifactfall'),
+    (
+        'lands-matter',
+        'otag:lands-matter OR otag:land-count-matters OR otag:extra-land OR otag:recursion-land OR otag:reanimate-land',
+    ),
+    (
+        'graveyard/reanimator',
+        'otag:graveyard OR otag:recursion OR otag:reanimate '
+        'OR otag:cards-in-graveyard-matter OR otag:castable-from-graveyard '
+        'OR otag:graveyard-fuel OR otag:graveyard-fuel-self '
+        'OR otag:activate-from-graveyard OR otag:mill-self',
+    ),
+    (
+        'spellslinger',
+        'otag:spellslinger OR otag:cast-trigger-you OR otag:cast-trigger-other '
+        'OR otag:second-spell-matters OR otag:storm-count-matters OR otag:synergy-instant '
+        'OR otag:synergy-sorcery OR otag:synergy-noncreature OR otag:prowess-like '
+        'OR otag:copy-instant OR otag:copy-sorcery',
+    ),
+    (
+        'artifacts',
+        'otag:artifacts OR otag:synergy-artifact OR otag:synergy-artifact-creature '
+        'OR otag:artifact-count-matters OR otag:affinity-for-artifacts '
+        'OR otag:repeatable-treasures OR otag:artifactfall',
+    ),
     ('blink/flicker', 'otag:flicker'),
-    ('voltron/equipment', 'otag:equipment OR otag:auras OR otag:synergy-equipment '
-                          'OR otag:synergy-equipment-legendary OR otag:synergy-aura '
-                          'OR otag:quick-equip OR otag:auto-equip'),
-    ('lifegain', 'otag:lifegain OR otag:lifegain-matters OR otag:lifegain-increaser '
-                 'OR otag:lifegain-to-damage OR otag:repeatable-lifegain'),
+    (
+        'voltron/equipment',
+        'otag:equipment OR otag:auras OR otag:synergy-equipment '
+        'OR otag:synergy-equipment-legendary OR otag:synergy-aura '
+        'OR otag:quick-equip OR otag:auto-equip',
+    ),
+    (
+        'lifegain',
+        'otag:lifegain OR otag:lifegain-matters OR otag:lifegain-increaser '
+        'OR otag:lifegain-to-damage OR otag:repeatable-lifegain',
+    ),
     ('stax/prison', 'otag:stax OR otag:tax OR otag:tax-attack OR otag:tax-block OR otag:cast-tax'),
-    ('deathtouch', 'otag:deathtouch-combat OR otag:deathtouch-counter '
-                   'OR otag:deathtouch-to-planeswalkers '
-                   'OR otag:hate-deathtouch OR otag:old-blocking-deathtouch '
-                   'OR otag:old-damage-deathtouch OR otag:removes-deathtouch '
-                   'OR otag:synergy-deathtouch OR otag:tutor-creature-deathtouch'),
+    (
+        'deathtouch',
+        'otag:deathtouch-combat OR otag:deathtouch-counter '
+        'OR otag:deathtouch-to-planeswalkers '
+        'OR otag:hate-deathtouch OR otag:old-blocking-deathtouch '
+        'OR otag:old-damage-deathtouch OR otag:removes-deathtouch '
+        'OR otag:synergy-deathtouch OR otag:tutor-creature-deathtouch',
+    ),
     ('control/permission', 'otag:counterspells OR otag:counterspell'),
     ('anthem/go-wide', 'otag:anthem OR otag:power-boost-to-all OR otag:toughness-boost-to-all'),
     ('extra-combat', 'otag:extra_combat OR otag:extra-combat-phase'),
     ('burn', 'otag:burn OR otag:burn-player OR otag:opponent-loses-life OR otag:drain-life'),
-    ('combat/aggro', 'otag:combat OR otag:attacking-matters OR otag:attacking-matters-self '
-                     'OR otag:attacking-matters-any OR otag:attack-trigger'),
-    ('toughness-matters', 'otag:toughness-matters OR otag:toughness-matters-self OR otag:buttstrike '
-                          'OR otag:turns-off-defender OR otag:turns-off-defender-self '
-                          'OR otag:synergy-defender'),
-    ('morph', 'otag:morph OR otag:synergy-face-down OR otag:face-up-face-down-effects '
-              'OR otag:turn-face-down OR otag:synergy-manifest OR otag:synergy-manifest-dread '
-              'OR otag:synergy-disguise'),
+    (
+        'combat/aggro',
+        'otag:combat OR otag:attacking-matters OR otag:attacking-matters-self '
+        'OR otag:attacking-matters-any OR otag:attack-trigger',
+    ),
+    (
+        'toughness-matters',
+        'otag:toughness-matters OR otag:toughness-matters-self OR otag:buttstrike '
+        'OR otag:turns-off-defender OR otag:turns-off-defender-self '
+        'OR otag:synergy-defender',
+    ),
+    (
+        'morph',
+        'otag:morph OR otag:synergy-face-down OR otag:face-up-face-down-effects '
+        'OR otag:turn-face-down OR otag:synergy-manifest OR otag:synergy-manifest-dread '
+        'OR otag:synergy-disguise',
+    ),
     # pillowfort / fog (Zedruu/Derevi/Nelly Borca): prevent-combat-damage +
     # can't-attack-you defense. An explicit exact OR-list of the fog/prevent-attack
     # payoffs — NOT the broad `combat` family (first-match order already puts this
     # after combat/aggro, but these slugs are disjoint from it).
-    ('pillowfort', 'otag:pillowfort OR otag:fog OR otag:pseudo-fog OR otag:fog-selective '
-                   'OR otag:prevent-attack'),
+    ('pillowfort', 'otag:pillowfort OR otag:fog OR otag:pseudo-fog OR otag:fog-selective OR otag:prevent-attack'),
     # group-hug (Ms. Bumbleflower/Kynaios): symmetric card/mana/token gifting. The
     # two group-hug payoff slugs (the broad `group-hug` parent + the one-sided
     # `selective-group-hug`); no clean single otag parents both.
@@ -183,9 +249,12 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
     # (`hate-goad` is the ANSWER, deliberately excluded).
     ('politics', 'otag:monarch-matters OR otag:synergy-vote OR otag:synergy-goad'),
     ('alt-wincon/combo', 'otag:wincon OR otag:alternate-win-condition'),
-    ('enchantments', 'otag:synergy-enchantment OR otag:synergy-enchantment-creature '
-                     'OR otag:synergy-aura OR otag:synergy-shrine OR otag:synergy-saga '
-                     'OR otag:constellation OR otag:enchantmentfall OR otag:enchantment-engine'),
+    (
+        'enchantments',
+        'otag:synergy-enchantment OR otag:synergy-enchantment-creature '
+        'OR otag:synergy-aura OR otag:synergy-shrine OR otag:synergy-saga '
+        'OR otag:constellation OR otag:enchantmentfall OR otag:enchantment-engine',
+    ),
 ]
 
 #: identity-name -> strategy-name. Pure name->name; no slug ever appears here.
@@ -281,23 +350,18 @@ SYNTH_ALWAYS_ATTRIBUTES: list[tuple[str, str]] = [
     # `draw-to-drain` and `draw-to-gain`. Re-inlining both regexes + otag lists into
     # a third query would duplicate them; the derived composition (membership #1 AND
     # membership #2) is the idiomatic, DRY form for the edge-derivation pass to take.
-    ('draw-to-drain',
-     'oracle:/draw[^.]*los/ AND otag:draw-matters '
-     'AND (otag:opponent-loses-life OR otag:drain-life)'),
-    ('draw-to-gain',
-     'oracle:/draw[^.]*gain/ AND otag:draw-matters AND otag:lifegain'),
-    ('gain-to-drain',
-     'oracle:/gain[^.]*los/ AND otag:lifegain-matters '
-     'AND (otag:opponent-loses-life OR otag:drain-life)'),
+    ('draw-to-drain', 'oracle:/draw[^.]*los/ AND otag:draw-matters AND (otag:opponent-loses-life OR otag:drain-life)'),
+    ('draw-to-gain', 'oracle:/draw[^.]*gain/ AND otag:draw-matters AND otag:lifegain'),
+    (
+        'gain-to-drain',
+        'oracle:/gain[^.]*los/ AND otag:lifegain-matters AND (otag:opponent-loses-life OR otag:drain-life)',
+    ),
     # `opponent` anchor drops self-life-loss false positives (e.g. Transcendence).
-    ('drain-to-gain',
-     'oracle:/opponent[^.]*los[a-z]*[^.]*gain/ AND otag:life-loss-matters AND otag:lifegain'),
+    ('drain-to-gain', 'oracle:/opponent[^.]*los[a-z]*[^.]*gain/ AND otag:life-loss-matters AND otag:lifegain'),
     # `life` token fixes word sense (drops "gains an ability"); the draw payoff has
     # no narrow produce-otag, so the regex word carries the effect (no effect otag).
-    ('gain-to-draw',
-     'oracle:/gain[^.]*life[^.]*draw/ AND otag:lifegain-matters'),
-    ('drain-to-draw',
-     'oracle:/opponent[^.]*los[a-z]*[^.]*draw/ AND otag:life-loss-matters'),
+    ('gain-to-draw', 'oracle:/gain[^.]*life[^.]*draw/ AND otag:lifegain-matters'),
+    ('drain-to-draw', 'oracle:/opponent[^.]*los[a-z]*[^.]*draw/ AND otag:life-loss-matters'),
 ]
 
 
@@ -308,8 +372,7 @@ class CompiledIdentity:
     strategy: str
 
 
-def _merge_overlay(base_pairs: list[tuple[str, str]],
-                   overlay: Mapping[str, str] | None) -> list[tuple[str, str]]:
+def _merge_overlay(base_pairs: list[tuple[str, str]], overlay: Mapping[str, str] | None) -> list[tuple[str, str]]:
     """Deep-merge an overlay's queries over an ordered base (user precedence)."""
     if not overlay:
         return list(base_pairs)
@@ -320,7 +383,8 @@ def _merge_overlay(base_pairs: list[tuple[str, str]],
 
 
 def _resolve_identity_order(
-    *, newbuckets: bool,
+    *,
+    newbuckets: bool,
     overlay: Mapping | None,
 ) -> list[tuple[str, str]]:
     """Assemble the ordered identity list (routing precedence).
@@ -364,20 +428,21 @@ class Router:
 
 
 def build_router(
-    *, newbuckets: bool,
+    *,
+    newbuckets: bool,
     overlay: Mapping | None = None,
 ) -> Router:
     pairs = _resolve_identity_order(newbuckets=newbuckets, overlay=overlay)
     edges = build_edges(overlay)
     compiled = tuple(
-        CompiledIdentity(name=n, predicate=compile_query(q), strategy=edges[n])
-        for n, q in pairs if n in edges
+        CompiledIdentity(name=n, predicate=compile_query(q), strategy=edges[n]) for n, q in pairs if n in edges
     )
     return Router(identities=compiled)
 
 
 def compile_synth(
-    *, overlay: Mapping | None = None,
+    *,
+    overlay: Mapping | None = None,
 ) -> list[tuple[str, Predicate]]:
     """Compile the ordered synth-attribute (card-field) membership predicates.
 

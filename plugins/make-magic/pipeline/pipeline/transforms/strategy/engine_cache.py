@@ -44,7 +44,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pipeline.transforms.strategy.machine_vocab import (
@@ -71,6 +71,7 @@ SYNTHESIS_VERSION: int = 2
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class ResolvedEngine:
@@ -155,6 +156,7 @@ class EngineCacheRecord:
 # Staleness key
 # ---------------------------------------------------------------------------
 
+
 def input_hash(roleb_input: dict) -> str:
     """Stable SHA-256 over the canonical role-B input.
 
@@ -165,11 +167,7 @@ def input_hash(roleb_input: dict) -> str:
     counts) is hashed.  Serialisation is canonical (sorted keys, no whitespace)
     so the hash is reproducible across machines and runs.
     """
-    payload = {
-        k: v
-        for k, v in roleb_input.items()
-        if not k.startswith('_') and k != 'deck_name'
-    }
+    payload = {k: v for k, v in roleb_input.items() if not k.startswith('_') and k != 'deck_name'}
     blob = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
     return hashlib.sha256(blob.encode('utf-8')).hexdigest()
 
@@ -177,6 +175,7 @@ def input_hash(roleb_input: dict) -> str:
 # ---------------------------------------------------------------------------
 # Store
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class EngineCache:
@@ -207,10 +206,7 @@ class EngineCache:
         rec = self.records.get(slug)
         if rec is None:
             return False
-        return (
-            rec.input_hash == input_hash_value
-            and rec.synthesis_version >= synthesis_version
-        )
+        return rec.input_hash == input_hash_value and rec.synthesis_version >= synthesis_version
 
 
 #: Default store location (XDG data home / make-magic).
@@ -348,21 +344,21 @@ def make_record(
         synthesis_version=synthesis_version,
         engine=engine,
         model_id=model_id,
-        synthesized_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        synthesized_at=datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
     )
 
 
 # Re-export asdict for callers that want the raw record dict without a dataclass.
 __all__ = [
     'SYNTHESIS_VERSION',
-    'ResolvedEngine',
-    'EngineCacheRecord',
     'EngineCache',
-    'input_hash',
+    'EngineCacheRecord',
+    'ResolvedEngine',
+    'asdict',
     'empty_cache',
+    'input_hash',
     'load_cache',
+    'make_record',
     'persist',
     'persist_batch',
-    'make_record',
-    'asdict',
 ]

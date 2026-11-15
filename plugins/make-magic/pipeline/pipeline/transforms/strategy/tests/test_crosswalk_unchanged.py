@@ -23,9 +23,23 @@ def test_buckets_for_is_pure_multilabel():
 
 def test_crosswalk_bucket_vocabulary_frozen():
     assert BUCKETS == (
-        'removal', 'ramp', 'draw', 'tokens', 'counters', 'burn', 'tutor', 'sac',
-        'counterspells', 'flicker', 'typal', 'anthem', 'combat', 'protection',
-        'stax', 'extra_combat', 'wincon',
+        'removal',
+        'ramp',
+        'draw',
+        'tokens',
+        'counters',
+        'burn',
+        'tutor',
+        'sac',
+        'counterspells',
+        'flicker',
+        'typal',
+        'anthem',
+        'combat',
+        'protection',
+        'stax',
+        'extra_combat',
+        'wincon',
     )
     assert frozenset({'stax', 'extra_combat', 'wincon'}) == crosswalk.GAP_BUCKETS
 

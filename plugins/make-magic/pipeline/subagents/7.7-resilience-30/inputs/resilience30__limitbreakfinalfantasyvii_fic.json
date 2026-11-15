@@ -1,0 +1,228 @@
+{
+  "slug": "resilience30__limitbreakfinalfantasyvii_fic",
+  "deck_name": "LimitBreakFinalFantasyVii_FIC",
+  "commanders": [
+    {
+      "name": "Cloud, Ex-SOLDIER",
+      "oracle_text": "Haste\nWhen Cloud enters, attach up to one target Equipment you control to it.\nWhenever Cloud attacks, draw a card for each equipped attacking creature you control. Then if Cloud has power 7 or greater, create two Treasure tokens."
+    }
+  ],
+  "elected": [
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 67.0,
+      "share": 0.291,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "token-created",
+      "hub": null,
+      "mass": 58.0,
+      "share": 0.252,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "artifacts"
+      ]
+    },
+    {
+      "event": "artifact-enters",
+      "hub": null,
+      "mass": 40.0,
+      "share": 0.174,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "artifacts"
+      ]
+    },
+    {
+      "event": "combat-damage-dealt",
+      "hub": null,
+      "mass": 30.0,
+      "share": 0.13,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "land-enters-battlefield",
+      "hub": null,
+      "mass": 18.0,
+      "share": 0.078,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "landfall"
+      ]
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 17.0,
+      "share": 0.074,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "combat/aggro",
+      "weighted_quantity": 19.0,
+      "share": 0.452
+    },
+    {
+      "strategy": "voltron/equipment",
+      "weighted_quantity": 17.0,
+      "share": 0.405
+    },
+    {
+      "strategy": "artifacts",
+      "weighted_quantity": 14.0,
+      "share": 0.333
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Cloud, Ex-SOLDIER"
+    ],
+    "produces": [
+      "repeatable-token-generator",
+      "repeatable-artifact-tokens",
+      "repeatable-noncreature-tokens",
+      "repeatable-treasures"
+    ],
+    "consumes": [
+      "attack-trigger",
+      "attacking-matters",
+      "attacking-matters-self",
+      "firebend-like"
+    ],
+    "reaches_back_to": [],
+    "closes": false
+  },
+  "naming_resolution": {
+    "named_strategy": "combat/aggro",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "combat/aggro",
+    "confidence": "LOW",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Aerith, Last Ancient",
+    "Arcane Signet",
+    "Armory Automaton",
+    "Ash Barrens",
+    "Austere Command",
+    "Avalanche of Sector 7",
+    "Barret Wallace",
+    "Barret, Avalanche Leader",
+    "Bastion Protector",
+    "Battlefield Forge",
+    "Behemoth Sledge",
+    "Bonders' Enclave",
+    "Bronze Guardian",
+    "Brushland",
+    "Bugenhagen, Wise Elder",
+    "Cait Sith, Fortune Teller",
+    "Canopy Vista",
+    "Champion's Helm",
+    "Chaos Warp",
+    "Cid, Freeflier Pilot",
+    "Cinder Glade",
+    "Clever Concealment",
+    "Clifftop Retreat",
+    "Cloud's Limit Break",
+    "Cloud, Ex-SOLDIER",
+    "Colossus Hammer",
+    "Command Tower",
+    "Conformer Shuriken",
+    "Conqueror's Flail",
+    "Cultivate",
+    "Darksteel Plate",
+    "Decimate",
+    "Dispatch",
+    "Elena, Turk Recruit",
+    "Evolving Wilds",
+    "Exotic Orchard",
+    "Explorer's Scope",
+    "Fire-Lit Thicket",
+    "Fortified Village",
+    "Furious Rise",
+    "Furycalm Snarl",
+    "Game Trail",
+    "Harmonize",
+    "Heidegger, Shinra Executive",
+    "Helitrooper",
+    "Hellkite Tyrant",
+    "Hero's Blade",
+    "Hero's Heirloom",
+    "Inspiring Statuary",
+    "Jungle Shrine",
+    "Lifestream's Blessing",
+    "Lightning Greaves",
+    "Mask of Memory",
+    "Mossfire Valley",
+    "Nature's Lore",
+    "Path of Ancestry",
+    "Professional Face-Breaker",
+    "Professor Hojo",
+    "Puresteel Paladin",
+    "Radiant Grove",
+    "Rampant Growth",
+    "Red XIII, Proud Warrior",
+    "Rootbound Crag",
+    "Rugged Prairie",
+    "SOLDIER Military Program",
+    "Sacred Peaks",
+    "Scavenger Grounds",
+    "Secret Rendezvous",
+    "Sephiroth, Fallen Hero",
+    "Skullclamp",
+    "Slayers' Stronghold",
+    "Sol Ring",
+    "Spire of Industry",
+    "Summon: Kujata",
+    "Summoning Materia",
+    "Sungrass Prairie",
+    "Sunpetal Grove",
+    "Sunscorched Divide",
+    "Sword of the Animist",
+    "Tifa, Martial Artist",
+    "Trailblazer's Boots",
+    "Ultimate Magic: Holy",
+    "Ultimate Magic: Meteor",
+    "Unfinished Business",
+    "Vandalblast",
+    "Vanquish the Horde",
+    "Vincent, Vengeful Atoner",
+    "Wooded Ridgeline",
+    "Wrecking Ball Arm",
+    "Yuffie, Materia Hunter",
+    "Zack Fair"
+  ],
+  "n_nonland": 63,
+  "n_cards": 100
+}

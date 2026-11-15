@@ -17,6 +17,7 @@ Usage (from pipeline/):
 The outputs.jsonl file has one JSON object per line:
     {"slug": "...", "engine": {"strategy": "...", "win_condition": "...", "key_pieces": [...], "confidence": "..."}}
 """
+
 from __future__ import annotations
 
 import json
@@ -25,12 +26,7 @@ from pathlib import Path
 
 # ---- Paths ----
 PLAN_ROOT = Path.home() / '.claude/plans/trippersham/magic-tools'
-WORK_DIR = (
-    PLAN_ROOT
-    / '2026-11-11-strategy-abstraction-consolidation'
-    / 'subagents'
-    / '5.5-roleb-work'
-)
+WORK_DIR = PLAN_ROOT / '2026-11-11-strategy-abstraction-consolidation' / 'subagents' / '5.5-roleb-work'
 INPUTS_DIR = WORK_DIR / 'inputs'
 
 # ---- Known-correct validation anchors from the B-test (a0afd10f) ----
@@ -316,8 +312,11 @@ def main() -> None:
         print(f'Usage: {sys.argv[0]} <outputs.jsonl>', file=sys.stderr)
         print('', file=sys.stderr)
         print('The outputs.jsonl file should have one JSON object per line:', file=sys.stderr)
-        print('  {"slug": "...", "engine": {"strategy": "...", "win_condition": "...", '
-              '"key_pieces": [...], "confidence": "..."}}', file=sys.stderr)
+        print(
+            '  {"slug": "...", "engine": {"strategy": "...", "win_condition": "...", '
+            '"key_pieces": [...], "confidence": "..."}}',
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     outputs_path = Path(sys.argv[1])

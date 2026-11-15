@@ -47,6 +47,7 @@ from pipeline.transforms.strategy.relay import isolate_engines_with_relay
 # Types
 # ---------------------------------------------------------------------------
 
+
 class CompletenessState(enum.Enum):
     """Honesty label for the engine identification result.
 
@@ -129,6 +130,7 @@ class EngineReport:
 # Event-name abbreviation for human-readable engine names
 # ---------------------------------------------------------------------------
 
+
 def _abbrev_event(event: str, events: dict) -> str:
     """Abbreviate an event-catalog slug for human-readable names.
 
@@ -142,6 +144,7 @@ def _abbrev_event(event: str, events: dict) -> str:
 # ---------------------------------------------------------------------------
 # SCC detection (Tarjan's) over the forward-chains graph
 # ---------------------------------------------------------------------------
+
 
 def _find_sccs(chains: list[list[str]]) -> list[frozenset[str]]:
     """Find strongly connected components of size > 1 in the forward-chain graph.
@@ -200,6 +203,7 @@ def _find_sccs(chains: list[list[str]]) -> list[frozenset[str]]:
 # Engine characterization — raw isolation -> named engines
 # ---------------------------------------------------------------------------
 
+
 def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
     """Build :class:`NamedEngine` list from the raw ``_isolate_engines`` output.
 
@@ -255,10 +259,7 @@ def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
         relay_hub_order = {h: i for i, h in enumerate(iso.get('relay_hubs', []))}
         all_hubs.sort(key=lambda h: relay_hub_order.get(h, len(relay_hub_order)))
 
-        cycle_chains = [
-            (c[0], c[1]) for c in forward_chains
-            if c[0] in sccs[scc_idx] and c[1] in sccs[scc_idx]
-        ]
+        cycle_chains = [(c[0], c[1]) for c in forward_chains if c[0] in sccs[scc_idx] and c[1] in sccs[scc_idx]]
 
         ev_abbrevs = [_abbrev_event(e, event_catalog) for e in cycle_events]
         name = '↔'.join(ev_abbrevs) + ' cycle'
@@ -266,16 +267,18 @@ def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
         events_str = ', '.join(cycle_events)
         description = f'{name}; hubs: {hub_str}; via {events_str}'
 
-        named.append(NamedEngine(
-            name=name,
-            hub_attrs=all_hubs,
-            kind='cycle',
-            loop_members=sorted(all_members),
-            events=cycle_events,
-            forward_chains=cycle_chains,
-            description=description,
-            weight=round(total_weight, 1),
-        ))
+        named.append(
+            NamedEngine(
+                name=name,
+                hub_attrs=all_hubs,
+                kind='cycle',
+                loop_members=sorted(all_members),
+                events=cycle_events,
+                forward_chains=cycle_chains,
+                description=description,
+                weight=round(total_weight, 1),
+            )
+        )
 
     # --- Standalone engines (not part of a cycle) ---
     for eng in standalone:
@@ -284,24 +287,23 @@ def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
         events = [eng['event']]
 
         ev_abbrev = _abbrev_event(eng['event'], event_catalog)
-        if eng['kind'] == 'recursive-engine':
-            name = f'{ev_abbrev} engine'
-        else:
-            name = f'{ev_abbrev} payoff'
+        name = f'{ev_abbrev} engine' if eng['kind'] == 'recursive-engine' else f'{ev_abbrev} payoff'
 
         hub_str = hub or 'none'
         description = f'{name}; hub: {hub_str}; via {eng["event"]}'
 
-        named.append(NamedEngine(
-            name=name,
-            hub_attrs=[hub] if hub else [],
-            kind=eng['kind'],
-            loop_members=members,
-            events=events,
-            forward_chains=[],
-            description=description,
-            weight=eng['weight'],
-        ))
+        named.append(
+            NamedEngine(
+                name=name,
+                hub_attrs=[hub] if hub else [],
+                kind=eng['kind'],
+                loop_members=members,
+                events=events,
+                forward_chains=[],
+                description=description,
+                weight=eng['weight'],
+            )
+        )
 
     # Weight descending, name ascending for ties.
     named.sort(key=lambda e: (-e.weight, e.name))
@@ -311,6 +313,7 @@ def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
 # ---------------------------------------------------------------------------
 # Phase-B assembly: select present combos' cached edges (ADR 0021 B1)
 # ---------------------------------------------------------------------------
+
 
 def _assemble_present_combo_edges(
     store: ProvisionalAttributeStore,
@@ -356,9 +359,7 @@ def _assemble_present_combo_edges(
 
     # Directed (produced -> trigger) couplings present, and which are grounded
     # by their mirror (trigger -> produced) on SOME producer.
-    directed: set[tuple[str, str]] = {
-        (a.produced_event, a.trigger_event) for a in combo_edges
-    }
+    directed: set[tuple[str, str]] = {(a.produced_event, a.trigger_event) for a in combo_edges}
     grounded = {(p, t) for (p, t) in directed if (t, p) in directed}
 
     # One grounded role per producer-attr name (lexicographically smallest).
@@ -385,6 +386,7 @@ def _assemble_present_combo_edges(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def identify_engines(
     deck: dict,
@@ -492,7 +494,11 @@ def identify_engines(
 
     # 3. Run relay-augmented engine isolation.
     iso = isolate_engines_with_relay(
-        ctx.nodes, ctx.assets.events, ctx.adens, ctx.assets, ctx.cards,
+        ctx.nodes,
+        ctx.assets.events,
+        ctx.adens,
+        ctx.assets,
+        ctx.cards,
         store=store,
     )
 
@@ -503,11 +509,7 @@ def identify_engines(
     dark = frontier(ctx.cards, authored_edges)
     dark_card_names = sorted(c['name'] for c in dark)
 
-    state = (
-        CompletenessState.RESOLVED
-        if not dark_card_names
-        else CompletenessState.PROVISIONAL
-    )
+    state = CompletenessState.RESOLVED if not dark_card_names else CompletenessState.PROVISIONAL
 
     # 6. Build report.
     return EngineReport(

@@ -1,0 +1,246 @@
+{
+  "slug": "resilience30__hailcaesar_pip",
+  "deck_name": "HailCaesar_PIP",
+  "commanders": [
+    {
+      "name": "Caesar, Legion's Emperor",
+      "oracle_text": "Whenever you attack, you may sacrifice another creature. When you do, choose two —\n• Create two 1/1 red and white Soldier creature tokens with haste that are tapped and attacking.\n• You draw a card and you lose 1 life.\n• Caesar deals damage equal to the number of creature tokens you control to target opponent."
+    }
+  ],
+  "elected": [
+    {
+      "event": "permanent-dies",
+      "hub": "sac",
+      "mass": 131.0,
+      "share": 0.209,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "token-created",
+      "hub": "multiple-bodies",
+      "mass": 124.0,
+      "share": 0.197,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice",
+        "tokens/go-wide"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 74.0,
+      "share": 0.118,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "permanent-sacrificed",
+      "hub": "sac",
+      "mass": 66.0,
+      "share": 0.105,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 43.0,
+      "share": 0.068,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    },
+    {
+      "event": "creature-copied",
+      "hub": null,
+      "mass": 36.0,
+      "share": 0.057,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "tokens/go-wide"
+      ]
+    },
+    {
+      "event": "card-enters-graveyard",
+      "hub": "sac",
+      "mass": 27.0,
+      "share": 0.043,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "aristocrats/sacrifice",
+      "weighted_quantity": 21.0,
+      "share": 0.396
+    },
+    {
+      "strategy": "tokens/go-wide",
+      "weighted_quantity": 21.0,
+      "share": 0.396
+    },
+    {
+      "strategy": "combat/aggro",
+      "weighted_quantity": 18.0,
+      "share": 0.34
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Caesar, Legion's Emperor"
+    ],
+    "produces": [
+      "repeatable-token-generator",
+      "repeatable-creature-tokens",
+      "sacrifice-outlet",
+      "sacrifice-outlet-creature",
+      "repeatable-sacrifice-outlet",
+      "plunder",
+      "bombard",
+      "repeatable-plunder"
+    ],
+    "consumes": [
+      "attack-trigger",
+      "attacking-matters",
+      "synergy-token",
+      "synergy-token-creature"
+    ],
+    "reaches_back_to": [
+      "synergy-token",
+      "synergy-token-creature"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "aristocrats/sacrifice",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "aristocrats/sacrifice",
+    "confidence": "LOW",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Anguished Unmaking",
+    "Aradesh, the Founder",
+    "Arcane Signet",
+    "Ash Barrens",
+    "Assemble the Legion",
+    "Bastion of Remembrance",
+    "Battle of Hoover Dam",
+    "Black Market",
+    "Boomer Scrapper",
+    "Butch DeLoria, Tunnel Snake",
+    "Caesar, Legion's Emperor",
+    "Canyon Slough",
+    "Captain of the Watch",
+    "Charisma Bobblehead",
+    "Clifftop Retreat",
+    "Colonel Autumn",
+    "Command Tower",
+    "Craig Boone, Novac Guard",
+    "Deadly Dispute",
+    "Desdemona, Freedom's Edge",
+    "Desolate Mire",
+    "Diamond City",
+    "Dragonskull Summit",
+    "ED-E, Lonesome Eyebot",
+    "Elder Arthur Maxson",
+    "Entrapment Maneuver",
+    "Evolving Wilds",
+    "Fervent Charge",
+    "Gary Clone",
+    "General's Enforcer",
+    "Heroic Reinforcements",
+    "Hour of Reckoning",
+    "Impassioned Orator",
+    "Intangible Virtue",
+    "Isolated Chapel",
+    "Keeper of the Accord",
+    "Kellogg, Dangerous Mind",
+    "Legate Lanius, Caesar's Ace",
+    "Lethal Scheme",
+    "Luck Bobblehead",
+    "MacCready, Lamplight Mayor",
+    "Marshal's Anthem",
+    "Martial Coup",
+    "Memorial to Glory",
+    "Morbid Opportunist",
+    "Mr. House, President and CEO",
+    "Myriad Landscape",
+    "Mysterious Stranger",
+    "Nomad Outpost",
+    "Overseer of Vault 76",
+    "Paladin Elizabeth Taggerdy",
+    "Path of Ancestry",
+    "Pitiless Plunderer",
+    "Powder Ganger",
+    "Rose, Cutthroat Raider",
+    "Ruinous Ultimatum",
+    "Ruthless Radrat",
+    "Secure the Wastes",
+    "Securitron Squadron",
+    "Shadowblood Ridge",
+    "Sierra, Nuka's Biggest Fan",
+    "Skullclamp",
+    "Smoldering Marsh",
+    "Sol Ring",
+    "Stolen Strategy",
+    "Survivor's Med Kit",
+    "Tainted Field",
+    "Tainted Peak",
+    "Talisman of Conviction",
+    "Talisman of Hierarchy",
+    "Talisman of Indulgence",
+    "Temple of Malice",
+    "Temple of Silence",
+    "Temple of Triumph",
+    "Terramorphic Expanse",
+    "The Nipton Lottery",
+    "Thrill-Kill Disciple",
+    "V.A.T.S.",
+    "Vault 11: Voter's Dilemma",
+    "Vault 75: Middle School",
+    "Wasteland Raider",
+    "Wear // Tear",
+    "White Glove Gourmand",
+    "Wild Wasteland",
+    "Windbrisk Heights",
+    "Yes Man, Personal Securitron"
+  ],
+  "n_nonland": 64,
+  "n_cards": 100
+}

@@ -37,13 +37,22 @@ GOOD_ENGINE = {
 # build_synthesis_input (deterministic, uses the committed fixture)
 # ---------------------------------------------------------------------------
 
+
 def test_build_synthesis_input_shape(load_deck, combos):
     deck = load_deck(ANCHOR)
     inp = build_synthesis_input(deck, combos, slug=ANCHOR)
     assert inp['slug'] == ANCHOR
-    assert {'commanders', 'elected', 'archetype_identity', 'detected_combos',
-            'commander_loop', 'naming_resolution', 'in_deck_cards',
-            'n_nonland', 'n_cards'} <= set(inp)
+    assert {
+        'commanders',
+        'elected',
+        'archetype_identity',
+        'detected_combos',
+        'commander_loop',
+        'naming_resolution',
+        'in_deck_cards',
+        'n_nonland',
+        'n_cards',
+    } <= set(inp)
     assert any('Urza' in c['name'] for c in inp['commanders'])
     # The in-deck roster must ground key_pieces (R5): the commander is present
     # and no name carries the raw |SET|collector suffix.
@@ -62,6 +71,7 @@ def test_build_synthesis_input_is_deterministic(load_deck, combos):
 # build_prompt
 # ---------------------------------------------------------------------------
 
+
 def test_build_prompt_contains_rules_and_deck(load_deck, combos):
     deck = load_deck(ANCHOR)
     inp = build_synthesis_input(deck, combos, slug=ANCHOR)
@@ -78,6 +88,7 @@ def test_prompt_rules_vendored():
 # ---------------------------------------------------------------------------
 # parse_engine_response
 # ---------------------------------------------------------------------------
+
 
 def test_parse_plain_json():
     raw = json.dumps({'slug': 's', 'engine': GOOD_ENGINE})
@@ -102,6 +113,7 @@ def test_parse_garbage_raises():
 # ---------------------------------------------------------------------------
 # validate_engine
 # ---------------------------------------------------------------------------
+
 
 def test_validate_good_engine():
     assert validate_engine(GOOD_ENGINE, {'Urza, Lord High Artificer'}) == []
@@ -143,6 +155,7 @@ def test_validate_tolerates_set_collector_suffix():
 # synthesize_engine (MockBackend)
 # ---------------------------------------------------------------------------
 
+
 def test_synthesize_engine_mock(load_deck, combos):
     deck = load_deck(ANCHOR)
     inp = build_synthesis_input(deck, combos, slug=ANCHOR)
@@ -167,6 +180,7 @@ def test_synthesize_engine_rejects_out_of_deck(load_deck, combos):
 # resolve_engine reader (miss -> synth -> hit)
 # ---------------------------------------------------------------------------
 
+
 def test_resolve_engine_miss_then_hit(load_deck, combos, tmp_path):
     deck = load_deck(ANCHOR)
     names = deck_card_names(deck)
@@ -175,7 +189,11 @@ def test_resolve_engine_miss_then_hit(load_deck, combos, tmp_path):
 
     # First call: cache miss -> synthesise + persist.
     engine, meta = resolve_engine(
-        deck, combos, slug=ANCHOR, backend=backend, cache_dir=tmp_path,
+        deck,
+        combos,
+        slug=ANCHOR,
+        backend=backend,
+        cache_dir=tmp_path,
     )
     assert meta['status'] == 'synthesized'
     assert engine is not None
@@ -183,7 +201,11 @@ def test_resolve_engine_miss_then_hit(load_deck, combos, tmp_path):
 
     # Second call: cache hit, no backend call.
     engine2, meta2 = resolve_engine(
-        deck, combos, slug=ANCHOR, backend=backend, cache_dir=tmp_path,
+        deck,
+        combos,
+        slug=ANCHOR,
+        backend=backend,
+        cache_dir=tmp_path,
     )
     assert meta2['status'] == 'hit'
     assert engine2 == engine
@@ -193,7 +215,12 @@ def test_resolve_engine_miss_then_hit(load_deck, combos, tmp_path):
 def test_resolve_engine_miss_no_backend(load_deck, combos, tmp_path):
     deck = load_deck(ANCHOR)
     engine, meta = resolve_engine(
-        deck, combos, slug=ANCHOR, backend=None, cache_dir=tmp_path, allow_synth=False,
+        deck,
+        combos,
+        slug=ANCHOR,
+        backend=None,
+        cache_dir=tmp_path,
+        allow_synth=False,
     )
     assert engine is None
     assert meta['status'] == 'miss'
@@ -203,7 +230,11 @@ def test_resolve_engine_error_on_bad_backend(load_deck, combos, tmp_path):
     deck = load_deck(ANCHOR)
     backend = MockBackend(default_engine=dict(GOOD_ENGINE, key_pieces=['Not In Deck']))
     engine, meta = resolve_engine(
-        deck, combos, slug=ANCHOR, backend=backend, cache_dir=tmp_path,
+        deck,
+        combos,
+        slug=ANCHOR,
+        backend=backend,
+        cache_dir=tmp_path,
     )
     assert engine is None
     assert meta['status'] == 'error'

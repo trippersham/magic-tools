@@ -1,0 +1,186 @@
+{
+  "slug": "resilience30__exitfromexile_clb",
+  "deck_name": "ExitFromExile_CLB",
+  "commanders": [
+    {
+      "name": "Faldorn, Dread Wolf Herald",
+      "oracle_text": "Whenever you cast a spell from exile or a land you control enters from exile, create a 2/2 green Wolf creature token.\n{1}, {T}, Discard a card: Exile the top card of your library. You may play it this turn."
+    }
+  ],
+  "elected": [
+    {
+      "event": "land-enters-battlefield",
+      "hub": null,
+      "mass": 65.0,
+      "share": 0.496,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "landfall",
+        "lands-matter"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 27.0,
+      "share": 0.206,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 23.0,
+      "share": 0.176,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    },
+    {
+      "event": "card-enters-graveyard",
+      "hub": null,
+      "mass": 8.0,
+      "share": 0.061,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "landfall",
+      "weighted_quantity": 20.0,
+      "share": 0.417
+    },
+    {
+      "strategy": "lands-matter",
+      "weighted_quantity": 19.0,
+      "share": 0.396
+    },
+    {
+      "strategy": "spellslinger",
+      "weighted_quantity": 11.0,
+      "share": 0.229
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Faldorn, Dread Wolf Herald"
+    ],
+    "produces": [
+      "discard-outlet"
+    ],
+    "consumes": [
+      "landfall",
+      "lands-matter"
+    ],
+    "reaches_back_to": [],
+    "closes": false
+  },
+  "naming_resolution": {
+    "named_strategy": "landfall",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "landfall",
+    "confidence": "LOW",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Arasta of the Endless Web",
+    "Arcane Signet",
+    "Ash Barrens",
+    "Aurora Phoenix",
+    "Battle Mammoth",
+    "Beanstalk Giant // Fertile Footsteps",
+    "Beast Within",
+    "Blighted Woodland",
+    "Bloodbraid Elf",
+    "Bonecrusher Giant // Stomp",
+    "Castle Embereth",
+    "Chaos Wand",
+    "Cinder Glade",
+    "Command Tower",
+    "Cultivate",
+    "Delayed Blast Fireball",
+    "Demon Bolt",
+    "Dire Fleet Daredevil",
+    "Dream Pillager",
+    "Durnan of the Yawning Portal",
+    "Embereth Shieldbreaker // Battle Display",
+    "End-Raze Forerunners",
+    "Escape to the Wilds",
+    "Etali, Primal Storm",
+    "Explore",
+    "Ezuri's Predation",
+    "Faldorn, Dread Wolf Herald",
+    "Game Trail",
+    "Greater Gargadon",
+    "Green Slime",
+    "Grumgully, the Generous",
+    "Gruul Turf",
+    "Highland Forest",
+    "Hornet Queen",
+    "Ignite the Future",
+    "Izzet Chemister",
+    "Jeska's Will",
+    "Journey to the Lost City",
+    "Kessig Wolf Run",
+    "Kodama's Reach",
+    "Laelia, the Blade Reforged",
+    "Light Up the Stage",
+    "Lovestruck Beast // Heart's Desire",
+    "Managorger Hydra",
+    "Mizzium Mortars",
+    "Mossfire Valley",
+    "Mosswort Bridge",
+    "Myriad Landscape",
+    "Nalfeshnee",
+    "Natural Reclamation",
+    "Nature's Lore",
+    "Outpost Siege",
+    "Passionate Archaeologist",
+    "Primeval Bounty",
+    "Raging Ravine",
+    "Return of the Wildspeaker",
+    "Sakura-Tribe Elder",
+    "Sandwurm Convergence",
+    "Sarevok's Tome",
+    "Search for Tomorrow",
+    "Sol Ring",
+    "Spinerock Knoll",
+    "Stolen Strategy",
+    "Sweet-Gum Recluse",
+    "Tectonic Giant",
+    "Temple of Abandon",
+    "Temple of the False God",
+    "Terramorph",
+    "Three Visits",
+    "Tlincalli Hunter // Retrieve Prey",
+    "Urabrask the Hidden",
+    "Venture Forth",
+    "Vivien, Champion of the Wilds",
+    "Volcanic Torrent",
+    "Warstorm Surge",
+    "Wild-Magic Sorcerer",
+    "Xenagos, the Reveler"
+  ],
+  "n_nonland": 61,
+  "n_cards": 100
+}

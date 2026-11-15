@@ -33,10 +33,20 @@ DECKS = FIX / 'decks'
 
 #: The frozen per-axis record keys (W1/W2: resolve.py reads ``n``/``over_served``/…
 #: out of this dict — its shape must never drift).
-_AXIS_REC_KEYS = frozenset({
-    'n', 'frac', 'precon_cnt', 'cedh_cnt', 'precon_frac', 'cedh_frac',
-    'over_served', 'under_served', 'cedh_level', 'inverts',
-})
+_AXIS_REC_KEYS = frozenset(
+    {
+        'n',
+        'frac',
+        'precon_cnt',
+        'cedh_cnt',
+        'precon_frac',
+        'cedh_frac',
+        'over_served',
+        'under_served',
+        'cedh_level',
+        'inverts',
+    }
+)
 
 #: Every archetype/strategy name the router can emit — the literals that must not
 #: appear in the gate's control flow.
@@ -47,8 +57,7 @@ AXIS_NAMES = set(DEGREE_AXES)
 
 def _func_defs(source: str, name: str) -> list[ast.FunctionDef]:
     tree = ast.parse(source)
-    return [n for n in ast.walk(tree)
-            if isinstance(n, ast.FunctionDef) and n.name == name]
+    return [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == name]
 
 
 def _string_literals(node: ast.AST) -> set[str]:
@@ -56,8 +65,12 @@ def _string_literals(node: ast.AST) -> set[str]:
     out: set[str] = set()
     body = getattr(node, 'body', None)
     doc = None
-    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
-            and isinstance(body[0].value.value, str):
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
         doc = body[0].value
     for c in ast.walk(node):
         if isinstance(c, ast.Constant) and isinstance(c.value, str) and c is not doc:
@@ -160,6 +173,5 @@ def test_default_substantiveness_map_is_unpolluted() -> None:
     machinery never leaks into the default map. Spellslinger is NOT special-cased:
     it falls to the generic ``member_count(3)`` default (the vestigial density gate
     was removed; the over-fire now lives in vocab routing)."""
-    assert set(S.build_substantiveness(DEFAULT_CONFIG)) == {
-        'graveyard/reanimator', 'control/permission'}
+    assert set(S.build_substantiveness(DEFAULT_CONFIG)) == {'graveyard/reanimator', 'control/permission'}
     assert S.requirement_for('spellslinger', DEFAULT_CONFIG) is S.DEFAULT_REQUIREMENT

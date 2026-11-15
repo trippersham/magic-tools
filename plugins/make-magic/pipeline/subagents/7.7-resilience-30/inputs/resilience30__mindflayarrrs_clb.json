@@ -1,0 +1,265 @@
+{
+  "slug": "resilience30__mindflayarrrs_clb",
+  "deck_name": "MindFlayarrrs_CLB",
+  "commanders": [
+    {
+      "name": "Captain N'ghathrod",
+      "oracle_text": "Horrors you control have menace.\nWhenever a Horror you control deals combat damage to a player, that player mills that many cards.\nAt the beginning of your end step, choose target artifact or creature card in an opponent's graveyard that was put there from their library this turn. Put it onto the battlefield under your control."
+    }
+  ],
+  "elected": [
+    {
+      "event": "card-enters-graveyard",
+      "hub": "sac",
+      "mass": 110.0,
+      "share": 0.298,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "permanent-dies",
+      "hub": "sac",
+      "mass": 62.0,
+      "share": 0.168,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "combat-damage-dealt",
+      "hub": null,
+      "mass": 32.0,
+      "share": 0.087,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "token-created",
+      "hub": null,
+      "mass": 23.0,
+      "share": 0.062,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 16.0,
+      "share": 0.043,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "permanent-sacrificed",
+      "hub": "sac",
+      "mass": 15.0,
+      "share": 0.041,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 9.0,
+      "share": 0.024,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "graveyard/reanimator",
+      "weighted_quantity": 18.0,
+      "share": 0.439
+    },
+    {
+      "strategy": "mill",
+      "weighted_quantity": 15.0,
+      "share": 0.366
+    },
+    {
+      "strategy": "typal/tribal",
+      "weighted_quantity": 13.0,
+      "share": 0.317
+    }
+  ],
+  "detected_combos": [
+    {
+      "variant_id": "513-5034--46",
+      "label": "Infinite colorless mana",
+      "result": "Infinite colorless mana; Infinite storm count",
+      "requires": [
+        "Hullbreaker Horror",
+        "Sol Ring"
+      ],
+      "n_pieces": 2,
+      "win": false,
+      "win_kind": "non-win"
+    }
+  ],
+  "commander_loop": {
+    "commander": [
+      "Captain N'ghathrod"
+    ],
+    "produces": [
+      "mill",
+      "mill-opponent",
+      "recursion",
+      "reanimate",
+      "reanimate-creature",
+      "recursion-creature",
+      "reanimate-from-opponent",
+      "gives-evasion",
+      "gives-menace",
+      "reanimate-artifact",
+      "recursion-artifact"
+    ],
+    "consumes": [
+      "recursion",
+      "reanimate",
+      "reanimate-creature",
+      "recursion-creature",
+      "reanimate-from-opponent",
+      "saboteur",
+      "reanimate-artifact",
+      "recursion-artifact",
+      "scales-with-damage-dealt"
+    ],
+    "reaches_back_to": [
+      "recursion",
+      "reanimate",
+      "reanimate-creature",
+      "recursion-creature",
+      "reanimate-from-opponent",
+      "saboteur",
+      "reanimate-artifact",
+      "recursion-artifact",
+      "scales-with-damage-dealt"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "graveyard/reanimator",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "graveyard/reanimator",
+    "confidence": "LOW",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Aboleth Spawn",
+    "Arcane Signet",
+    "Ash Barrens",
+    "Black Market",
+    "Brainstealer Dragon",
+    "Captain N'ghathrod",
+    "Chasm Skulker",
+    "Choked Estuary",
+    "Command Tower",
+    "Consuming Aberration",
+    "Creeping Tar Pit",
+    "Crippling Fear",
+    "Curtains' Call",
+    "Dark Hatchling",
+    "Darkwater Catacombs",
+    "Dauthi Horror",
+    "Dimir Aqueduct",
+    "Dimir Keyrune",
+    "Dimir Signet",
+    "Dross Harvester",
+    "Drown in the Loch",
+    "Drownyard Temple",
+    "Dusk Mangler",
+    "Endless Evil",
+    "Everflowing Chalice",
+    "Exotic Orchard",
+    "Extract from Darkness",
+    "Fact or Fiction",
+    "Feed the Swarm",
+    "Forgotten Creation",
+    "Fractured Sanity",
+    "From the Catacombs",
+    "Grazilaxx, Illithid Scholar",
+    "Grell Philosopher",
+    "Guiltfeeder",
+    "Haunted One",
+    "Herald's Horn",
+    "Hex",
+    "Hullbreaker Horror",
+    "Hunted Horror",
+    "In Garruk's Wake",
+    "Leyline of Anticipation",
+    "Lightning Greaves",
+    "Memory Plunder",
+    "Mind Flayer",
+    "Mind Stone",
+    "Mindcrank",
+    "Myriad Landscape",
+    "Nemesis of Reason",
+    "Nephalia Drownyard",
+    "Nighthowler",
+    "Nihilith",
+    "Overcharged Amalgam",
+    "Path of Ancestry",
+    "Phyrexian Rager",
+    "Phyrexian Revoker",
+    "Plague Spitter",
+    "Port of Karfell",
+    "Psionic Ritual",
+    "Psychosis Crawler",
+    "Pull from Tomorrow",
+    "Ravenous Chupacabra",
+    "Reflections of Littjara",
+    "River of Tears",
+    "Rogue's Passage",
+    "Sewer Nemesis",
+    "Sludge Monster",
+    "Sol Ring",
+    "Spellskite",
+    "Sunken Hollow",
+    "Syphon Mind",
+    "Tainted Isle",
+    "Talisman of Dominance",
+    "Temple of Deceit",
+    "Temple of the False God",
+    "Thought Vessel",
+    "Uchuulon",
+    "Wharf Infiltrator",
+    "Woe Strider",
+    "Zellix, Sanity Flayer"
+  ],
+  "n_nonland": 62,
+  "n_cards": 100
+}

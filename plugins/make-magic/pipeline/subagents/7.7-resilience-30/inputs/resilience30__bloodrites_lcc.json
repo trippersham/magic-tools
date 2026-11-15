@@ -1,0 +1,205 @@
+{
+  "slug": "resilience30__bloodrites_lcc",
+  "deck_name": "BloodRites_LCC",
+  "commanders": [
+    {
+      "name": "Clavileño, First of the Blessed",
+      "oracle_text": "Whenever you attack, target attacking Vampire that isn't a Demon becomes a Demon in addition to its other types. It gains \"When this creature dies, draw a card and create a tapped 4/3 white and black Vampire Demon creature token with flying.\""
+    }
+  ],
+  "elected": [
+    {
+      "event": "permanent-dies",
+      "hub": "sac",
+      "mass": 134.0,
+      "share": 0.282,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "token-created",
+      "hub": "leaves-body-behind",
+      "mass": 58.0,
+      "share": 0.122,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 50.0,
+      "share": 0.105,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 37.0,
+      "share": 0.078,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    },
+    {
+      "event": "land-enters-battlefield",
+      "hub": null,
+      "mass": 10.0,
+      "share": 0.021,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "landfall"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "aristocrats/sacrifice",
+      "weighted_quantity": 32.0,
+      "share": 0.571
+    },
+    {
+      "strategy": "typal/tribal",
+      "weighted_quantity": 27.0,
+      "share": 0.482
+    },
+    {
+      "strategy": "lifegain",
+      "weighted_quantity": 24.0,
+      "share": 0.429
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Clavileño, First of the Blessed"
+    ],
+    "produces": [
+      "repeatable-token-generator",
+      "repeatable-creature-tokens",
+      "creates-bigger-body"
+    ],
+    "consumes": [
+      "death-trigger",
+      "attack-trigger",
+      "attacking-matters"
+    ],
+    "reaches_back_to": [
+      "death-trigger"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "aristocrats/sacrifice",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "aristocrats/sacrifice",
+    "confidence": "LOW",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Arcane Signet",
+    "Austere Command",
+    "Bartolomé del Presidio",
+    "Blade of the Bloodchief",
+    "Blood Artist",
+    "Bloodghast",
+    "Bloodline Necromancer",
+    "Bloodtracker",
+    "Bojuka Bog",
+    "Butcher of Malakir",
+    "Carmen, Cruel Skymarcher",
+    "Champion of Dusk",
+    "Charismatic Conqueror",
+    "Clavileño, First of the Blessed",
+    "Command Tower",
+    "Commander's Sphere",
+    "Cordial Vampire",
+    "Crossway Troublemakers",
+    "Cruel Celebrant",
+    "Damn",
+    "Drana, Liberator of Malakir",
+    "Dusk Legion Sergeant",
+    "Dusk Legion Zealot",
+    "Elenda's Hierophant",
+    "Elenda, the Dusk Rose",
+    "Etchings of the Chosen",
+    "Exquisite Blood",
+    "Falkenrath Noble",
+    "Glass-Cast Heart",
+    "Heirloom Blade",
+    "Indulgent Aristocrat",
+    "Isolated Chapel",
+    "Kindred Boon",
+    "Legion Lieutenant",
+    "March of the Canonized",
+    "Martyr of Dusk",
+    "Master of Dark Rites",
+    "Mavren Fein, Dusk Apostle",
+    "Mind Stone",
+    "Myriad Landscape",
+    "New Blood",
+    "Nighthawk Scavenger",
+    "Oathsworn Vampire",
+    "Olivia's Wrath",
+    "Order of Sacred Dusk",
+    "Orzhov Basilica",
+    "Orzhov Signet",
+    "Pact of the Serpent",
+    "Path of Ancestry",
+    "Patron of the Vein",
+    "Promise of Aclazotz // Foul Rebirth",
+    "Radiant Destiny",
+    "Redemption Choir",
+    "Return to Dust",
+    "Rogue's Passage",
+    "Sanctum Seeker",
+    "Secluded Courtyard",
+    "Shineshadow Snarl",
+    "Sol Ring",
+    "Sorin, Lord of Innistrad",
+    "Swiftfoot Boots",
+    "Swords to Plowshares",
+    "Tainted Field",
+    "Talisman of Hierarchy",
+    "Temple of Silence",
+    "Temple of the False God",
+    "Timothar, Baron of Bats",
+    "Twilight Prophet",
+    "Unclaimed Territory",
+    "Utter End",
+    "Vault of the Archangel",
+    "Village Rites",
+    "Viscera Seer",
+    "Voldaren Estate",
+    "Vona, Butcher of Magan",
+    "Wayfarer's Bauble",
+    "Welcoming Vampire",
+    "Windbrisk Heights",
+    "Yahenni, Undying Partisan"
+  ],
+  "n_nonland": 63,
+  "n_cards": 100
+}

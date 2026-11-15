@@ -45,9 +45,7 @@ ENGINE_ISOLATION_BASELINE_FILE = FIX / 'engine_isolation_baseline.json'
 
 def _sha256(obj: object) -> str:
     """Stable SHA-256 of a JSON-serializable object."""
-    return hashlib.sha256(
-        json.dumps(obj, sort_keys=True, default=list).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(obj, sort_keys=True, default=list).encode()).hexdigest()
 
 
 def _fixture_slugs() -> list[str]:
@@ -95,9 +93,7 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 
     Later phases compare this one number to prove the HELD layer didn't shift.
     """
-    return hashlib.sha256(
-        json.dumps(per_deck, sort_keys=True).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(per_deck, sort_keys=True).encode()).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -163,8 +159,7 @@ def main() -> None:
         print('\n  OK: resolve SHAs match committed vocab_parity_baseline.json')
 
     # Write engine isolation baseline
-    ENGINE_ISOLATION_BASELINE_FILE.write_text(
-        json.dumps(engine_baselines, indent=2, sort_keys=True) + '\n')
+    ENGINE_ISOLATION_BASELINE_FILE.write_text(json.dumps(engine_baselines, indent=2, sort_keys=True) + '\n')
     print(f'\n  Wrote engine isolation baseline -> {ENGINE_ISOLATION_BASELINE_FILE.name}')
 
     print('\n--- (c) full-corpus canonical SHA (lake-backed) ---')

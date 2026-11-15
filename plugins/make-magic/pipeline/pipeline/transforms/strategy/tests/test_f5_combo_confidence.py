@@ -37,28 +37,60 @@ def _ctx(share: float, wq_top: float, wq_second: float) -> FactsContext:
     """
     cfg = DEFAULT_CONFIG
     strategies = {
-        'burn': {'weighted_quantity': wq_top, 'n_member_cards': 5, 'requires_met': True,
-                 'contributing_attrs': ['burn'], 'member_cards': ['a', 'b', 'c', 'd', 'e'],
-                 'is_identity': True},
-        'lifegain': {'weighted_quantity': wq_second, 'n_member_cards': 4, 'requires_met': True,
-                     'contributing_attrs': ['lifegain'], 'member_cards': ['f', 'g', 'h', 'i'],
-                     'is_identity': True},
+        'burn': {
+            'weighted_quantity': wq_top,
+            'n_member_cards': 5,
+            'requires_met': True,
+            'contributing_attrs': ['burn'],
+            'member_cards': ['a', 'b', 'c', 'd', 'e'],
+            'is_identity': True,
+        },
+        'lifegain': {
+            'weighted_quantity': wq_second,
+            'n_member_cards': 4,
+            'requires_met': True,
+            'contributing_attrs': ['lifegain'],
+            'member_cards': ['f', 'g', 'h', 'i'],
+            'is_identity': True,
+        },
     }
     arch_members = {'burn': {0, 1, 2, 3, 4}, 'lifegain': {5, 6, 7, 8}}
-    adens: defaultdict[str, float] = defaultdict(float, {'burn': wq_top, 'lifegain': wq_second,
-                                                         'filler': 300.0})
+    adens: defaultdict[str, float] = defaultdict(float, {'burn': wq_top, 'lifegain': wq_second, 'filler': 300.0})
     cards = [{'name': c, 'role': None} for c in 'abcdefghi']
-    win_combos = [{'card_names': [f'p{i}', f'q{i}'], 'win': True, 'mana': False,
-                   'variant_id': f'v{i}', 'result': 'Win the game'} for i in range(2)]
+    win_combos = [
+        {'card_names': [f'p{i}', f'q{i}'], 'win': True, 'mana': False, 'variant_id': f'v{i}', 'result': 'Win the game'}
+        for i in range(2)
+    ]
     return FactsContext(
-        deck={}, cards=cards, n_nonland=9, assets=None, cfg=cfg, facts={},  # type: ignore[arg-type]
-        strategies=strategies, facts_only=set(), arch_members=arch_members,
+        deck={},
+        cards=cards,
+        n_nonland=9,
+        assets=None,
+        cfg=cfg,
+        facts={},  # type: ignore[arg-type]
+        strategies=strategies,
+        facts_only=set(),
+        arch_members=arch_members,
         arch_has_cmd={'burn': False, 'lifegain': False},
-        nodes={'burn', 'lifegain', 'filler'}, support=frozenset(), adens=adens, card_w={},
-        identity_mass=wq_top / share, coverage=0.9, demotions={},
-        cs_axis={'n': 0}, stax_axis={}, ramp_axis={'cedh_level': False}, protection_degree={},
-        power={}, tribe_info={'top': None, 'ranked': []}, density_signals={}, cmd_attrs=set(),
-        detected=[], win_combos=win_combos, predicate_wins=win_combos, mana_sink_wins=[],
+        nodes={'burn', 'lifegain', 'filler'},
+        support=frozenset(),
+        adens=adens,
+        card_w={},
+        identity_mass=wq_top / share,
+        coverage=0.9,
+        demotions={},
+        cs_axis={'n': 0},
+        stax_axis={},
+        ramp_axis={'cedh_level': False},
+        protection_degree={},
+        power={},
+        tribe_info={'top': None, 'ranked': []},
+        density_signals={},
+        cmd_attrs=set(),
+        detected=[],
+        win_combos=win_combos,
+        predicate_wins=win_combos,
+        mana_sink_wins=[],
     )
 
 

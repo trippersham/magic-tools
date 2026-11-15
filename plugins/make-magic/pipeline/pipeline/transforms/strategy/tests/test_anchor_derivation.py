@@ -29,6 +29,7 @@ def catalog_events() -> dict[str, dict]:
 # 1. Mana-produced soundness (THE KEY GATE — write first, implement second)
 # ---------------------------------------------------------------------------
 
+
 class TestManaProducedSoundness:
     """The anchor rule re-derives mana-produced: mana-producer IN, ramp OUT.
 
@@ -46,9 +47,7 @@ class TestManaProducedSoundness:
         committed = set(events['mana-produced']['produced_by'])
         derived_pb = set(derived['mana-produced']['produced_by'])
 
-        assert committed <= derived_pb, (
-            f'Derived produced_by lost committed slugs: {committed - derived_pb}'
-        )
+        assert committed <= derived_pb, f'Derived produced_by lost committed slugs: {committed - derived_pb}'
 
     def test_mana_produced_derived_excludes_ramp(self) -> None:
         """Derived produced_by does NOT contain ``ramp``."""
@@ -81,14 +80,13 @@ class TestManaProducedSoundness:
 
         anchors = set(ANCHOR_MAP['mana-produced']['produced_by']['anchors'])
         expected = {'adds-multiple-mana', 'mana-producer', 'repeatable-treasures', 'ritual'}
-        assert anchors == expected, (
-            f'Anchor mismatch: got {anchors}, expected {expected}'
-        )
+        assert anchors == expected, f'Anchor mismatch: got {anchors}, expected {expected}'
 
 
 # ---------------------------------------------------------------------------
 # 2. Anchor map completeness + grades
 # ---------------------------------------------------------------------------
+
 
 class TestAnchorMapCompleteness:
     """The 27-event anchor map covers every catalog event."""
@@ -97,12 +95,11 @@ class TestAnchorMapCompleteness:
         from pipeline.transforms.strategy.anchor_derivation import ANCHOR_MAP
 
         for event_name in catalog_events:
-            assert event_name in ANCHOR_MAP, (
-                f'Event {event_name!r} missing from ANCHOR_MAP'
-            )
+            assert event_name in ANCHOR_MAP, f'Event {event_name!r} missing from ANCHOR_MAP'
 
     def test_anchor_map_has_27_events(self) -> None:
         from pipeline.transforms.strategy.anchor_derivation import ANCHOR_MAP
+
         assert len(ANCHOR_MAP) == 27
 
     def test_each_entry_has_both_sides_and_grade(self) -> None:
@@ -151,16 +148,24 @@ class TestAnchorMapCompleteness:
 # 3. Ancestor-closure: 0 violations
 # ---------------------------------------------------------------------------
 
+
 class TestAncestorClosure:
     """Taxonomy anchors exist; synthetic catalog slugs are known exceptions."""
 
     #: Slugs in the committed event catalog that are NOT Scryfall otags —
     #: synthetic bucket names or shorthand.  They have no taxonomy entry and
     #: their descendant-closure is just themselves (backward-compat passthrough).
-    _SYNTHETIC_CATALOG_SLUGS = frozenset({
-        'artifacts', 'clones', 'combat', 'counters',
-        'rad-counter', 'sac', 'tokens',
-    })
+    _SYNTHETIC_CATALOG_SLUGS = frozenset(
+        {
+            'artifacts',
+            'clones',
+            'combat',
+            'counters',
+            'rad-counter',
+            'sac',
+            'tokens',
+        }
+    )
 
     def test_all_non_synthetic_anchors_exist_in_taxonomy(self) -> None:
         from pipeline.transforms.strategy.anchor_derivation import (
@@ -210,6 +215,7 @@ class TestAncestorClosure:
 # 4. Derived ⊇ enumerated (slug-level superset, per event)
 # ---------------------------------------------------------------------------
 
+
 class TestDerivedSupersetOfEnumerated:
     """Derived lists ⊇ enumerated for every event, except slugs the exclusivity
     rule refuses as cross-mechanic umbrellas.
@@ -238,9 +244,7 @@ class TestDerivedSupersetOfEnumerated:
             anchors = ANCHOR_MAP.get(event_name, {}).get('produced_by', {}).get('anchors', [])
             refused = set(refused_climb_targets(anchors)) if anchors else set()
             missing = (enum_pb - derived_pb) - refused
-            assert not missing, (
-                f'{event_name}: derived produced_by lost enumerated slugs: {missing}'
-            )
+            assert not missing, f'{event_name}: derived produced_by lost enumerated slugs: {missing}'
 
     def test_derived_triggers_superset(self, catalog_events: dict[str, dict]) -> None:
         from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
@@ -250,9 +254,7 @@ class TestDerivedSupersetOfEnumerated:
             enum_t = set(ev['triggers'])
             derived_t = set(derived[event_name]['triggers'])
             missing = enum_t - derived_t
-            assert not missing, (
-                f'{event_name}: derived triggers lost enumerated slugs: {missing}'
-            )
+            assert not missing, f'{event_name}: derived triggers lost enumerated slugs: {missing}'
 
 
 # ---------------------------------------------------------------------------
@@ -319,30 +321,22 @@ class TestUnlockOnRoleAEdges:
         n_edges = len(role_a_edges)
         assert n_edges == 116, f'Expected 116 edges, got {n_edges}'
 
-        enum_corr = sum(
-            1 for e in role_a_edges
-            if self._corroborates(e, catalog_events, residue_otags)
-        )
-        derived_corr = sum(
-            1 for e in role_a_edges
-            if self._corroborates(e, derived, residue_otags)
-        )
+        enum_corr = sum(1 for e in role_a_edges if self._corroborates(e, catalog_events, residue_otags))
+        derived_corr = sum(1 for e in role_a_edges if self._corroborates(e, derived, residue_otags))
 
         enum_pct = enum_corr / n_edges * 100
         derived_pct = derived_corr / n_edges * 100
 
-        assert derived_corr >= enum_corr, (
-            f'Derived ({derived_corr}) lost edges vs enumerated ({enum_corr})'
-        )
+        assert derived_corr >= enum_corr, f'Derived ({derived_corr}) lost edges vs enumerated ({enum_corr})'
         assert derived_pct >= 63.0, (
-            f'Derived unlock {derived_pct:.1f}% < 63% target '
-            f'({derived_corr}/{n_edges}; enumerated was {enum_pct:.1f}%)'
+            f'Derived unlock {derived_pct:.1f}% < 63% target ({derived_corr}/{n_edges}; enumerated was {enum_pct:.1f}%)'
         )
 
 
 # ---------------------------------------------------------------------------
 # 6. P0 SHA re-baselined (derived adjacency authoritative — ADR 0022, task 6.5)
 # ---------------------------------------------------------------------------
+
 
 class TestP0SHAUnchanged:
     """The re-baselined parity SHAs (derived adjacency + rank-don't-cut now the
@@ -380,20 +374,20 @@ class TestP0SHAUnchanged:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == '3010be2a0d1d5def69f6d63974d75d3023837c39fc8c04c056cfa88565931769', (
-            f'Resolve SHA shifted: {sha}'
-        )
+        assert sha == '3010be2a0d1d5def69f6d63974d75d3023837c39fc8c04c056cfa88565931769', f'Resolve SHA shifted: {sha}'
 
 
 # ---------------------------------------------------------------------------
 # 6. Derived adjacency shape / invariants
 # ---------------------------------------------------------------------------
 
+
 class TestDerivedAdjacencyShape:
     """Derived events dict has the same shape as the original."""
 
     def test_derived_preserves_all_event_keys(
-        self, catalog_events: dict[str, dict],
+        self,
+        catalog_events: dict[str, dict],
     ) -> None:
         from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
 
@@ -401,7 +395,8 @@ class TestDerivedAdjacencyShape:
         assert set(derived.keys()) == set(catalog_events.keys())
 
     def test_derived_preserves_rule_field(
-        self, catalog_events: dict[str, dict],
+        self,
+        catalog_events: dict[str, dict],
     ) -> None:
         from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
 
@@ -410,23 +405,21 @@ class TestDerivedAdjacencyShape:
             assert derived[event_name]['rule'] == catalog_events[event_name]['rule']
 
     def test_derived_lists_are_sorted(
-        self, catalog_events: dict[str, dict],
+        self,
+        catalog_events: dict[str, dict],
     ) -> None:
         from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
 
         derived = derive_event_adjacency(catalog_events)
         for event_name, ev in derived.items():
-            assert ev['produced_by'] == sorted(ev['produced_by']), (
-                f'{event_name}: derived produced_by not sorted'
-            )
-            assert ev['triggers'] == sorted(ev['triggers']), (
-                f'{event_name}: derived triggers not sorted'
-            )
+            assert ev['produced_by'] == sorted(ev['produced_by']), f'{event_name}: derived produced_by not sorted'
+            assert ev['triggers'] == sorted(ev['triggers']), f'{event_name}: derived triggers not sorted'
 
 
 # ---------------------------------------------------------------------------
 # 7. Exclusivity validator — the anchor rule as ENFORCED code (task 6.1b)
 # ---------------------------------------------------------------------------
+
 
 class TestExclusivityValidator:
     """``ramp`` is auto-excluded from mana-produced AND land-enters by the
@@ -463,16 +456,13 @@ class TestExclusivityValidator:
                 anchors = entry[side]['anchors']
                 if not anchors:
                     continue
-                reaches_ramp = any(
-                    'ramp' in proper_ancestors(a, taxonomy) for a in anchors
-                )
+                reaches_ramp = any('ramp' in proper_ancestors(a, taxonomy) for a in anchors)
                 if not reaches_ramp:
                     continue
                 m = mechanic_population(anchors)
                 res = is_mechanic_exclusive('ramp', m)
                 assert not res.ok, (
-                    f'{event_name}.{side}: ramp passed exclusivity '
-                    f'(precision={res.precision:.3f}) — the rule is WRONG'
+                    f'{event_name}.{side}: ramp passed exclusivity (precision={res.precision:.3f}) — the rule is WRONG'
                 )
                 ramp_sides.append((event_name, side))
 
@@ -489,12 +479,8 @@ class TestExclusivityValidator:
 
         derived = derive_event_adjacency(_load_events())
         for event_name, ev in derived.items():
-            assert 'ramp' not in ev['produced_by'], (
-                f'{event_name}: ramp leaked into derived produced_by'
-            )
-            assert 'ramp' not in ev['triggers'], (
-                f'{event_name}: ramp leaked into derived triggers'
-            )
+            assert 'ramp' not in ev['produced_by'], f'{event_name}: ramp leaked into derived produced_by'
+            assert 'ramp' not in ev['triggers'], f'{event_name}: ramp leaked into derived triggers'
 
     def test_mana_producer_is_mechanic_exclusive(self) -> None:
         """mana-producer passes exclusivity for mana-produced (the kept anchor)."""
@@ -518,7 +504,8 @@ class TestExclusivityValidator:
         assert violations == [], f'Anchor-map exclusivity violations: {violations}'
 
     def test_derived_output_byte_identical_to_enumerated_expansion(
-        self, catalog_events: dict[str, dict],
+        self,
+        catalog_events: dict[str, dict],
     ) -> None:
         """The exclusivity layer does NOT change the derived output.
 
@@ -544,8 +531,7 @@ class TestExclusivityValidator:
                 for a in anchors:
                     expected |= descendant_closure(a, taxonomy)
                 assert set(derived[event_name][side]) == expected, (
-                    f'{event_name}.{side}: derived output drifted from the '
-                    f'curated closure-union'
+                    f'{event_name}.{side}: derived output drifted from the curated closure-union'
                 )
 
     def test_ramp_precision_margins(self) -> None:
@@ -566,8 +552,7 @@ class TestExclusivityValidator:
             m = mechanic_population(anchors)
             res = is_mechanic_exclusive('ramp', m)
             assert res.precision < EXCLUSIVITY_PRECISION_MIN, (
-                f'{event_name}: ramp precision {res.precision:.3f} '
-                f'>= {EXCLUSIVITY_PRECISION_MIN}'
+                f'{event_name}: ramp precision {res.precision:.3f} >= {EXCLUSIVITY_PRECISION_MIN}'
             )
 
     def test_ramp_as_seed_caught_by_validator(self) -> None:
@@ -610,6 +595,7 @@ class TestExclusivityValidator:
 # 8. event_admitted gate test (Gate-2 test gap)
 # ---------------------------------------------------------------------------
 
+
 class TestEventAdmittedGate:
     """``event_admitted`` gates the mana-produced engine unit into the mass
     election based on whether the command zone anchors mana production.
@@ -641,8 +627,7 @@ class TestEventAdmittedGate:
         # 'ramp' is in extra_refs for mana-produced (anchor-side-only).
         cmd_attrs_ramp = {'ramp', 'landfall'}
         assert event_admitted('mana-produced', cmd_attrs_ramp, assets), (
-            'A ramp-only commander (e.g. Derevi) should still admit mana-produced '
-            'via the extra_refs anchor'
+            'A ramp-only commander (e.g. Derevi) should still admit mana-produced via the extra_refs anchor'
         )
 
     def test_non_mana_commander_refused(self) -> None:

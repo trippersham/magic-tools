@@ -36,20 +36,38 @@ from pipeline.transforms.strategy.assets import is_land
 #: ``https://api.scryfall.com/catalog/creature-types``, committed under ``data/``.
 _CATALOG_FILE = Path(__file__).resolve().parent / 'data' / 'creature_types_catalog.json'
 #: canonical casing, keyed by lower-case for case-insensitive span matching
-_CREATURE_TYPES_BY_LOWER: dict[str, str] = {
-    t.lower(): t for t in json.loads(_CATALOG_FILE.read_text())['data']
-}
+_CREATURE_TYPES_BY_LOWER: dict[str, str] = {t.lower(): t for t in json.loads(_CATALOG_FILE.read_text())['data']}
 #: widest catalog entry in words (2, for "Time Lord") — the longest-match window
 _MAX_SPAN = max((len(t.split()) for t in _CREATURE_TYPES_BY_LOWER.values()), default=1)
 
 #: non-tribe ``typal-*`` control slugs (meta/structural, not a creature subtype)
-_TYPAL_NONTRIBE = frozenset({'creature', 'choose', 'each', 'coupling', 'coupling-distinct',
-                             'exclusion', 'flagbearer-like', 'glimmer', 'historic'})
+_TYPAL_NONTRIBE = frozenset(
+    {
+        'creature',
+        'choose',
+        'each',
+        'coupling',
+        'coupling-distinct',
+        'exclusion',
+        'flagbearer-like',
+        'glimmer',
+        'historic',
+    }
+)
 _IRREGULAR_PLURAL = {
-    'ally': 'allies', 'elf': 'elves', 'dwarf': 'dwarves', 'wolf': 'wolves',
-    'thief': 'thieves', 'leaf': 'leaves', 'djinn': 'djinn', 'fish': 'fish',
-    'fungus': 'fungi', 'mercenary': 'mercenaries', 'homarid': 'homarids',
+    'ally': 'allies',
+    'elf': 'elves',
+    'dwarf': 'dwarves',
+    'wolf': 'wolves',
+    'thief': 'thieves',
+    'leaf': 'leaves',
+    'djinn': 'djinn',
+    'fish': 'fish',
+    'fungus': 'fungi',
+    'mercenary': 'mercenaries',
+    'homarid': 'homarids',
 }
+
 
 def _plural(t: str) -> str:
     tl = t.lower()
@@ -80,7 +98,7 @@ def creature_subtypes(card: dict) -> list[str]:
     i, n = 0, len(words)
     while i < n:
         for span in range(min(_MAX_SPAN, n - i), 0, -1):
-            canon = _CREATURE_TYPES_BY_LOWER.get(' '.join(words[i:i + span]).lower())
+            canon = _CREATURE_TYPES_BY_LOWER.get(' '.join(words[i : i + span]).lower())
             if canon is not None:
                 out.append(canon)
                 i += span
@@ -94,7 +112,7 @@ def typal_otag_tribe(slug: str) -> str | None:
     """Map ``typal-<tribe>`` → Title-cased single-word subtype, or None for control slugs."""
     if not slug.startswith('typal-'):
         return None
-    rest = slug[len('typal-'):]
+    rest = slug[len('typal-') :]
     if rest in _TYPAL_NONTRIBE or rest.startswith(('non-', 'choose')):
         return None
     word = rest.split('-')[-1]
@@ -104,7 +122,7 @@ def typal_otag_tribe(slug: str) -> str | None:
 def compute_tribes(cards: list[dict], *, sub_t: int, cmd_weight: float, typal_dom_share: float) -> dict:
     """Commander-weighted, multi-valued, ranked tribe vote. Deterministic."""
     sub_w: defaultdict[str, float] = defaultdict(float)  # commander-weighted subtype membership
-    sub_raw: Counter = Counter()                         # raw creature count per subtype (concentration gate)
+    sub_raw: Counter = Counter()  # raw creature count per subtype (concentration gate)
     otag_w: defaultdict[str, float] = defaultdict(float)
     n_creatures = 0
     for c in cards:
@@ -123,8 +141,7 @@ def compute_tribes(cards: list[dict], *, sub_t: int, cmd_weight: float, typal_do
                 otag_w[tribe] += w
 
     candidates = set(sub_w) | set(otag_w)
-    pats = {t: re.compile(rf'\b(?:{re.escape(t.lower())}|{re.escape(_plural(t))})\b')
-            for t in candidates}
+    pats = {t: re.compile(rf'\b(?:{re.escape(t.lower())}|{re.escape(_plural(t))})\b') for t in candidates}
     text_w: defaultdict[str, float] = defaultdict(float)
     for c in cards:
         if is_land(c):
@@ -141,14 +158,19 @@ def compute_tribes(cards: list[dict], *, sub_t: int, cmd_weight: float, typal_do
     for t in candidates:
         score = sub_w[t] + otag_w[t] + text_w[t]
         share = round(sub_raw[t] / n_creatures, 3) if n_creatures else 0.0
-        ranked.append({
-            'tribe': t, 'score': round(score, 1),
-            'sub_w': round(sub_w[t], 1), 'otag_w': round(otag_w[t], 1),
-            'text_w': round(text_w[t], 1), 'raw_creatures': sub_raw[t],
-            'share': share,
-            'concentrated': sub_raw[t] >= sub_t,
-            'dominant': sub_raw[t] >= sub_t and share >= typal_dom_share,
-        })
+        ranked.append(
+            {
+                'tribe': t,
+                'score': round(score, 1),
+                'sub_w': round(sub_w[t], 1),
+                'otag_w': round(otag_w[t], 1),
+                'text_w': round(text_w[t], 1),
+                'raw_creatures': sub_raw[t],
+                'share': share,
+                'concentrated': sub_raw[t] >= sub_t,
+                'dominant': sub_raw[t] >= sub_t and share >= typal_dom_share,
+            }
+        )
     ranked.sort(key=lambda d: (-d['score'], -d['raw_creatures'], d['tribe']))
     concentrated = sorted(d['tribe'] for d in ranked if d['concentrated'])
     dominant = sorted(d['tribe'] for d in ranked if d['dominant'])
@@ -161,5 +183,10 @@ def compute_tribes(cards: list[dict], *, sub_t: int, cmd_weight: float, typal_do
     if first_dominant is not None:
         top = first_dominant
 
-    return {'ranked': ranked, 'concentrated_tribes': concentrated,
-            'dominant_tribes': dominant, 'n_creatures': n_creatures, 'top': top}
+    return {
+        'ranked': ranked,
+        'concentrated_tribes': concentrated,
+        'dominant_tribes': dominant,
+        'n_creatures': n_creatures,
+        'top': top,
+    }

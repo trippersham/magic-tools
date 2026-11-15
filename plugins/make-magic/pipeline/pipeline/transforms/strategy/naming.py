@@ -42,8 +42,7 @@ def name_deck(ctx: FactsContext) -> dict:
         key=lambda kv: (-kv[1]['weighted_quantity'], not arch_has_cmd.get(kv[0], False), kv[0]),
     )
     ranked_all = sorted(
-        ((arch, st['weighted_quantity'], st['requires_met']) for arch, st in strategies.items()
-         if st['is_identity']),
+        ((arch, st['weighted_quantity'], st['requires_met']) for arch, st in strategies.items() if st['is_identity']),
         key=lambda kv: (-kv[1], kv[0]),
     )
 
@@ -80,11 +79,14 @@ def name_deck(ctx: FactsContext) -> dict:
         a1, s1 = ranked[1]
         if s1['weighted_quantity'] >= 0.6 * s0['weighted_quantity']:
             bridge = len(arch_members[a0] & arch_members[a1])
-            conflict = {'engines': [a0, a1],
-                        'wq0': s0['weighted_quantity'], 'wq1': s1['weighted_quantity'],
-                        'shared_cards': bridge,
-                        'signal': 'two comparable identities'
-                                  + (' (low margin)' if margin is not None and margin < 0.25 else '')}
+            conflict = {
+                'engines': [a0, a1],
+                'wq0': s0['weighted_quantity'],
+                'wq1': s1['weighted_quantity'],
+                'shared_cards': bridge,
+                'signal': 'two comparable identities'
+                + (' (low margin)' if margin is not None and margin < 0.25 else ''),
+            }
 
     # ---- confidence (density-rank based)
     confidence = conf_score = conf_sig = None
@@ -99,15 +101,23 @@ def name_deck(ctx: FactsContext) -> dict:
         total_node_mass = sum(adens[a] for a in nodes) or 1e-6
         span = top_st['weighted_quantity'] / total_node_mass
         span_term = min(1.0, span / 0.4)
-        coherence = 0.55 * marg + 0.20 * comp_term + 0.25 * (0.0 if (conflict and conflict['shared_cards'] <= 1)
-                                                             else 1.0)
+        coherence = (
+            0.55 * marg + 0.20 * comp_term + 0.25 * (0.0 if (conflict and conflict['shared_cards'] <= 1) else 1.0)
+        )
         substance = 0.6 * share + 0.4 * span_term
         conf_score = round((coherence * substance) ** 0.5, 3)
         confidence = 'HIGH' if conf_score >= cfg.conf_high else ('LOW' if conf_score < cfg.conf_low else 'MED')
-        conf_sig = {'margin': marg, 'identity_share': round(share, 3), 'span': round(span, 3),
-                    'n_comparable': n_comparable, 'coherence': round(coherence, 3),
-                    'substance': round(substance, 3), 'named_wq': top_st['weighted_quantity'],
-                    'total_identity_mass': round(total_identity, 1), 'tie': tie}
+        conf_sig = {
+            'margin': marg,
+            'identity_share': round(share, 3),
+            'span': round(span, 3),
+            'n_comparable': n_comparable,
+            'coherence': round(coherence, 3),
+            'substance': round(substance, 3),
+            'named_wq': top_st['weighted_quantity'],
+            'total_identity_mass': round(total_identity, 1),
+            'tie': tie,
+        }
 
     # ========================================= T5 A3 + F4: WIN-COMBO NAMING OVERRIDE
     pre_combo_name = name
@@ -115,10 +125,7 @@ def name_deck(ctx: FactsContext) -> dict:
     combo_override_applied = False
     combo_identity = None
     win_combos = ctx.win_combos
-    override_eligible = (
-        len(win_combos) >= cfg.combo_win_min
-        and ((name is None) or (confidence in cfg.combo_conf))
-    )
+    override_eligible = len(win_combos) >= cfg.combo_win_min and ((name is None) or (confidence in cfg.combo_conf))
     # F4 dense-primary guard: block the override when the pre-combo primary is a
     # dense, dominant proactive plan (owns >= combo_primary_share of identity mass
     # AND clears combo_primary_margin over #2). A soft mana-sink promotion cannot
@@ -150,11 +157,12 @@ def name_deck(ctx: FactsContext) -> dict:
         and conf_sig['identity_share'] >= cfg.combo_primary_share
     )
     if override_eligible and not primary_dominates:
+
         def _repkey(c: dict) -> tuple:
             return (len(c['card_names']), 0 if c['win'] else 1, combo_label(c['result']), c['variant_id'])
 
         rep = sorted(win_combos, key=_repkey)[0]
-        combo_identity = f"{combo_label(rep['result'])} combo [{'+'.join(sorted(rep['card_names']))}]"
+        combo_identity = f'{combo_label(rep["result"])} combo [{"+".join(sorted(rep["card_names"]))}]'
         name = 'alt-wincon/combo'
         combo_override_applied = True
         margin = 1.0
@@ -163,11 +171,17 @@ def name_deck(ctx: FactsContext) -> dict:
         conf_score = None
         abstain_reason = None
 
-    strat_list = [{'label': arch, 'weighted_quantity': st['weighted_quantity'],
-                   'n_member_cards': st['n_member_cards'], 'requires_met': st['requires_met'],
-                   'eligible': eligible(arch, st)}
-                  for arch, st in sorted(strategies.items(), key=lambda kv: (-kv[1]['weighted_quantity'], kv[0]))
-                  if st['is_identity']][:6]
+    strat_list = [
+        {
+            'label': arch,
+            'weighted_quantity': st['weighted_quantity'],
+            'n_member_cards': st['n_member_cards'],
+            'requires_met': st['requires_met'],
+            'eligible': eligible(arch, st),
+        }
+        for arch, st in sorted(strategies.items(), key=lambda kv: (-kv[1]['weighted_quantity'], kv[0]))
+        if st['is_identity']
+    ][:6]
 
     # ---- archetype_identity: the ranked identity SET (top-N), the authoritative
     # read that replaces the single-label collapse. Primacy is a per-deck relation,
@@ -183,12 +197,11 @@ def name_deck(ctx: FactsContext) -> dict:
     if ranked:
         lead_wq = ranked[0][1]['weighted_quantity'] or 1e-6
         im = ctx.identity_mass or 1e-6
-        for arch, st in ranked[:cfg.max_identity]:
+        for arch, st in ranked[: cfg.max_identity]:
             wq = st['weighted_quantity']
             if wq < cfg.identity_ratio * lead_wq:
                 break
-            archetype_identity.append({'strategy': arch, 'weighted_quantity': wq,
-                                       'share': round(min(1.0, wq / im), 3)})
+            archetype_identity.append({'strategy': arch, 'weighted_quantity': wq, 'share': round(min(1.0, wq / im), 3)})
         inc = len(archetype_identity)
         if inc < len(ranked):
             # set-boundary cleanliness: the drop from the last included to the

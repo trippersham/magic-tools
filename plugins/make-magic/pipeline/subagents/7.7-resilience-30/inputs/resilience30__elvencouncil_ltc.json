@@ -1,0 +1,194 @@
+{
+  "slug": "resilience30__elvencouncil_ltc",
+  "deck_name": "ElvenCouncil_LTC",
+  "commanders": [
+    {
+      "name": "Galadriel, Elven-Queen",
+      "oracle_text": "Will of the council — At the beginning of combat on your turn, if another Elf entered the battlefield under your control this turn, starting with you, each player votes for dominion or guidance. If dominion gets more votes, the Ring tempts you, then you put a +1/+1 counter on your Ring-bearer. If guidance gets more votes or the vote is tied, draw a card."
+    }
+  ],
+  "elected": [
+    {
+      "event": "recursion-from-graveyard",
+      "hub": "recursion",
+      "mass": 31.0,
+      "share": 0.207,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 30.0,
+      "share": 0.2,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 29.0,
+      "share": 0.193,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "land-enters-battlefield",
+      "hub": null,
+      "mass": 22.0,
+      "share": 0.147,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "landfall"
+      ]
+    },
+    {
+      "event": "creature-enters-battlefield",
+      "hub": null,
+      "mass": 7.0,
+      "share": 0.047,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": []
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "combat/aggro",
+      "weighted_quantity": 16.0,
+      "share": 0.4
+    },
+    {
+      "strategy": "typal/tribal",
+      "weighted_quantity": 14.0,
+      "share": 0.35
+    },
+    {
+      "strategy": "+1/+1 counters",
+      "weighted_quantity": 11.0,
+      "share": 0.275
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Galadriel, Elven-Queen"
+    ],
+    "produces": [
+      "gives-pp-counters",
+      "repeatable-pp-counters",
+      "discard-outlet",
+      "loot",
+      "repeatable-loot"
+    ],
+    "consumes": [],
+    "reaches_back_to": [],
+    "closes": false
+  },
+  "naming_resolution": {
+    "named_strategy": "combat/aggro",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "combat/aggro",
+    "confidence": "LOW",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Arbor Elf",
+    "Arcane Signet",
+    "Arwen, Weaver of Hope",
+    "Asceticism",
+    "Ash Barrens",
+    "Beast Within",
+    "Celeborn the Wise",
+    "Colossal Whale",
+    "Command Tower",
+    "Commander's Sphere",
+    "Cultivate",
+    "Círdan the Shipwright",
+    "Devastation Tide",
+    "Elrond of the White Council",
+    "Elven Farsight",
+    "Elvish Archdruid",
+    "Elvish Mystic",
+    "Elvish Piper",
+    "Elvish Visionary",
+    "Elvish Warmaster",
+    "Erestor of the Council",
+    "Exotic Orchard",
+    "Farhaven Elf",
+    "Field of Ruin",
+    "Flooded Grove",
+    "Galadhrim Ambush",
+    "Galadriel, Elven-Queen",
+    "Gandalf, Westward Voyager",
+    "Genesis Wave",
+    "Growth Spiral",
+    "Haldir, Lórien Lieutenant",
+    "Heroic Intervention",
+    "Hinterland Harbor",
+    "Hornet Queen",
+    "Inscription of Abundance",
+    "Learn from the Past",
+    "Legolas Greenleaf",
+    "Lightning Greaves",
+    "Lignify",
+    "Lonely Sandbar",
+    "Lothlórien Blade",
+    "Lórien Revealed",
+    "Mirkwood Elk",
+    "Mirkwood Trapper",
+    "Mirror of Galadriel",
+    "Model of Unity",
+    "Mystic Confluence",
+    "Opt",
+    "Overwhelming Stampede",
+    "Paradise Druid",
+    "Plea for Power",
+    "Preordain",
+    "Radagast, Wizard of Wilds",
+    "Raise the Palisade",
+    "Rampant Growth",
+    "Realm Seekers",
+    "Reclamation Sage",
+    "Rejuvenating Springs",
+    "Sail into the West",
+    "Seeds of Renewal",
+    "Sol Ring",
+    "Song of Eärendil",
+    "Swan Song",
+    "Sylvan Offering",
+    "Thornwood Falls",
+    "Tranquil Thicket",
+    "Trap the Trespassers",
+    "Travel Through Caradhras",
+    "Vineglimmer Snarl",
+    "Whispersilk Cloak",
+    "Windswift Slice",
+    "Wood Elves",
+    "Woodland Stream",
+    "Wose Pathfinder"
+  ],
+  "n_nonland": 62,
+  "n_cards": 100
+}

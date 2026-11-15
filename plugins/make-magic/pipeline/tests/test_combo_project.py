@@ -38,7 +38,15 @@ def _fixture_variant() -> dict:
         'notablePrerequisites': 'Card A must be untapped.',
         'manaNeeded': '{2}{U}',
         'produces': [
-            {'feature': {'id': 63, 'name': 'Target opponent loses the game', 'status': 'R', 'uncountable': True}, 'quantity': 1},
+            {
+                'feature': {
+                    'id': 63,
+                    'name': 'Target opponent loses the game',
+                    'status': 'R',
+                    'uncountable': True,
+                },
+                'quantity': 1,
+            },
             {'feature': {'id': 24, 'name': 'Infinite card draw', 'status': 'S', 'uncountable': True}, 'quantity': 1},
         ],
         'uses': [

@@ -1,0 +1,225 @@
+{
+  "slug": "resilience30__partytime_clb",
+  "deck_name": "PartyTime_CLB",
+  "commanders": [
+    {
+      "name": "Nalia de'Arnise",
+      "oracle_text": "You may look at the top card of your library any time.\nYou may cast Cleric, Rogue, Warrior, and Wizard spells from the top of your library.\nAt the beginning of combat on your turn, if you have a full party, put a +1/+1 counter on each creature you control and those creatures gain deathtouch until end of turn."
+    }
+  ],
+  "elected": [
+    {
+      "event": "permanent-dies",
+      "hub": null,
+      "mass": 60.0,
+      "share": 0.209,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": "combat",
+      "mass": 46.0,
+      "share": 0.16,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 42.0,
+      "share": 0.146,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    },
+    {
+      "event": "creature-enters-battlefield",
+      "hub": "reanimate-creature",
+      "mass": 39.0,
+      "share": 0.136,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "card-enters-graveyard",
+      "hub": null,
+      "mass": 31.0,
+      "share": 0.108,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "deathtouch-combat",
+      "hub": null,
+      "mass": 28.0,
+      "share": 0.098,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "permanent-sacrificed",
+      "hub": null,
+      "mass": 17.0,
+      "share": 0.059,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "typal/tribal",
+      "weighted_quantity": 23.0,
+      "share": 0.426
+    },
+    {
+      "strategy": "combat/aggro",
+      "weighted_quantity": 15.0,
+      "share": 0.278
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Nalia de'Arnise"
+    ],
+    "produces": [
+      "gives-pp-counters",
+      "repeatable-pp-counters",
+      "gives-deathtouch",
+      "gives-pp-counters-to-all",
+      "gains-deathtouch"
+    ],
+    "consumes": [
+      "gains-pp-counters"
+    ],
+    "reaches_back_to": [
+      "gains-pp-counters"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "typal/tribal",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "typal/tribal",
+    "confidence": "LOW",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Arcane Signet",
+    "Archpriest of Iona",
+    "Ash Barrens",
+    "Austere Command",
+    "Aven Mindcensor",
+    "Black Market Connections",
+    "Bloodsoaked Champion",
+    "Bojuka Bog",
+    "Burakos, Party Leader",
+    "Butcher of Malakir",
+    "Bygone Bishop",
+    "Calculating Lich",
+    "Castle Locthwain",
+    "Changeling Outcast",
+    "Command Tower",
+    "Corpse Augur",
+    "Crib Swap",
+    "Deep Gnome Terramancer",
+    "Despark",
+    "Dire Fleet Ravager",
+    "Dusk // Dawn",
+    "Eight-and-a-Half-Tails",
+    "Felisa, Fang of Silverquill",
+    "Firja's Retribution",
+    "Folk Hero",
+    "Frontline Medic",
+    "Galepowder Mage",
+    "Glorious Protector",
+    "Gonti, Lord of Luxury",
+    "Grim Haruspex",
+    "Grim Hireling",
+    "Harper Recruiter",
+    "High Priest of Penance",
+    "Irregular Cohort",
+    "Jazal Goldmane",
+    "Mage's Attendant",
+    "Magus of the Balance",
+    "Malakir Blood-Priest",
+    "Mardu Strike Leader",
+    "Maskwood Nexus",
+    "Mikaeus, the Lunarch",
+    "Mindblade Render",
+    "Mirror Entity",
+    "Mortuary Mire",
+    "Mother of Runes",
+    "Multiclass Baldric",
+    "Mutavault",
+    "Myriad Landscape",
+    "Nalia de'Arnise",
+    "Nighthawk Scavenger",
+    "Order of Whiteclay",
+    "Orzhov Basilica",
+    "Orzhov Signet",
+    "Path of Ancestry",
+    "Pontiff of Blight",
+    "Priest of Ancient Lore",
+    "Puppeteer Clique",
+    "Rumor Gatherer",
+    "Seasoned Dungeoneer",
+    "Selfless Spirit",
+    "Sevinne's Reclamation",
+    "Shambling Vent",
+    "Skullclamp",
+    "Snowfield Sinkhole",
+    "Sol Ring",
+    "Solemn Doomguide",
+    "Solemn Recruit",
+    "Squad Commander",
+    "Starlit Sanctum",
+    "Stick Together",
+    "Tainted Field",
+    "Talisman of Hierarchy",
+    "Temple of Silence",
+    "Thwart the Grave",
+    "Unbreakable Formation",
+    "Valiant Changeling",
+    "Vault of the Archangel",
+    "War Room",
+    "Windbrisk Heights",
+    "Zulaport Cutthroat"
+  ],
+  "n_nonland": 63,
+  "n_cards": 100
+}

@@ -1,0 +1,182 @@
+{
+  "slug": "resilience30__corruptinginfluence_onc",
+  "deck_name": "CorruptingInfluence_ONC",
+  "commanders": [
+    {
+      "name": "Ixhel, Scion of Atraxa",
+      "oracle_text": "Flying, vigilance, toxic 2\nCorrupted — At the beginning of your end step, each opponent who has three or more poison counters exiles the top card of their library face down. You may look at and play those cards for as long as they remain exiled, and you may spend mana as though it were mana of any color to cast those spells."
+    }
+  ],
+  "elected": [
+    {
+      "event": "permanent-dies",
+      "hub": null,
+      "mass": 63.0,
+      "share": 0.375,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "counter-placed",
+      "hub": "repeatable-proliferate",
+      "mass": 37.0,
+      "share": 0.22,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    },
+    {
+      "event": "card-enters-graveyard",
+      "hub": null,
+      "mass": 20.0,
+      "share": 0.119,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "land-enters-battlefield",
+      "hub": null,
+      "mass": 12.0,
+      "share": 0.071,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "landfall"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "-1/-1 counters",
+      "weighted_quantity": 35.0,
+      "share": 0.673
+    },
+    {
+      "strategy": "typal/tribal",
+      "weighted_quantity": 23.0,
+      "share": 0.442
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Ixhel, Scion of Atraxa"
+    ],
+    "produces": [
+      "mill",
+      "mill-exile",
+      "mill-opponent"
+    ],
+    "consumes": [],
+    "reaches_back_to": [],
+    "closes": false
+  },
+  "naming_resolution": {
+    "named_strategy": "-1/-1 counters",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "-1/-1 counters",
+    "confidence": "MED",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Arcane Signet",
+    "Beast Within",
+    "Bilious Skulldweller",
+    "Blight Mamba",
+    "Blightbelly Rat",
+    "Bojuka Bog",
+    "Cankerbloom",
+    "Canopy Vista",
+    "Caress of Phyrexia",
+    "Carrion Call",
+    "Chromatic Lantern",
+    "Command Tower",
+    "Commander's Sphere",
+    "Contagion Clasp",
+    "Contaminant Grafter",
+    "Culling Ritual",
+    "Cultivate",
+    "Evolution Sage",
+    "Exotic Orchard",
+    "Expand the Sphere",
+    "Feed the Infection",
+    "Fellwar Stone",
+    "Fortified Village",
+    "Fumigate",
+    "Geth's Summons",
+    "Ghostly Prison",
+    "Glissa's Retriever",
+    "Glistening Sphere",
+    "Golgari Signet",
+    "Grafted Exoskeleton",
+    "Grateful Apparition",
+    "Ichor Rats",
+    "Ichorclaw Myr",
+    "Infectious Inquiry",
+    "Ixhel, Scion of Atraxa",
+    "Karn's Bastion",
+    "Krosan Verge",
+    "Merciless Eviction",
+    "Moldervine Reclamation",
+    "Mortify",
+    "Mycosynth Fiend",
+    "Myr Convert",
+    "Myriad Landscape",
+    "Necroblossom Snarl",
+    "Night's Whisper",
+    "Norn's Annex",
+    "Norn's Choirmaster",
+    "Norn's Decree",
+    "Noxious Assault",
+    "Noxious Revival",
+    "Painful Truths",
+    "Path of Ancestry",
+    "Pestilent Syphoner",
+    "Phyresis Outbreak",
+    "Phyrexian Atlas",
+    "Phyrexian Rebirth",
+    "Phyrexian Swarmlord",
+    "Plague Myr",
+    "Plague Stinger",
+    "Putrefy",
+    "Sandsteppe Citadel",
+    "Scavenging Ooze",
+    "Shineshadow Snarl",
+    "Sol Ring",
+    "Sungrass Prairie",
+    "Swords to Plowshares",
+    "Tainted Field",
+    "Tainted Wood",
+    "Temple of Malady",
+    "Temple of Plenty",
+    "Temple of Silence",
+    "Trailblazer's Boots",
+    "Unnatural Restoration",
+    "Vat Emergence",
+    "Venomous Brutalizer",
+    "Viridian Corrupter",
+    "Vishgraz, the Doomhive",
+    "Vraska's Fall",
+    "Windborn Muse",
+    "Wurmquake"
+  ],
+  "n_nonland": 62,
+  "n_cards": 100
+}

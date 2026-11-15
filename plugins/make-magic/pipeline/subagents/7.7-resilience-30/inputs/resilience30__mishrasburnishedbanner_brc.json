@@ -1,0 +1,207 @@
+{
+  "slug": "resilience30__mishrasburnishedbanner_brc",
+  "deck_name": "MishraSBurnishedBanner_BRC",
+  "commanders": [
+    {
+      "name": "Mishra, Eminent One",
+      "oracle_text": "At the beginning of combat on your turn, create a token that's a copy of target noncreature artifact you control, except its name is Mishra's Warform and it's a 4/4 Construct artifact creature in addition to its other types. It gains haste until end of turn. Sacrifice it at the beginning of the next end step."
+    }
+  ],
+  "elected": [
+    {
+      "event": "permanent-dies",
+      "hub": "sac",
+      "mass": 143.0,
+      "share": 0.279,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "token-created",
+      "hub": null,
+      "mass": 98.0,
+      "share": 0.191,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice",
+        "artifacts"
+      ]
+    },
+    {
+      "event": "artifact-enters",
+      "hub": null,
+      "mass": 82.0,
+      "share": 0.16,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "artifacts"
+      ]
+    },
+    {
+      "event": "permanent-sacrificed",
+      "hub": "sac",
+      "mass": 79.0,
+      "share": 0.154,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "card-enters-graveyard",
+      "hub": "sac",
+      "mass": 68.0,
+      "share": 0.133,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "artifacts",
+      "weighted_quantity": 33.0,
+      "share": 0.611
+    },
+    {
+      "strategy": "aristocrats/sacrifice",
+      "weighted_quantity": 24.0,
+      "share": 0.444
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Mishra, Eminent One"
+    ],
+    "produces": [
+      "repeatable-token-generator",
+      "repeatable-artifact-tokens",
+      "repeatable-creature-tokens"
+    ],
+    "consumes": [
+      "synergy-artifact"
+    ],
+    "reaches_back_to": [
+      "synergy-artifact"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "artifacts",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "artifacts",
+    "confidence": "MED",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Abrade",
+    "Arcane Signet",
+    "Ash Barrens",
+    "Ashnod the Uncaring",
+    "Audacious Reshapers",
+    "Bedevil",
+    "Blasphemous Act",
+    "Blast-Furnace Hellkite",
+    "Brudiclad, Telchor Engineer",
+    "Buried Ruin",
+    "Chaos Warp",
+    "Command Tower",
+    "Commander's Sphere",
+    "Crumbling Necropolis",
+    "Cursed Mirror",
+    "Darkwater Catacombs",
+    "Dimir Aqueduct",
+    "Dimir Signet",
+    "Dreamstone Hedron",
+    "Drossforge Bridge",
+    "Emry, Lurker of the Loch",
+    "Executioner's Capsule",
+    "Exotic Orchard",
+    "Expressive Iteration",
+    "Fact or Fiction",
+    "Fain, the Broker",
+    "Faithless Looting",
+    "Farid, Enterprising Salvager",
+    "Feed the Swarm",
+    "Fellwar Stone",
+    "Geth, Lord of the Vault",
+    "Glint Raker",
+    "Great Furnace",
+    "Hedron Archive",
+    "Hellkite Igniter",
+    "Herald of Anguish",
+    "Ichor Wellspring",
+    "Idol of Oblivion",
+    "Izzet Boilerworks",
+    "Jhoira, Weatherlight Captain",
+    "Lithoform Engine",
+    "Machine God's Effigy",
+    "Master Transmuter",
+    "Metalwork Colossus",
+    "Mind Stone",
+    "Mirrorworks",
+    "Mishra, Eminent One",
+    "Mistvault Bridge",
+    "Mnemonic Sphere",
+    "Muzzio, Visionary Architect",
+    "Mycosynth Wellspring",
+    "Myriad Landscape",
+    "Nihil Spellbomb",
+    "Oblivion Stone",
+    "Oni-Cult Anvil",
+    "Padeem, Consul of Innovation",
+    "Path of Ancestry",
+    "Prophetic Prism",
+    "Rakdos Carnarium",
+    "Rakdos Signet",
+    "Reliquary Tower",
+    "Scavenged Brawler",
+    "Seat of the Synod",
+    "Servo Schematic",
+    "Shadowblood Ridge",
+    "Silas Renn, Seeker Adept",
+    "Silverbluff Bridge",
+    "Slobad, Goblin Tinkerer",
+    "Smelting Vat",
+    "Smoldering Marsh",
+    "Sol Ring",
+    "Spine of Ish Sah",
+    "Strionic Resonator",
+    "Temple of Deceit",
+    "Temple of Epiphany",
+    "Temple of Malice",
+    "Terisiare's Devastation",
+    "Terramorphic Expanse",
+    "Thirst for Knowledge",
+    "Thoughtcast",
+    "Thran Dynamo",
+    "Trading Post",
+    "Traxos, Scourge of Kroog",
+    "Vault of Whispers",
+    "Wayfarer's Bauble",
+    "Wondrous Crucible",
+    "Workshop Elders"
+  ],
+  "n_nonland": 63,
+  "n_cards": 100
+}

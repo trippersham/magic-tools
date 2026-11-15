@@ -114,9 +114,13 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'land-enters-battlefield': {
         'triggers': {
             'anchors': [
-                'islandfall', 'land-count-matters', 'landfall',
-                'landfall-other', 'lands-in-graveyard-matter',
-                'lands-matter', 'opponent-land-count-matters',
+                'islandfall',
+                'land-count-matters',
+                'landfall',
+                'landfall-other',
+                'lands-in-graveyard-matter',
+                'lands-matter',
+                'opponent-land-count-matters',
             ],
             'grade': 'S',
         },
@@ -130,9 +134,12 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             # no per-event special-casing.  See is_mechanic_exclusive /
             # validate_anchor_map (task 6.1b).
             'anchors': [
-                'extra-land', 'land-ramp',
-                'reanimate-land', 'recursion-land',
-                'sneak-land', 'tutor-land-to-battlefield',
+                'extra-land',
+                'land-ramp',
+                'reanimate-land',
+                'recursion-land',
+                'sneak-land',
+                'tutor-land-to-battlefield',
             ],
             'grade': 'M',
         },
@@ -141,20 +148,29 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'creature-enters-battlefield': {
         'triggers': {
             'anchors': [
-                'creature-count-matters', 'creaturefall',
-                'enters-in-company', 'flicker',
-                'leaves-body-behind', 'multiple-bodies',
+                'creature-count-matters',
+                'creaturefall',
+                'enters-in-company',
+                'flicker',
+                'leaves-body-behind',
+                'multiple-bodies',
                 'synergy-token-creature',
             ],
             'grade': 'S',
         },
         'produced_by': {
             'anchors': [
-                'flicker', 'flicker-creature', 'multiple-bodies',
-                'reanimate-artifact-creature', 'reanimate-creature',
-                'reanimate-nonland', 'reanimate-permanent',
-                'repeatable-creature-tokens', 'repeatable-token-generator',
-                'sneak-creature', 'tokens',
+                'flicker',
+                'flicker-creature',
+                'multiple-bodies',
+                'reanimate-artifact-creature',
+                'reanimate-creature',
+                'reanimate-nonland',
+                'reanimate-permanent',
+                'repeatable-creature-tokens',
+                'repeatable-token-generator',
+                'sneak-creature',
+                'tokens',
             ],
             'grade': 'M',
         },
@@ -164,19 +180,28 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
         'triggers': {
             'anchors': [
                 'enters-and-leaves-trigger-self',
-                'leaves-battlefield-trigger', 'leaves-body-behind',
+                'leaves-battlefield-trigger',
+                'leaves-body-behind',
                 'leaves-trigger-self',
             ],
             'grade': 'S',
         },
         'produced_by': {
             'anchors': [
-                'flicker', 'flicker-artifact', 'flicker-creature',
-                'flicker-enchantment', 'flicker-land',
-                'flicker-nonenchantment', 'flicker-nonland',
-                'flicker-permanent', 'flicker-planeswalker',
-                'flicker-self', 'flicker-slow', 'flicker-vehicle',
-                'removal', 'sac',
+                'flicker',
+                'flicker-artifact',
+                'flicker-creature',
+                'flicker-enchantment',
+                'flicker-land',
+                'flicker-nonenchantment',
+                'flicker-nonland',
+                'flicker-permanent',
+                'flicker-planeswalker',
+                'flicker-self',
+                'flicker-slow',
+                'flicker-vehicle',
+                'removal',
+                'sac',
             ],
             'grade': 'M',
         },
@@ -185,20 +210,31 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'permanent-dies': {
         'triggers': {
             'anchors': [
-                'cheat-death', 'cheat-death-self', 'death-trigger',
-                'death-trigger-opponent', 'death-trigger-self',
-                'life-and-death-trigger-self', 'splits-on-death',
+                'cheat-death',
+                'cheat-death-self',
+                'death-trigger',
+                'death-trigger-opponent',
+                'death-trigger-self',
+                'life-and-death-trigger-self',
+                'splits-on-death',
             ],
             'grade': 'S',
         },
         'produced_by': {
             'anchors': [
-                'free-sacrifice-outlet', 'removal',
-                'removal-sacrifice', 'sac', 'sacrifice-outlet',
-                'sacrifice-outlet-artifact', 'sacrifice-outlet-creature',
-                'sacrifice-outlet-enchantment', 'sacrifice-outlet-land',
-                'sacrifice-outlet-nonland', 'sacrifice-outlet-planeswalker',
-                'sacrifice-outlet-token', 'sacrifice-outlet-universal',
+                'free-sacrifice-outlet',
+                'removal',
+                'removal-sacrifice',
+                'sac',
+                'sacrifice-outlet',
+                'sacrifice-outlet-artifact',
+                'sacrifice-outlet-creature',
+                'sacrifice-outlet-enchantment',
+                'sacrifice-outlet-land',
+                'sacrifice-outlet-nonland',
+                'sacrifice-outlet-planeswalker',
+                'sacrifice-outlet-token',
+                'sacrifice-outlet-universal',
                 'sacrifice-self',
             ],
             'grade': 'M',
@@ -208,21 +244,32 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'permanent-sacrificed': {
         'triggers': {
             'anchors': [
-                'death-trigger', 'death-trigger-opponent',
-                'death-trigger-self', 'opponent-sacrifice-matters',
-                'sacrifice-matters', 'your-sacrifice-matters',
+                'death-trigger',
+                'death-trigger-opponent',
+                'death-trigger-self',
+                'opponent-sacrifice-matters',
+                'sacrifice-matters',
+                'your-sacrifice-matters',
             ],
             'grade': 'M',
         },
         'produced_by': {
             'anchors': [
-                'alternate-cost-sacrifice', 'free-sacrifice-outlet',
-                'removal-sacrifice', 'repeatable-sacrifice-outlet',
-                'sac', 'sacrifice-outlet', 'sacrifice-outlet-artifact',
-                'sacrifice-outlet-creature', 'sacrifice-outlet-enchantment',
-                'sacrifice-outlet-land', 'sacrifice-outlet-nonland',
-                'sacrifice-outlet-planeswalker', 'sacrifice-outlet-token',
-                'sacrifice-outlet-universal', 'sacrifice-self',
+                'alternate-cost-sacrifice',
+                'free-sacrifice-outlet',
+                'removal-sacrifice',
+                'repeatable-sacrifice-outlet',
+                'sac',
+                'sacrifice-outlet',
+                'sacrifice-outlet-artifact',
+                'sacrifice-outlet-creature',
+                'sacrifice-outlet-enchantment',
+                'sacrifice-outlet-land',
+                'sacrifice-outlet-nonland',
+                'sacrifice-outlet-planeswalker',
+                'sacrifice-outlet-token',
+                'sacrifice-outlet-universal',
+                'sacrifice-self',
             ],
             'grade': 'S',
         },
@@ -231,48 +278,88 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'card-enters-graveyard': {
         'triggers': {
             'anchors': [
-                'activate-from-graveyard', 'affinity-for-graveyard',
+                'activate-from-graveyard',
+                'affinity-for-graveyard',
                 'card-types-in-graveyard-matter',
                 'cards-in-graveyard-matter',
-                'castable-from-graveyard', 'graveyard-fuel',
-                'graveyard-fuel-artifact', 'graveyard-fuel-creature',
-                'graveyard-fuel-enchantment', 'graveyard-fuel-historic',
-                'graveyard-fuel-instant', 'graveyard-fuel-land',
-                'graveyard-fuel-legendary', 'graveyard-fuel-noncreature',
-                'graveyard-fuel-nonland', 'graveyard-fuel-permanent',
-                'graveyard-fuel-saga', 'graveyard-fuel-self',
-                'graveyard-fuel-sorcery', 'lands-in-graveyard-matter',
-                'leaving-graveyard-matters', 'reanimate',
-                'reanimate-artifact', 'reanimate-artifact-creature',
-                'reanimate-aura', 'reanimate-battle', 'reanimate-cast',
-                'reanimate-creature', 'reanimate-enchantment',
-                'reanimate-equipment', 'reanimate-face-down',
-                'reanimate-from-any', 'reanimate-from-opponent',
-                'reanimate-historic', 'reanimate-instant-sorcery',
-                'reanimate-land', 'reanimate-legendary',
-                'reanimate-matters', 'reanimate-noncreature',
-                'reanimate-nonland', 'reanimate-permanent',
-                'reanimate-planeswalker', 'reanimate-saga',
-                'reanimate-self', 'reanimate-spacecraft',
-                'reanimate-vehicle', 'recursion', 'recursion-any',
-                'recursion-artifact', 'recursion-battle',
-                'recursion-creature', 'recursion-enchantment',
-                'recursion-from-exile', 'recursion-instant',
-                'recursion-land', 'recursion-permanent',
-                'recursion-planeswalker', 'recursion-self',
-                'recursion-sorcery', 'synergy-graveyard-cast',
+                'castable-from-graveyard',
+                'graveyard-fuel',
+                'graveyard-fuel-artifact',
+                'graveyard-fuel-creature',
+                'graveyard-fuel-enchantment',
+                'graveyard-fuel-historic',
+                'graveyard-fuel-instant',
+                'graveyard-fuel-land',
+                'graveyard-fuel-legendary',
+                'graveyard-fuel-noncreature',
+                'graveyard-fuel-nonland',
+                'graveyard-fuel-permanent',
+                'graveyard-fuel-saga',
+                'graveyard-fuel-self',
+                'graveyard-fuel-sorcery',
+                'lands-in-graveyard-matter',
+                'leaving-graveyard-matters',
+                'reanimate',
+                'reanimate-artifact',
+                'reanimate-artifact-creature',
+                'reanimate-aura',
+                'reanimate-battle',
+                'reanimate-cast',
+                'reanimate-creature',
+                'reanimate-enchantment',
+                'reanimate-equipment',
+                'reanimate-face-down',
+                'reanimate-from-any',
+                'reanimate-from-opponent',
+                'reanimate-historic',
+                'reanimate-instant-sorcery',
+                'reanimate-land',
+                'reanimate-legendary',
+                'reanimate-matters',
+                'reanimate-noncreature',
+                'reanimate-nonland',
+                'reanimate-permanent',
+                'reanimate-planeswalker',
+                'reanimate-saga',
+                'reanimate-self',
+                'reanimate-spacecraft',
+                'reanimate-vehicle',
+                'recursion',
+                'recursion-any',
+                'recursion-artifact',
+                'recursion-battle',
+                'recursion-creature',
+                'recursion-enchantment',
+                'recursion-from-exile',
+                'recursion-instant',
+                'recursion-land',
+                'recursion-permanent',
+                'recursion-planeswalker',
+                'recursion-self',
+                'recursion-sorcery',
+                'synergy-graveyard-cast',
                 'trigger-from-graveyard',
             ],
             'grade': 'M',
         },
         'produced_by': {
             'anchors': [
-                'discard', 'discard-outlet', 'discard-outlet-artifact',
-                'discard-outlet-creature', 'discard-outlet-land',
-                'discard-outlet-last-drawn', 'discard-outlet-legendary',
-                'discard-outlet-nonland', 'discard-outlet-random',
-                'loot', 'mill', 'mill-self', 'rummage', 'sac',
-                'sacrifice-self', 'wheel',
+                'discard',
+                'discard-outlet',
+                'discard-outlet-artifact',
+                'discard-outlet-creature',
+                'discard-outlet-land',
+                'discard-outlet-last-drawn',
+                'discard-outlet-legendary',
+                'discard-outlet-nonland',
+                'discard-outlet-random',
+                'loot',
+                'mill',
+                'mill-self',
+                'rummage',
+                'sac',
+                'sacrifice-self',
+                'wheel',
             ],
             'grade': 'M',
         },
@@ -281,18 +368,25 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'spell-cast': {
         'triggers': {
             'anchors': [
-                'cast-trigger', 'cast-trigger-other',
-                'cast-trigger-self', 'cast-trigger-you',
-                'prowess-like', 'second-spell-matters',
-                'storm-count-matters', 'synergy-instant',
-                'synergy-noncreature', 'synergy-sorcery',
+                'cast-trigger',
+                'cast-trigger-other',
+                'cast-trigger-self',
+                'cast-trigger-you',
+                'prowess-like',
+                'second-spell-matters',
+                'storm-count-matters',
+                'synergy-instant',
+                'synergy-noncreature',
+                'synergy-sorcery',
                 'times-resolved-matters',
             ],
             'grade': 'S',
         },
         'produced_by': {
             'anchors': [
-                'copy-instant', 'copy-sorcery', 'copy-spell',
+                'copy-instant',
+                'copy-sorcery',
+                'copy-spell',
             ],
             'grade': 'M',
         },
@@ -301,16 +395,23 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'creature-attacks': {
         'triggers': {
             'anchors': [
-                'attack-trigger', 'attacking-matters',
-                'attacking-matters-any', 'attacking-matters-self',
-                'attacking-opponents-matters', 'synergy-solo-attack',
+                'attack-trigger',
+                'attacking-matters',
+                'attacking-matters-any',
+                'attacking-matters-self',
+                'attacking-opponents-matters',
+                'synergy-solo-attack',
             ],
             'grade': 'S',
         },
         'produced_by': {
             'anchors': [
-                'combat', 'extra-combat-phase', 'force-attacker',
-                'forced-attacker', 'gives-haste', 'tokens',
+                'combat',
+                'extra-combat-phase',
+                'force-attacker',
+                'forced-attacker',
+                'gives-haste',
+                'tokens',
             ],
             'grade': 'M',
         },
@@ -319,15 +420,21 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'combat-damage-dealt': {
         'triggers': {
             'anchors': [
-                'combat-neutral-damage-trigger', 'retaliate-to-damage',
-                'saboteur', 'scales-with-damage-dealt',
+                'combat-neutral-damage-trigger',
+                'retaliate-to-damage',
+                'saboteur',
+                'scales-with-damage-dealt',
             ],
             'grade': 'S',
         },
         'produced_by': {
             'anchors': [
-                'combat', 'damage-multiplier', 'gains-double-strike',
-                'gives-double-strike', 'gives-evasion', 'gives-trample',
+                'combat',
+                'damage-multiplier',
+                'gains-double-strike',
+                'gives-double-strike',
+                'gives-evasion',
+                'gives-trample',
             ],
             'grade': 'M',
         },
@@ -336,15 +443,20 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'lifegain': {
         'triggers': {
             'anchors': [
-                'life-total-matters-self', 'lifegain-increaser',
-                'lifegain-matters', 'lifegain-to-damage',
+                'life-total-matters-self',
+                'lifegain-increaser',
+                'lifegain-matters',
+                'lifegain-to-damage',
             ],
             'grade': 'M',
         },
         'produced_by': {
             'anchors': [
-                'drain-life', 'gains-lifelink', 'gives-lifelink',
-                'lifegain', 'repeatable-lifegain',
+                'drain-life',
+                'gains-lifelink',
+                'gives-lifelink',
+                'lifegain',
+                'repeatable-lifegain',
             ],
             'grade': 'S',
         },
@@ -353,14 +465,19 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'life-loss-drain': {
         'triggers': {
             'anchors': [
-                'life-loss-matters', 'self-life-loss-matters',
+                'life-loss-matters',
+                'self-life-loss-matters',
             ],
             'grade': 'M',
         },
         'produced_by': {
             'anchors': [
-                'burn', 'burn-player', 'burn-player-each',
-                'drain-life', 'omnivore-ability', 'opponent-loses-life',
+                'burn',
+                'burn-player',
+                'burn-player-each',
+                'drain-life',
+                'omnivore-ability',
+                'opponent-loses-life',
                 'sac',
             ],
             'grade': 'M',
@@ -370,25 +487,40 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'counter-placed': {
         'triggers': {
             'anchors': [
-                'counter-fuel', 'counter-fuel-aesthetic',
-                'counter-fuel-any', 'counter-fuel-charge',
-                'counter-fuel-energy', 'counter-fuel-fade',
-                'counter-fuel-keyword', 'counter-fuel-lore',
-                'counter-fuel-loyalty', 'counter-fuel-mm',
-                'counter-fuel-oil', 'counter-fuel-other',
-                'counter-fuel-pp', 'counter-fuel-pt',
-                'counter-fuel-shield', 'counter-fuel-stun',
-                'counter-fuel-time', 'counters-matter',
-                'gains-mm-counters', 'gains-pp-counters',
-                'mm-counters-matter', 'pp-counters-matter',
+                'counter-fuel',
+                'counter-fuel-aesthetic',
+                'counter-fuel-any',
+                'counter-fuel-charge',
+                'counter-fuel-energy',
+                'counter-fuel-fade',
+                'counter-fuel-keyword',
+                'counter-fuel-lore',
+                'counter-fuel-loyalty',
+                'counter-fuel-mm',
+                'counter-fuel-oil',
+                'counter-fuel-other',
+                'counter-fuel-pp',
+                'counter-fuel-pt',
+                'counter-fuel-shield',
+                'counter-fuel-stun',
+                'counter-fuel-time',
+                'counters-matter',
+                'gains-mm-counters',
+                'gains-pp-counters',
+                'mm-counters-matter',
+                'pp-counters-matter',
             ],
             'grade': 'S',
         },
         'produced_by': {
             'anchors': [
-                'counter-increaser', 'counters', 'gives-mm-counters',
-                'gives-pp-counters', 'gives-pp-counters-to-all',
-                'repeatable-pp-counters', 'repeatable-proliferate',
+                'counter-increaser',
+                'counters',
+                'gives-mm-counters',
+                'gives-pp-counters',
+                'gives-pp-counters-to-all',
+                'repeatable-pp-counters',
+                'repeatable-proliferate',
             ],
             'grade': 'M',
         },
@@ -397,22 +529,32 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'proliferate': {
         'triggers': {
             'anchors': [
-                'counter-fuel', 'counter-fuel-aesthetic',
-                'counter-fuel-any', 'counter-fuel-charge',
-                'counter-fuel-energy', 'counter-fuel-fade',
-                'counter-fuel-keyword', 'counter-fuel-lore',
-                'counter-fuel-loyalty', 'counter-fuel-mm',
-                'counter-fuel-oil', 'counter-fuel-other',
-                'counter-fuel-pp', 'counter-fuel-pt',
-                'counter-fuel-shield', 'counter-fuel-stun',
-                'counter-fuel-time', 'counters-matter',
+                'counter-fuel',
+                'counter-fuel-aesthetic',
+                'counter-fuel-any',
+                'counter-fuel-charge',
+                'counter-fuel-energy',
+                'counter-fuel-fade',
+                'counter-fuel-keyword',
+                'counter-fuel-lore',
+                'counter-fuel-loyalty',
+                'counter-fuel-mm',
+                'counter-fuel-oil',
+                'counter-fuel-other',
+                'counter-fuel-pp',
+                'counter-fuel-pt',
+                'counter-fuel-shield',
+                'counter-fuel-stun',
+                'counter-fuel-time',
+                'counters-matter',
                 'pp-counters-matter',
             ],
             'grade': 'M',
         },
         'produced_by': {
             'anchors': [
-                'pseudo-proliferate', 'repeatable-proliferate',
+                'pseudo-proliferate',
+                'repeatable-proliferate',
                 'synergy-proliferate',
             ],
             'grade': 'M',
@@ -422,8 +564,11 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'token-created': {
         'triggers': {
             'anchors': [
-                'artifact-count-matters', 'creature-count-matters',
-                'sac', 'synergy-token', 'synergy-token-creature',
+                'artifact-count-matters',
+                'creature-count-matters',
+                'sac',
+                'synergy-token',
+                'synergy-token-creature',
             ],
             'grade': 'M',
         },
@@ -433,13 +578,18 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             # leaves-body-behind (death→token), out-of-color-token (off-color
             # token producers), creates-bigger-body (Reef Worm chain).
             'anchors': [
-                'artifacts', 'creates-bigger-body',
-                'leaves-body-behind', 'multiple-bodies',
+                'artifacts',
+                'creates-bigger-body',
+                'leaves-body-behind',
+                'multiple-bodies',
                 'out-of-color-token',
-                'repeatable-artifact-tokens', 'repeatable-clues',
-                'repeatable-creature-tokens', 'repeatable-food',
+                'repeatable-artifact-tokens',
+                'repeatable-clues',
+                'repeatable-creature-tokens',
+                'repeatable-food',
                 'repeatable-noncreature-tokens',
-                'repeatable-token-generator', 'repeatable-treasures',
+                'repeatable-token-generator',
+                'repeatable-treasures',
                 'tokens',
             ],
             'grade': 'M',
@@ -449,16 +599,21 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'artifact-enters': {
         'triggers': {
             'anchors': [
-                'affinity-for-artifacts', 'artifact-count-matters',
-                'artifactfall', 'synergy-artifact',
+                'affinity-for-artifacts',
+                'artifact-count-matters',
+                'artifactfall',
+                'synergy-artifact',
                 'synergy-artifact-creature',
             ],
             'grade': 'S',
         },
         'produced_by': {
             'anchors': [
-                'animate-artifact', 'artifactify', 'artifacts',
-                'repeatable-artifact-tokens', 'repeatable-treasures',
+                'animate-artifact',
+                'artifactify',
+                'artifacts',
+                'repeatable-artifact-tokens',
+                'repeatable-treasures',
             ],
             'grade': 'M',
         },
@@ -467,13 +622,16 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'food-created': {
         'triggers': {
             'anchors': [
-                'eat-food', 'lifegain-matters', 'synergy-food',
+                'eat-food',
+                'lifegain-matters',
+                'synergy-food',
             ],
             'grade': 'M',
         },
         'produced_by': {
             'anchors': [
-                'repeatable-food', 'repeatable-treasures',
+                'repeatable-food',
+                'repeatable-treasures',
             ],
             'grade': 'M',
         },
@@ -482,14 +640,18 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'draw-a-card': {
         'triggers': {
             'anchors': [
-                'draw-matters', 'hand-size-matters',
-                'second-draw-matters', 'third-draw-matters',
+                'draw-matters',
+                'hand-size-matters',
+                'second-draw-matters',
+                'third-draw-matters',
             ],
             'grade': 'M',
         },
         'produced_by': {
             'anchors': [
-                'burst-draw', 'draw', 'draw-engine',
+                'burst-draw',
+                'draw',
+                'draw-engine',
                 'repeatable-draw',
             ],
             'grade': 'S',
@@ -499,18 +661,27 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'discard': {
         'triggers': {
             'anchors': [
-                'castable-from-graveyard', 'discard-matters',
-                'discarded-type-matters', 'self-discard-matters',
+                'castable-from-graveyard',
+                'discard-matters',
+                'discarded-type-matters',
+                'self-discard-matters',
             ],
             'grade': 'M',
         },
         'produced_by': {
             'anchors': [
-                'discard-outlet', 'discard-outlet-artifact',
-                'discard-outlet-creature', 'discard-outlet-land',
-                'discard-outlet-last-drawn', 'discard-outlet-legendary',
-                'discard-outlet-nonland', 'discard-outlet-random',
-                'free-discard-outlet', 'loot', 'rummage', 'wheel',
+                'discard-outlet',
+                'discard-outlet-artifact',
+                'discard-outlet-creature',
+                'discard-outlet-land',
+                'discard-outlet-last-drawn',
+                'discard-outlet-legendary',
+                'discard-outlet-nonland',
+                'discard-outlet-random',
+                'free-discard-outlet',
+                'loot',
+                'rummage',
+                'wheel',
             ],
             'grade': 'S',
         },
@@ -519,32 +690,60 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'recursion-from-graveyard': {
         'triggers': {
             'anchors': [
-                'castable-from-graveyard', 'graveyard-fuel',
-                'graveyard-fuel-artifact', 'graveyard-fuel-creature',
-                'graveyard-fuel-enchantment', 'graveyard-fuel-historic',
-                'graveyard-fuel-instant', 'graveyard-fuel-land',
-                'graveyard-fuel-legendary', 'graveyard-fuel-noncreature',
-                'graveyard-fuel-nonland', 'graveyard-fuel-permanent',
-                'graveyard-fuel-saga', 'graveyard-fuel-self',
-                'graveyard-fuel-sorcery', 'reanimate',
-                'reanimate-artifact', 'reanimate-artifact-creature',
-                'reanimate-aura', 'reanimate-battle', 'reanimate-cast',
-                'reanimate-creature', 'reanimate-enchantment',
-                'reanimate-equipment', 'reanimate-face-down',
-                'reanimate-from-any', 'reanimate-from-opponent',
-                'reanimate-historic', 'reanimate-instant-sorcery',
-                'reanimate-land', 'reanimate-legendary',
-                'reanimate-matters', 'reanimate-noncreature',
-                'reanimate-nonland', 'reanimate-permanent',
-                'reanimate-planeswalker', 'reanimate-saga',
-                'reanimate-self', 'reanimate-spacecraft',
-                'reanimate-vehicle', 'recursion', 'recursion-any',
-                'recursion-artifact', 'recursion-battle',
-                'recursion-creature', 'recursion-enchantment',
-                'recursion-from-exile', 'recursion-instant',
-                'recursion-land', 'recursion-permanent',
-                'recursion-planeswalker', 'recursion-self',
-                'recursion-sorcery', 'synergy-graveyard-cast',
+                'castable-from-graveyard',
+                'graveyard-fuel',
+                'graveyard-fuel-artifact',
+                'graveyard-fuel-creature',
+                'graveyard-fuel-enchantment',
+                'graveyard-fuel-historic',
+                'graveyard-fuel-instant',
+                'graveyard-fuel-land',
+                'graveyard-fuel-legendary',
+                'graveyard-fuel-noncreature',
+                'graveyard-fuel-nonland',
+                'graveyard-fuel-permanent',
+                'graveyard-fuel-saga',
+                'graveyard-fuel-self',
+                'graveyard-fuel-sorcery',
+                'reanimate',
+                'reanimate-artifact',
+                'reanimate-artifact-creature',
+                'reanimate-aura',
+                'reanimate-battle',
+                'reanimate-cast',
+                'reanimate-creature',
+                'reanimate-enchantment',
+                'reanimate-equipment',
+                'reanimate-face-down',
+                'reanimate-from-any',
+                'reanimate-from-opponent',
+                'reanimate-historic',
+                'reanimate-instant-sorcery',
+                'reanimate-land',
+                'reanimate-legendary',
+                'reanimate-matters',
+                'reanimate-noncreature',
+                'reanimate-nonland',
+                'reanimate-permanent',
+                'reanimate-planeswalker',
+                'reanimate-saga',
+                'reanimate-self',
+                'reanimate-spacecraft',
+                'reanimate-vehicle',
+                'recursion',
+                'recursion-any',
+                'recursion-artifact',
+                'recursion-battle',
+                'recursion-creature',
+                'recursion-enchantment',
+                'recursion-from-exile',
+                'recursion-instant',
+                'recursion-land',
+                'recursion-permanent',
+                'recursion-planeswalker',
+                'recursion-self',
+                'recursion-sorcery',
+                'synergy-graveyard-cast',
             ],
             'grade': 'S',
         },
@@ -556,11 +755,19 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             # variants.  Adding it here is the single biggest unlock (~25
             # edges) identified by the build-design measurement.
             'anchors': [
-                'discard', 'discard-outlet', 'discard-outlet-artifact',
-                'discard-outlet-creature', 'discard-outlet-land',
-                'discard-outlet-last-drawn', 'discard-outlet-legendary',
-                'discard-outlet-nonland', 'discard-outlet-random',
-                'mill', 'mill-self', 'recursion', 'sac',
+                'discard',
+                'discard-outlet',
+                'discard-outlet-artifact',
+                'discard-outlet-creature',
+                'discard-outlet-land',
+                'discard-outlet-last-drawn',
+                'discard-outlet-legendary',
+                'discard-outlet-nonland',
+                'discard-outlet-random',
+                'mill',
+                'mill-self',
+                'recursion',
+                'sac',
             ],
             'grade': 'M',
         },
@@ -569,14 +776,17 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'deathtouch-combat': {
         'triggers': {
             'anchors': [
-                'combat', 'old-blocking-deathtouch',
-                'old-damage-deathtouch', 'synergy-deathtouch',
+                'combat',
+                'old-blocking-deathtouch',
+                'old-damage-deathtouch',
+                'synergy-deathtouch',
             ],
             'grade': 'M',
         },
         'produced_by': {
             'anchors': [
-                'deathtouch-counter', 'gains-deathtouch',
+                'deathtouch-counter',
+                'gains-deathtouch',
                 'gives-deathtouch',
             ],
             'grade': 'M',
@@ -586,7 +796,8 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'monarch-or-extra-turn': {
         'triggers': {
             'anchors': [
-                'monarch-matters', 'off-turn-casting-matters',
+                'monarch-matters',
+                'off-turn-casting-matters',
             ],
             'grade': 'M',
         },
@@ -599,16 +810,23 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'creature-copied': {
         'triggers': {
             'anchors': [
-                'creature-count-matters', 'creaturefall',
-                'eat-food', 'enters-in-company',
-                'leaves-body-behind', 'synergy-food',
-                'synergy-token', 'synergy-token-creature',
+                'creature-count-matters',
+                'creaturefall',
+                'eat-food',
+                'enters-in-company',
+                'leaves-body-behind',
+                'synergy-food',
+                'synergy-token',
+                'synergy-token-creature',
             ],
             'grade': 'M',
         },
         'produced_by': {
             'anchors': [
-                'clones', 'copy-creature', 'copy-self', 'copy-token',
+                'clones',
+                'copy-creature',
+                'copy-self',
+                'copy-token',
             ],
             'grade': 'M',
         },
@@ -617,17 +835,25 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'untap': {
         'triggers': {
             'anchors': [
-                'synergy-untapped', 'untapped-matters-self',
+                'synergy-untapped',
+                'untapped-matters-self',
             ],
             'grade': 'M',
         },
         'produced_by': {
             'anchors': [
-                'etb-untapper', 'extra-untap', 'ritual-untap',
-                'untapper', 'untapper-artifact', 'untapper-creature',
-                'untapper-equipment', 'untapper-land',
-                'untapper-nonland', 'untapper-permanent',
-                'untapper-planeswalker', 'untaps-self',
+                'etb-untapper',
+                'extra-untap',
+                'ritual-untap',
+                'untapper',
+                'untapper-artifact',
+                'untapper-creature',
+                'untapper-equipment',
+                'untapper-land',
+                'untapper-nonland',
+                'untapper-permanent',
+                'untapper-planeswalker',
+                'untaps-self',
             ],
             'grade': 'S',
         },
@@ -636,9 +862,13 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'player-counter': {
         'triggers': {
             'anchors': [
-                'mill-any', 'mill-each', 'mill-opponent',
-                'mill-self', 'pseudo-proliferate',
-                'repeatable-proliferate', 'synergy-mill',
+                'mill-any',
+                'mill-each',
+                'mill-opponent',
+                'mill-self',
+                'pseudo-proliferate',
+                'repeatable-proliferate',
+                'synergy-mill',
                 'synergy-proliferate',
             ],
             'grade': 'M',
@@ -654,15 +884,19 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     'mana-produced': {
         'triggers': {
             'anchors': [
-                'bottomless-mana-sink', 'mana-increaser', 'mana-sink',
+                'bottomless-mana-sink',
+                'mana-increaser',
+                'mana-sink',
             ],
             'grade': 'M',
         },
         'produced_by': {
             # THE PROVEN SET (ADR 0020): mana-producer IN, ramp OUT.
             'anchors': [
-                'adds-multiple-mana', 'mana-producer',
-                'repeatable-treasures', 'ritual',
+                'adds-multiple-mana',
+                'mana-producer',
+                'repeatable-treasures',
+                'ritual',
             ],
             'grade': 'M',
         },
@@ -702,16 +936,15 @@ def load_taxonomy() -> dict[str, dict[str, Any]]:
 
     if not _TAXONOMY_PATH.exists():
         raise FileNotFoundError(
-            f'oracle_tags.parquet not found at {_TAXONOMY_PATH}; '
-            f'hydrate with `collection hydrate-lake`'
+            f'oracle_tags.parquet not found at {_TAXONOMY_PATH}; hydrate with `collection hydrate-lake`'
         )
 
     con = duckdb.connect(':memory:')
     try:
         rows = con.execute(
-            f"SELECT CAST(id AS VARCHAR) AS id, slug, "
+            f'SELECT CAST(id AS VARCHAR) AS id, slug, '
             f"COALESCE(description, '') AS description, "
-            f"parent_ids, child_ids "
+            f'parent_ids, child_ids '
             f"FROM read_parquet('{_TAXONOMY_PATH}')"
         ).fetchall()
     finally:
@@ -738,6 +971,7 @@ def load_taxonomy() -> dict[str, dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Descendant closure
 # ---------------------------------------------------------------------------
+
 
 def descendant_closure(slug: str, taxonomy: dict[str, dict[str, Any]]) -> frozenset[str]:
     """All descendants of *slug* (including itself) via BFS over children.
@@ -805,15 +1039,12 @@ def _load_direct_cards() -> dict[str, frozenset[str]]:
 
     if not _TAXONOMY_PATH.exists():
         raise FileNotFoundError(
-            f'oracle_tags.parquet not found at {_TAXONOMY_PATH}; '
-            f'hydrate with `collection hydrate-lake`'
+            f'oracle_tags.parquet not found at {_TAXONOMY_PATH}; hydrate with `collection hydrate-lake`'
         )
 
     con = duckdb.connect(':memory:')
     try:
-        rows = con.execute(
-            f"SELECT slug, taggings FROM read_parquet('{_TAXONOMY_PATH}')"
-        ).fetchall()
+        rows = con.execute(f"SELECT slug, taggings FROM read_parquet('{_TAXONOMY_PATH}')").fetchall()
     finally:
         con.close()
 
@@ -879,9 +1110,7 @@ def is_mechanic_exclusive(
 
     precision = len(cards & mechanic) / len(cards)
     if precision < prec_min:
-        return ExclusivityResult(
-            False, precision, f'precision {precision:.3f} < {prec_min}'
-        )
+        return ExclusivityResult(False, precision, f'precision {precision:.3f} < {prec_min}')
 
     for child in taxonomy.get(node, {}).get('children', []):
         child_cards = card_set(child)
@@ -892,8 +1121,7 @@ def is_mechanic_exclusive(
             return ExclusivityResult(
                 False,
                 precision,
-                f'foreign heavy child {child!r} '
-                f'({len(child_cards)} cards, precision {child_prec:.3f})',
+                f'foreign heavy child {child!r} ({len(child_cards)} cards, precision {child_prec:.3f})',
             )
 
     return ExclusivityResult(True, precision, 'ok')
@@ -997,9 +1225,7 @@ def validate_anchor_map(
             # (1) ancestor-closure: closure non-empty for every anchor.
             for anchor in anchors:
                 if not descendant_closure(anchor, taxonomy):
-                    violations.append(
-                        f'{event_name}.{side}: anchor {anchor!r} has empty closure'
-                    )
+                    violations.append(f'{event_name}.{side}: anchor {anchor!r} has empty closure')
 
             # (2) output purity: no refused umbrella ancestor leaks into the
             # derived closure-union output.
@@ -1009,8 +1235,7 @@ def validate_anchor_map(
             for umbrella in refused_climb_targets(anchors):
                 if umbrella in output:
                     violations.append(
-                        f'{event_name}.{side}: cross-mechanic umbrella '
-                        f'{umbrella!r} leaked into the derived output'
+                        f'{event_name}.{side}: cross-mechanic umbrella {umbrella!r} leaked into the derived output'
                     )
 
             # (3) Cross-mechanic umbrella check (NON-TAUTOLOGICAL).
@@ -1041,6 +1266,7 @@ def validate_anchor_map(
 # ---------------------------------------------------------------------------
 # Derived event adjacency
 # ---------------------------------------------------------------------------
+
 
 def derive_event_adjacency(
     events: dict[str, dict],
@@ -1211,24 +1437,28 @@ class CandidateAnchorStore:
         result: list[CandidateAnchor] = []
         for (event, side, otag), cards in sorted(self._candidates.items()):
             if len(cards) >= threshold:
-                result.append(CandidateAnchor(
-                    event=event,
-                    side=side,
-                    otag=otag,
-                    corroborating_cards=frozenset(cards),
-                ))
+                result.append(
+                    CandidateAnchor(
+                        event=event,
+                        side=side,
+                        otag=otag,
+                        corroborating_cards=frozenset(cards),
+                    )
+                )
         return result
 
     def all_candidates(self) -> list[CandidateAnchor]:
         """Return ALL candidates regardless of corroboration count."""
         result: list[CandidateAnchor] = []
         for (event, side, otag), cards in sorted(self._candidates.items()):
-            result.append(CandidateAnchor(
-                event=event,
-                side=side,
-                otag=otag,
-                corroborating_cards=frozenset(cards),
-            ))
+            result.append(
+                CandidateAnchor(
+                    event=event,
+                    side=side,
+                    otag=otag,
+                    corroborating_cards=frozenset(cards),
+                )
+            )
         return result
 
     @property
@@ -1403,8 +1633,7 @@ def _load_default_evidence() -> dict[str, set[str]]:
     import json as _json
 
     evidence_path = (
-        Path(__file__).resolve().parent.parent.parent.parent
-        / 'subagents' / '5.3b-work' / 'residue_cards.jsonl'
+        Path(__file__).resolve().parent.parent.parent.parent / 'subagents' / '5.3b-work' / 'residue_cards.jsonl'
     )
     result: dict[str, set[str]] = {}
     if not evidence_path.exists():
@@ -1419,6 +1648,7 @@ def _load_default_evidence() -> dict[str, set[str]]:
 # ---------------------------------------------------------------------------
 # Shadow measurement (task 6.3) — what would the healing loop discover?
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class HealingShadowReport:
@@ -1519,13 +1749,11 @@ def run_healing_shadow(
     report.projected_new_slugs = new_slugs
 
     # Phase 4: Project unlock on role-A edges
-    edges_dir = (
-        Path(__file__).resolve().parent.parent.parent.parent
-        / 'subagents' / '5.3b-work'
-    )
+    edges_dir = Path(__file__).resolve().parent.parent.parent.parent / 'subagents' / '5.3b-work'
 
     role_a_edges: list[dict] = []
     import glob as _glob
+
     for f in sorted(_glob.glob(str(edges_dir / 'edges' / 'chunk-*-edges.jsonl'))):
         with open(f) as fh:
             for line in fh:

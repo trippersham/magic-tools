@@ -1,0 +1,217 @@
+{
+  "slug": "resilience30__draconicdissent_clb",
+  "deck_name": "DraconicDissent_CLB",
+  "commanders": [
+    {
+      "name": "Firkraag, Cunning Instigator",
+      "oracle_text": "Flying, haste\nWhenever one or more Dragons you control attack an opponent, goad target creature that player controls.\nWhenever a creature deals combat damage to one of your opponents, if that creature had to attack this combat, you put a +1/+1 counter on Firkraag and you draw a card."
+    }
+  ],
+  "elected": [
+    {
+      "event": "permanent-dies",
+      "hub": null,
+      "mass": 120.0,
+      "share": 0.407,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 78.0,
+      "share": 0.264,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "combat-damage-dealt",
+      "hub": null,
+      "mass": 34.0,
+      "share": 0.115,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 30.0,
+      "share": 0.102,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    },
+    {
+      "event": "land-enters-battlefield",
+      "hub": null,
+      "mass": 18.0,
+      "share": 0.061,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "landfall"
+      ]
+    },
+    {
+      "event": "permanent-sacrificed",
+      "hub": null,
+      "mass": 15.0,
+      "share": 0.051,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "combat/aggro",
+      "weighted_quantity": 19.0,
+      "share": 0.396
+    },
+    {
+      "strategy": "+1/+1 counters",
+      "weighted_quantity": 11.0,
+      "share": 0.229
+    },
+    {
+      "strategy": "burn",
+      "weighted_quantity": 11.0,
+      "share": 0.229
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Firkraag, Cunning Instigator"
+    ],
+    "produces": [
+      "force-attacker",
+      "repeatable-pp-counters"
+    ],
+    "consumes": [
+      "attack-trigger",
+      "attacking-matters",
+      "gains-pp-counters",
+      "curiosity",
+      "curiosity-like",
+      "saboteur"
+    ],
+    "reaches_back_to": [
+      "attack-trigger",
+      "attacking-matters",
+      "gains-pp-counters"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "combat/aggro",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "combat/aggro",
+    "confidence": "LOW",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Aether Gale",
+    "Agitator Ant",
+    "Angler Turtle",
+    "Arcane Signet",
+    "Artificer Class",
+    "Ash Barrens",
+    "Astral Dragon",
+    "Avatar of Slaughter",
+    "Baeloth Barrityl, Entertainer",
+    "Blasphemous Act",
+    "Bloodthirsty Blade",
+    "Bothersome Quasit",
+    "Brash Taunter",
+    "Burnished Hart",
+    "Castle Vantress",
+    "Chain Reaction",
+    "Chaos Dragon",
+    "Chaos Warp",
+    "Clan Crafter",
+    "Command Tower",
+    "Compulsive Research",
+    "Curse of Opulence",
+    "Curse of Verbosity",
+    "Curse of the Swine",
+    "Death Kiss",
+    "Desolate Lighthouse",
+    "Disrupt Decorum",
+    "Dissipation Field",
+    "Domineering Will",
+    "Dragon's Hoard",
+    "Drakuseth, Maw of Flames",
+    "Fellwar Stone",
+    "Firkraag, Cunning Instigator",
+    "Geode Rager",
+    "Goblin Spymaster",
+    "Hedron Archive",
+    "Izzet Boilerworks",
+    "Izzet Signet",
+    "Kazuul, Tyrant of the Cliffs",
+    "Keiga, the Tide Star",
+    "Kher Keep",
+    "Loot Dispute",
+    "Midnight Clock",
+    "Mind Stone",
+    "Mocking Doppelganger",
+    "Myriad Landscape",
+    "Niv-Mizzet, Parun",
+    "Path of Ancestry",
+    "Prismari Campus",
+    "Propaganda",
+    "Psychic Impetus",
+    "Pursued Whale",
+    "Reins of Power",
+    "Reliquary Tower",
+    "Rowan Kenrith",
+    "Ryusei, the Falling Star",
+    "Shiny Impetus",
+    "Sly Instigator",
+    "Sol Ring",
+    "Solemn Simulacrum",
+    "Spectacular Showdown",
+    "Sprite Dragon",
+    "Steel Hellkite",
+    "Stuffy Doll",
+    "Talisman of Creativity",
+    "Temple of Epiphany",
+    "Temple of the False God",
+    "Terrain Generator",
+    "Territorial Hellkite",
+    "The Akroan War",
+    "Thunder Dragon",
+    "Vengeful Ancestor",
+    "Wandering Fumarole",
+    "Warmonger Hellkite",
+    "Wayfarer's Bauble",
+    "Will Kenrith"
+  ],
+  "n_nonland": 62,
+  "n_cards": 100
+}

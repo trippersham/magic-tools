@@ -45,6 +45,7 @@ def _input(**over) -> dict:
 # input_hash
 # ---------------------------------------------------------------------------
 
+
 def test_input_hash_is_stable_and_order_independent():
     a = _input()
     b = dict(reversed(list(_input().items())))
@@ -70,6 +71,7 @@ def test_input_hash_changes_on_engine_input_change():
 # ResolvedEngine round-trip
 # ---------------------------------------------------------------------------
 
+
 def test_resolved_engine_round_trip():
     e = _engine()
     assert ResolvedEngine.from_dict(e.as_dict()) == e
@@ -83,6 +85,7 @@ def test_record_round_trip():
 # ---------------------------------------------------------------------------
 # persist / load / idempotency
 # ---------------------------------------------------------------------------
+
 
 def test_persist_and_load(tmp_path):
     rec = make_record('gauntlet__urza', 'Urza', _input(), _engine(), model_id='m')
@@ -115,6 +118,7 @@ def test_persist_refresh_on_input_change(tmp_path):
 # is_fresh staleness key
 # ---------------------------------------------------------------------------
 
+
 def test_is_fresh_true_for_matching_key(tmp_path):
     inp = _input()
     persist(make_record('s', 'd', inp, _engine(), model_id='m'), tmp_path)
@@ -144,6 +148,7 @@ def test_is_fresh_false_on_newer_synthesis_version(tmp_path):
 # ---------------------------------------------------------------------------
 # persist_batch
 # ---------------------------------------------------------------------------
+
 
 def test_persist_batch_dedup(tmp_path):
     recs = [

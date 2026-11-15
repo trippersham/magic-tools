@@ -74,6 +74,8 @@ markers = [
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+# Scratch/working directories — not part of the package or CI.
+exclude = ["subagents", "research"]
 
 [tool.ruff.format]
 quote-style = "single"

@@ -14,10 +14,10 @@ import pytest
 
 from pipeline.transforms.strategy.machine_vocab import Provenance
 
-
 # ────────────────────────────────────────────────────────────────────────────
 # 1. EventEffect import + curated round-trip (renamed class + field)
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestEventEffectRename:
     """The renamed EventEffect class exists and curated entries round-trip."""
@@ -36,9 +36,7 @@ class TestEventEffectRename:
         )
 
         for name, entry in CURATED_EDGE_ROLES.items():
-            assert isinstance(entry, EventEffect), (
-                f'{name}: expected EventEffect, got {type(entry).__name__}'
-            )
+            assert isinstance(entry, EventEffect), f'{name}: expected EventEffect, got {type(entry).__name__}'
 
     def test_produced_event_field_exists(self) -> None:
         """EventEffect has the renamed field 'produced_event' (was 'effect_event')."""
@@ -62,12 +60,19 @@ class TestEventEffectRename:
             ('drain-to-draw', 'life-loss-drain', 'draw-a-card'),
         ],
         ids=[
-            'draw-to-drain', 'draw-to-gain', 'gain-to-drain',
-            'drain-to-gain', 'gain-to-draw', 'drain-to-draw',
+            'draw-to-drain',
+            'draw-to-gain',
+            'gain-to-drain',
+            'drain-to-gain',
+            'gain-to-draw',
+            'drain-to-draw',
         ],
     )
     def test_curated_round_trip_with_produced_event(
-        self, attr_name: str, expected_trigger: str, expected_produced: str,
+        self,
+        attr_name: str,
+        expected_trigger: str,
+        expected_produced: str,
     ) -> None:
         """Every curated entry round-trips trigger_event + produced_event + provenance."""
         from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES
@@ -90,6 +95,7 @@ class TestEventEffectRename:
 # ────────────────────────────────────────────────────────────────────────────
 # 2. Additive defaulted fields on EventEffect (scaffolding — inert)
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestEventEffectDefaults:
     """New fields have inert defaults when only old fields are set."""
@@ -144,6 +150,7 @@ class TestEventEffectDefaults:
 # 3. Provenance.lifecycle field
 # ────────────────────────────────────────────────────────────────────────────
 
+
 class TestProvenanceLifecycle:
     """Provenance carries a 'lifecycle' field (provisional|verified)."""
 
@@ -174,14 +181,13 @@ class TestProvenanceLifecycle:
         from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES
 
         for name, entry in CURATED_EDGE_ROLES.items():
-            assert entry.provenance.lifecycle == 'verified', (
-                f'{name}: expected lifecycle="verified"'
-            )
+            assert entry.provenance.lifecycle == 'verified', f'{name}: expected lifecycle="verified"'
 
 
 # ────────────────────────────────────────────────────────────────────────────
 # 4. ProvisionalAttributeStore inertness (empty store behavior unchanged)
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestProvisionalAttributeStoreInertness:
     """An empty ProvisionalAttributeStore is still inert after the scaffolding additions."""
@@ -211,6 +217,7 @@ class TestProvisionalAttributeStoreInertness:
 # ────────────────────────────────────────────────────────────────────────────
 # 5. CardAttribute uses produced_event field name
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestCardAttributeProducedEvent:
     """CardAttribute uses the renamed 'produced_event' field."""

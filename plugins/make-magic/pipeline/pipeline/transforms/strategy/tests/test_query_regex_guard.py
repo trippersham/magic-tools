@@ -45,10 +45,8 @@ def test_conditional_is_rejected() -> None:
 def test_clean_proximity_pattern_compiles_and_matches() -> None:
     """A clean `[^.]{0,N}` proximity pattern compiles and matches expected text."""
     pred = compile_query('oracle:/draw[^.]{0,30}lose/')
-    hit = CardView.from_card(
-        {'oracle_text': 'You draw two cards, then you lose 2 life.'})
-    miss = CardView.from_card(
-        {'oracle_text': 'You draw two cards. You gain 2 life.'})
+    hit = CardView.from_card({'oracle_text': 'You draw two cards, then you lose 2 life.'})
+    miss = CardView.from_card({'oracle_text': 'You draw two cards. You gain 2 life.'})
     assert pred(hit) is True
     assert pred(miss) is False
 
@@ -63,17 +61,17 @@ def test_escaped_space_and_whitespace_class_are_allowed() -> None:
 def test_bounded_repeat_over_budget_is_rejected() -> None:
     """Scryfall/RE2 caps summed bounded-repeat expansion at 50 (pinned live)."""
     with pytest.raises(ValueError, match='bounded-repeat budget'):
-        compile_query('oracle:/dies[^.]{0,70}copy/')          # single 70 > 50
+        compile_query('oracle:/dies[^.]{0,70}copy/')  # single 70 > 50
     with pytest.raises(ValueError, match='bounded-repeat budget'):
         compile_query('oracle:/gain[^.]{0,40}life[^.]{0,40}lose/')  # 40+40=80 > 50
 
 
 def test_bounded_repeat_at_and_under_budget_compiles() -> None:
     """Exactly 50 (single or split) pastes; unbounded forms never count."""
-    compile_query('oracle:/dies[^.]{0,50}copy.of/')           # 50 == budget
+    compile_query('oracle:/dies[^.]{0,50}copy.of/')  # 50 == budget
     compile_query('oracle:/gain[^.]{0,25}life[^.]{0,25}lose/')  # 25+25 == 50
-    compile_query('oracle:/dies[^.]*copy.of/')                # unbounded -> 0
-    compile_query('oracle:/dies[^.]{3,}copy.of/')             # {m,} -> 0
+    compile_query('oracle:/dies[^.]*copy.of/')  # unbounded -> 0
+    compile_query('oracle:/dies[^.]{3,}copy.of/')  # {m,} -> 0
 
 
 def test_type_regex_form_is_guarded_too() -> None:

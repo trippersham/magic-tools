@@ -67,17 +67,13 @@ class Lake:
         con = duckdb.connect(':memory:')
 
         # --- Load otag counts first so the name→oid loop can rank candidates. ---
-        tags = con.execute(
-            f"SELECT oracle_id, slug FROM read_parquet('{card_otag}')"
-        ).fetchall()
+        tags = con.execute(f"SELECT oracle_id, slug FROM read_parquet('{card_otag}')").fetchall()
         self.oid2slugs: dict[str, set[str]] = {}
         for oid, slug in tags:
             self.oid2slugs.setdefault(str(oid), set()).add(slug)
 
         # --- Build name→oid, preferring tagged/non-art-series rows. ---
-        orc = con.execute(
-            f"SELECT oracle_id, name, type_line, oracle_text FROM read_parquet('{oracle}')"
-        ).fetchall()
+        orc = con.execute(f"SELECT oracle_id, name, type_line, oracle_text FROM read_parquet('{oracle}')").fetchall()
         self.name2oid: dict[str, str] = {}
         self.oid2type: dict[str, str] = {}
         # Track the "quality score" of the current winner per name so a better
@@ -107,9 +103,7 @@ class Lake:
             s += 2  # Has oracle text
         return s
 
-    def _register_name(
-        self, normed: str, oid: str, score: int, scores: dict[str, int]
-    ) -> None:
+    def _register_name(self, normed: str, oid: str, score: int, scores: dict[str, int]) -> None:
         """Insert ``normed → oid`` only if ``score`` beats the incumbent."""
         # Augment score with tag count (available because oid2slugs is loaded first).
         full_score = score + (1 if self.oid2slugs.get(oid) else 0)
@@ -127,9 +121,9 @@ class Lake:
         slugs = self.oid2slugs.get(oid, set())
         if not slugs and self.oid2type.get(oid, '') != self._ART_SERIES_TYPE:
             log.warning(
-                'corpus.Lake: %r resolved (oid=%s) with 0 otag slugs — '
-                'possible data gap (card should have tags?).',
-                name, oid[:12],
+                'corpus.Lake: %r resolved (oid=%s) with 0 otag slugs — possible data gap (card should have tags?).',
+                name,
+                oid[:12],
             )
         return oid, self.oid2type.get(oid, ''), slugs
 
@@ -181,11 +175,11 @@ def gauntlet_decks(gauntlet_dir: Path = GAUNTLET_DIR) -> list[dict]:
             row = man.get(p.name)
             bracket = int(row['bracket']) if row and row.get('bracket') else _BUNDLE_BRACKET[bundle]
             commander = row['commander'] if row else None
-            out.append({'path': p, 'bundle': bundle, 'bracket': bracket,
-                        'commander_hint': commander, 'source': 'gauntlet'})
+            out.append(
+                {'path': p, 'bundle': bundle, 'bracket': bracket, 'commander_hint': commander, 'source': 'gauntlet'}
+            )
     for p in sorted(gauntlet_dir.glob('*.dck')):
-        out.append({'path': p, 'bundle': 'loose', 'bracket': 3,
-                    'commander_hint': None, 'source': 'gauntlet'})
+        out.append({'path': p, 'bundle': 'loose', 'bracket': 3, 'commander_hint': None, 'source': 'gauntlet'})
     return out
 
 
@@ -198,11 +192,16 @@ def build_deck_from_dck(info: dict, lake: Lake) -> dict:
             unresolved.append(name)
             tl = ''
             slugs = set()
-        cards.append({'name': name, 'type_line': tl, 'otags': sorted(slugs),
-                      'role': 'commander' if is_cmd else None})
-    return {'name': parsed['name'], 'cards': cards, 'bracket': info['bracket'],
-            'bundle': info['bundle'], 'commander_hint': info['commander_hint'],
-            'unresolved': unresolved, 'source': 'gauntlet'}
+        cards.append({'name': name, 'type_line': tl, 'otags': sorted(slugs), 'role': 'commander' if is_cmd else None})
+    return {
+        'name': parsed['name'],
+        'cards': cards,
+        'bracket': info['bracket'],
+        'bundle': info['bundle'],
+        'commander_hint': info['commander_hint'],
+        'unresolved': unresolved,
+        'source': 'gauntlet',
+    }
 
 
 def _meta_score(type_line: str | None, oracle_text: str | None) -> int:
@@ -234,11 +233,15 @@ def load_card_meta(root: Path | None = None) -> dict[str, dict]:
     meta: dict[str, dict] = {}
     _scores: dict[str, int] = {}
     for name, txt, cmc, kw, ci, oid, mc, tl in rows:
-        rec = {'oracle_text': txt or '', 'cmc': float(cmc) if cmc is not None else 0.0,
-               'keywords': list(kw) if kw is not None else [],
-               'color_identity': list(ci) if ci is not None else [],
-               'oracle_id': str(oid) if oid is not None else None,
-               'mana_cost': mc or '', 'type_line_full': tl or ''}
+        rec = {
+            'oracle_text': txt or '',
+            'cmc': float(cmc) if cmc is not None else 0.0,
+            'keywords': list(kw) if kw is not None else [],
+            'color_identity': list(ci) if ci is not None else [],
+            'oracle_id': str(oid) if oid is not None else None,
+            'mana_cost': mc or '',
+            'type_line_full': tl or '',
+        }
         score = _meta_score(tl, txt)
         normed = _norm(name)
         if score > _scores.get(normed, -1):

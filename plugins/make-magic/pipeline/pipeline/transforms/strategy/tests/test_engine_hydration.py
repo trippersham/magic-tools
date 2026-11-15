@@ -25,7 +25,6 @@ import pytest
 from pipeline.transforms.strategy.engine_hydration import (
     CORROBORATION_THRESHOLD,
     SYNTH_BREADTH_WARN,
-    VerificationResult,
     curated_edge_queries,
     engine_relevant_otags,
     frontier,
@@ -37,17 +36,20 @@ FIX = Path(__file__).resolve().parent / 'fixtures'
 
 
 def _load_relay_fixture() -> dict:
-    return json.loads(
-        (FIX / 'relay_decks' / 'relay__queza-lichs-mastery.json').read_text()
-    )
+    return json.loads((FIX / 'relay_decks' / 'relay__queza-lichs-mastery.json').read_text())
 
 
 # ---- Synthetic card builders for verify tests -----------------------------
 
+
 def _card(
-    name: str, oracle_text: str, otags: list[str],
-    *, keywords: list[str] | None = None,
-    type_line: str = 'Creature', mana_cost: str = '{1}',
+    name: str,
+    oracle_text: str,
+    otags: list[str],
+    *,
+    keywords: list[str] | None = None,
+    type_line: str = 'Creature',
+    mana_cost: str = '{1}',
 ) -> dict:
     return {
         'name': name,
@@ -62,6 +64,7 @@ def _card(
 # =====================================================================
 # TestEngineRelevantOtags
 # =====================================================================
+
 
 class TestEngineRelevantOtags:
     """Catalog-derived TRIGGER and EFFECT otag universes."""
@@ -104,14 +107,15 @@ class TestEngineRelevantOtags:
 # TestCuratedEdgeQueries
 # =====================================================================
 
-class TestCuratedEdgeQueries:
 
+class TestCuratedEdgeQueries:
     def test_returns_six_queries(self) -> None:
         queries = curated_edge_queries()
         assert len(queries) == 6
 
     def test_all_names_match_edge_roles(self) -> None:
         from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES
+
         queries = curated_edge_queries()
         names = {n for n, _ in queries}
         assert names == set(CURATED_EDGE_ROLES.keys())
@@ -119,13 +123,15 @@ class TestCuratedEdgeQueries:
     def test_all_queries_compile(self) -> None:
         """Every curated edge query must compile without error."""
         from pipeline.transforms.strategy.query import compile_query
-        for name, query in curated_edge_queries():
+
+        for _name, query in curated_edge_queries():
             compile_query(query)  # raises on failure
 
 
 # =====================================================================
 # TestFrontier
 # =====================================================================
+
 
 class TestFrontier:
     """Frontier computation on the Queza relay fixture."""
@@ -206,15 +212,17 @@ class TestFrontier:
 # TestVerifyPasteability
 # =====================================================================
 
+
 class TestVerifyPasteability:
     """Check (a): RE2 pasteability guard."""
 
     def test_valid_regex_passes(self) -> None:
         query = 'oracle:/gain[^.]*life[^.]*draw/ AND otag:lifegain-matters'
-        client = make_fixture_search_client([
-            _card('C', 'Whenever you gain life, draw a card.',
-                  ['lifegain-matters', 'draw', 'lifegain']),
-        ])
+        client = make_fixture_search_client(
+            [
+                _card('C', 'Whenever you gain life, draw a card.', ['lifegain-matters', 'draw', 'lifegain']),
+            ]
+        )
         result = verify(query, ('lifegain', 'draw-a-card'), search_client=client)
         assert result.pasteability_ok is True
 
@@ -245,14 +253,17 @@ class TestVerifyPasteability:
 # TestVerifyResolution
 # =====================================================================
 
+
 class TestVerifyResolution:
     """Check (b): resolves + expected-hit."""
 
     def test_zero_results_fails(self) -> None:
         query = 'oracle:/xyznonexistent/'
-        client = make_fixture_search_client([
-            _card('A', 'Flying', ['flying']),
-        ])
+        client = make_fixture_search_client(
+            [
+                _card('A', 'Flying', ['flying']),
+            ]
+        )
         result = verify(query, ('lifegain', 'draw-a-card'), search_client=client)
         assert result.passed is False
         assert result.resolves is False
@@ -260,23 +271,29 @@ class TestVerifyResolution:
 
     def test_resolves_nonempty(self) -> None:
         query = 'otag:lifegain-matters'
-        client = make_fixture_search_client([
-            _card('C', 'Whenever you gain life, draw a card.',
-                  ['lifegain-matters', 'draw', 'lifegain']),
-        ])
+        client = make_fixture_search_client(
+            [
+                _card('C', 'Whenever you gain life, draw a card.', ['lifegain-matters', 'draw', 'lifegain']),
+            ]
+        )
         result = verify(query, ('lifegain', 'draw-a-card'), search_client=client)
         assert result.resolves is True
         assert result.hit_count == 1
 
     def test_expected_card_present(self) -> None:
         query = 'otag:life-loss-matters AND otag:lifegain'
-        client = make_fixture_search_client([
-            _card('Exquisite Blood',
-                  'Whenever an opponent loses life, you gain that much life.',
-                  ['life-loss-matters', 'lifegain', 'repeatable-lifegain']),
-        ])
+        client = make_fixture_search_client(
+            [
+                _card(
+                    'Exquisite Blood',
+                    'Whenever an opponent loses life, you gain that much life.',
+                    ['life-loss-matters', 'lifegain', 'repeatable-lifegain'],
+                ),
+            ]
+        )
         result = verify(
-            query, ('life-loss-drain', 'lifegain'),
+            query,
+            ('life-loss-drain', 'lifegain'),
             expected_card_names=['Exquisite Blood'],
             search_client=client,
         )
@@ -284,12 +301,14 @@ class TestVerifyResolution:
 
     def test_expected_card_missing_fails(self) -> None:
         query = 'otag:lifegain-matters'
-        client = make_fixture_search_client([
-            _card('Some Card', 'Whenever you gain life, X.',
-                  ['lifegain-matters']),
-        ])
+        client = make_fixture_search_client(
+            [
+                _card('Some Card', 'Whenever you gain life, X.', ['lifegain-matters']),
+            ]
+        )
         result = verify(
-            query, ('lifegain', 'draw-a-card'),
+            query,
+            ('lifegain', 'draw-a-card'),
             expected_card_names=["Lich's Mastery"],
             search_client=client,
         )
@@ -301,18 +320,20 @@ class TestVerifyResolution:
 # TestVerifyCorroboration
 # =====================================================================
 
+
 class TestVerifyCorroboration:
     """Check (c): deterministic over-capture oracle."""
 
     def test_full_corroboration_passes(self) -> None:
         """All captured cards have both trigger and effect role otags."""
-        query = ('oracle:/opponent[^.]*los[a-z]*[^.]*gain/ '
-                 'AND otag:life-loss-matters AND otag:lifegain')
+        query = 'oracle:/opponent[^.]*los[a-z]*[^.]*gain/ AND otag:life-loss-matters AND otag:lifegain'
         role = ('life-loss-drain', 'lifegain')
         cards = [
-            _card('Exquisite Blood',
-                  'Whenever an opponent loses life, you gain that much life.',
-                  ['life-loss-matters', 'lifegain', 'repeatable-lifegain']),
+            _card(
+                'Exquisite Blood',
+                'Whenever an opponent loses life, you gain that much life.',
+                ['life-loss-matters', 'lifegain', 'repeatable-lifegain'],
+            ),
             _card('Irrelevant', 'Flying', []),
         ]
         client = make_fixture_search_client(cards)
@@ -328,21 +349,19 @@ class TestVerifyCorroboration:
         role = ('life-loss-drain', 'lifegain')
         cards = [
             # Legitimate: both trigger and effect otags
-            _card('Exquisite Blood',
-                  'Whenever an opponent loses life, you gain that much life.',
-                  ['life-loss-matters', 'lifegain', 'repeatable-lifegain']),
+            _card(
+                'Exquisite Blood',
+                'Whenever an opponent loses life, you gain that much life.',
+                ['life-loss-matters', 'lifegain', 'repeatable-lifegain'],
+            ),
             # FP: burn-player has no trigger otag for life-loss-drain
-            _card('Drain Spell',
-                  'Target player loses 2 life and you gain 2 life.',
-                  ['burn-player']),
+            _card('Drain Spell', 'Target player loses 2 life and you gain 2 life.', ['burn-player']),
             # FP: wrong otags entirely
-            _card('Combat Trick',
-                  'Target creature loses all abilities and gains trample.',
-                  ['gives-trample']),
+            _card('Combat Trick', 'Target creature loses all abilities and gains trample.', ['gives-trample']),
             # FP: generic life payment
-            _card('Life Exchange',
-                  'As an additional cost, each player loses 1 life and gains a counter.',
-                  ['counters']),
+            _card(
+                'Life Exchange', 'As an additional cost, each player loses 1 life and gains a counter.', ['counters']
+            ),
         ]
         client = make_fixture_search_client(cards)
         result = verify(query, role, search_client=client)
@@ -360,12 +379,13 @@ class TestVerifyCorroboration:
         role = ('life-loss-drain', 'lifegain')
         cards = [
             # Corroborates
-            _card('Exquisite Blood',
-                  'Whenever an opponent loses life, you gain that much life.',
-                  ['life-loss-matters', 'lifegain']),
+            _card(
+                'Exquisite Blood',
+                'Whenever an opponent loses life, you gain that much life.',
+                ['life-loss-matters', 'lifegain'],
+            ),
             # Does NOT corroborate
-            _card('FP', 'loses stuff and gains stuff.',
-                  ['burn-player']),
+            _card('FP', 'loses stuff and gains stuff.', ['burn-player']),
         ]
         client = make_fixture_search_client(cards)
         result = verify(query, role, search_client=client, threshold=0.5)
@@ -379,13 +399,13 @@ class TestVerifyCorroboration:
         query = 'oracle:/los[^.]*gain/'
         role = ('life-loss-drain', 'lifegain')
         cards = [
-            _card('Exquisite Blood',
-                  'Whenever an opponent loses life, you gain that much life.',
-                  ['life-loss-matters', 'lifegain']),
-            _card('FP1', 'Target player loses stuff and gains stuff.',
-                  ['burn-player']),
-            _card('FP2', 'Another loses foo and gains bar.',
-                  ['tokens']),
+            _card(
+                'Exquisite Blood',
+                'Whenever an opponent loses life, you gain that much life.',
+                ['life-loss-matters', 'lifegain'],
+            ),
+            _card('FP1', 'Target player loses stuff and gains stuff.', ['burn-player']),
+            _card('FP2', 'Another loses foo and gains bar.', ['tokens']),
         ]
         client = make_fixture_search_client(cards)
         result = verify(query, role, search_client=client, threshold=0.5)
@@ -399,19 +419,20 @@ class TestVerifyCorroboration:
 # TestVerifyEndToEnd
 # =====================================================================
 
+
 class TestVerifyEndToEnd:
     """Full gate: pass and reject end-to-end on the Queza fixture."""
 
     def test_curated_drain_to_gain_passes(self) -> None:
         """The curated ``drain-to-gain`` query passes all three checks."""
-        query = ('oracle:/opponent[^.]*los[a-z]*[^.]*gain/ '
-                 'AND otag:life-loss-matters AND otag:lifegain')
+        query = 'oracle:/opponent[^.]*los[a-z]*[^.]*gain/ AND otag:life-loss-matters AND otag:lifegain'
         role = ('life-loss-drain', 'lifegain')
         fixture = _load_relay_fixture()
         client = make_fixture_search_client(fixture['cards'])
 
         result = verify(
-            query, role,
+            query,
+            role,
             expected_card_names=['Exquisite Blood'],
             search_client=client,
         )
@@ -430,7 +451,8 @@ class TestVerifyEndToEnd:
         client = make_fixture_search_client(fixture['cards'])
 
         result = verify(
-            query, role,
+            query,
+            role,
             expected_card_names=["Lich's Mastery"],
             search_client=client,
         )
@@ -448,26 +470,24 @@ class TestVerifyEndToEnd:
         # Build a card pool with a mix of legitimate and FP cards.
         cards = [
             # Legitimate drain-to-gain
-            _card('Exquisite Blood',
-                  'Whenever an opponent loses life, you gain that much life.',
-                  ['life-loss-matters', 'lifegain', 'repeatable-lifegain']),
+            _card(
+                'Exquisite Blood',
+                'Whenever an opponent loses life, you gain that much life.',
+                ['life-loss-matters', 'lifegain', 'repeatable-lifegain'],
+            ),
             # FP: self-loss (no opponent anchor), has self-life-loss-matters
             # which IS in triggers, but missing a produced_by otag
-            _card('Transcendence-like',
-                  'Whenever you lose life, you gain that much life instead.',
-                  ['self-life-loss-matters']),
+            _card(
+                'Transcendence-like',
+                'Whenever you lose life, you gain that much life instead.',
+                ['self-life-loss-matters'],
+            ),
             # FP: generic burn, no trigger otags
-            _card('Drain',
-                  'Target player loses 3 life and you gain 3 life.',
-                  ['burn-player']),
+            _card('Drain', 'Target player loses 3 life and you gain 3 life.', ['burn-player']),
             # FP: ability-gain word sense
-            _card('Ability Granter',
-                  'Target creature loses all abilities and gains flying.',
-                  ['gives-evasion']),
+            _card('Ability Granter', 'Target creature loses all abilities and gains flying.', ['gives-evasion']),
             # FP: cost payment
-            _card('Dark Ritual Variant',
-                  'As a cost, you lose 2 life and gain two mana.',
-                  ['ritual']),
+            _card('Dark Ritual Variant', 'As a cost, you lose 2 life and gain two mana.', ['ritual']),
         ]
         client = make_fixture_search_client(cards)
         result = verify(query, role, search_client=client)
@@ -492,6 +512,7 @@ class TestVerifyEndToEnd:
 # TestVerifySynthBypass
 # =====================================================================
 
+
 class TestVerifySynthBypass:
     """Synth gate bypass (``decision='synth'``).
 
@@ -507,15 +528,18 @@ class TestVerifySynthBypass:
         query = "oracle:'number of counters on'"
         role = ('counter-placed', 'mana-from-counters')
         cards = [
-            _card('Jadzia Dax, Living Legacy',
-                  'At the beginning of your first main phase, put a +1/+1 counter on '
-                  'Jadzia Dax, then add an amount of {G} equal to the number of '
-                  'counters on her.',
-                  []),  # no otags (unreleased)
+            _card(
+                'Jadzia Dax, Living Legacy',
+                'At the beginning of your first main phase, put a +1/+1 counter on '
+                'Jadzia Dax, then add an amount of {G} equal to the number of '
+                'counters on her.',
+                [],
+            ),  # no otags (unreleased)
         ]
         client = make_fixture_search_client(cards)
         result = verify(
-            query, role,
+            query,
+            role,
             expected_card_names=['Jadzia Dax, Living Legacy'],
             search_client=client,
             decision='synth',
@@ -526,14 +550,15 @@ class TestVerifySynthBypass:
 
     def test_synth_regex_query_passes(self) -> None:
         """decision='synth' + oracle regex query -> bypass passes."""
-        query = "oracle:/number[^.]*counters[^.]*on/"
+        query = 'oracle:/number[^.]*counters[^.]*on/'
         role = ('counter-placed', 'mana-from-counters')
         cards = [
             _card('Jadzia Dax', 'number of counters on her.', []),
         ]
         client = make_fixture_search_client(cards)
         result = verify(
-            query, role,
+            query,
+            role,
             expected_card_names=['Jadzia Dax'],
             search_client=client,
             decision='synth',
@@ -547,12 +572,12 @@ class TestVerifySynthBypass:
         query = 'otag:counters-matter'
         role = ('counter-placed', 'mana-from-counters')
         cards = [
-            _card('Jadzia Dax', 'number of counters on her.',
-                  ['counters-matter']),
+            _card('Jadzia Dax', 'number of counters on her.', ['counters-matter']),
         ]
         client = make_fixture_search_client(cards)
         result = verify(
-            query, role,
+            query,
+            role,
             search_client=client,
             decision='synth',
         )
@@ -579,7 +604,8 @@ class TestVerifySynthBypass:
         ]
         client = make_fixture_search_client(cards)
         result = verify(
-            query, role,
+            query,
+            role,
             expected_card_names=['Jadzia Dax'],
             search_client=client,
             decision='synth',
@@ -601,7 +627,8 @@ class TestVerifySynthBypass:
         ]
         client = make_fixture_search_client(cards)
         result = verify(
-            query, role,
+            query,
+            role,
             search_client=client,
             decision='edge',
         )
@@ -612,13 +639,14 @@ class TestVerifySynthBypass:
 
     def test_edge_normal_otag_path_unchanged(self) -> None:
         """Normal edge decision with otag cards runs corroboration as before."""
-        query = ('oracle:/opponent[^.]*los[a-z]*[^.]*gain/ '
-                 'AND otag:life-loss-matters AND otag:lifegain')
+        query = 'oracle:/opponent[^.]*los[a-z]*[^.]*gain/ AND otag:life-loss-matters AND otag:lifegain'
         role = ('life-loss-drain', 'lifegain')
         cards = [
-            _card('Exquisite Blood',
-                  'Whenever an opponent loses life, you gain that much life.',
-                  ['life-loss-matters', 'lifegain', 'repeatable-lifegain']),
+            _card(
+                'Exquisite Blood',
+                'Whenever an opponent loses life, you gain that much life.',
+                ['life-loss-matters', 'lifegain', 'repeatable-lifegain'],
+            ),
         ]
         client = make_fixture_search_client(cards)
         result = verify(query, role, search_client=client)
@@ -630,6 +658,7 @@ class TestVerifySynthBypass:
 # =====================================================================
 # TestSynthBreadthWarning
 # =====================================================================
+
 
 class TestSynthBreadthWarning:
     """Soft over-breadth gate for synth verification.
@@ -647,14 +676,12 @@ class TestSynthBreadthWarning:
         query = "oracle:'number of counters on'"
         role = ('counter-placed', 'mana-from-counters')
         # 3 cards — well within threshold.
-        cards = [
-            _card(f'Card {i}', 'number of counters on it.', [])
-            for i in range(3)
-        ]
+        cards = [_card(f'Card {i}', 'number of counters on it.', []) for i in range(3)]
         cards[0] = _card('Source Card', 'number of counters on her.', [])
         client = make_fixture_search_client(cards)
         result = verify(
-            query, role,
+            query,
+            role,
             expected_card_names=['Source Card'],
             search_client=client,
             decision='synth',
@@ -667,14 +694,12 @@ class TestSynthBreadthWarning:
         """Exactly 100 hits passes clean (breadth_warning=False)."""
         query = "oracle:'counter'"
         role = ('counter-placed', 'mana-from-counters')
-        cards = [
-            _card(f'Card {i}', f'Put a counter on target.', [])
-            for i in range(100)
-        ]
+        cards = [_card(f'Card {i}', 'Put a counter on target.', []) for i in range(100)]
         cards[0] = _card('Source Card', 'Put a counter on it.', [])
         client = make_fixture_search_client(cards)
         result = verify(
-            query, role,
+            query,
+            role,
             expected_card_names=['Source Card'],
             search_client=client,
             decision='synth',
@@ -687,14 +712,12 @@ class TestSynthBreadthWarning:
         """101 hits triggers breadth_warning=True, passed=False."""
         query = "oracle:'counter'"
         role = ('counter-placed', 'mana-from-counters')
-        cards = [
-            _card(f'Card {i}', f'Put a counter on target.', [])
-            for i in range(101)
-        ]
+        cards = [_card(f'Card {i}', 'Put a counter on target.', []) for i in range(101)]
         cards[0] = _card('Source Card', 'Put a counter on it.', [])
         client = make_fixture_search_client(cards)
         result = verify(
-            query, role,
+            query,
+            role,
             expected_card_names=['Source Card'],
             search_client=client,
             decision='synth',
@@ -714,14 +737,12 @@ class TestSynthBreadthWarning:
         """A very broad synth (>100 hits) with source present still warns."""
         query = "oracle:'counter'"
         role = ('counter-placed', 'mana-from-counters')
-        cards = [
-            _card(f'Card {i}', f'Add a counter to something.', [])
-            for i in range(250)
-        ]
+        cards = [_card(f'Card {i}', 'Add a counter to something.', []) for i in range(250)]
         cards[0] = _card('Source Card', 'Put a counter on it.', [])
         client = make_fixture_search_client(cards)
         result = verify(
-            query, role,
+            query,
+            role,
             expected_card_names=['Source Card'],
             search_client=client,
             decision='synth',
@@ -735,13 +756,11 @@ class TestSynthBreadthWarning:
         # No text anchor (fails specificity check).
         query = 'otag:counters-matter'
         role = ('counter-placed', 'mana-from-counters')
-        cards = [
-            _card(f'Card {i}', 'some text', ['counters-matter'])
-            for i in range(200)
-        ]
+        cards = [_card(f'Card {i}', 'some text', ['counters-matter']) for i in range(200)]
         client = make_fixture_search_client(cards)
         result = verify(
-            query, role,
+            query,
+            role,
             search_client=client,
             decision='synth',
         )
@@ -751,14 +770,15 @@ class TestSynthBreadthWarning:
 
     def test_edge_decision_never_sets_breadth_warning(self) -> None:
         """Edge decision (default) never sets breadth_warning, regardless of hit count."""
-        query = ('oracle:/opponent[^.]*los[a-z]*[^.]*gain/ '
-                 'AND otag:life-loss-matters AND otag:lifegain')
+        query = 'oracle:/opponent[^.]*los[a-z]*[^.]*gain/ AND otag:life-loss-matters AND otag:lifegain'
         role = ('life-loss-drain', 'lifegain')
         # Build a large pool with lots of corroborating cards.
         cards = [
-            _card(f'Card {i}',
-                  'Whenever an opponent loses life, you gain that much life.',
-                  ['life-loss-matters', 'lifegain'])
+            _card(
+                f'Card {i}',
+                'Whenever an opponent loses life, you gain that much life.',
+                ['life-loss-matters', 'lifegain'],
+            )
             for i in range(150)
         ]
         client = make_fixture_search_client(cards)
@@ -773,13 +793,14 @@ class TestSynthBreadthWarning:
         The full corroboration check (check c) runs for edge decisions exactly
         as before.  breadth_warning is irrelevant; synth_bypass is False.
         """
-        query = ('oracle:/opponent[^.]*los[a-z]*[^.]*gain/ '
-                 'AND otag:life-loss-matters AND otag:lifegain')
+        query = 'oracle:/opponent[^.]*los[a-z]*[^.]*gain/ AND otag:life-loss-matters AND otag:lifegain'
         role = ('life-loss-drain', 'lifegain')
         cards = [
-            _card('Exquisite Blood',
-                  'Whenever an opponent loses life, you gain that much life.',
-                  ['life-loss-matters', 'lifegain', 'repeatable-lifegain']),
+            _card(
+                'Exquisite Blood',
+                'Whenever an opponent loses life, you gain that much life.',
+                ['life-loss-matters', 'lifegain', 'repeatable-lifegain'],
+            ),
         ]
         client = make_fixture_search_client(cards)
         result = verify(query, role, search_client=client, decision='edge')

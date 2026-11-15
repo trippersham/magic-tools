@@ -50,7 +50,10 @@ def test_stable_across_hashseeds(slug):
         env = {**os.environ, 'PYTHONHASHSEED': seed}
         out = subprocess.run(
             [sys.executable, '-c', _SUBPROC, str(FIX), slug],
-            capture_output=True, text=True, env=env, check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+            check=True,
         )
         return out.stdout
 

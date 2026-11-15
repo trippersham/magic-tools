@@ -77,29 +77,72 @@ ENCH_ATTR_SLUGS = _ench_attr_slugs()
 # never surface.
 _MILL_OPP_SLUGS = frozenset({'mill-opponent', 'mill-any', 'synergy-mill'})
 _PW_SLUGS = frozenset({'synergy-planeswalker', 'recursion-planeswalker', 'protects-planeswalker', 'superfriends'})
-_DISCARD_SLUGS = frozenset({'discard-matters', 'self-discard-matters', 'wheel', 'wheel-one-sided',
-                            'wheel-symmetrical', 'wheel-symmetrical-optional', 'miniwheel'})
-_TREASURE_SLUGS = frozenset({'repeatable-treasures', 'synergy-treasure', 'repeatable-clues', 'synergy-clue',
-                             'repeatable-blood', 'synergy-blood', 'repeatable-food', 'synergy-food', 'eat-food',
-                             'food'})
-_VEHICLE_SLUGS = frozenset({'synergy-vehicle', 'crew', 'bring-your-own-crew', 'alternative-crewing',
-                            'animate-vehicle', 'crewless-vehicle'})
+_DISCARD_SLUGS = frozenset(
+    {
+        'discard-matters',
+        'self-discard-matters',
+        'wheel',
+        'wheel-one-sided',
+        'wheel-symmetrical',
+        'wheel-symmetrical-optional',
+        'miniwheel',
+    }
+)
+_TREASURE_SLUGS = frozenset(
+    {
+        'repeatable-treasures',
+        'synergy-treasure',
+        'repeatable-clues',
+        'synergy-clue',
+        'repeatable-blood',
+        'synergy-blood',
+        'repeatable-food',
+        'synergy-food',
+        'eat-food',
+        'food',
+    }
+)
+_VEHICLE_SLUGS = frozenset(
+    {'synergy-vehicle', 'crew', 'bring-your-own-crew', 'alternative-crewing', 'animate-vehicle', 'crewless-vehicle'}
+)
 _ENERGY_SLUGS = frozenset({'energy-generator', 'counter-fuel-energy', 'energy-increaser', 'synergy-energy'})
 _EXTRATURN_SLUGS = frozenset({'extra-turn', 'extra-upkeep'})
-_POISON_SLUGS = frozenset({'synergy-poison', 'poison-opponents', 'poison-mechanics', 'poisonous',
-                           'synergy-toxic', 'synergy-infect'})
-_THEFT_WIDE = frozenset({'theft', 'theft-creature', 'theft-artifact', 'theft-land', 'theft-planeswalker',
-                         'theft-spell', 'theft-cast', 'nightveil-theft'})
-EDHREC_ATTR_SLUGS = (_MILL_OPP_SLUGS | _PW_SLUGS | _DISCARD_SLUGS | _TREASURE_SLUGS
-                     | _VEHICLE_SLUGS | _ENERGY_SLUGS | _EXTRATURN_SLUGS | _POISON_SLUGS | _THEFT_WIDE)
-EDHREC_NEW_LABELS: frozenset[str] = frozenset(
-    json.loads(LABELSPACE_FILE.read_text())['new_nameable_labels_added']
+_POISON_SLUGS = frozenset(
+    {'synergy-poison', 'poison-opponents', 'poison-mechanics', 'poisonous', 'synergy-toxic', 'synergy-infect'}
 )
+_THEFT_WIDE = frozenset(
+    {
+        'theft',
+        'theft-creature',
+        'theft-artifact',
+        'theft-land',
+        'theft-planeswalker',
+        'theft-spell',
+        'theft-cast',
+        'nightveil-theft',
+    }
+)
+EDHREC_ATTR_SLUGS = (
+    _MILL_OPP_SLUGS
+    | _PW_SLUGS
+    | _DISCARD_SLUGS
+    | _TREASURE_SLUGS
+    | _VEHICLE_SLUGS
+    | _ENERGY_SLUGS
+    | _EXTRATURN_SLUGS
+    | _POISON_SLUGS
+    | _THEFT_WIDE
+)
+EDHREC_NEW_LABELS: frozenset[str] = frozenset(json.loads(LABELSPACE_FILE.read_text())['new_nameable_labels_added'])
 
 # T5 correction B: directed hate-* answers map (FACTS only; scoring deferred).
 ANSWERS_MAP: dict[str, list[str]] = {
-    'graveyard/reanimator': ['hate-graveyard', 'single-minded-graveyard-hate',
-                             'hate-graveyard-cast', 'sweeper-graveyard'],
+    'graveyard/reanimator': [
+        'hate-graveyard',
+        'single-minded-graveyard-hate',
+        'hate-graveyard-cast',
+        'sweeper-graveyard',
+    ],
     'artifacts': ['hate-artifact', 'hate-artifact-creature', 'counterspell-artifact'],
     'enchantments': ['hate-enchantment', 'hate-aura', 'counterspell-enchantment'],
     'voltron/equipment': ['hate-aura', 'hate-enchantment'],
@@ -118,9 +161,19 @@ ANSWERS_MAP_ALL_SLUGS = frozenset(s for sl in ANSWERS_MAP.values() for s in sl)
 
 
 def is_graveyard_attr(a: str) -> bool:
-    return (a == 'graveyard' or a.startswith(('recursion', 'reanimate')) or a in (
-        'cards-in-graveyard-matter', 'castable-from-graveyard', 'graveyard-fuel',
-        'graveyard-fuel-self', 'activate-from-graveyard', 'mill-self'))
+    return (
+        a == 'graveyard'
+        or a.startswith(('recursion', 'reanimate'))
+        or a
+        in (
+            'cards-in-graveyard-matter',
+            'castable-from-graveyard',
+            'graveyard-fuel',
+            'graveyard-fuel-self',
+            'activate-from-graveyard',
+            'mill-self',
+        )
+    )
 
 
 def is_land(card: dict) -> bool:
@@ -195,6 +248,7 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
     # downstream reader (relay, facts, combo_edges, substantiveness) sees the
     # derived view. One named rule: ``derive_event_adjacency`` (anchor_derivation).
     from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
+
     events = derive_event_adjacency(json.loads(EVENTS_FILE.read_text())['events'])
 
     support = frozenset(vocab['support_buckets'])

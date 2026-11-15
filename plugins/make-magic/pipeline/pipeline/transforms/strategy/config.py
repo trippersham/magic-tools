@@ -33,13 +33,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 #: payoff, folded into the ``anthem`` bucket by the vocab data itself
 #: (``_v4_base_buckets['anthem']`` in ``attribute_vocab_v4.json``). See ADR 0006.
 ALL_GROUPS: tuple[str, ...] = (
-    'new_buckets', 'dual', 'affinity', 'ramp_tutor',
-    'dual_land', 'dual_art', 'dual_ench', 'dual_sac',
+    'new_buckets',
+    'dual',
+    'affinity',
+    'ramp_tutor',
+    'dual_land',
+    'dual_art',
+    'dual_ench',
+    'dual_sac',
 )
 #: The ``GROUPS=refined`` subset (kept for parity with the prototype knob).
-REFINED_GROUPS: frozenset[str] = frozenset(
-    {'new_buckets', 'affinity', 'dual_land', 'dual_art', 'dual_sac'}
-)
+REFINED_GROUPS: frozenset[str] = frozenset({'new_buckets', 'affinity', 'dual_land', 'dual_art', 'dual_sac'})
 
 #: Archetypes reported as FACTS but never NAMING candidates — the ``facts_only`` set
 #: as DATA (not an inline literal in the facts branch). The enchantments synergy

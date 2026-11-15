@@ -22,15 +22,15 @@ import re as _re_mod
 import time
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable
 
 from pipeline.transforms.strategy.query import (
     CardView,
-    compile_query,
     _assert_re2_pasteable,  # the HELD RE2 guard — reused by import, not modified
+    compile_query,
 )
 
 # ---------------------------------------------------------------------------
@@ -85,6 +85,7 @@ def engine_relevant_otags() -> tuple[frozenset[str], frozenset[str]]:
 # Curated edge queries — convenience helper
 # ---------------------------------------------------------------------------
 
+
 def curated_edge_queries() -> list[tuple[str, str]]:
     """Return the ``(name, query)`` pairs for curated within-card edge attributes.
 
@@ -102,6 +103,7 @@ def curated_edge_queries() -> list[tuple[str, str]]:
 # ---------------------------------------------------------------------------
 # frontier — deterministic, no inference
 # ---------------------------------------------------------------------------
+
 
 def frontier(
     deck_cards: list[dict],
@@ -374,10 +376,7 @@ def verify(
         synth_passed = hard_passed and not broad
 
         if broad:
-            error_msg = (
-                f'Synth breadth warning: query captures {hit_count} cards '
-                f'(> {SYNTH_BREADTH_WARN})'
-            )
+            error_msg = f'Synth breadth warning: query captures {hit_count} cards (> {SYNTH_BREADTH_WARN})'
         elif not hard_passed:
             error_msg = 'Synth bypass: query lacks oracle/type text anchor'
         else:
@@ -399,10 +398,8 @@ def verify(
         )
 
     events = _load_events()
-    trigger_expected = frozenset(
-        events.get(trigger_event, {}).get('triggers', []))
-    effect_expected = frozenset(
-        events.get(produced_event, {}).get('produced_by', []))
+    trigger_expected = frozenset(events.get(trigger_event, {}).get('triggers', []))
+    effect_expected = frozenset(events.get(produced_event, {}).get('produced_by', []))
 
     corroborating = 0
     for card in captured:
@@ -434,6 +431,7 @@ def verify(
 # Search-client factories
 # ---------------------------------------------------------------------------
 
+
 def make_fixture_search_client(
     cards: list[dict],
     substrate_label: str = 'fixture',
@@ -443,6 +441,7 @@ def make_fixture_search_client(
     Runs the compiled query predicate against each card's :class:`CardView`.
     No lake, no network — for tests.
     """
+
     def search(query_str: str) -> list[dict]:
         pred = compile_query(query_str)
         return [c for c in cards if pred(CardView.from_card(c))]
@@ -457,6 +456,7 @@ def make_lake_search_client() -> SearchClient:
     Loads ``oracle_cards.parquet`` + ``card_otag.parquet``, compiles the query
     predicate, and scans all ~40k cards.  No network.
     """
+
     def search(query_str: str) -> list[dict]:
         return _lake_search(query_str)
 
@@ -482,12 +482,12 @@ def make_scryfall_search_client(
     pace_ms
         Minimum ms between Scryfall API calls (rate-limit courtesy).
     """
+
     def search(query_str: str) -> list[dict]:
         resolved = _scryfall_resolve(query_str, pace_ms=pace_ms)
         if resolved is None:
             if not lake_fallback:
-                raise ConnectionError(
-                    'Scryfall unreachable and lake_fallback=False')
+                raise ConnectionError('Scryfall unreachable and lake_fallback=False')
             search._substrate = 'lake'  # type: ignore[attr-defined]
             return _lake_search(query_str)
 
@@ -509,6 +509,7 @@ def make_scryfall_search_client(
 # Private lake + Scryfall helpers
 # ---------------------------------------------------------------------------
 
+
 def _lake_search(query_str: str) -> list[dict]:
     """Run a compiled query against the local lake.  Returns matching cards
     with otags attached."""
@@ -526,8 +527,7 @@ def _lake_search(query_str: str) -> list[dict]:
     try:
         # Build oracle_id -> otag list.
         otag_rows = con.execute(
-            f"SELECT CAST(oracle_id AS VARCHAR) AS oid, slug "
-            f"FROM read_parquet('{otag_path}')"
+            f"SELECT CAST(oracle_id AS VARCHAR) AS oid, slug FROM read_parquet('{otag_path}')"
         ).fetchall()
         otag_map: dict[str, list[str]] = {}
         for oid, tag in otag_rows:
@@ -535,13 +535,13 @@ def _lake_search(query_str: str) -> list[dict]:
 
         # Scan cards.
         card_rows = con.execute(
-            f"SELECT "
-            f"  CAST(oracle_id AS VARCHAR) AS oracle_id, "
-            f"  name, "
+            f'SELECT '
+            f'  CAST(oracle_id AS VARCHAR) AS oracle_id, '
+            f'  name, '
             f"  COALESCE(oracle_text, '') AS oracle_text, "
             f"  COALESCE(type_line, '')   AS type_line, "
             f"  COALESCE(mana_cost, '')   AS mana_cost, "
-            f"  keywords "
+            f'  keywords '
             f"FROM read_parquet('{oracle_path}')"
         ).fetchall()
     finally:
@@ -568,17 +568,19 @@ def _lake_search(query_str: str) -> list[dict]:
 
 
 def _scryfall_resolve(
-    query_str: str, *, pace_ms: int = 100,
+    query_str: str,
+    *,
+    pace_ms: int = 100,
 ) -> list[dict] | None:
     """Call Scryfall search API.  Returns ``None`` if unreachable."""
-    url = (
-        'https://api.scryfall.com/cards/search?q='
-        + urllib.parse.quote(query_str, safe='')
+    url = 'https://api.scryfall.com/cards/search?q=' + urllib.parse.quote(query_str, safe='')
+    req = urllib.request.Request(
+        url,
+        headers={
+            'User-Agent': 'make-magic/1.0',
+            'Accept': 'application/json',
+        },
     )
-    req = urllib.request.Request(url, headers={
-        'User-Agent': 'make-magic/1.0',
-        'Accept': 'application/json',
-    })
     time.sleep(pace_ms / 1000.0)  # rate-limit courtesy
 
     try:
@@ -592,15 +594,17 @@ def _scryfall_resolve(
 
     cards: list[dict] = []
     for c in data.get('data', []):
-        cards.append({
-            'name': c.get('name', ''),
-            'oracle_id': c.get('oracle_id', ''),
-            'oracle_text': c.get('oracle_text', ''),
-            'type_line': c.get('type_line', ''),
-            'mana_cost': c.get('mana_cost', ''),
-            'keywords': c.get('keywords', []),
-            'otags': [],  # Scryfall search does not return community otags
-        })
+        cards.append(
+            {
+                'name': c.get('name', ''),
+                'oracle_id': c.get('oracle_id', ''),
+                'oracle_text': c.get('oracle_text', ''),
+                'type_line': c.get('type_line', ''),
+                'mana_cost': c.get('mana_cost', ''),
+                'keywords': c.get('keywords', []),
+                'otags': [],  # Scryfall search does not return community otags
+            }
+        )
     return cards
 
 
@@ -617,8 +621,7 @@ def _load_lake_otag_by_oracle_id() -> dict[str, list[str]]:
     con = duckdb.connect(':memory:')
     try:
         rows = con.execute(
-            f"SELECT CAST(oracle_id AS VARCHAR) AS oid, slug "
-            f"FROM read_parquet('{otag_path}')"
+            f"SELECT CAST(oracle_id AS VARCHAR) AS oid, slug FROM read_parquet('{otag_path}')"
         ).fetchall()
     finally:
         con.close()

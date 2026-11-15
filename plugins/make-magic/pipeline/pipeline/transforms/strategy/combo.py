@@ -33,9 +33,10 @@ def combo_label(result: str) -> str:
         return 'combo'
     # Use the fid adapter to find a terminal/lethal clause
     from pipeline.transforms.strategy.win_walk import fid_route, resolve_fids_from_feature_names
+
     fids = resolve_fids_from_feature_names(clauses)
     _TERMINAL_ROUTES = frozenset({'terminal-win', 'sba-drain', 'deckout-opp'})
-    for clause, fid in zip(clauses, fids):
+    for clause, fid in zip(clauses, fids, strict=False):
         if fid:
             r = fid_route(fid)
             if r and r['route'] in _TERMINAL_ROUTES:
@@ -76,8 +77,7 @@ def load_combos_from_lake(oracle_parquet_dir: Path | None = None) -> list[dict]:
     combo_path = _combo_parquet_path(oracle_parquet_dir)
     con = duckdb.connect(':memory:')
     rows = con.execute(
-        'SELECT variant_id, card_names, card_oracle_ids, result '
-        f"FROM read_parquet('{combo_path}')"
+        f"SELECT variant_id, card_names, card_oracle_ids, result FROM read_parquet('{combo_path}')"
     ).fetchall()
     return [normalize_combo(vid, names, oids, result) for vid, names, oids, result in rows]
 

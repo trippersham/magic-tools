@@ -1,0 +1,253 @@
+{
+  "slug": "resilience30__deathtoll_dsc",
+  "deck_name": "DeathToll_DSC",
+  "commanders": [
+    {
+      "name": "Winter, Cynical Opportunist",
+      "oracle_text": "Deathtouch\nWhenever Winter attacks, mill three cards.\nDelirium — At the beginning of your end step, you may exile any number of cards from your graveyard with four or more card types among them. If you do, put a permanent card from among them onto the battlefield with a finality counter on it."
+    }
+  ],
+  "elected": [
+    {
+      "event": "card-enters-graveyard",
+      "hub": "sac",
+      "mass": 170.0,
+      "share": 0.292,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "permanent-dies",
+      "hub": "sac",
+      "mass": 93.0,
+      "share": 0.16,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "creature-enters-battlefield",
+      "hub": "reanimate-creature",
+      "mass": 41.0,
+      "share": 0.07,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "land-enters-battlefield",
+      "hub": null,
+      "mass": 38.0,
+      "share": 0.065,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "landfall"
+      ]
+    },
+    {
+      "event": "permanent-sacrificed",
+      "hub": "sac",
+      "mass": 34.0,
+      "share": 0.058,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 30.0,
+      "share": 0.052,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "mana-produced",
+      "hub": null,
+      "mass": 17.0,
+      "share": 0.029,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 7.0,
+      "share": 0.012,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "graveyard/reanimator",
+      "weighted_quantity": 37.0,
+      "share": 0.661
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Winter, Cynical Opportunist"
+    ],
+    "produces": [
+      "mill",
+      "mill-self",
+      "recursion",
+      "land-ramp",
+      "reanimate",
+      "recursion-permanent",
+      "reanimate-permanent"
+    ],
+    "consumes": [
+      "cards-in-graveyard-matter",
+      "card-types-in-graveyard-matter",
+      "recursion",
+      "reanimate",
+      "attack-trigger",
+      "attacking-matters-self",
+      "graveyard-fuel",
+      "recursion-permanent",
+      "reanimate-permanent"
+    ],
+    "reaches_back_to": [
+      "cards-in-graveyard-matter",
+      "card-types-in-graveyard-matter",
+      "recursion",
+      "reanimate",
+      "graveyard-fuel",
+      "recursion-permanent",
+      "reanimate-permanent"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "graveyard/reanimator",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "graveyard/reanimator",
+    "confidence": "MED",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Arachnogenesis",
+    "Arcane Signet",
+    "Ash Barrens",
+    "Barren Moor",
+    "Binding the Old Gods",
+    "Bojuka Bog",
+    "Burnished Hart",
+    "Carrion Grub",
+    "Cemetery Tampering",
+    "Command Tower",
+    "Commander's Sphere",
+    "Convert to Slime",
+    "Crawling Sensation",
+    "Culling Ritual",
+    "Darkmoss Bridge",
+    "Deadbridge Chant",
+    "Deathcap Cultivator",
+    "Deathreap Ritual",
+    "Deluge of Doom",
+    "Demolisher Spawn",
+    "Demonic Covenant",
+    "Dryad Arbor",
+    "Evolving Wilds",
+    "Exotic Orchard",
+    "Formless Genesis",
+    "Giant Adephage",
+    "Gnarlwood Dryad",
+    "Golgari Rot Farm",
+    "Golgari Signet",
+    "Grapple with the Past",
+    "Grim Backwoods",
+    "Grim Flayer",
+    "Grisly Salvage",
+    "Grist, the Hunger Tide",
+    "Harmonize",
+    "Harrow",
+    "Haywire Mite",
+    "Hornet Queen",
+    "Inscription of Abundance",
+    "Into the Pit",
+    "Ishkanah, Grafwidow",
+    "Jungle Hollow",
+    "Llanowar Wastes",
+    "Mind Stone",
+    "Moldgraf Millipede",
+    "Moldgraf Monstrosity",
+    "Mulch",
+    "Necroblossom Snarl",
+    "Night's Whisper",
+    "Noxious Gearhulk",
+    "Nyx Weaver",
+    "Ob Nixilis Reignited",
+    "Obsessive Skinner",
+    "Old Stickfingers",
+    "Polluted Cistern // Dim Oubliette",
+    "Professor Onyx",
+    "Putrefy",
+    "Rampant Growth",
+    "Reanimate",
+    "Reliquary Tower",
+    "Rendmaw, Creaking Nest",
+    "Sakura-Tribe Elder",
+    "Scavenging Ooze",
+    "Skola Grovedancer",
+    "Sol Ring",
+    "Solemn Simulacrum",
+    "Stitcher's Supplier",
+    "Suspicious Bookcase",
+    "Tainted Wood",
+    "Talisman of Resilience",
+    "Temple of Malady",
+    "Temple of the False God",
+    "Terramorphic Expanse",
+    "Titania, Nature's Force",
+    "Tranquil Thicket",
+    "Tree of Tales",
+    "Twilight Mire",
+    "Ursine Monstrosity",
+    "Vault of Whispers",
+    "Vile Mutilator",
+    "Viridescent Bog",
+    "Whip of Erebos",
+    "Whispersilk Cloak",
+    "Winter, Cynical Opportunist",
+    "Woodland Cemetery",
+    "Wrenn and Seven"
+  ],
+  "n_nonland": 63,
+  "n_cards": 100
+}

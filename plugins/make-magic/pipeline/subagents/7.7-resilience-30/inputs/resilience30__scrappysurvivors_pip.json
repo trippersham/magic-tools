@@ -1,0 +1,236 @@
+{
+  "slug": "resilience30__scrappysurvivors_pip",
+  "deck_name": "ScrappySurvivors_PIP",
+  "commanders": [
+    {
+      "name": "Dogmeat, Ever Loyal",
+      "oracle_text": "When Dogmeat enters, mill five cards, then return an Aura or Equipment card from your graveyard to your hand.\nWhenever a creature you control that's enchanted or equipped attacks, create a Junk token. (It's an artifact with \"{T}, Sacrifice this token: Exile the top card of your library. You may play that card this turn. Activate only as a sorcery.\")"
+    }
+  ],
+  "elected": [
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 71.0,
+      "share": 0.208,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "recursion-from-graveyard",
+      "hub": "recursion",
+      "mass": 62.0,
+      "share": 0.182,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "permanent-dies",
+      "hub": null,
+      "mass": 58.0,
+      "share": 0.17,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "artifact-enters",
+      "hub": null,
+      "mass": 38.0,
+      "share": 0.111,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "artifacts"
+      ]
+    },
+    {
+      "event": "combat-damage-dealt",
+      "hub": null,
+      "mass": 32.0,
+      "share": 0.094,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 18.0,
+      "share": 0.053,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "combat/aggro",
+      "weighted_quantity": 23.0,
+      "share": 0.479
+    },
+    {
+      "strategy": "voltron/equipment",
+      "weighted_quantity": 23.0,
+      "share": 0.479
+    },
+    {
+      "strategy": "enchantress",
+      "weighted_quantity": 18.0,
+      "share": 0.375
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Dogmeat, Ever Loyal"
+    ],
+    "produces": [
+      "recursion",
+      "repeatable-artifact-tokens",
+      "repeatable-junk",
+      "mill",
+      "mill-self",
+      "regrowth",
+      "regrowth-aura",
+      "regrowth-equipment"
+    ],
+    "consumes": [
+      "attack-trigger",
+      "recursion",
+      "attacking-matters",
+      "regrowth",
+      "regrowth-aura",
+      "regrowth-equipment"
+    ],
+    "reaches_back_to": [
+      "recursion",
+      "regrowth",
+      "regrowth-aura",
+      "regrowth-equipment"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "combat/aggro",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "combat/aggro",
+    "confidence": "LOW",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Abundant Growth",
+    "Acquired Mutation",
+    "Agility Bobblehead",
+    "All That Glitters",
+    "Almost Perfect",
+    "Animal Friend",
+    "Arcane Signet",
+    "Armory Paladin",
+    "Ash Barrens",
+    "Basilisk Collar",
+    "Behemoth Sledge",
+    "Bighorner Rancher",
+    "Blasphemous Act",
+    "Bloodforged Battle-Axe",
+    "Brass Knuckles",
+    "Break Down",
+    "Brotherhood Outcast",
+    "Buried Ruin",
+    "Cait, Cage Brawler",
+    "Canopy Vista",
+    "Cass, Hand of Vengeance",
+    "Champion's Helm",
+    "Chaos Warp",
+    "Cinder Glade",
+    "Clifftop Retreat",
+    "Codsworth, Handy Helper",
+    "Command Tower",
+    "Commander Sofia Daguerre",
+    "Crimson Caravaneer",
+    "Dogmeat, Ever Loyal",
+    "Duchess, Wayward Tavernkeep",
+    "Evolving Wilds",
+    "Exotic Orchard",
+    "Explorer's Scope",
+    "Fertile Ground",
+    "Fireshrieker",
+    "Grim Reaper's Sprint",
+    "Gunner Conscript",
+    "Heroic Intervention",
+    "Ian the Reckless",
+    "Idolized",
+    "Inventory Management",
+    "Jungle Shrine",
+    "Junk Jet",
+    "Junktown",
+    "Mantle of the Ancients",
+    "Masterwork of Ingenuity",
+    "Megaton's Fate",
+    "Mister Gutsy",
+    "Moira Brown, Guide Author",
+    "Mossfire Valley",
+    "Path of Ancestry",
+    "Path to Exile",
+    "Perception Bobblehead",
+    "Pip-Boy 3000",
+    "Pre-War Formalwear",
+    "Preston Garvey, Minuteman",
+    "Puresteel Paladin",
+    "Rancor",
+    "Roadside Reliquary",
+    "Rogue's Passage",
+    "Rootbound Crag",
+    "Scattered Groves",
+    "Scavenger Grounds",
+    "Sheltered Thicket",
+    "Silver Shroud Costume",
+    "Single Combat",
+    "Sol Ring",
+    "Squirrel Nest",
+    "Sticky Fingers",
+    "Strong Back",
+    "Sungrass Prairie",
+    "Sunpetal Grove",
+    "Sunscorched Divide",
+    "Super Mutant Scavenger",
+    "Swiftfoot Boots",
+    "Temple of Abandon",
+    "Temple of Plenty",
+    "Temple of Triumph",
+    "Temple of the False God",
+    "Terramorphic Expanse",
+    "Three Dog, Galaxy News DJ",
+    "Valorous Stance",
+    "Vault 101: Birthday Party",
+    "Vault 21: House Gambit",
+    "Veronica, Dissident Scribe",
+    "Well Rested",
+    "Wild Growth"
+  ],
+  "n_nonland": 62,
+  "n_cards": 100
+}

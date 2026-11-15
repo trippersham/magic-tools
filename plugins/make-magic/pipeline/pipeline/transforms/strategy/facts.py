@@ -114,8 +114,7 @@ def _compute_answered_by(cards: list[dict], strategies: dict[str, dict]) -> dict
         if not slugs or not st.get('requires_met'):
             continue
         in_deck = sorted({n for s in slugs for n in by_slug.get(s, [])})
-        out[arch] = {'answer_slugs': slugs, 'n_in_deck_answers': len(in_deck),
-                     'in_deck_answer_cards': in_deck}
+        out[arch] = {'answer_slugs': slugs, 'n_in_deck_answers': len(in_deck), 'in_deck_answer_cards': in_deck}
     return out
 
 
@@ -148,7 +147,7 @@ def _isolate_engines(
       commander consumes. Non-empty => a commander-anchored cycle the DAG can't hold.
 
     The ranked ``elected`` set (0..n strategies) is chosen by node-weighted
-    event-neighborhood **mass** -- ``m(U) = Σ adens`` over a unit's producers ∪
+    event-neighborhood **mass** -- ``m(U) = Σ adens`` over a unit's producers U
     consumers (its ``weight``). Units are ordered by mass desc (recursive status
     breaks an EXACT mass tie only); the elected set keeps EVERY substantive unit
     that is not a member-Jaccard-≥-0.5 near-duplicate of a kept unit — rank-don't-
@@ -210,19 +209,21 @@ def _isolate_engines(
         P, C = ev_prod[ev], ev_cons[ev]
         relay_producers = by_w(p for p in P if p in relay)
         hub = relay_producers[0] if relay_producers else None
-        engines.append({
-            'event': ev,
-            'hub': hub,
-            'enabler': hub or (by_w(P)[0] if P else None),
-            'kind': 'recursive-engine' if hub else 'static-payoff',
-            'producers': by_w(P),
-            'consumers': by_w(C),
-            'payoff_archetypes': archs(C),
-            'weight': round(sum(adens[a] for a in P | C), 1),
-        })
+        engines.append(
+            {
+                'event': ev,
+                'hub': hub,
+                'enabler': hub or (by_w(P)[0] if P else None),
+                'kind': 'recursive-engine' if hub else 'static-payoff',
+                'producers': by_w(P),
+                'consumers': by_w(C),
+                'payoff_archetypes': archs(C),
+                'weight': round(sum(adens[a] for a in P | C), 1),
+            }
+        )
     # MASS ELECTION (ADR 0014): node-weighted event-neighborhood mass is the
     # authoritative engine signal. Each unit's mass m(U) = Σ adens over
-    # producers ∪ consumers is already computed as e['weight']. Order by mass
+    # producers ∪ consumers is already computed as e['weight']. Order by mass  # noqa: RUF003
     # desc; recursive status breaks an EXACT mass tie only (a reported attribute,
     # never a primary sort key); event name is the final determinism tiebreak.
     engines.sort(key=lambda e: (-e['weight'], e['kind'] != 'recursive-engine', e['event']))
@@ -321,17 +322,19 @@ def _isolate_engines(
             if any(_jaccard(mem, km) >= 0.5 for km in kept_members):
                 continue
             anchor = _anchor(e)
-            elected.append({
-                'event': e['event'],
-                'hub': e['hub'],
-                'mass': e['weight'],
-                'share': round(e['weight'] / total_mass, 3),
-                'anchor': anchor,
-                'recursive': e['kind'] == 'recursive-engine',
-                'commander_coupled': bool(mem & cmd_attrs),
-                'thin': anchor == 'exogenous-environmental',
-                'payoff_archetypes': e['payoff_archetypes'],
-            })
+            elected.append(
+                {
+                    'event': e['event'],
+                    'hub': e['hub'],
+                    'mass': e['weight'],
+                    'share': round(e['weight'] / total_mass, 3),
+                    'anchor': anchor,
+                    'recursive': e['kind'] == 'recursive-engine',
+                    'commander_coupled': bool(mem & cmd_attrs),
+                    'thin': anchor == 'exogenous-environmental',
+                    'payoff_archetypes': e['payoff_archetypes'],
+                }
+            )
             kept_members.append(mem)
 
     # commander-anchored loop probe
@@ -371,10 +374,10 @@ def _isolate_engines(
         'commander_loop': cmd_loop,
         'determinism': determinism,
         'note': 'a-priori directed-graph engine isolation (per-event convergence + '
-                'relay hub + DAG-bounded chains + commander loop probe); the ranked '
-                '`elected` set comes from node-weighted event-neighborhood MASS '
-                '(rank-don\'t-cut + Jaccard-0.5 dedup, ADR 0022), not recursive-first; '
-                'STRUCTURE-ONLY, never decides the label',
+        'relay hub + DAG-bounded chains + commander loop probe); the ranked '
+        '`elected` set comes from node-weighted event-neighborhood MASS '
+        "(rank-don't-cut + Jaccard-0.5 dedup, ADR 0022), not recursive-first; "
+        'STRUCTURE-ONLY, never decides the label',
     }
 
 
@@ -471,8 +474,12 @@ def compute_facts(
         'spell_density': {'n': spell_n, 'on': spell_n >= assets.spell_t},
         'artifact_density': {'n': art_n, 'on': art_n >= assets.art_t},
         'enchantment_density': {'n': ench_n, 'on': ench_n >= assets.ench_t},
-        'creature_type_density': {'subtype': dom_sub, 'n': dom_raw, 'on': dom_raw >= assets.sub_t,
-                                  'tribes_ranked': [d['tribe'] for d in tribe_ranked[:4]]},
+        'creature_type_density': {
+            'subtype': dom_sub,
+            'n': dom_raw,
+            'on': dom_raw >= assets.sub_t,
+            'tribes_ranked': [d['tribe'] for d in tribe_ranked[:4]],
+        },
     }
 
     # ---- weighted attribute densities + support cards + commander attrs
@@ -494,8 +501,7 @@ def compute_facts(
 
     attributes_present = {a: round(adens[a], 1) for a in sorted(nodes, key=lambda a: (-adens[a], a))}
 
-    card_w: dict[int, float] = {i: (cmd_w if cards[i].get('role') == 'commander' else 1.0)
-                                for i in range(len(cards))}
+    card_w: dict[int, float] = {i: (cmd_w if cards[i].get('role') == 'commander' else 1.0) for i in range(len(cards))}
     arch_members: dict[str, set[int]] = defaultdict(set)
     arch_attrs: dict[str, set[str]] = defaultdict(set)
     for i in range(len(cards)):
@@ -527,8 +533,7 @@ def compute_facts(
             arch_members[TYPAL] |= typal_conc_members
             arch_attrs[TYPAL].add('subtype-concentration[' + ','.join(sorted(dominant)) + ']')
     typal_fired_by = sorted(
-        ({'otag'} if typal_otag_members else set())
-        | ({'concentration'} if typal_conc_members else set())
+        ({'otag'} if typal_otag_members else set()) | ({'concentration'} if typal_conc_members else set())
     )
 
     # ---- T2 correction 1: tutor-land ENABLER (conditional lands-matter contribution)
@@ -539,8 +544,7 @@ def compute_facts(
     base_has_cmd = any(cards[i].get('role') == 'commander' for i in lands_base_mem)
     lands_signal_present = node_eligible(base_n, base_has_cmd)
     land_tutor_cards = sorted(
-        i for i in range(len(cards))
-        if not is_land(cards[i]) and assets.tutor_land_pred(CardView.from_card(cards[i]))
+        i for i in range(len(cards)) if not is_land(cards[i]) and assets.tutor_land_pred(CardView.from_card(cards[i]))
     )
     lands_enabler['signal_present'] = lands_signal_present
     lands_enabler['n_candidates'] = len(land_tutor_cards)
@@ -640,15 +644,17 @@ def compute_facts(
                 if v in comp:
                     evset.add(ev)
                     chains.append(f'{u} --{ev}--> {v}')
-        comps.append({
-            'attrs': sorted(comp, key=lambda a: (-adens[a], a)),
-            'events': sorted(evset),
-            'chains': sorted(chains),
-            'size': len(comp),
-            'n_events': len(evset),
-            'weight': round(sum(adens[a] for a in comp), 1),
-            'archetypes': sorted({x for a in comp if (x := assets.archetype_of_attr(a))}),
-        })
+        comps.append(
+            {
+                'attrs': sorted(comp, key=lambda a: (-adens[a], a)),
+                'events': sorted(evset),
+                'chains': sorted(chains),
+                'size': len(comp),
+                'n_events': len(evset),
+                'weight': round(sum(adens[a] for a in comp), 1),
+                'archetypes': sorted({x for a in comp if (x := assets.archetype_of_attr(a))}),
+            }
+        )
     comps.sort(key=lambda c: (-c['n_events'], -c['size'], -c['weight'], ','.join(c['attrs'])))
 
     engine_communities = []
@@ -661,12 +667,14 @@ def compute_facts(
             x = assets.archetype_of_attr(a)
             if x:
                 archs[x] += 1
-        engine_communities.append({
-            'size': len(cl_nodes),
-            'weight': round(sum(adens[a] for a in cl_nodes), 1),
-            'archetypes_merged': sorted(archs),
-            'top_attrs': sorted(cl_nodes, key=lambda a: (-adens[a], a))[:8],
-        })
+        engine_communities.append(
+            {
+                'size': len(cl_nodes),
+                'weight': round(sum(adens[a] for a in cl_nodes), 1),
+                'archetypes_merged': sorted(archs),
+                'top_attrs': sorted(cl_nodes, key=lambda a: (-adens[a], a))[:8],
+            }
+        )
     engine_communities.sort(key=lambda e: (-e['weight'], -e['size'], ','.join(e['top_attrs'])))
 
     # ---- T4 degree-axis + power readings
@@ -675,25 +683,37 @@ def compute_facts(
     power = power_profile(cards)
     prot_axis = degree_axes['protection']
     protection_degree = {
-        'n': prot_axis['n'], 'frac': prot_axis['frac'],
-        'over_served': prot_axis['over_served'], 'under_served': prot_axis['under_served'],
-        'reading': ('resilience/voltron' if prot_axis['over_served']
-                    else ('susceptible' if prot_axis['under_served'] else 'baseline')),
+        'n': prot_axis['n'],
+        'frac': prot_axis['frac'],
+        'over_served': prot_axis['over_served'],
+        'under_served': prot_axis['under_served'],
+        'reading': (
+            'resilience/voltron'
+            if prot_axis['over_served']
+            else ('susceptible' if prot_axis['under_served'] else 'baseline')
+        ),
     }
 
     # ---- T5 A: core_combo facts + elevation
     def _core_combo(c: dict, kind: str) -> dict:
         pieces = sorted(c['card_names'])
-        orphan = sorted({cards[i]['name'] for nn in c['norm_names']
-                         for i in name2idx.get(nn, []) if i not in identity_cards})
-        return {'variant_id': c['variant_id'], 'label': combo_label(c['result']),
-                'result': c['result'], 'requires': pieces, 'n_pieces': len(pieces),
-                'win': c['win'], 'win_kind': kind, 'elevated_orphan_pieces': orphan}
+        orphan = sorted(
+            {cards[i]['name'] for nn in c['norm_names'] for i in name2idx.get(nn, []) if i not in identity_cards}
+        )
+        return {
+            'variant_id': c['variant_id'],
+            'label': combo_label(c['result']),
+            'result': c['result'],
+            'requires': pieces,
+            'n_pieces': len(pieces),
+            'win': c['win'],
+            'win_kind': kind,
+            'elevated_orphan_pieces': orphan,
+        }
 
-    core_combos = (
-        [_core_combo(c, walk_win_kind(c.get('_walk_verdict', {}))) for c in win_combos]
-        + [_core_combo(c, 'non-win') for c in detected if c not in win_combos]
-    )
+    core_combos = [_core_combo(c, walk_win_kind(c.get('_walk_verdict', {}))) for c in win_combos] + [
+        _core_combo(c, 'non-win') for c in detected if c not in win_combos
+    ]
     core_combos.sort(key=lambda d: (not d['win'], d['win_kind'], d['label'], d['variant_id']))
     elevated_cards = sorted({cards[i]['name'] for i in combo_piece_idx if i not in identity_cards})
     answered_by = _compute_answered_by(cards, strategies)
@@ -708,7 +728,7 @@ def compute_facts(
             'n_elevated_orphans': len(elevated_cards),
             'elevated_cards': elevated_cards,
             'note': 'combo pieces never density-drop; elevated_cards had NO identity archetype '
-                    '(orphan noise) but are surfaced because they complete a detected combo',
+            '(orphan noise) but are surfaced because they complete a detected combo',
         },
         'answered_by': answered_by,
         'support_quantities': support_quantities,
@@ -724,8 +744,11 @@ def compute_facts(
             'engine_isolation': None,
             'note': 'engines/communities are STRUCTURE-ONLY; they do not decide the label',
         },
-        'edges': {'n_cooc': len(cooc_edges), 'n_event': len(event_edges),
-                  'top_cooc': sorted(cooc_edges, key=lambda e: (-e[2], e[0], e[1]))[:8]},
+        'edges': {
+            'n_cooc': len(cooc_edges),
+            'n_event': len(event_edges),
+            'top_cooc': sorted(cooc_edges, key=lambda e: (-e[2], e[0], e[1]))[:8],
+        },
         'lands_enabler': {
             'signal_present': lands_enabler['signal_present'],
             'n_land_tutors': lands_enabler['n_candidates'],
@@ -741,7 +764,7 @@ def compute_facts(
             'concentration_applied': bool(typal_conc_members),
             'otag_typal_registered': otag_typal_registered,
             'note': 'tribe = 3-source (subtype+oracle-text+typal-otag) commander-weighted vote; '
-                    'typal archetype fires on subtype concentration independent of typal-* otags',
+            'typal archetype fires on subtype concentration independent of typal-* otags',
         },
         'coverage': round(coverage, 3),
         'n_nodes': len(nodes),
@@ -749,20 +772,39 @@ def compute_facts(
 
     demotions = {'spell_demoted': False, 'gy_demoted': False}
 
-    arch_has_cmd = {arch: any(cards[i].get('role') == 'commander' for i in mem)
-                    for arch, mem in arch_members.items()}
+    arch_has_cmd = {arch: any(cards[i].get('role') == 'commander' for i in mem) for arch, mem in arch_members.items()}
 
     ctx = FactsContext(
-        deck=deck, cards=cards, n_nonland=n_nonland, assets=assets, cfg=cfg,
-        facts=facts, strategies=strategies, facts_only=facts_only,
-        arch_members=dict(arch_members), arch_has_cmd=arch_has_cmd, nodes=nodes,
-        support=assets.support, adens=adens, card_w=card_w, identity_mass=identity_mass,
-        coverage=coverage, demotions=demotions,
-        cs_axis=degree_axes['counterspells'], stax_axis=degree_axes['stax'],
-        ramp_axis=degree_axes['ramp'], protection_degree=protection_degree, power=power,
-        tribe_info=tribe_info, density_signals=density_signals, cmd_attrs=cmd_attrs,
-        detected=detected, win_combos=win_combos, predicate_wins=predicate_wins,
-        mana_sink_wins=mana_sink_wins, mana_sinks_present=mana_sinks_present,
+        deck=deck,
+        cards=cards,
+        n_nonland=n_nonland,
+        assets=assets,
+        cfg=cfg,
+        facts=facts,
+        strategies=strategies,
+        facts_only=facts_only,
+        arch_members=dict(arch_members),
+        arch_has_cmd=arch_has_cmd,
+        nodes=nodes,
+        support=assets.support,
+        adens=adens,
+        card_w=card_w,
+        identity_mass=identity_mass,
+        coverage=coverage,
+        demotions=demotions,
+        cs_axis=degree_axes['counterspells'],
+        stax_axis=degree_axes['stax'],
+        ramp_axis=degree_axes['ramp'],
+        protection_degree=protection_degree,
+        power=power,
+        tribe_info=tribe_info,
+        density_signals=density_signals,
+        cmd_attrs=cmd_attrs,
+        detected=detected,
+        win_combos=win_combos,
+        predicate_wins=predicate_wins,
+        mana_sink_wins=mana_sink_wins,
+        mana_sinks_present=mana_sinks_present,
     )
 
     from pipeline.transforms.strategy.substantiveness import requirement_for
@@ -772,12 +814,8 @@ def compute_facts(
     # (``requirement_for(arch).satisfied``, ADR 0001/0002) — the SAME verdict the
     # naming layer consults. ``satisfied`` reads ctx, so this runs post-ctx; the
     # resulting engine_isolation is then placed into the (shared) facts dict.
-    earned_archetypes = {
-        arch for arch, st in strategies.items()
-        if requirement_for(arch, cfg).satisfied(st, ctx, arch)
-    }
-    facts['engines']['engine_isolation'] = _isolate_engines(
-        nodes, event_edges, adens, assets, cards, earned_archetypes)
+    earned_archetypes = {arch for arch, st in strategies.items() if requirement_for(arch, cfg).satisfied(st, ctx, arch)}
+    facts['engines']['engine_isolation'] = _isolate_engines(nodes, event_edges, adens, assets, cards, earned_archetypes)
 
     # gy_demoted: the graveyard identity clears requires_met but NOT the shared graveyard
     # attr_density Requirement (one evaluator, ADR 0002 -- no parallel copy). Equivalent to
@@ -785,7 +823,10 @@ def compute_facts(
     # `requires_met and not satisfied()` == `requires_met and not density`. Evaluated
     # post-ctx because the evaluator reads ctx.
     gy_st = strategies.get('graveyard/reanimator')
-    if gy_st and gy_st['requires_met'] and not requirement_for(
-            'graveyard/reanimator', cfg).satisfied(gy_st, ctx, 'graveyard/reanimator'):
+    if (
+        gy_st
+        and gy_st['requires_met']
+        and not requirement_for('graveyard/reanimator', cfg).satisfied(gy_st, ctx, 'graveyard/reanimator')
+    ):
         demotions['gy_demoted'] = True
     return ctx

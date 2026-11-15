@@ -18,7 +18,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-from pipeline.transforms.strategy.fid_adapter import FidMapping, load_adapter
+from pipeline.transforms.strategy.fid_adapter import load_adapter
 
 # ---------------------------------------------------------------------------
 # Card edge data (derived from the prototype's card_edges.json)
@@ -41,8 +41,7 @@ def _load_card_edges() -> dict[str, frozenset[str]]:
     if _CARD_EDGES_PATH.exists():
         with _CARD_EDGES_PATH.open() as f:
             raw = json.load(f)
-        return {cls: frozenset(_norm(c) for c in cards)
-                for cls, cards in raw.items() if not cls.startswith('_')}
+        return {cls: frozenset(_norm(c) for c in cards) for cls, cards in raw.items() if not cls.startswith('_')}
     return _FALLBACK_CARD_EDGES
 
 
@@ -85,17 +84,33 @@ SELFDEP_CLASSES: list[str] = ['altwin::self-deplete', 'altwin::card-enters-grave
 
 #: Edge classes whose hit means the walk reaches game-end with a WIN polarity.
 #: These are the rule-edges + card-edges that terminate the walk.
-_DRAIN_CLASSES = frozenset({
-    'mana_sink', 'draw_drain', 'etb_drain', 'death_drain',
-    'cast_drain', 'gain_drain', 'mana_to_combat',
-})
-_ALTWIN_CLASSES = frozenset({
-    'altwin::mana-produced', 'altwin::draw-a-card', 'altwin::lifegain',
-    'altwin::spell-cast', 'altwin::token-created', 'altwin::untap',
-    'altwin::counter-placed', 'altwin::player-counter',
-    'altwin::card-enters-graveyard', 'altwin::self-deplete',
-    'altwin::land-enters-battlefield', 'altwin::creature-copied',
-})
+_DRAIN_CLASSES = frozenset(
+    {
+        'mana_sink',
+        'draw_drain',
+        'etb_drain',
+        'death_drain',
+        'cast_drain',
+        'gain_drain',
+        'mana_to_combat',
+    }
+)
+_ALTWIN_CLASSES = frozenset(
+    {
+        'altwin::mana-produced',
+        'altwin::draw-a-card',
+        'altwin::lifegain',
+        'altwin::spell-cast',
+        'altwin::token-created',
+        'altwin::untap',
+        'altwin::counter-placed',
+        'altwin::player-counter',
+        'altwin::card-enters-graveyard',
+        'altwin::self-deplete',
+        'altwin::land-enters-battlefield',
+        'altwin::creature-copied',
+    }
+)
 
 # Soft combat notes: bodies without haste (policy bit — deferred, not immediate).
 _SOFT_COMBAT_NOTES = frozenset({'bodies-sans-haste', 'ctr-on-creature', 'face-down bodies'})
@@ -106,15 +121,18 @@ _SOFT_COMBAT_NOTES = frozenset({'bodies-sans-haste', 'ctr-on-creature', 'face-do
 
 #: Cards with draw-to-drain that require OPPONENT draw (trigger_scope=opponent).
 #: These MUST NOT promote on self-draw. Hand-curated from the validation.
-_OPPONENT_DRAW_DRAINERS: frozenset[str] = frozenset(_norm(n) for n in (
-    'Sheoldred, the Apocalypse',
-    'Nekusar, the Mindrazer',
-    'Underworld Dreams',
-    'Fate Unraveler',
-    'Ob Nixilis, the Hate-Twisted',
-    'Orcish Bowmasters',
-    'Seizan, Perverter of Truth',
-))
+_OPPONENT_DRAW_DRAINERS: frozenset[str] = frozenset(
+    _norm(n)
+    for n in (
+        'Sheoldred, the Apocalypse',
+        'Nekusar, the Mindrazer',
+        'Underworld Dreams',
+        'Fate Unraveler',
+        'Ob Nixilis, the Hate-Twisted',
+        'Orcish Bowmasters',
+        'Seizan, Perverter of Truth',
+    )
+)
 
 #: Cards with cast-to-drain that require a specific COLOR cast (guard=characteristic).
 #: Aragorn the Uniter triggers on RED casts only.
@@ -123,9 +141,7 @@ _COLOR_GATED_CAST_DRAINERS: dict[str, str] = {
 }
 
 #: Cards with death-to-drain that have "another" identity guard.
-_ANOTHER_IDENTITY_DEATH_DRAINERS: frozenset[str] = frozenset(_norm(n) for n in (
-    'Plague Belcher',
-))
+_ANOTHER_IDENTITY_DEATH_DRAINERS: frozenset[str] = frozenset(_norm(n) for n in ('Plague Belcher',))
 
 
 def _guard_passes(
@@ -161,8 +177,7 @@ def _guard_passes(
                     name_lower = r.get('name', '').lower()
                     # Only fire if the draw is opponent-directed
                     if scope in ('table', 'target') and (
-                        'opponent' in name_lower or 'each player' in name_lower
-                        or 'all player' in name_lower
+                        'opponent' in name_lower or 'each player' in name_lower or 'all player' in name_lower
                     ):
                         has_opponent_draw = True
             if not has_opponent_draw:
@@ -176,17 +191,14 @@ def _guard_passes(
         return False
 
     # "Another" identity guards: Plague Belcher on own death
-    if card_norm in _ANOTHER_IDENTITY_DEATH_DRAINERS:
-        # Needs "another Zombie" to die — can't confirm from fids alone
-        # Conservatively fail (deferred to per-card edge authoring)
-        return False
-
+    # Needs "another Zombie" to die — can't confirm from fids alone
+    # Conservatively fail (deferred to per-card edge authoring)
+    #
     # Infinity-dominance: ordinal/threshold gates fed by infinite stream → satisfied
     # (Helix Pinnacle, Door to Nothingness) — these are in altwin:: classes,
     # which inherently pass because they ARE the alt-win condition.
     # No additional guard needed for altwin:: edges.
-
-    return True
+    return card_norm not in _ANOTHER_IDENTITY_DEATH_DRAINERS
 
 
 # ---------------------------------------------------------------------------
@@ -194,16 +206,22 @@ def _guard_passes(
 # ---------------------------------------------------------------------------
 
 #: Events that reach game-end through RULE edges (not needing a deck card).
-_RULE_TERMINAL_EVENTS: frozenset[str] = frozenset({
-    'game-end',         # direct
-    'life-loss-drain',  # SBA 104.3b (unbounded)
-    'library-depleted', # CR 104.3c (opponent-scoped)
-})
+_RULE_TERMINAL_EVENTS: frozenset[str] = frozenset(
+    {
+        'game-end',  # direct
+        'life-loss-drain',  # SBA 104.3b (unbounded)
+        'library-depleted',  # CR 104.3c (opponent-scoped)
+    }
+)
 
 #: Events that are topological sinks (never reach game-end).
-_STATE_EVENTS: frozenset[str] = frozenset({
-    'lock', 'cant-lose', 'control-change',
-})
+_STATE_EVENTS: frozenset[str] = frozenset(
+    {
+        'lock',
+        'cant-lose',
+        'control-change',
+    }
+)
 
 
 def fid_route(fid: int) -> dict[str, Any] | None:
@@ -263,15 +281,15 @@ def fid_route(fid: int) -> dict[str, Any] | None:
     if event == 'library-depleted':
         # Self-directed = self-deplete risk
         if scope == 'self' or 'your library' in name_lower or 'your own' in name_lower:
-            base.update(route='self-deplete', event='library-depleted', scope_self=True,
-                        risk='self-deplete')
+            base.update(route='self-deplete', event='library-depleted', scope_self=True, risk='self-deplete')
             return base
         # Opponent-scoped library depletion is game-ending regardless of magnitude.
         # "Exile each opponent's library" is finite (one-shot) but lethal.
         is_full_depletion = (
             unbounded
-            or 'entire' in name_lower or 'all' in name_lower
-            or 'exile' in name_lower and ('opponent' in name_lower or 'each' in name_lower)
+            or 'entire' in name_lower
+            or 'all' in name_lower
+            or ('exile' in name_lower and ('opponent' in name_lower or 'each' in name_lower))
             or scope in ('table', 'target')
         )
         if is_full_depletion:
@@ -314,8 +332,7 @@ def fid_route(fid: int) -> dict[str, Any] | None:
         if 'haste' in keywords or 'haste' in name_lower or 'attacking' in name_lower:
             base.update(route='combat', timing='immediate', event='token-created')
         else:
-            base.update(route='combat', timing='deferred', event='token-created',
-                        note='bodies-sans-haste')
+            base.update(route='combat', timing='deferred', event='token-created', note='bodies-sans-haste')
         return base
     if event == 'token-created':
         base.update(route='oneshot')
@@ -359,8 +376,7 @@ def fid_route(fid: int) -> dict[str, Any] | None:
     # player-counter (radiation): self-deplete risk
     if event == 'player-counter':
         if 'rad' in name_lower or 'radiation' in name_lower:
-            base.update(route='self-deplete', event='card-enters-graveyard',
-                        risk='self-deplete', note='RAD-RULE')
+            base.update(route='self-deplete', event='card-enters-graveyard', risk='self-deplete', note='RAD-RULE')
             return base
         if unbounded:
             base.update(route='intermediate', event='player-counter')
@@ -383,6 +399,7 @@ def fid_route(fid: int) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 # The closure walk
 # ---------------------------------------------------------------------------
+
 
 def closure_walk(
     *,
@@ -424,10 +441,7 @@ def closure_walk(
 
     # 2. Build the mechanisms view
     def have(rt: str, tm: str | None = None) -> bool:
-        return any(
-            r['route'] == rt and (tm is None or r.get('timing') == tm)
-            for r in routes
-        )
+        return any(r['route'] == rt and (tm is None or r.get('timing') == tm) for r in routes)
 
     events: set[str] = set()
     for r in routes:
@@ -465,8 +479,7 @@ def closure_walk(
     # Card-closed via intermediate events
     if hits:
         ev, cls, card = hits[0]
-        return _verdict('card', 'immediate', 'win', f'{cls}<-{ev}',
-                        detail=card, mechs=mechs)
+        return _verdict('card', 'immediate', 'win', f'{cls}<-{ev}', detail=card, mechs=mechs)
 
     if have('terminal-win', 'deferred'):
         return _verdict('rule', 'deferred', 'win', 'literal-win-deferred', mechs=mechs)
@@ -488,9 +501,7 @@ def closure_walk(
     # Card-needed: has intermediate events but no card edge fires
     if events or selfdep:
         pol = 'loss-self-risk' if (selfdep and not events) else 'none-yet'
-        return _verdict('card-needed', 'n/a', pol,
-                        ','.join(sorted(e for e in events)) or 'self-deplete',
-                        mechs=mechs)
+        return _verdict('card-needed', 'n/a', pol, ','.join(sorted(e for e in events)) or 'self-deplete', mechs=mechs)
 
     # Terminal draw
     if have('terminal-draw'):
@@ -561,6 +572,7 @@ def _card_edge_hits(
 # Public verdict helpers
 # ---------------------------------------------------------------------------
 
+
 def walk_is_win(verdict: dict) -> bool:
     """Does the walk verdict say this combo is a win?"""
     return verdict['polarity'] == 'win'
@@ -579,6 +591,7 @@ def walk_win_kind(verdict: dict) -> str:
 # ---------------------------------------------------------------------------
 # Name-to-fid resolution (for combos that lack fids in the lake)
 # ---------------------------------------------------------------------------
+
 
 @cache
 def _name_to_fid_map() -> dict[str, int]:

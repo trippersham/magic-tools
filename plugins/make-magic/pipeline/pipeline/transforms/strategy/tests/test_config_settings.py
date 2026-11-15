@@ -23,8 +23,8 @@ from pipeline.transforms.strategy.substantiveness import build_substantiveness
 #: The validated engine's default field values (the byte-parity contract).
 _EXPECTED_DEFAULTS = {
     'enabled_groups': frozenset(
-        {'new_buckets', 'dual', 'affinity', 'ramp_tutor',
-         'dual_land', 'dual_art', 'dual_ench', 'dual_sac'}),
+        {'new_buckets', 'dual', 'affinity', 'ramp_tutor', 'dual_land', 'dual_art', 'dual_ench', 'dual_sac'}
+    ),
     'gy_distinct': 4,
     'gy_ratio': 0.15,
     'conf_high': 0.66,
@@ -46,6 +46,7 @@ _EXPECTED_DEFAULTS = {
 def _clear_strategy_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Scrub any ambient MAKEMAGIC_STRATEGY_* so a case starts from the defaults."""
     import os
+
     for k in list(os.environ):
         if k.startswith('MAKEMAGIC_STRATEGY_'):
             monkeypatch.delenv(k, raising=False)
@@ -55,7 +56,7 @@ def test_config_is_hashable_and_frozen() -> None:
     """Hashable (the @cache key) and immutable (frozen)."""
     assert hash(StrategyConfig()) == hash(DEFAULT_CONFIG)
     assert StrategyConfig() == DEFAULT_CONFIG
-    with pytest.raises(Exception):  # pydantic raises ValidationError on frozen set
+    with pytest.raises((TypeError, ValueError)):  # pydantic raises on frozen set
         DEFAULT_CONFIG.max_identity = 99  # type: ignore[misc]
 
 

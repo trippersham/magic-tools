@@ -10,6 +10,7 @@ Tests the tightened F4 rule:
   - F4 flags ONLY when (a) no winning combo backs the name, or (b) the naming
     layer's own F4 gate blocked the combo override (misalignment signal).
 """
+
 from __future__ import annotations
 
 import sys
@@ -32,25 +33,29 @@ def _make_deck_input(
     """Build a minimal deck_input dict for testing classify_engine."""
     combos = []
     for i in range(n_win_combos):
-        combos.append({
-            'variant_id': f'win-{i}',
-            'label': f'Infinite loop variant {i}',
-            'result': 'Infinite death triggers',
-            'requires': ['Card A', 'Card B'],
-            'n_pieces': 2,
-            'win': True,
-            'win_kind': 'card',
-        })
+        combos.append(
+            {
+                'variant_id': f'win-{i}',
+                'label': f'Infinite loop variant {i}',
+                'result': 'Infinite death triggers',
+                'requires': ['Card A', 'Card B'],
+                'n_pieces': 2,
+                'win': True,
+                'win_kind': 'card',
+            }
+        )
     for i in range(n_nonwin_combos):
-        combos.append({
-            'variant_id': f'nonwin-{i}',
-            'label': f'Near-infinite variant {i}',
-            'result': 'Near-infinite tokens',
-            'requires': ['Card C', 'Card D'],
-            'n_pieces': 2,
-            'win': False,
-            'win_kind': None,
-        })
+        combos.append(
+            {
+                'variant_id': f'nonwin-{i}',
+                'label': f'Near-infinite variant {i}',
+                'result': 'Near-infinite tokens',
+                'requires': ['Card C', 'Card D'],
+                'n_pieces': 2,
+                'win': False,
+                'win_kind': None,
+            }
+        )
     return {
         'archetype_identity': [
             {'strategy': top_strategy, 'weighted_quantity': 30, 'share': top_share},
@@ -71,6 +76,7 @@ def _make_deck_input(
 
 # ---------- R1: aligned winning combo = NOT flagged ----------
 
+
 def test_aligned_winning_combo_no_f4():
     """A deck with combo-in-strategy + dominant archetype + winning combos
     + no F4 block is the R1 case: combo IS the engine.  Must NOT be flagged."""
@@ -87,9 +93,7 @@ def test_aligned_winning_combo_no_f4():
     )
     result = classify_engine('test__korvold', engine, deck_input)
     f4_flags = [f for f in result['flags'] if 'F4' in f]
-    assert f4_flags == [], (
-        f'R1 aligned combo should NOT be F4-flagged, got: {f4_flags}'
-    )
+    assert f4_flags == [], f'R1 aligned combo should NOT be F4-flagged, got: {f4_flags}'
 
 
 def test_aligned_graveyard_combo_no_f4():
@@ -107,9 +111,7 @@ def test_aligned_graveyard_combo_no_f4():
     )
     result = classify_engine('test__karador', engine, deck_input)
     f4_flags = [f for f in result['flags'] if 'F4' in f]
-    assert f4_flags == [], (
-        f'Graveyard-combo R1 should NOT be F4-flagged, got: {f4_flags}'
-    )
+    assert f4_flags == [], f'Graveyard-combo R1 should NOT be F4-flagged, got: {f4_flags}'
 
 
 def test_combo_with_override_applied_not_blocked():
@@ -129,12 +131,11 @@ def test_combo_with_override_applied_not_blocked():
     )
     result = classify_engine('test__ghave', engine, deck_input)
     f4_flags = [f for f in result['flags'] if 'F4' in f]
-    assert f4_flags == [], (
-        f'Override-applied non-blocked combo is R1, got: {f4_flags}'
-    )
+    assert f4_flags == [], f'Override-applied non-blocked combo is R1, got: {f4_flags}'
 
 
 # ---------- F4 violation: no winning combo ----------
+
 
 def test_no_winning_combo_flags_f4():
     """Deck names combo in strategy but has NO winning combo.
@@ -153,13 +154,12 @@ def test_no_winning_combo_flags_f4():
     )
     result = classify_engine('test__no-win-combo', engine, deck_input)
     f4_flags = [f for f in result['flags'] if 'F4' in f]
-    assert len(f4_flags) == 1, (
-        f'Combo with no winning combo should be F4-flagged, got: {f4_flags}'
-    )
+    assert len(f4_flags) == 1, f'Combo with no winning combo should be F4-flagged, got: {f4_flags}'
     assert 'F4_COMBO_HIJACK_SUSPECT' in f4_flags[0]
 
 
 # ---------- F4 violation: naming layer detected misalignment ----------
+
 
 def test_f4_blocked_flags_hijack():
     """Naming layer's combo_override_f4_blocked=True signals misalignment.
@@ -178,13 +178,12 @@ def test_f4_blocked_flags_hijack():
     )
     result = classify_engine('test__ozai-like', engine, deck_input)
     f4_flags = [f for f in result['flags'] if 'F4' in f]
-    assert len(f4_flags) == 1, (
-        f'F4-blocked combo should be flagged as hijack, got: {f4_flags}'
-    )
+    assert len(f4_flags) == 1, f'F4-blocked combo should be flagged as hijack, got: {f4_flags}'
     assert 'F4_COMBO_HIJACK_SUSPECT' in f4_flags[0]
 
 
 # ---------- Edge cases ----------
+
 
 def test_no_combo_in_strategy_no_flag():
     """Strategy does NOT mention combo at all: no F4 check fires."""
@@ -201,9 +200,7 @@ def test_no_combo_in_strategy_no_flag():
     )
     result = classify_engine('test__no-combo-word', engine, deck_input)
     f4_flags = [f for f in result['flags'] if 'F4' in f]
-    assert f4_flags == [], (
-        f'No combo in strategy should not trigger F4, got: {f4_flags}'
-    )
+    assert f4_flags == [], f'No combo in strategy should not trigger F4, got: {f4_flags}'
 
 
 def test_low_share_no_flag():
@@ -221,9 +218,7 @@ def test_low_share_no_flag():
     )
     result = classify_engine('test__low-share', engine, deck_input)
     f4_flags = [f for f in result['flags'] if 'F4' in f]
-    assert f4_flags == [], (
-        f'Low-share archetype should not trigger F4, got: {f4_flags}'
-    )
+    assert f4_flags == [], f'Low-share archetype should not trigger F4, got: {f4_flags}'
 
 
 def test_no_deck_input_no_flag():
@@ -236,9 +231,7 @@ def test_no_deck_input_no_flag():
     }
     result = classify_engine('test__no-input', engine, None)
     f4_flags = [f for f in result['flags'] if 'F4' in f]
-    assert f4_flags == [], (
-        f'No deck_input should skip F4, got: {f4_flags}'
-    )
+    assert f4_flags == [], f'No deck_input should skip F4, got: {f4_flags}'
 
 
 def run_tests() -> None:

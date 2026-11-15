@@ -32,6 +32,7 @@ def events(event_catalog: dict) -> dict[str, dict]:
 # 1. No ``role`` or ``terminal`` field on any event
 # ────────────────────────────────────────────────────────────────────────────
 
+
 class TestNoAuthoredRole:
     """Sink-ness is pure topology — no event carries an authored ``role``."""
 
@@ -39,8 +40,7 @@ class TestNoAuthoredRole:
         """No event node carries a ``role`` field; reachability is derived from edges."""
         for name, ev in events.items():
             assert 'role' not in ev, (
-                f'event {name!r} carries a "role" field — '
-                f'reachability must be pure topology (ADR 0012)'
+                f'event {name!r} carries a "role" field — reachability must be pure topology (ADR 0012)'
             )
 
     def test_no_event_has_terminal_field(self, events: dict[str, dict]) -> None:
@@ -56,6 +56,7 @@ class TestNoAuthoredRole:
 # 2. ``polarity`` / ``scope`` only on ``game-end`` (conditional)
 # ────────────────────────────────────────────────────────────────────────────
 
+
 class TestPolarityScopeRestriction:
     """polarity{win|draw|loss} and scope{table|target|self} are reserved for game-end."""
 
@@ -65,8 +66,7 @@ class TestPolarityScopeRestriction:
             if name == 'game-end':
                 continue  # game-end is allowed polarity
             assert 'polarity' not in ev, (
-                f'event {name!r} carries "polarity" — '
-                f'only game-end may have polarity (ADR 0012)'
+                f'event {name!r} carries "polarity" — only game-end may have polarity (ADR 0012)'
             )
 
     def test_no_non_game_end_event_has_scope(self, events: dict[str, dict]) -> None:
@@ -74,10 +74,7 @@ class TestPolarityScopeRestriction:
         for name, ev in events.items():
             if name == 'game-end':
                 continue  # game-end is allowed scope
-            assert 'scope' not in ev, (
-                f'event {name!r} carries "scope" — '
-                f'only game-end may have scope (ADR 0012)'
-            )
+            assert 'scope' not in ev, f'event {name!r} carries "scope" — only game-end may have scope (ADR 0012)'
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -99,8 +96,7 @@ class TestEventNodeFieldSet:
             allowed = _ALLOWED_FIELDS | (_GAME_END_EXTRA if name == 'game-end' else frozenset())
             extra = set(ev.keys()) - allowed
             assert not extra, (
-                f'event {name!r} carries unexpected field(s) {extra} — '
-                f'allowed: {sorted(allowed)} (ADR 0012)'
+                f'event {name!r} carries unexpected field(s) {extra} — allowed: {sorted(allowed)} (ADR 0012)'
             )
 
     def test_every_event_has_required_fields(self, events: dict[str, dict]) -> None:
@@ -108,14 +104,13 @@ class TestEventNodeFieldSet:
         required = {'rule', 'produced_by', 'triggers'}
         for name, ev in events.items():
             missing = required - set(ev.keys())
-            assert not missing, (
-                f'event {name!r} is missing required field(s) {missing}'
-            )
+            assert not missing, f'event {name!r} is missing required field(s) {missing}'
 
 
 # ────────────────────────────────────────────────────────────────────────────
 # 4. Catalog is non-empty and game-end is not yet present (conditional guard)
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestCatalogBaseline:
     """Baseline shape checks — fail loudly if the catalog drifts unexpectedly."""
@@ -133,6 +128,7 @@ class TestCatalogBaseline:
 # ────────────────────────────────────────────────────────────────────────────
 # 5. Phase 2B step 5a events: mana-produced (now LIVE), game-end + library-depleted (INERT)
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestPhase2BInertEvents:
     """game-end and library-depleted remain INERT (empty edges).
@@ -174,8 +170,7 @@ class TestPhase2BInertEvents:
         assert len(ev['produced_by']) > 0, 'mana-produced: produced_by should be non-empty (live)'
         assert len(ev['triggers']) > 0, 'mana-produced: triggers should be non-empty (live)'
         # The corrected produced_by set (exact): closure-deduplicated producers.
-        assert set(ev['produced_by']) == {
-            'adds-multiple-mana', 'mana-producer', 'repeatable-treasures', 'ritual'}
+        assert set(ev['produced_by']) == {'adds-multiple-mana', 'mana-producer', 'repeatable-treasures', 'ritual'}
         # The umbrella + closure-redundant children are OUT of produced_by.
         assert 'ramp' not in ev['produced_by']
         assert 'mana-dork' not in ev['produced_by']

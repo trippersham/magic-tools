@@ -1,0 +1,193 @@
+{
+  "slug": "resilience30__scionsspellcraftfinalfantasyxiv_fic",
+  "deck_name": "ScionsSpellcraftFinalFantasyXiv_FIC",
+  "commanders": [
+    {
+      "name": "Y'shtola, Night's Blessed",
+      "oracle_text": "Vigilance\nAt the beginning of each end step, if a player lost 4 or more life this turn, you draw a card.\nWhenever you cast a noncreature spell with mana value 3 or greater, Y'shtola deals 2 damage to each opponent and you gain 2 life."
+    }
+  ],
+  "elected": [
+    {
+      "event": "permanent-dies",
+      "hub": null,
+      "mass": 101.0,
+      "share": 0.529,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "life-loss-drain",
+      "hub": null,
+      "mass": 42.0,
+      "share": 0.22,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 27.0,
+      "share": 0.141,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "creature-enters-battlefield",
+      "hub": null,
+      "mass": 21.0,
+      "share": 0.11,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": []
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "spellslinger",
+      "weighted_quantity": 25.0,
+      "share": 0.51
+    },
+    {
+      "strategy": "lifegain",
+      "weighted_quantity": 17.0,
+      "share": 0.347
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Y'shtola, Night's Blessed"
+    ],
+    "produces": [
+      "burn",
+      "drain-life",
+      "burn-player"
+    ],
+    "consumes": [
+      "life-loss-matters",
+      "self-life-loss-matters"
+    ],
+    "reaches_back_to": [
+      "life-loss-matters",
+      "self-life-loss-matters"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "spellslinger",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "spellslinger",
+    "confidence": "MED",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Alisaie Leveilleur",
+    "Alphinaud Leveilleur",
+    "Arcane Sanctum",
+    "Arcane Signet",
+    "Archaeomancer's Map",
+    "Archmage Emeritus",
+    "Ardbert, Warrior of Darkness",
+    "Ash Barrens",
+    "Astrologian's Planisphere",
+    "Authority of the Consuls",
+    "Baleful Strix",
+    "Bastion of Remembrance",
+    "Blue Mage's Cane",
+    "Champions from Beyond",
+    "Choked Estuary",
+    "Circle of Power",
+    "Cleansing Nova",
+    "Command Tower",
+    "Contaminated Aquifer",
+    "Coveted Jewel",
+    "Crux of Fate",
+    "Cut a Deal",
+    "Dancer's Chakrams",
+    "Darkwater Catacombs",
+    "Demolition Field",
+    "Desolate Mire",
+    "Dig Through Time",
+    "Drowned Catacomb",
+    "Emet-Selch of the Third Seat",
+    "Estinien Varlineau",
+    "Evolving Wilds",
+    "Exotic Orchard",
+    "Exsanguinate",
+    "Eye of Nidhogg",
+    "Fandaniel, Telophoroi Ascian",
+    "Fetid Heath",
+    "Final Judgment",
+    "G'raha Tia, Scion Reborn",
+    "Glacial Fortress",
+    "Hermes, Overseer of Elpis",
+    "Hildibrand Manderville // Gentleman's Rise",
+    "Hraesvelgr of the First Brood",
+    "Hypnotic Sprite // Mesmeric Glare",
+    "Idyllic Beachfront",
+    "Into the Story",
+    "Isolated Chapel",
+    "Krile Baldesion",
+    "Lethal Scheme",
+    "Lingering Souls",
+    "Lyse Hext",
+    "Murderous Rider // Swift End",
+    "Observed Stasis",
+    "Papalymo Totolymo",
+    "Path of Ancestry",
+    "Port Town",
+    "Prairie Stream",
+    "Propaganda",
+    "Reaper's Scythe",
+    "Relic of Legends",
+    "Rite of Replication",
+    "Sage's Nouliths",
+    "Scavenger Grounds",
+    "Shineshadow Snarl",
+    "Skycloud Expanse",
+    "Snuff Out",
+    "Sol Ring",
+    "Sublime Epiphany",
+    "Summon: Good King Mog XII",
+    "Sunken Hollow",
+    "Sunken Ruins",
+    "Sunlit Marsh",
+    "Swords to Plowshares",
+    "Syphon Mind",
+    "Talisman of Dominance",
+    "Talisman of Hierarchy",
+    "Talisman of Progress",
+    "Tataru Taru",
+    "Temple of the False God",
+    "Thancred Waters",
+    "Thought Vessel",
+    "Tome of Legends",
+    "Torrential Gearhulk",
+    "Transpose",
+    "Underground River",
+    "Urianger Augurelt",
+    "Vindicate",
+    "Void Rend",
+    "White Auracite",
+    "Y'shtola, Night's Blessed"
+  ],
+  "n_nonland": 63,
+  "n_cards": 100
+}

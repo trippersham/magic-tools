@@ -1,0 +1,194 @@
+{
+  "slug": "resilience30__counterintelligence_eoc",
+  "deck_name": "CounterIntelligence_EOC",
+  "commanders": [
+    {
+      "name": "Inspirit, Flagship Vessel",
+      "oracle_text": "Station (Tap another creature you control: Put charge counters equal to its power on this Spacecraft. Station only as a sorcery. It's an artifact creature at 8+.)\n1+ | At the beginning of combat on your turn, put your choice of a +1/+1 counter or two charge counters on up to one other target artifact.\n8+ | Flying\nOther artifacts you control have hexproof and indestructible."
+    }
+  ],
+  "elected": [
+    {
+      "event": "counter-placed",
+      "hub": "repeatable-proliferate",
+      "mass": 122.0,
+      "share": 0.354,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    },
+    {
+      "event": "artifact-enters",
+      "hub": null,
+      "mass": 90.0,
+      "share": 0.261,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "artifacts"
+      ]
+    },
+    {
+      "event": "token-created",
+      "hub": null,
+      "mass": 58.0,
+      "share": 0.168,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "artifacts"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 22.0,
+      "share": 0.064,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "+1/+1 counters",
+      "weighted_quantity": 36.0,
+      "share": 0.667
+    },
+    {
+      "strategy": "artifacts",
+      "weighted_quantity": 32.0,
+      "share": 0.593
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Inspirit, Flagship Vessel"
+    ],
+    "produces": [
+      "repeatable-pp-counters",
+      "gives-pp-counters"
+    ],
+    "consumes": [
+      "synergy-artifact"
+    ],
+    "reaches_back_to": [],
+    "closes": false
+  },
+  "naming_resolution": {
+    "named_strategy": "+1/+1 counters",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "+1/+1 counters",
+    "confidence": "MED",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Adarkar Wastes",
+    "Alibou, Ancient Witness",
+    "Ancient Den",
+    "Angel of the Ruins",
+    "Arcane Signet",
+    "Astral Cornucopia",
+    "Battlefield Forge",
+    "Buried Ruin",
+    "Cascade Bluffs",
+    "Chain Reaction",
+    "Chaos Warp",
+    "Chrome Host Seedshark",
+    "Clifftop Retreat",
+    "Cloud Key",
+    "Command Tower",
+    "Coretapper",
+    "Crystalline Crawler",
+    "Cyberdrive Awakener",
+    "Darksteel Reactor",
+    "Deepglow Skate",
+    "Depthshaker Titan",
+    "Dispatch",
+    "Empowered Autogenerator",
+    "Emry, Lurker of the Loch",
+    "Enthusiastic Mechanaut",
+    "Etched Oracle",
+    "Etherium Sculptor",
+    "Everflowing Chalice",
+    "Evolving Wilds",
+    "Exotic Orchard",
+    "Experimental Augury",
+    "Fumigate",
+    "Gavel of the Righteous",
+    "Glacial Fortress",
+    "Glittering Massif",
+    "Golem Foundry",
+    "Great Furnace",
+    "Hangarback Walker",
+    "Insight Engine",
+    "Inspirit, Flagship Vessel",
+    "Irrigated Farmland",
+    "Jhoira, Weatherlight Captain",
+    "Kappa Cannoneer",
+    "Karn's Bastion",
+    "Kilo, Apogee Mind",
+    "Lonely Sandbar",
+    "Long-Range Sensor",
+    "Lux Artillery",
+    "Lux Cannon",
+    "Mindless Automaton",
+    "Moxite Refinery",
+    "Mystic Monastery",
+    "Organic Extinction",
+    "Patrolling Peacemaker",
+    "Pentad Prism",
+    "Phyrexian Metamorph",
+    "Pull from Tomorrow",
+    "Radiant Summit",
+    "Razortide Bridge",
+    "Resourceful Defense",
+    "Ripples of Potential",
+    "Rugged Prairie",
+    "Rustvale Bridge",
+    "Seat of the Synod",
+    "Secluded Steppe",
+    "Shivan Reef",
+    "Silverbluff Bridge",
+    "Skycloud Expanse",
+    "Sol Ring",
+    "Solar Array",
+    "Soul-Guide Lantern",
+    "Spire of Industry",
+    "Steel Overseer",
+    "Sulfur Falls",
+    "Surge Conductor",
+    "Swan Song",
+    "Swords to Plowshares",
+    "Tekuthal, Inquiry Dominus",
+    "Temple of Enlightenment",
+    "Temple of Epiphany",
+    "Temple of Triumph",
+    "Tezzeret's Gambit",
+    "The Mycosynth Gardens",
+    "Thirst for Knowledge",
+    "Thought Monitor",
+    "Threefold Thunderhulk",
+    "Thrummingbird",
+    "Titan Forge",
+    "Universal Surveillance",
+    "Uthros Research Craft",
+    "Wake the Past"
+  ],
+  "n_nonland": 60,
+  "n_cards": 100
+}

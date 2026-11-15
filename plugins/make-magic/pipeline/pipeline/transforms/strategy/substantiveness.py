@@ -89,6 +89,7 @@ class Requirement:
 # Each returns the kind's EXTRA condition; the universal ``requires_met`` gate is
 # applied by Requirement.satisfied before dispatch.
 
+
 def _eval_member_count(params: dict, st: dict, ctx: FactsContext, arch: str) -> bool:
     """Presence of payoffs: >= ``min`` members, and (optionally) >= ``noncmd``
     non-commander members. ``noncmd=0`` is the pure ``requires_met`` default."""
@@ -142,9 +143,9 @@ def build_substantiveness(cfg: StrategyConfig) -> dict[str, Requirement]:
     """
     return {
         'graveyard/reanimator': Requirement(
-            'attr_density', {'family': 'graveyard', 'ratio': cfg.gy_ratio, 'distinct': cfg.gy_distinct}),
-        'control/permission': Requirement(
-            'axis_density', {'axis': 'counterspells', 'min': cfg.ctrl_min_cs}),
+            'attr_density', {'family': 'graveyard', 'ratio': cfg.gy_ratio, 'distinct': cfg.gy_distinct}
+        ),
+        'control/permission': Requirement('axis_density', {'axis': 'counterspells', 'min': cfg.ctrl_min_cs}),
     }
 
 
@@ -179,9 +180,7 @@ def requirement_for(arch: str, cfg: StrategyConfig) -> Requirement:
 # The measure degenerates to set-nonemptiness: no numeric threshold to drift.
 
 
-def _eval_producer_anchor(
-    params: dict, event: str, cmd_attrs: set[str], assets: StrategyAssets
-) -> bool:
+def _eval_producer_anchor(params: dict, event: str, cmd_attrs: set[str], assets: StrategyAssets) -> bool:
     """Event substantiveness: the command zone anchors production of this event.
 
     ADMIT iff the commander carries at least one attr in the event's own

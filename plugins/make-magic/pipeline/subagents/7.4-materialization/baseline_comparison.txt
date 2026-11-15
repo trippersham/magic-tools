@@ -1,0 +1,20 @@
+Pre-B1+B6 (agent-layer baseline) vs Post-B1+B6 (v2 materialized) — strategy strings
+slug                                             | PRE-B1+B6                          | POST-B1+B6                         | 
+--------------------------------------------------------------------------------------------------------------------------------
+    gauntlet__abzanarmor_2025                    | Toughness-Matters Sacrifice Engine | Toughness-Matters Beatdown         | reworded
+[A] gauntlet__baral-chief-of-compliance          | Control Spellslinger               | Countermagic Control               | reworded
+    gauntlet__facelessmenace_sultai_2019         | Morph Card Advantage               | Morph Value Engine                 | reworded
+    gauntlet__grandlarceny_2024                  | Theft and Mill Loop                | Combat-Triggered Spell Theft       | reworded
+[A] gauntlet__kess-dissident-mage                | Graveyard Breach Storm Combo       | Consultation Storm Combo           | reworded
+[A] gauntlet__krrik-son-of-yawgmoth              | Life-Mana Combo Storm              | Life-as-Resource Combo             | reworded
+[A] gauntlet__tuvasa-the-sunlit                  | Enchantress Value Engine           | Enchantress Value Engine           | SAME
+[A] gauntlet__urza-lord-high-artificer           | Artifact Mana-Loop Combo           | Artifact Mana-Loop Combo           | SAME
+[A] owned__ozai                                  | Burn Direct Damage                 | Burn Direct Damage                 | SAME
+[A] owned__sokka                                 | Spellslinger Ally Tokens           | Ally Spellslinger Token Swarm      | reworded
+    owned__spiders-play-with-their-food          | Shelob Spider Sacrifice            | Spider Aristocrats Food Loop       | reworded
+    owned__the-fantastic-four                    | Spellslinger Combat Multipart      | Spellslinger Combat Engine         | reworded
+    owned__welcoming-vampire                     | Incomplete Deck Definition         | Small Creature Draw                | reworded
+    owned__world-reclaimer                       | Landfall Graveyard Recursion       | Landfall Recursion Engine          | reworded
+    precon__blame-game                           | Political Goad Engine              | Politics Goad Engine               | reworded
+    precon__peace-offering                       | Group Hug Draw Engine              | Group-Hug Draw Engine              | reworded
+    precon__political-puppets                    | Political Donation Pillowfort      | Political Donation Value           | reworded

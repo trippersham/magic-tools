@@ -17,21 +17,16 @@ Usage (from pipeline/):
     uv run python scripts/extract_roleb_inputs.py              # fixtures (17)
     uv run python scripts/extract_roleb_inputs.py --gauntlet   # full corpus (170)
 """
+
 from __future__ import annotations
 
 import json
 import sys
-import traceback
 from pathlib import Path
 
 # ---- Resolve the output dir (plan tree) ----
 PLAN_ROOT = Path.home() / '.claude/plans/trippersham/magic-tools'
-WORK_DIR = (
-    PLAN_ROOT
-    / '2026-11-11-strategy-abstraction-consolidation'
-    / 'subagents'
-    / '5.5-roleb-work'
-)
+WORK_DIR = PLAN_ROOT / '2026-11-11-strategy-abstraction-consolidation' / 'subagents' / '5.5-roleb-work'
 INPUTS_DIR = WORK_DIR / 'inputs'
 CHUNKS_DIR = WORK_DIR / 'chunks'
 CHUNKS170_DIR = WORK_DIR / 'chunks170'
@@ -80,7 +75,7 @@ def chunk_inputs(inputs: list[dict], max_per_chunk: int = 2) -> list[list[dict]]
     """Split inputs into chunks of at most max_per_chunk decks."""
     chunks = []
     for i in range(0, len(inputs), max_per_chunk):
-        chunks.append(inputs[i:i + max_per_chunk])
+        chunks.append(inputs[i : i + max_per_chunk])
     return chunks
 
 
@@ -97,15 +92,14 @@ def main_gauntlet() -> None:
       - chunks170/chunk-NN.json chunked at ~10 decks/chunk
         (170 gauntlet + 6 existing owned__ inputs = 176 total)
     """
+    from pipeline.transforms.strategy.combo import load_combos_from_lake
     from pipeline.transforms.strategy.corpus import (
-        GAUNTLET_DIR,
         Lake,
         attach_meta,
         build_deck_from_dck,
         gauntlet_decks,
         load_card_meta,
     )
-    from pipeline.transforms.strategy.combo import load_combos_from_lake
 
     INPUTS_DIR.mkdir(parents=True, exist_ok=True)
     CHUNKS170_DIR.mkdir(parents=True, exist_ok=True)
@@ -137,18 +131,18 @@ def main_gauntlet() -> None:
             # Flag sparse decks (stub-like, very few nonland cards)
             if inp['n_nonland'] < 10:
                 inp['_sparse'] = True
-                sparse.append({'slug': slug, 'n_nonland': inp['n_nonland'],
-                               'n_cards': inp['n_cards']})
+                sparse.append({'slug': slug, 'n_nonland': inp['n_nonland'], 'n_cards': inp['n_cards']})
 
             out_path = INPUTS_DIR / f'{slug}.json'
             out_path.write_text(json.dumps(inp, indent=2, ensure_ascii=False) + '\n')
             gauntlet_inputs.append(inp)
-            print(f'  OK {slug}: {len(inp["elected"])} elected, '
-                  f'{sum(1 for c in inp["detected_combos"] if c["win"])} win-combos, '
-                  f'n_nonland={inp["n_nonland"]}, '
-                  f'archetype={[a["strategy"] for a in inp["archetype_identity"][:3]]}')
+            print(
+                f'  OK {slug}: {len(inp["elected"])} elected, '
+                f'{sum(1 for c in inp["detected_combos"] if c["win"])} win-combos, '
+                f'n_nonland={inp["n_nonland"]}, '
+                f'archetype={[a["strategy"] for a in inp["archetype_identity"][:3]]}'
+            )
         except Exception as e:
-            tb = traceback.format_exc()
             print(f'  FAIL {slug}: {e}')
             # Write a grounded-on-name/commander minimal input
             # Try to get commander names from the raw deck
@@ -203,7 +197,7 @@ def main_gauntlet() -> None:
         chunk_path.write_text(json.dumps(chunk, indent=2, ensure_ascii=False) + '\n')
 
     # ---- Summary ----
-    print(f'\n{"="*60}')
+    print(f'\n{"=" * 60}')
     print(f'Gauntlet extracted: {len(gauntlet_inputs)}')
     print(f'Owned (from existing fixtures): {len(owned_inputs)}')
     print(f'Total for synthesis: {len(all_for_chunks)}')
@@ -218,7 +212,7 @@ def main_gauntlet() -> None:
         print(f'\nSparse decks ({len(sparse)}):')
         for s in sparse:
             print(f'  {s["slug"]}: {s["n_nonland"]} nonland, {s["n_cards"]} total')
-    print(f'{"="*60}')
+    print(f'{"=" * 60}')
 
 
 def main() -> None:
@@ -236,9 +230,11 @@ def main() -> None:
         out_path = INPUTS_DIR / f'{slug}.json'
         out_path.write_text(json.dumps(inp, indent=2, ensure_ascii=False) + '\n')
         all_inputs.append(inp)
-        print(f'  {slug}: {len(inp["elected"])} elected, '
-              f'{sum(1 for c in inp["detected_combos"] if c["win"])} win-combos, '
-              f'archetype={[a["strategy"] for a in inp["archetype_identity"]]}')
+        print(
+            f'  {slug}: {len(inp["elected"])} elected, '
+            f'{sum(1 for c in inp["detected_combos"] if c["win"])} win-combos, '
+            f'archetype={[a["strategy"] for a in inp["archetype_identity"]]}'
+        )
 
     # Write chunks (~2 decks per chunk for sequential agent-layer processing)
     chunks = chunk_inputs(all_inputs, max_per_chunk=2)

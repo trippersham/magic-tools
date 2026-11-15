@@ -31,9 +31,7 @@ from pipeline.transforms.strategy.vocab import (
 FIX = Path(__file__).resolve().parent / 'fixtures'
 DECKS = FIX / 'decks'
 
-_ALL_IDENTITY_PAIRS = (
-    EDHREC_IDENTITIES + NEWBUCKET_IDENTITIES + BASE_IDENTITIES
-)
+_ALL_IDENTITY_PAIRS = EDHREC_IDENTITIES + NEWBUCKET_IDENTITIES + BASE_IDENTITIES
 _ALL_IDENTITY_NAMES = [n for n, _ in _ALL_IDENTITY_PAIRS]
 #: Characters that only appear in a query, never in a plain name.
 _QUERY_CHARS = (':', '*', '(', ')')
@@ -80,8 +78,6 @@ def test_fixture_records_match_committed_baseline() -> None:
     baseline = json.loads((FIX / 'vocab_parity_baseline.json').read_text())
     combos = json.loads((FIX / 'combos.json').read_text())
     for slug, expected in baseline.items():
-        rec = resolve(json.loads((DECKS / f'{slug}.json').read_text()),
-                      [dict(c) for c in combos])
-        got = hashlib.sha256(
-            json.dumps(rec, sort_keys=True, default=list).encode()).hexdigest()
+        rec = resolve(json.loads((DECKS / f'{slug}.json').read_text()), [dict(c) for c in combos])
+        got = hashlib.sha256(json.dumps(rec, sort_keys=True, default=list).encode()).hexdigest()
         assert got == expected, f'record drift for {slug}'

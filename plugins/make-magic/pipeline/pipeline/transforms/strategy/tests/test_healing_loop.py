@@ -56,6 +56,7 @@ def residue_otags() -> dict[str, set[str]]:
 # 1. Candidate promotion at N=3 (the exact threshold)
 # ---------------------------------------------------------------------------
 
+
 class TestCandidatePromotion:
     """A candidate promotes at exactly N=3 corroborating cards;
     <3 stays provisional."""
@@ -67,10 +68,8 @@ class TestCandidatePromotion:
         )
 
         store = CandidateAnchorStore()
-        store.record_corroboration('creature-enters-battlefield', 'triggers',
-                                  'some-otag', 'card-oracle-1')
-        store.record_corroboration('creature-enters-battlefield', 'triggers',
-                                  'some-otag', 'card-oracle-2')
+        store.record_corroboration('creature-enters-battlefield', 'triggers', 'some-otag', 'card-oracle-1')
+        store.record_corroboration('creature-enters-battlefield', 'triggers', 'some-otag', 'card-oracle-2')
 
         promoted = store.promotable_candidates()
         assert ('creature-enters-battlefield', 'triggers', 'some-otag') not in {
@@ -85,8 +84,7 @@ class TestCandidatePromotion:
 
         store = CandidateAnchorStore()
         for i in range(3):
-            store.record_corroboration('creature-enters-battlefield', 'triggers',
-                                      'some-otag', f'card-oracle-{i}')
+            store.record_corroboration('creature-enters-battlefield', 'triggers', 'some-otag', f'card-oracle-{i}')
 
         promoted = store.promotable_candidates()
         keys = {(c.event, c.side, c.otag) for c in promoted}
@@ -100,8 +98,7 @@ class TestCandidatePromotion:
 
         store = CandidateAnchorStore()
         for i in range(5):
-            store.record_corroboration('creature-enters-battlefield', 'triggers',
-                                      'some-otag', f'card-oracle-{i}')
+            store.record_corroboration('creature-enters-battlefield', 'triggers', 'some-otag', f'card-oracle-{i}')
 
         promoted = store.promotable_candidates()
         keys = {(c.event, c.side, c.otag) for c in promoted}
@@ -115,8 +112,7 @@ class TestCandidatePromotion:
 
         store = CandidateAnchorStore()
         for _ in range(5):
-            store.record_corroboration('creature-enters-battlefield', 'triggers',
-                                      'some-otag', 'same-card')
+            store.record_corroboration('creature-enters-battlefield', 'triggers', 'some-otag', 'same-card')
 
         promoted = store.promotable_candidates()
         assert len(promoted) == 0  # only 1 unique card
@@ -125,6 +121,7 @@ class TestCandidatePromotion:
 # ---------------------------------------------------------------------------
 # 2. Umbrella rejection — exclusivity gate blocks ramp-like candidates
 # ---------------------------------------------------------------------------
+
 
 class TestUmbrellaRejection:
     """An umbrella candidate (e.g. ``ramp``) is REJECTED by the exclusivity
@@ -154,9 +151,7 @@ class TestUmbrellaRejection:
         events = _load_events()
         candidates = discover_candidates(events, 'mana-produced', 'produced_by')
         candidate_slugs = {c.otag for c in candidates}
-        assert 'ramp' not in candidate_slugs, (
-            'ramp entered as a candidate — exclusivity gate failed'
-        )
+        assert 'ramp' not in candidate_slugs, 'ramp entered as a candidate — exclusivity gate failed'
 
     def test_triggered_ability_umbrella_rejected(self) -> None:
         """``triggered-ability`` is a broad umbrella and should be rejected."""
@@ -183,6 +178,7 @@ class TestUmbrellaRejection:
 # ---------------------------------------------------------------------------
 # 3. Three-way gate
 # ---------------------------------------------------------------------------
+
 
 class TestThreeWayGate:
     """The three-way gate correctly classifies otags."""
@@ -233,6 +229,7 @@ class TestThreeWayGate:
 # 4. Generic: no per-event/per-deck logic in discovery
 # ---------------------------------------------------------------------------
 
+
 class TestGenericDiscovery:
     """Candidate discovery is generic — no event-specific branches."""
 
@@ -246,8 +243,7 @@ class TestGenericDiscovery:
 
         events = _load_events()
         events_tested = 0
-        for event_name in ('creature-enters-battlefield', 'permanent-dies',
-                           'lifegain', 'spell-cast', 'token-created'):
+        for event_name in ('creature-enters-battlefield', 'permanent-dies', 'lifegain', 'spell-cast', 'token-created'):
             for side in ('triggers', 'produced_by'):
                 # Should not raise — same function for all events
                 discover_candidates(events, event_name, side)
@@ -258,6 +254,7 @@ class TestGenericDiscovery:
 # ---------------------------------------------------------------------------
 # 5. Frozen P0 SHAs intact
 # ---------------------------------------------------------------------------
+
 
 class TestP0SHAIntact:
     """The self-healing mechanism is shadow + flagged; P0 SHAs are held."""
@@ -282,14 +279,13 @@ class TestP0SHAIntact:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == '3010be2a0d1d5def69f6d63974d75d3023837c39fc8c04c056cfa88565931769', (
-            f'Resolve SHA shifted: {sha}'
-        )
+        assert sha == '3010be2a0d1d5def69f6d63974d75d3023837c39fc8c04c056cfa88565931769', f'Resolve SHA shifted: {sha}'
 
 
 # ---------------------------------------------------------------------------
 # 6. Shadow measurement correctness
 # ---------------------------------------------------------------------------
+
 
 class TestShadowMeasurement:
     """The shadow measurement reports correct projected metrics."""
@@ -326,9 +322,7 @@ class TestShadowMeasurement:
         )
 
         report = run_healing_shadow(residue_otags)
-        assert report.umbrella_proposals == 0, (
-            f'{report.umbrella_proposals} umbrella(s) proposed — gate failed'
-        )
+        assert report.umbrella_proposals == 0, f'{report.umbrella_proposals} umbrella(s) proposed — gate failed'
 
     @pytest.mark.skipif(
         not (_EDGES_DIR / 'edges').exists(),
@@ -347,6 +341,4 @@ class TestShadowMeasurement:
 
         report = run_healing_shadow(residue_otags)
         # With promoted candidates, unlock should be at least the current 72%
-        assert report.projected_unlock_pct >= 72.0, (
-            f'Projected unlock {report.projected_unlock_pct:.1f}% < 72%'
-        )
+        assert report.projected_unlock_pct >= 72.0, f'Projected unlock {report.projected_unlock_pct:.1f}% < 72%'

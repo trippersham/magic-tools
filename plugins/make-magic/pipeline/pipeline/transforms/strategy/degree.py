@@ -21,18 +21,18 @@ from pipeline.transforms.strategy.assets import is_land
 
 FROZEN_BASELINE: dict[str, dict[str, float]] = {
     'counterspells': {'precon_cnt': 1.083, 'cedh_cnt': 4.957, 'precon_frac': 0.015, 'cedh_frac': 0.066},
-    'removal':       {'precon_cnt': 12.5,  'cedh_cnt': 7.391, 'precon_frac': 0.171, 'cedh_frac': 0.099},
-    'ramp':          {'precon_cnt': 11.5,  'cedh_cnt': 17.348, 'precon_frac': 0.159, 'cedh_frac': 0.233},
-    'tutor':         {'precon_cnt': 1.75,  'cedh_cnt': 8.043, 'precon_frac': 0.025, 'cedh_frac': 0.109},
-    'draw':          {'precon_cnt': 16.0,  'cedh_cnt': 12.739, 'precon_frac': 0.219, 'cedh_frac': 0.17},
-    'stax':          {'precon_cnt': 1.833, 'cedh_cnt': 2.348, 'precon_frac': 0.025, 'cedh_frac': 0.031},
-    'protection':    {'precon_cnt': 2.417, 'cedh_cnt': 2.174, 'precon_frac': 0.033, 'cedh_frac': 0.029},
+    'removal': {'precon_cnt': 12.5, 'cedh_cnt': 7.391, 'precon_frac': 0.171, 'cedh_frac': 0.099},
+    'ramp': {'precon_cnt': 11.5, 'cedh_cnt': 17.348, 'precon_frac': 0.159, 'cedh_frac': 0.233},
+    'tutor': {'precon_cnt': 1.75, 'cedh_cnt': 8.043, 'precon_frac': 0.025, 'cedh_frac': 0.109},
+    'draw': {'precon_cnt': 16.0, 'cedh_cnt': 12.739, 'precon_frac': 0.219, 'cedh_frac': 0.17},
+    'stax': {'precon_cnt': 1.833, 'cedh_cnt': 2.348, 'precon_frac': 0.025, 'cedh_frac': 0.031},
+    'protection': {'precon_cnt': 2.417, 'cedh_cnt': 2.174, 'precon_frac': 0.033, 'cedh_frac': 0.029},
     # evasion is a universal combat MEANS (like ramp/draw/removal), measured but
     # NEVER named — the naming layer does not consume it. Inverts (precon
     # creature-heavy 11.3 > cEDH combo-light 5.0): over_served = evasion-heavy,
     # under_served = evasion-light. Baseline computed over the same precon(12)/
     # cEDH(23) anchors (method cross-checks removal exactly).
-    'evasion':       {'precon_cnt': 11.333, 'cedh_cnt': 5.043, 'precon_frac': 0.1551, 'cedh_frac': 0.0683},
+    'evasion': {'precon_cnt': 11.333, 'cedh_cnt': 5.043, 'precon_frac': 0.1551, 'cedh_frac': 0.0683},
 }
 DEGREE_AXES: dict[str, set[str]] = {
     'counterspells': {'counterspell'},
@@ -79,9 +79,12 @@ def compute_degree_axes(cards: list[dict], color_identity: list[str] | None, *, 
         mid = lo + over_t * (hi - lo)
         inverts = cf < pf
         rec = {
-            'n': n, 'frac': round(frac, 4),
-            'precon_cnt': base['precon_cnt'], 'cedh_cnt': base['cedh_cnt'],
-            'precon_frac': pf, 'cedh_frac': cf,
+            'n': n,
+            'frac': round(frac, 4),
+            'precon_cnt': base['precon_cnt'],
+            'cedh_cnt': base['cedh_cnt'],
+            'precon_frac': pf,
+            'cedh_frac': cf,
             'over_served': bool(frac >= mid),
             'under_served': bool(frac <= lo),
             'cedh_level': bool(n >= round(base['cedh_cnt']) or frac >= cf) if not inverts else None,
@@ -117,14 +120,19 @@ def power_profile(cards: list[dict]) -> dict:
     inter = [c for c in nl if set(c.get('otags', [])) & INTERACTION_SLUGS]
     rem = [c for c in nl if set(c.get('otags', [])) & REMOVAL_SLUGS]
     if not inter:
-        return {'n_interaction': 0, 'mean_efficiency': 0.0, 'total_efficiency': 0.0,
-                'removal_count': 0, 'removal_mean_mv': None, 'removal_pct_instant': None,
-                'removal_mean_efficiency': None}
+        return {
+            'n_interaction': 0,
+            'mean_efficiency': 0.0,
+            'total_efficiency': 0.0,
+            'removal_count': 0,
+            'removal_mean_mv': None,
+            'removal_pct_instant': None,
+            'removal_mean_efficiency': None,
+        }
     effs = [efficiency_weight(c) for c in inter]
     rem_eff = [efficiency_weight(c) for c in rem]
     rem_mv = [float(c.get('cmc') or 0.0) for c in rem]
-    rem_inst = sum(1 for c in rem if 'Instant' in (c.get('type_line') or '')
-                   or 'Flash' in (c.get('keywords') or []))
+    rem_inst = sum(1 for c in rem if 'Instant' in (c.get('type_line') or '') or 'Flash' in (c.get('keywords') or []))
     return {
         'n_interaction': len(inter),
         'mean_efficiency': round(sum(effs) / len(effs), 4),

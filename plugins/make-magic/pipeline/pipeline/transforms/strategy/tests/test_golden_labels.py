@@ -53,8 +53,8 @@ def test_world_reclaimer_lands_with_fused_sacrifice_engine(load_deck, combos):
     rec = resolve(load_deck('owned__world-reclaimer'), combos)
     assert rec['named_strategy'] == 'landfall'
     sid = [s['strategy'] for s in rec['archetype_identity']]
-    assert sid[0] == 'landfall'            # landfall leads the identity set...
-    assert 'lands-matter' in sid           # ...and lands-matter stays a real 2nd axis
+    assert sid[0] == 'landfall'  # landfall leads the identity set...
+    assert 'lands-matter' in sid  # ...and lands-matter stays a real 2nd axis
     strategies = rec['facts']['strategies']
     # the aristocrats/sacrifice plan is a real, requires-met strategy...
     assert strategies['aristocrats/sacrifice']['requires_met'] is True
@@ -130,6 +130,7 @@ def test_new_archetypes_route_their_anchor_slugs():
     # the answer/body slugs stay unrouted. This pins the vocab wiring independent of
     # any deck surfacing them.
     from pipeline.transforms.strategy.assets import load_assets
+
     a = load_assets()
     assert a.archetype_of_attr('pillowfort') == 'pillowfort'
     assert a.archetype_of_attr('fog') == 'pillowfort'
@@ -138,9 +139,9 @@ def test_new_archetypes_route_their_anchor_slugs():
     assert a.archetype_of_attr('selective-group-hug') == 'group-hug'
     assert a.archetype_of_attr('monarch-matters') == 'politics'
     assert a.archetype_of_attr('synergy-vote') == 'politics'
-    assert a.archetype_of_attr('synergy-goad') == 'politics'   # the goad PAYOFF
-    assert a.archetype_of_attr('hate-goad') is None            # the goad ANSWER
-    assert a.archetype_of_attr('evasion') is None              # broad body, never a primary
+    assert a.archetype_of_attr('synergy-goad') == 'politics'  # the goad PAYOFF
+    assert a.archetype_of_attr('hate-goad') is None  # the goad ANSWER
+    assert a.archetype_of_attr('evasion') is None  # broad body, never a primary
 
 
 def test_landfall_splits_from_lands_matter():
@@ -152,6 +153,7 @@ def test_landfall_splits_from_lands_matter():
 
     from pipeline.transforms.strategy.assets import load_assets
     from pipeline.transforms.strategy.vocab import ARCHETYPE_EDGES, BASE_IDENTITIES
+
     a = load_assets()
     # landfall routes its exact family slugs to the landfall strategy ...
     assert a.archetype_of_attr('landfall') == 'landfall'
@@ -166,7 +168,10 @@ def test_landfall_splits_from_lands_matter():
     assert ARCHETYPE_EDGES['landfall'] == 'landfall'
     # the two query slug-sets are disjoint
     queries = dict(BASE_IDENTITIES)
-    otags = lambda q: set(re.findall(r'otag:([a-z0-9-]+)', q))
+
+    def otags(q: str) -> set[str]:
+        return set(re.findall(r'otag:([a-z0-9-]+)', q))
+
     landfall_slugs = otags(queries['landfall'])
     lands_slugs = otags(queries['lands-matter'])
     assert landfall_slugs == {'landfall', 'landfall-other'}
@@ -187,9 +192,9 @@ def test_grandlarceny_archetype_identity_is_ranked_set(load_deck, combos):
     # the single-label collapse hid the real #2 axis; the set surfaces it.
     rec = resolve(load_deck('gauntlet__grandlarceny_2024'), combos)
     sid = [s['strategy'] for s in rec['archetype_identity']]
-    assert sid[0] == 'theft'          # leads with the headline
-    assert 'mill' in sid              # ...and surfaces the real second axis
-    assert len(sid) <= 3              # capped at max_identity
+    assert sid[0] == 'theft'  # leads with the headline
+    assert 'mill' in sid  # ...and surfaces the real second axis
+    assert len(sid) <= 3  # capped at max_identity
     wqs = [s['weighted_quantity'] for s in rec['archetype_identity']]
     assert wqs == sorted(wqs, reverse=True)  # ranked descending
 
@@ -197,9 +202,11 @@ def test_grandlarceny_archetype_identity_is_ranked_set(load_deck, combos):
 def test_archetype_identity_headline_matches_named_strategy(load_deck, combos):
     # for a non-combo, non-abstaining deck, archetype_identity[0] IS the headline
     # (named_strategy is kept as a back-compat alias of the set's leader).
-    for fx, label in [('gauntlet__grandlarceny_2024', 'theft'),
-                      ('gauntlet__tuvasa-the-sunlit', 'enchantress'),
-                      ('gauntlet__baral-chief-of-compliance', 'control/permission')]:
+    for fx, label in [
+        ('gauntlet__grandlarceny_2024', 'theft'),
+        ('gauntlet__tuvasa-the-sunlit', 'enchantress'),
+        ('gauntlet__baral-chief-of-compliance', 'control/permission'),
+    ]:
         rec = resolve(load_deck(fx), combos)
         assert rec['named_strategy'] == label
         assert rec['archetype_identity'][0]['strategy'] == label

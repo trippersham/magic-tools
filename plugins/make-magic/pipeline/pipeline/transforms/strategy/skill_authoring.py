@@ -31,10 +31,10 @@ the same inputs.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable
 
 from pipeline.transforms.strategy.engine_hydration import (
     SearchClient,
@@ -47,20 +47,18 @@ from pipeline.transforms.strategy.machine_vocab import (
     persist,
 )
 
-
 # ---------------------------------------------------------------------------
 # Prompt location constant
 # ---------------------------------------------------------------------------
 
 #: Path to the decomposition prompt the haiku subagent follows.
-DECOMPOSE_PROMPT_PATH: Path = (
-    Path(__file__).resolve().parent / 'prompts' / 'decompose_within_card_edge.md'
-)
+DECOMPOSE_PROMPT_PATH: Path = Path(__file__).resolve().parent / 'prompts' / 'decompose_within_card_edge.md'
 
 
 # ---------------------------------------------------------------------------
 # AuthoredEdge -- the shape of haiku subagent output
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class AuthoredEdge:
@@ -104,6 +102,7 @@ class AuthoredEdge:
 # GateResult -- per-edge outcome
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class GateResult:
     """Outcome of gating a single :class:`AuthoredEdge`.
@@ -137,6 +136,7 @@ class GateResult:
 # ---------------------------------------------------------------------------
 # gate_and_persist -- the PD crux
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class GateAndPersistResult:
@@ -226,7 +226,8 @@ def _handle_reroute(
     if rerouted_edge is None:
         # Terminal case: accept-with-flag (option A).
         _build_and_persist(
-            original_edge, original_vr,
+            original_edge,
+            original_vr,
             deck_context=deck_context,
             store_dir=store_dir,
             now_iso=now_iso,
@@ -253,7 +254,8 @@ def _handle_reroute(
         # Promoted to edge: must pass the full corroboration gate.
         if vr2.passed:
             _build_and_persist(
-                rerouted_edge, vr2,
+                rerouted_edge,
+                vr2,
                 deck_context=deck_context,
                 store_dir=store_dir,
                 now_iso=now_iso,
@@ -269,10 +271,7 @@ def _handle_reroute(
             edge=rerouted_edge,
             accepted=False,
             verification=vr2,
-            reason=(
-                f'rerouted edge failed verification: '
-                f'{vr2.error or "corroboration below threshold"}'
-            ),
+            reason=(f'rerouted edge failed verification: {vr2.error or "corroboration below threshold"}'),
             rerouted=True,
             reroute_outcome='promoted-to-edge',
         )
@@ -280,7 +279,8 @@ def _handle_reroute(
     # Tightened synth: accept only if it now passes clean.
     if vr2.passed and not vr2.breadth_warning:
         _build_and_persist(
-            rerouted_edge, vr2,
+            rerouted_edge,
+            vr2,
             deck_context=deck_context,
             store_dir=store_dir,
             now_iso=now_iso,
@@ -296,10 +296,7 @@ def _handle_reroute(
         edge=rerouted_edge,
         accepted=False,
         verification=vr2,
-        reason=(
-            f'rerouted synth still too broad or failed: '
-            f'{vr2.error or "breadth_warning persists"}'
-        ),
+        reason=(f'rerouted synth still too broad or failed: {vr2.error or "breadth_warning persists"}'),
         rerouted=True,
         reroute_outcome='tightened-synth',
     )
@@ -353,7 +350,7 @@ def gate_and_persist(
         :data:`ReauthorCallback` for the signature and terminal outcomes.
     """
     result = GateAndPersistResult()
-    now_iso = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    now_iso = datetime.now(UTC).isoformat(timespec='seconds')
 
     for edge in authored:
         # --- Run the verification gate -----------------------------------
@@ -385,14 +382,18 @@ def gate_and_persist(
                     continue
 
                 # No reauthor callback — not persisted (left for caller).
-                result.rejected.append(GateResult(
-                    edge=edge, accepted=False, verification=vr,
-                    reason=(
-                        f'breadth_warning: synth query captures '
-                        f'{vr.hit_count} cards (> threshold), '
-                        f'no reauthor callback provided'
-                    ),
-                ))
+                result.rejected.append(
+                    GateResult(
+                        edge=edge,
+                        accepted=False,
+                        verification=vr,
+                        reason=(
+                            f'breadth_warning: synth query captures '
+                            f'{vr.hit_count} cards (> threshold), '
+                            f'no reauthor callback provided'
+                        ),
+                    )
+                )
                 continue
 
             # --- Normal rejection ----------------------------------------
@@ -403,8 +404,7 @@ def gate_and_persist(
                 reasons.append(f'resolution: {vr.error or "0 cards captured"}')
             if vr.resolves and not vr.expected_cards_hit:
                 reasons.append(
-                    f'expected-hit: source card {edge.source_card_name!r} '
-                    f'not in captured set ({vr.hit_count} cards)'
+                    f'expected-hit: source card {edge.source_card_name!r} not in captured set ({vr.hit_count} cards)'
                 )
             if vr.resolves and vr.expected_cards_hit:
                 reasons.append(
@@ -414,21 +414,31 @@ def gate_and_persist(
                 )
             reason = '; '.join(reasons) if reasons else (vr.error or 'unknown')
 
-            result.rejected.append(GateResult(
-                edge=edge, accepted=False, verification=vr, reason=reason,
-            ))
+            result.rejected.append(
+                GateResult(
+                    edge=edge,
+                    accepted=False,
+                    verification=vr,
+                    reason=reason,
+                )
+            )
             continue
 
         # --- Build CardAttribute with full provenance -----------------
         _build_and_persist(
-            edge, vr,
+            edge,
+            vr,
             deck_context=deck_context,
             store_dir=store_dir,
             now_iso=now_iso,
         )
 
-        result.persisted.append(GateResult(
-            edge=edge, accepted=True, verification=vr,
-        ))
+        result.persisted.append(
+            GateResult(
+                edge=edge,
+                accepted=True,
+                verification=vr,
+            )
+        )
 
     return result

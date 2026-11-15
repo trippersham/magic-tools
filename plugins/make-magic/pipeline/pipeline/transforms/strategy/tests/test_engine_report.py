@@ -18,7 +18,6 @@ Test organisation:
 from __future__ import annotations
 
 import json
-from collections import defaultdict
 from pathlib import Path
 
 import pytest
@@ -27,15 +26,14 @@ from pipeline.transforms.strategy.assets import EVENTS_FILE
 from pipeline.transforms.strategy.engine_report import (
     CompletenessState,
     EngineReport,
-    NamedEngine,
     _characterize_engines,
     _find_sccs,
     identify_engines,
 )
 from pipeline.transforms.strategy.machine_vocab import (
     CardAttribute,
-    ProvisionalAttributeStore,
     Provenance,
+    ProvisionalAttributeStore,
     empty_store,
 )
 from pipeline.transforms.strategy.tests.engine_parity_oracle import (
@@ -59,6 +57,7 @@ CATALOG_EVENTS = json.loads(EVENTS_FILE.read_text())['events']
 # Shared fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def relay_deck() -> dict:
     path = RELAY_DECKS / 'relay__queza-lichs-mastery.json'
@@ -66,17 +65,17 @@ def relay_deck() -> dict:
 
 
 def _sample_provenance(**overrides: object) -> Provenance:
-    defaults = dict(
-        source='haiku',
-        model_id='claude-3-5-haiku-20241022',
-        authored_at='2026-11-06T10:00:00Z',
-        source_card_name='Test Card',
-        source_card_oracle_id='test-oracle-id',
-        deck_context='test-deck',
-        scryfall_query='otag:test',
-        scryfall_resolved_count=1,
-        verified_at='2026-11-06T10:00:05Z',
-    )
+    defaults = {
+        'source': 'haiku',
+        'model_id': 'claude-3-5-haiku-20241022',
+        'authored_at': '2026-11-06T10:00:00Z',
+        'source_card_name': 'Test Card',
+        'source_card_oracle_id': 'test-oracle-id',
+        'deck_context': 'test-deck',
+        'scryfall_query': 'otag:test',
+        'scryfall_resolved_count': 1,
+        'verified_at': '2026-11-06T10:00:05Z',
+    }
     defaults.update(overrides)
     return Provenance(**defaults)  # type: ignore[arg-type]
 
@@ -110,34 +109,37 @@ def _covering_store() -> ProvisionalAttributeStore:
     - Rhox Faithmender: lifegain-increaser (but NOT lifegain-matters)
     - Erebos's Intervention: lifegain + removal (but NOT lifegain-matters)
     """
-    return ProvisionalAttributeStore(attributes=[
-        _machine_attr(
-            name='test-lifegain-matters-edge',
-            query='otag:lifegain-matters',
-            trigger_event='lifegain',
-            produced_event='draw-a-card',
-            source_card_oracle_id='cover-1',
-        ),
-        _machine_attr(
-            name='test-lifegain-increaser-edge',
-            query='otag:lifegain-increaser',
-            trigger_event='lifegain',
-            produced_event='lifegain',
-            source_card_oracle_id='cover-2',
-        ),
-        _machine_attr(
-            name='test-removal-lifegain-edge',
-            query='otag:lifegain AND otag:removal',
-            trigger_event='lifegain',
-            produced_event='creature-death',
-            source_card_oracle_id='cover-3',
-        ),
-    ])
+    return ProvisionalAttributeStore(
+        attributes=[
+            _machine_attr(
+                name='test-lifegain-matters-edge',
+                query='otag:lifegain-matters',
+                trigger_event='lifegain',
+                produced_event='draw-a-card',
+                source_card_oracle_id='cover-1',
+            ),
+            _machine_attr(
+                name='test-lifegain-increaser-edge',
+                query='otag:lifegain-increaser',
+                trigger_event='lifegain',
+                produced_event='lifegain',
+                source_card_oracle_id='cover-2',
+            ),
+            _machine_attr(
+                name='test-removal-lifegain-edge',
+                query='otag:lifegain AND otag:removal',
+                trigger_event='lifegain',
+                produced_event='creature-death',
+                source_card_oracle_id='cover-3',
+            ),
+        ]
+    )
 
 
 # =====================================================================
 # TestIdentifyEnginesQuezaProvisional
 # =====================================================================
+
 
 class TestIdentifyEnginesQuezaProvisional:
     """Queza fixture + empty store -> PROVISIONAL with dark cards."""
@@ -241,6 +243,7 @@ class TestIdentifyEnginesQuezaProvisional:
 # TestIdentifyEnginesQuezaResolved
 # =====================================================================
 
+
 class TestIdentifyEnginesQuezaResolved:
     """Queza fixture + covering store -> RESOLVED (frontier empty)."""
 
@@ -271,6 +274,7 @@ class TestIdentifyEnginesQuezaResolved:
 # TestIdentifyEnginesEmptyDeck
 # =====================================================================
 
+
 class TestIdentifyEnginesEmptyDeck:
     """Empty deck or deck with no engine-relevant cards."""
 
@@ -281,17 +285,40 @@ class TestIdentifyEnginesEmptyDeck:
 
     def test_all_lands_produces_empty_engines(self) -> None:
         """A deck of only basic lands has no engines."""
-        deck = {'cards': [
-            {'name': 'Island', 'role': None, 'oracle_text': '',
-             'otags': [], 'keywords': [], 'type_line': 'Basic Land — Island',
-             'color_identity': ['U'], 'mana_cost': ''},
-            {'name': 'Swamp', 'role': None, 'oracle_text': '',
-             'otags': [], 'keywords': [], 'type_line': 'Basic Land — Swamp',
-             'color_identity': ['B'], 'mana_cost': ''},
-            {'name': 'Plains', 'role': None, 'oracle_text': '',
-             'otags': [], 'keywords': [], 'type_line': 'Basic Land — Plains',
-             'color_identity': ['W'], 'mana_cost': ''},
-        ]}
+        deck = {
+            'cards': [
+                {
+                    'name': 'Island',
+                    'role': None,
+                    'oracle_text': '',
+                    'otags': [],
+                    'keywords': [],
+                    'type_line': 'Basic Land — Island',
+                    'color_identity': ['U'],
+                    'mana_cost': '',
+                },
+                {
+                    'name': 'Swamp',
+                    'role': None,
+                    'oracle_text': '',
+                    'otags': [],
+                    'keywords': [],
+                    'type_line': 'Basic Land — Swamp',
+                    'color_identity': ['B'],
+                    'mana_cost': '',
+                },
+                {
+                    'name': 'Plains',
+                    'role': None,
+                    'oracle_text': '',
+                    'otags': [],
+                    'keywords': [],
+                    'type_line': 'Basic Land — Plains',
+                    'color_identity': ['W'],
+                    'mana_cost': '',
+                },
+            ]
+        }
         report = identify_engines(deck, store=empty_store())
         assert report.engines == []
         # No engine-relevant cards -> frontier empty -> RESOLVED.
@@ -303,6 +330,7 @@ class TestIdentifyEnginesEmptyDeck:
 # TestNamedEngineCycle
 # =====================================================================
 
+
 class TestNamedEngineCycle:
     """Cycle detection and characterization via _characterize_engines."""
 
@@ -310,14 +338,26 @@ class TestNamedEngineCycle:
         """Two events with bidirectional forward_chains -> one cycle engine."""
         iso = {
             'engines': [
-                {'event': 'draw-a-card', 'hub': 'gain-to-draw',
-                 'enabler': 'gain-to-draw', 'kind': 'recursive-engine',
-                 'producers': ['gain-to-draw'], 'consumers': ['draw-to-gain'],
-                 'payoff_archetypes': [], 'weight': 10.0},
-                {'event': 'lifegain', 'hub': 'draw-to-gain',
-                 'enabler': 'draw-to-gain', 'kind': 'recursive-engine',
-                 'producers': ['draw-to-gain'], 'consumers': ['gain-to-draw'],
-                 'payoff_archetypes': [], 'weight': 8.0},
+                {
+                    'event': 'draw-a-card',
+                    'hub': 'gain-to-draw',
+                    'enabler': 'gain-to-draw',
+                    'kind': 'recursive-engine',
+                    'producers': ['gain-to-draw'],
+                    'consumers': ['draw-to-gain'],
+                    'payoff_archetypes': [],
+                    'weight': 10.0,
+                },
+                {
+                    'event': 'lifegain',
+                    'hub': 'draw-to-gain',
+                    'enabler': 'draw-to-gain',
+                    'kind': 'recursive-engine',
+                    'producers': ['draw-to-gain'],
+                    'consumers': ['gain-to-draw'],
+                    'payoff_archetypes': [],
+                    'weight': 8.0,
+                },
             ],
             'forward_chains': [['draw-a-card', 'lifegain'], ['lifegain', 'draw-a-card']],
             'relay_hubs': ['draw-to-gain', 'gain-to-draw'],
@@ -340,10 +380,16 @@ class TestNamedEngineCycle:
         """Without forward_chains, no cycle grouping occurs."""
         iso = {
             'engines': [
-                {'event': 'lifegain', 'hub': None, 'enabler': 'lifegain',
-                 'kind': 'static-payoff', 'producers': ['lifegain'],
-                 'consumers': ['lifegain-matters'], 'payoff_archetypes': [],
-                 'weight': 5.0},
+                {
+                    'event': 'lifegain',
+                    'hub': None,
+                    'enabler': 'lifegain',
+                    'kind': 'static-payoff',
+                    'producers': ['lifegain'],
+                    'consumers': ['lifegain-matters'],
+                    'payoff_archetypes': [],
+                    'weight': 5.0,
+                },
             ],
             'forward_chains': [],
             'relay_hubs': [],
@@ -369,12 +415,26 @@ class TestNamedEngineCycle:
         """A -> B without B -> A is NOT a cycle."""
         iso = {
             'engines': [
-                {'event': 'A', 'hub': 'h1', 'enabler': 'h1',
-                 'kind': 'recursive-engine', 'producers': ['h1'],
-                 'consumers': ['c1'], 'payoff_archetypes': [], 'weight': 5.0},
-                {'event': 'B', 'hub': 'h2', 'enabler': 'h2',
-                 'kind': 'recursive-engine', 'producers': ['h2'],
-                 'consumers': ['c2'], 'payoff_archetypes': [], 'weight': 3.0},
+                {
+                    'event': 'A',
+                    'hub': 'h1',
+                    'enabler': 'h1',
+                    'kind': 'recursive-engine',
+                    'producers': ['h1'],
+                    'consumers': ['c1'],
+                    'payoff_archetypes': [],
+                    'weight': 5.0,
+                },
+                {
+                    'event': 'B',
+                    'hub': 'h2',
+                    'enabler': 'h2',
+                    'kind': 'recursive-engine',
+                    'producers': ['h2'],
+                    'consumers': ['c2'],
+                    'payoff_archetypes': [],
+                    'weight': 3.0,
+                },
             ],
             'forward_chains': [['A', 'B']],
             'relay_hubs': ['h1', 'h2'],
@@ -391,16 +451,23 @@ class TestNamedEngineCycle:
 # TestNamedEngineStandalone
 # =====================================================================
 
+
 class TestNamedEngineStandalone:
     """Non-cycle engines: recursive-engine and static-payoff."""
 
     def test_standalone_recursive_engine(self) -> None:
         iso = {
             'engines': [
-                {'event': 'draw-a-card', 'hub': 'my-hub',
-                 'enabler': 'my-hub', 'kind': 'recursive-engine',
-                 'producers': ['my-hub', 'p2'], 'consumers': ['c1', 'c2'],
-                 'payoff_archetypes': [], 'weight': 12.0},
+                {
+                    'event': 'draw-a-card',
+                    'hub': 'my-hub',
+                    'enabler': 'my-hub',
+                    'kind': 'recursive-engine',
+                    'producers': ['my-hub', 'p2'],
+                    'consumers': ['c1', 'c2'],
+                    'payoff_archetypes': [],
+                    'weight': 12.0,
+                },
             ],
             'forward_chains': [],
             'relay_hubs': ['my-hub'],
@@ -420,10 +487,16 @@ class TestNamedEngineStandalone:
     def test_standalone_static_payoff(self) -> None:
         iso = {
             'engines': [
-                {'event': 'lifegain', 'hub': None,
-                 'enabler': 'lifegain', 'kind': 'static-payoff',
-                 'producers': ['lifegain'], 'consumers': ['lifegain-matters'],
-                 'payoff_archetypes': [], 'weight': 5.0},
+                {
+                    'event': 'lifegain',
+                    'hub': None,
+                    'enabler': 'lifegain',
+                    'kind': 'static-payoff',
+                    'producers': ['lifegain'],
+                    'consumers': ['lifegain-matters'],
+                    'payoff_archetypes': [],
+                    'weight': 5.0,
+                },
             ],
             'forward_chains': [],
             'relay_hubs': [],
@@ -441,12 +514,26 @@ class TestNamedEngineStandalone:
     def test_engines_sorted_by_weight_descending(self) -> None:
         iso = {
             'engines': [
-                {'event': 'A', 'hub': None, 'enabler': 'a',
-                 'kind': 'static-payoff', 'producers': ['a'],
-                 'consumers': ['b'], 'payoff_archetypes': [], 'weight': 3.0},
-                {'event': 'B', 'hub': None, 'enabler': 'c',
-                 'kind': 'static-payoff', 'producers': ['c'],
-                 'consumers': ['d'], 'payoff_archetypes': [], 'weight': 10.0},
+                {
+                    'event': 'A',
+                    'hub': None,
+                    'enabler': 'a',
+                    'kind': 'static-payoff',
+                    'producers': ['a'],
+                    'consumers': ['b'],
+                    'payoff_archetypes': [],
+                    'weight': 3.0,
+                },
+                {
+                    'event': 'B',
+                    'hub': None,
+                    'enabler': 'c',
+                    'kind': 'static-payoff',
+                    'producers': ['c'],
+                    'consumers': ['d'],
+                    'payoff_archetypes': [],
+                    'weight': 10.0,
+                },
             ],
             'forward_chains': [],
             'relay_hubs': [],
@@ -460,6 +547,7 @@ class TestNamedEngineStandalone:
 # =====================================================================
 # TestFindSCCs
 # =====================================================================
+
 
 class TestFindSCCs:
     """Tarjan's SCC detection on forward-chain graphs."""
@@ -487,12 +575,16 @@ class TestFindSCCs:
         assert sccs == []
 
     def test_two_disjoint_cycles(self) -> None:
-        sccs = _find_sccs([
-            ['A', 'B'], ['B', 'A'],
-            ['C', 'D'], ['D', 'C'],
-        ])
+        sccs = _find_sccs(
+            [
+                ['A', 'B'],
+                ['B', 'A'],
+                ['C', 'D'],
+                ['D', 'C'],
+            ]
+        )
         assert len(sccs) == 2
-        scc_sets = {s for s in sccs}
+        scc_sets = set(sccs)
         assert frozenset({'A', 'B'}) in scc_sets
         assert frozenset({'C', 'D'}) in scc_sets
 
@@ -508,6 +600,7 @@ class TestFindSCCs:
 # TestDefaultPathParity — the byte-parity gate
 # =====================================================================
 
+
 class TestDefaultPathParity:
     """Importing and using engine_report does NOT shift the curated SHAs.
 
@@ -518,13 +611,9 @@ class TestDefaultPathParity:
     def test_engine_isolation_sha_unchanged(self) -> None:
         baselines = compute_engine_isolation_baselines()
         sha = composite_sha(baselines)
-        assert sha == EXPECTED_ENGINE_SHA, (
-            f'engine_isolation SHA shifted: {sha} != {EXPECTED_ENGINE_SHA}'
-        )
+        assert sha == EXPECTED_ENGINE_SHA, f'engine_isolation SHA shifted: {sha} != {EXPECTED_ENGINE_SHA}'
 
     def test_resolve_sha_unchanged(self) -> None:
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == EXPECTED_RESOLVE_SHA, (
-            f'resolve SHA shifted: {sha} != {EXPECTED_RESOLVE_SHA}'
-        )
+        assert sha == EXPECTED_RESOLVE_SHA, f'resolve SHA shifted: {sha} != {EXPECTED_RESOLVE_SHA}'

@@ -27,8 +27,8 @@ from pipeline.transforms.strategy.machine_vocab import (
     DERIVATION_VERSION,
     EXTRACTION_VERSION,
     CardAttribute,
-    ProvisionalAttributeStore,
     Provenance,
+    ProvisionalAttributeStore,
     _attr_to_record,
     _record_to_attr,
     all_edge_queries,
@@ -38,23 +38,23 @@ from pipeline.transforms.strategy.machine_vocab import (
     persist,
 )
 
-
 # ---------------------------------------------------------------------------
 # Shared fixture helpers
 # ---------------------------------------------------------------------------
 
+
 def _sample_provenance(**overrides: object) -> Provenance:
-    defaults = dict(
-        source='haiku',
-        model_id='claude-3-5-haiku-20241022',
-        authored_at='2026-11-06T10:00:00Z',
-        source_card_name='Queza, Augur of Agonies',
-        source_card_oracle_id='abc-111-222-333',
-        deck_context='queza-esper-drain',
-        scryfall_query='oracle:/draw[^.]*los/ AND otag:draw-matters',
-        scryfall_resolved_count=4,
-        verified_at='2026-11-06T10:00:05Z',
-    )
+    defaults = {
+        'source': 'haiku',
+        'model_id': 'claude-3-5-haiku-20241022',
+        'authored_at': '2026-11-06T10:00:00Z',
+        'source_card_name': 'Queza, Augur of Agonies',
+        'source_card_oracle_id': 'abc-111-222-333',
+        'deck_context': 'queza-esper-drain',
+        'scryfall_query': 'oracle:/draw[^.]*los/ AND otag:draw-matters',
+        'scryfall_resolved_count': 4,
+        'verified_at': '2026-11-06T10:00:05Z',
+    }
     defaults.update(overrides)
     return Provenance(**defaults)  # type: ignore[arg-type]
 
@@ -79,6 +79,7 @@ def _sample_attr(
 # TestSerializationRoundTrip
 # =====================================================================
 
+
 class TestSerializationRoundTrip:
     """Record ↔ CardAttribute fidelity."""
 
@@ -99,11 +100,23 @@ class TestSerializationRoundTrip:
     def test_record_contains_all_provenance_keys(self) -> None:
         rec = _attr_to_record(_sample_attr())
         expected_keys = {
-            'name', 'query', 'trigger_event', 'produced_event',
-            'source', 'model_id', 'authored_at', 'source_card_name',
-            'source_card_oracle_id', 'deck_context', 'scryfall_query',
-            'scryfall_resolved_count', 'verified_at', 'breadth_warning',
-            'lifecycle', 'extraction_version', 'derivation_version',
+            'name',
+            'query',
+            'trigger_event',
+            'produced_event',
+            'source',
+            'model_id',
+            'authored_at',
+            'source_card_name',
+            'source_card_oracle_id',
+            'deck_context',
+            'scryfall_query',
+            'scryfall_resolved_count',
+            'verified_at',
+            'breadth_warning',
+            'lifecycle',
+            'extraction_version',
+            'derivation_version',
             'combo_variant_id',
         }
         assert set(rec.keys()) == expected_keys
@@ -127,6 +140,7 @@ class TestSerializationRoundTrip:
 # =====================================================================
 # TestPersist
 # =====================================================================
+
 
 class TestPersist:
     """Write to the durable JSONL store."""
@@ -216,6 +230,7 @@ class TestPersist:
 # TestLoadStore
 # =====================================================================
 
+
 class TestLoadStore:
     """Read from the durable JSONL store."""
 
@@ -291,6 +306,7 @@ class TestLoadStore:
 # TestLoadFrozenSnapshot
 # =====================================================================
 
+
 class TestLoadFrozenSnapshot:
     """Load a frozen machine-store snapshot for tests."""
 
@@ -332,6 +348,7 @@ class TestLoadFrozenSnapshot:
 # =====================================================================
 # TestCompoundingReadPath
 # =====================================================================
+
 
 class TestCompoundingReadPath:
     """The compounding pattern: persist once, reuse on the 2nd deck."""
@@ -376,8 +393,7 @@ class TestCompoundingReadPath:
         # lands on the frontier with curated edges alone.
         card_frontier = {
             'name': 'Test Frontier Card',
-            'oracle_text': 'Whenever a creature you control dies, '
-                           'create a 1/1 black Zombie creature token.',
+            'oracle_text': 'Whenever a creature you control dies, create a 1/1 black Zombie creature token.',
             'type_line': 'Enchantment',
             'mana_cost': '{3}{B}',
             'keywords': [],
@@ -415,23 +431,27 @@ class TestCompoundingReadPath:
 # TestAllEdgeQueries
 # =====================================================================
 
+
 class TestAllEdgeQueries:
     """The ``all_edge_queries`` helper assembles curated + machine."""
 
     def test_empty_store_returns_curated_only(self) -> None:
         from pipeline.transforms.strategy.engine_hydration import curated_edge_queries
+
         curated = curated_edge_queries()
         result = all_edge_queries(None)
         assert result == curated
 
     def test_empty_machine_store_returns_curated_only(self) -> None:
         from pipeline.transforms.strategy.engine_hydration import curated_edge_queries
+
         curated = curated_edge_queries()
         result = all_edge_queries(empty_store())
         assert result == curated
 
     def test_machine_attrs_appended_after_curated(self, tmp_path: Path) -> None:
         from pipeline.transforms.strategy.engine_hydration import curated_edge_queries
+
         curated = curated_edge_queries()
 
         store_dir = tmp_path / 'mv'
@@ -444,7 +464,7 @@ class TestAllEdgeQueries:
         result = all_edge_queries(store)
         assert len(result) == len(curated) + 1
         # Curated first, then machine.
-        assert result[:len(curated)] == curated
+        assert result[: len(curated)] == curated
         assert result[-1][0] == 'machine-edge-1'
 
 
@@ -452,14 +472,17 @@ class TestAllEdgeQueries:
 # TestStoreEdgeMethods
 # =====================================================================
 
+
 class TestStoreEdgeMethods:
     """ProvisionalAttributeStore helper methods: has_edge_for_card, edge_queries."""
 
     def test_edge_queries_format(self) -> None:
-        store = ProvisionalAttributeStore(attributes=[
-            _sample_attr(name='a', query='otag:foo'),
-            _sample_attr(name='b', query='otag:bar'),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                _sample_attr(name='a', query='otag:foo'),
+                _sample_attr(name='b', query='otag:bar'),
+            ]
+        )
         queries = store.edge_queries()
         assert queries == [('a', 'otag:foo'), ('b', 'otag:bar')]
 
@@ -467,21 +490,26 @@ class TestStoreEdgeMethods:
         assert empty_store().edge_queries() == []
 
     def test_has_edge_for_card_true(self) -> None:
-        store = ProvisionalAttributeStore(attributes=[
-            _sample_attr(source_card_oracle_id='card-x'),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                _sample_attr(source_card_oracle_id='card-x'),
+            ]
+        )
         assert store.has_edge_for_card('card-x')
 
     def test_has_edge_for_card_false(self) -> None:
-        store = ProvisionalAttributeStore(attributes=[
-            _sample_attr(source_card_oracle_id='card-x'),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                _sample_attr(source_card_oracle_id='card-x'),
+            ]
+        )
         assert not store.has_edge_for_card('card-y')
 
 
 # =====================================================================
 # TestStalenessVersion — two-layer version key (Phase 5.1 / ADR 0021)
 # =====================================================================
+
 
 class TestStalenessVersion:
     """Two-layer staleness key: extraction_version + derivation_version.
@@ -642,12 +670,14 @@ class TestStalenessVersion:
 
     def test_fresh_edge_for_unknown_card_is_false(self) -> None:
         """has_fresh_edge_for_card returns False for a card not in the store."""
-        store = ProvisionalAttributeStore(attributes=[
-            _sample_attr(
-                extraction_version=EXTRACTION_VERSION,
-                derivation_version=DERIVATION_VERSION,
-            ),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                _sample_attr(
+                    extraction_version=EXTRACTION_VERSION,
+                    derivation_version=DERIVATION_VERSION,
+                ),
+            ]
+        )
         assert not store.has_fresh_edge_for_card(
             'nonexistent-oracle-id',
             extraction_version=EXTRACTION_VERSION,
@@ -693,6 +723,7 @@ class TestStalenessVersion:
 # TestHermeticity — the crux: machine store does NOT shift curated SHAs
 # =====================================================================
 
+
 class TestHermeticity:
     """Populated machine store does NOT shift the curated engine + resolve SHAs.
 
@@ -706,7 +737,8 @@ class TestHermeticity:
     """
 
     def test_curated_engine_sha_unchanged_with_populated_store(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """Populate a machine store; curated engine isolation SHA is unchanged."""
         from pipeline.transforms.strategy.tests.engine_parity_oracle import (
@@ -734,9 +766,7 @@ class TestHermeticity:
         engine_sha = composite_sha(engine_baselines)
 
         # The HELD expected SHAs from the parity oracle baseline.
-        expected_engine_sha = (
-            'afcffc8a6cee9d771bcb71b758d1de75664edb469da7da4d4bcfaf2f7f35c047'
-        )
+        expected_engine_sha = 'afcffc8a6cee9d771bcb71b758d1de75664edb469da7da4d4bcfaf2f7f35c047'
         assert engine_sha == expected_engine_sha, (
             f'Engine isolation SHA shifted!\n'
             f'  Expected: {expected_engine_sha}\n'
@@ -745,7 +775,8 @@ class TestHermeticity:
         )
 
     def test_curated_resolve_sha_unchanged_with_populated_store(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         """Populate a machine store; curated resolve SHA is unchanged."""
         from pipeline.transforms.strategy.tests.engine_parity_oracle import (
@@ -770,9 +801,7 @@ class TestHermeticity:
         resolve_baselines = compute_resolve_baselines()
         resolve_sha = composite_sha(resolve_baselines)
 
-        expected_resolve_sha = (
-            '3010be2a0d1d5def69f6d63974d75d3023837c39fc8c04c056cfa88565931769'
-        )
+        expected_resolve_sha = '3010be2a0d1d5def69f6d63974d75d3023837c39fc8c04c056cfa88565931769'
         assert resolve_sha == expected_resolve_sha, (
             f'Resolve SHA shifted!\n'
             f'  Expected: {expected_resolve_sha}\n'
@@ -784,18 +813,15 @@ class TestHermeticity:
         """The curated base path (resolve / compute_facts) does NOT import
         or call load_store -- it only uses vocab.py + edge_roles.py."""
         import inspect
+
         from pipeline.transforms.strategy import resolve
         from pipeline.transforms.strategy.facts import compute_facts
 
         # Inspect the source for any reference to load_store / machine_vocab.
-        resolve_src = inspect.getsource(resolve)
+        inspect.getsource(resolve)  # ensure importable
         facts_src = inspect.getsource(compute_facts)
 
         # The resolve function delegates to compute_facts, which is the
         # deterministic path.  Neither should reference the machine store.
-        assert 'load_store' not in facts_src, (
-            'compute_facts must not reference load_store'
-        )
-        assert 'machine_vocab' not in facts_src, (
-            'compute_facts must not reference machine_vocab'
-        )
+        assert 'load_store' not in facts_src, 'compute_facts must not reference load_store'
+        assert 'machine_vocab' not in facts_src, 'compute_facts must not reference machine_vocab'

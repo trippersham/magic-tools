@@ -1,0 +1,173 @@
+{
+  "slug": "resilience30__planeswalkerparty_cmm",
+  "deck_name": "PlaneswalkerParty_CMM",
+  "commanders": [
+    {
+      "name": "Commodore Guff",
+      "oracle_text": "At the beginning of your end step, put a loyalty counter on another target planeswalker you control.\n+1: Create a 1/1 red Wizard creature token with \"{T}: Add {R}. Spend this mana only to cast a planeswalker spell.\"\n−3: You draw X cards and Commodore Guff deals X damage to each opponent, where X is the number of planeswalkers you control.\nCommodore Guff can be your commander."
+    }
+  ],
+  "elected": [
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 22.0,
+      "share": 0.262,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "combat-damage-dealt",
+      "hub": null,
+      "mass": 21.0,
+      "share": 0.25,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "counter-placed",
+      "hub": "repeatable-proliferate",
+      "mass": 19.0,
+      "share": 0.226,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    },
+    {
+      "event": "land-enters-battlefield",
+      "hub": null,
+      "mass": 13.0,
+      "share": 0.155,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "landfall"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "planeswalkers",
+      "weighted_quantity": 27.0,
+      "share": 0.574
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Commodore Guff"
+    ],
+    "produces": [],
+    "consumes": [],
+    "reaches_back_to": [],
+    "closes": false
+  },
+  "naming_resolution": {
+    "named_strategy": "planeswalkers",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "planeswalkers",
+    "confidence": "MED",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Ajani Steadfast",
+    "Arcane Signet",
+    "Azorius Signet",
+    "Blasphemous Act",
+    "Boros Signet",
+    "Cartographer's Hawk",
+    "Cascade Bluffs",
+    "Chandra, Awakened Inferno",
+    "Chandra, Legacy of Fire",
+    "Chandra, Torch of Defiance",
+    "Command Tower",
+    "Commodore Guff",
+    "Deepglow Skate",
+    "Deploy the Gatewatch",
+    "Elspeth, Sun's Champion",
+    "Exotic Orchard",
+    "Fellwar Stone",
+    "Flux Channeler",
+    "Fog Bank",
+    "Forge of Heroes",
+    "Frostboil Snarl",
+    "Furycalm Snarl",
+    "Gatewatch Beacon",
+    "Gideon Jura",
+    "Grateful Apparition",
+    "Guff Rewrites History",
+    "Honor-Worn Shaku",
+    "Interplanar Beacon",
+    "Izzet Signet",
+    "Jace Beleren",
+    "Jace, Architect of Thought",
+    "Jace, Mirror Mage",
+    "Jaya's Phoenix",
+    "Karn's Bastion",
+    "Kazuul, Tyrant of the Cliffs",
+    "Leori, Sparktouched Hunter",
+    "Mangara, the Diplomat",
+    "Mobilized District",
+    "Myriad Landscape",
+    "Mystic Gate",
+    "Mystic Monastery",
+    "Nahiri, the Harbinger",
+    "Narset of the Ancient Way",
+    "Narset, Enlightened Master",
+    "Narset, Parter of Veils",
+    "Nevinyrral's Disk",
+    "Norn's Annex",
+    "Oath of Gideon",
+    "Oath of Jace",
+    "Oath of Teferi",
+    "Onakke Oathkeeper",
+    "Oreskos Explorer",
+    "Path to Exile",
+    "Port Town",
+    "Prairie Stream",
+    "Promise of Loyalty",
+    "Reliquary Tower",
+    "Repeated Reverberation",
+    "Rugged Prairie",
+    "Saheeli, Sublime Artificer",
+    "Sarkhan the Masterless",
+    "Semester's End",
+    "Silent Arbiter",
+    "Skycloud Expanse",
+    "Sol Ring",
+    "Spark Double",
+    "Sparkshaper Visionary",
+    "Swords to Plowshares",
+    "Talisman of Conviction",
+    "Talisman of Creativity",
+    "Talisman of Progress",
+    "Temple of Enlightenment",
+    "Temple of Epiphany",
+    "Temple of Triumph",
+    "Teyo, Geometric Tactician",
+    "The Chain Veil",
+    "The Wanderer",
+    "Thrummingbird",
+    "Urza's Ruinous Blast",
+    "Vronos, Masked Inquisitor",
+    "Wall of Denial",
+    "Wayfarer's Bauble"
+  ],
+  "n_nonland": 62,
+  "n_cards": 100
+}

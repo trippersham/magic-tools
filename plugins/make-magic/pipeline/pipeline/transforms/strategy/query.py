@@ -51,7 +51,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 #: A compiled attribute: a predicate over a :class:`CardView`.
-Predicate = Callable[["CardView"], bool]
+Predicate = Callable[['CardView'], bool]
 
 _PIP_RE = re.compile(r'\{([WUBRG])\}')
 
@@ -65,7 +65,7 @@ class CardView:
     """
 
     otags: frozenset[str]
-    keywords: frozenset[str]          # lowercased
+    keywords: frozenset[str]  # lowercased
     type_line: str
     oracle_text_lower: str
     mana_cost: str
@@ -83,8 +83,7 @@ class CardView:
     @classmethod
     def for_name(cls, name: str) -> CardView:
         """A pseudo-card whose only otag is ``name`` — the routing substrate."""
-        return cls(otags=frozenset({name}), keywords=frozenset(),
-                   type_line='', oracle_text_lower='', mana_cost='')
+        return cls(otags=frozenset({name}), keywords=frozenset(), type_line='', oracle_text_lower='', mana_cost='')
 
 
 def _otag_pred(value: str) -> Predicate:
@@ -102,6 +101,7 @@ def _devotion_pred() -> Predicate:
             return True
         pips = Counter(_PIP_RE.findall(c.mana_cost))
         return bool(pips) and max(pips.values()) >= 2
+
     return pred
 
 
@@ -145,27 +145,23 @@ def _assert_re2_pasteable(pattern: str) -> None:
     """Reject regex constructs that compile locally but break on Scryfall/RE2."""
     for bad in _RE2_LOOKAROUND:
         if bad in pattern:
-            raise ValueError(
-                f'non-pasteable regex: lookaround {bad!r} is unsupported by '
-                f'Scryfall (RE2): {pattern!r}')
+            raise ValueError(f'non-pasteable regex: lookaround {bad!r} is unsupported by Scryfall (RE2): {pattern!r}')
     if '(?P=' in pattern:
         raise ValueError(
-            f'non-pasteable regex: named backreference "(?P=" is unsupported by '
-            f'Scryfall (RE2): {pattern!r}')
+            f'non-pasteable regex: named backreference "(?P=" is unsupported by Scryfall (RE2): {pattern!r}'
+        )
     # Conditional `(?(` — but not the valid named group `(?P<...>` nor `(?P=`.
     i = pattern.find('(?(')
     if i != -1:
-        raise ValueError(
-            f'non-pasteable regex: conditional "(?(" is unsupported by '
-            f'Scryfall (RE2): {pattern!r}')
+        raise ValueError(f'non-pasteable regex: conditional "(?(" is unsupported by Scryfall (RE2): {pattern!r}')
     # Escape-aware single pass for a bare space and numeric backreferences.
     escaped = False
     for ch in pattern:
         if escaped:
             if ch in '123456789':
                 raise ValueError(
-                    f'non-pasteable regex: backreference "\\{ch}" is unsupported '
-                    f'by Scryfall (RE2): {pattern!r}')
+                    f'non-pasteable regex: backreference "\\{ch}" is unsupported by Scryfall (RE2): {pattern!r}'
+                )
             escaped = False
             continue
         if ch == '\\':
@@ -173,22 +169,23 @@ def _assert_re2_pasteable(pattern: str) -> None:
             continue
         if ch == ' ':
             raise ValueError(
-                f'non-pasteable regex: a bare space splits the query on Scryfall; '
-                f'use "." or "\\s": {pattern!r}')
+                f'non-pasteable regex: a bare space splits the query on Scryfall; use "." or "\\s": {pattern!r}'
+            )
     # Bounded-repeat budget: sum the finite upper bounds; unbounded forms (no max
     # digits, i.e. `{m,}`) contribute nothing.
     budget = 0
     for lo, comma, hi in _BOUNDED_REPEAT_RE.findall(pattern):
         if hi:
-            budget += int(hi)          # {m,n} or {,n}
+            budget += int(hi)  # {m,n} or {,n}
         elif not comma and lo:
-            budget += int(lo)          # {n} exact
+            budget += int(lo)  # {n} exact
         # else {m,} unbounded -> 0
     if budget > _RE2_REPEAT_BUDGET:
         raise ValueError(
             f'non-pasteable regex: bounded-repeat budget {budget} exceeds '
             f'Scryfall (RE2) limit {_RE2_REPEAT_BUDGET}; lower the {{0,N}} bound(s): '
-            f'{pattern!r}')
+            f'{pattern!r}'
+        )
 
 
 def _compile_re2_pasteable(body: str) -> re.Pattern[str]:
@@ -222,7 +219,8 @@ def _atom_pred(field: str, value: str) -> Predicate:
 
 # --- tokenizer + recursive-descent parser ----------------------------------
 
-_TOKEN_RE = re.compile(r"""
+_TOKEN_RE = re.compile(
+    r"""
     \s*(?:
         (?P<lparen>\()
       | (?P<rparen>\))
@@ -230,7 +228,9 @@ _TOKEN_RE = re.compile(r"""
         (?:/(?P<rval>[^/]*)/|'(?P<qval>[^']*)'|(?P<bval>[^\s()]+))
       | (?P<word>[A-Za-z_][A-Za-z0-9_\-]*)
     )
-""", re.VERBOSE)
+""",
+    re.VERBOSE,
+)
 
 _KEYWORDS = {'AND', 'OR', 'NOT'}
 
@@ -244,20 +244,20 @@ def _tokenize(s: str) -> list[tuple[str, str]]:
             continue
         m = _TOKEN_RE.match(s, pos)
         if not m or m.end() == pos:
-            raise ValueError(f'cannot tokenize query at {pos}: {s[pos:pos + 20]!r}')
+            raise ValueError(f'cannot tokenize query at {pos}: {s[pos : pos + 20]!r}')
         pos = m.end()
         if m.group('lparen'):
             toks.append(('lparen', '('))
         elif m.group('rparen'):
             toks.append(('rparen', ')'))
         elif m.group('field'):
-            if m.group('rval') is not None:        # oracle:/regex/ — proximity/pattern form
-                val = f"/{m.group('rval')}/"
-            elif m.group('qval') is not None:      # quoted substring
+            if m.group('rval') is not None:  # oracle:/regex/ — proximity/pattern form
+                val = f'/{m.group("rval")}/'
+            elif m.group('qval') is not None:  # quoted substring
                 val = m.group('qval')
-            else:                                  # bare substring
+            else:  # bare substring
                 val = m.group('bval')
-            toks.append(('atom', f"{m.group('field')}:{val}"))
+            toks.append(('atom', f'{m.group("field")}:{val}'))
         else:
             w = m.group('word')
             if w in _KEYWORDS:

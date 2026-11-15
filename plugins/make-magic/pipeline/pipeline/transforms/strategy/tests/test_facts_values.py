@@ -22,7 +22,11 @@ def test_answered_by_graveyard_deck_maps_to_hate_graveyard_family(load_deck, com
     ab = rec['facts']['answered_by']
     assert 'graveyard/reanimator' in ab
     assert ab['graveyard/reanimator']['answer_slugs'] == [
-        'hate-graveyard', 'single-minded-graveyard-hate', 'hate-graveyard-cast', 'sweeper-graveyard']
+        'hate-graveyard',
+        'single-minded-graveyard-hate',
+        'hate-graveyard-cast',
+        'sweeper-graveyard',
+    ]
     assert ab['graveyard/reanimator']['answer_slugs'] == ANSWERS_MAP['graveyard/reanimator']
 
 

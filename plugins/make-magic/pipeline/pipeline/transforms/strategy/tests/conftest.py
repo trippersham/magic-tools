@@ -37,6 +37,7 @@ def combos() -> list[dict]:
 @pytest.fixture
 def load_deck():
     """Return a loader ``load_deck(slug)`` for a committed golden deck fixture."""
+
     def _load(slug: str) -> dict:
         return json.loads((DECKS / f'{slug}.json').read_text())
 

@@ -16,19 +16,18 @@ from pathlib import Path
 import pytest
 
 from pipeline.transforms.strategy.assets import load_assets
-from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES, EventEffect, get_role
+from pipeline.transforms.strategy.edge_roles import get_role
 from pipeline.transforms.strategy.facts import _isolate_engines, compute_facts
-from pipeline.transforms.strategy.machine_vocab import CardAttribute, ProvisionalAttributeStore, Provenance
+from pipeline.transforms.strategy.machine_vocab import (
+    CardAttribute,
+    Provenance,
+    ProvisionalAttributeStore,
+    empty_store,
+)
 from pipeline.transforms.strategy.relay import (
     _get_role_with_store,
     build_relay_augmented_event_edges,
     isolate_engines_with_relay,
-)
-from pipeline.transforms.strategy.machine_vocab import (
-    CardAttribute,
-    ProvisionalAttributeStore,
-    Provenance,
-    empty_store,
 )
 from pipeline.transforms.strategy.tests.engine_parity_oracle import (
     composite_sha,
@@ -47,6 +46,7 @@ EXPECTED_RESOLVE_SHA = '3010be2a0d1d5def69f6d63974d75d3023837c39fc8c04c056cfa885
 # ---------------------------------------------------------------------------
 # Fixture: the Queza + Lich's Mastery relay fixture deck
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def relay_deck() -> dict:
@@ -69,6 +69,7 @@ def assets():
 # A: Default path byte-parity (the relay module must NOT shift these)
 # ---------------------------------------------------------------------------
 
+
 class TestDefaultPathParity:
     """The default compute_facts / resolve path stays byte-identical.
 
@@ -80,22 +81,19 @@ class TestDefaultPathParity:
         """COMPOSITE engine_isolation SHA over the 17 fixture decks."""
         baselines = compute_engine_isolation_baselines()
         sha = composite_sha(baselines)
-        assert sha == EXPECTED_ENGINE_SHA, (
-            f'engine_isolation SHA shifted: {sha} != {EXPECTED_ENGINE_SHA}'
-        )
+        assert sha == EXPECTED_ENGINE_SHA, f'engine_isolation SHA shifted: {sha} != {EXPECTED_ENGINE_SHA}'
 
     def test_resolve_sha_unchanged(self) -> None:
         """COMPOSITE resolve() SHA over the 17 fixture decks."""
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == EXPECTED_RESOLVE_SHA, (
-            f'resolve SHA shifted: {sha} != {EXPECTED_RESOLVE_SHA}'
-        )
+        assert sha == EXPECTED_RESOLVE_SHA, f'resolve SHA shifted: {sha} != {EXPECTED_RESOLVE_SHA}'
 
 
 # ---------------------------------------------------------------------------
 # B: Default path on the relay fixture deck (no engines from edge attrs)
 # ---------------------------------------------------------------------------
+
 
 class TestDefaultPathNoRelayEngines:
     """On the relay fixture deck, the DEFAULT path sees no relay-based engines.
@@ -131,6 +129,7 @@ class TestDefaultPathNoRelayEngines:
 # ---------------------------------------------------------------------------
 # C: build_relay_augmented_event_edges — the derivation itself
 # ---------------------------------------------------------------------------
+
 
 class TestBuildRelayAugmentedEventEdges:
     """The relay derivation injects edge attrs as consumer+producer nodes."""
@@ -185,6 +184,7 @@ class TestBuildRelayAugmentedEventEdges:
 
     def test_default_edges_lack_relay_nodes(self, relay_ctx, assets) -> None:
         """The DEFAULT event-edge construction has no edge attrs."""
+
         # Replicate the default event_edges from compute_facts
         def refs_to_nodes(refs):
             return [r for r in refs if r in relay_ctx.nodes]
@@ -207,6 +207,7 @@ class TestBuildRelayAugmentedEventEdges:
         # nodes with zero edge attrs
         nodes = {'lifegain', 'draw-matters', 'sac'}
         augmented = build_relay_augmented_event_edges(nodes, assets.events)
+
         # Replicate default
         def refs_to_nodes(refs):
             return [r for r in refs if r in nodes]
@@ -230,6 +231,7 @@ class TestBuildRelayAugmentedEventEdges:
 # D: Augmented path — the loop closes (the behavioral proof)
 # ---------------------------------------------------------------------------
 
+
 class TestAugmentedPathClosesLoop:
     """On the relay fixture deck, the AUGMENTED path finds the Queza engine.
 
@@ -240,8 +242,11 @@ class TestAugmentedPathClosesLoop:
     def test_relay_hubs_present(self, relay_ctx, assets) -> None:
         """The augmented engine isolation has relay hubs."""
         iso = isolate_engines_with_relay(
-            relay_ctx.nodes, assets.events, relay_ctx.adens,
-            assets, relay_ctx.cards,
+            relay_ctx.nodes,
+            assets.events,
+            relay_ctx.adens,
+            assets,
+            relay_ctx.cards,
         )
         assert len(iso['relay_hubs']) > 0
         # Specifically, draw-to-gain and gain-to-draw are relay hubs
@@ -251,8 +256,11 @@ class TestAugmentedPathClosesLoop:
     def test_recursive_engines_found(self, relay_ctx, assets) -> None:
         """The augmented path finds recursive-engine(s) (not just static-payoff)."""
         iso = isolate_engines_with_relay(
-            relay_ctx.nodes, assets.events, relay_ctx.adens,
-            assets, relay_ctx.cards,
+            relay_ctx.nodes,
+            assets.events,
+            relay_ctx.adens,
+            assets,
+            relay_ctx.cards,
         )
         kinds = {e['kind'] for e in iso['engines']}
         assert 'recursive-engine' in kinds
@@ -265,8 +273,11 @@ class TestAugmentedPathClosesLoop:
         lifegain — a closed loop.
         """
         iso = isolate_engines_with_relay(
-            relay_ctx.nodes, assets.events, relay_ctx.adens,
-            assets, relay_ctx.cards,
+            relay_ctx.nodes,
+            assets.events,
+            relay_ctx.adens,
+            assets,
+            relay_ctx.cards,
         )
         chains = iso['forward_chains']
         chain_set = {tuple(c) for c in chains}
@@ -287,8 +298,11 @@ class TestAugmentedPathClosesLoop:
         determinism='mass-elected'.
         """
         iso = isolate_engines_with_relay(
-            relay_ctx.nodes, assets.events, relay_ctx.adens,
-            assets, relay_ctx.cards,
+            relay_ctx.nodes,
+            assets.events,
+            relay_ctx.adens,
+            assets,
+            relay_ctx.cards,
         )
         assert iso['determinism'] == 'mass-elected'
 
@@ -296,6 +310,7 @@ class TestAugmentedPathClosesLoop:
 # ---------------------------------------------------------------------------
 # E: Minimal unit tests — edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestRelayEdgeCases:
     """Edge cases for the relay derivation function."""
@@ -333,9 +348,13 @@ class TestRelayEdgeCases:
     def test_isolate_engines_on_minimal_loop(self, assets) -> None:
         """_isolate_engines detects a loop from just two complementary relay attrs."""
         nodes = {'gain-to-draw', 'draw-to-gain'}
-        adens: defaultdict[str, float] = defaultdict(float, {
-            'gain-to-draw': 3.0, 'draw-to-gain': 5.0,
-        })
+        adens: defaultdict[str, float] = defaultdict(
+            float,
+            {
+                'gain-to-draw': 3.0,
+                'draw-to-gain': 5.0,
+            },
+        )
         cards: list[dict] = []  # no cards needed for this unit test
         edges = build_relay_augmented_event_edges(nodes, assets.events)
         iso = _isolate_engines(nodes, edges, adens, assets, cards)
@@ -360,8 +379,7 @@ class TestRelayEdgeCases:
         #   triggers. And draw-to-gain produces lifegain.
         #
         # Let me just check that the catalog-derived edge is still there:
-        catalog_edges = [(p, c, ev) for p, c, ev in edges
-                         if p == 'lifegain' and c == 'lifegain-matters']
+        catalog_edges = [(p, c, ev) for p, c, ev in edges if p == 'lifegain' and c == 'lifegain-matters']
         assert len(catalog_edges) >= 1
 
 
@@ -369,18 +387,19 @@ class TestRelayEdgeCases:
 # F: Machine-store -> relay path (the Build 1 keystone)
 # ---------------------------------------------------------------------------
 
+
 def _test_provenance(**overrides: object) -> Provenance:
-    defaults = dict(
-        source='haiku',
-        model_id='test',
-        authored_at='2026-11-06T00:00:00Z',
-        source_card_name='Test Card',
-        source_card_oracle_id='test-oid',
-        deck_context='test',
-        scryfall_query='oracle:/test/',
-        scryfall_resolved_count=1,
-        verified_at='2026-11-06T00:00:01Z',
-    )
+    defaults = {
+        'source': 'haiku',
+        'model_id': 'test',
+        'authored_at': '2026-11-06T00:00:00Z',
+        'source_card_name': 'Test Card',
+        'source_card_oracle_id': 'test-oid',
+        'deck_context': 'test',
+        'scryfall_query': 'oracle:/test/',
+        'scryfall_resolved_count': 1,
+        'verified_at': '2026-11-06T00:00:01Z',
+    }
     defaults.update(overrides)
     return Provenance(**defaults)  # type: ignore[arg-type]
 
@@ -392,7 +411,9 @@ class TestProvisionalAttributeStoreAugmentedEdges:
         """With store=empty_store(), edges are identical to store=None."""
         edges_none = build_relay_augmented_event_edges(relay_ctx.nodes, assets.events)
         edges_empty = build_relay_augmented_event_edges(
-            relay_ctx.nodes, assets.events, store=empty_store(),
+            relay_ctx.nodes,
+            assets.events,
+            store=empty_store(),
         )
         assert edges_none == edges_empty
 
@@ -411,15 +432,17 @@ class TestProvisionalAttributeStoreAugmentedEdges:
         (``gives-pp-counters``) also in nodes, the relay should inject
         ``test-counter-to-mana`` as consumer of ``counter-placed``.
         """
-        store = ProvisionalAttributeStore(attributes=[
-            CardAttribute(
-                name='test-counter-to-mana',
-                query="oracle:'test'",
-                trigger_event='counter-placed',
-                produced_event='lifegain',
-                provenance=_test_provenance(),
-            ),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                CardAttribute(
+                    name='test-counter-to-mana',
+                    query="oracle:'test'",
+                    trigger_event='counter-placed',
+                    produced_event='lifegain',
+                    provenance=_test_provenance(),
+                ),
+            ]
+        )
         nodes = {'gives-pp-counters', 'lifegain-matters', 'test-counter-to-mana'}
         edges = build_relay_augmented_event_edges(nodes, assets.events, store=store)
 
@@ -429,23 +452,24 @@ class TestProvisionalAttributeStoreAugmentedEdges:
 
         # gives-pp-counters should be a producer feeding test-counter-to-mana
         counter_edges_to_mana = [
-            (p, c, ev) for p, c, ev in edges
-            if ev == 'counter-placed' and c == 'test-counter-to-mana'
+            (p, c, ev) for p, c, ev in edges if ev == 'counter-placed' and c == 'test-counter-to-mana'
         ]
         producers_feeding = {p for p, c, ev in counter_edges_to_mana}
         assert 'gives-pp-counters' in producers_feeding
 
     def test_machine_attr_produces_into_produced_event(self, assets) -> None:
         """The machine attr produces into its effect event."""
-        store = ProvisionalAttributeStore(attributes=[
-            CardAttribute(
-                name='test-counter-to-mana',
-                query="oracle:'test'",
-                trigger_event='counter-placed',
-                produced_event='lifegain',
-                provenance=_test_provenance(),
-            ),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                CardAttribute(
+                    name='test-counter-to-mana',
+                    query="oracle:'test'",
+                    trigger_event='counter-placed',
+                    produced_event='lifegain',
+                    provenance=_test_provenance(),
+                ),
+            ]
+        )
         nodes = {'gives-pp-counters', 'lifegain-matters', 'test-counter-to-mana'}
         edges = build_relay_augmented_event_edges(nodes, assets.events, store=store)
 
@@ -454,24 +478,23 @@ class TestProvisionalAttributeStoreAugmentedEdges:
         assert 'test-counter-to-mana' in lifegain_producers
 
         # lifegain-matters should consume the produced lifegain
-        lifegain_to_matters = [
-            (p, c, ev) for p, c, ev in edges
-            if ev == 'lifegain' and p == 'test-counter-to-mana'
-        ]
+        lifegain_to_matters = [(p, c, ev) for p, c, ev in edges if ev == 'lifegain' and p == 'test-counter-to-mana']
         consumers = {c for p, c, ev in lifegain_to_matters}
         assert 'lifegain-matters' in consumers
 
     def test_machine_attr_not_in_nodes_is_ignored(self, assets) -> None:
         """A machine attr NOT in nodes is not injected (even if in store)."""
-        store = ProvisionalAttributeStore(attributes=[
-            CardAttribute(
-                name='test-counter-to-mana',
-                query="oracle:'test'",
-                trigger_event='counter-placed',
-                produced_event='lifegain',
-                provenance=_test_provenance(),
-            ),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                CardAttribute(
+                    name='test-counter-to-mana',
+                    query="oracle:'test'",
+                    trigger_event='counter-placed',
+                    produced_event='lifegain',
+                    provenance=_test_provenance(),
+                ),
+            ]
+        )
         # test-counter-to-mana is NOT in nodes
         nodes = {'gives-pp-counters', 'lifegain-matters'}
         edges = build_relay_augmented_event_edges(nodes, assets.events, store=store)
@@ -482,19 +505,23 @@ class TestProvisionalAttributeStoreAugmentedEdges:
 
     def test_curated_takes_precedence_over_machine(self, relay_ctx, assets) -> None:
         """If a machine attr has the same name as a curated edge, curated wins."""
-        store = ProvisionalAttributeStore(attributes=[
-            CardAttribute(
-                name='draw-to-gain',
-                query="oracle:'wrong'",
-                trigger_event='lifegain',  # wrong events
-                produced_event='counter-placed',
-                provenance=_test_provenance(),
-            ),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                CardAttribute(
+                    name='draw-to-gain',
+                    query="oracle:'wrong'",
+                    trigger_event='lifegain',  # wrong events
+                    produced_event='counter-placed',
+                    provenance=_test_provenance(),
+                ),
+            ]
+        )
         # The curated draw-to-gain has trigger=draw-a-card, effect=lifegain.
         # The machine one has different events. Curated should win.
         edges = build_relay_augmented_event_edges(
-            relay_ctx.nodes, assets.events, store=store,
+            relay_ctx.nodes,
+            assets.events,
+            store=store,
         )
         # draw-to-gain should still appear as a lifegain PRODUCER (curated effect)
         lifegain_producers = {p for p, c, ev in edges if ev == 'lifegain'}
@@ -502,15 +529,17 @@ class TestProvisionalAttributeStoreAugmentedEdges:
 
     def test_machine_attr_with_novel_event_skipped(self, assets) -> None:
         """Machine attr whose effect event is not in the catalog is skipped."""
-        store = ProvisionalAttributeStore(attributes=[
-            CardAttribute(
-                name='test-novel-event',
-                query="oracle:'test'",
-                trigger_event='counter-placed',
-                produced_event='nonexistent-event',  # not in catalog
-                provenance=_test_provenance(),
-            ),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                CardAttribute(
+                    name='test-novel-event',
+                    query="oracle:'test'",
+                    trigger_event='counter-placed',
+                    produced_event='nonexistent-event',  # not in catalog
+                    provenance=_test_provenance(),
+                ),
+            ]
+        )
         nodes = {'gives-pp-counters', 'test-novel-event'}
         edges = build_relay_augmented_event_edges(nodes, assets.events, store=store)
         all_attrs = {a for p, c, _ in edges for a in (p, c)}
@@ -521,6 +550,7 @@ class TestProvisionalAttributeStoreAugmentedEdges:
 # F: Machine-store -> relay path (Build 1 keystone)
 # ---------------------------------------------------------------------------
 
+
 class TestProvisionalAttributeStoreRelayPath:
     """Machine-authored attributes flow through the relay via the store.
 
@@ -530,23 +560,25 @@ class TestProvisionalAttributeStoreRelayPath:
 
     def test_empty_store_equals_no_store(self, relay_ctx, assets) -> None:
         """Empty store produces the same edges as no store (byte-parity)."""
-        edges_no_store = build_relay_augmented_event_edges(
-            relay_ctx.nodes, assets.events)
+        edges_no_store = build_relay_augmented_event_edges(relay_ctx.nodes, assets.events)
         edges_empty_store = build_relay_augmented_event_edges(
-            relay_ctx.nodes, assets.events, store=ProvisionalAttributeStore())
+            relay_ctx.nodes, assets.events, store=ProvisionalAttributeStore()
+        )
         assert edges_no_store == edges_empty_store
 
     def test_get_role_with_store_curated_first(self) -> None:
         """Curated role takes precedence over a same-named machine attr."""
-        store = ProvisionalAttributeStore(attributes=[
-            CardAttribute(
-                name='draw-to-drain',
-                query="oracle:'test'",
-                trigger_event='lifegain',  # different from curated
-                produced_event='lifegain',
-                provenance=Provenance(source='haiku'),
-            ),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                CardAttribute(
+                    name='draw-to-drain',
+                    query="oracle:'test'",
+                    trigger_event='lifegain',  # different from curated
+                    produced_event='lifegain',
+                    provenance=Provenance(source='haiku'),
+                ),
+            ]
+        )
         role = _get_role_with_store('draw-to-drain', store)
         # Should return the CURATED role, not the machine one.
         assert role is not None
@@ -555,15 +587,17 @@ class TestProvisionalAttributeStoreRelayPath:
 
     def test_get_role_with_store_machine_attr(self) -> None:
         """Machine attr is returned when no curated role exists."""
-        store = ProvisionalAttributeStore(attributes=[
-            CardAttribute(
-                name='counter-to-mana',
-                query="oracle:'number of counters on'",
-                trigger_event='counter-placed',
-                produced_event='lifegain',  # placeholder for test
-                provenance=Provenance(source='haiku'),
-            ),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                CardAttribute(
+                    name='counter-to-mana',
+                    query="oracle:'number of counters on'",
+                    trigger_event='counter-placed',
+                    produced_event='lifegain',  # placeholder for test
+                    provenance=Provenance(source='haiku'),
+                ),
+            ]
+        )
         role = _get_role_with_store('counter-to-mana', store)
         assert role is not None
         assert role.trigger_event == 'counter-placed'
@@ -571,55 +605,55 @@ class TestProvisionalAttributeStoreRelayPath:
 
     def test_get_role_with_store_none_for_missing(self) -> None:
         """Missing attr returns None even with a store."""
-        store = ProvisionalAttributeStore(attributes=[
-            CardAttribute(
-                name='counter-to-mana',
-                query="oracle:'test'",
-                trigger_event='counter-placed',
-                produced_event='lifegain',
-                provenance=Provenance(source='haiku'),
-            ),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                CardAttribute(
+                    name='counter-to-mana',
+                    query="oracle:'test'",
+                    trigger_event='counter-placed',
+                    produced_event='lifegain',
+                    provenance=Provenance(source='haiku'),
+                ),
+            ]
+        )
         assert _get_role_with_store('nonexistent', store) is None
 
     def test_machine_attr_injected_as_relay_node(self, assets) -> None:
         """A machine attr in nodes is injected as consumer+producer in edges."""
-        store = ProvisionalAttributeStore(attributes=[
-            CardAttribute(
-                name='counter-to-mana',
-                query="oracle:'number of counters on'",
-                trigger_event='counter-placed',
-                produced_event='lifegain',  # use existing event for test
-                provenance=Provenance(source='haiku'),
-            ),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                CardAttribute(
+                    name='counter-to-mana',
+                    query="oracle:'number of counters on'",
+                    trigger_event='counter-placed',
+                    produced_event='lifegain',  # use existing event for test
+                    provenance=Provenance(source='haiku'),
+                ),
+            ]
+        )
         # nodes containing the machine attr + some counter producers + lifegain consumer
         nodes = {'counter-to-mana', 'gives-pp-counters', 'lifegain-matters'}
         edges = build_relay_augmented_event_edges(nodes, assets.events, store=store)
         # counter-to-mana should consume counter-placed (from gives-pp-counters producer)
         # and produce lifegain (consumed by lifegain-matters)
-        counter_feed = [
-            (p, c, ev) for p, c, ev in edges
-            if c == 'counter-to-mana' and ev == 'counter-placed'
-        ]
+        counter_feed = [(p, c, ev) for p, c, ev in edges if c == 'counter-to-mana' and ev == 'counter-placed']
         assert len(counter_feed) >= 1, f'Expected counter-placed -> counter-to-mana; got {edges}'
-        mana_produce = [
-            (p, c, ev) for p, c, ev in edges
-            if p == 'counter-to-mana' and ev == 'lifegain'
-        ]
+        mana_produce = [(p, c, ev) for p, c, ev in edges if p == 'counter-to-mana' and ev == 'lifegain']
         assert len(mana_produce) >= 1, f'Expected counter-to-mana -> lifegain; got {edges}'
 
     def test_machine_attr_with_novel_event_skipped(self, assets) -> None:
         """A machine attr whose events are not in the catalog is safely skipped."""
-        store = ProvisionalAttributeStore(attributes=[
-            CardAttribute(
-                name='counter-to-mana',
-                query="oracle:'test'",
-                trigger_event='counter-placed',
-                produced_event='mana-from-counters',  # NOT in catalog
-                provenance=Provenance(source='haiku'),
-            ),
-        ])
+        store = ProvisionalAttributeStore(
+            attributes=[
+                CardAttribute(
+                    name='counter-to-mana',
+                    query="oracle:'test'",
+                    trigger_event='counter-placed',
+                    produced_event='mana-from-counters',  # NOT in catalog
+                    provenance=Provenance(source='haiku'),
+                ),
+            ]
+        )
         nodes = {'counter-to-mana', 'gives-pp-counters'}
         # Should not crash; the machine attr is skipped because its effect event
         # does not exist in the catalog.

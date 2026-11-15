@@ -16,7 +16,6 @@ from pathlib import Path
 import pytest
 
 from pipeline.transforms.strategy.fid_adapter import (
-    FidMapping,
     coverage_stats,
     fids_for_event,
     load_adapter,
@@ -27,27 +26,71 @@ _DATA_PATH = Path(__file__).resolve().parent.parent / 'data' / 'fid_event_adapte
 _CATALOG_PATH = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog_v4.json'
 
 # The 43 hand-audited win-fids (from the research validation).
-_WIN_FIDS = frozenset({
-    2, 76, 63, 50, 323, 182, 2123, 721, 1177, 1948, 430, 2274, 170, 1164,
-    13, 1, 258, 1206, 1227, 2415, 1601, 1599, 1157, 2621, 520, 26, 49, 889,
-    601, 995, 1953, 997, 9, 125, 124, 1529, 769, 144, 2318, 1176, 42, 621, 1183,
-})
+_WIN_FIDS = frozenset(
+    {
+        2,
+        76,
+        63,
+        50,
+        323,
+        182,
+        2123,
+        721,
+        1177,
+        1948,
+        430,
+        2274,
+        170,
+        1164,
+        13,
+        1,
+        258,
+        1206,
+        1227,
+        2415,
+        1601,
+        1599,
+        1157,
+        2621,
+        520,
+        26,
+        49,
+        889,
+        601,
+        995,
+        1953,
+        997,
+        9,
+        125,
+        124,
+        1529,
+        769,
+        144,
+        2318,
+        1176,
+        42,
+        621,
+        1183,
+    }
+)
 
 # The 10 vetoed false-positive fids (must NOT reach game-end).
 _VETOED_FP_FIDS = frozenset({304, 402, 1070, 232, 1422, 1694, 1196, 800, 658, 509})
 
 # Events that reach game-end through rule-edges (the terminal-reaching set).
-_TERMINAL_REACHING_EVENTS = frozenset({
-    'game-end',
-    'life-loss-drain',      # SBA 104.3b
-    'library-depleted',     # CR 104.3c
-    'monarch-or-extra-turn',  # policy cell: treated as WIN
-    # Combat events reach game-end via damage:
-    'combat-damage-dealt',
-    'creature-attacks',
-    'token-created',
-    'counter-placed',
-})
+_TERMINAL_REACHING_EVENTS = frozenset(
+    {
+        'game-end',
+        'life-loss-drain',  # SBA 104.3b
+        'library-depleted',  # CR 104.3c
+        'monarch-or-extra-turn',  # policy cell: treated as WIN
+        # Combat events reach game-end via damage:
+        'combat-damage-dealt',
+        'creature-attacks',
+        'token-created',
+        'counter-placed',
+    }
+)
 
 # Valid event slugs in the catalog (including new Phase 2B events).
 _CATALOG_EVENTS: frozenset[str] = frozenset()
@@ -68,6 +111,7 @@ def _load_catalog():
 # 1. Data shape and completeness
 # ────────────────────────────────────────────────────────────────────────────
 
+
 class TestAdapterShape:
     """The adapter file is well-formed and complete."""
 
@@ -86,17 +130,13 @@ class TestAdapterShape:
             assert m.magnitude in ('infinite', 'near-infinite', 'scaled', 'finite'), (
                 f'fid {fid}: bad magnitude {m.magnitude!r}'
             )
-            assert m.scope in ('table', 'target', 'self', 'unscoped'), (
-                f'fid {fid}: bad scope {m.scope!r}'
-            )
+            assert m.scope in ('table', 'target', 'self', 'unscoped'), f'fid {fid}: bad scope {m.scope!r}'
 
     def test_event_slugs_are_valid(self) -> None:
         """Every non-null event is either a catalog event or a state event."""
         for fid, m in load_adapter().items():
             if m.event is not None:
-                assert m.event in _CATALOG_EVENTS | _STATE_EVENTS, (
-                    f'fid {fid}: unknown event slug {m.event!r}'
-                )
+                assert m.event in _CATALOG_EVENTS | _STATE_EVENTS, f'fid {fid}: unknown event slug {m.event!r}'
 
     def test_coverage_stats(self) -> None:
         stats = coverage_stats()
@@ -109,6 +149,7 @@ class TestAdapterShape:
 # 2. Research classifier validation (43 win-fids + 10 vetoed FPs)
 # ────────────────────────────────────────────────────────────────────────────
 
+
 class TestResearchValidation:
     """The adapter reproduces the research classifier's audited verdicts."""
 
@@ -118,9 +159,7 @@ class TestResearchValidation:
         for fid in sorted(_WIN_FIDS):
             m = adapter.get(fid)
             assert m is not None, f'win-fid {fid} missing from adapter'
-            assert m.event in _TERMINAL_REACHING_EVENTS, (
-                f'win-fid {fid} ({m.name!r}) maps to non-terminal {m.event!r}'
-            )
+            assert m.event in _TERMINAL_REACHING_EVENTS, f'win-fid {fid} ({m.name!r}) maps to non-terminal {m.event!r}'
 
     def test_10_vetoed_fps_do_not_reach_game_end(self) -> None:
         """No vetoed FP fid maps directly to game-end."""
@@ -128,14 +167,13 @@ class TestResearchValidation:
         for fid in sorted(_VETOED_FP_FIDS):
             m = adapter.get(fid)
             assert m is not None, f'vetoed fid {fid} missing from adapter'
-            assert m.event != 'game-end', (
-                f'vetoed fid {fid} ({m.name!r}) leaks to game-end'
-            )
+            assert m.event != 'game-end', f'vetoed fid {fid} ({m.name!r}) leaks to game-end'
 
 
 # ────────────────────────────────────────────────────────────────────────────
 # 3. Owner flag dispositions
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestOwnerDispositions:
     """Owner-ruled flag dispositions are correctly encoded."""
@@ -175,9 +213,7 @@ class TestOwnerDispositions:
         adapter = load_adapter()
         scry_fids = [m for m in adapter.values() if 'scry' in m.name.lower() or 'surveil' in m.name.lower()]
         for m in scry_fids:
-            assert m.event != 'draw-a-card', (
-                f'fid {m.fid} ({m.name!r}) maps to draw-a-card — scry/surveil should not'
-            )
+            assert m.event != 'draw-a-card', f'fid {m.fid} ({m.name!r}) maps to draw-a-card — scry/surveil should not'
 
     def test_bounce_to_permanent_leaves(self) -> None:
         """Features classified as 'bounce' kind map to permanent-leaves-battlefield."""
@@ -213,9 +249,7 @@ class TestOwnerDispositions:
         """fid 1394 "Skip all your future turns" is non-terminal (§C.1 owner ruling)."""
         m = lookup(1394)
         assert m is not None
-        assert m.event is None or m.event != 'game-end', (
-            'fid 1394 must NOT be terminal — the walk derives terminality'
-        )
+        assert m.event is None or m.event != 'game-end', 'fid 1394 must NOT be terminal — the walk derives terminality'
         assert m.note is not None and 'no-more-turns' in m.note
 
     def test_saga_dice_dungeon_not_lumped(self) -> None:
@@ -225,7 +259,7 @@ class TestOwnerDispositions:
         saga/dice/dungeon split.  Features in other kinds (like etb-ltb) that happen
         to mention 'venture' or 'dungeon' in their name are classified by their own kind.
         """
-        adapter = load_adapter()
+        load_adapter()  # ensure adapter loads without error
         # The trigger-engine kind features (from research): actual fids, not illustrative.
         # fid 2551 "Infinite triggers of chapter abilities from nonlegendary Sagas" → counter-placed
         m2551 = lookup(2551)
@@ -250,6 +284,7 @@ class TestOwnerDispositions:
 # ────────────────────────────────────────────────────────────────────────────
 # 4. Object descriptor parsing
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestObjectDescriptor:
     """Object descriptors are parsed from feature names where applicable."""
@@ -286,6 +321,7 @@ class TestObjectDescriptor:
 # ────────────────────────────────────────────────────────────────────────────
 # 5. Accessor API
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestAccessorAPI:
     """The thin accessor API works correctly."""

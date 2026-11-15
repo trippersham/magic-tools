@@ -55,8 +55,7 @@ def test_pseudo_subtypes_never_win_tribe_vote():
     # register as a tribe (Clue would otherwise win on text votes)
     cards = [
         {'type_line': 'Artifact — Clue', 'oracle_text': 'investigate. Sacrifice this Clue: draw a card.'},
-        {'type_line': 'Creature — Human Soldier', 'oracle_text': 'When this enters, investigate.',
-         'role': 'commander'},
+        {'type_line': 'Creature — Human Soldier', 'oracle_text': 'When this enters, investigate.', 'role': 'commander'},
         {'type_line': 'Creature — Human Soldier', 'oracle_text': ''},
         {'type_line': 'Creature — Human Soldier', 'oracle_text': ''},
     ]

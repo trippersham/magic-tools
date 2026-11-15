@@ -33,8 +33,7 @@ def test_cedh_combo_decks_still_override(load_deck, combos):
     # so F4 does NOT block them.
     # Urza (#69 fix): with correct card data, artifact signals outweigh combo
     # and the primary strategy is 'artifacts' — the combo override does not fire.
-    for slug in ('gauntlet__kess-dissident-mage',
-                 'gauntlet__krrik-son-of-yawgmoth'):
+    for slug in ('gauntlet__kess-dissident-mage', 'gauntlet__krrik-son-of-yawgmoth'):
         rec = resolve(load_deck(slug), combos)
         assert rec['named_strategy'] == 'alt-wincon/combo', slug
         assert rec['combo_override_applied'] is True, slug

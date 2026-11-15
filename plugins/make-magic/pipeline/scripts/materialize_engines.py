@@ -31,6 +31,7 @@ Usage (from pipeline/):
     uv run python scripts/materialize_engines.py --gauntlet --model claude-sonnet-4-5
     uv run python scripts/materialize_engines.py --fixtures --dry-run   # extract+hash only
 """
+
 from __future__ import annotations
 
 import argparse
@@ -108,7 +109,7 @@ def materialize(
     for slug, deck, combos in deck_iter:
         try:
             roleb_input = build_synthesis_input(deck, combos, slug=slug)
-        except Exception as exc:  # noqa: BLE001 - driver must not die on one deck
+        except Exception as exc:
             print(f'  FAIL  {slug}: input extraction error: {exc}')
             traceback.print_exc()
             summary['failed'] += 1
@@ -132,13 +133,15 @@ def materialize(
 
         try:
             engine = synthesize_engine(
-                roleb_input, backend, card_names=deck_card_names(deck),
+                roleb_input,
+                backend,
+                card_names=deck_card_names(deck),
             )
         except SynthError as exc:
             print(f'  REJECT {slug}: {exc}')
             summary['rejected'] += 1
             continue
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f'  FAIL  {slug}: synthesis error: {exc}')
             summary['failed'] += 1
             continue
@@ -153,8 +156,7 @@ def materialize(
         engine_cache.persist(record, cache_dir)
         # Keep the in-memory cache current so a resumed loop sees the write.
         cache.records[slug] = record
-        print(f'  SYNTH {slug}: {engine.strategy} [{engine.confidence}] '
-              f'-> {len(engine.key_pieces)} key pieces')
+        print(f'  SYNTH {slug}: {engine.strategy} [{engine.confidence}] -> {len(engine.key_pieces)} key pieces')
         summary['synthesized'] += 1
         if outputs_jsonl is not None:
             out_lines.append(json.dumps({'slug': slug, 'engine': engine.as_dict()}, ensure_ascii=False))
@@ -190,8 +192,10 @@ def main() -> int:
         deck_iter = iter_fixture_decks(slugs)
         src_name = 'fixtures (17)'
 
-    print(f'Materializing engines from {src_name}'
-          f'{" [dry-run]" if args.dry_run else f" via claude -p --model {args.model}"}')
+    print(
+        f'Materializing engines from {src_name}'
+        f'{" [dry-run]" if args.dry_run else f" via claude -p --model {args.model}"}'
+    )
     print(f'Cache dir: {cache_dir or engine_cache._DEFAULT_STORE_DIR}\n')
 
     summary = materialize(
@@ -202,9 +206,9 @@ def main() -> int:
         outputs_jsonl=outputs_jsonl,
     )
 
-    print(f'\n{"="*60}')
+    print(f'\n{"=" * 60}')
     print(f'SUMMARY: {summary}')
-    print(f'{"="*60}')
+    print(f'{"=" * 60}')
     # Non-zero exit if any deck was rejected or failed (operator should look).
     return 1 if (summary['rejected'] or summary['failed']) else 0
 

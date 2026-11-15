@@ -1,0 +1,252 @@
+{
+  "slug": "resilience30__eternalmight_drc",
+  "deck_name": "EternalMight_DRC",
+  "commanders": [
+    {
+      "name": "Temmet, Naktamun's Will",
+      "oracle_text": "Vigilance, menace\nWhenever you attack, draw a card, then discard a card.\nWhenever you draw a card, Zombies you control get +1/+1 until end of turn."
+    }
+  ],
+  "elected": [
+    {
+      "event": "permanent-dies",
+      "hub": null,
+      "mass": 93.0,
+      "share": 0.161,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "card-enters-graveyard",
+      "hub": null,
+      "mass": 89.0,
+      "share": 0.154,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "draw-a-card",
+      "hub": null,
+      "mass": 80.0,
+      "share": 0.139,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "token-created",
+      "hub": "multiple-bodies",
+      "mass": 63.0,
+      "share": 0.109,
+      "anchor": "bipartite",
+      "recursive": true,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "tokens/go-wide"
+      ]
+    },
+    {
+      "event": "creature-attacks",
+      "hub": null,
+      "mass": 38.0,
+      "share": 0.066,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "combat/aggro"
+      ]
+    },
+    {
+      "event": "discard",
+      "hub": null,
+      "mass": 34.0,
+      "share": 0.059,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "discard/wheels",
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "creature-copied",
+      "hub": null,
+      "mass": 22.0,
+      "share": 0.038,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "tokens/go-wide"
+      ]
+    },
+    {
+      "event": "permanent-sacrificed",
+      "hub": null,
+      "mass": 21.0,
+      "share": 0.036,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "typal/tribal",
+      "weighted_quantity": 28.0,
+      "share": 0.583
+    },
+    {
+      "strategy": "graveyard/reanimator",
+      "weighted_quantity": 18.0,
+      "share": 0.375
+    },
+    {
+      "strategy": "tokens/go-wide",
+      "weighted_quantity": 16.0,
+      "share": 0.333
+    }
+  ],
+  "detected_combos": [],
+  "commander_loop": {
+    "commander": [
+      "Temmet, Naktamun's Will"
+    ],
+    "produces": [
+      "draw",
+      "discard-outlet",
+      "repeatable-draw",
+      "loot",
+      "repeatable-loot"
+    ],
+    "consumes": [
+      "attack-trigger",
+      "attacking-matters",
+      "draw-matters"
+    ],
+    "reaches_back_to": [
+      "draw-matters"
+    ],
+    "closes": true
+  },
+  "naming_resolution": {
+    "named_strategy": "typal/tribal",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "typal/tribal",
+    "confidence": "MED",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Accursed Duneyard",
+    "Adarkar Wastes",
+    "Angel of Sanctions",
+    "Arcane Sanctum",
+    "Arcane Signet",
+    "Archfiend of Ifnir",
+    "Ash Barrens",
+    "Binding Mummy",
+    "Bontu's Monument",
+    "Cast Out",
+    "Caves of Koilos",
+    "Cemetery Reaper",
+    "Champion of Wits",
+    "Command Tower",
+    "Commander's Sphere",
+    "Commence the Endgame",
+    "Corpse Augur",
+    "Corpse Knight",
+    "Crowded Crypt",
+    "Cryptbreaker",
+    "Damn",
+    "Desert of the Glorified",
+    "Desert of the Mindful",
+    "Desert of the True",
+    "Despark",
+    "Dimir Signet",
+    "Dread Summons",
+    "Dreadhorde Invasion",
+    "Drowned Catacomb",
+    "Dusk // Dawn",
+    "Eternal Skylord",
+    "Evolving Wilds",
+    "Exotic Orchard",
+    "Fetid Pools",
+    "Fleshbag Marauder",
+    "Forgotten Creation",
+    "Gate to the Afterlife",
+    "Gempalm Polluter",
+    "Glacial Fortress",
+    "Gleaming Overseer",
+    "God-Eternal Oketra",
+    "God-Pharaoh's Gift",
+    "Grave Titan",
+    "Gravecrawler",
+    "Hashaton, Scarab's Fist",
+    "Irrigated Farmland",
+    "Isolated Chapel",
+    "Lazotep Chancellor",
+    "Liliana, Death's Majesty",
+    "Lord of the Accursed",
+    "Lost Monarch of Ifnir",
+    "Maskwood Nexus",
+    "Midnight Reaper",
+    "Murderous Rider // Swift End",
+    "Never // Return",
+    "On Wings of Gold",
+    "Orzhov Basilica",
+    "Orzhov Signet",
+    "Path of Ancestry",
+    "Plague Belcher",
+    "Prairie Stream",
+    "Priest of the Crossing",
+    "Prophet of the Scarab",
+    "Pull from Tomorrow",
+    "Renewed Solidarity",
+    "Rhet-Tomb Mystic",
+    "Rot Hulk",
+    "Sol Ring",
+    "Sunken Hollow",
+    "Swords to Plowshares",
+    "Talisman of Dominance",
+    "Talisman of Hierarchy",
+    "Temmet, Naktamun's Will",
+    "Temple of Deceit",
+    "Temple of Silence",
+    "Terramorphic Expanse",
+    "The Scarab God",
+    "Timeless Dragon",
+    "Twisted Abomination",
+    "Undead Augur",
+    "Underground River",
+    "Unholy Grotto",
+    "Vizier of Many Faces",
+    "Wayward Servant",
+    "Wizened Mentor",
+    "Zombie Master"
+  ],
+  "n_nonland": 61,
+  "n_cards": 100
+}

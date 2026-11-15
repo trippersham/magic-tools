@@ -21,10 +21,10 @@ from pathlib import Path
 
 import pytest
 
-
 # ────────────────────────────────────────────────────────────────────────────
 # 1. CardAttribute import + construction (renamed from MachineAttribute)
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestCardAttributeRename:
     """CardAttribute is the canonical name (was MachineAttribute)."""
@@ -72,14 +72,13 @@ class TestCardAttributeRename:
         """MachineAttribute is NOT exported (clean rename, no alias)."""
         import pipeline.transforms.strategy.machine_vocab as mv
 
-        assert not hasattr(mv, 'MachineAttribute'), (
-            'MachineAttribute should not exist after rename -- no compat alias'
-        )
+        assert not hasattr(mv, 'MachineAttribute'), 'MachineAttribute should not exist after rename -- no compat alias'
 
 
 # ────────────────────────────────────────────────────────────────────────────
 # 2. ProvisionalAttributeStore import + construction (renamed from MachineStore)
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestProvisionalAttributeStoreRename:
     """ProvisionalAttributeStore is the canonical name (was MachineStore)."""
@@ -114,14 +113,13 @@ class TestProvisionalAttributeStoreRename:
         """MachineStore is NOT exported (clean rename, no alias)."""
         import pipeline.transforms.strategy.machine_vocab as mv
 
-        assert not hasattr(mv, 'MachineStore'), (
-            'MachineStore should not exist after rename -- no compat alias'
-        )
+        assert not hasattr(mv, 'MachineStore'), 'MachineStore should not exist after rename -- no compat alias'
 
 
 # ────────────────────────────────────────────────────────────────────────────
 # 3. Provenance source widen: 'spellbook' is valid
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestProvenanceSourceWiden:
     """Provenance.source accepts 'spellbook' in addition to 'curated'/'haiku'."""
@@ -173,6 +171,7 @@ class TestProvenanceSourceWiden:
 # ────────────────────────────────────────────────────────────────────────────
 # 4. Serialization round-trip with renamed types
 # ────────────────────────────────────────────────────────────────────────────
+
 
 class TestSerializationWithRenamedTypes:
     """persist -> load round-trip preserves all fields under the new names."""

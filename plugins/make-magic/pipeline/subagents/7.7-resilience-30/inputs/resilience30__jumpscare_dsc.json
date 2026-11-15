@@ -1,0 +1,243 @@
+{
+  "slug": "resilience30__jumpscare_dsc",
+  "deck_name": "JumpScare_DSC",
+  "commanders": [
+    {
+      "name": "Zimone, Mystery Unraveler",
+      "oracle_text": "Landfall — Whenever a land you control enters, manifest dread if this is the first time this ability has resolved this turn. Otherwise, you may turn a permanent you control face up. (To manifest dread, look at the top two cards of your library. Put one onto the battlefield face down as a 2/2 creature and the other into your graveyard. Turn it face up any time for its mana cost if it's a creature card.)"
+    }
+  ],
+  "elected": [
+    {
+      "event": "land-enters-battlefield",
+      "hub": null,
+      "mass": 76.0,
+      "share": 0.298,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "landfall",
+        "lands-matter"
+      ]
+    },
+    {
+      "event": "permanent-dies",
+      "hub": null,
+      "mass": 48.0,
+      "share": 0.188,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    },
+    {
+      "event": "card-enters-graveyard",
+      "hub": null,
+      "mass": 47.0,
+      "share": 0.184,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": true,
+      "thin": false,
+      "payoff_archetypes": [
+        "graveyard/reanimator"
+      ]
+    },
+    {
+      "event": "counter-placed",
+      "hub": null,
+      "mass": 20.0,
+      "share": 0.078,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "+1/+1 counters"
+      ]
+    },
+    {
+      "event": "combat-damage-dealt",
+      "hub": null,
+      "mass": 13.0,
+      "share": 0.051,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": []
+    },
+    {
+      "event": "permanent-sacrificed",
+      "hub": null,
+      "mass": 13.0,
+      "share": 0.051,
+      "anchor": "bipartite",
+      "recursive": false,
+      "commander_coupled": false,
+      "thin": false,
+      "payoff_archetypes": [
+        "aristocrats/sacrifice"
+      ]
+    }
+  ],
+  "archetype_identity": [
+    {
+      "strategy": "landfall",
+      "weighted_quantity": 23.0,
+      "share": 0.469
+    },
+    {
+      "strategy": "lands-matter",
+      "weighted_quantity": 23.0,
+      "share": 0.469
+    },
+    {
+      "strategy": "graveyard/reanimator",
+      "weighted_quantity": 18.0,
+      "share": 0.367
+    }
+  ],
+  "detected_combos": [
+    {
+      "variant_id": "575-1478-5971",
+      "label": "Infinite creature LTB",
+      "result": "Infinite creature LTB; Infinite creature sacrifice triggers; Infinite death triggers; Infinite green mana; Infinite landfall triggers; Put all basic lands from your library onto the battlefield tapped",
+      "requires": [
+        "Sakura-Tribe Elder",
+        "Yedora, Grave Gardener",
+        "Zimone, Mystery Unraveler"
+      ],
+      "n_pieces": 3,
+      "win": false,
+      "win_kind": "non-win"
+    },
+    {
+      "variant_id": "575-4991-5971",
+      "label": "Infinite creature LTB",
+      "result": "Infinite creature LTB; Infinite creature sacrifice triggers; Infinite death triggers; Infinite green mana; Infinite landfall triggers; Near-infinite creature ETB; Manifest your entire library",
+      "requires": [
+        "Whisperwood Elemental",
+        "Yedora, Grave Gardener",
+        "Zimone, Mystery Unraveler"
+      ],
+      "n_pieces": 3,
+      "win": false,
+      "win_kind": "non-win"
+    }
+  ],
+  "commander_loop": {
+    "commander": [
+      "Zimone, Mystery Unraveler"
+    ],
+    "produces": [
+      "mill",
+      "mill-self"
+    ],
+    "consumes": [
+      "landfall",
+      "lands-matter"
+    ],
+    "reaches_back_to": [],
+    "closes": false
+  },
+  "naming_resolution": {
+    "named_strategy": "landfall",
+    "combo_override_applied": false,
+    "combo_identity": null,
+    "pre_combo_name": "landfall",
+    "confidence": "LOW",
+    "combo_override_f4_blocked": false
+  },
+  "in_deck_cards": [
+    "Aesi, Tyrant of Gyre Strait",
+    "Aether Gale",
+    "Arcane Signet",
+    "Arixmethes, Slumbering Isle",
+    "Ash Barrens",
+    "Ashaya, Soul of the Wild",
+    "Augur of Autumn",
+    "Beanstalk Giant // Fertile Footsteps",
+    "Beast Within",
+    "Biomass Mutation",
+    "Body of Knowledge",
+    "Cackling Counterpart",
+    "Castle Vantress",
+    "Citanul Hierophants",
+    "Command Tower",
+    "Counterspell",
+    "Cultivate",
+    "Curator Beastie",
+    "Deathmist Raptor",
+    "Dig Through Time",
+    "Disorienting Choice",
+    "Drownyard Temple",
+    "Eureka Moment",
+    "Evolving Wilds",
+    "Experimental Lab // Staff Room",
+    "Explosive Vegetation",
+    "Ezuri's Predation",
+    "Flooded Grove",
+    "Giggling Skitterspike",
+    "Glitch Interpreter",
+    "Greater Tanuki",
+    "Growing Dread",
+    "Growth Spiral",
+    "Hinterland Harbor",
+    "Hydra Omnivore",
+    "Kefnet the Mindful",
+    "Kheru Spellsnatcher",
+    "Kianne, Corrupted Memory",
+    "Mosswort Bridge",
+    "Multani, Yavimaya's Avatar",
+    "Myriad Landscape",
+    "Overflowing Basin",
+    "Overgrown Zealot",
+    "Oversimplify",
+    "Overwhelming Stampede",
+    "Primordial Mist",
+    "Quandrix Campus",
+    "Rampant Growth",
+    "Rashmi, Eternities Crafter",
+    "Reality Shift",
+    "Reliquary Tower",
+    "Retreat to Coralhelm",
+    "Sakura-Tribe Elder",
+    "Sandwurm Convergence",
+    "Scroll of Fate",
+    "Scute Swarm",
+    "Shigeki, Jukai Visionary",
+    "Shriekwood Devourer",
+    "Simic Growth Chamber",
+    "Simic Signet",
+    "Skaab Ruinator",
+    "Sol Ring",
+    "Tangled Islet",
+    "Tatyova, Benthic Druid",
+    "Temple of Mystery",
+    "Temple of the False God",
+    "Temur War Shaman",
+    "Terramorphic Expanse",
+    "They Came from the Pipes",
+    "Thornwood Falls",
+    "Thunderfoot Baloth",
+    "Trail of Mystery",
+    "Trygon Predator",
+    "Vineglimmer Snarl",
+    "Whisperwood Elemental",
+    "Wilderness Reclamation",
+    "Worldspine Wurm",
+    "Yavimaya Coast",
+    "Yavimaya Elder",
+    "Yedora, Grave Gardener",
+    "Zimone's Hypothesis",
+    "Zimone, Mystery Unraveler"
+  ],
+  "n_nonland": 62,
+  "n_cards": 100
+}

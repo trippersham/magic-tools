@@ -111,7 +111,7 @@ class Provenance:
         curated or gate-passed. Default ``'verified'`` (safe conservative).
     """
 
-    source: str                          # 'haiku' | 'spellbook' | 'curated'
+    source: str  # 'haiku' | 'spellbook' | 'curated'
     model_id: str = ''
     authored_at: str = ''
     source_card_name: str = ''
@@ -121,7 +121,7 @@ class Provenance:
     scryfall_resolved_count: int = 0
     verified_at: str = ''
     breadth_warning: bool = False
-    lifecycle: str = 'verified'          # 'provisional' | 'verified'
+    lifecycle: str = 'verified'  # 'provisional' | 'verified'
 
     #: Extraction-logic version that produced this record (ADR 0021).
     #: ``0`` means "pre-versioning / unknown" (legacy record, always stale).
@@ -168,8 +168,7 @@ class CardAttribute:
     query: str
     trigger_event: str = ''
     produced_event: str = ''
-    provenance: Provenance = field(
-        default_factory=lambda: Provenance(source='haiku', lifecycle='provisional'))
+    provenance: Provenance = field(default_factory=lambda: Provenance(source='haiku', lifecycle='provisional'))
 
 
 @dataclass
@@ -205,10 +204,7 @@ class ProvisionalAttributeStore:
         oracle_id already has a persisted edge, a second deck containing that
         card reuses the stored edge with no haiku call.
         """
-        return any(
-            a.provenance.source_card_oracle_id == source_card_oracle_id
-            for a in self.attributes
-        )
+        return any(a.provenance.source_card_oracle_id == source_card_oracle_id for a in self.attributes)
 
     def has_fresh_edge_for_card(
         self,
@@ -229,10 +225,7 @@ class ProvisionalAttributeStore:
         always available), this method is the gate the Phase-A process-once
         driver uses to decide whether a card needs re-extraction/re-derivation.
         """
-        matching = [
-            a for a in self.attributes
-            if a.provenance.source_card_oracle_id == source_card_oracle_id
-        ]
+        matching = [a for a in self.attributes if a.provenance.source_card_oracle_id == source_card_oracle_id]
         if not matching:
             return False
         return all(
@@ -260,16 +253,10 @@ class ProvisionalAttributeStore:
         (which checks ``source_card_oracle_id``).  Combo edges have an empty
         ``source_card_oracle_id`` and are keyed by ``combo_variant_id``.
         """
-        matching = [
-            a for a in self.attributes
-            if a.provenance.combo_variant_id == combo_variant_id
-        ]
+        matching = [a for a in self.attributes if a.provenance.combo_variant_id == combo_variant_id]
         if not matching:
             return False
-        return all(
-            a.provenance.derivation_version >= derivation_version
-            for a in matching
-        )
+        return all(a.provenance.derivation_version >= derivation_version for a in matching)
 
     def edge_queries(self) -> list[tuple[str, str]]:
         """Return ``(name, query)`` pairs for all machine-authored edge attrs.
@@ -285,6 +272,7 @@ class ProvisionalAttributeStore:
 # ---------------------------------------------------------------------------
 # Serialization helpers (JSONL on-disk format)
 # ---------------------------------------------------------------------------
+
 
 def _attr_to_record(attr: CardAttribute) -> dict:
     """Flatten a CardAttribute + Provenance into a single JSON-serializable dict.
@@ -384,9 +372,7 @@ def load_store(store_dir: Path | str | None = None) -> ProvisionalAttributeStore
         try:
             rec = json.loads(stripped)
         except json.JSONDecodeError as exc:
-            raise ValueError(
-                f'{store_path}:{line_no}: invalid JSON: {exc}'
-            ) from exc
+            raise ValueError(f'{store_path}:{line_no}: invalid JSON: {exc}') from exc
         attrs.append(_record_to_attr(rec))
 
     return ProvisionalAttributeStore(attributes=attrs)
@@ -441,8 +427,7 @@ def persist(attr: CardAttribute, store_dir: Path | str | None = None) -> None:
     """
     if attr.provenance.source == 'curated':
         raise ValueError(
-            f'Cannot persist curated attribute {attr.name!r} to the machine '
-            f'store.  Curated attrs belong in vocab.py.'
+            f'Cannot persist curated attribute {attr.name!r} to the machine store.  Curated attrs belong in vocab.py.'
         )
 
     if store_dir is not None:
@@ -542,13 +527,15 @@ def persist_batch(
                 rec = json.loads(stripped)
             except json.JSONDecodeError:
                 continue
-            existing_keys.add((
-                rec.get('name', ''),
-                rec.get('trigger_event', ''),
-                rec.get('produced_event', ''),
-                rec.get('source_card_oracle_id', ''),
-                rec.get('combo_variant_id', ''),
-            ))
+            existing_keys.add(
+                (
+                    rec.get('name', ''),
+                    rec.get('trigger_event', ''),
+                    rec.get('produced_event', ''),
+                    rec.get('source_card_oracle_id', ''),
+                    rec.get('combo_variant_id', ''),
+                )
+            )
 
     # Compute new records, deduplicating against existing AND within the batch.
     new_lines: list[str] = []
@@ -580,6 +567,7 @@ def persist_batch(
 # ---------------------------------------------------------------------------
 # Compounding read path -- assembles curated + machine for the walk
 # ---------------------------------------------------------------------------
+
 
 def all_edge_queries(store: ProvisionalAttributeStore | None = None) -> list[tuple[str, str]]:
     """Assemble ``(name, query)`` pairs from curated edges + machine store.
