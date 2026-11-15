@@ -68,7 +68,7 @@ def _ctx(wq_top: float, wq_second: float) -> FactsContext:
         deck={},
         cards=cards,
         n_nonland=9,
-        assets=None,
+        assets=None,  # pyright: ignore[reportArgumentType]  # test does not exercise assets
         cfg=cfg,
         facts={},  # type: ignore[arg-type]
         strategies=strategies,

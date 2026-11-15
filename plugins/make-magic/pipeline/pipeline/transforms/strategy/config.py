@@ -20,6 +20,8 @@ displace a dense, dominant primary plan (see :mod:`.naming`).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 #: The v4 attribute groups the prototype folds into the bucket set at the
@@ -63,6 +65,12 @@ class StrategyConfig(BaseSettings):
     """
 
     model_config = SettingsConfigDict(frozen=True, env_prefix='MAKEMAGIC_STRATEGY_', extra='ignore')
+
+    if TYPE_CHECKING:
+        # pydantic generates __hash__ for frozen=True models at class-creation time;
+        # this stub makes the method visible to pyright (which otherwise sees
+        # BaseSettings.__hash__ as None).
+        def __hash__(self) -> int: ...
 
     # ---- bucket / group assembly (vocab-driven) ----------------------------
     enabled_groups: frozenset[str] = frozenset(ALL_GROUPS)

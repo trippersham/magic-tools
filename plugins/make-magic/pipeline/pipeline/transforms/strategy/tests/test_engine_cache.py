@@ -111,7 +111,9 @@ def test_persist_refresh_on_input_change(tmp_path):
     persist(make_record('s', 'd', _input(elected=[{'event': 'x'}]), changed_engine, model_id='m'), tmp_path)
     cache = load_cache(tmp_path)
     # last write wins
-    assert cache.get('s').engine.strategy == 'New'
+    rec = cache.get('s')
+    assert rec is not None
+    assert rec.engine.strategy == 'New'
 
 
 # ---------------------------------------------------------------------------

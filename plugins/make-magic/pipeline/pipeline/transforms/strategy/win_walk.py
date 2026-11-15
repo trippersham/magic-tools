@@ -451,7 +451,7 @@ def closure_walk(
     selfdep = have('self-deplete') or any(r.get('risk') == 'self-deplete' for r in routes)
 
     # All events (including non-intermediate) for the mechanisms lens
-    all_events: set[str] = {r.get('event') for r in routes if r.get('event')} - {None}
+    all_events: set[str] = {e for r in routes if isinstance((e := r.get('event')), str)}
 
     # Card edge hits from intermediate events
     hits = _card_edge_hits(events, selfdep, cards_norm, card_edges, routes)

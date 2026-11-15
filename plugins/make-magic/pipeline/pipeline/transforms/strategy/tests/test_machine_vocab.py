@@ -367,7 +367,9 @@ class TestCompoundingReadPath:
         store = load_store(store_dir)
         assert store.has_edge_for_card('queza-oracle-id')
         assert store.get('draw-to-drain') is not None
-        assert store.get('draw-to-drain').provenance.deck_context == 'deck-a-queza'
+        result = store.get('draw-to-drain')
+        assert result is not None
+        assert result.provenance.deck_context == 'deck-a-queza'
 
     def test_unknown_card_not_in_store(self, tmp_path: Path) -> None:
         store_dir = tmp_path / 'mv'
