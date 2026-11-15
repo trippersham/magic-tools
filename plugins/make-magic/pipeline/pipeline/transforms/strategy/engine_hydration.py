@@ -50,9 +50,18 @@ _CATALOG_PATH = Path(__file__).resolve().parent / 'data' / 'event_catalog_v4.jso
 
 @lru_cache(maxsize=1)
 def _load_events() -> dict[str, dict]:
-    """Load the ``events`` dict from the catalog (module-level cache)."""
+    """Load the ``events`` dict from the catalog (module-level cache).
+
+    Adjacency is DERIVED at load (ADR 0012/0022): the hand-enumerated
+    ``produced_by``/``triggers`` are replaced by the descendant-closure of each
+    side's owner-approved anchors via the one named rule
+    ``derive_event_adjacency`` — the same view ``assets.load_assets`` serves, so
+    the role-A hydration universes never drift from the election path.
+    """
+    from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
+
     with _CATALOG_PATH.open() as f:
-        return json.load(f)['events']
+        return derive_event_adjacency(json.load(f)['events'])
 
 
 def engine_relevant_otags() -> tuple[frozenset[str], frozenset[str]]:

@@ -107,9 +107,23 @@ evaluator (ADR 0002) already dispatches over its closed kind-set
 - Promiscuity thresholds are authored in `build_substantiveness()` as `Requirement`
   entries keyed by archetype name — the same mechanism all substantiveness uses (ADR 0002).
 
+## Amendment — 2026-11-14 ([0022], task 6.5): the otag→Event adjacency is a DERIVED view
+
+The `produced_by`/`triggers` lists are no longer authoritative as hand-enumerated catalog data:
+they are **derived at catalog load** from each event side's owner-approved mechanic-exclusive
+anchors (`anchor_derivation.ANCHOR_MAP` → `derive_event_adjacency`), applied in both
+`assets.load_assets` and `engine_hydration._load_events`. The event-node **field vocabulary is
+unchanged** (`{rule, produced_by, triggers, abbrev}` + `game-end` extras) — `test_event_ontology.py`
+still passes — and no `role`/`terminal` field is added; only the *source* of the two adjacency
+lists moves from frozen enumeration to the taxonomy-closure view. The enumerated lists remain in
+`event_catalog_v4.json` as the frozen seed (a strict subset of the derived output) but are
+overwritten at load. This is an output-moving re-baseline carried under [0022] / [0003].
+
 ## Related records
 
 - 0002 — Substantiveness: the evaluator through which promiscuity-scaled Requirements flow.
+- [0022](0022-concept-anchored-derived-adjacency.md) — the concept-anchored derivation that now
+  produces this taxonomy's `produced_by`/`triggers` lists (adjacency as a derived view).
 - 0003 — Byte-parity: the event catalog is a held file; this change is test-only (no
   catalog data change), so P0 SHAs are unchanged.
 - 0008 — Canonical normalization / CardAttribute: the mechanic-class clause routes

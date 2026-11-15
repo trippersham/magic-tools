@@ -163,6 +163,22 @@ read before the election from the deck alone, with no share/mass term at all (00
 Options not taken records the measured rejection of every mass/density/centrality
 alternative).
 
+## Amendment — 2026-11-14 (task 6.5): rank-don't-cut supersedes the 0.6 keep-ratio ([0022], #72)
+
+The **0.6·top-mass relative keep-cut** of Decision step 4 is **removed**. The `elected` walk
+now keeps **every** candidate-pool unit ranked by mass desc, with only the member-Jaccard<0.5
+near-duplicate dedup — there is no relative-mass threshold. The units reaching the walk are
+already substantive by construction (`node_admitted` + the level-3 `producer_anchor`
+event-admission above), so a relative-mass cut among them discarded earned secondary engines on a
+density-sensitive ratio (issue **#72** — e.g. Teysa's `token-created`, Elenda's `lifegain` falling
+below `0.6·top` when the top event's mass inflated). **Centrality RANKS, it does not CUT.** Only
+the single structural constant **0.5 Jaccard** remains; the **0.6 keep-ratio is retired** (read
+every "0.6 floor" in the Decision/Reasons above as removed). The engine election stays
+STRUCTURE-ONLY; the resulting corpus-wide shift (142 improvements, 0 genuine regressions, bounded
+set sizes max 10) is re-baselined under [0022] / [0003]. This landed coupled with the
+derived-adjacency flip (same re-baseline); the Test-line SHAs are superseded by the 0022 entry
+(engine `a7edab20…`, resolve `25f50a23…`, full-corpus `5ce447ef…`).
+
 ## Related records
 - 0002 — substantiveness gates archetype LABELS (level 2) and, as of 2026-11-14, EVENT
   election candidacy (level 3, `producer_anchor`) whose pool this election consumes.
@@ -174,3 +190,6 @@ alternative).
   the walk detects kill conditions; the Engine identifies the value structure).
 - 0017 — edge derivation; the commander-anchored unit is constructed from whatever
   edge exists and then competes on mass here, never auto-promoted.
+- [0022](0022-concept-anchored-derived-adjacency.md) — rank-don't-cut (keep every substantive
+  unit, drop the 0.6 keep-ratio, #72) + the derived adjacency this election now reads; the
+  2026-11-14 re-baseline that supersedes this record's SHAs.

@@ -341,15 +341,24 @@ class TestUnlockOnRoleAEdges:
 
 
 # ---------------------------------------------------------------------------
-# 6. P0 SHA unchanged (shadow OFF by default)
+# 6. P0 SHA re-baselined (derived adjacency authoritative — ADR 0022, task 6.5)
 # ---------------------------------------------------------------------------
 
 class TestP0SHAUnchanged:
-    """With shadow OFF (default), the P0 parity SHAs are unchanged."""
+    """The re-baselined parity SHAs (derived adjacency + rank-don't-cut now the
+    default path; the ``SHADOW_DERIVED_ADJACENCY`` flag is retired)."""
 
-    def test_shadow_flag_is_off(self) -> None:
-        from pipeline.transforms.strategy.anchor_derivation import SHADOW_DERIVED_ADJACENCY
-        assert SHADOW_DERIVED_ADJACENCY is False
+    def test_adjacency_is_derived_at_load(self) -> None:
+        # The flip is authoritative: the live catalog's event adjacency equals the
+        # derived closure-union, not the frozen enumerated lists (ADR 0022).
+        from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
+        from pipeline.transforms.strategy.assets import load_assets
+
+        events = load_assets().events
+        derived = derive_event_adjacency(events)
+        for ev in events:
+            assert sorted(events[ev]['produced_by']) == sorted(derived[ev]['produced_by'])
+            assert sorted(events[ev]['triggers']) == sorted(derived[ev]['triggers'])
 
     def test_engine_parity_sha_unchanged(self) -> None:
         from pipeline.transforms.strategy.tests.engine_parity_oracle import (
@@ -359,7 +368,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_engine_isolation_baselines()
         sha = composite_sha(baselines)
-        assert sha == '987f2660f04421720f5e0b3162a17d313fb309a476dad482554b8f376bdf181c', (
+        assert sha == 'a7edab20703291c8380340bb542c5a11e25a2e53fa3964eb89ffbce20f17e177', (
             f'Engine isolation SHA shifted: {sha}'
         )
 
@@ -371,7 +380,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == '85752bb9361e03e4fce0eeb11bf4a989d45cc4ec839840f7975877072a3f5a1c', (
+        assert sha == '25f50a23d19ac98e37131f80b7ebf5d9d4bc1dd9ef78099e6de9a8a482ca464a', (
             f'Resolve SHA shifted: {sha}'
         )
 

@@ -52,16 +52,16 @@ a mechanic-diluting ancestor, and the **output** never contains one — while th
 seeds themselves stay owner-approved DATA.  Listing an umbrella AS a seed is a
 map-authoring error caught by review, not by a structural classifier.
 
-Shadow view
------------
+Derived view — authoritative (task 6.5 flip, ADR 0022)
+------------------------------------------------------
 ``derive_event_adjacency(events)`` returns a new events dict where each event's
 ``produced_by``/``triggers`` lists are the sorted descendant-closure of that
 side's anchors.  The committed enumerated lists are a *subset* (no loss).  The
 exclusivity layer does NOT change this output (the curated seeds are already the
-mechanic frontier) — so the shadow election is byte-identical to the measured
-ramp-corrected hand map.  ``SHADOW_DERIVED_ADJACENCY`` (default ``False``)
-controls whether downstream consumers (relay, engine_hydration) use derived or
-enumerated lists.  The flip is task 6.5.
+mechanic frontier).  As of task 6.5 this derivation is applied **at catalog
+load** (``assets.load_assets`` and ``engine_hydration._load_events``) and is the
+single authoritative source for every downstream reader — the former
+``SHADOW_DERIVED_ADJACENCY`` flag is retired.
 
 One named rule (ADR 0001)
 -------------------------
@@ -77,13 +77,6 @@ from collections import deque
 from functools import cache, lru_cache
 from pathlib import Path
 from typing import Any, NamedTuple
-
-# ---------------------------------------------------------------------------
-# Shadow flag — default OFF.  The committed enumerated lists remain
-# authoritative.  Task 6.5 owns the flip.
-# ---------------------------------------------------------------------------
-
-SHADOW_DERIVED_ADJACENCY: bool = False
 
 # ---------------------------------------------------------------------------
 # 27-event anchor map — owner-approved DATA from the validated build-design.
@@ -1071,18 +1064,12 @@ def derive_event_adjacency(
 
 
 # ---------------------------------------------------------------------------
-# Public API for the shadow view
+# Authoritative at catalog load (task 6.5 flip — ADR 0022)
 # ---------------------------------------------------------------------------
-
-def active_events(events: dict[str, dict]) -> dict[str, dict]:
-    """Return events with either enumerated or derived adjacency.
-
-    When :data:`SHADOW_DERIVED_ADJACENCY` is ``False`` (the default), returns
-    *events* unchanged.  When ``True``, returns the derived adjacency.
-
-    Consumers (relay, engine_hydration) call this when they want the
-    shadow-aware events dict.
-    """
-    if not SHADOW_DERIVED_ADJACENCY:
-        return events
-    return derive_event_adjacency(events)
+#
+# The derived adjacency is now the DEFAULT, applied where the catalog is loaded
+# (``assets.load_assets`` and ``engine_hydration._load_events``) via
+# :func:`derive_event_adjacency`.  The former ``SHADOW_DERIVED_ADJACENCY`` flag
+# and its ``active_events`` gate are retired — there is no longer an enumerated
+# path to toggle; the hand-enumerated catalog lists are the frozen seed that the
+# derivation expands over the taxonomy.

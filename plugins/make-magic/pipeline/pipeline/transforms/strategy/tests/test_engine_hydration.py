@@ -84,8 +84,13 @@ class TestEngineRelevantOtags:
         assert 'lifegain' in effect
         assert 'draw' in effect
         assert 'tokens' in effect
-        assert 'ramp' in effect
         assert 'drain-life' in effect
+        # `ramp` is the cross-mechanic umbrella (admits mana-producer/ritual) and
+        # is DELIBERATELY NOT an effect otag under derived adjacency (ADR 0022):
+        # the mechanic-exclusive producer of a land-enter is `land-ramp`, not the
+        # generic `ramp` the enumerated catalog over-counted.
+        assert 'ramp' not in effect
+        assert 'land-ramp' in effect
 
     def test_some_otags_in_both(self) -> None:
         """Some otags (like ``sac``) can be both trigger and effect."""

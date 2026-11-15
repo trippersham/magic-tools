@@ -119,18 +119,6 @@ def _compute_answered_by(cards: list[dict], strategies: dict[str, dict]) -> dict
     return out
 
 
-# ---------------------------------------------------------------------------
-# Shadow flag — rank-don't-cut centrality (default OFF, #72 fix).
-# When True, the elected-set walk drops the 0.6·top_mass relative cut and
-# keeps ALL substantive units ranked by mass desc, with only the Jaccard<0.5
-# near-duplicate dedup.  Rationale: units are already substantive by
-# construction (node_admitted + event-admission), so a relative-mass cut
-# discards earned engines on a density-sensitive ratio.
-# ---------------------------------------------------------------------------
-
-SHADOW_RANK_DONT_CUT: bool = False
-
-
 def _isolate_engines(
     nodes: set[str],
     event_edges: list[tuple[str, str, str]],
@@ -161,9 +149,10 @@ def _isolate_engines(
     The ranked ``elected`` set (0..n strategies) is chosen by node-weighted
     event-neighborhood **mass** -- ``m(U) = Σ adens`` over a unit's producers ∪
     consumers (its ``weight``). Units are ordered by mass desc (recursive status
-    breaks an EXACT mass tie only); the elected set keeps every unit within the
-    0.6 keep-ratio of the top that is not a member-Jaccard-≥-0.5 near-duplicate
-    of a kept unit (ADR 0014). ``recursive`` / ``hub`` / ``commander_coupled`` /
+    breaks an EXACT mass tie only); the elected set keeps EVERY substantive unit
+    that is not a member-Jaccard-≥-0.5 near-duplicate of a kept unit — rank-don't-
+    cut, no relative-mass threshold (ADR 0022, superseding the 0.6 keep-ratio of
+    ADR 0014). ``recursive`` / ``hub`` / ``commander_coupled`` /
     ``share`` / ``anchor`` / ``thin`` are reported attributes, never election
     inputs. There is no distinguished single ``lead`` — consumers that need "the
     top candidate" read ``elected[0]`` locally.
@@ -270,29 +259,22 @@ def _isolate_engines(
     # diagnostics, chains, hubs and the loop probe are untouched.
     pool = [e for e in engines if event_admitted(e['event'], cmd_attrs, assets)]
 
-    # Engine SET (0..n): mass-sorted units with Jaccard<0.5 near-duplicate dedup.
-    #
-    # Default (SHADOW_RANK_DONT_CUT=False / ADR 0014): keep units while mass >=
-    # 0.6·top, with Jaccard<0.5 dedup.  The first unit below 0.6·m(top) ends the
-    # walk.  Minted constants 0.6 / 0.5.
-    #
-    # Rank-don't-cut (SHADOW_RANK_DONT_CUT=True / #72 fix): keep ALL units ranked
-    # by mass desc, with ONLY the Jaccard<0.5 dedup — drop the 0.6·top relative
-    # cut entirely.  Units are already substantive by construction (node_admitted +
-    # event-admission upstream), so a relative-mass cut among them discards earned
-    # engines on a density-sensitive ratio.  Centrality ranks, not cuts;
-    # substantiveness (upstream) already decided which units exist.
+    # Engine SET (0..n): RANK-DON'T-CUT (ADR 0022, #72).  Keep ALL substantive
+    # units ranked by mass desc, with ONLY the Jaccard<0.5 near-duplicate dedup —
+    # there is no relative-mass cut.  Units are already substantive by
+    # construction (node_admitted + producer-anchor event-admission upstream), so
+    # a relative-mass cut among them discarded earned engines on a density-
+    # sensitive ratio (the retired 0.6·top keep-ratio of ADR 0014).  Centrality
+    # RANKS, it does not CUT; substantiveness (upstream) already decided which
+    # units exist.
     #
     # recursive / commander_coupled / share / anchor / thin are REPORTED attributes
-    # only, never election inputs in either mode.
+    # only, never election inputs.
     elected: list[dict] = []
     if pool:
-        top_mass = pool[0]['weight']
         total_mass = sum(e['weight'] for e in pool) or 1e-6
         kept_members: list[set[str]] = []
         for e in pool:
-            if not SHADOW_RANK_DONT_CUT and e['weight'] < 0.6 * top_mass:
-                break
             mem = _members(e)
             if any(_jaccard(mem, km) >= 0.5 for km in kept_members):
                 continue
@@ -349,7 +331,7 @@ def _isolate_engines(
         'note': 'a-priori directed-graph engine isolation (per-event convergence + '
                 'relay hub + DAG-bounded chains + commander loop probe); the ranked '
                 '`elected` set comes from node-weighted event-neighborhood MASS '
-                '(0.6 keep-ratio + Jaccard-0.5 dedup, ADR 0014), not recursive-first; '
+                '(rank-don\'t-cut + Jaccard-0.5 dedup, ADR 0022), not recursive-first; '
                 'STRUCTURE-ONLY, never decides the label',
     }
 

@@ -172,10 +172,47 @@ re-baseline makes every *intended* change legible as such.
   over the 170-deck gauntlet, reproducing the step-2 research docs
   (`mana-produced-correct-wiring.md` §3/§4, `event-substantiveness-empirical.md` §5) exactly.
 
+- **2026-11-14 — derived-adjacency + rank-don't-cut flip (ADR 0022, task 6.5).** Two
+  coupled, output-moving changes made authoritative in one re-baseline:
+  **(1) adjacency is DERIVED at catalog load** — the hand-enumerated
+  `produced_by`/`triggers` lists are replaced by the descendant-closure of each event
+  side's owner-approved anchors via `anchor_derivation.derive_event_adjacency`, applied
+  in `assets.load_assets` and `engine_hydration._load_events` (the `SHADOW_DERIVED_ADJACENCY`
+  flag retired); **(2) rank-don't-cut** — `_isolate_engines` drops the 0.6·top-mass relative
+  keep-cut, keeping every substantive unit ranked by mass with only the Jaccard<0.5 dedup
+  (the `SHADOW_RANK_DONT_CUT` flag retired, #72 resolved).
+  Engine isolation `987f2660…` → `a7edab20…`; resolve composite `85752bb9…` → `25f50a23…`;
+  full-corpus `7e5190e8…` → `5ce447ef…` (reproduced from the live lake in two independent
+  fresh-process runs). All three regenerated in the same change
+  (`engine_isolation_baseline.json`, `vocab_parity_baseline.json`, `FULL_CORPUS_SHA`).
+  **0-genuine-regression proof (full 170-deck gauntlet vs `3ab4034`):** 147 decks change
+  election, classified — **142 improvements** (net engine gains), **5 baseline-ramp-corrections**
+  (land-enters-battlefield de-elected in non-landfall decks where the committed enumerated catalog
+  over-counted via the generic `ramp` umbrella — the flip's ramp exclusion corrects the committed
+  bug, not a regression), **23 neutral**, **0 Jaccard-dedup-only**, and **0 GENUINE regressions**
+  (no previously-correct election broken; every removal is ramp-correction). No election lost an
+  engine except the 5 ramp over-counts. Elected-set sizes bounded (mean 3.95, max **10** — Betor /
+  The Ur-Dragon, both legitimately multi-axis 5-color decks; clean tail 10:2 9:2 8:4). **1
+  `named_strategy` change** — Shiko, Paragon of the Way (`blink/flicker` → `alt-wincon/combo`):
+  the deck genuinely runs the Dualcaster Mage + Ghostly Flicker infinite combo (7 win-combos
+  detected identically on BOTH committed and flipped) with a non-dominant primary (identity share
+  0.364 < 0.50), the textbook combo-naming-override case (same accepted pattern as Ghave/Ozai in
+  the step-2 re-baseline above). The mechanism is a side effect of making adjacency authoritative at
+  load: the event-anchor attribute universe (`assets.event_anchors`) expands with the derived lists,
+  so every deck derives more event-anchor CardAttributes (corpus-wide node count +16 mean), which
+  deflated Shiko's density-rank `span` confidence signal MED→LOW and thus un-blocked the override.
+  Corpus confidence distribution is otherwise stable (MED 88→87, HIGH 41→40, LOW 40→42; 5 tier
+  shifts total, net-neutral). Anchor-map validator clean (0 violations); `ramp` correctly absent
+  from the effect-otag universe (`land-ramp` present). Suite green (545 passed). Measurement: the
+  real pipeline (`recalc_corpus` → `resolve` → `_isolate_engines` + `name_deck`) over the full
+  170 `.dck` gauntlet; full classified delta in
+  `research/flip-170-gauntlet-delta.md`.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`facts.py` is shared with this record).
 - 0005 — the tribe-catalog fix in the re-baseline above.
 - 0016 — the closure-mechanism win-walk that triggered an earlier re-baseline.
+- 0022 — the derived-adjacency + rank-don't-cut flip of the 2026-11-14 re-baseline above.
 - 0014 — the mass-election flip; its `lead` removal re-baselined in the 2026-11-14 entry.
 - 0020 — the event-substantiveness gate + corrected mana-wiring behind the 2026-11-14 re-baseline.

@@ -27,6 +27,7 @@ which points back here.
 | [0017](0017-edge-derivation-native-then-haiku.md) | Within-card edge derivation: native CardAttributes first, else haiku→machine-store; never code-side prose parsing. Two distinct haiku roles (A edge-author / B engine-namer) | Accepted | pending owner review | edge_roles.py, machine_vocab.py, relay.py |
 | [0020](0020-event-substantiveness-producer-anchor.md) | Event-substantiveness admission: the `producer_anchor` Requirement kind (ADR 0002 third level) gates a promiscuous event's election candidacy by COMMAND-ZONE production anchor (absolute, threshold-free), not density; corrected taxonomy-derived `mana-produced` wiring (`ramp` out of mass, anchor-only via `extra_refs`); hooked before the mass election | Accepted | pending owner review | substantiveness.py, facts.py, event_catalog_v4.json |
 | [0021](0021-pipeline-superstructure-card-strategy-engine.md) | **Superstructure capstone** — Card → Strategy → Engine as two phases (A: card-intrinsic process-once cache, `oracle_id`-keyed, haiku-once-ever; B: per-deck compute) and one ordering (**substantiveness → centrality/election → synthesis**; Strategy = the substantive sub-graph; Engine exists only at synthesis); composition map of every piece-ADR to its stage; names open coherence tasks B1 (unify split derivation) + B6 (election∥substantiveness → ordered) | Proposed | pending owner review | spans the package; owns the seams between 0001–0020 |
+| [0022](0022-concept-anchored-derived-adjacency.md) | Concept-anchored **derived adjacency** — the Maximal-mechanic-exclusive-anchor rule (enforced exclusivity validator; `ramp` auto-refused both sides) replaces the hand-enumerated otag→Event lists, DERIVED at catalog load; **rank-don't-cut** engine keep supersedes the ADR 0014 0.6 keep-ratio (#72 resolved); shadow flags retired; self-healing is the named direction | Accepted | 2026-11-14 flip; owner sees the delta at commit | anchor_derivation.py, assets.py, engine_hydration.py, facts.py, event_catalog_v4.json |
 
 *0005–0006 (tribe catalog, config universal-or-gone) were authored in the same change that
 implemented them, from observed post-change behavior.*
@@ -40,4 +41,7 @@ fold as part of Phase 2A scaffolding; 0012 was updated with the mechanic-class c
 0017 was authored ahead of the fold because a probe prototype violated its rule; it is closely
 related to 0008/0011/0014 and may be merged into 0008 at fold time. 0020 (event-substantiveness
 `producer_anchor`) was authored with the step-2 landing that implemented it, from the
-empirically-validated full-170 delta; it extends 0002 (third application site) and amends 0014.*
+empirically-validated full-170 delta; it extends 0002 (third application site) and amends 0014.
+0022 (concept-anchored derived adjacency + rank-don't-cut) was authored with the 2026-11-14 task-6.5
+flip that made it authoritative, from the full-170 gauntlet delta (0 genuine regressions); it
+supersedes the uncommitted `0018-DRAFT` and amends 0003/0012/0014. 0018–0019 remain unused.*

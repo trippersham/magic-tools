@@ -188,7 +188,14 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
                     buckets[b].append(s)
     buckets = {b: sl for b, sl in buckets.items() if sl or b not in new_bucket_names}
 
-    events = json.loads(EVENTS_FILE.read_text())['events']
+    # Adjacency is DERIVED at catalog load (ADR 0012/0022): the catalog's
+    # hand-enumerated ``produced_by``/``triggers`` are a frozen subset; the
+    # authoritative lists are the descendant-closure of each event side's
+    # owner-approved anchors (the taxonomy view), replaced in place here so every
+    # downstream reader (relay, facts, combo_edges, substantiveness) sees the
+    # derived view. One named rule: ``derive_event_adjacency`` (anchor_derivation).
+    from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
+    events = derive_event_adjacency(json.loads(EVENTS_FILE.read_text())['events'])
 
     support = frozenset(vocab['support_buckets'])
     density = vocab['ranking_only_density']

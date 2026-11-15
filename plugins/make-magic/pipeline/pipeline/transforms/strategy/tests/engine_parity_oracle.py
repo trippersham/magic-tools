@@ -107,7 +107,7 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 # The canonical full-corpus SHA, computed by ``full_corpus_sha()`` below.
 # Supersedes the ad-hoc ``88de96a7`` value recorded in ADR 0003 (which was
 # computed by an unrecoverable method and is NOT reproducible).
-FULL_CORPUS_SHA = '7e5190e8a390bf85b8158da0eeb92716191f956a1873c56534f3fb5dc07f868f'
+FULL_CORPUS_SHA = '5ce447ef25ac148f319512c288e83ac6c9aac5b4b3ee78c903da73530c24f343'
 
 
 def full_corpus_sha() -> str:

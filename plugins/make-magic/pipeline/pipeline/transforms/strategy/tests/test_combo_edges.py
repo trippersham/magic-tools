@@ -552,7 +552,7 @@ class TestWinWalkParity:
 
 class TestDefaultPathByteIdentity:
     """The committed empty store assembles to empty -> engine_report default is
-    byte-identical (the P0 engine SHA 987f2660 is held by the parity oracle)."""
+    byte-identical (the engine SHA a7edab20 is held by the parity oracle)."""
 
     def test_empty_store_assembly_is_noop(self) -> None:
         empty = ProvisionalAttributeStore()
@@ -697,8 +697,8 @@ class TestPopulateComboEdgesDriver:
         # P0 SHAs must not shift — they don't consult the store at all.
         engine_sha = composite_sha(compute_engine_isolation_baselines())
         resolve_sha = composite_sha(compute_resolve_baselines())
-        assert engine_sha == '987f2660f04421720f5e0b3162a17d313fb309a476dad482554b8f376bdf181c'
-        assert resolve_sha == '85752bb9361e03e4fce0eeb11bf4a989d45cc4ec839840f7975877072a3f5a1c'
+        assert engine_sha == 'a7edab20703291c8380340bb542c5a11e25a2e53fa3964eb89ffbce20f17e177'
+        assert resolve_sha == '25f50a23d19ac98e37131f80b7ebf5d9d4bc1dd9ef78099e6de9a8a482ca464a'
 
 
 class TestHasFreshEdgesForCombo:
