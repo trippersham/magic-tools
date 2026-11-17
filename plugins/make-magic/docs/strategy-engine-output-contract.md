@@ -7,7 +7,7 @@
 |---|---|
 | Status | **Production** (2026-11-15). Branch `feat/strategy-engine`, HEAD `8aad1c2`. |
 | Governing ADRs | [0021](adr/0021-pipeline-superstructure-card-strategy-engine.md) (superstructure), [0014](adr/0014-engine-mass-election.md) (election), [0002](adr/0002-substantiveness-generic-evaluator.md) / [0020](adr/0020-event-substantiveness-producer-anchor.md) (substantiveness), [0022](adr/0022-concept-anchored-derived-adjacency.md) (adjacency) |
-| P0 SHAs | engine `7a73aba9` · resolve `1e54293c` · full-corpus `07eb6673` |
+| P0 SHAs | engine `7a73aba9` · resolve `1e54293c` · full-corpus `188992d2` |
 
 ---
 
@@ -36,7 +36,7 @@ Tier 2 is a cached enrichment whose resolution depends on the `claude` CLI.
 
 - **Byte-deterministic.** Given the same deck input and the same engine-logic version, `compute_facts` and `resolve` produce byte-identical output. This is enforced by SHA-pinned P0 baselines (ADR 0003) that every CI run verifies.
 - **Pure Python, no network.** Tier 1 requires only the hydrated DuckDB lake (card data + otag data) and the curated strategy assets shipped with the package. No LLM, no API key, no ambient auth.
-- **P0 SHAs:** engine `7a73aba9`, resolve `1e54293c`, full-corpus `07eb6673`. These reproduce from the live lake via `engine_parity_oracle.full_corpus_sha()`. Any code change that moves a SHA is a proof-carrying re-baseline (ADR 0003).
+- **P0 SHAs:** engine `7a73aba9`, resolve `1e54293c`, full-corpus `188992d2`. These reproduce from the live lake via `engine_parity_oracle.full_corpus_sha()`. Any code change that moves a SHA is a proof-carrying re-baseline (ADR 0003).
 
 **Pipeline flow (Tier 1):**
 

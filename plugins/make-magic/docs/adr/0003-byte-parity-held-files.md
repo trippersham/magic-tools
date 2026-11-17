@@ -251,6 +251,32 @@ re-baseline makes every *intended* change legible as such.
   `producer_anchor`→`produced_by_commander`, [0020], is internal dispatch data — NOT emitted —
   so it did not move any SHA.)
 
+- **2026-11-17 — impulse cheat-into-play seed re-baseline (#74 decision 5).** The two
+  measured, mechanic-exclusive onto-battlefield seeds were wired into `SEED_MAP`
+  (`derive_card_events.py`): `creature-enters-battlefield.produced_by += sneak-from-library`
+  (closure adds `sneak-from-library`, `consult-onto-battlefield`, `impulse-onto-battlefield`)
+  and `artifact-enters.produced_by += sneak-artifact`. Full-corpus
+  `07eb6673512cc9a2…406149` → `188992d290aa98f3…708fae6`. Engine isolation **UNCHANGED**
+  (`7a73aba98b9fb877…095442`) and resolve composite **UNCHANGED** (`1e54293cd148f2fd…691a59a`)
+  — the 17 hermetic fixtures carry none of the touched cheat-into-play commanders, so only the
+  lake-backed full corpus moved; `FULL_CORPUS_SHA` regenerated in the same change
+  (`distill_parity_baseline.json` + `engine_isolation_baseline.json` byte-identical).
+  **Equivalence proof (live full-171 OFF/ON, in-process `SEED_MAP` injection + assets-cache
+  clear):** 166 election-identical (incl. shares); **5 decks touched, ALL genuine
+  cheat-into-play** — `casual__temur__ureni-of-the-unwritten` (correct LEAD flip
+  creature-attacks→creature-enters 0.28→0.32), `mid__naya__gishath-sun-s-avatar` +
+  `mid__gruul__zilortha` (creature-enters sub-lead 0.171→0.236), `cedh__bant__aang-at-the-crossroads`
+  (creature-enters rank 4→2, 0.144→0.194, additive + `token-created` surfaces, no eviction),
+  `owned__put-that-thang-down` (Nick Fury: `creature-enters-battlefield` **0.064 NEW**, was zero
+  graph events). **0 evictions, 0 `named_strategy` changes, 0 `archetype_identity` changes, 0
+  spurious leads** (the one lead change is the correct Ureni improvement). Two further gauntlet
+  decks (`casual__jund__henzie-toolbox-torre`, `mid__boros__winota-joiner-of-forces`) are
+  election-identical (identical `ranked_units` + shares) and shift only in non-election
+  structure (new producer otags become visible as nodes/community members) — benign, and part
+  of why the full-corpus blob SHA moves while the election SHAs do not. Full measurement:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-11-strategy-abstraction-consolidation/research/impulse-seed-scope.md`.
+  The seeds govern under [0020]/[0022]; the live delta reproduced the measurement exactly.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`strategy_graph.py` is shared with this record).

@@ -151,6 +151,32 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   count — flagged for the owner as a future confidence-tuning consideration.
 - **Seed discovery (event-candidate evaluation) is a direction, not built** — the flip derives from static seeds.
 
+## Later changes
+
+- **2026-11-17 — impulse cheat-into-play seeds wired (#74 decision 5; ADR 0003 re-baseline).**
+  Two measured, mechanic-exclusive onto-battlefield seeds were added to `SEED_MAP`
+  (`derive_card_events.py`): `creature-enters-battlefield.produced_by += sneak-from-library`
+  (maximal node on the from-library branch; closure adds `sneak-from-library`,
+  `consult-onto-battlefield`, `impulse-onto-battlefield` — `sneak-creature` already covers the
+  from-HAND creature slice) and `artifact-enters.produced_by += sneak-artifact` (artifact-specific
+  from-hand onto-bf). Both score **precision 1.000 vs the onto-battlefield reference, 0 off-mechanic
+  cards** — the clean "put a permanent onto the battlefield from outside the normal cast" family
+  under `cost-ignorer → sneak`/`sneak-from-library`. The rejected `impulse-*` subtree (parent
+  `card-advantage`, "put into HAND") is exile-and-CAST, off-mechanic (impulse-creature 0.296,
+  impulse-artifact-equipment/-vehicle 0.300/0.167) and was correctly excluded; `validate_seed_map()`
+  stays at 0 violations. **Live full-171 OFF/ON delta (reproduced the measurement exactly):** 166
+  election-identical; **5 decks touched, all genuine cheat-into-play** — Ureni (LEAD flip
+  creature-attacks→creature-enters 0.28→0.32, correct), Gishath + Zilortha (creature-enters
+  0.171→0.236), Aang (creature-enters rank 4→2, 0.144→0.194, + `token-created`, no eviction), Nick
+  Fury `owned__put-that-thang-down` (`creature-enters-battlefield` **0.064 NEW**, from zero graph
+  events to visible). **0 evictions, 0 `named_strategy` changes, 0 `archetype_identity` changes, 0
+  spurious leads.** SHAs: full-corpus `07eb6673512cc9a2…406149` → `188992d290aa98f3…708fae6`;
+  engine (`7a73aba9…`) + resolve (`1e54293c…`) **UNCHANGED** (no hermetic fixture carries a touched
+  commander). Full measurement:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-11-strategy-abstraction-consolidation/research/impulse-seed-scope.md`.
+  (Note: this is the interim manual seed; the scope doc's primary recommendation is the
+  concept-anchored self-healing fix that would *re-derive* exactly this family — WS3, not yet built.)
+
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
 - 0002 / 0020 — substantiveness + the `producer_anchor` gate this adjacency feeds; `ramp` stays anchor-side-only there, never in the adjacency.

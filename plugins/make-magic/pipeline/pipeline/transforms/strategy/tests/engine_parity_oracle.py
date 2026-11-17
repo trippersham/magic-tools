@@ -103,7 +103,13 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 # The canonical full-corpus SHA, computed by ``full_corpus_sha()`` below.
 # Supersedes the ad-hoc ``88de96a7`` value recorded in ADR 0003 (which was
 # computed by an unrecoverable method and is NOT reproducible).
-FULL_CORPUS_SHA = '07eb6673512cc9a22081ff6473584cf085200a6e8988bb81ff5341147e406149'
+# Re-baselined 2026-11-17 (#74 decision 5): wiring the impulse cheat-into-play
+# seeds (sneak-from-library/sneak-artifact) moved the full-corpus SHA
+# 07eb6673… -> 188992d2… (5-deck election delta, 0 regressions; proof in ADR
+# 0003 + 2026-11-11-strategy-abstraction-consolidation/research/impulse-seed-scope.md).
+# ENGINE (7a73aba9) + RESOLVE (1e54293c) were UNCHANGED — the 17 hermetic
+# fixtures carry none of the touched cheat-into-play commanders.
+FULL_CORPUS_SHA = '188992d290aa98f3731b6e2ffb8a43dfe25c5dbcde19fb1c8866625c7708fae6'
 
 
 def full_corpus_sha() -> str:

@@ -168,6 +168,13 @@ SEED_MAP: dict[str, dict[str, Any]] = {
                 'repeatable-creature-tokens',
                 'repeatable-token-generator',
                 'sneak-creature',
+                # impulse / cheat-into-play (#74 decision 5): maximal onto-bf node
+                # on the from-library branch; closure adds sneak-from-library,
+                # consult-onto-battlefield, impulse-onto-battlefield (precision
+                # 1.000 vs the onto-bf reference; sneak-creature already covers
+                # the from-HAND creature slice). Proof: ADR 0003 re-baseline +
+                # 2026-11-11-strategy-abstraction-consolidation/research/impulse-seed-scope.md.
+                'sneak-from-library',
                 'tokens',
             ],
             'grade': 'M',
@@ -612,6 +619,11 @@ SEED_MAP: dict[str, dict[str, Any]] = {
                 'artifacts',
                 'repeatable-artifact-tokens',
                 'repeatable-treasures',
+                # impulse / cheat-into-play (#74 decision 5): artifact-specific
+                # from-hand onto-bf, matching the catalog's artifact-specific
+                # design (precision 1.000 vs the onto-bf reference). Proof:
+                # ADR 0003 re-baseline + impulse-seed-scope.md.
+                'sneak-artifact',
             ],
             'grade': 'M',
         },

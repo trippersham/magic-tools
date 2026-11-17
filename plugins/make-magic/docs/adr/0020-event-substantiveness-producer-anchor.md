@@ -123,6 +123,16 @@ only the 4 anchored-and-unstarved decks elect it.
   emitted-key re-baseline, [0014] / [0003], and the SHA shift there is attributable entirely to the
   emitted-key renames + `named_strategy` removal, not this one). The gate's measure and semantics
   are unchanged.
+- **2026-11-17 — impulse cheat-into-play seeds (#74 decision 5; ADR 0003 re-baseline).** The
+  `produced_by` admission gate now sees two new onto-battlefield producer families on the
+  `creature-enters-battlefield` and `artifact-enters` events (`sneak-from-library` closure +
+  `sneak-artifact`, wired in `SEED_MAP` — see [0022]). The gate itself is **unchanged**; the new
+  producers simply clear it where a deck carries ≥3 (or commander-carried ≥2) of the family. Live
+  full-171 delta: **5 decks elected a cheat-into-play unit** (Ureni correct lead flip; Gishath,
+  Zilortha, Aang sub-lead rises; Nick Fury gains `creature-enters-battlefield` 0.064, NEW),
+  **0 evictions, 0 `named_strategy`/`archetype_identity` changes, 0 spurious leads.** Full-corpus
+  SHA `07eb6673…` → `188992d2…`; engine/resolve SHAs unchanged. Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-11-strategy-abstraction-consolidation/research/impulse-seed-scope.md`.
 
 ## Related records
 - 0002 — the generic substantiveness framework; `produced_by_commander` is its first level-3 kind.
