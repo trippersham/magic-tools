@@ -23,7 +23,7 @@ def derive_card_attributes(closure: set[str], assets: StrategyAssets) -> set[str
     ADR 0021 B1), so the two reads of a card's attributes never drift
     (ADR 0001 one-named-rule).  Synth attributes (card-field predicates) are
     NOT included here -- :func:`.strategy_graph.compute_facts` unions those separately
-    from the full card via :func:`.vocab.synth_attrs_for`.
+    from the full card via :func:`.distill_strategies.synth_attrs_for`.
     """
     # One matcher (ADR 0009): a CardAttribute -- bucket or payoff -- is carried iff
     # its compiled ``card_attributes`` query matches the card's otag closure. The

@@ -5,7 +5,7 @@
 | Status | Accepted. In force across the strategy package. |
 | Review | ratified by the owner on 2026-11-11. (Agent-authored; owner-ratified.) |
 | Test | Enforced today by review + ADR 0002's substantiveness tests (the code/data split has no archetype-name branches) + the query-pasteability guard in `query.py`. **Honest gap:** the fourth-clause duplication/governed-path check is not yet built (planned as the combo-design conformance check); until then, clause 4 is review-enforced. |
-| Code paths | Exemplars (the doctrine governs the whole package; precise governance lives in the specific records): [`vocab.py`](../../pipeline/pipeline/transforms/strategy/vocab.py) (queries as identity), [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py) (the code/data split), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py) (the query evaluator). |
+| Code paths | Exemplars (the doctrine governs the whole package; precise governance lives in the specific records): [`distill_strategies.py`](../../pipeline/pipeline/transforms/strategy/distill_strategies.py) (queries as identity), [`determine_strategy_substantiveness.py`](../../pipeline/pipeline/transforms/strategy/determine_strategy_substantiveness.py) (the code/data split), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py) (the query evaluator). |
 
 ## Context
 Three habits corrupt a classification engine over time: (1) mechanic knowledge
@@ -27,7 +27,7 @@ Plus the **fourth clause**: every deck-level rule has **exactly one named
 implementation**; an inline re-type of an existing rule is a defect of the same severity
 as a mechanic-name branch. Sub-rules: the **verb/noun** test (noun → query/row; verb over
 the deck → code) and **rule-of-two over a data concept's values**, not its call sites.
-`substantiveness.py` (ADR 0002) is the reference implementation of the whole doctrine.
+`determine_strategy_substantiveness.py` (ADR 0002) is the reference implementation of the whole doctrine.
 
 ## Reasons
 Verifiability follows the placement — a query is checkable on scryfall.com, a data row is

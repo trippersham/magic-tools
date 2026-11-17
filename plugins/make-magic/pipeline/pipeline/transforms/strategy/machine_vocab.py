@@ -5,12 +5,12 @@ CardAttributes + within-card edges + provenance, produced by the engine-
 identification pipeline's Tier-2 hydration pass and verified by the deterministic
 gate before persistence.  Sources include ``'haiku'`` (LLM-authored),
 ``'spellbook'`` (combo-database-derived), and ``'curated'`` (hand-authored,
-which live in :mod:`.vocab` but share the provenance enum).
+which live in :mod:`.distill_strategies` but share the provenance enum).
 
 Separation invariant
 --------------------
 Provisionally-authored vocab is **always distinguishable** from the curated base
-(:mod:`.vocab`). Curated-base tests pin and ignore this store (or pin a frozen
+(:mod:`.distill_strategies`). Curated-base tests pin and ignore this store (or pin a frozen
 snapshot), so accumulated hydration can never retroactively flake deterministic
 tests. The store is **freezable**: tests that assert engine output do so against
 a frozen store snapshot, never the live growing store.
@@ -40,7 +40,7 @@ of an identical key is a no-op.
 How tests ignore it
 -------------------
 Tests that pin curated-base parity import the curated vocab directly from
-:mod:`.vocab` and never consult this store. Engine-output tests that need
+:mod:`.distill_strategies` and never consult this store. Engine-output tests that need
 machine-authored vocab pin a **frozen snapshot** (a committed JSON fixture)
 loaded via :func:`load_frozen_snapshot`::
 
@@ -90,7 +90,7 @@ class Provenance:
     ------
     source
         ``'haiku'`` for LLM-authored, ``'spellbook'`` for combo-database-derived,
-        ``'curated'`` for hand-authored (curated items live in :mod:`.vocab`, not
+        ``'curated'`` for hand-authored (curated items live in :mod:`.distill_strategies`, not
         here, but the enum is shared).  Curated vs authored is always distinguishable.
     model_id
         The model that authored the item (e.g. ``'claude-3-5-haiku-20241022'``).
@@ -144,7 +144,7 @@ class CardAttribute:
     """A single machine-authored CardAttribute with event roles + provenance.
 
     The query is a Scryfall-pasteable deterministic predicate (same form as
-    curated synth attributes in :data:`.vocab.SYNTH_ALWAYS_ATTRIBUTES`).
+    curated synth attributes in :data:`.distill_strategies.SYNTH_ALWAYS_ATTRIBUTES`).
     ``trigger_event`` / ``produced_event`` are the within-card edge roles the P2
     relay-node derivation reads to inject the card as consumer(trigger) +
     producer(effect) into the event graph.
@@ -423,11 +423,12 @@ def persist(attr: CardAttribute, store_dir: Path | str | None = None) -> None:
     ------
     ValueError
         If the attribute has ``source='curated'`` (curated attrs belong in
-        :mod:`.vocab`, not the machine store).
+        :mod:`.distill_strategies`, not the machine store).
     """
     if attr.provenance.source == 'curated':
         raise ValueError(
-            f'Cannot persist curated attribute {attr.name!r} to the machine store.  Curated attrs belong in vocab.py.'
+            f'Cannot persist curated attribute {attr.name!r} to the machine store.  '
+            'Curated attrs belong in distill_strategies.py.'
         )
 
     if store_dir is not None:
@@ -507,7 +508,7 @@ def persist_batch(
         if attr.provenance.source == 'curated':
             raise ValueError(
                 f'Cannot persist curated attribute {attr.name!r} to the '
-                f'machine store.  Curated attrs belong in vocab.py.'
+                f'machine store.  Curated attrs belong in distill_strategies.py.'
             )
 
     if store_dir is not None:

@@ -153,7 +153,7 @@ def test_landfall_splits_from_lands_matter():
     import re
 
     from pipeline.transforms.strategy.assets import load_assets
-    from pipeline.transforms.strategy.vocab import ARCHETYPE_EDGES, BASE_IDENTITIES
+    from pipeline.transforms.strategy.distill_strategies import ARCHETYPE_EDGES, BASE_IDENTITIES
 
     a = load_assets()
     # landfall routes its exact family slugs to the landfall strategy ...

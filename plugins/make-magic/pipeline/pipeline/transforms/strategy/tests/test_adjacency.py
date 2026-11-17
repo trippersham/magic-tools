@@ -619,7 +619,7 @@ class TestDetermineEventGate:
     def test_mana_commander_admitted(self) -> None:
         """A commander with a mana-production attr admits mana-produced."""
         from pipeline.transforms.strategy.assets import load_assets
-        from pipeline.transforms.strategy.substantiveness import determine_event
+        from pipeline.transforms.strategy.determine_strategy_substantiveness import determine_event
 
         assets = load_assets()
         # A commander carrying 'mana-producer' (or 'ramp' via extra_refs)
@@ -632,7 +632,7 @@ class TestDetermineEventGate:
     def test_ramp_commander_admitted(self) -> None:
         """A commander carrying 'ramp' (via extra_refs) still seeds mana."""
         from pipeline.transforms.strategy.assets import load_assets
-        from pipeline.transforms.strategy.substantiveness import determine_event
+        from pipeline.transforms.strategy.determine_strategy_substantiveness import determine_event
 
         assets = load_assets()
         # 'ramp' is in extra_refs for mana-produced (seed-side-only).
@@ -644,7 +644,7 @@ class TestDetermineEventGate:
     def test_non_mana_commander_refused(self) -> None:
         """A commander with no mana-production attrs refuses mana-produced."""
         from pipeline.transforms.strategy.assets import load_assets
-        from pipeline.transforms.strategy.substantiveness import determine_event
+        from pipeline.transforms.strategy.determine_strategy_substantiveness import determine_event
 
         assets = load_assets()
         # A pure combat commander carries no mana-production ref.
@@ -656,7 +656,7 @@ class TestDetermineEventGate:
     def test_non_gated_event_always_admitted(self) -> None:
         """Events without a substantiveness bar are always admitted."""
         from pipeline.transforms.strategy.assets import load_assets
-        from pipeline.transforms.strategy.substantiveness import determine_event
+        from pipeline.transforms.strategy.determine_strategy_substantiveness import determine_event
 
         assets = load_assets()
         # creature-enters-battlefield has no EVENT_SUBSTANTIVENESS entry.

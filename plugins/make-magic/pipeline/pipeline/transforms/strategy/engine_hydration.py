@@ -105,8 +105,8 @@ def curated_edge_queries() -> list[tuple[str, str]]:
     these with any machine-store edge queries to form the ``authored_edges``
     argument to :func:`unauthored_cards`.
     """
+    from pipeline.transforms.strategy.distill_strategies import SYNTH_ALWAYS_ATTRIBUTES
     from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES
-    from pipeline.transforms.strategy.vocab import SYNTH_ALWAYS_ATTRIBUTES
 
     return [(n, q) for n, q in SYNTH_ALWAYS_ATTRIBUTES if n in CURATED_EDGE_ROLES]
 

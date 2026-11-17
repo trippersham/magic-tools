@@ -40,10 +40,10 @@ from pipeline.transforms.strategy.combo_win import (
 from pipeline.transforms.strategy.config import FACTS_ONLY_WHEN_DISABLED, StrategyConfig
 from pipeline.transforms.strategy.degree import compute_degree_axes, power_profile
 from pipeline.transforms.strategy.derive_card_attributes import derive_card_attributes
+from pipeline.transforms.strategy.determine_strategy_substantiveness import determine_event
+from pipeline.transforms.strategy.distill_strategies import synth_attrs_for
 from pipeline.transforms.strategy.query import CardView
-from pipeline.transforms.strategy.substantiveness import determine_event
 from pipeline.transforms.strategy.tribes import compute_tribes, creature_subtypes
-from pipeline.transforms.strategy.vocab import synth_attrs_for
 
 TYPAL = 'typal/tribal'
 
@@ -788,7 +788,7 @@ def compute_facts(
         mana_sinks_present=mana_sinks_present,
     )
 
-    from pipeline.transforms.strategy.substantiveness import requirement_for
+    from pipeline.transforms.strategy.determine_strategy_substantiveness import requirement_for
 
     # ARCHETYPE-grain election gate (ADR 0021 B6): the set of this deck's archetypes
     # that clear their substantiveness bar, via the ONE named determiner

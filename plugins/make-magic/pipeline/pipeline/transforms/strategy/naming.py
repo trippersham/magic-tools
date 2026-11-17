@@ -50,7 +50,7 @@ def name_deck(ctx: FactsContext) -> dict:
     facts_only = ctx.facts_only
     ramp_axis = ctx.ramp_axis
 
-    from pipeline.transforms.strategy.substantiveness import requirement_for
+    from pipeline.transforms.strategy.determine_strategy_substantiveness import requirement_for
 
     def eligible(arch: str, st: dict) -> bool:
         # Identity gating is DATA: the facts-only families are never named, and

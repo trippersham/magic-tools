@@ -93,9 +93,9 @@ def test_evasion_is_a_measure_only_degree_axis(load_deck, combos):
     # evasion is a universal combat MEANS (like ramp/draw): a degree axis surfaced
     # as a fact + over/under-served flag, inverted (precon creature-heavy > cEDH
     # combo-light), and NEVER a label — the naming layer does not consume it.
-    from pipeline.transforms.strategy import vocab
+    from pipeline.transforms.strategy import distill_strategies
 
-    assert 'evasion' not in set(vocab.ARCHETYPE_EDGES.values())  # not in the label space
+    assert 'evasion' not in set(distill_strategies.ARCHETYPE_EDGES.values())  # not in the label space
 
     baral = resolve(load_deck('gauntlet__baral-chief-of-compliance'), combos)  # control = evasion-light
     ev = baral['facts']['degree_axes']['evasion']

@@ -5,7 +5,7 @@
 | Status | Accepted. Observed from `data/event_catalog.json` as built; invariant test added. |
 | Review | pending owner review: agent-authored from observed catalog shape + design-3 section 3.1 / design-2 section 2. |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests/test_event_ontology.py -q` (8 assertions: no role/terminal on any event; polarity/scope reserved for game-end; field-vocabulary guard; required-field guard; baseline non-emptiness). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` — both P0 SHAs unchanged (test-only addition). |
-| Code paths | [`data/event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (the held event catalog), [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py) (promiscuity-scaled Requirements — ADR 0002), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (presence gate), [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (`_load_events`). |
+| Code paths | [`data/event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (the held event catalog), [`determine_strategy_substantiveness.py`](../../pipeline/pipeline/transforms/strategy/determine_strategy_substantiveness.py) (promiscuity-scaled Requirements — ADR 0002), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (presence gate), [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (`_load_events`). |
 
 ## Context
 
@@ -62,7 +62,7 @@ attribute system instead:
   in the catalog (`die-rolled`, `ventured`), or `None` if not yet cataloged. The
   mechanic-class ("dice", "dungeon") is a CardAttribute.
 - **Morph / manifest / disguise** → a CardAttribute synthesized from card keywords
-  (via `synth_attrs_for` in `vocab.py`). No event node — face-down entry is
+  (via `synth_attrs_for` in `distill_strategies.py`). No event node — face-down entry is
   covered by `creature-enters-battlefield`.
 
 This keeps the event catalog bounded (only game-rules-derived triggers) while
@@ -130,7 +130,7 @@ engine unit — has a well-defined home in one of these layers.
 Two node colors:
 
 - **Attribute** nodes (otag slugs / synthesised CardAttributes — the vocabulary of
-  `vocab.py` + `synth_attrs_for`).
+  `distill_strategies.py` + `synth_attrs_for`).
 - **Event** nodes (the 27 slugs in `data/event_catalog.json`).
 
 Two directed edge types, both drawn from the event catalog's adjacency lists

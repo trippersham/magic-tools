@@ -1,11 +1,11 @@
 """Sidecar role registry for curated within-card EventEffect attributes (P1).
 
-The 6 curated edge attrs registered in :data:`.vocab.SYNTH_ALWAYS_ATTRIBUTES`
+The 6 curated edge attrs registered in :data:`.distill_strategies.SYNTH_ALWAYS_ATTRIBUTES`
 (``draw-to-drain``, ``draw-to-gain``, ``gain-to-drain``, ``drain-to-gain``,
 ``gain-to-draw``, ``drain-to-draw``) are bare ``(name, query)`` tuples with no
 metadata slot for event roles. This module is the **sidecar** that attaches
 ``trigger_event`` / ``produced_event`` roles and ``source='curated'`` provenance
-WITHOUT disturbing the held tuples in ``vocab.py``.
+WITHOUT disturbing the held tuples in ``distill_strategies.py``.
 
 Why a sidecar (not editing the tuples)
 --------------------------------------

@@ -5,7 +5,7 @@
 | Status | Accepted. Built in the consolidation. |
 | Review | pending owner review: agent-authored; records the collapse as built. |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (the 3 deconf-capability tests were removed with the capability). Output-preservation proven: the hermetic parity oracle (both P0 SHAs unchanged) **and** the full-corpus recalc (`recalc_corpus()`, 170 decks, SHA `8b0125eeb2e1…3554` unchanged pre/post). |
-| Code paths | [`config.py`](../../pipeline/pipeline/transforms/strategy/config.py) (the knob set); [`vocab.py`](../../pipeline/pipeline/transforms/strategy/vocab.py), [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py), [`data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json) (the `new_buckets` collapse) |
+| Code paths | [`config.py`](../../pipeline/pipeline/transforms/strategy/config.py) (the knob set); [`distill_strategies.py`](../../pipeline/pipeline/transforms/strategy/distill_strategies.py), [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py), [`data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json) (the `new_buckets` collapse) |
 
 ## Context
 `StrategyConfig` carried boolean knobs defaulting to the validated prototype's
@@ -18,7 +18,7 @@ gating an un-run branch.
 A boolean knob is a *frozen branch*, not a choice (ADR 0001 §3a). Each is removed
 and its branch inlined to the validated default:
 - `edhrec_labels` → EDHREC identities/synths **always on** (threading removed from
-  held `vocab.py`'s build pipeline + `assets.py`/`strategy_graph.py`/`substantiveness.py`);
+  held `distill_strategies.py`'s build pipeline + `assets.py`/`strategy_graph.py`/`determine_strategy_substantiveness.py`);
 - `combo_override`, `combo_mana_sink`, `ramp_label` → **always on**;
 - `ench_label` → `enchantments` is **always** facts-only (not a naming candidate);
 - the `deconf_anthem` group + the `anthem-deconf` attribute/distillation → **removed**, so
@@ -27,7 +27,7 @@ and its branch inlined to the validated default:
 - the `new_buckets` group → **always on** (the off-path was never selected in
   production, tests, or CLI — a dead `enabled_groups` toggle): its new-bucket
   identities (`food`/`mm-counters`/`theft-newbuckets`) are unconditional in
-  `vocab.py` (the `newbuckets`/`arch_newbuckets` plumbing on `build_router`/
+  `distill_strategies.py` (the `newbuckets`/`arch_newbuckets` plumbing on `build_router`/
   `StrategyAssets` is removed), its bucket slugs are folded into `_v4_base_buckets`
   in `attribute_catalog.json` (removed from `_v4_groups`), and it is dropped from
   `ALL_GROUPS`/`REFINED_GROUPS`.
@@ -58,7 +58,7 @@ other clauses police. The value/branch test (ADR 0001) is the discriminator.
   SHAs (engine `7a73aba9…`, resolve `1e54293c…`) and the current full-corpus SHA
   `07eb6673…` are unchanged pre/post.
 - 3 deconf-capability tests removed (`test_j2_anthem_deconf` trimmed to the narrow
-  state; the `test_vocab_separation` deconf-gating test deleted).
+  state; the `test_distill_separation` deconf-gating test deleted).
 - All strategy boolean knobs are now removed (incl. `enable_tutor_land_enabler`, via the
   F2 rework); only tunable thresholds remain in `StrategyConfig`.
 
@@ -78,5 +78,5 @@ pre/post. `test_config_settings` drops its `enabled_groups` assertions; no behav
 
 ## Related records
 - 0001 — the value/branch test this applies.
-- 0003 — held files (`vocab.py`, `strategy_graph.py`); this change is output-preserving.
+- 0003 — held files (`distill_strategies.py`, `strategy_graph.py`); this change is output-preserving.
 - 0009 — the CardAttribute-model unification that bakes the group slugs into the query map.

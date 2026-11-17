@@ -5,7 +5,7 @@
 | Status | Accepted. In force on branch `feat/strategy-engine`. |
 | Review | ratified by the owner on 2026-11-11. (Agent-authored; owner-ratified.) |
 | Test | From `plugins/make-magic/pipeline`: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` records a composite SHA over the serialized `elect_engine_units` output plus the full `resolve()` records for the 17 hermetic fixture decks; a parity test imports `composite_sha` to assert no drift. The full 170-deck curated-corpus SHA is now **independently checkable** via `full_corpus_sha()` in `engine_parity_oracle.py` (canonical serialization: `json.dumps(records, sort_keys=True, separators=(',',':'), default=list)` → SHA-256; pinned as `FULL_CORPUS_SHA`). A lake-gated test in `test_resolution_fidelity.py::TestFullCorpusCanonicalSha` asserts the value. |
-| Code paths | [`pipeline/.../strategy/data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py), [`vocab.py`](../../pipeline/pipeline/transforms/strategy/vocab.py), [`win_walk.py`](../../pipeline/pipeline/transforms/strategy/win_walk.py), [`data/card_edges.json`](../../pipeline/pipeline/transforms/strategy/data/card_edges.json), [`combo.py`](../../pipeline/pipeline/transforms/strategy/combo.py), [`tests/fixtures/vocab_parity_baseline.json`](../../pipeline/pipeline/transforms/strategy/tests/fixtures/vocab_parity_baseline.json) |
+| Code paths | [`pipeline/.../strategy/data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py), [`distill_strategies.py`](../../pipeline/pipeline/transforms/strategy/distill_strategies.py), [`win_walk.py`](../../pipeline/pipeline/transforms/strategy/win_walk.py), [`data/card_edges.json`](../../pipeline/pipeline/transforms/strategy/data/card_edges.json), [`combo.py`](../../pipeline/pipeline/transforms/strategy/combo.py), [`tests/fixtures/distill_parity_baseline.json`](../../pipeline/pipeline/transforms/strategy/tests/fixtures/distill_parity_baseline.json) |
 
 ## Context
 The higher-order engine-identification work (machine-authored attributes, within-card
@@ -16,11 +16,11 @@ regression in the curated base could never hide inside the new layer.
 
 ## Decision
 Six curated files are **byte-frozen** on `feat/strategy-engine`: `attribute_catalog.json`,
-`event_catalog.json`, `strategy_graph.py`, `query.py`, `vocab.py`, and the parity fixture
-`vocab_parity_baseline.json`. The oracle (`tests/engine_parity_oracle.py`) records a
+`event_catalog.json`, `strategy_graph.py`, `query.py`, `distill_strategies.py`, and the parity fixture
+`distill_parity_baseline.json`. The oracle (`tests/engine_parity_oracle.py`) records a
 composite SHA over `elect_engine_units` + `resolve()` for the 17 hermetic fixture decks;
 the current baselines live in `engine_isolation_baseline.json` and
-`vocab_parity_baseline.json` and are **not restated here** (they change on every
+`distill_parity_baseline.json` and are **not restated here** (they change on every
 re-baseline). A change to any held file is permitted **only** as a deliberate
 re-baseline that (a) carries a behavioral-equivalence proof for every output that
 shifts and (b) regenerates the baselines in the same change. A silent byte change is a
@@ -39,7 +39,7 @@ re-baseline makes every *intended* change legible as such.
   improves these files; the discipline is *proof-carrying change*, not immutability.
 
 ## Consequences
-- The consolidation re-baselines `strategy_graph.py` / `vocab.py` / the catalog (one change) and
+- The consolidation re-baselines `strategy_graph.py` / `distill_strategies.py` / the catalog (one change) and
   `query.py` (a separate change), each with equivalence proofs (e.g. 613=613). Those are
   the sanctioned re-baselines this record governs.
 - The hermetic oracle is 17 decks; the full-corpus parity (170 decks) needs lake access.
@@ -71,7 +71,7 @@ re-baseline makes every *intended* change legible as such.
   corrupt-data misclassification → correct-data classification); **0** decks lost
   cmd_attrs or tags. 19 unique gauntlet commanders previously resolving to tagless
   art-series oracle_ids now resolve correctly (Baral 20 tags, Yawgmoth 36, Urza 26,
-  …). Fixture decks regenerated from the fixed Lake; `vocab_parity_baseline.json`
+  …). Fixture decks regenerated from the fixed Lake; `distill_parity_baseline.json`
   and `engine_isolation_baseline.json` updated in the same change.
 
 - **2026-11-13 — #68 DFC data fix (re-ingest).** The #68 code fix
@@ -117,7 +117,7 @@ re-baseline makes every *intended* change legible as such.
   **Parity-gate proof:** 253 walk promotions (new wins the regex missed), 5
   regex false-positive drops, 25 decks flipping from zero win-combos, 0 WRONG —
   exact match to the validated 5b-i shadow delta (blind-recall 100% adjusted).
-  `vocab_parity_baseline.json`, `engine_isolation_baseline.json`, and
+  `distill_parity_baseline.json`, `engine_isolation_baseline.json`, and
   `FULL_CORPUS_SHA` updated in the same change.
 
 - **2026-11-13 — mass-election flip (ADR 0014, "2C flip").** Node-weighted
@@ -137,7 +137,7 @@ re-baseline makes every *intended* change legible as such.
   reads the election). Mass-monotonicity verified: no lead dropped to None, no
   lower-mass unit displaced a higher-mass one. E3 fixes reproduced (Karador→gy,
   Aesi→lands, Kykar/Prosper→tokens, Urza None→artifact-enters m=47, Muldrotha
-  unchanged). `vocab_parity_baseline.json`, `engine_isolation_baseline.json`, and
+  unchanged). `distill_parity_baseline.json`, `engine_isolation_baseline.json`, and
   `FULL_CORPUS_SHA` updated in the same change. Anchor-mode distribution is
   all-bipartite (mode 1) at this step; terminal-producer (mode 2) and
   exogenous-environmental (mode 3) anchors populate once producer-only / consumer-only
@@ -167,7 +167,7 @@ re-baseline makes every *intended* change legible as such.
   reported unit shifts bytes), and the one election change — `owned__ozai` gains
   `mana-produced` — is a correct `producer_anchor` admit (its commander carries
   `adds-multiple-mana` + `mana-producer` + `ramp`; identical mechanism to Selvala/Marwyn).
-  `vocab_parity_baseline.json`, `engine_isolation_baseline.json`, and `FULL_CORPUS_SHA`
+  `distill_parity_baseline.json`, `engine_isolation_baseline.json`, and `FULL_CORPUS_SHA`
   updated in the same change. Measurement: the real pipeline (`compute_facts` + `name_deck`)
   over the 170-deck gauntlet, reproducing the step-2 research docs
   (`mana-produced-correct-wiring.md` §3/§4, `event-substantiveness-empirical.md` §5) exactly.
@@ -184,7 +184,7 @@ re-baseline makes every *intended* change legible as such.
   Engine isolation `987f2660…` → `a7edab20…`; resolve composite `85752bb9…` → `25f50a23…`;
   full-corpus `7e5190e8…` → `5ce447ef…` (reproduced from the live lake in two independent
   fresh-process runs). All three regenerated in the same change
-  (`engine_isolation_baseline.json`, `vocab_parity_baseline.json`, `FULL_CORPUS_SHA`).
+  (`engine_isolation_baseline.json`, `distill_parity_baseline.json`, `FULL_CORPUS_SHA`).
   **0-genuine-regression proof (full 170-deck gauntlet vs `3ab4034`):** 147 decks change
   election, classified — **142 improvements** (net engine gains), **5 baseline-ramp-corrections**
   (land-enters-battlefield de-elected in non-landfall decks where the committed enumerated catalog
@@ -219,7 +219,7 @@ re-baseline makes every *intended* change legible as such.
   reshaped from a boolean `gy_demoted` to a list. The generic set correctly reports 6
   demoted archetypes corpus-wide (graveyard x52 + mill/theft/enchantress/vehicles/
   -1-1-counters x1 each) where the old hardcoded code tracked only graveyard — a latent
-  incompleteness, now correct. `vocab_parity_baseline.json`, `engine_isolation_baseline.json`,
+  incompleteness, now correct. `distill_parity_baseline.json`, `engine_isolation_baseline.json`,
   and `FULL_CORPUS_SHA` updated in the same change.
 
 - **2026-11-16 — emitted-key naming-clarity re-baseline (pure key renames + one field
@@ -229,7 +229,7 @@ re-baseline makes every *intended* change legible as such.
   resolve composite `5c4f9c05…` → `1e54293cd148f2fd…691a59a`; full-corpus `c0d979ea…` →
   `07eb6673512cc9a2…406149` (reproduced from the live lake via `full_corpus_sha()`). All
   three baselines regenerated in the same change (`engine_isolation_baseline.json`,
-  `vocab_parity_baseline.json`, `FULL_CORPUS_SHA`).
+  `distill_parity_baseline.json`, `FULL_CORPUS_SHA`).
   **Renames** (pure key substitutions, values byte-identical): engine-unit `weight`→`mass`,
   `hub`→`interior_node` (in both `engine_units['engines']` and `engine_units['ranked_units']`);
   ranked-unit `anchor`→`formation_mode`, `thin`→`marginal`; `engine_units['elected']`→

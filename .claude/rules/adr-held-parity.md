@@ -4,8 +4,8 @@ paths:
   - "**/pipeline/transforms/strategy/data/event_catalog.json"
   - "**/pipeline/transforms/strategy/strategy_graph.py"
   - "**/pipeline/transforms/strategy/query.py"
-  - "**/pipeline/transforms/strategy/vocab.py"
-  - "**/pipeline/transforms/strategy/tests/fixtures/vocab_parity_baseline.json"
+  - "**/pipeline/transforms/strategy/distill_strategies.py"
+  - "**/pipeline/transforms/strategy/tests/fixtures/distill_parity_baseline.json"
 ---
 
 # Byte-parity held files

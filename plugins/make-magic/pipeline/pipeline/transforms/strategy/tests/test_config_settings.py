@@ -18,7 +18,7 @@ import pytest
 
 from pipeline.transforms.strategy.assets import load_assets
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG, StrategyConfig
-from pipeline.transforms.strategy.substantiveness import build_substantiveness
+from pipeline.transforms.strategy.determine_strategy_substantiveness import build_substantiveness
 
 #: The validated engine's default field values (the byte-parity contract).
 _EXPECTED_DEFAULTS = {

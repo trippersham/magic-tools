@@ -76,7 +76,7 @@ def compute_engine_isolation_baselines() -> dict[str, str]:
 def compute_resolve_baselines() -> dict[str, str]:
     """Per-deck SHA of the full ``resolve()`` record.
 
-    This is the (b) oracle: matches the existing ``vocab_parity_baseline.json``
+    This is the (b) oracle: matches the existing ``distill_parity_baseline.json``
     format and can cross-check against it.
     """
     combos = _load_combos()
@@ -149,14 +149,14 @@ def main() -> None:
     resolve_composite = composite_sha(resolve_baselines)
     print(f'\n  COMPOSITE resolve SHA: {resolve_composite}')
 
-    # Cross-check against committed vocab_parity_baseline
-    committed_path = FIX / 'vocab_parity_baseline.json'
+    # Cross-check against committed distill_parity_baseline
+    committed_path = FIX / 'distill_parity_baseline.json'
     committed = json.loads(committed_path.read_text())
     mismatches = {s for s in resolve_baselines if resolve_baselines[s] != committed.get(s)}
     if mismatches:
         print(f'\n  WARNING: resolve SHAs diverge from committed baseline for: {sorted(mismatches)}')
     else:
-        print('\n  OK: resolve SHAs match committed vocab_parity_baseline.json')
+        print('\n  OK: resolve SHAs match committed distill_parity_baseline.json')
 
     # Write engine isolation baseline
     ENGINE_ISOLATION_BASELINE_FILE.write_text(json.dumps(engine_baselines, indent=2, sort_keys=True) + '\n')

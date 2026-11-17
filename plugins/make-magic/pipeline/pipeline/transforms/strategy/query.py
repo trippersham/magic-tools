@@ -10,7 +10,7 @@ The SAME evaluator serves two callers, and that symmetry is the design's keyston
 * **Membership** — the predicate runs against a real card view (its ``otags``,
   ``keywords``, ``type_line``, ``oracle_text``, ``mana_cost``) to decide whether
   the card carries the attribute.
-* **Distillation** — the identity vocabulary (:mod:`.vocab`) distills an attribute NAME
+* **Distillation** — the identity vocabulary (:mod:`.distill_strategies`) distills an attribute NAME
   by running the identity queries against a *pseudo-card* whose only otag is that
   name. Then ``otag:typal`` is exactly ``name == 'typal'`` and ``otag:changeling``
   is exactly ``name == 'changeling'`` — the attribute-name equality the
@@ -22,7 +22,7 @@ Operators
 ---------
 ``otag:<slug>``       exact membership in ``card.otags`` — the only otag form. Card
                       otags are ancestor-closed, so a family is named by its exact
-                      parent (or an explicit exact OR-list in :mod:`.vocab`); the
+                      parent (or an explicit exact OR-list in :mod:`.distill_strategies`); the
                       prefix/suffix/substring matchers were removed with that
                       migration (a wildcard in an ``otag:`` value now raises).
 ``keyword:<kw>``      case-insensitive membership in ``card.keywords``.

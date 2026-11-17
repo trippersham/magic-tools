@@ -16,7 +16,7 @@ import pytest
 from pipeline.transforms.strategy.machine_vocab import Provenance
 
 # ---------------------------------------------------------------------------
-# The 6 curated edge attrs (from SYNTH_ALWAYS_ATTRIBUTES in vocab.py)
+# The 6 curated edge attrs (from SYNTH_ALWAYS_ATTRIBUTES in distill_strategies.py)
 # ---------------------------------------------------------------------------
 
 EXPECTED_CURATED_EDGES: dict[str, tuple[str, str]] = {

@@ -818,7 +818,7 @@ class TestHermeticity:
 
     def test_curated_base_imports_never_touch_machine_store(self) -> None:
         """The curated base path (resolve / compute_facts) does NOT import
-        or call load_store -- it only uses vocab.py + edge_roles.py."""
+        or call load_store -- it only uses distill_strategies.py + edge_roles.py."""
         import inspect
 
         from pipeline.transforms.strategy import resolve

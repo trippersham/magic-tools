@@ -9,7 +9,7 @@ thresholds remain here.
 :class:`StrategyConfig` is a ``pydantic-settings`` :class:`BaseSettings` model
 (matching :mod:`pipeline.config`): ``frozen=True`` so it stays hashable (it is the
 ``@cache`` key for :func:`~.assets.load_assets` and
-:func:`~.substantiveness.build_substantiveness`), and env-overridable only through
+:func:`~.determine_strategy_substantiveness.build_substantiveness`), and env-overridable only through
 the opt-in, namespaced ``MAKEMAGIC_STRATEGY_`` prefix. No ``env_file`` is read, so
 a default construction with no such env set reproduces the validated engine byte
 for byte.

@@ -5,7 +5,7 @@
 | Status | Accepted. Built at commit `0fca2ff`; in force. |
 | Review | ratified by the owner on 2026-11-11. (Agent-authored; owner-ratified.) |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -k substantiveness`. Asserts the kind determiners, `FAMILY_PREDICATES`, and `DEFAULT_REQUIREMENT`. |
-| Code paths | [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`requires_met` / the presence gate; shared with 0003 and the planned 0004). |
+| Code paths | [`determine_strategy_substantiveness.py`](../../pipeline/pipeline/transforms/strategy/determine_strategy_substantiveness.py), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`requires_met` / the presence gate; shared with 0003 and the planned 0004). |
 
 > **Three application sites, one framework.** The substantiveness question is asked at
 > three places, all through Requirement KINDS dispatched by DATA — never a name branch:

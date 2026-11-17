@@ -6,13 +6,13 @@ Loads the promoted data files (``data/attribute_catalog.json``,
 need: the unified ``card_attributes`` membership matcher (one compiled predicate
 per bucket/payoff CardAttribute), the ``support`` role set, density thresholds,
 event anchors, the EDHREC membership family, the compiled synth-attribute
-predicates, and the config-bound :class:`~.vocab.StrategyDistiller`.
+predicates, and the config-bound :class:`~.distill_strategies.StrategyDistiller`.
 
 Where identity lives
 --------------------
 Distillation is NOT written here. An attribute NAME becomes a strategy through the two
-declarative maps in :mod:`.vocab` (``ATTRIBUTES`` for membership, ``ARCHETYPE_EDGES``
-for the edge), compiled into a :class:`~.vocab.StrategyDistiller`;
+declarative maps in :mod:`.distill_strategies` (``ATTRIBUTES`` for membership, ``ARCHETYPE_EDGES``
+for the edge), compiled into a :class:`~.distill_strategies.StrategyDistiller`;
 ``StrategyAssets.distill_attr`` is a thin call into it. This module owns only
 the *membership* families the facts layer unions onto each card — the unified
 ``card_attributes`` query matcher (buckets + payoffs), the anchor/enchantment-slug
@@ -33,14 +33,14 @@ from functools import cache
 from pathlib import Path
 
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG, StrategyConfig
-from pipeline.transforms.strategy.query import Predicate, compile_query
-from pipeline.transforms.strategy.vocab import (
+from pipeline.transforms.strategy.distill_strategies import (
     BASE_IDENTITIES,
     EDHREC_IDENTITIES,
     StrategyDistiller,
     build_strategy_distiller,
     compile_synth,
 )
+from pipeline.transforms.strategy.query import Predicate, compile_query
 
 DATA_DIR = Path(__file__).resolve().parent / 'data'
 VOCAB_FILE = DATA_DIR / 'attribute_catalog.json'

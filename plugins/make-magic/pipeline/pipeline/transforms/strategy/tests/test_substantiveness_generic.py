@@ -5,7 +5,7 @@ The identity-gate (``naming.eligible``) and the degree measurement
 archetype/axis-NAME string literals in control flow**. Adding a mechanic is a
 DATA row (a ``SUBSTANTIVENESS`` entry or a ``DEGREE_AXES`` key), never a new
 ``if arch == '<name>'`` branch. These tests fail the instant a name-keyed branch
-reappears in the gate, à la :mod:`.test_vocab_separation`.
+reappears in the gate, à la :mod:`.test_distill_separation`.
 
 The drift scan is scoped to the GATE control flow — the function bodies that
 decide eligibility/degree — and deliberately NOT to the declarative data maps
@@ -19,11 +19,11 @@ import ast
 import json
 from pathlib import Path
 
-from pipeline.transforms.strategy import substantiveness as S
+from pipeline.transforms.strategy import determine_strategy_substantiveness as S
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG
 from pipeline.transforms.strategy.degree import AXIS_COLOR_GATE, DEGREE_AXES, compute_degree_axes
+from pipeline.transforms.strategy.distill_strategies import ARCHETYPE_EDGES
 from pipeline.transforms.strategy.strategy_graph import compute_facts
-from pipeline.transforms.strategy.vocab import ARCHETYPE_EDGES
 
 _STRATEGY_DIR = Path(__file__).resolve().parent.parent
 NAMING = _STRATEGY_DIR / 'naming.py'

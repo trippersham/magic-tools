@@ -2,7 +2,7 @@
 
 These fail the moment the clean split erodes:
 
-* the edge layer (:data:`~.vocab.ARCHETYPE_EDGES`) is a pure name->name map — no
+* the edge layer (:data:`~.distill_strategies.ARCHETYPE_EDGES`) is a pure name->name map — no
   otag slug ever leaks into it (membership lives in ``ATTRIBUTES`` queries);
 * every identity is 1:1 with an edge — no orphan identity, no edge without an
   identity, no identity carrying two strategies;
@@ -23,13 +23,13 @@ import pytest
 from pipeline.transforms.strategy import resolve
 from pipeline.transforms.strategy.assets import load_assets
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG
-from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
-from pipeline.transforms.strategy.vocab import (
+from pipeline.transforms.strategy.distill_strategies import (
     ARCHETYPE_EDGES,
     BASE_IDENTITIES,
     EDHREC_IDENTITIES,
     NEWBUCKET_IDENTITIES,
 )
+from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
 
 _skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not available')
 
@@ -81,7 +81,7 @@ def test_router_is_a_total_function_over_the_identity_universe() -> None:
 @_skip_no_lake
 def test_fixture_records_match_committed_baseline() -> None:
     """Drift #3: byte-parity over the hermetic fixtures vs the committed hashes."""
-    baseline = json.loads((FIX / 'vocab_parity_baseline.json').read_text())
+    baseline = json.loads((FIX / 'distill_parity_baseline.json').read_text())
     combos = json.loads((FIX / 'combos.json').read_text())
     for slug, expected in baseline.items():
         rec = resolve(json.loads((DECKS / f'{slug}.json').read_text()), [dict(c) for c in combos])
