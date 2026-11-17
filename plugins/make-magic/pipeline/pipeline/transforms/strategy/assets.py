@@ -271,7 +271,7 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
     support = frozenset(vocab['support_buckets'])
     density = vocab['ranking_only_density']
     bucket_names = frozenset(buckets)
-    payoff_slugs = frozenset(vocab['payoff_attributes'].keys())
+    payoff_slugs = frozenset(vocab['card_attributes'].keys())
 
     tutor_land_pred = compile_query('otag:tutor-land')
 
