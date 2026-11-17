@@ -1,4 +1,5 @@
 {
+  "_derivation": "AUTHORITATIVE ADJACENCY IS DERIVED, NOT THIS FILE (ADR 0022). The produced_by/triggers lists below are a human-readable, frozen SEED SUBSET. At catalog load, derive_card_events(SEED_MAP) replaces every non-empty-seed side with the sorted descendant-closure of that side's SEED_MAP seeds (derive_card_events.py); only empty-seed sides (game-end, library-depleted raw lists) pass through from this file. So these lists may lag the derived view (e.g. land-enters shows `ramp` but the derived view uses the `land-ramp` closure; game-end shows [] but the derived view carries alternate-win-condition/lose-trigger from SEED_MAP). To see the real adjacency, read SEED_MAP in derive_card_events.py. Some refs match zero live cards in the lake (sac, clones, tokens, combat, counters, artifacts) but are RETAINED: sac/clones await a seed rename in a later wave; tokens/combat/counters/artifacts are carried as shorthand otags by the hermetic parity fixtures, so deleting them shifts the held engine/resolve parity SHAs and is NOT output-inert (the audit's §8 lake-only inert estimate does not account for the fixtures). Their removal is deferred to a fixture-aware re-baseline.",
   "events": {
     "land-enters-battlefield": {
       "rule": "CR 305: a land entering the battlefield (play/fetch/extra land drop)",
@@ -41,7 +42,7 @@
       ]
     },
     "permanent-leaves-battlefield": {
-      "rule": "CR 603.6d: leaves-the-battlefield triggers; flicker/blink and bounce cause leaves events",
+      "rule": "CR 603.6c: leaves-the-battlefield triggers; flicker/blink and bounce cause leaves events",
       "produced_by": [
         "flicker",
         "flicker-artifact",
@@ -399,7 +400,7 @@
       ]
     },
     "food-created": {
-      "rule": "CR 701.6: Food token creation and consumption (eat Food to gain life)",
+      "rule": "CR 701.6: Food token creation and consumption (eat Food to gain life); Food is defined at CR 111.10",
       "produced_by": [
         "repeatable-food",
         "repeatable-treasures"
@@ -411,7 +412,7 @@
       ]
     },
     "draw-a-card": {
-      "rule": "CR 120: drawing cards",
+      "rule": "CR 121: drawing cards",
       "abbrev": "draw",
       "produced_by": [
         "burst-draw",
@@ -564,7 +565,7 @@
       ]
     },
     "untap": {
-      "rule": "CR 701.33: untap a permanent. Untap effects re-arm tapped abilities and attackers (the madness/activated-ability reuse loop, e.g. Anje untapping herself). Producers are the untapper families; consumers are the untapped-matters payoffs. NOTE: the Anje-style reuse loop closes through the card's own ACTIVATED ABILITY, a relation the otag catalog does not express as an untap consumer, so the untap edge isolates only on decks carrying an explicit untapped-matters payoff.",
+      "rule": "CR 701.21: untap a permanent. Untap effects re-arm tapped abilities and attackers (the madness/activated-ability reuse loop, e.g. Anje untapping herself). Producers are the untapper families; consumers are the untapped-matters payoffs. NOTE: the Anje-style reuse loop closes through the card's own ACTIVATED ABILITY, a relation the otag catalog does not express as an untap consumer, so the untap edge isolates only on decks carrying an explicit untapped-matters payoff.",
       "produced_by": [
         "untapper",
         "untapper-creature",
