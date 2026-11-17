@@ -67,6 +67,37 @@ class TestFidToRoute:
         assert r['route'] == 'combat'
         assert r['timing'] == 'immediate'
 
+    def test_finite_combat_prevention_is_oneshot_not_win(self) -> None:
+        """Finite combat fids (defensive "can't attack" locks) → route=oneshot, NOT combat.
+
+        ADR 0016 / win-walk Item 1: the two direct-combat branches in ``fid_route``
+        are magnitude-guarded like every other route.  fids 48 ("Opponents can't
+        attack…"), 213 ("You can't be attacked"), 197 ("Creatures can't attack")
+        are finite defensive prevention — they must NOT register as combat wins.
+        """
+        from pipeline.transforms.strategy.combo_win import fid_route
+
+        for fid in (48, 213, 197):
+            r = fid_route(fid)
+            assert r is not None
+            assert r['magnitude'] == 'finite'
+            assert r['route'] == 'oneshot', f'finite combat fid {fid} must be oneshot, got {r["route"]}'
+
+    def test_infinite_combat_damage_is_combat_win(self) -> None:
+        """Infinite combat fids still route to combat (guard retains genuine wins).
+
+        fid 205 ('Infinite combat damage', combat-damage-dealt) and fid 2800
+        ('Infinitely powerful attacking creatures', creature-attacks) are unbounded
+        → route=combat/immediate (the 581 genuine combat wins are preserved).
+        """
+        from pipeline.transforms.strategy.combo_win import fid_route
+
+        for fid in (205, 2800):
+            r = fid_route(fid)
+            assert r is not None
+            assert r['route'] == 'combat'
+            assert r['timing'] == 'immediate'
+
     def test_library_depleted_opp_is_deckout(self) -> None:
         """fid 26 'Infinite lifeloss' → route=sba-drain."""
         from pipeline.transforms.strategy.combo_win import fid_route

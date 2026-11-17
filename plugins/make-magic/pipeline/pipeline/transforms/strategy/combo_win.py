@@ -324,14 +324,23 @@ def fid_route(fid: int) -> dict[str, Any] | None:
         base.update(route='oneshot')
         return base
 
-    # combat-damage-dealt: direct combat
+    # combat-damage-dealt: direct combat — magnitude-guarded like every other
+    # route (ADR 0016 / win-walk Item 1). Finite combat effects are defensive
+    # prevention/tax ("opponents can't attack", "you can't be attacked"), NOT
+    # wins; only an unbounded combat source closes the game.
     if event == 'combat-damage-dealt':
-        base.update(route='combat', timing='immediate')
+        if unbounded:
+            base.update(route='combat', timing='immediate')
+            return base
+        base.update(route='oneshot')
         return base
 
-    # creature-attacks: direct combat
+    # creature-attacks: direct combat (magnitude-guarded — see above)
     if event == 'creature-attacks':
-        base.update(route='combat', timing='immediate')
+        if unbounded:
+            base.update(route='combat', timing='immediate')
+            return base
+        base.update(route='oneshot')
         return base
 
     # Token/creature production: combat path

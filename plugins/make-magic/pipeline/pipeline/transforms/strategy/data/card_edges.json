@@ -433,16 +433,19 @@
  ],
  "altwin::token-created": [
   "epic struggle",
+  "hellkite tyrant",
   "mechanized production",
   "revel in riches"
  ],
  "altwin::card-enters-graveyard": [
+  "mirrodin besieged",
   "mortal combat"
  ],
  "altwin::spell-cast": [
   "approach of the second sun"
  ],
  "altwin::lifegain": [
+  "angel of destiny",
   "felidar sovereign",
   "test of endurance"
  ],
@@ -458,7 +461,6 @@
  ],
  "_altwin_unmapped": [
   "Amulet of Quoz",
-  "Angel of Destiny",
   "As Luck Would Have It",
   "Assassin",
   "Atemsis, All-Seeing",
@@ -485,7 +487,6 @@
   "Goblin Bomb",
   "Happily Ever After",
   "Hedron Alignment",
-  "Hellkite Tyrant",
   "Hidetsugu Consumes All // Vessel of the All-Consuming",
   "Hidetsugu's Poison Rite",
   "Hidetsugu's Second Rite",
@@ -494,7 +495,6 @@
   "Liliana's Contract",
   "Luck Bobblehead",
   "Mayael's Aria",
-  "Mirrodin Besieged",
   "Near-Death Experience",
   "Nicol Bolas, Dragon-God",
   "Now I Know My ABC's",

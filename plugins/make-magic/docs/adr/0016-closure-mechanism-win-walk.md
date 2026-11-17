@@ -166,6 +166,33 @@ the strategy engine path.
   verdicts** on the current corpus, so ENGINE + RESOLVE are unchanged. `test_combo_win.py` + the
   parity oracle re-verified green under the ADR 0003 re-baseline.
 
+- **2026-11-17 — combat magnitude guard + genuine alt-win converter edges (win-walk hygiene).**
+  Two parity-neutral hygiene fixes from the win-walk-completeness design pass.
+  **(1) Combat guard.** The two direct-combat branches in `fid_route`
+  (`combat-damage-dealt`/`creature-attacks`) had **no magnitude guard**, unlike every other
+  route, so finite defensive "can't attack" fids (48 "Opponents can't attack…", 213 "You can't
+  be attacked", 197 "Creatures can't attack") routed to `combat` = win. Three pure stax/pillowfort
+  combos (`2702-4992`, `722-1618`, `3908-7073`) thereby registered as **false wins**. Added the
+  standard guard (`if unbounded: route='combat' else: route='oneshot'`, mirroring the `extra-turn`
+  cell). All three flip win→`unclosable/state`; the **581** genuine infinite-combat wins
+  (145 `combat` + 436 `combat-deferred`) are retained; no new class or `EVENT_EDGE_CLASSES` entry
+  (every infinite combat fid is offensive). **(2) Converter edges.** Three genuine
+  infinite-resource→win converters added to `card_edges.json` (data-only, per the Decision
+  §"Card edge classes"): `angel of destiny` → `altwin::lifegain` (15-above-start life threshold
+  crossed by infinite lifegain), `hellkite tyrant` → `altwin::token-created` (20 artifacts via
+  infinite artifact tokens — the only artifact-count class available), `mirrodin besieged` →
+  `altwin::card-enters-graveyard` (15 artifact cards in yard via infinite artifact mill, parallel
+  to Mortal Combat's 20-creature threshold). **Mayael's Aria DROPPED** — its power-20-creature
+  wincon needs +1/+1 counters, but `counter-placed` +1/+1-on-creature events route to `combat`
+  (not the `counter-placed` intermediate that feeds `altwin::counter-placed`), so the edge could
+  only fire on non-creature counters that never satisfy its condition → false-win risk; the genuine
+  infinite-+1/+1 case already wins via combat. Measured delta: exactly **−3** combo-corpus walk
+  verdicts (1138→1135), **0** converter hits in the 2000-combo corpus, **0** of 170 gauntlet decks
+  and **0** fixtures moved. **Byte-parity NEUTRAL — no re-baseline:** ENGINE `1eb27096…`,
+  RESOLVE `00fbb836…`, FULL_CORPUS `604f6673…` all unchanged. `test_combo_win.py` (+2 regression
+  tests: finite-combat→oneshot, infinite-combat→combat) + the parity oracle re-verified green;
+  `validate_seed_map()` 0 violations.
+
 ## Related records
 
 - 0003 — Byte-parity: this change is a sanctioned re-baseline with parity proof.
