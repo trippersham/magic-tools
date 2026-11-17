@@ -1,4 +1,4 @@
-"""Frozen vocabulary + event catalog + routing — the engine's committed data.
+"""Frozen vocabulary + event catalog + strategy distillation — the engine's committed data.
 
 Loads the promoted data files (``data/attribute_catalog.json``,
 ``data/event_catalog.json``) and assembles, as a function of a
@@ -10,7 +10,7 @@ predicates, and the config-bound :class:`~.vocab.Router`.
 
 Where identity lives
 --------------------
-Routing is NOT written here. An attribute NAME becomes a strategy through the two
+Distillation is NOT written here. An attribute NAME becomes a strategy through the two
 declarative maps in :mod:`.vocab` (``ATTRIBUTES`` for membership, ``ARCHETYPE_EDGES``
 for the edge), compiled into a :class:`~.vocab.Router`;
 ``StrategyAssets.archetype_of_attr`` is a thin call into it. This module owns only
@@ -52,7 +52,7 @@ LABELSPACE_FILE = DATA_DIR / 'labelspace.json'
 
 # --- static control vocab (independent of config) ---------------------------
 #: The enchantment-family surfacing SET: the exact otag slugs the facts layer
-#: surfaces (as themselves) onto a card so the enchantment identities can route
+#: surfaces (as themselves) onto a card so the enchantment identities can distill
 #: them. SINGLE SOURCE OF TRUTH: the literal ``otag:<slug>`` atoms named by the
 #: vocab's ``enchantress`` (EDHREC tier-1) and ``enchantments`` (base) identity
 #: queries, extracted here so the surfacing can never diverge from what those two
@@ -73,7 +73,7 @@ ENCH_ATTR_SLUGS = _ench_attr_slugs()
 
 # EDHREC membership family: the in-lake otag slugs the facts layer surfaces onto a
 # card (as themselves) when ``cfg.edhrec_labels`` is on, so the EDHREC identities
-# can see them. This is MEMBERSHIP surfacing, distinct from routing (which the
+# can see them. This is MEMBERSHIP surfacing, distinct from distillation (which the
 # vocab owns); it is kept explicit because some members (e.g. ``crew``,
 # ``poisonous``) are neither payoff nor event-anchor slugs and would otherwise
 # never surface.
@@ -185,7 +185,7 @@ def is_land(card: dict) -> bool:
 
 @dataclass(frozen=True)
 class StrategyAssets:
-    """Immutable, config-bound bundle of the engine's committed vocab + routing."""
+    """Immutable, config-bound bundle of the engine's committed vocab + strategy distillation."""
 
     cfg: StrategyConfig
     #: Bucket name -> its member otag slug-list, reconstructed from the unified
@@ -210,7 +210,7 @@ class StrategyAssets:
     #: Compiled ``otag:tutor-land`` predicate (ancestor-closed: card otags carry the
     #: exact parent, so exact membership of ``tutor-land`` matches the whole family).
     tutor_land_pred: Predicate
-    #: Compiled routing: attribute NAME -> strategy, from the vocab's two maps.
+    #: Compiled distillation: attribute NAME -> strategy, from the vocab's two maps.
     router: Router
     #: Compiled synth-attribute predicates (name, predicate), card-field queries.
     synth_predicates: tuple[tuple[str, Predicate], ...]
@@ -318,5 +318,5 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
 
 
 def load_assets(cfg: StrategyConfig | None = None) -> StrategyAssets:
-    """Load (memoized) the config-bound committed vocab + routing bundle."""
+    """Load (memoized) the config-bound committed vocab + strategy distillation bundle."""
     return _load_assets_cached(cfg or DEFAULT_CONFIG)

@@ -4,8 +4,8 @@
 |---|---|
 | Status | Accepted. In force on branch `feat/strategy-engine`. |
 | Review | ratified by the owner on 2026-11-11. (Agent-authored; owner-ratified.) |
-| Test | From `plugins/make-magic/pipeline`: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` records a composite SHA over the serialized `_isolate_engines` output plus the full `resolve()` records for the 17 hermetic fixture decks; a parity test imports `composite_sha` to assert no drift. The full 170-deck curated-corpus SHA is now **independently checkable** via `full_corpus_sha()` in `engine_parity_oracle.py` (canonical serialization: `json.dumps(records, sort_keys=True, separators=(',',':'), default=list)` → SHA-256; pinned as `FULL_CORPUS_SHA`). A lake-gated test in `test_resolution_fidelity.py::TestFullCorpusCanonicalSha` asserts the value. |
-| Code paths | [`pipeline/.../strategy/data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py), [`vocab.py`](../../pipeline/pipeline/transforms/strategy/vocab.py), [`win_walk.py`](../../pipeline/pipeline/transforms/strategy/win_walk.py), [`data/card_edges.json`](../../pipeline/pipeline/transforms/strategy/data/card_edges.json), [`combo.py`](../../pipeline/pipeline/transforms/strategy/combo.py), [`tests/fixtures/vocab_parity_baseline.json`](../../pipeline/pipeline/transforms/strategy/tests/fixtures/vocab_parity_baseline.json) |
+| Test | From `plugins/make-magic/pipeline`: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` records a composite SHA over the serialized `elect_engine_units` output plus the full `resolve()` records for the 17 hermetic fixture decks; a parity test imports `composite_sha` to assert no drift. The full 170-deck curated-corpus SHA is now **independently checkable** via `full_corpus_sha()` in `engine_parity_oracle.py` (canonical serialization: `json.dumps(records, sort_keys=True, separators=(',',':'), default=list)` → SHA-256; pinned as `FULL_CORPUS_SHA`). A lake-gated test in `test_resolution_fidelity.py::TestFullCorpusCanonicalSha` asserts the value. |
+| Code paths | [`pipeline/.../strategy/data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py), [`vocab.py`](../../pipeline/pipeline/transforms/strategy/vocab.py), [`win_walk.py`](../../pipeline/pipeline/transforms/strategy/win_walk.py), [`data/card_edges.json`](../../pipeline/pipeline/transforms/strategy/data/card_edges.json), [`combo.py`](../../pipeline/pipeline/transforms/strategy/combo.py), [`tests/fixtures/vocab_parity_baseline.json`](../../pipeline/pipeline/transforms/strategy/tests/fixtures/vocab_parity_baseline.json) |
 
 ## Context
 The higher-order engine-identification work (machine-authored attributes, within-card
@@ -16,9 +16,9 @@ regression in the curated base could never hide inside the new layer.
 
 ## Decision
 Six curated files are **byte-frozen** on `feat/strategy-engine`: `attribute_catalog.json`,
-`event_catalog.json`, `facts.py`, `query.py`, `vocab.py`, and the parity fixture
+`event_catalog.json`, `strategy_graph.py`, `query.py`, `vocab.py`, and the parity fixture
 `vocab_parity_baseline.json`. The oracle (`tests/engine_parity_oracle.py`) records a
-composite SHA over `_isolate_engines` + `resolve()` for the 17 hermetic fixture decks;
+composite SHA over `elect_engine_units` + `resolve()` for the 17 hermetic fixture decks;
 the current baselines live in `engine_isolation_baseline.json` and
 `vocab_parity_baseline.json` and are **not restated here** (they change on every
 re-baseline). A change to any held file is permitted **only** as a deliberate
@@ -39,7 +39,7 @@ re-baseline makes every *intended* change legible as such.
   improves these files; the discipline is *proof-carrying change*, not immutability.
 
 ## Consequences
-- The consolidation re-baselines `facts.py` / `vocab.py` / the catalog (one change) and
+- The consolidation re-baselines `strategy_graph.py` / `vocab.py` / the catalog (one change) and
   `query.py` (a separate change), each with equivalence proofs (e.g. 613=613). Those are
   the sanctioned re-baselines this record governs.
 - The hermetic oracle is 17 decks; the full-corpus parity (170 decks) needs lake access.
@@ -110,7 +110,7 @@ re-baseline makes every *intended* change legible as such.
   (`win_walk.py`) replaces the regex win-detection path (`is_game_win_result` +
   `LETHAL_MANA_SINK_NAMES`) as the authoritative combo win-classification in the
   strategy engine. `combo.py`'s regex patterns and frozen sink list deleted;
-  `win_walk.py` + `data/card_edges.json` wired as authoritative via `facts.py`.
+  `win_walk.py` + `data/card_edges.json` wired as authoritative via `strategy_graph.py`.
   Engine isolation SHA **unchanged** (`a6dfa607…`). Resolve composite
   `7d35fe19…` → `d409069e…`; full-corpus `de5313af…` → `0901bc62…`.
   4/17 hermetic fixture decks shifted (Kess, K'rrik, Urza, Ozai).
@@ -122,7 +122,7 @@ re-baseline makes every *intended* change legible as such.
 
 - **2026-11-13 — mass-election flip (ADR 0014, "2C flip").** Node-weighted
   event-neighborhood **mass** is now the authoritative engine-lead signal in
-  `facts.py::_isolate_engines`, replacing the former recursive-first ordering (the
+  `strategy_graph.py::elect_engine_units`, replacing the former recursive-first ordering (the
   `kind != 'recursive-engine'` primary sort key + `next(recursive)` lead). The lead
   is the top-mass unit; a new `elected` field reports the ranked 0..n Engine set
   (0.6 keep-ratio + member-Jaccard-0.5 dedup); `determinism` gains `'mass-elected'`.
@@ -178,7 +178,7 @@ re-baseline makes every *intended* change legible as such.
   `produced_by`/`triggers` lists are replaced by the descendant-closure of each event
   side's owner-approved anchors via `anchor_derivation.derive_event_adjacency`, applied
   in `assets.load_assets` and `engine_hydration._load_events` (the `SHADOW_DERIVED_ADJACENCY`
-  flag retired); **(2) rank-don't-cut** — `_isolate_engines` drops the 0.6·top-mass relative
+  flag retired); **(2) rank-don't-cut** — `elect_engine_units` drops the 0.6·top-mass relative
   keep-cut, keeping every substantive unit ranked by mass with only the Jaccard<0.5 dedup
   (the `SHADOW_RANK_DONT_CUT` flag retired, #72 resolved).
   Engine isolation `987f2660…` → `a7edab20…`; resolve composite `85752bb9…` → `25f50a23…`;
@@ -204,12 +204,12 @@ re-baseline makes every *intended* change legible as such.
   Corpus confidence distribution is otherwise stable (MED 88→87, HIGH 41→40, LOW 40→42; 5 tier
   shifts total, net-neutral). Anchor-map validator clean (0 violations); `ramp` correctly absent
   from the effect-otag universe (`land-ramp` present). Suite green (545 passed). Measurement: the
-  real pipeline (`recalc_corpus` → `resolve` → `_isolate_engines` + `name_deck`) over the full
+  real pipeline (`recalc_corpus` → `resolve` → `elect_engine_units` + `name_deck`) over the full
   170 `.dck` gauntlet; full classified delta in
   `research/flip-170-gauntlet-delta.md`.
 
 - **2026-11-16 — generic demotion re-baseline (behavior-equivalent).** The hardcoded
-  `'graveyard/reanimator'` demotion branch in `facts.py` and the `'demotions'` naming key
+  `'graveyard/reanimator'` demotion branch in `strategy_graph.py` and the `'demotions'` naming key
   in `naming.py` were replaced with a generic `demoted_archetypes: list[str]` derived from
   `earned_archetypes` + `Requirement.satisfied()`. Engine isolation **unchanged**
   (`afcffc8a...`); resolve composite `3010be2a...` -> `5c4f9c05...`; full-corpus
@@ -253,7 +253,7 @@ re-baseline makes every *intended* change legible as such.
 
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
-- 0002 — the substantiveness model (`facts.py` is shared with this record).
+- 0002 — the substantiveness model (`strategy_graph.py` is shared with this record).
 - 0005 — the tribe-catalog fix in the re-baseline above.
 - 0016 — the closure-mechanism win-walk that triggered an earlier re-baseline.
 - 0022 — the derived-adjacency + rank-don't-cut flip of the 2026-11-14 re-baseline above.

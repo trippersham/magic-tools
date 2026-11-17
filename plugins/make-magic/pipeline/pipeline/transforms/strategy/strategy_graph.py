@@ -169,7 +169,7 @@ def elect_engine_units(
     completes the ordering invariant (substantiveness -> centrality -> synthesis)
     at the ARCHETYPE grain. When ``earned_archetypes`` is supplied (the set of this
     deck's archetypes that clear their ``Requirement.satisfied`` bar — the SAME
-    one-named evaluator the naming layer consults), a candidate is admitted unless
+    one-named determiner the naming layer consults), a candidate is admitted unless
     its SOLE basis is an UNEARNED archetype claim. The owner-approved exemption
     policy KEEPS a unit that (a) has >=1 EARNED ``payoff_archetype``, or (b) is
     STRUCTURALLY anchored (``commander_coupled``, or a non-bipartite anchor mode —
@@ -281,7 +281,7 @@ def elect_engine_units(
     # ARCHETYPE-SUBSTANTIVENESS admission (ADR 0002 second level / ADR 0021 B6):
     # after the EVENT grain, gate a candidate whose SOLE basis is an UNEARNED
     # archetype claim. ``earned_archetypes`` is the deck's set of archetypes that
-    # clear ``requirement_for(arch).satisfied`` — the SAME one-named evaluator the
+    # clear ``requirement_for(arch).satisfied`` — the SAME one-named determiner the
     # naming layer uses (ADR 0001/0002), passed in by ``compute_facts`` (it is the
     # only caller that gates; the relay path passes None). Exemptions (keep the
     # unit) are owner-approved and GENERIC — no deck-specific logic, no new
@@ -817,7 +817,7 @@ def compute_facts(
     from pipeline.transforms.strategy.substantiveness import requirement_for
 
     # ARCHETYPE-grain election gate (ADR 0021 B6): the set of this deck's archetypes
-    # that clear their substantiveness bar, via the ONE named evaluator
+    # that clear their substantiveness bar, via the ONE named determiner
     # (``requirement_for(arch).satisfied``, ADR 0001/0002) — the SAME verdict the
     # naming layer consults. ``satisfied`` reads ctx, so this runs post-ctx; the
     # resulting engine_units is then placed into the (shared) facts dict.
@@ -833,7 +833,7 @@ def compute_facts(
     # `member_count` archetypes satisfied() == requires_met, so ONLY archetypes with a
     # stricter Requirement (graveyard `attr_density`, control `axis_density`) can appear.
     # Reuses `earned_archetypes` (= the satisfied() set, computed just above) so
-    # satisfied() is not re-evaluated. Replaces the hardcoded graveyard `gy_demoted`
+    # satisfied() is not re-determined. Replaces the hardcoded graveyard `gy_demoted`
     # branch (and the dead `spell_demoted` flag).
     ctx.demoted_archetypes.extend(
         sorted(arch for arch, st in strategies.items() if st.get('requires_met') and arch not in earned_archetypes)

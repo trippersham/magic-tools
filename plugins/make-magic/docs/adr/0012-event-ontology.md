@@ -5,7 +5,7 @@
 | Status | Accepted. Observed from `data/event_catalog.json` as built; invariant test added. |
 | Review | pending owner review: agent-authored from observed catalog shape + design-3 section 3.1 / design-2 section 2. |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests/test_event_ontology.py -q` (8 assertions: no role/terminal on any event; polarity/scope reserved for game-end; field-vocabulary guard; required-field guard; baseline non-emptiness). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` — both P0 SHAs unchanged (test-only addition). |
-| Code paths | [`data/event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (the held event catalog), [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py) (promiscuity-scaled Requirements — ADR 0002), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (presence gate), [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (`_load_events`). |
+| Code paths | [`data/event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (the held event catalog), [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py) (promiscuity-scaled Requirements — ADR 0002), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (presence gate), [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (`_load_events`). |
 
 ## Context
 
@@ -159,18 +159,18 @@ relay-injection (`relay.py:build_relay_augmented_event_edges`) — the card's
 attribute is re-expanded as a consumer of `trigger_event` and a producer of
 `produced_event`, restoring the bipartite structure for the election graph.
 
-### Projection 2 — the election graph (`_isolate_engines`)
+### Projection 2 — the election graph (`elect_engine_units`)
 
 Collapse event-nodes into edge-labels. What remains:
 
 - **Nodes** = Attributes (the same CardAttribute slugs that were nodes in the
   base bipartite graph).
 - **Edge-labels** = Events — each edge is a triple
-  `(producer_attr, consumer_attr, event_name)`, constructed in `facts.py`
+  `(producer_attr, consumer_attr, event_name)`, constructed in `strategy_graph.py`
   (lines 617–622) by the cross-product of an event's `produced_by` × `triggers`
   filtered to in-deck nodes.
 
-The mass-election (`_isolate_engines`) runs HERE: per-event convergence clusters
+The mass-election (`elect_engine_units`) runs HERE: per-event convergence clusters
 are the atomic engine units, ranked by node-weighted mass (ADR 0014).
 
 ### Strategy view (quotient of Projection 2)

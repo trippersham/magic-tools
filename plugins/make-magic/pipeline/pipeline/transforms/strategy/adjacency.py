@@ -574,7 +574,7 @@ SEED_MAP: dict[str, dict[str, Any]] = {
         },
         'produced_by': {
             # Build-design P seeds: repeatable-token-generator + multiple-
-            # bodies, PLUS self-heal candidates promoted by the build-design:
+            # bodies, PLUS seed-discovery candidates promoted by the build-design:
             # leaves-body-behind (death→token), out-of-color-token (off-color
             # token producers), creates-bigger-body (Reef Worm chain).
             'seeds': [
@@ -1350,7 +1350,7 @@ if _os.environ.get('MAKE_MAGIC_VALIDATE_ANCHORS') == '1':
 
 
 # ---------------------------------------------------------------------------
-# Self-healing loop (task 6.3) — candidate discovery + N=3 promotion
+# Seed-discovery (event-candidate evaluation) loop (task 6.3) — candidate discovery + N=3 promotion
 # ---------------------------------------------------------------------------
 #
 # The mechanism below lets the concept-anchored adjacency EXTEND ITSELF from
@@ -1649,13 +1649,13 @@ def _load_default_evidence() -> dict[str, set[str]]:
 
 
 # ---------------------------------------------------------------------------
-# Shadow measurement (task 6.3) — what would the healing loop discover?
+# Shadow measurement (task 6.3) — what would the seed-discovery loop discover?
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class HealingShadowReport:
-    """Results of running the healing loop in shadow mode."""
+    """Results of running the seed-discovery loop in shadow mode."""
 
     #: Total candidate otags discovered across all events/sides.
     total_candidates: int = 0
@@ -1688,10 +1688,10 @@ class HealingShadowReport:
 def run_healing_shadow(
     otag_evidence: dict[str, set[str]],
 ) -> HealingShadowReport:
-    """Run the self-healing discovery + promotion in SHADOW mode.
+    """Run the event-candidate discovery + promotion in SHADOW mode.
 
     Does NOT modify the authoritative adjacency.  Returns a report of what
-    the healing loop would discover, promote, and unlock.
+    the seed-discovery loop would discover, promote, and unlock.
 
     Parameters
     ----------

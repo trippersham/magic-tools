@@ -1,4 +1,4 @@
-"""The declarative identity vocabulary — the single source of truth for routing.
+"""The declarative identity vocabulary — the single source of truth for strategy distillation.
 
 Two maps, and only these two, decide a deck's strategy identity:
 
@@ -21,9 +21,9 @@ Two maps, and only these two, decide a deck's strategy identity:
     identity.
 
 Nothing lives in both maps' domains for two purposes: membership is ``ATTRIBUTES``,
-the edge is ``ARCHETYPE_EDGES``. Routing an attribute name is: find the identity
+the edge is ``ARCHETYPE_EDGES``. Distilling an attribute name is: find the identity
 whose query matches that name, then take its edge. The identity order below is the
-routing precedence — the first matching identity wins, which is how overlapping
+distillation precedence — the first matching identity wins, which is how overlapping
 mechanic families (a land that is also graveyard recursion; a treasure that is
 also an artifact payoff) resolve to a single strategy. All identity blocks are
 unconditionally active; the ``overlay`` parameter of :func:`build_router`
@@ -38,7 +38,7 @@ from dataclasses import dataclass
 from pipeline.transforms.strategy.query import CardView, Predicate, compile_query
 
 #: EDHREC new-node identities (always active; the ``edhrec_labels`` knob was removed). Ordered: this
-#: block is the highest routing precedence, matching the engine's tier-1 router.
+#: block is the highest distillation precedence, matching the engine's tier-1 distiller.
 EDHREC_IDENTITIES: list[tuple[str, str]] = [
     ('devotion', 'otag:devotion-signal'),
     (
@@ -109,7 +109,7 @@ NEWBUCKET_IDENTITIES: list[tuple[str, str]] = [
     ),
 ]
 
-#: Always-active identities, in routing precedence. Every family is named by its
+#: Always-active identities, in distillation precedence. Every family is named by its
 #: exact otag parent (ancestor-closure carries the children) or, where the tag DAG
 #: does not parent the family under one root, by an explicit exact OR-list that
 #: enumerates the orphan/sibling slugs (``attacking-matters`` + ``-self``/``-any``;
@@ -121,7 +121,7 @@ NEWBUCKET_IDENTITIES: list[tuple[str, str]] = [
 #: deathtouch, and an unlisted ``gives-*`` slug falls through to "no identity". The
 #: facts-only ``enchantments`` archetype lists the enchantment-*synergy* members
 #: (the removal/hate/disenchant slugs the old broad regex also swept up are not an
-#: enchantment strategy); the real synergy payoffs route to ``enchantress`` first.
+#: enchantment strategy); the real synergy payoffs distill to ``enchantress`` first.
 #: The later additions are likewise exact OR-lists: ``pillowfort`` (fog /
 #: prevent-attack), ``group-hug`` (the two group-hug payoffs), and ``politics``
 #: (monarch / vote / the ``synergy-goad`` payoff — ``hate-goad`` is the answer, not
@@ -167,7 +167,7 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
     # mechanics: `lands-matter`, `land-count-matters`, `extra-land`, and the two land
     # recursion slugs (`recursion-land`/`reanimate-land` stay here as lands-matter
     # mechanics; a later engine-layer pass handles the land-recursion hub). The two
-    # queries are disjoint, so routing precedence between them is immaterial.
+    # queries are disjoint, so distillation precedence between them is immaterial.
     ('landfall', 'otag:landfall OR otag:landfall-other'),
     (
         'lands-matter',
@@ -308,7 +308,7 @@ ARCHETYPE_EDGES: dict[str, str] = {
 
 #: Synthesized attributes: a card gets these by card-field query, not by otag.
 #: Ordered; the EDHREC block is always active (the ``edhrec_labels`` knob was removed). These
-#: names also route — as the pseudo-otag of their identity above (``vehicle-type``
+#: names also distill — as the pseudo-otag of their identity above (``vehicle-type``
 #: is claimed by ``vehicles``; ``devotion-signal`` by ``devotion``; and so on).
 SYNTH_EDHREC_ATTRIBUTES: list[tuple[str, str]] = [
     ('vehicle-type', 'type:Vehicle'),
@@ -327,7 +327,7 @@ SYNTH_ALWAYS_ATTRIBUTES: list[tuple[str, str]] = [
     # Rad counters (Fallout) are a novel PLAYER-targeted counter with NO Scryfall
     # otag, so membership is synthesized from the oracle text. This surfaces the
     # rad-giving (and rad-caring) cards so the `player-counter` event can model the
-    # rad engine; it carries no archetype edge (it routes to None) — the rad engine
+    # rad engine; it carries no archetype edge (it distills to None) — the rad engine
     # is isolated at the ENGINE layer, it does not rename the deck.
     ('rad-counter', "oracle:'rad counter'"),
     # Within-card lifetrade edges (Queza family). Each names a card that couples
@@ -340,7 +340,7 @@ SYNTH_ALWAYS_ATTRIBUTES: list[tuple[str, str]] = [
     # sentence yet Scryfall-pasteable. The trigger->effect ROLE pair lives only in
     # the attribute NAME (and this comment): the synth vocab is `(name, query)`
     # with no metadata slot, so a later edge-derivation pass reads the role off the
-    # name. Like `rad-counter` these carry NO archetype edge (route to None) — they
+    # name. Like `rad-counter` these carry NO archetype edge (distill to None) — they
     # surface the member cards for that pass, they do not rename the deck.
     #
     # Disjunctions (cats 1 & 3) use a parenthesized exact-otag OR-group, the same
@@ -387,7 +387,7 @@ def _resolve_identity_order(
     *,
     overlay: Mapping | None,
 ) -> list[tuple[str, str]]:
-    """Assemble the ordered identity list (routing precedence).
+    """Assemble the ordered identity list (distillation precedence).
 
     EDHREC and new-bucket identities are always included (the ``edhrec_labels``
     knob and the ``new_buckets`` group toggle were both removed as frozen
@@ -410,7 +410,7 @@ def build_edges(overlay: Mapping | None = None) -> dict[str, str]:
 
 @dataclass(frozen=True)
 class Router:
-    """Compiled, config-bound router: attribute NAME -> strategy (or ``None``).
+    """Compiled, config-bound distiller: attribute NAME -> strategy (or ``None``).
 
     The identities are matched in precedence order against the pseudo-card of the
     name; the first match's edge is the strategy. ``archetype_of_attr`` on the

@@ -1,18 +1,18 @@
-# 0002 Substantiveness is one generic evaluator over a closed kind-set plus per-archetype data Requirements, never archetype-name branches
+# 0002 Substantiveness is one generic determiner over a closed kind-set plus per-archetype data Requirements, never archetype-name branches
 
 | Field | Value |
 |---|---|
 | Status | Accepted. Built at commit `0fca2ff`; in force. |
 | Review | ratified by the owner on 2026-11-11. (Agent-authored; owner-ratified.) |
-| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -k substantiveness`. Asserts the kind evaluators, `FAMILY_PREDICATES`, and `DEFAULT_REQUIREMENT`. |
-| Code paths | [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (`requires_met` / the presence gate; shared with 0003 and the planned 0004). |
+| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -k substantiveness`. Asserts the kind determiners, `FAMILY_PREDICATES`, and `DEFAULT_REQUIREMENT`. |
+| Code paths | [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`requires_met` / the presence gate; shared with 0003 and the planned 0004). |
 
 > **Three application sites, one framework.** The substantiveness question is asked at
 > three places, all through Requirement KINDS dispatched by DATA — never a name branch:
 > **(1) attribute admission** — `node_admitted` (ADR 0004), level 1; **(2) archetype
 > identity** — `requirement_for(arch, cfg)` → `_EVALUATORS`, level 2 (the body of this
 > record) — and, as of 2026-11-15 (B6, [0014]/[0021]), this SAME level-2 verdict also gates
-> **election candidacy** (`_isolate_engines`'s `earned_archetypes`), so one `satisfied` reading
+> **election candidacy** (`elect_engine_units`'s `earned_archetypes`), so one `satisfied` reading
 > drives both the archetype LABEL and whether an archetype-claiming engine unit is elected (no
 > model change, a second consumer); **(3) EVENT admission** — `event_admitted(event, cmd_attrs, assets)` →
 > `_EVENT_EVALUATORS`, level 3, gating whether a promiscuous event's engine unit may
@@ -50,7 +50,7 @@ is the reference implementation of ADR 0001's doctrine.
 - `member_count(3, noncmd=0)` **short-circuits** (the `3` is inert when `noncmd <= 0`), so
   `satisfied == requires_met` for the default bar — which is why the spellslinger
   last-resort fallback is provably dead (deleted in the consolidation).
-- `_gy_substantive` in `facts.py` is a parallel inline copy of `_eval_attr_density`; the
+- `_gy_substantive` in `strategy_graph.py` is a parallel inline copy of `_eval_attr_density`; the
   consolidation deletes it and derives `gy_demoted` from `requirement_for()`.
 
 ## Amendment — 2026-11-14: `producer_anchor`, the third application site (EVENT admission)
@@ -58,7 +58,7 @@ is the reference implementation of ADR 0001's doctrine.
 A fourth Requirement KIND, `producer_anchor`, was added for a NEW application site: an
 **event**'s admission to the mass election (ADR 0014). The Requirement-kind set now reads:
 
-| kind | entity | site | evaluator | registry |
+| kind | entity | site | determiner | registry |
 |---|---|---|---|---|
 | `member_count` | archetype | identity label | `_eval_member_count` | `_EVALUATORS` |
 | `attr_density` | archetype | identity label | `_eval_attr_density` | `_EVALUATORS` |
@@ -78,7 +78,7 @@ not any density measure, carries event substantiveness — is **[0020](0020-even
 
 ## Amendment — 2026-11-16: `gy_demoted` hardcode removed — demotion is fully generic
 
-The last archetype-name branch in `facts.py` — the hardcoded `'graveyard/reanimator'`
+The last archetype-name branch in `strategy_graph.py` — the hardcoded `'graveyard/reanimator'`
 string in `gy_demoted` — is removed. Demotion (archetypes that clear `requires_met` but
 fail `Requirement.satisfied()`) is now fully generic over the Requirement data, using the
 same `earned_archetypes` set that feeds election candidacy. The old `gy_demoted` flag
@@ -90,6 +90,6 @@ changed: `demoted_archetypes` is a diagnostic field read by no code path.
 ## Related records
 - 0001 — the doctrine this implements.
 - 0004 (planned) — the presence gate `node_eligible` dedup routes through this framework.
-- 0003 — `facts.py` is shared and byte-frozen.
+- 0003 — `strategy_graph.py` is shared and byte-frozen.
 - 0014 — the mass election whose candidate pool the level-3 gate filters.
 - 0020 — event-substantiveness admission (the `producer_anchor` kind) + its empirical basis.

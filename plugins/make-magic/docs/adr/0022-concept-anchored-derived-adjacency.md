@@ -99,14 +99,18 @@ ADR 0014** (the Jaccard-0.5 dedup is retained).
   override case, via the event-anchor expansion deflating one span-confidence signal MED→LOW).
   Full classified delta: `research/flip-170-gauntlet-delta.md`.
 
-## Self-healing direction (ADR 0008 lifecycle — not yet built)
+## Seed-discovery direction — event-candidate evaluation (ADR 0008 lifecycle — not yet built)
+
+> Formerly described as "self-healing." The machinery *evaluates candidate* event-producers/
+> triggers and *discovers* new seeds from evidence; it does not "heal." The canonical verb for
+> this stage is **evaluate** (as in `evaluate_event_candidates`).
 
 The seed map can gain a per-side `{seeds:[verified], candidates:{otag:{count,first_seen}}}`
 shape and a three-way gate (accept on verified seed; accept-provisional + increment a candidate's
 count on a plausible unrecognized otag, promote at **N = 3** independent cards; reject on
 over-match) — the existing `provisional → verified` store (ADR 0008) applied to the adjacency
 itself. This is the design-4 direction; the current flip derives from static owner-approved seeds
-and does **not** yet heal from evidence.
+and does **not** yet discover new seeds from evidence.
 
 ## Points toward #68 (DFC-robust by construction)
 
@@ -134,24 +138,24 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   labels byte-for-byte). Rejected: adjacency would not be uniformly authoritative; the one label
   change it would avoid (Shiko) is itself a correction, not a regression. Noted as the scoping
   option if the owner later wants label-parity over derived-everywhere.
-- **N = 1 candidate promotion** (self-healing). Rejected: admits single-card tagger noise.
+- **N = 1 candidate promotion** (seed discovery). Rejected: admits single-card tagger noise.
 
 ## Honest residue
 
-- **~25% of role-A edges stay text-only** and self-healing does not rescue them — they carry no
+- **~25% of role-A edges stay text-only** and seed discovery does not rescue them — they carry no
   relevant otag (own-ETB of non-creature permanents, untagged reanimation, ETB-burn with no ETB
-  otag). This is the #68 text frontier, not a healing gap.
+  otag). This is the #68 text frontier, not a seed-discovery gap.
 - **`event_anchors` now expands corpus-wide** (every deck derives +16 event-anchor CardAttributes
   on average). Its only output consequence across 170 decks is the single Shiko label correction,
   but the density-rank `span` confidence signal is now mildly sensitive to the derived attribute
   count — flagged for the owner as a future confidence-tuning consideration.
-- **Self-healing is a direction, not built** — the flip derives from static seeds.
+- **Seed discovery (event-candidate evaluation) is a direction, not built** — the flip derives from static seeds.
 
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
 - 0002 / 0020 — substantiveness + the `producer_anchor` gate this adjacency feeds; `ramp` stays anchor-side-only there, never in the adjacency.
 - 0003 — the byte-parity re-baseline this flip carries (the 2026-11-14 entry).
-- 0008 — the `provisional → verified` store the self-healing direction would reuse.
+- 0008 — the `provisional → verified` store the seed-discovery direction would reuse.
 - 0012 — the Event ontology; this changes how the otag→Event adjacency is *represented* (derived view), with no new field on event nodes.
 - 0014 — the engine mass-election; rank-don't-cut here **supersedes** its 0.6 keep-ratio (Jaccard-0.5 dedup retained).
 - 0017 — within-card edge derivation (native-then-haiku); this shrinks haiku role A to the residue.

@@ -18,11 +18,11 @@ gating an un-run branch.
 A boolean knob is a *frozen branch*, not a choice (ADR 0001 §3a). Each is removed
 and its branch inlined to the validated default:
 - `edhrec_labels` → EDHREC identities/synths **always on** (threading removed from
-  held `vocab.py`'s build pipeline + `assets.py`/`facts.py`/`substantiveness.py`);
+  held `vocab.py`'s build pipeline + `assets.py`/`strategy_graph.py`/`substantiveness.py`);
 - `combo_override`, `combo_mana_sink`, `ramp_label` → **always on**;
 - `ench_label` → `enchantments` is **always** facts-only (not a naming candidate);
-- the `deconf_anthem` group + the `anthem-deconf` attribute/routing → **removed**, so
-  broad `power-matters`/`toughness-matters` never routes to anthem — the J2/B6
+- the `deconf_anthem` group + the `anthem-deconf` attribute/distillation → **removed**, so
+  broad `power-matters`/`toughness-matters` never distills to anthem — the J2/B6
   anti-over-fire fix is now permanent (completed by the A1 vocab fold).
 - the `new_buckets` group → **always on** (the off-path was never selected in
   production, tests, or CLI — a dead `enabled_groups` toggle): its new-bucket
@@ -78,5 +78,5 @@ pre/post. `test_config_settings` drops its `enabled_groups` assertions; no behav
 
 ## Related records
 - 0001 — the value/branch test this applies.
-- 0003 — held files (`vocab.py`, `facts.py`); this change is output-preserving.
+- 0003 — held files (`vocab.py`, `strategy_graph.py`); this change is output-preserving.
 - 0009 — the CardAttribute-model unification that bakes the group slugs into the query map.

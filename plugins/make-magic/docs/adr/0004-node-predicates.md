@@ -5,20 +5,20 @@
 | Status | Accepted. Built in the consolidation. |
 | Review | pending owner review: agent-authored; records the model as built in this change. |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (the suite covers both predicates via `resolve()` and `engine_report`); the parity oracle proves `node_eligible` preserves `resolve()` output (resolve SHA unchanged). |
-| Code paths | [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (`node_eligible`, `node_admitted`, and their call sites), [`engine_report.py`](../../pipeline/pipeline/transforms/strategy/engine_report.py) (machine-attr admission) |
+| Code paths | [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`node_eligible`, `node_admitted`, and their call sites), [`engine_report.py`](../../pipeline/pipeline/transforms/strategy/engine_report.py) (machine-attr admission) |
 
 ## Context
 Two deck-level predicates were each duplicated. The **presence gate**
-`support >= 3 or (is_cmd and support >= 2)` appeared three times in `facts.py`
+`support >= 3 or (is_cmd and support >= 2)` appeared three times in `strategy_graph.py`
 (`requires_met`, `lands_signal_present`, `otag_typal_registered`). The
 **graph-admission** rule `support >= 3 or is_cmd` (commander admitted at *any*
-support count) appeared twice (`facts.py`'s `nodes` set and `engine_report`'s
+support count) appeared twice (`strategy_graph.py`'s `nodes` set and `engine_report`'s
 machine-attr admission). A prior plan draft conflated these as one rule in four
 places — but they differ: a commander-carried attr is *admitted to the graph* at
 any support count, while it is only *present/eligible* at support >= 2.
 
 ## Decision
-Two named module-level predicates in `facts.py`:
+Two named module-level predicates in `strategy_graph.py`:
 - `node_eligible(support_count, is_cmd) -> support_count >= 3 or (is_cmd and support_count >= 2)`
   — the substantiveness presence gate; `requires_met`, `lands_signal_present`, and
   `otag_typal_registered` all call it.
@@ -50,4 +50,4 @@ nodes and changing engine output.
 ## Related records
 - 0001 — clause 4 (one named implementation).
 - 0002 — substantiveness; `requires_met` (the presence gate) feeds `st['requires_met']`.
-- 0003 — `facts.py` is byte-frozen; this change is output-preserving (SHA unchanged).
+- 0003 — `strategy_graph.py` is byte-frozen; this change is output-preserving (SHA unchanged).

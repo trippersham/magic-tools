@@ -4,7 +4,7 @@ The identity-gate asks a single question of every archetype: *is this identity
 substantive enough to name?* Historically that was ~5 ``if arch == '<name>'``
 branches in :func:`~.naming.name_deck`'s ``eligible()``. This module replaces the
 name-keyed branches with a closed set of :class:`Requirement` KINDS plus a DATA
-map (``SUBSTANTIVENESS``) that assigns each archetype its bar. One evaluator
+map (``SUBSTANTIVENESS``) that assigns each archetype its bar. One determiner
 dispatches on ``req.kind`` — **never on an archetype name**.
 
 The litmus (asserted by :mod:`.tests.test_substantiveness_generic`):
@@ -35,7 +35,7 @@ all others (~33)      ``member_count(3)``                          ``requires_me
 Spellslinger falls to the default ``member_count(3)`` bar: its old density gate
 (``type_density`` keyed on ``ss_rule``) was vestigial — always-pass under the
 validated default, and the over-fire it once guarded is now handled in the vocab
-ROUTING layer (the ``cast-trigger-self`` slug was dropped), not at this gate.
+DISTILLATION layer (the ``cast-trigger-self`` slug was dropped), not at this gate.
 
 The thresholds (``gy_ratio`` / ``gy_distinct`` / ``ctrl_min_cs``) are rehomed from
 free-floating globals into the declared PARAMS of a specific archetype's
@@ -60,7 +60,7 @@ if TYPE_CHECKING:
 #: ``attr_density`` Requirement names its family here; the predicate decides which
 #: present node attributes belong to it. ``graveyard`` is the single
 #: ``is_graveyard_attr`` definition (NOT a parallel copy — it is a broader,
-#: startswith-based family than the routing graveyard query, so it is referenced,
+#: startswith-based family than the distillation graveyard query, so it is referenced,
 #: not re-derived).
 FAMILY_PREDICATES: dict[str, Callable[[str], bool]] = {
     'graveyard': is_graveyard_attr,
@@ -85,7 +85,7 @@ class Requirement:
         return _EVALUATORS[self.kind](self.params, st, ctx, arch)
 
 
-# --- the closed set of kind evaluators (the ONLY substantiveness algorithms) ---
+# --- the closed set of kind determiners (the ONLY substantiveness algorithms) ---
 # Each returns the kind's EXTRA condition; the universal ``requires_met`` gate is
 # applied by Requirement.satisfied before dispatch.
 
@@ -167,7 +167,7 @@ def requirement_for(arch: str, cfg: StrategyConfig) -> Requirement:
 # EVENT's engine unit may ENTER the mass election at all — the event analog of
 # ``node_admitted``'s ``is_cmd`` arm. It is a Requirement KIND reused through the
 # same closed-set dispatch (never an event-name or deck-name branch); the event
-# name reaches the evaluator only as the DATA-map key.
+# name reaches the determiner only as the DATA-map key.
 #
 # The one kind so far is ``produced_by_commander``: an ABSOLUTE, per-event check that
 # the command zone ANCHORS production of the event — the deck's commander carries
@@ -201,7 +201,7 @@ def _eval_produced_by_commander(params: dict, event: str, cmd_attrs: set[str], a
     return bool(cmd_attrs & refs)
 
 
-#: The event-admission evaluator set (its own closed dispatch; the universal
+#: The event-admission determiner set (its own closed dispatch; the universal
 #: ``requires_met`` payoff gate does NOT apply to the event entity, so these are
 #: NOT in ``_EVALUATORS`` and are not wrapped by ``Requirement.satisfied``).
 _EVENT_EVALUATORS: dict[str, Callable[[dict, str, set[str], Any], bool]] = {

@@ -10,11 +10,11 @@ The SAME evaluator serves two callers, and that symmetry is the design's keyston
 * **Membership** — the predicate runs against a real card view (its ``otags``,
   ``keywords``, ``type_line``, ``oracle_text``, ``mana_cost``) to decide whether
   the card carries the attribute.
-* **Routing** — the identity vocabulary (:mod:`.vocab`) routes an attribute NAME
+* **Distillation** — the identity vocabulary (:mod:`.vocab`) distills an attribute NAME
   by running the identity queries against a *pseudo-card* whose only otag is that
   name. Then ``otag:typal`` is exactly ``name == 'typal'`` and ``otag:changeling``
   is exactly ``name == 'changeling'`` — the attribute-name equality the
-  deterministic router performs, expressed in the one query language. Families are
+  deterministic distiller performs, expressed in the one query language. Families are
   named by their exact otag parent (card otags are ancestor-closed, so the parent
   carries the children) or by an explicit exact OR-list.
 
@@ -60,7 +60,7 @@ _PIP_RE = re.compile(r'\{([WUBRG])\}')
 class CardView:
     """The normalized, lake-resolved fields a query reads — nothing else.
 
-    Built once per card (and once per pseudo-card during routing) so every
+    Built once per card (and once per pseudo-card during distillation) so every
     predicate over it is pure set/substring work.
     """
 
@@ -82,7 +82,7 @@ class CardView:
 
     @classmethod
     def for_name(cls, name: str) -> CardView:
-        """A pseudo-card whose only otag is ``name`` — the routing substrate."""
+        """A pseudo-card whose only otag is ``name`` — the distillation substrate."""
         return cls(otags=frozenset({name}), keywords=frozenset(), type_line='', oracle_text_lower='', mana_cost='')
 
 

@@ -79,7 +79,7 @@ three P0 SHAs hold.
   dropping it silently shrinks `event_anchors` (263 → 177) and breaks the combo-edge query
   builder. Roles are metadata beside the map, never a second matcher.
 - **Reuse the vocab identity query for a bucket whose NAME is a vocab identity** (e.g.
-  `clones`). Rejected: a vocab identity routes an attribute NAME (membership vs edge never
+  `clones`). Rejected: a vocab identity distills an attribute NAME (membership vs edge never
   mix, ADR 0001); its query (`otag:clones`) is NOT the bucket's membership query
   (`otag:copy-creature OR otag:clone`) and diverges. The `card_attributes` value is always the
   bucket's own OR-of-slugs, so parity is guaranteed.
