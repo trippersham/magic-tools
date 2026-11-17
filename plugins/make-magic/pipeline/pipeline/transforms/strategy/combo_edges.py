@@ -41,6 +41,7 @@ from pipeline.transforms.strategy.combo_win import (
     fid_route,
     resolve_fids_from_feature_names,
 )
+from pipeline.transforms.strategy.derive_card_attributes import derive_card_attributes
 from pipeline.transforms.strategy.machine_vocab import (
     DERIVATION_VERSION,
     EXTRACTION_VERSION,
@@ -49,7 +50,6 @@ from pipeline.transforms.strategy.machine_vocab import (
     load_store,
     persist_batch,
 )
-from pipeline.transforms.strategy.strategy_graph import otag_derived_attrs
 
 #: Provenance source label for a deterministically lowered combo edge.  Reuses
 #: the existing ``'spellbook'`` provenance value (ADR 0008: combo-database-derived)
@@ -96,7 +96,7 @@ def _attr_query(attr: str, assets: StrategyAssets) -> str:
 
     A bucket attribute expands to the OR of its member otag slugs; an
     otag-slug attribute (payoff / event-anchor / ench / edhrec) is itself the
-    slug.  Mirrors how :func:`.strategy_graph.otag_derived_attrs` recognises the
+    slug.  Mirrors how :func:`.derive_card_attributes.derive_card_attributes` recognises the
     attribute, so Phase-B membership (the ``engine_report`` keystone) matches the
     same cards Phase A reasoned over.
     """
@@ -167,7 +167,7 @@ def derive_combo_edges(
     # Combo-piece scope: the union of attributes carried by the combo's pieces.
     piece_attrs: set[str] = set()
     for oid in piece_oids:
-        piece_attrs |= otag_derived_attrs(otag_index.get(oid, set()), assets)
+        piece_attrs |= derive_card_attributes(otag_index.get(oid, set()), assets)
     if not piece_attrs:
         return []
 
@@ -245,7 +245,7 @@ def derive_self_couplings(
        by the 5.3 Phase-A process-once driver, which iterates over oracle_ids
        and calls this for each card.
     """
-    attrs = otag_derived_attrs(otags, assets)
+    attrs = derive_card_attributes(otags, assets)
     if not attrs:
         return []
 

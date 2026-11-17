@@ -56,15 +56,15 @@ def _load_events() -> dict[str, dict]:
     Adjacency is DERIVED at load (ADR 0012/0022): the hand-enumerated
     ``produced_by``/``triggers`` are replaced by the descendant-closure of each
     side's owner-approved anchors via the one named rule
-    ``derive_event_adjacency`` — the same view ``assets.load_assets`` serves, so
+    ``derive_card_events`` — the same view ``assets.load_assets`` serves, so
     the edge-author hydration universes never drift from the election path.
     """
     with _CATALOG_PATH.open() as f:
         raw_events = json.load(f)['events']
     try:
-        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_card_events
 
-        return derive_event_adjacency(raw_events)
+        return derive_card_events(raw_events)
     except FileNotFoundError:
         # No lake (offline CI / unhydrated): committed enumerated adjacency.
         # Observable, not silent — production must hydrate the lake (ADR 0022).

@@ -43,11 +43,11 @@ class TestManaProducedSoundness:
 
     def test_mana_produced_derived_includes_committed_producers(self) -> None:
         """Derived produced_by ⊇ committed produced_by for mana-produced."""
-        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_card_events
         from pipeline.transforms.strategy.engine_hydration import _load_events
 
         events = _load_events()
-        derived = derive_event_adjacency(events)
+        derived = derive_card_events(events)
 
         committed = set(events['mana-produced']['produced_by'])
         derived_pb = set(derived['mana-produced']['produced_by'])
@@ -56,11 +56,11 @@ class TestManaProducedSoundness:
 
     def test_mana_produced_derived_excludes_ramp(self) -> None:
         """Derived produced_by does NOT contain ``ramp``."""
-        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_card_events
         from pipeline.transforms.strategy.engine_hydration import _load_events
 
         events = _load_events()
-        derived = derive_event_adjacency(events)
+        derived = derive_card_events(events)
 
         assert 'ramp' not in derived['mana-produced']['produced_by'], (
             'ramp re-admitted to mana-produced derived produced_by — the rule is WRONG'
@@ -68,11 +68,11 @@ class TestManaProducedSoundness:
 
     def test_mana_produced_derived_includes_mana_dork_descendants(self) -> None:
         """Derived produced_by includes mana-producer descendants (mana-dork etc)."""
-        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_card_events
         from pipeline.transforms.strategy.engine_hydration import _load_events
 
         events = _load_events()
-        derived = derive_event_adjacency(events)
+        derived = derive_card_events(events)
         derived_pb = set(derived['mana-produced']['produced_by'])
 
         # mana-dork is a child of mana-producer (seed), so it must appear
@@ -238,11 +238,11 @@ class TestDerivedSupersetOfEnumerated:
     def test_derived_produced_by_superset(self, catalog_events: dict[str, dict]) -> None:
         from pipeline.transforms.strategy.adjacency import (
             SEED_MAP,
-            derive_event_adjacency,
+            derive_card_events,
             refused_climb_targets,
         )
 
-        derived = derive_event_adjacency(catalog_events)
+        derived = derive_card_events(catalog_events)
         for event_name, ev in catalog_events.items():
             enum_pb = set(ev['produced_by'])
             derived_pb = set(derived[event_name]['produced_by'])
@@ -254,9 +254,9 @@ class TestDerivedSupersetOfEnumerated:
             assert not missing, f'{event_name}: derived produced_by lost enumerated slugs: {missing}'
 
     def test_derived_triggers_superset(self, catalog_events: dict[str, dict]) -> None:
-        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_card_events
 
-        derived = derive_event_adjacency(catalog_events)
+        derived = derive_card_events(catalog_events)
         for event_name, ev in catalog_events.items():
             enum_t = set(ev['triggers'])
             derived_t = set(derived[event_name]['triggers'])
@@ -322,9 +322,9 @@ class TestUnlockOnRoleAEdges:
         role_a_edges: list[dict],
         residue_otags: dict[str, set[str]],
     ) -> None:
-        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_card_events
 
-        derived = derive_event_adjacency(catalog_events)
+        derived = derive_card_events(catalog_events)
 
         n_edges = len(role_a_edges)
         assert n_edges == 116, f'Expected 116 edges, got {n_edges}'
@@ -354,11 +354,11 @@ class TestP0SHAUnchanged:
     def test_adjacency_is_derived_at_load(self) -> None:
         # The flip is authoritative: the live catalog's event adjacency equals the
         # derived closure-union, not the frozen enumerated lists (ADR 0022).
-        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_card_events
         from pipeline.transforms.strategy.assets import load_assets
 
         events = load_assets().events
-        derived = derive_event_adjacency(events)
+        derived = derive_card_events(events)
         for ev in events:
             assert sorted(events[ev]['produced_by']) == sorted(derived[ev]['produced_by'])
             assert sorted(events[ev]['triggers']) == sorted(derived[ev]['triggers'])
@@ -399,18 +399,18 @@ class TestDerivedAdjacencyShape:
         self,
         catalog_events: dict[str, dict],
     ) -> None:
-        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_card_events
 
-        derived = derive_event_adjacency(catalog_events)
+        derived = derive_card_events(catalog_events)
         assert set(derived.keys()) == set(catalog_events.keys())
 
     def test_derived_preserves_rule_field(
         self,
         catalog_events: dict[str, dict],
     ) -> None:
-        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_card_events
 
-        derived = derive_event_adjacency(catalog_events)
+        derived = derive_card_events(catalog_events)
         for event_name in catalog_events:
             assert derived[event_name]['rule'] == catalog_events[event_name]['rule']
 
@@ -418,9 +418,9 @@ class TestDerivedAdjacencyShape:
         self,
         catalog_events: dict[str, dict],
     ) -> None:
-        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_card_events
 
-        derived = derive_event_adjacency(catalog_events)
+        derived = derive_card_events(catalog_events)
         for event_name, ev in derived.items():
             assert ev['produced_by'] == sorted(ev['produced_by']), f'{event_name}: derived produced_by not sorted'
             assert ev['triggers'] == sorted(ev['triggers']), f'{event_name}: derived triggers not sorted'
@@ -484,11 +484,11 @@ class TestExclusivityValidator:
     def test_ramp_absent_from_every_derived_output(self) -> None:
         """Output purity: ``ramp`` is in NO derived produced_by/triggers list."""
         from pipeline.transforms.strategy.adjacency import (
-            derive_event_adjacency,
+            derive_card_events,
         )
         from pipeline.transforms.strategy.engine_hydration import _load_events
 
-        derived = derive_event_adjacency(_load_events())
+        derived = derive_card_events(_load_events())
         for event_name, ev in derived.items():
             assert 'ramp' not in ev['produced_by'], f'{event_name}: ramp leaked into derived produced_by'
             assert 'ramp' not in ev['triggers'], f'{event_name}: ramp leaked into derived triggers'
@@ -520,19 +520,19 @@ class TestExclusivityValidator:
     ) -> None:
         """The exclusivity layer does NOT change the derived output.
 
-        derive_event_adjacency still returns the closure-union of the curated
+        derive_card_events still returns the closure-union of the curated
         seeds, so the shadow election is byte-identical to the measured
         (ramp-corrected) hand map — the re-confirmed shadow numbers carry over.
         """
         from pipeline.transforms.strategy.adjacency import (
             SEED_MAP,
-            derive_event_adjacency,
+            derive_card_events,
             descendant_closure,
             load_taxonomy,
         )
 
         taxonomy = load_taxonomy()
-        derived = derive_event_adjacency(catalog_events)
+        derived = derive_card_events(catalog_events)
         for event_name, entry in SEED_MAP.items():
             for side in ('produced_by', 'triggers'):
                 seeds = entry[side]['seeds']

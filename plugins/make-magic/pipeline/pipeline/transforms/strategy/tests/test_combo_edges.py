@@ -153,10 +153,10 @@ def _find_self_coupling_otags(assets):
         for a_prod in sorted(spec['produced_by']):
             if a_prod in assets.buckets:
                 continue
-            # Confirm this slug is recognized by otag_derived_attrs.
-            from pipeline.transforms.strategy.strategy_graph import otag_derived_attrs
+            # Confirm this slug is recognized by derive_card_attributes.
+            from pipeline.transforms.strategy.derive_card_attributes import derive_card_attributes
 
-            if a_prod not in otag_derived_attrs({a_prod}, assets):
+            if a_prod not in derive_card_attributes({a_prod}, assets):
                 continue
             for e_prime, spec_prime in sorted(assets.events.items()):
                 if e_prime == e:
@@ -166,7 +166,7 @@ def _find_self_coupling_otags(assets):
                         continue
                     if a_trig == a_prod:
                         continue
-                    if a_trig not in otag_derived_attrs({a_trig}, assets):
+                    if a_trig not in derive_card_attributes({a_trig}, assets):
                         continue
                     return a_prod, a_trig, e, e_prime
     raise AssertionError('no self-coupling pair found in catalog')
@@ -198,9 +198,9 @@ class TestDeriveSelfCouplings:
         assert mana_attr in assets.events['mana-produced']['produced_by']
         # Give the card ONLY this one slug.  If it is not a trigger of any
         # other event, no self-coupling is possible.
-        from pipeline.transforms.strategy.strategy_graph import otag_derived_attrs
+        from pipeline.transforms.strategy.derive_card_attributes import derive_card_attributes
 
-        attrs = otag_derived_attrs({mana_attr}, assets)
+        attrs = derive_card_attributes({mana_attr}, assets)
         # Check there is no trigger-side overlap for any OTHER event.
         has_trigger = any(attrs & set(spec['triggers']) for ev, spec in assets.events.items() if ev != 'mana-produced')
         if has_trigger:

@@ -21,8 +21,6 @@ from pipeline.transforms.strategy import _graph
 from pipeline.transforms.strategy.assets import (
     ANSWERS_MAP,
     ANSWERS_MAP_ALL_SLUGS,
-    EDHREC_ATTR_SLUGS,
-    ENCH_ATTR_SLUGS,
     StrategyAssets,
     is_land,
     load_assets,
@@ -41,6 +39,7 @@ from pipeline.transforms.strategy.combo_win import (
 )
 from pipeline.transforms.strategy.config import FACTS_ONLY_WHEN_DISABLED, StrategyConfig
 from pipeline.transforms.strategy.degree import compute_degree_axes, power_profile
+from pipeline.transforms.strategy.derive_card_attributes import derive_card_attributes
 from pipeline.transforms.strategy.query import CardView
 from pipeline.transforms.strategy.substantiveness import event_admitted
 from pipeline.transforms.strategy.tribes import compute_tribes, creature_subtypes
@@ -381,31 +380,6 @@ def elect_engine_units(
     }
 
 
-def otag_derived_attrs(closure: set[str], assets: StrategyAssets) -> set[str]:
-    """Union the otag-derived CardAttributes for one card's otag closure.
-
-    This is the otag->attribute derivation shared by :func:`compute_facts`
-    (per deck) and the Phase-A combo-edge authoring (:mod:`.combo_edges`,
-    ADR 0021 B1), so the two reads of a card's attributes never drift
-    (ADR 0001 one-named-rule).  Synth attributes (card-field predicates) are
-    NOT included here -- :func:`compute_facts` unions those separately from the
-    full card via :func:`.vocab.synth_attrs_for`.
-    """
-    # One matcher (ADR 0009): a CardAttribute -- bucket or payoff -- is carried iff
-    # its compiled ``card_attributes`` query matches the card's otag closure. The
-    # closure is the ancestor-closed otag set, so a view over just those otags
-    # resolves every ``otag:`` query; this replaced the separate bucket
-    # (OR-of-slug) and payoff (slug-intersection) tests with identical membership.
-    # The event-anchor / enchantment / EDHREC lines stay direct closure
-    # intersections (already clean ``otag:name`` membership, out of scope).
-    view = CardView(otags=frozenset(closure), keywords=frozenset(), type_line='', oracle_text_lower='', mana_cost='')
-    attrs = {name for name, pred in assets.card_attr_preds if pred(view)}
-    attrs |= closure & assets.event_anchors
-    attrs |= closure & ENCH_ATTR_SLUGS
-    attrs |= closure & EDHREC_ATTR_SLUGS
-    return attrs
-
-
 def compute_facts(
     deck: dict,
     combos: list[dict] | None = None,
@@ -430,7 +404,7 @@ def compute_facts(
         # otag-derived attrs via the shared one-named-rule derivation (also used
         # by Phase-A combo_edges, ADR 0021 B1 / 0001). EDHREC family slugs are
         # surfaced onto the card as themselves (ADR 0006).
-        attrs = otag_derived_attrs(closure, assets)
+        attrs = derive_card_attributes(closure, assets)
         # Synth attributes (vehicle/energy/extra-turn/devotion from card fields,
         # morph from keywords) come from the compiled vocab predicates — one
         # resolution path, no hand-coded field tests.

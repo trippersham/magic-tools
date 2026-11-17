@@ -65,7 +65,7 @@ silently derived).  The output never contains a refused umbrella.
 
 Derived view — authoritative (task 6.5 flip, ADR 0022)
 ------------------------------------------------------
-``derive_event_adjacency(events)`` returns a new events dict where each event's
+``derive_card_events(events)`` returns a new events dict where each event's
 ``produced_by``/``triggers`` lists are the sorted descendant-closure of that
 side's seeds.  The committed enumerated lists are a *subset* (no loss).  The
 exclusivity layer does NOT change this output (the curated seeds are already the
@@ -1271,7 +1271,7 @@ def validate_seed_map(
 # ---------------------------------------------------------------------------
 
 
-def derive_event_adjacency(
+def derive_card_events(
     events: dict[str, dict],
 ) -> dict[str, dict]:
     """Compute derived ``produced_by``/``triggers`` from seeds + taxonomy closure.
@@ -1324,7 +1324,7 @@ def derive_event_adjacency(
 #
 # The derived adjacency is now the DEFAULT, applied where the catalog is loaded
 # (``assets.load_assets`` and ``engine_hydration._load_events``) via
-# :func:`derive_event_adjacency`.  The former ``SHADOW_DERIVED_ADJACENCY`` flag
+# :func:`derive_card_events`.  The former ``SHADOW_DERIVED_ADJACENCY`` flag
 # and its ``active_events`` gate are retired — there is no longer an enumerated
 # path to toggle; the hand-enumerated catalog lists are the frozen seed that the
 # derivation expands over the taxonomy.
@@ -1565,7 +1565,7 @@ def discover_candidates(
     Parameters
     ----------
     events
-        The derived events dict (from ``derive_event_adjacency``).
+        The derived events dict (from ``derive_card_events``).
     event_name
         Event to discover candidates for.
     side
