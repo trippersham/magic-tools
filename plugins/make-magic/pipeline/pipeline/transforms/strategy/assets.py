@@ -198,7 +198,6 @@ class StrategyAssets:
     #: exact parent, so exact membership of ``tutor-land`` matches the whole family).
     tutor_land_pred: Predicate
     new_bucket_names: frozenset[str]
-    arch_newbuckets: bool
     #: Compiled routing: attribute NAME -> strategy, from the vocab's two maps.
     router: Router
     #: Compiled synth-attribute predicates (name, predicate), card-field queries.
@@ -282,8 +281,7 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
             if ref not in bucket_names:
                 event_anchors.add(ref)
 
-    arch_newbuckets = 'new_buckets' in enabled
-    router = build_router(newbuckets=arch_newbuckets)
+    router = build_router()
     synth_predicates = tuple(compile_synth())
 
     return StrategyAssets(
@@ -297,7 +295,6 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
         event_anchors=frozenset(event_anchors),
         tutor_land_pred=tutor_land_pred,
         new_bucket_names=new_bucket_names,
-        arch_newbuckets=arch_newbuckets,
         router=router,
         synth_predicates=synth_predicates,
         spell_re=re.compile(density['spell-density']['regex']),

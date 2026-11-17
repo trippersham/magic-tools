@@ -23,7 +23,7 @@ from pipeline.transforms.strategy.substantiveness import build_substantiveness
 #: The validated engine's default field values (the byte-parity contract).
 _EXPECTED_DEFAULTS = {
     'enabled_groups': frozenset(
-        {'new_buckets', 'dual', 'affinity', 'ramp_tutor', 'dual_land', 'dual_art', 'dual_ench', 'dual_sac'}
+        {'dual', 'affinity', 'ramp_tutor', 'dual_land', 'dual_art', 'dual_ench', 'dual_sac'}
     ),
     'gy_distinct': 4,
     'gy_ratio': 0.15,

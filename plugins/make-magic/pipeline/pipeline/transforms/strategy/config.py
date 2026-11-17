@@ -34,8 +34,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 #: re-enabled. The anthem archetype is fed ONLY the NARROW ``power-matters-self``
 #: payoff, folded into the ``anthem`` bucket by the vocab data itself
 #: (``_v4_base_buckets['anthem']`` in ``attribute_catalog.json``). See ADR 0006.
+#: The ``new_buckets`` group was collapsed to always-on as dead config (its slugs
+#: are folded unconditionally into ``_v4_base_buckets`` and its new-bucket
+#: identities are unconditional in ``vocab.py``) — ADR 0006.
 ALL_GROUPS: tuple[str, ...] = (
-    'new_buckets',
     'dual',
     'affinity',
     'ramp_tutor',
@@ -45,7 +47,7 @@ ALL_GROUPS: tuple[str, ...] = (
     'dual_sac',
 )
 #: The ``GROUPS=refined`` subset (kept for parity with the prototype knob).
-REFINED_GROUPS: frozenset[str] = frozenset({'new_buckets', 'affinity', 'dual_land', 'dual_art', 'dual_sac'})
+REFINED_GROUPS: frozenset[str] = frozenset({'affinity', 'dual_land', 'dual_art', 'dual_sac'})
 
 #: Archetypes reported as FACTS but never NAMING candidates — the ``facts_only`` set
 #: as DATA (not an inline literal in the facts branch). The enchantments synergy

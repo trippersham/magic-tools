@@ -5,7 +5,7 @@
 | Status | Accepted. Built in the consolidation. |
 | Review | pending owner review: agent-authored; records the collapse as built. |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (the 3 deconf-capability tests were removed with the capability). Output-preservation proven: the hermetic parity oracle (both P0 SHAs unchanged) **and** the full-corpus recalc (`recalc_corpus()`, 170 decks, SHA `8b0125eeb2e1…3554` unchanged pre/post). |
-| Code paths | [`config.py`](../../pipeline/pipeline/transforms/strategy/config.py) (the knob set) |
+| Code paths | [`config.py`](../../pipeline/pipeline/transforms/strategy/config.py) (the knob set); [`vocab.py`](../../pipeline/pipeline/transforms/strategy/vocab.py), [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py), [`data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json) (the `new_buckets` collapse) |
 
 ## Context
 `StrategyConfig` carried boolean knobs defaulting to the validated prototype's
@@ -24,6 +24,13 @@ and its branch inlined to the validated default:
 - the `deconf_anthem` group + the `anthem-deconf` attribute/routing → **removed**, so
   broad `power-matters`/`toughness-matters` never routes to anthem — the J2/B6
   anti-over-fire fix is now permanent (completed by the A1 vocab fold).
+- the `new_buckets` group → **always on** (the off-path was never selected in
+  production, tests, or CLI — a dead `enabled_groups` toggle): its new-bucket
+  identities (`food`/`mm-counters`/`theft-newbuckets`) are unconditional in
+  `vocab.py` (the `newbuckets`/`arch_newbuckets` plumbing on `build_router`/
+  `StrategyAssets` is removed), its bucket slugs are folded into `_v4_base_buckets`
+  in `attribute_catalog.json` (removed from `_v4_groups`), and it is dropped from
+  `ALL_GROUPS`/`REFINED_GROUPS`.
 
 **Thresholds stay** (`gy_*`, `conf_*`, `identity_*`, `typal_dom_share`, `over_t`,
 `ctrl_min_cs`, `combo_win_min`, `combo_primary_*`, `cmd_weight`) — a threshold is a
@@ -47,6 +54,9 @@ other clauses police. The value/branch test (ADR 0001) is the discriminator.
 ## Consequences
 - Output-preserving: hermetic SHAs identical; full-corpus SHA `8b0125ee…3554`
   identical across 170 decks.
+- The later `new_buckets` collapse is likewise byte-parity: the hermetic oracle
+  SHAs (engine `7a73aba9…`, resolve `1e54293c…`) and the current full-corpus SHA
+  `07eb6673…` are unchanged pre/post.
 - 3 deconf-capability tests removed (`test_j2_anthem_deconf` trimmed to the narrow
   state; the `test_vocab_separation` deconf-gating test deleted).
 - All strategy boolean knobs are now removed (incl. `enable_tutor_land_enabler`, via the

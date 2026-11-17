@@ -6302,7 +6302,9 @@
       "artifact-count-matters",
       "affinity-for-artifacts",
       "synergy-artifact-creature",
-      "repeatable-artifact-tokens"
+      "repeatable-artifact-tokens",
+      "metalcraft",
+      "improvise"
     ],
     "graveyard": [
       "cards-in-graveyard-matter",
@@ -6333,33 +6335,27 @@
       "second-spell-matters",
       "storm-count-matters",
       "prowess-like"
+    ],
+    "food": [
+      "repeatable-food",
+      "synergy-food",
+      "eat-food"
+    ],
+    "mm_counters": [
+      "gives-mm-counters",
+      "gains-mm-counters",
+      "mm-counters-matter",
+      "removes-mm-counters-self"
+    ],
+    "theft": [
+      "theft-creature",
+      "theft-artifact",
+      "theft-land",
+      "theft-planeswalker",
+      "theft-spell"
     ]
   },
   "_v4_groups": {
-    "new_buckets": {
-      "food": [
-        "repeatable-food",
-        "synergy-food",
-        "eat-food"
-      ],
-      "mm_counters": [
-        "gives-mm-counters",
-        "gains-mm-counters",
-        "mm-counters-matter",
-        "removes-mm-counters-self"
-      ],
-      "theft": [
-        "theft-creature",
-        "theft-artifact",
-        "theft-land",
-        "theft-planeswalker",
-        "theft-spell"
-      ],
-      "artifacts": [
-        "metalcraft",
-        "improvise"
-      ]
-    },
     "dual": {
       "graveyard": [
         "recursion-land",

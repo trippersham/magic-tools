@@ -25,9 +25,9 @@ the edge is ``ARCHETYPE_EDGES``. Routing an attribute name is: find the identity
 whose query matches that name, then take its edge. The identity order below is the
 routing precedence — the first matching identity wins, which is how overlapping
 mechanic families (a land that is also graveyard recursion; a treasure that is
-also an artifact payoff) resolve to a single strategy. Config toggles select
-which identity blocks are active; the ``overlay`` parameter of
-:func:`build_router` deep-merges user extensions over this pristine base.
+also an artifact payoff) resolve to a single strategy. All identity blocks are
+unconditionally active; the ``overlay`` parameter of :func:`build_router`
+deep-merges user extensions over this pristine base.
 """
 
 from __future__ import annotations
@@ -93,7 +93,8 @@ EDHREC_IDENTITIES: list[tuple[str, str]] = [
     ),
 ]
 
-#: New-bucket identities (active when the ``new_buckets`` group is enabled).
+#: New-bucket identities (always active; the ``new_buckets`` group toggle was
+#: collapsed to always-on as dead config — ADR 0006).
 NEWBUCKET_IDENTITIES: list[tuple[str, str]] = [
     ('food', 'otag:repeatable-food OR otag:synergy-food OR otag:eat-food OR otag:food'),
     (
@@ -384,19 +385,18 @@ def _merge_overlay(base_pairs: list[tuple[str, str]], overlay: Mapping[str, str]
 
 def _resolve_identity_order(
     *,
-    newbuckets: bool,
     overlay: Mapping | None,
 ) -> list[tuple[str, str]]:
     """Assemble the ordered identity list (routing precedence).
 
-    EDHREC identities are always included (the ``edhrec_labels`` knob was removed
-    as frozen configuration -- ADR 0006). ``newbuckets`` remains a real toggle.
+    EDHREC and new-bucket identities are always included (the ``edhrec_labels``
+    knob and the ``new_buckets`` group toggle were both removed as frozen
+    configuration -- ADR 0006).
     """
     attr_overlay = (overlay or {}).get('attributes')
     pairs: list[tuple[str, str]] = []
     pairs += EDHREC_IDENTITIES
-    if newbuckets:
-        pairs += NEWBUCKET_IDENTITIES
+    pairs += NEWBUCKET_IDENTITIES
     pairs += BASE_IDENTITIES
     return _merge_overlay(pairs, attr_overlay)
 
@@ -429,10 +429,9 @@ class Router:
 
 def build_router(
     *,
-    newbuckets: bool,
     overlay: Mapping | None = None,
 ) -> Router:
-    pairs = _resolve_identity_order(newbuckets=newbuckets, overlay=overlay)
+    pairs = _resolve_identity_order(overlay=overlay)
     edges = build_edges(overlay)
     compiled = tuple(
         CompiledIdentity(name=n, predicate=compile_query(q), strategy=edges[n]) for n, q in pairs if n in edges
