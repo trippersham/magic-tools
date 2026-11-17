@@ -43,7 +43,7 @@ mechanically (a predicate with two defining sites is detectable).
 ## Consequences
 - The consolidation moves mechanic logic to queries/data (enchantment surfacing, lands
   signal, tribes) and collapses duplicated deck rules (the presence gate ×4 → one
-  `node_eligible`, ADR 0004), per the fourth clause.
+  `determine_node_eligible`, ADR 0004), per the fourth clause.
 - Honest gap (restated): the clause-4 check is review-enforced until the conformance check
   ships. Planning/design artifacts live in the owner's transient plans tree and are **not**
   linked from this record.

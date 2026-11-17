@@ -5,7 +5,7 @@
 | Status | **Accepted.** In force on branch `feat/strategy-engine`. Output-moving re-baseline (ADR 0003) carried at the 2026-11-14 flip (task 6.5). |
 | Review | Agent-authored from the empirically-validated build design (`research/adjacency-build-design.md`) and the three-round shadow measurement (`research/derived-adjacency-shadow-delta.md`); the orchestrator reconciled, ran the full-170 gauntlet (0 genuine regressions), showed the owner the delta + old→new SHAs, and committed + re-baselined. (Supersedes the `0018-DRAFT` proposal; 0018–0019 remain unused.) |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (547 passed, 4 skipped). Seed rule: `test_adjacency.py` (superset `derived ⊇ enumerated` except the intended ramp-correction; `validate_seed_map()` 0 violations; `TestExclusivityValidator` gate — `ramp` refused for both `mana-produced` and `land-enters-battlefield`; `test_ramp_as_seed_caught_by_validator` — non-tautological acceptance test; `TestEventAdmittedGate` — producer-anchor admission). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` + `test_event_ontology.py` + the re-baselined `FULL_CORPUS_SHA`. |
-| Code paths | [`adjacency.py`](../../pipeline/pipeline/transforms/strategy/adjacency.py) (`SEED_MAP`, `derive_event_adjacency`, the enforced exclusivity validator), [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py) + [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (derive-at-load), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` rank-don't-cut), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (the frozen enumerated seed, now overwritten at load). |
+| Code paths | [`derive_card_events.py`](../../pipeline/pipeline/transforms/strategy/derive_card_events.py) (`SEED_MAP`, `derive_card_events`, the enforced exclusivity validator), [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py) + [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (derive-at-load), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` rank-don't-cut), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (the frozen enumerated seed, now overwritten at load). |
 
 ## Context
 
@@ -39,8 +39,8 @@ Two coupled changes, each one named rule (ADR 0001 — one rule, one implementat
 > an otag belonging to a different mechanic.**
 
 - **The adjacency is a *view over the live taxonomy*, not a frozen list.** `SEED_MAP`
-  (`adjacency.py`) holds, per event side, the owner-approved mechanic-exclusive **seeds**;
-  `derive_event_adjacency(events)` replaces each side's list with the sorted
+  (`derive_card_events.py`) holds, per event side, the owner-approved mechanic-exclusive **seeds**;
+  `derive_card_events(events)` replaces each side's list with the sorted
   descendant-closure union of its seeds. The committed enumerated lists are a strict **subset
   except the intended ramp-correction**: `ramp` was in `land-enters-battlefield.produced_by` in the
   enumerated catalog; the derived adjacency intentionally drops it because `land-ramp` (not `ramp`)
@@ -48,7 +48,7 @@ Two coupled changes, each one named rule (ADR 0001 — one rule, one implementat
 - **Authoritative at catalog load.** The derivation is applied where the catalog is loaded —
   `assets.load_assets` (the election/density path) and `engine_hydration._load_events` (the role-A
   hydration path) — so every downstream reader (relay, facts, combo_edges, substantiveness,
-  `event_anchors` → `otag_derived_attrs`) sees the derived view. The former
+  `event_anchors` → `derive_card_attributes`) sees the derived view. The former
   `SHADOW_DERIVED_ADJACENCY` flag is retired. The enumerated lists remain in
   `event_catalog.json` as the frozen seed but are overwritten at load and are no longer
   authoritative.
@@ -75,7 +75,7 @@ Two coupled changes, each one named rule (ADR 0001 — one rule, one implementat
 
 `elect_engine_units` drops the `0.6·top-mass` relative keep-cut. It keeps **every** substantive unit
 ranked by mass desc, with only the Jaccard<0.5 near-duplicate dedup. Units are already substantive
-by construction (`node_admitted` + the `producer_anchor` event-admission gate upstream, ADR 0002 /
+by construction (`determine_node_admitted` + the `producer_anchor` event-admission gate upstream, ADR 0002 /
 0020), so a relative-mass cut among them discarded earned engines on a density-sensitive ratio.
 **Centrality RANKS, it does not CUT**; substantiveness (upstream) already decided which units
 exist. The former `SHADOW_RANK_DONT_CUT` flag is retired. This **supersedes the 0.6 keep-ratio of

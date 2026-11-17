@@ -27,7 +27,7 @@ and its branch inlined to the validated default:
 - the `new_buckets` group → **always on** (the off-path was never selected in
   production, tests, or CLI — a dead `enabled_groups` toggle): its new-bucket
   identities (`food`/`mm-counters`/`theft-newbuckets`) are unconditional in
-  `distill_strategies.py` (the `newbuckets`/`arch_newbuckets` plumbing on `build_router`/
+  `distill_strategies.py` (the `newbuckets`/`arch_newbuckets` plumbing on `build_strategy_distiller`/
   `StrategyAssets` is removed), its bucket slugs are folded into `_v4_base_buckets`
   in `attribute_catalog.json` (removed from `_v4_groups`), and it is dropped from
   `ALL_GROUPS`/`REFINED_GROUPS`.

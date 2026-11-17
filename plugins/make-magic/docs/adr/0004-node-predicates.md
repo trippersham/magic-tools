@@ -1,11 +1,11 @@
-# 0004 Node predicates: one `node_eligible` (presence gate) and one `node_admitted` (graph admission) — two distinct rules, each with a single implementation
+# 0004 Node predicates: one `determine_node_eligible` (presence gate) and one `determine_node_admitted` (graph admission) — two distinct rules, each with a single implementation
 
 | Field | Value |
 |---|---|
 | Status | Accepted. Built in the consolidation. |
 | Review | pending owner review: agent-authored; records the model as built in this change. |
-| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (the suite covers both predicates via `resolve()` and `engine_report`); the parity oracle proves `node_eligible` preserves `resolve()` output (resolve SHA unchanged). |
-| Code paths | [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`node_eligible`, `node_admitted`, and their call sites), [`engine_report.py`](../../pipeline/pipeline/transforms/strategy/engine_report.py) (machine-attr admission) |
+| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (the suite covers both predicates via `resolve()` and `engine_report`); the parity oracle proves `determine_node_eligible` preserves `resolve()` output (resolve SHA unchanged). |
+| Code paths | [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`determine_node_eligible`, `determine_node_admitted`, and their call sites), [`engine_report.py`](../../pipeline/pipeline/transforms/strategy/engine_report.py) (machine-attr admission) |
 
 ## Context
 Two deck-level predicates were each duplicated. The **presence gate**
@@ -19,10 +19,10 @@ any support count, while it is only *present/eligible* at support >= 2.
 
 ## Decision
 Two named module-level predicates in `strategy_graph.py`:
-- `node_eligible(support_count, is_cmd) -> support_count >= 3 or (is_cmd and support_count >= 2)`
+- `determine_node_eligible(support_count, is_cmd) -> support_count >= 3 or (is_cmd and support_count >= 2)`
   — the substantiveness presence gate; `requires_met`, `lands_signal_present`, and
   `otag_typal_registered` all call it.
-- `node_admitted(support_count, is_cmd) -> support_count >= 3 or is_cmd` — graph node
+- `determine_node_admitted(support_count, is_cmd) -> support_count >= 3 or is_cmd` — graph node
   admission, commander unconditional; the `nodes` set and `engine_report`'s
   machine-attr admission both call it.
 
@@ -36,7 +36,7 @@ commander-carried graph admission to require support >= 2, dropping single-comma
 nodes and changing engine output.
 
 ## Options not taken
-- **Merge into one `node_eligible` ×4.** Rejected: the two rules differ on the commander
+- **Merge into one `determine_node_eligible` ×4.** Rejected: the two rules differ on the commander
   support count; merging is a behavior change (drops nodes), not a dedup. The parity
   oracle would catch it, but the distinction is the point.
 

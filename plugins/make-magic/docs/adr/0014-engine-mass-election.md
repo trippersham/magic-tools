@@ -5,7 +5,7 @@
 | Status | Accepted. In force on branch `feat/strategy-engine`. Output-changing re-baseline (ADR 0003). |
 | Review | pending owner review: agent-authored from the GATE-0 GO-WITH-FIXES design + the re-validated full-170 delta; the orchestrator reconciles, shows the owner the delta, and commits. |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (453 pass). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` — engine `987f2660…`, resolve `85752bb9…`, full-corpus `7e5190e8…` (as of the 2026-11-14 step-2 landing; see amendment). Invariant: the mass election is STRUCTURE-ONLY (the sort/keep-walk reads only `attr_weight`; naming never reads the election). The 1 `named_strategy` change in the step-2 landing (Ghave) comes from WIRING `mana-produced`, not from the election mechanism — see [0020](0020-event-substantiveness-producer-anchor.md) + [0003](0003-byte-parity-held-files.md). |
-| Code paths | [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` — the mass sort + the `event_admitted` (event-grain) and `earned_archetypes` (archetype-grain, B6) candidate-pool filters + the `elected` set; `compute_facts` computes the earned set from `requirement_for(arch).satisfied` post-ctx and passes it in), [`engine_report.py`](../../pipeline/pipeline/transforms/strategy/engine_report.py) (consumes `engines`/`forward_chains`, order-invariant), [`relay.py`](../../pipeline/pipeline/transforms/strategy/relay.py) (runs the SAME `elect_engine_units` over relay-augmented edges, with `earned_archetypes=None` — archetype grain OFF, structure-only). |
+| Code paths | [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` — the mass sort + the `determine_event` (event-grain) and `earned_archetypes` (archetype-grain, B6) candidate-pool filters + the `elected` set; `compute_facts` computes the earned set from `requirement_for(arch).satisfied` post-ctx and passes it in), [`engine_report.py`](../../pipeline/pipeline/transforms/strategy/engine_report.py) (consumes `engines`/`forward_chains`, order-invariant), [`relay.py`](../../pipeline/pipeline/transforms/strategy/relay.py) (runs the SAME `elect_engine_units` over relay-augmented edges, with `earned_archetypes=None` — archetype grain OFF, structure-only). |
 
 ## Context
 
@@ -118,7 +118,7 @@ inputs land.
   a set (∅ on pure-lock, ≥2 on the majority once edges hydrate).
 - **A substantiveness/share floor to suppress promiscuous events (Fable probe).**
   Dropped by the owner (2026-11-13) as the wrong layer: `elect_engine_units` gates
-  units by `node_admitted` (support count) only, never `requires_met`; mana
+  units by `determine_node_admitted` (support count) only, never `requires_met`; mana
   over-forming is a Layer-C (synthesis) phenomenon, not an election knob.
 
 ## Consequences
@@ -149,7 +149,7 @@ Two coupled refinements landed with the corrected mana-wiring:
 
 2. **Event-substantiveness admission hooks between unit construction and the keep-walk.**
    Before the mass election, the candidate pool is filtered to
-   `[e for e in engines if event_admitted(e['event'], cmd_attrs, assets)]` (ADR 0002
+   `[e for e in engines if determine_event(e['event'], cmd_attrs, assets)]` (ADR 0002
    level 3 / [0020](0020-event-substantiveness-producer-anchor.md)). The keep-walk's
    `top_mass` and `total_mass` are then taken over the POOL, so removing a refused
    top-mass unit lowers the 0.6 floor and lets genuine engines re-enter — this is how the
@@ -170,7 +170,7 @@ alternative).
 The **0.6·top-mass relative keep-cut** of Decision step 4 is **removed**. The `elected` walk
 now keeps **every** candidate-pool unit ranked by mass desc, with only the member-Jaccard<0.5
 near-duplicate dedup — there is no relative-mass threshold. The units reaching the walk are
-already substantive by construction (`node_admitted` + the level-3 `producer_anchor`
+already substantive by construction (`determine_node_admitted` + the level-3 `producer_anchor`
 event-admission above), so a relative-mass cut among them discarded earned secondary engines on a
 density-sensitive ratio (issue **#72** — e.g. Teysa's `token-created`, Elenda's `lifegain` falling
 below `0.6·top` when the top event's mass inflated). **Centrality RANKS, it does not CUT.** Only
@@ -183,7 +183,7 @@ derived-adjacency flip (same re-baseline); the Test-line SHAs are superseded by 
 
 ## Amendment — 2026-11-15 (B6): archetype-grain admission completes the ordering invariant ([0021], [0002])
 
-A **third candidacy filter** now sits between the event-grain `event_admitted` filter
+A **third candidacy filter** now sits between the event-grain `determine_event` filter
 (2026-11-14 amendment) and the rank-don't-cut keep-walk ([0022]). `elect_engine_units` takes a
 new `earned_archetypes` argument — the set of the deck's archetypes that clear their [0002]
 `Requirement.satisfied` bar — and, when it is supplied, drops any candidate whose payoff
@@ -193,8 +193,8 @@ exemptions KEEP a unit that (a) has ≥1 earned `payoff_archetype`, (b) is struc
 environmental), or (c) makes NO archetype claim (empty `payoff_archetypes`). The earned verdict
 is the EXISTING per-archetype [0002] data — **no new threshold/knob, no `arch == '<name>'`
 branch**. `compute_facts` computes the earned set via `requirement_for(arch).satisfied(st, ctx,
-arch)` — the SAME one-named evaluator the naming layer consults — and places `engine_isolation`
-into `facts` post-ctx (the evaluator reads ctx). Scope: the P0 election only; `relay.py` passes
+arch)` — the SAME one-named determiner the naming layer consults — and places `engine_isolation`
+into `facts` post-ctx (the determiner reads ctx). Scope: the P0 election only; `relay.py` passes
 `earned_archetypes=None` (grain OFF, structure-only), so `engine_report` is unchanged.
 
 This **reconciles the "Options not taken" bullet** that dropped a substantiveness/share floor
@@ -242,7 +242,7 @@ with a 187/187 zero-value-change equivalence proof.
   the election.
 - 0020 — the event-substantiveness admission gate hooked into this election.
 - 0003 — the byte-parity held files this re-baseline updates (with the proof).
-- 0004 — `node_admitted` is the only gate on engine-unit membership.
+- 0004 — `determine_node_admitted` is the only gate on engine-unit membership.
 - 0012 — the Event ontology; `game-end` + `_RULE_TERMINAL_EVENTS` ground anchor mode 2.
 - 0016 — the closure-mechanism win-walk (the Engine is distinct from the win-combo:
   the walk detects kill conditions; the Engine identifies the value structure).

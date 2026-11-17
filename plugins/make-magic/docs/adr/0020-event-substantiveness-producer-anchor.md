@@ -9,7 +9,7 @@
 | Status | Accepted. In force on branch `feat/strategy-engine`. Output-changing re-baseline (ADR 0003). |
 | Review | pending owner review: agent-authored from the empirically-validated step-2 design (`event-substantiveness-empirical.md` + `mana-produced-correct-wiring.md`); the orchestrator reconciles, shows the owner the delta, and commits. |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (453 pass). The gate itself: `pytest -k "event_ontology or substantiveness"`. Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` — engine `987f2660…`, resolve `85752bb9…`, full-corpus `7e5190e8…`. Full-170 invariant (vs `7b53e6a`): **exactly 4 elected-set changes** (Selvala, Marwyn, Helga, Derevi gain `mana-produced`), **0 evictions**, **1 `named_strategy` change** (Ghave, from the consumer-side wiring, not the gate). |
-| Code paths | [`determine_strategy_substantiveness.py`](../../pipeline/pipeline/transforms/strategy/determine_strategy_substantiveness.py) (`_eval_produced_by_commander`, `_EVENT_EVALUATORS`, `EVENT_SUBSTANTIVENESS`, `event_admitted`), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` — the candidate-pool filter), [`data/event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (`mana-produced.produced_by`). |
+| Code paths | [`determine_strategy_substantiveness.py`](../../pipeline/pipeline/transforms/strategy/determine_strategy_substantiveness.py) (`_determine_produced_by_commander`, `_EVENT_DETERMINERS`, `EVENT_SUBSTANTIVENESS`, `determine_event`), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` — the candidate-pool filter), [`data/event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (`mana-produced.produced_by`). |
 
 ## Context
 
@@ -19,9 +19,9 @@ in Commander, so an un-gated mana unit dominated by raw mass: it elected on 13 d
 the corrected wiring, of which only 4 were genuine mana strategies, and in the two densest
 dork decks it EVICTED the deck's real engines (Ezuri's creature-attacks, Aang's six engines)
 by sitting above the 0.6 keep-ratio floor. ADR 0014 deliberately left the election gated
-only by `node_admitted` (a different output could not be gated inside the election by
+only by `determine_node_admitted` (a different output could not be gated inside the election by
 mass-share — correctly rejected there as the wrong layer). What was missing is the EVENT
-analog of `node_admitted`'s `is_cmd` arm: an ABSOLUTE, per-event admission check that decides
+analog of `determine_node_admitted`'s `is_cmd` arm: an ABSOLUTE, per-event admission check that decides
 whether a promiscuous event's unit is an election candidate *at all*, answerable from the
 deck alone before the election.
 
@@ -33,7 +33,7 @@ Requirement KIND `produced_by_commander` (named `producer_anchor` at authoring; 
 
 - **Measure — command-zone PRODUCTION anchor.** An event's unit is admitted to election
   candidacy iff the deck's COMMANDER carries at least one attribute in the event's own
-  producer refs. `_eval_produced_by_commander(params, event, cmd_attrs, assets)` returns
+  producer refs. `_determine_produced_by_commander(params, event, cmd_attrs, assets)` returns
   `bool(cmd_attrs & (set(assets.events[event][params['refs']]) | set(params['extra_refs'])))`.
   It is ABSOLUTE and per-event: it reads only the commander's node-admitted attrs and the
   event's own wiring refs — **never** total/top/other-unit mass, centrality, or share.
@@ -49,7 +49,7 @@ Requirement KIND `produced_by_commander` (named `producer_anchor` at authoring; 
   commander-tag check that contributes zero election mass. Dropping it (gateA) costs
   exactly one genuine deck (Derevi); keeping it anchor-side (gateB) is the chosen config.
 - **Hook point.** In `elect_engine_units`, between unit construction and the `elected`
-  keep-walk: `pool = [e for e in engines if event_admitted(e['event'], cmd_attrs, assets)]`;
+  keep-walk: `pool = [e for e in engines if determine_event(e['event'], cmd_attrs, assets)]`;
   the keep-walk runs over `pool` (its `top_mass`/`total_mass` taken over the pool). The
   reported `engines` list stays COMPLETE — exclusion is election-candidacy only, so
   diagnostics, chains, hubs and the loop probe are untouched.
@@ -116,9 +116,9 @@ only the 4 anchored-and-unstarved decks elect it.
 
 ## Later changes
 - **2026-11-16 — kind renamed `producer_anchor` → `produced_by_commander`** (naming-clarity
-  pass). Renamed the evaluator (`_eval_produced_by_commander`), the `_EVENT_EVALUATORS` dispatch
+  pass). Renamed the determiner (`_determine_produced_by_commander`), the `_EVENT_DETERMINERS` dispatch
   key, and the `EVENT_SUBSTANTIVENESS` Requirement kind string. The kind is internal dispatch DATA
-  consumed only by `event_admitted` — it is **never serialized into the emitted facts**, so the
+  consumed only by `determine_event` — it is **never serialized into the emitted facts**, so the
   rename is behavior-preserving and moved NO parity SHA (verified: it was part of the 2026-11-16
   emitted-key re-baseline, [0014] / [0003], and the SHA shift there is attributable entirely to the
   emitted-key renames + `named_strategy` removal, not this one). The gate's measure and semantics
@@ -127,7 +127,7 @@ only the 4 anchored-and-unstarved decks elect it.
 ## Related records
 - 0002 — the generic substantiveness framework; `produced_by_commander` is its first level-3 kind.
 - 0003 — the byte-parity re-baseline this change carries (old→new SHAs + the proof).
-- 0004 — `node_admitted`'s `is_cmd` arm makes the anchor well-defined (a commander's
+- 0004 — `determine_node_admitted`'s `is_cmd` arm makes the anchor well-defined (a commander's
   `produced_by` otag is never dropped from `nodes`).
 - 0012 — the Event ontology; promiscuity-scaled substantiveness is realized here.
 - 0014 — the mass election whose candidate pool this gate filters (hook point + `lead`

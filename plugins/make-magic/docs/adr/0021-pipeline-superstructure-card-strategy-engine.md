@@ -11,7 +11,7 @@
 
 The engine's knowledge is captured in 15 piece-ADRs (0001–0020). Each defines one
 primitive or rule well — CardAttribute storage (0008), event ontology (0012), the
-substantiveness evaluator (0002) and its grains (0004 attribute, 0020 event), mass-election
+substantiveness determiner (0002) and its grains (0004 attribute, 0020 event), mass-election
 (0014), win-walk (0016), native-then-haiku derivation (0017), and so on. **No ADR records
 how they compose** — the order in which the stages run, which stage is cached vs computed,
 and where the Card-intrinsic / deck-specific seam falls.
@@ -30,7 +30,7 @@ Unwritten superstructure is where bolt-ons breed, and it already has:
   were parallel, not ordered — which inverted the ontology: **Strategy is defined as the
   substantive sub-graph**, so substantiveness is *prior* to election, not beside it. B6 fixes
   this: `elect_engine_units` now consults `requirement_for(arch).satisfied` (the one-named 0002
-  evaluator) to gate a candidate whose SOLE basis is an unearned archetype claim, with the
+  determiner) to gate a candidate whose SOLE basis is an unearned archetype claim, with the
   owner-approved structural exemptions (commander-coupled / non-bipartite anchor / no
   archetype claim). Substantiveness is now upstream of centrality at the archetype grain too.
 
@@ -66,7 +66,7 @@ e.g. a wiring fix) are Phase-B / engine-time and bump **neither**. Result cached
 
 In strict order:
 
-1. **Substantiveness → the Strategy sub-graph.** All grains — attribute (`node_admitted`,
+1. **Substantiveness → the Strategy sub-graph.** All grains — attribute (`determine_node_admitted`,
    0004), event (`producer_anchor`, 0020), archetype (`requires_met` Requirements, 0002) —
    qualify what is *earned* in this deck. **Strategy is the substantive sub-graph.** This runs
    **first**.
@@ -98,7 +98,7 @@ In strict order:
 | Card-intrinsic store (`oracle_id`-keyed) | A | 0008 |
 | Decompose: native-first, haiku residue | A | 0017 (+ 0007 fid adapter) |
 | Derive: features → Events + EventEffects | A | 0012 (events), 0011 (EventEffect guards), 0016 (win-walk view) |
-| Substantiveness — evaluator | B.1 | 0002 |
+| Substantiveness — determiner | B.1 | 0002 |
 | Substantiveness — attribute grain | B.1 | 0004 |
 | Substantiveness — event grain | B.1 | 0020 |
 | Centrality / election (ranking) | B.2 | 0014 |

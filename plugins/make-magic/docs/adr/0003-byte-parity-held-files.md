@@ -5,7 +5,7 @@
 | Status | Accepted. In force on branch `feat/strategy-engine`. |
 | Review | ratified by the owner on 2026-11-11. (Agent-authored; owner-ratified.) |
 | Test | From `plugins/make-magic/pipeline`: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` records a composite SHA over the serialized `elect_engine_units` output plus the full `resolve()` records for the 17 hermetic fixture decks; a parity test imports `composite_sha` to assert no drift. The full 170-deck curated-corpus SHA is now **independently checkable** via `full_corpus_sha()` in `engine_parity_oracle.py` (canonical serialization: `json.dumps(records, sort_keys=True, separators=(',',':'), default=list)` → SHA-256; pinned as `FULL_CORPUS_SHA`). A lake-gated test in `test_resolution_fidelity.py::TestFullCorpusCanonicalSha` asserts the value. |
-| Code paths | [`pipeline/.../strategy/data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py), [`distill_strategies.py`](../../pipeline/pipeline/transforms/strategy/distill_strategies.py), [`win_walk.py`](../../pipeline/pipeline/transforms/strategy/win_walk.py), [`data/card_edges.json`](../../pipeline/pipeline/transforms/strategy/data/card_edges.json), [`combo.py`](../../pipeline/pipeline/transforms/strategy/combo.py), [`tests/fixtures/distill_parity_baseline.json`](../../pipeline/pipeline/transforms/strategy/tests/fixtures/distill_parity_baseline.json) |
+| Code paths | [`pipeline/.../strategy/data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py), [`distill_strategies.py`](../../pipeline/pipeline/transforms/strategy/distill_strategies.py), [`combo_win.py`](../../pipeline/pipeline/transforms/strategy/combo_win.py), [`data/card_edges.json`](../../pipeline/pipeline/transforms/strategy/data/card_edges.json), [`combo.py`](../../pipeline/pipeline/transforms/strategy/combo.py), [`tests/fixtures/distill_parity_baseline.json`](../../pipeline/pipeline/transforms/strategy/tests/fixtures/distill_parity_baseline.json) |
 
 ## Context
 The higher-order engine-identification work (machine-authored attributes, within-card
@@ -107,10 +107,10 @@ re-baseline makes every *intended* change legible as such.
   is **superseded** — same 170 records, same lake state, just a defined hash.
 
 - **2026-11-13 — closure-mechanism win-walk flip (ADR 0016).** The closure walk
-  (`win_walk.py`) replaces the regex win-detection path (`is_game_win_result` +
+  (`combo_win.py`) replaces the regex win-detection path (`is_game_win_result` +
   `LETHAL_MANA_SINK_NAMES`) as the authoritative combo win-classification in the
   strategy engine. `combo.py`'s regex patterns and frozen sink list deleted;
-  `win_walk.py` + `data/card_edges.json` wired as authoritative via `strategy_graph.py`.
+  `combo_win.py` + `data/card_edges.json` wired as authoritative via `strategy_graph.py`.
   Engine isolation SHA **unchanged** (`a6dfa607…`). Resolve composite
   `7d35fe19…` → `d409069e…`; full-corpus `de5313af…` → `0901bc62…`.
   4/17 hermetic fixture decks shifted (Kess, K'rrik, Urza, Ozai).
@@ -148,7 +148,7 @@ re-baseline makes every *intended* change legible as such.
   `mana-produced.produced_by` set to the taxonomy-derived, closure-deduplicated
   `[adds-multiple-mana, mana-producer, repeatable-treasures, ritual]` (dropping the umbrella
   `ramp` and the `mana-producer`-redundant `mana-dork`/`mana-rock` children, #71); a new
-  level-3 event-substantiveness gate (`event_admitted` / `producer_anchor`) filtering the
+  level-3 event-substantiveness gate (`determine_event` / `producer_anchor`) filtering the
   election candidate pool; and the `lead_engine` field dropped (output = the `elected` set
   only — an election-neutral field drop).
   Engine isolation `59fe5d33…` → `987f2660…`; resolve composite `82a71840…` → `85752bb9…`;
@@ -176,7 +176,7 @@ re-baseline makes every *intended* change legible as such.
   coupled, output-moving changes made authoritative in one re-baseline:
   **(1) adjacency is DERIVED at catalog load** — the hand-enumerated
   `produced_by`/`triggers` lists are replaced by the descendant-closure of each event
-  side's owner-approved anchors via `anchor_derivation.derive_event_adjacency`, applied
+  side's owner-approved anchors via `derive_card_events`, applied
   in `assets.load_assets` and `engine_hydration._load_events` (the `SHADOW_DERIVED_ADJACENCY`
   flag retired); **(2) rank-don't-cut** — `elect_engine_units` drops the 0.6·top-mass relative
   keep-cut, keeping every substantive unit ranked by mass with only the Jaccard<0.5 dedup

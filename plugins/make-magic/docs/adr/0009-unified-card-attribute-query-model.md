@@ -5,7 +5,7 @@
 | Status | Accepted. Built in the WS1.2 consolidation (ticket #79). |
 | Review | pending owner review: agent-authored; records the unification as built. |
 | Test | From `plugins/make-magic/pipeline`: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` (ENGINE `7a73aba9`, RESOLVE `1e54293c`, FULL_CORPUS `07eb6673` — all three unchanged pre/post) **and** `uv run --extra dev pytest pipeline/transforms/strategy/tests -q`. |
-| Code paths | [`data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json) (`card_attributes` map + `bucket_attributes` role list); [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py) (`card_attr_preds`, `buckets` reconstruction); [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`otag_derived_attrs`, the one matcher); [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py) (`compile_query`). |
+| Code paths | [`data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json) (`card_attributes` map + `bucket_attributes` role list); [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py) (`card_attr_preds`, `buckets` reconstruction); [`derive_card_attributes.py`](../../pipeline/pipeline/transforms/strategy/derive_card_attributes.py) (`derive_card_attributes`, the one matcher — extracted from `strategy_graph.py`, ADR 0001); [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py) (`compile_query`). |
 
 ## Context
 A CardAttribute's membership is defined by exactly one thing — a Scryfall `otag:`-style
@@ -39,7 +39,7 @@ query}`** map merging every bucket and every payoff:
   OR-list), so the single entry reproduces the old union exactly.
 
 `assets.card_attr_preds` compiles the whole map once (via `compile_query`); the facts layer's
-`otag_derived_attrs` admits a name iff its predicate matches a `CardView` over the card's otag
+`derive_card_attributes` admits a name iff its predicate matches a `CardView` over the card's otag
 closure — the single pass that **replaced** the separate bucket and payoff lines. The
 `event_anchors` / enchantment / EDHREC slug lines are left as direct closure intersections
 (already clean `otag:name` membership — out of scope).
@@ -102,4 +102,4 @@ three P0 SHAs hold.
 - 0003 — byte-frozen held files; this is an output-preserving restructure of the catalog.
 - 0006 — configuration universal-or-gone: the group-mechanism collapse applies its test.
 - 0008 / 0011 — the CardAttribute concept + the query/reference operand model this realizes.
-- 0022 — `event_anchors` → `otag_derived_attrs`; its anchor membership is byte-preserved here.
+- 0022 — `event_anchors` → `derive_card_attributes`; its anchor membership is byte-preserved here.

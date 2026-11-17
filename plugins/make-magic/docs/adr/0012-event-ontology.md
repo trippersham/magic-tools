@@ -26,8 +26,8 @@ Design-3 (section 3.1) and design-2 (section 2) settled three questions:
 
 3. **How is promiscuity controlled?** A maximally promiscuous event (one that many
    attributes produce or trigger) earns a higher `Requirement` bar via ADR 0002's
-   substantiveness evaluator. This is DATA (a `Requirement(kind, params)` in the
-   `build_substantiveness` map), not new machinery — the existing evaluator already
+   substantiveness determiner. This is DATA (a `Requirement(kind, params)` in the
+   `build_substantiveness` map), not new machinery — the existing determiner already
    dispatches over a closed kind-set.
 
 ## Decision
@@ -74,7 +74,7 @@ A promiscuous event (e.g. `creature-enters-battlefield`, produced by many attrib
 needs a higher substantiveness bar so the engine does not over-credit incidental
 producers. This is expressed as a higher `Requirement` in the `build_substantiveness`
 data map — an entry in the map, not a code branch, not new machinery. The substantiveness
-evaluator (ADR 0002) already dispatches over its closed kind-set
+determiner (ADR 0002) already dispatches over its closed kind-set
 `{member_count, attr_density, axis_density}`.
 
 ## Reasons
@@ -82,7 +82,7 @@ evaluator (ADR 0002) already dispatches over its closed kind-set
 - **Topology, not annotation.** Deriving reachability from edges is always consistent with
   the graph; authored `role` annotations can drift. The walk already computes reachability
   — a `role` field would be dead weight that could mislead.
-- **No machinery for promiscuity.** The substantiveness evaluator is already built and
+- **No machinery for promiscuity.** The substantiveness determiner is already built and
   closed-kind — adding a promiscuity-scaled `Requirement` is one data entry, zero code.
 - **Minimal special-casing.** Only `game-end` extends the field vocabulary, and only with
   two semantically unique fields (polarity/scope) that no other event needs.
@@ -93,8 +93,8 @@ evaluator (ADR 0002) already dispatches over its closed kind-set
   rots silently when edges change, and the walk already computes reachability.
 - **`terminal` flag.** Rejected: same reason — a sink is an event with no outgoing edges,
   a computable property.
-- **Promiscuity as a new evaluator kind or filter.** Rejected: the existing
-  substantiveness evaluator handles it — adding a new kind would expand the kind-set
+- **Promiscuity as a new determiner kind or filter.** Rejected: the existing
+  substantiveness determiner handles it — adding a new kind would expand the kind-set
   without justification when a data entry suffices.
 
 ## Consequences
@@ -111,7 +111,7 @@ evaluator (ADR 0002) already dispatches over its closed kind-set
 
 The `produced_by`/`triggers` lists are no longer authoritative as hand-enumerated catalog data:
 they are **derived at catalog load** from each event side's owner-approved mechanic-exclusive
-anchors (`anchor_derivation.ANCHOR_MAP` → `derive_event_adjacency`), applied in both
+anchors (`SEED_MAP` → `derive_card_events`), applied in both
 `assets.load_assets` and `engine_hydration._load_events`. The event-node **field vocabulary is
 unchanged** (`{rule, produced_by, triggers, abbrev}` + `game-end` extras) — `test_event_ontology.py`
 still passes — and no `role`/`terminal` field is added; only the *source* of the two adjacency
@@ -134,7 +134,7 @@ Two node colors:
 - **Event** nodes (the 27 slugs in `data/event_catalog.json`).
 
 Two directed edge types, both drawn from the event catalog's adjacency lists
-(produced at load by `derive_event_adjacency`, amendment above):
+(produced at load by `derive_card_events`, amendment above):
 
 - `attribute --produces--> event` — an attribute listed in an event's `produced_by`.
 - `event --triggers--> attribute` — an attribute listed in an event's `triggers`.
@@ -176,7 +176,7 @@ are the atomic engine units, ranked by node-weighted mass (ADR 0014).
 ### Strategy view (quotient of Projection 2)
 
 Group Projection 2's attribute-nodes by their archetype
-(`assets.archetype_of_attr`) → strategy-level groupings. This is the
+(`assets.distill_attr`) → strategy-level groupings. This is the
 deck-level language (`strategies` dict in `facts`).
 
 ### Engine unit
@@ -198,7 +198,7 @@ Jaccard-dedup filter.
 
 ## Related records
 
-- 0002 — Substantiveness: the evaluator through which promiscuity-scaled Requirements flow.
+- 0002 — Substantiveness: the determiner through which promiscuity-scaled Requirements flow.
 - [0022](0022-concept-anchored-derived-adjacency.md) — the concept-anchored derivation that now
   produces this taxonomy's `produced_by`/`triggers` lists (adjacency as a derived view).
 - 0003 — Byte-parity: the event catalog is a held file; this change is test-only (no
