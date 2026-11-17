@@ -21,8 +21,9 @@ converters). The rename + guard scaffolding is Phase 2A; evaluation semantics la
 ### Rename
 
 `EdgeRole` is renamed to `EventEffect`; the field `effect_event` is renamed to
-`produced_event` (matching design-3 section 3.2: "the Event it produces"). A backward-compat
-alias `EdgeRole = EventEffect` exists during the transition. `CardAttribute.effect_event`
+`produced_event` (matching design-3 section 3.2: "the Event it produces"). The transition is
+complete: the backward-compat alias `EdgeRole = EventEffect` has been removed (no importer
+used it). `CardAttribute.effect_event`
 (formerly `MachineAttribute`) is similarly renamed to `produced_event`; `Provenance` gains a `lifecycle` field
 (`'provisional'` | `'verified'`, default `'verified'`; haiku-authored items default to
 `'provisional'`).

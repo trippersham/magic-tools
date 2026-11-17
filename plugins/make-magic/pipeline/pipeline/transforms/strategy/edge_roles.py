@@ -108,11 +108,6 @@ class EventEffect:
     ability_key: str | None = None
 
 
-# Backward-compat alias so downstream code that still says EdgeRole works
-# during the transition. Tests should import EventEffect directly.
-EdgeRole = EventEffect
-
-
 # ---------------------------------------------------------------------------
 # The singleton curated provenance (shared by all 6 entries)
 # ---------------------------------------------------------------------------

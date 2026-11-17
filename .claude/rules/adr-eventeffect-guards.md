@@ -11,7 +11,7 @@ An `EventEffect` is a guarded directed edge in the event multigraph (`trigger_ev
 
 <eventeffect-guards>
 
-- **`EventEffect`** (renamed from `EdgeRole`) is the canonical name; a backward-compat alias `EdgeRole = EventEffect` exists. Use `EventEffect` in new code.
+- **`EventEffect`** (renamed from `EdgeRole`) is the canonical name; the transition is complete and the backward-compat alias `EdgeRole = EventEffect` has been removed. Use `EventEffect`.
 - **`produced_event`** (renamed from `effect_event`) is the canonical field name for the produced event.
 - **Guard fields are ADDITIVE, DEFAULTED, and INERT** in Phase 2A: `provider='card'`, `guard_characteristic_ref=None`, `guard_trigger_scope='any'`, `guard_identity='any'`, `guard_event_reachable_ref=None`, `guard_unresolved=False`, `magnitude=None`, `ability_key=None`. No code path evaluates them yet.
 - **The guard defines the producer set** (design-3 section 3.3). A bare unguarded event has no producer and forms nothing.
