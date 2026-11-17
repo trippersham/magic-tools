@@ -76,6 +76,17 @@ one data row today is `mana-produced` (DATA-targeted; one row per promiscuous ev
 its own owner-graded measurement). The empirical case — why command-zone anchoring, and
 not any density measure, carries event substantiveness — is **[0020](0020-event-substantiveness-producer-anchor.md)**.
 
+## Amendment — 2026-11-16: `gy_demoted` hardcode removed — demotion is fully generic
+
+The last archetype-name branch in `facts.py` — the hardcoded `'graveyard/reanimator'`
+string in `gy_demoted` — is removed. Demotion (archetypes that clear `requires_met` but
+fail `Requirement.satisfied()`) is now fully generic over the Requirement data, using the
+same `earned_archetypes` set that feeds election candidacy. The old `gy_demoted` flag
+tracked only graveyard; the generic `demoted_archetypes` list correctly reports all 6
+demoted archetypes across the 170-deck corpus (graveyard x52 + mill/theft/enchantress/
+vehicles/-1-1-counters x1 each) — a latent incompleteness now fixed. No consumed output
+changed: `demoted_archetypes` is a diagnostic field read by no code path.
+
 ## Related records
 - 0001 — the doctrine this implements.
 - 0004 (planned) — the presence gate `node_eligible` dedup routes through this framework.

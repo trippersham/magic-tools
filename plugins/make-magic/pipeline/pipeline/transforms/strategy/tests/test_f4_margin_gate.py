@@ -81,7 +81,7 @@ def _ctx(wq_top: float, wq_second: float) -> FactsContext:
         card_w={},
         identity_mass=wq_top / _SHARE,
         coverage=0.9,
-        demotions={},
+        demoted_archetypes=[],
         cs_axis={'n': 0},
         stax_axis={},
         ramp_axis={'cedh_level': False},

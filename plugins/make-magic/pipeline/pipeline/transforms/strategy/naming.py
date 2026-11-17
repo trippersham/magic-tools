@@ -230,7 +230,7 @@ def name_deck(ctx: FactsContext) -> dict:
         'abstain_reason': abstain_reason,
         'naming_margin': margin,
         'naming_tie': tie,
-        'demotions': ctx.demotions,
+        'demoted_archetypes': ctx.demoted_archetypes,
         'confidence': confidence,
         'confidence_score': conf_score,
         'confidence_signals': conf_sig,

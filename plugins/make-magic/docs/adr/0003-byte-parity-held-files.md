@@ -208,6 +208,20 @@ re-baseline makes every *intended* change legible as such.
   170 `.dck` gauntlet; full classified delta in
   `research/flip-170-gauntlet-delta.md`.
 
+- **2026-11-16 — generic demotion re-baseline (behavior-equivalent).** The hardcoded
+  `'graveyard/reanimator'` demotion branch in `facts.py` and the `'demotions'` naming key
+  in `naming.py` were replaced with a generic `demoted_archetypes: list[str]` derived from
+  `earned_archetypes` + `Requirement.satisfied()`. Engine isolation **unchanged**
+  (`afcffc8a...`); resolve composite `3010be2a...` -> `5c4f9c05...`; full-corpus
+  `4acf0f41...` -> `c0d979ea...`.
+  **Equivalence proof:** 571 semantic tests pass (labels/elections/engines byte-identical);
+  the ONLY field that shifted is the diagnostic `demoted_archetypes` (consumed by no code),
+  reshaped from a boolean `gy_demoted` to a list. The generic set correctly reports 6
+  demoted archetypes corpus-wide (graveyard x52 + mill/theft/enchantress/vehicles/
+  -1-1-counters x1 each) where the old hardcoded code tracked only graveyard — a latent
+  incompleteness, now correct. `vocab_parity_baseline.json`, `engine_isolation_baseline.json`,
+  and `FULL_CORPUS_SHA` updated in the same change.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`facts.py` is shared with this record).

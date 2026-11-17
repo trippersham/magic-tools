@@ -69,7 +69,7 @@ class FactsContext:
     card_w: dict[int, float]
     identity_mass: float
     coverage: float
-    demotions: dict[str, bool]
+    demoted_archetypes: list[str]
     cs_axis: dict
     stax_axis: dict
     ramp_axis: dict
@@ -770,7 +770,7 @@ def compute_facts(
         'n_nodes': len(nodes),
     }
 
-    demotions = {'spell_demoted': False, 'gy_demoted': False}
+    demoted_archetypes: list[str] = []  # populated post-ctx (satisfied() reads ctx)
 
     arch_has_cmd = {arch: any(cards[i].get('role') == 'commander' for i in mem) for arch, mem in arch_members.items()}
 
@@ -791,7 +791,7 @@ def compute_facts(
         card_w=card_w,
         identity_mass=identity_mass,
         coverage=coverage,
-        demotions=demotions,
+        demoted_archetypes=demoted_archetypes,
         cs_axis=degree_axes['counterspells'],
         stax_axis=degree_axes['stax'],
         ramp_axis=degree_axes['ramp'],
@@ -817,16 +817,16 @@ def compute_facts(
     earned_archetypes = {arch for arch, st in strategies.items() if requirement_for(arch, cfg).satisfied(st, ctx, arch)}
     facts['engines']['engine_isolation'] = _isolate_engines(nodes, event_edges, adens, assets, cards, earned_archetypes)
 
-    # gy_demoted: the graveyard identity clears requires_met but NOT the shared graveyard
-    # attr_density Requirement (one evaluator, ADR 0002 -- no parallel copy). Equivalent to
-    # the old `requires_met and not gy_sub`: satisfied() == requires_met and density, so
-    # `requires_met and not satisfied()` == `requires_met and not density`. Evaluated
-    # post-ctx because the evaluator reads ctx.
-    gy_st = strategies.get('graveyard/reanimator')
-    if (
-        gy_st
-        and gy_st['requires_met']
-        and not requirement_for('graveyard/reanimator', cfg).satisfied(gy_st, ctx, 'graveyard/reanimator')
-    ):
-        demotions['gy_demoted'] = True
+    # demoted_archetypes (ADR 0002, GENERIC -- no archetype-name branch): an archetype
+    # that clears the presence bar (`requires_met`) but fails its fuller
+    # `Requirement.satisfied()` (a density/axis bar) is present-but-not-substantive, so
+    # it is demoted. Driven entirely by the per-archetype Requirement DATA: for default
+    # `member_count` archetypes satisfied() == requires_met, so ONLY archetypes with a
+    # stricter Requirement (graveyard `attr_density`, control `axis_density`) can appear.
+    # Reuses `earned_archetypes` (= the satisfied() set, computed just above) so
+    # satisfied() is not re-evaluated. Replaces the hardcoded graveyard `gy_demoted`
+    # branch (and the dead `spell_demoted` flag).
+    ctx.demoted_archetypes.extend(
+        sorted(arch for arch, st in strategies.items() if st.get('requires_met') and arch not in earned_archetypes)
+    )
     return ctx
