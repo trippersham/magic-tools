@@ -16,7 +16,7 @@ two carried fixes:
   the dominant tribe where it diverges from the raw vote winner, and
   pseudo-subtypes (``Clue`` / ``Equipment`` …) are filtered out of the vote.
 
-It does NOT import ``crosswalk.buckets_for``: :func:`~.assets.StrategyAssets.archetype_of_attr`
+It does NOT import ``crosswalk.buckets_for``: :func:`~.assets.StrategyAssets.distill_attr`
 plus the committed v4 vocab are a PARALLEL reimplementation of bucket routing —
 acknowledged duplication the Phase-4 migration will reconcile, not a reuse of
 ``buckets_for``. The only crosswalk reuse is a read-only import of

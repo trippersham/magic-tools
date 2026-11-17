@@ -32,14 +32,14 @@ def test_broad_power_matters_does_not_feed_anthem():
         assert slug not in assets.buckets['anthem']
     # ...and NEITHER routes to the anthem archetype (the J2/B6 anti-over-fire fix)
     for slug in _BROAD:
-        assert assets.archetype_of_attr(slug) != 'anthem/go-wide'
+        assert assets.distill_attr(slug) != 'anthem/go-wide'
     # power-matters stays unrouted; toughness-matters has its OWN dedicated archetype
     # (the toughness-matters/defenders vocab add) — NOT anthem, so Doran/Felothar is
     # captured without the broad anthem over-fire.
-    assert assets.archetype_of_attr('power-matters') is None
-    assert assets.archetype_of_attr('toughness-matters') == 'toughness-matters'
+    assert assets.distill_attr('power-matters') is None
+    assert assets.distill_attr('toughness-matters') == 'toughness-matters'
 
 
 def test_narrow_anthem_node_still_routes():
     # the narrow path (power-matters-self -> 'anthem' bucket node -> archetype) is intact
-    assert load_assets(DEFAULT_CONFIG).archetype_of_attr('anthem') == 'anthem/go-wide'
+    assert load_assets(DEFAULT_CONFIG).distill_attr('anthem') == 'anthem/go-wide'

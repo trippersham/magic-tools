@@ -45,7 +45,7 @@ def test_crosswalk_bucket_vocabulary_frozen():
 
 
 def test_strategy_does_not_reimport_buckets_for():
-    # the engine does NOT route via crosswalk.buckets_for: archetype_of_attr + the
+    # the engine does NOT route via crosswalk.buckets_for: distill_attr + the
     # v4 vocab are a parallel reimplementation (acknowledged duplication the
     # Phase-4 migration will reconcile). Pin that boundary so nobody "fixes" the
     # docstring by silently wiring buckets_for into the engine namespace.

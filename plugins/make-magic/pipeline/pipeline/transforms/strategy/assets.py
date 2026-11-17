@@ -6,14 +6,14 @@ Loads the promoted data files (``data/attribute_catalog.json``,
 need: the unified ``card_attributes`` membership matcher (one compiled predicate
 per bucket/payoff CardAttribute), the ``support`` role set, density thresholds,
 event anchors, the EDHREC membership family, the compiled synth-attribute
-predicates, and the config-bound :class:`~.vocab.Router`.
+predicates, and the config-bound :class:`~.vocab.StrategyDistiller`.
 
 Where identity lives
 --------------------
 Distillation is NOT written here. An attribute NAME becomes a strategy through the two
 declarative maps in :mod:`.vocab` (``ATTRIBUTES`` for membership, ``ARCHETYPE_EDGES``
-for the edge), compiled into a :class:`~.vocab.Router`;
-``StrategyAssets.archetype_of_attr`` is a thin call into it. This module owns only
+for the edge), compiled into a :class:`~.vocab.StrategyDistiller`;
+``StrategyAssets.distill_attr`` is a thin call into it. This module owns only
 the *membership* families the facts layer unions onto each card — the unified
 ``card_attributes`` query matcher (buckets + payoffs), the anchor/enchantment-slug
 surfacing, and ``EDHREC_ATTR_SLUGS`` — plus the compiled synth predicates
@@ -37,8 +37,8 @@ from pipeline.transforms.strategy.query import Predicate, compile_query
 from pipeline.transforms.strategy.vocab import (
     BASE_IDENTITIES,
     EDHREC_IDENTITIES,
-    Router,
-    build_router,
+    StrategyDistiller,
+    build_strategy_distiller,
     compile_synth,
 )
 
@@ -211,7 +211,7 @@ class StrategyAssets:
     #: exact parent, so exact membership of ``tutor-land`` matches the whole family).
     tutor_land_pred: Predicate
     #: Compiled distillation: attribute NAME -> strategy, from the vocab's two maps.
-    router: Router
+    distiller: StrategyDistiller
     #: Compiled synth-attribute predicates (name, predicate), card-field queries.
     synth_predicates: tuple[tuple[str, Predicate], ...]
     spell_re: re.Pattern
@@ -222,9 +222,9 @@ class StrategyAssets:
     ench_t: int
     sub_t: int
 
-    def archetype_of_attr(self, a: str) -> str | None:
-        """Deterministic attr-name -> identity archetype: one call into the vocab Router."""
-        return self.router.route(a)
+    def distill_attr(self, a: str) -> str | None:
+        """Deterministic attr-name -> strategy: one call into the vocab StrategyDistiller."""
+        return self.distiller.distill(a)
 
 
 def _bucket_slugs(query: str) -> list[str]:
@@ -292,7 +292,7 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
             if ref not in bucket_names:
                 event_anchors.add(ref)
 
-    router = build_router()
+    distiller = build_strategy_distiller()
     synth_predicates = tuple(compile_synth())
 
     return StrategyAssets(
@@ -305,7 +305,7 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
         events=events,
         event_anchors=frozenset(event_anchors),
         tutor_land_pred=tutor_land_pred,
-        router=router,
+        distiller=distiller,
         synth_predicates=synth_predicates,
         spell_re=re.compile(density['spell-density']['regex']),
         art_re=re.compile(density['artifact-density']['regex']),

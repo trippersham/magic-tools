@@ -73,7 +73,7 @@ def test_router_is_a_total_function_over_the_identity_universe() -> None:
     for name, strategy in ARCHETYPE_EDGES.items():
         # an identity whose query is a single exact-otag name self-routes; for the
         # general case we only assert routing never raises and stays in-vocab.
-        routed = assets.archetype_of_attr(name)
+        routed = assets.distill_attr(name)
         assert routed is None or routed in set(ARCHETYPE_EDGES.values())
         del strategy
 

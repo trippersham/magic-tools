@@ -26,7 +26,7 @@ whose query matches that name, then take its edge. The identity order below is t
 distillation precedence — the first matching identity wins, which is how overlapping
 mechanic families (a land that is also graveyard recursion; a treasure that is
 also an artifact payoff) resolve to a single strategy. All identity blocks are
-unconditionally active; the ``overlay`` parameter of :func:`build_router`
+unconditionally active; the ``overlay`` parameter of :func:`build_strategy_distiller`
 deep-merges user extensions over this pristine base.
 """
 
@@ -383,7 +383,7 @@ def _merge_overlay(base_pairs: list[tuple[str, str]], overlay: Mapping[str, str]
     return out
 
 
-def _resolve_identity_order(
+def _distill_identity_order(
     *,
     overlay: Mapping | None,
 ) -> list[tuple[str, str]]:
@@ -401,7 +401,7 @@ def _resolve_identity_order(
     return _merge_overlay(pairs, attr_overlay)
 
 
-def build_edges(overlay: Mapping | None = None) -> dict[str, str]:
+def build_strategy_edges(overlay: Mapping | None = None) -> dict[str, str]:
     edges = dict(ARCHETYPE_EDGES)
     if overlay and overlay.get('archetype_edges'):
         edges.update(overlay['archetype_edges'])
@@ -409,17 +409,17 @@ def build_edges(overlay: Mapping | None = None) -> dict[str, str]:
 
 
 @dataclass(frozen=True)
-class Router:
+class StrategyDistiller:
     """Compiled, config-bound distiller: attribute NAME -> strategy (or ``None``).
 
     The identities are matched in precedence order against the pseudo-card of the
-    name; the first match's edge is the strategy. ``archetype_of_attr`` on the
-    assets bundle is exactly ``router(name)`` — zero slug literals, zero if/elif.
+    name; the first match's edge is the strategy. ``distill_attr`` on the
+    assets bundle is exactly ``distiller.distill(name)`` — zero slug literals, zero if/elif.
     """
 
     identities: tuple[CompiledIdentity, ...]
 
-    def route(self, name: str) -> str | None:
+    def distill(self, name: str) -> str | None:
         view = CardView.for_name(name)
         for ident in self.identities:
             if ident.predicate(view):
@@ -427,16 +427,16 @@ class Router:
         return None
 
 
-def build_router(
+def build_strategy_distiller(
     *,
     overlay: Mapping | None = None,
-) -> Router:
-    pairs = _resolve_identity_order(overlay=overlay)
-    edges = build_edges(overlay)
+) -> StrategyDistiller:
+    pairs = _distill_identity_order(overlay=overlay)
+    edges = build_strategy_edges(overlay)
     compiled = tuple(
         CompiledIdentity(name=n, predicate=compile_query(q), strategy=edges[n]) for n, q in pairs if n in edges
     )
-    return Router(identities=compiled)
+    return StrategyDistiller(identities=compiled)
 
 
 def compile_synth(

@@ -201,7 +201,7 @@ def elect_engine_units(
         return sorted(xs, key=lambda a: (-attr_weight[a], a))
 
     def archs(xs):
-        return sorted({x for a in xs if (x := assets.archetype_of_attr(a))})
+        return sorted({x for a in xs if (x := assets.distill_attr(a))})
 
     engines = []
     for ev in sorted(ev_prod):
@@ -491,7 +491,7 @@ def compute_facts(
         for a in card_attrs[i]:
             if a not in nodes:
                 continue
-            arch = assets.archetype_of_attr(a)
+            arch = assets.distill_attr(a)
             if arch is None:
                 continue
             arch_members[arch].add(i)
@@ -633,7 +633,7 @@ def compute_facts(
                 'size': len(comp),
                 'n_events': len(evset),
                 'weight': round(sum(attr_weight[a] for a in comp), 1),
-                'archetypes': sorted({x for a in comp if (x := assets.archetype_of_attr(a))}),
+                'archetypes': sorted({x for a in comp if (x := assets.distill_attr(a))}),
             }
         )
     comps.sort(key=lambda c: (-c['n_events'], -c['size'], -c['weight'], ','.join(c['attrs'])))
@@ -645,7 +645,7 @@ def compute_facts(
             continue
         archs: Counter = Counter()
         for a in cl_nodes:
-            x = assets.archetype_of_attr(a)
+            x = assets.distill_attr(a)
             if x:
                 archs[x] += 1
         engine_communities.append(

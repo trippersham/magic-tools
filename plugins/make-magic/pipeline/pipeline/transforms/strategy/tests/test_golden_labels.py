@@ -133,16 +133,16 @@ def test_new_archetypes_route_their_anchor_slugs():
     from pipeline.transforms.strategy.assets import load_assets
 
     a = load_assets()
-    assert a.archetype_of_attr('pillowfort') == 'pillowfort'
-    assert a.archetype_of_attr('fog') == 'pillowfort'
-    assert a.archetype_of_attr('prevent-attack') == 'pillowfort'
-    assert a.archetype_of_attr('group-hug') == 'group-hug'
-    assert a.archetype_of_attr('selective-group-hug') == 'group-hug'
-    assert a.archetype_of_attr('monarch-matters') == 'politics'
-    assert a.archetype_of_attr('synergy-vote') == 'politics'
-    assert a.archetype_of_attr('synergy-goad') == 'politics'  # the goad PAYOFF
-    assert a.archetype_of_attr('hate-goad') is None  # the goad ANSWER
-    assert a.archetype_of_attr('evasion') is None  # broad body, never a primary
+    assert a.distill_attr('pillowfort') == 'pillowfort'
+    assert a.distill_attr('fog') == 'pillowfort'
+    assert a.distill_attr('prevent-attack') == 'pillowfort'
+    assert a.distill_attr('group-hug') == 'group-hug'
+    assert a.distill_attr('selective-group-hug') == 'group-hug'
+    assert a.distill_attr('monarch-matters') == 'politics'
+    assert a.distill_attr('synergy-vote') == 'politics'
+    assert a.distill_attr('synergy-goad') == 'politics'  # the goad PAYOFF
+    assert a.distill_attr('hate-goad') is None  # the goad ANSWER
+    assert a.distill_attr('evasion') is None  # broad body, never a primary
 
 
 def test_landfall_splits_from_lands_matter():
@@ -157,14 +157,14 @@ def test_landfall_splits_from_lands_matter():
 
     a = load_assets()
     # landfall routes its exact family slugs to the landfall strategy ...
-    assert a.archetype_of_attr('landfall') == 'landfall'
-    assert a.archetype_of_attr('landfall-other') == 'landfall'
+    assert a.distill_attr('landfall') == 'landfall'
+    assert a.distill_attr('landfall-other') == 'landfall'
     # ... and lands-matter keeps its own, disjoint family
-    assert a.archetype_of_attr('lands-matter') == 'lands-matter'
-    assert a.archetype_of_attr('land-count-matters') == 'lands-matter'
-    assert a.archetype_of_attr('extra-land') == 'lands-matter'
+    assert a.distill_attr('lands-matter') == 'lands-matter'
+    assert a.distill_attr('land-count-matters') == 'lands-matter'
+    assert a.distill_attr('extra-land') == 'lands-matter'
     # landfall no longer routes to lands-matter (no slug leak)
-    assert a.archetype_of_attr('landfall') != 'lands-matter'
+    assert a.distill_attr('landfall') != 'lands-matter'
     # 1:1 identity<->edge for the new archetype
     assert ARCHETYPE_EDGES['landfall'] == 'landfall'
     # the two query slug-sets are disjoint
