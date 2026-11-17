@@ -27,7 +27,7 @@ def _make_deck_input(
     top_share: float = 0.60,
     n_win_combos: int = 5,
     n_nonwin_combos: int = 2,
-    combo_override_f4_blocked: bool = False,
+    combo_override_blocked: bool = False,
     combo_identity: str | None = None,
 ) -> dict:
     """Build a minimal deck_input dict for testing classify_engine."""
@@ -67,7 +67,7 @@ def _make_deck_input(
             'combo_identity': combo_identity,
             'pre_combo_name': top_strategy,
             'confidence': 'HIGH',
-            'combo_override_f4_blocked': combo_override_f4_blocked,
+            'combo_override_blocked': combo_override_blocked,
         },
         'commanders': [{'name': 'Test Commander', 'oracle_text': ''}],
         'elected': [],
@@ -162,7 +162,7 @@ def test_no_winning_combo_flags_f4():
 
 
 def test_f4_blocked_flags_hijack():
-    """Naming layer's combo_override_f4_blocked=True signals misalignment.
+    """Naming layer's combo_override_blocked=True signals misalignment.
     Condition (b): must be flagged even with winning combos."""
     engine = {
         'strategy': 'Burn Assault Combo',
@@ -174,7 +174,7 @@ def test_f4_blocked_flags_hijack():
         top_strategy='burn',
         top_share=0.51,
         n_win_combos=4,
-        combo_override_f4_blocked=True,
+        combo_override_blocked=True,
     )
     result = classify_engine('test__ozai-like', engine, deck_input)
     f4_flags = [f for f in result['flags'] if 'F4' in f]

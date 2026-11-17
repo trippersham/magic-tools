@@ -165,7 +165,7 @@ def main_gauntlet() -> None:
                     'combo_identity': None,
                     'pre_combo_name': None,
                     'confidence': 'LOW',
-                    'combo_override_f4_blocked': False,
+                    'combo_override_blocked': False,
                 },
                 'n_nonland': 0,
                 'n_cards': 0,

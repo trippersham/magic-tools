@@ -198,7 +198,7 @@ def classify_engine(
                         f'dominant archetype is {top_strategy} '
                         f'(share {top_share})'
                     )
-                elif naming.get('combo_override_f4_blocked'):
+                elif naming.get('combo_override_blocked'):
                     # (b) The naming layer itself detected the combo's
                     # archetype is misaligned — a real hijack
                     flags.append('F4_COMBO_HIJACK_SUSPECT')
