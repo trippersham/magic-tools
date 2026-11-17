@@ -2,7 +2,7 @@
 
 Tests for the AUTHORITATIVE combo win-detection closure walk that replaces
 the regex path. The walk is the source of truth for ``resolve()`` / combo
-flags / DRIVE. It is imported by facts.py and determines every combo's win
+flags / DRIVE. It is imported by strategy_graph.py and determines every combo's win
 flag.
 
 TDD: tests from 5b-i updated for the flip — shadow discipline tests replaced
@@ -25,7 +25,7 @@ class TestFidToRoute:
 
     def test_game_end_fid_is_terminal_win(self) -> None:
         """fid 2 'Win the game' → route=terminal-win, timing=immediate."""
-        from pipeline.transforms.strategy.win_walk import fid_route
+        from pipeline.transforms.strategy.combo_win import fid_route
 
         r = fid_route(2)
         assert r is not None
@@ -34,7 +34,7 @@ class TestFidToRoute:
 
     def test_sba_drain_fid_is_rule_closed(self) -> None:
         """fid 1 'Near-infinite damage' → route=sba-drain (rule-edge to game-end)."""
-        from pipeline.transforms.strategy.win_walk import fid_route
+        from pipeline.transforms.strategy.combo_win import fid_route
 
         r = fid_route(1)
         assert r is not None
@@ -42,7 +42,7 @@ class TestFidToRoute:
 
     def test_infinite_mana_is_intermediate(self) -> None:
         """fid 11 'Infinite colorless mana' → route=intermediate, event=mana-produced."""
-        from pipeline.transforms.strategy.win_walk import fid_route
+        from pipeline.transforms.strategy.combo_win import fid_route
 
         r = fid_route(11)
         assert r is not None
@@ -51,7 +51,7 @@ class TestFidToRoute:
 
     def test_infinite_tokens_sans_haste_is_combat_deferred(self) -> None:
         """fid 21 'Infinite creature tokens' (no haste) → route=combat, timing=deferred."""
-        from pipeline.transforms.strategy.win_walk import fid_route
+        from pipeline.transforms.strategy.combo_win import fid_route
 
         r = fid_route(21)
         assert r is not None
@@ -60,7 +60,7 @@ class TestFidToRoute:
 
     def test_infinite_tokens_with_haste_is_combat_immediate(self) -> None:
         """fid 39 'Infinite creature tokens with haste' → route=combat, timing=immediate."""
-        from pipeline.transforms.strategy.win_walk import fid_route
+        from pipeline.transforms.strategy.combo_win import fid_route
 
         r = fid_route(39)
         assert r is not None
@@ -69,7 +69,7 @@ class TestFidToRoute:
 
     def test_library_depleted_opp_is_deckout(self) -> None:
         """fid 26 'Infinite lifeloss' → route=sba-drain."""
-        from pipeline.transforms.strategy.win_walk import fid_route
+        from pipeline.transforms.strategy.combo_win import fid_route
 
         r = fid_route(26)
         assert r is not None
@@ -77,7 +77,7 @@ class TestFidToRoute:
 
     def test_lock_state_is_state(self) -> None:
         """A lock event fid → route=state."""
-        from pipeline.transforms.strategy.win_walk import fid_route
+        from pipeline.transforms.strategy.combo_win import fid_route
 
         adapter = load_adapter()
         lock_fids = [fid for fid, m in adapter.items() if m.event == 'lock']
@@ -88,7 +88,7 @@ class TestFidToRoute:
 
     def test_null_event_fid_is_inert(self) -> None:
         """A fid with event=None → route=inert (no walk participation)."""
-        from pipeline.transforms.strategy.win_walk import fid_route
+        from pipeline.transforms.strategy.combo_win import fid_route
 
         adapter = load_adapter()
         null_fids = [fid for fid, m in adapter.items() if m.event is None]
@@ -99,7 +99,7 @@ class TestFidToRoute:
 
     def test_deckout_opp_fids(self) -> None:
         """Mill/library-depletion fids scoped at opponents → deckout-opp."""
-        from pipeline.transforms.strategy.win_walk import fid_route
+        from pipeline.transforms.strategy.combo_win import fid_route
 
         r = fid_route(9)
         assert r is not None
@@ -107,7 +107,7 @@ class TestFidToRoute:
 
     def test_self_draw_is_intermediate_with_selfdep_risk(self) -> None:
         """fid 61 'Infinite draw triggers' → intermediate with self-deplete risk."""
-        from pipeline.transforms.strategy.win_walk import fid_route
+        from pipeline.transforms.strategy.combo_win import fid_route
 
         r = fid_route(61)
         assert r is not None
@@ -125,33 +125,33 @@ class TestClosureWalk:
 
     def test_rule_closed_immediate(self) -> None:
         """A combo producing 'Win the game' (fid 2) is rule-closed immediate."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
-        result = closure_walk(fids=[2], deck_card_names=set())
+        result = combo_win_verdict(fids=[2], deck_card_names=set())
         assert result['kind'] == 'rule'
         assert result['polarity'] == 'win'
         assert result['timing'] == 'immediate'
 
     def test_sba_drain_is_rule_closed(self) -> None:
         """A combo producing infinite damage (fid 1) is rule-closed via SBA."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
-        result = closure_walk(fids=[1], deck_card_names=set())
+        result = combo_win_verdict(fids=[1], deck_card_names=set())
         assert result['kind'] == 'rule'
         assert result['polarity'] == 'win'
 
     def test_infinite_mana_without_sink_is_unclosable(self) -> None:
         """Infinite mana (fid 11) with no sink in deck → unclosable."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
-        result = closure_walk(fids=[11], deck_card_names={'sol ring', 'island'})
+        result = combo_win_verdict(fids=[11], deck_card_names={'sol ring', 'island'})
         assert result['kind'] in ('card-needed', 'unclosable')
 
     def test_infinite_mana_with_walking_ballista_is_card_closed(self) -> None:
         """Infinite mana + Walking Ballista in deck → card-closed win."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
-        result = closure_walk(
+        result = combo_win_verdict(
             fids=[11],
             deck_card_names={'walking ballista', 'sol ring'},
         )
@@ -160,9 +160,9 @@ class TestClosureWalk:
 
     def test_infinite_mana_with_exsanguinate_is_card_closed(self) -> None:
         """Infinite mana + Exsanguinate in deck → card-closed win."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
-        result = closure_walk(
+        result = combo_win_verdict(
             fids=[11],
             deck_card_names={'exsanguinate', 'swamp'},
         )
@@ -171,17 +171,17 @@ class TestClosureWalk:
 
     def test_combat_deferred_is_action_closed(self) -> None:
         """Infinite creature tokens (no haste, fid 21) → action-closed deferred."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
-        result = closure_walk(fids=[21], deck_card_names=set())
+        result = combo_win_verdict(fids=[21], deck_card_names=set())
         assert result['kind'] == 'action'
         assert result['timing'] == 'deferred'
 
     def test_combat_immediate_is_action_closed(self) -> None:
         """Infinite creature tokens with haste → action-closed immediate."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
-        result = closure_walk(fids=[39], deck_card_names=set())
+        result = combo_win_verdict(fids=[39], deck_card_names=set())
         assert result['kind'] == 'action'
         assert result['timing'] == 'immediate'
 
@@ -196,9 +196,9 @@ class TestGuardEvaluation:
 
     def test_sheoldred_does_not_promote_on_self_draw(self) -> None:
         """Sheoldred's draw-to-drain edge fires on OPPONENT draw only."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
-        result = closure_walk(
+        result = combo_win_verdict(
             fids=[49],
             deck_card_names={'sheoldred, the apocalypse'},
         )
@@ -210,12 +210,12 @@ class TestGuardEvaluation:
 
     def test_aragorn_does_not_promote_on_wrong_color(self) -> None:
         """Aragorn the Uniter's damage trigger fires on RED casts only."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
         adapter = load_adapter()
         cast_fids = [fid for fid, m in adapter.items() if m.event == 'spell-cast' and m.magnitude == 'infinite']
         assert len(cast_fids) > 0, 'Need an infinite spell-cast fid'
-        result = closure_walk(
+        result = combo_win_verdict(
             fids=[cast_fids[0]],
             deck_card_names={'aragorn, the uniter'},
         )
@@ -224,9 +224,9 @@ class TestGuardEvaluation:
 
     def test_infinity_dominance_satisfies_ordinal_gate(self) -> None:
         """Infinite mana + Helix Pinnacle → card-closed win."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
-        result = closure_walk(
+        result = combo_win_verdict(
             fids=[11],
             deck_card_names={'helix pinnacle'},
         )
@@ -235,7 +235,7 @@ class TestGuardEvaluation:
 
     def test_self_loss_not_called_win(self) -> None:
         """Self-mill without an outlet is NOT a win."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
         adapter = load_adapter()
         self_mill_fids = [
@@ -252,7 +252,7 @@ class TestGuardEvaluation:
                 and m.magnitude in ('infinite', 'near-infinite')
             ]
         assert len(self_mill_fids) > 0, 'Need a self-deplete fid'
-        result = closure_walk(
+        result = combo_win_verdict(
             fids=[self_mill_fids[0]],
             deck_card_names={'swamp', 'island'},
         )
@@ -269,9 +269,9 @@ class TestSinkDissolution:
 
     def test_fireball_is_a_mana_sink(self) -> None:
         """Fireball converts infinite mana to life-loss-drain → game-end."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
-        result = closure_walk(
+        result = combo_win_verdict(
             fids=[11],
             deck_card_names={'fireball'},
         )
@@ -280,12 +280,12 @@ class TestSinkDissolution:
 
     def test_aetherflux_reservoir_via_spell_cast(self) -> None:
         """Aetherflux Reservoir: spell-cast → drain (cast_drain edge class)."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
         adapter = load_adapter()
         cast_fids = [fid for fid, m in adapter.items() if m.event == 'spell-cast' and m.magnitude == 'infinite']
         assert len(cast_fids) > 0
-        result = closure_walk(
+        result = combo_win_verdict(
             fids=[cast_fids[0]],
             deck_card_names={'aetherflux reservoir'},
         )
@@ -294,9 +294,9 @@ class TestSinkDissolution:
 
     def test_impact_tremors_via_etb(self) -> None:
         """Impact Tremors: creature-ETB → life-loss-drain (etb_drain edge class)."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
-        result = closure_walk(
+        result = combo_win_verdict(
             fids=[4],
             deck_card_names={'impact tremors'},
         )
@@ -305,12 +305,12 @@ class TestSinkDissolution:
 
     def test_blood_artist_via_death(self) -> None:
         """Blood Artist: permanent-dies → life-loss-drain (death_drain edge class)."""
-        from pipeline.transforms.strategy.win_walk import closure_walk
+        from pipeline.transforms.strategy.combo_win import combo_win_verdict
 
         adapter = load_adapter()
         death_fids = [fid for fid, m in adapter.items() if m.event == 'permanent-dies' and m.magnitude == 'infinite']
         assert len(death_fids) > 0
-        result = closure_walk(
+        result = combo_win_verdict(
             fids=[death_fids[0]],
             deck_card_names={'blood artist'},
         )
@@ -319,25 +319,37 @@ class TestSinkDissolution:
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# 5. Authoritative wiring: win_walk IS the resolve path
+# 5. Authoritative wiring: combo_win IS the resolve path
 # ────────────────────────────────────────────────────────────────────────────
 
 
 class TestAuthoritativeWiring:
     """The win walk IS wired into the resolve path (replaces shadow discipline)."""
 
-    def test_win_walk_module_imported_by_facts(self) -> None:
-        """win_walk.py IS imported by facts.py (the authoritative path)."""
+    def test_combo_win_module_imported_by_strategy_graph(self) -> None:
+        """combo_win.py IS imported by strategy_graph.py (the authoritative path)."""
         import sys
 
-        mod_name = 'pipeline.transforms.strategy.win_walk'
-        # Clear to test fresh import chain
-        for m in list(sys.modules):
-            if m.startswith('pipeline.transforms.strategy'):
+        mod_name = 'pipeline.transforms.strategy.combo_win'
+        prefix = 'pipeline.transforms.strategy'
+        # Snapshot so the fresh-import probe below does not leak duplicate class
+        # objects (e.g. machine_vocab.Provenance) into later tests' sys.modules.
+        saved = {m: sys.modules[m] for m in list(sys.modules) if m.startswith(prefix)}
+        try:
+            # Clear to test fresh import chain
+            for m in saved:
                 del sys.modules[m]
-        import pipeline.transforms.strategy.facts  # noqa: F401
+            import pipeline.transforms.strategy.strategy_graph  # noqa: F401
 
-        assert mod_name in sys.modules, 'win_walk is NOT imported by facts.py — it MUST be (authoritative path)'
+            assert mod_name in sys.modules, (
+                'combo_win is NOT imported by strategy_graph.py — it MUST be (authoritative path)'
+            )
+        finally:
+            # Restore the original module objects so class identity is preserved.
+            for m in list(sys.modules):
+                if m.startswith(prefix):
+                    del sys.modules[m]
+            sys.modules.update(saved)
 
     def test_regex_functions_removed_from_combo(self) -> None:
         """combo.py no longer exports is_game_win_result or LETHAL_MANA_SINK_NAMES."""
@@ -388,12 +400,13 @@ class TestAuthoritativeWiring:
                 f'mana_sinks_present should be empty (frozen list dissolved), got {rec["mana_sinks_present"]}'
             )
 
-    def test_shadow_walk_module_does_not_exist(self) -> None:
-        """The old shadow_walk.py module no longer exists."""
+    def test_old_walk_modules_do_not_exist(self) -> None:
+        """The old shadow_walk.py / win_walk.py modules no longer exist (renamed to combo_win.py)."""
         from pathlib import Path
 
         strategy_dir = Path(__file__).resolve().parent.parent
-        assert not (strategy_dir / 'shadow_walk.py').exists(), (
-            'shadow_walk.py still exists — it should be renamed to win_walk.py'
+        assert not (strategy_dir / 'shadow_walk.py').exists(), 'shadow_walk.py still exists — it was renamed'
+        assert not (strategy_dir / 'win_walk.py').exists(), (
+            'win_walk.py still exists — it should be renamed to combo_win.py'
         )
-        assert (strategy_dir / 'win_walk.py').exists(), 'win_walk.py does not exist — shadow_walk.py should be renamed'
+        assert (strategy_dir / 'combo_win.py').exists(), 'combo_win.py does not exist — win_walk.py should be renamed'

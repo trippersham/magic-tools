@@ -6,7 +6,7 @@ truth for ``resolve()`` / combo flags / DRIVE.  It replaces the regex path
 the fid-to-Event adapter (``fid_adapter.py``) and card-edge classes
 (``data/card_edges.json``).
 
-**This module IS imported by facts.py** and determines every combo's win flag.
+**This module IS imported by strategy_graph.py** and determines every combo's win flag.
 The walk is deck-aware: a combo's win-ness depends on the deck's card
 composition (e.g. infinite mana + a mana_sink card = win).
 """
@@ -401,7 +401,7 @@ def fid_route(fid: int) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 
-def closure_walk(
+def combo_win_verdict(
     *,
     fids: list[int],
     deck_card_names: set[str],

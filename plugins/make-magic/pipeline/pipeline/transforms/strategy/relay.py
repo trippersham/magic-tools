@@ -9,9 +9,9 @@ module injects the attribute as a **relay node** in the event graph:
   generates)
 
 This reuses the EXISTING ``produced_by x triggers -> event_edges``
-construction from :func:`.facts.compute_facts` — no new edge type.  Within-card
+construction from :func:`.strategy_graph.compute_facts` — no new edge type.  Within-card
 edges now let loops compose across cards through the event layer
-``_isolate_engines`` already walks.
+``elect_engine_units`` already walks.
 
 Separation invariant
 --------------------
@@ -48,8 +48,8 @@ from collections import defaultdict
 
 from pipeline.transforms.strategy.assets import StrategyAssets
 from pipeline.transforms.strategy.edge_roles import EventEffect, get_role
-from pipeline.transforms.strategy.facts import _isolate_engines
 from pipeline.transforms.strategy.machine_vocab import ProvisionalAttributeStore
+from pipeline.transforms.strategy.strategy_graph import elect_engine_units
 
 
 def _get_role_with_store(
@@ -157,28 +157,28 @@ def build_relay_augmented_event_edges(
     return event_edges
 
 
-def isolate_engines_with_relay(
+def elect_engine_units_with_relay(
     nodes: set[str],
     events: dict[str, dict],
-    adens: defaultdict[str, float],
+    attr_weight: defaultdict[str, float],
     assets: StrategyAssets,
     cards: list[dict],
     *,
     store: ProvisionalAttributeStore | None = None,
 ) -> dict:
-    """Run ``_isolate_engines`` over the relay-augmented event graph.
+    """Run ``elect_engine_units`` over the relay-augmented event graph.
 
     This is the on-demand engine-identification entry point.  It builds event
     edges **with** relay-node injection (within-card edges visible) and feeds
-    them to the SAME ``_isolate_engines`` function the default path uses.
+    them to the SAME ``elect_engine_units`` function the default path uses.
 
     The default ``compute_facts`` path is NOT affected — it builds event edges
     from the catalog alone, without relay injection.
 
     Parameters
     ----------
-    nodes, adens, assets, cards
-        Same as passed to ``_isolate_engines`` by ``compute_facts``.
+    nodes, attr_weight, assets, cards
+        Same as passed to ``elect_engine_units`` by ``compute_facts``.
     events
         ``assets.events`` — the event catalog dict.
     store
@@ -189,7 +189,7 @@ def isolate_engines_with_relay(
     Returns
     -------
     dict
-        The engine-isolation dict, same shape as ``_isolate_engines`` output.
+        The engine-isolation dict, same shape as ``elect_engine_units`` output.
     """
     augmented_edges = build_relay_augmented_event_edges(nodes, events, store=store)
-    return _isolate_engines(nodes, augmented_edges, adens, assets, cards)
+    return elect_engine_units(nodes, augmented_edges, attr_weight, assets, cards)

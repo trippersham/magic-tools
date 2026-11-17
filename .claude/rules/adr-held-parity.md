@@ -2,7 +2,7 @@
 paths:
   - "**/pipeline/transforms/strategy/data/attribute_vocab_v4.json"
   - "**/pipeline/transforms/strategy/data/event_catalog_v4.json"
-  - "**/pipeline/transforms/strategy/facts.py"
+  - "**/pipeline/transforms/strategy/strategy_graph.py"
   - "**/pipeline/transforms/strategy/query.py"
   - "**/pipeline/transforms/strategy/vocab.py"
   - "**/pipeline/transforms/strategy/tests/fixtures/vocab_parity_baseline.json"

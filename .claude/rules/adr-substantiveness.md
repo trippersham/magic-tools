@@ -1,7 +1,7 @@
 ---
 paths:
   - "**/pipeline/transforms/strategy/substantiveness.py"
-  - "**/pipeline/transforms/strategy/facts.py"
+  - "**/pipeline/transforms/strategy/strategy_graph.py"
 ---
 
 # Substantiveness gate

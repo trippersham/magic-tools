@@ -7,10 +7,10 @@ This is a SEPARATE entry point from the default ``compute_facts`` / ``resolve()`
 path.  The default path stays byte-identical (the P0 oracle's engine SHA and
 resolve SHA are unchanged).  This module composes the held components:
 
-- :func:`.facts.compute_facts` for ``nodes``/``adens``/``assets``/``cards``
+- :func:`.strategy_graph.compute_facts` for ``nodes``/``attr_weight``/``assets``/``cards``
 - :func:`.machine_vocab.all_edge_queries` for the full authored-edge set
-- :func:`.relay.isolate_engines_with_relay` for relay-augmented engine isolation
-- :func:`.engine_hydration.frontier` for the incompleteness frontier
+- :func:`.relay.elect_engine_units_with_relay` for relay-augmented engine isolation
+- :func:`.engine_hydration.unauthored_cards` for the unauthored cards
 
 No LLM in the replay path.  Every engine identification is deterministic given
 the same deck + curated vocab + machine store.
@@ -32,8 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pipeline.transforms.strategy.assets import is_land
-from pipeline.transforms.strategy.engine_hydration import frontier
-from pipeline.transforms.strategy.facts import compute_facts, node_admitted
+from pipeline.transforms.strategy.engine_hydration import unauthored_cards
 from pipeline.transforms.strategy.machine_vocab import (
     CardAttribute,
     ProvisionalAttributeStore,
@@ -41,7 +40,8 @@ from pipeline.transforms.strategy.machine_vocab import (
     load_store,
 )
 from pipeline.transforms.strategy.query import CardView, compile_query
-from pipeline.transforms.strategy.relay import isolate_engines_with_relay
+from pipeline.transforms.strategy.relay import elect_engine_units_with_relay
+from pipeline.transforms.strategy.strategy_graph import compute_facts, node_admitted
 
 # ---------------------------------------------------------------------------
 # Types
@@ -51,10 +51,10 @@ from pipeline.transforms.strategy.relay import isolate_engines_with_relay
 class CompletenessState(enum.Enum):
     """Honesty label for the engine identification result.
 
-    - **RESOLVED** — ``frontier(deck)`` is empty: every engine-relevant card is
+    - **RESOLVED** — ``unauthored_cards(deck)`` is empty: every engine-relevant card is
       covered by an authored edge.  Engine(s) stated as fact.
-    - **PROVISIONAL** — frontier non-empty: dark cards remain.  Engine(s) stated
-      provisionally, never as final.  The named dark cards are listed.
+    - **PROVISIONAL** — unauthored_cards non-empty: unauthored cards remain.  Engine(s) stated
+      provisionally, never as final.  The named unauthored cards are listed.
     """
 
     RESOLVED = 'RESOLVED'
@@ -108,15 +108,15 @@ class EngineReport:
     engines
         Named engines, ordered by weight descending (heaviest first).
     state
-        :attr:`CompletenessState.RESOLVED` if the frontier is empty,
-        :attr:`CompletenessState.PROVISIONAL` if dark cards remain.
+        :attr:`CompletenessState.RESOLVED` if there are no unauthored cards,
+        :attr:`CompletenessState.PROVISIONAL` if unauthored cards remain.
     dark_cards
-        Sorted names of frontier cards pending hydration.  Empty if RESOLVED.
+        Sorted names of unauthored cards pending hydration.  Empty if RESOLVED.
     commander_loop
-        The commander-anchored loop probe result from ``_isolate_engines``,
+        The commander-anchored loop probe result from ``elect_engine_units``,
         or ``None`` if no commander is present.
     raw_isolation
-        The full ``_isolate_engines`` output dict (for debugging/introspection).
+        The full ``elect_engine_units`` output dict (for debugging/introspection).
     """
 
     engines: list[NamedEngine]
@@ -205,7 +205,7 @@ def _find_sccs(chains: list[list[str]]) -> list[frozenset[str]]:
 
 
 def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
-    """Build :class:`NamedEngine` list from the raw ``_isolate_engines`` output.
+    """Build :class:`NamedEngine` list from the raw ``elect_engine_units`` output.
 
     Groups related per-event engines by cycle membership (from
     ``forward_chains``) and characterizes each with hub attrs, loop members,
@@ -255,7 +255,7 @@ def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
                 all_hubs.append(eng['hub'])
             total_weight += eng['weight']
 
-        # Sort hubs by the relay_hubs weight ordering from _isolate_engines.
+        # Sort hubs by the relay_hubs weight ordering from elect_engine_units.
         relay_hub_order = {h: i for i, h in enumerate(iso.get('relay_hubs', []))}
         all_hubs.sort(key=lambda h: relay_hub_order.get(h, len(relay_hub_order)))
 
@@ -398,7 +398,7 @@ def identify_engines(
     """On-demand engine identification for a deck.
 
     This is the PC entry point.  It loads the deck's intermediate graph state
-    via :func:`.facts.compute_facts`, runs the relay-augmented engine walk,
+    via :func:`.strategy_graph.compute_facts`, runs the relay-augmented engine walk,
     and labels the result with an honest completeness state.
 
     Parameters
@@ -423,7 +423,7 @@ def identify_engines(
     EngineReport
         The deck's engines named, with an honest completeness label.
     """
-    # 1. Obtain nodes / adens / assets / cards via compute_facts.
+    # 1. Obtain nodes / attr_weight / assets / cards via compute_facts.
     ctx = compute_facts(deck, combos or [])
 
     # 2. Load authored edges = curated edge attrs + machine-store attrs.
@@ -439,13 +439,13 @@ def identify_engines(
     store = _assemble_present_combo_edges(store, ctx.detected)
     authored_edges = all_edge_queries(store)
 
-    # 2b. Inject machine-store attributes into nodes/adens.
+    # 2b. Inject machine-store attributes into nodes/attr_weight.
     #
     # Machine-authored attributes carry queries that determine membership
     # (same as curated synth attrs in SYNTH_ALWAYS_ATTRIBUTES).  For each
     # machine attr, compile its query, evaluate against every card in the
     # deck, and add the attribute to the card's attribute set / the global
-    # adens / nodes.  This is the machine-store -> relay KEYSTONE: without
+    # attr_weight / nodes.  This is the machine-store -> relay KEYSTONE: without
     # this, machine-authored attrs are never in ``nodes`` and the relay
     # injection in build_relay_augmented_event_edges never fires.
     #
@@ -458,7 +458,7 @@ def identify_engines(
             # A spellbook combo edge (ADR 0021 B1) is named after an existing
             # producer attribute so the relay AUGMENTS that real node.  When the
             # node is already in ``nodes`` from the native path its mass is
-            # already counted -- re-adding it here would double-count adens.
+            # already counted -- re-adding it here would double-count attr_weight.
             # Gate the skip on COMBO PROVENANCE (combo_variant_id set) rather
             # than bare node presence: combo-lowered edges are by-construction
             # named after native attrs, so the native path already counted
@@ -480,7 +480,7 @@ def identify_engines(
                 view = CardView.from_card(card)
                 if pred(view):
                     w = ctx.cfg.cmd_weight if card.get('role') == 'commander' else 1.0
-                    ctx.adens[ma.name] += w
+                    ctx.attr_weight[ma.name] += w
                     if not is_land(card):
                         support_count += 1
                     if card.get('role') == 'commander':
@@ -493,10 +493,10 @@ def identify_engines(
                 ctx.cmd_attrs.add(ma.name)
 
     # 3. Run relay-augmented engine isolation.
-    iso = isolate_engines_with_relay(
+    iso = elect_engine_units_with_relay(
         ctx.nodes,
         ctx.assets.events,
-        ctx.adens,
+        ctx.attr_weight,
         ctx.assets,
         ctx.cards,
         store=store,
@@ -505,8 +505,8 @@ def identify_engines(
     # 4. Name / characterize each engine.
     named_engines = _characterize_engines(iso, ctx.assets.events)
 
-    # 5. Honesty label: frontier determines RESOLVED vs PROVISIONAL.
-    dark = frontier(ctx.cards, authored_edges)
+    # 5. Honesty label: unauthored_cards determines RESOLVED vs PROVISIONAL.
+    dark = unauthored_cards(ctx.cards, authored_edges)
     dark_card_names = sorted(c['name'] for c in dark)
 
     state = CompletenessState.RESOLVED if not dark_card_names else CompletenessState.PROVISIONAL

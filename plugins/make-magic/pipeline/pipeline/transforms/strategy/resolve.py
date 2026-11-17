@@ -2,7 +2,7 @@
 
 This is the public entry point of the strategy engine. It threads an immutable
 :class:`~.config.StrategyConfig`-bound :class:`~.assets.StrategyAssets` through
-:func:`~.facts.compute_facts` and :func:`~.naming.name_deck`, then assembles the
+:func:`~.strategy_graph.compute_facts` and :func:`~.naming.name_deck`, then assembles the
 byte-deterministic per-deck record (the facts graph + the derived label +
 confidence + the T4 degree/power surface + the T5 combo surface).
 """
@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from pipeline.transforms.strategy.assets import StrategyAssets, load_assets
 from pipeline.transforms.strategy.config import StrategyConfig
-from pipeline.transforms.strategy.facts import compute_facts
 from pipeline.transforms.strategy.naming import name_deck
+from pipeline.transforms.strategy.strategy_graph import compute_facts
 
 
 def resolve(
@@ -47,7 +47,7 @@ def resolve(
         'coverage': round(ctx.coverage, 3),
         'density_signals': ctx.density_signals,
         'n_nodes': len(ctx.nodes),
-        'cmd_attrs': sorted(ctx.cmd_attrs, key=lambda a: (-ctx.adens[a], a))[:14],
+        'cmd_attrs': sorted(ctx.cmd_attrs, key=lambda a: (-ctx.attr_weight[a], a))[:14],
         # ---- degree/power surface (T4)
         'cs_count': cs_axis['n'],
         'cs_over_served': cs_axis['over_served'],

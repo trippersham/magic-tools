@@ -4,8 +4,8 @@
 |---|---|
 | Status | Accepted. In force on branch `feat/strategy-engine`. |
 | Review | pending owner review: agent-authored as part of the Phase 2B step 5b-ii flip, owner-approved on the measured 5b-i delta. |
-| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests/test_win_walk.py -q` (30 assertions: fid routing, closure walk verdicts, guard evaluation, sink dissolution, authoritative wiring). Parity gate: 253 promotions, 5 FP drops, 25 decks 0→win — exact match to the validated 5b-i shadow delta. |
-| Code paths | [`win_walk.py`](../../pipeline/pipeline/transforms/strategy/win_walk.py) (the walk), [`data/card_edges.json`](../../pipeline/pipeline/transforms/strategy/data/card_edges.json) (card edge classes), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (imports win_walk for combo classification), [`combo.py`](../../pipeline/pipeline/transforms/strategy/combo.py) (regex + frozen sink list deleted). |
+| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests/test_combo_win.py -q` (30 assertions: fid routing, closure walk verdicts, guard evaluation, sink dissolution, authoritative wiring). Parity gate: 253 promotions, 5 FP drops, 25 decks 0→win — exact match to the validated 5b-i shadow delta. |
+| Code paths | [`combo_win.py`](../../pipeline/pipeline/transforms/strategy/combo_win.py) (the walk), [`data/card_edges.json`](../../pipeline/pipeline/transforms/strategy/data/card_edges.json) (card edge classes), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (imports combo_win for combo classification), [`combo.py`](../../pipeline/pipeline/transforms/strategy/combo.py) (regex + frozen sink list deleted). |
 
 ## Context
 
@@ -35,8 +35,8 @@ Phase 2B step 5b-ii FLIPPED the walk to authoritative and deleted the regex path
 
 ### The closure walk is the authoritative win-detection path
 
-`win_walk.py` is the single source of truth for whether a combo is a win in a
-given deck. It is imported by `facts.py` and runs for each detected combo.
+`combo_win.py` is the single source of truth for whether a combo is a win in a
+given deck. It is imported by `strategy_graph.py` and runs for each detected combo.
 
 The walk is **deck-aware**: a combo's win-ness depends on the deck's card
 composition. An infinite-mana combo is a win only if the deck contains a card
@@ -49,7 +49,7 @@ in the `mana_sink` edge class (e.g. Fireball, Walking Ballista).
    `sba-drain`, `deckout-opp`, `combat`, `intermediate`, `self-deplete`,
    `state`, `oneshot`, `inert`.
 
-2. **`closure_walk(fids, deck_card_names)`** runs a priority ladder:
+2. **`combo_win_verdict(fids, deck_card_names)`** runs a priority ladder:
    - Rule-closed (immediate): literal `game-end` fid or SBA drain.
    - Card-closed: an intermediate event (e.g. `mana-produced`) is converted by
      a deck card in a matching edge class (e.g. `mana_sink`, `draw_drain`,
@@ -133,7 +133,7 @@ the strategy engine path.
 ## Consequences
 
 - `combo.py::normalize_combo()` sets `win=False` as a placeholder. The
-  authoritative win flag is set by `facts.py::compute_facts()` via the walk.
+  authoritative win flag is set by `strategy_graph.py::compute_facts()` via the walk.
 - `resolve()` output fields `n_win_mana_sink` and `mana_sinks_present` are
   always 0/empty (the predicate/mana-sink distinction is dissolved).
 - `core_combos[].win_kind` values are now walk-mechanism labels: `'rule'`,

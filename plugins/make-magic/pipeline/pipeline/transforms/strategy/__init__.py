@@ -36,9 +36,9 @@ from __future__ import annotations
 
 from pipeline.transforms.strategy.assets import StrategyAssets, load_assets
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG, StrategyConfig
-from pipeline.transforms.strategy.facts import FactsContext, compute_facts
 from pipeline.transforms.strategy.naming import name_deck
 from pipeline.transforms.strategy.resolve import resolve
+from pipeline.transforms.strategy.strategy_graph import FactsContext, compute_facts
 
 __all__ = (
     'DEFAULT_CONFIG',

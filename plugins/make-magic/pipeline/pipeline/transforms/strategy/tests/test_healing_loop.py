@@ -67,11 +67,11 @@ class TestCandidatePromotion:
 
     def test_candidate_below_threshold_stays_provisional(self) -> None:
         """A candidate with 2 corroborating cards does NOT promote."""
-        from pipeline.transforms.strategy.anchor_derivation import (
-            CandidateAnchorStore,
+        from pipeline.transforms.strategy.adjacency import (
+            CandidateSeedStore,
         )
 
-        store = CandidateAnchorStore()
+        store = CandidateSeedStore()
         store.record_corroboration('creature-enters-battlefield', 'triggers', 'some-otag', 'card-oracle-1')
         store.record_corroboration('creature-enters-battlefield', 'triggers', 'some-otag', 'card-oracle-2')
 
@@ -82,11 +82,11 @@ class TestCandidatePromotion:
 
     def test_candidate_at_threshold_promotes(self) -> None:
         """A candidate with exactly 3 corroborating cards DOES promote."""
-        from pipeline.transforms.strategy.anchor_derivation import (
-            CandidateAnchorStore,
+        from pipeline.transforms.strategy.adjacency import (
+            CandidateSeedStore,
         )
 
-        store = CandidateAnchorStore()
+        store = CandidateSeedStore()
         for i in range(3):
             store.record_corroboration('creature-enters-battlefield', 'triggers', 'some-otag', f'card-oracle-{i}')
 
@@ -96,11 +96,11 @@ class TestCandidatePromotion:
 
     def test_candidate_above_threshold_also_promotes(self) -> None:
         """A candidate with 5 corroborating cards still promotes (>= N)."""
-        from pipeline.transforms.strategy.anchor_derivation import (
-            CandidateAnchorStore,
+        from pipeline.transforms.strategy.adjacency import (
+            CandidateSeedStore,
         )
 
-        store = CandidateAnchorStore()
+        store = CandidateSeedStore()
         for i in range(5):
             store.record_corroboration('creature-enters-battlefield', 'triggers', 'some-otag', f'card-oracle-{i}')
 
@@ -110,11 +110,11 @@ class TestCandidatePromotion:
 
     def test_duplicate_card_does_not_count_twice(self) -> None:
         """The same card oracle_id corroborating twice counts as 1."""
-        from pipeline.transforms.strategy.anchor_derivation import (
-            CandidateAnchorStore,
+        from pipeline.transforms.strategy.adjacency import (
+            CandidateSeedStore,
         )
 
-        store = CandidateAnchorStore()
+        store = CandidateSeedStore()
         for _ in range(5):
             store.record_corroboration('creature-enters-battlefield', 'triggers', 'some-otag', 'same-card')
 
@@ -134,21 +134,21 @@ class TestUmbrellaRejection:
 
     def test_umbrella_candidate_rejected_by_exclusivity(self) -> None:
         """``ramp`` as a candidate for mana-produced.produced_by is rejected."""
-        from pipeline.transforms.strategy.anchor_derivation import (
-            ANCHOR_MAP,
+        from pipeline.transforms.strategy.adjacency import (
+            SEED_MAP,
             is_mechanic_exclusive,
             mechanic_population,
         )
 
-        anchors = ANCHOR_MAP['mana-produced']['produced_by']['anchors']
-        mechanic = mechanic_population(anchors)
+        seeds = SEED_MAP['mana-produced']['produced_by']['seeds']
+        mechanic = mechanic_population(seeds)
         result = is_mechanic_exclusive('ramp', mechanic)
         assert not result.ok, 'ramp should NOT pass exclusivity for mana-produced'
 
     def test_umbrella_never_enters_candidate_store(self) -> None:
         """The discover_candidates function never returns a slug that fails
         exclusivity, so umbrellas cannot even enter the store."""
-        from pipeline.transforms.strategy.anchor_derivation import (
+        from pipeline.transforms.strategy.adjacency import (
             discover_candidates,
         )
         from pipeline.transforms.strategy.engine_hydration import _load_events
@@ -160,20 +160,20 @@ class TestUmbrellaRejection:
 
     def test_triggered_ability_umbrella_rejected(self) -> None:
         """``triggered-ability`` is a broad umbrella and should be rejected."""
-        from pipeline.transforms.strategy.anchor_derivation import (
-            ANCHOR_MAP,
+        from pipeline.transforms.strategy.adjacency import (
+            SEED_MAP,
             is_mechanic_exclusive,
             mechanic_population,
         )
 
         # triggered-ability is an umbrella that spans many mechanics.
         # Test it against a mechanic where it would be an ancestor.
-        for _event_name, entry in ANCHOR_MAP.items():
+        for _event_name, entry in SEED_MAP.items():
             for side in ('produced_by', 'triggers'):
-                anchors = entry[side]['anchors']
-                if not anchors:
+                seeds = entry[side]['seeds']
+                if not seeds:
                     continue
-                mechanic = mechanic_population(anchors)
+                mechanic = mechanic_population(seeds)
                 result = is_mechanic_exclusive('triggered-ability', mechanic)
                 if not result.ok:
                     return  # Found at least one rejection — test passes
@@ -189,9 +189,9 @@ class TestUmbrellaRejection:
 class TestThreeWayGate:
     """The three-way gate correctly classifies otags."""
 
-    def test_accept_via_anchor_for_known_slug(self) -> None:
-        """An otag in the closure => accept-via-anchor."""
-        from pipeline.transforms.strategy.anchor_derivation import (
+    def test_accept_via_seed_for_known_slug(self) -> None:
+        """An otag in the closure => accept-via-seed."""
+        from pipeline.transforms.strategy.adjacency import (
             GateVerdict,
             three_way_gate,
         )
@@ -205,11 +205,11 @@ class TestThreeWayGate:
             'land-enters-battlefield',
             'triggers',
         )
-        assert result.verdict == GateVerdict.ACCEPT_VIA_ANCHOR
+        assert result.verdict == GateVerdict.ACCEPT_VIA_SEED
 
     def test_reject_for_non_exclusive_slug(self) -> None:
         """An otag that fails exclusivity => reject."""
-        from pipeline.transforms.strategy.anchor_derivation import (
+        from pipeline.transforms.strategy.adjacency import (
             GateVerdict,
             three_way_gate,
         )
@@ -226,7 +226,7 @@ class TestThreeWayGate:
 
     def test_gate_returns_three_distinct_verdicts(self) -> None:
         """All three verdict types are reachable."""
-        from pipeline.transforms.strategy.anchor_derivation import GateVerdict
+        from pipeline.transforms.strategy.adjacency import GateVerdict
 
         assert len(GateVerdict) == 3
 
@@ -243,7 +243,7 @@ class TestGenericDiscovery:
     def test_discover_candidates_works_for_multiple_events(self) -> None:
         """discover_candidates runs on at least 3 different events without
         per-event branches (same function, no dispatch)."""
-        from pipeline.transforms.strategy.anchor_derivation import (
+        from pipeline.transforms.strategy.adjacency import (
             discover_candidates,
         )
         from pipeline.transforms.strategy.engine_hydration import _load_events
@@ -308,7 +308,7 @@ class TestShadowMeasurement:
         residue_otags: dict[str, set[str]],
     ) -> None:
         """The shadow run discovers at least 1 candidate across all events."""
-        from pipeline.transforms.strategy.anchor_derivation import (
+        from pipeline.transforms.strategy.adjacency import (
             run_healing_shadow,
         )
 
@@ -325,7 +325,7 @@ class TestShadowMeasurement:
         residue_otags: dict[str, set[str]],
     ) -> None:
         """No umbrella (exclusivity-failing) otags are ever proposed."""
-        from pipeline.transforms.strategy.anchor_derivation import (
+        from pipeline.transforms.strategy.adjacency import (
             run_healing_shadow,
         )
 
@@ -343,7 +343,7 @@ class TestShadowMeasurement:
         residue_otags: dict[str, set[str]],
     ) -> None:
         """Projected unlock with promotions >= 72% (at least matches current)."""
-        from pipeline.transforms.strategy.anchor_derivation import (
+        from pipeline.transforms.strategy.adjacency import (
             run_healing_shadow,
         )
 

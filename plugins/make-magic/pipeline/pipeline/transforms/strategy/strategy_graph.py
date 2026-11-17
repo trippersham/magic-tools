@@ -32,19 +32,19 @@ from pipeline.transforms.strategy.combo import (
     combo_norm,
     combos_in_deck,
 )
+from pipeline.transforms.strategy.combo_win import (
+    _RULE_TERMINAL_EVENTS,
+    combo_win_verdict,
+    resolve_fids_from_feature_names,
+    walk_is_win,
+    walk_win_kind,
+)
 from pipeline.transforms.strategy.config import FACTS_ONLY_WHEN_DISABLED, StrategyConfig
 from pipeline.transforms.strategy.degree import compute_degree_axes, power_profile
 from pipeline.transforms.strategy.query import CardView
 from pipeline.transforms.strategy.substantiveness import event_admitted
 from pipeline.transforms.strategy.tribes import compute_tribes, creature_subtypes
 from pipeline.transforms.strategy.vocab import synth_attrs_for
-from pipeline.transforms.strategy.win_walk import (
-    _RULE_TERMINAL_EVENTS,
-    closure_walk,
-    resolve_fids_from_feature_names,
-    walk_is_win,
-    walk_win_kind,
-)
 
 TYPAL = 'typal/tribal'
 
@@ -65,7 +65,7 @@ class FactsContext:
     arch_has_cmd: dict[str, bool]
     nodes: set[str]
     support: frozenset[str]
-    adens: defaultdict[str, float]
+    attr_weight: defaultdict[str, float]
     card_w: dict[int, float]
     identity_mass: float
     coverage: float
@@ -118,10 +118,10 @@ def _compute_answered_by(cards: list[dict], strategies: dict[str, dict]) -> dict
     return out
 
 
-def _isolate_engines(
+def elect_engine_units(
     nodes: set[str],
     event_edges: list[tuple[str, str, str]],
-    adens: defaultdict[str, float],
+    attr_weight: defaultdict[str, float],
     assets: StrategyAssets,
     cards: list[dict],
     earned_archetypes: set[str] | None = None,
@@ -147,7 +147,7 @@ def _isolate_engines(
       commander consumes. Non-empty => a commander-anchored cycle the DAG can't hold.
 
     The ranked ``elected`` set (0..n strategies) is chosen by node-weighted
-    event-neighborhood **mass** -- ``m(U) = Σ adens`` over a unit's producers U
+    event-neighborhood **mass** -- ``m(U) = Σ attr_weight`` over a unit's producers U
     consumers (its ``weight``). Units are ordered by mass desc (recursive status
     breaks an EXACT mass tie only); the elected set keeps EVERY substantive unit
     that is not a member-Jaccard-≥-0.5 near-duplicate of a kept unit — rank-don't-
@@ -199,7 +199,7 @@ def _isolate_engines(
     relay = producers & consumers
 
     def by_w(xs):
-        return sorted(xs, key=lambda a: (-adens[a], a))
+        return sorted(xs, key=lambda a: (-attr_weight[a], a))
 
     def archs(xs):
         return sorted({x for a in xs if (x := assets.archetype_of_attr(a))})
@@ -218,11 +218,11 @@ def _isolate_engines(
                 'producers': by_w(P),
                 'consumers': by_w(C),
                 'payoff_archetypes': archs(C),
-                'weight': round(sum(adens[a] for a in P | C), 1),
+                'weight': round(sum(attr_weight[a] for a in P | C), 1),
             }
         )
     # MASS ELECTION (ADR 0014): node-weighted event-neighborhood mass is the
-    # authoritative engine signal. Each unit's mass m(U) = Σ adens over
+    # authoritative engine signal. Each unit's mass m(U) = Σ attr_weight over
     # producers ∪ consumers is already computed as e['weight']. Order by mass  # noqa: RUF003
     # desc; recursive status breaks an EXACT mass tie only (a reported attribute,
     # never a primary sort key); event name is the final determinism tiebreak.
@@ -256,7 +256,7 @@ def _isolate_engines(
         # bipartite (anchor mode 1). The terminal-producer (mode 2) and
         # exogenous-environmental (mode 3) anchors populate only once producer-
         # only / consumer-only edges exist (later pipeline steps: mana-wiring,
-        # role-A hydration, exogenous-source modelling). The terminal set is the
+        # edge-author hydration, exogenous-source modelling). The terminal set is the
         # game-rules-derived reachable-to-game-end set (``_RULE_TERMINAL_EVENTS``),
         # never a frozen payoff literal.
         has_p, has_c = bool(e['producers']), bool(e['consumers'])
@@ -443,7 +443,7 @@ def compute_facts(
     for c in detected:
         feature_names = [f.strip() for f in c['result'].split(';') if f.strip()]
         fids = resolve_fids_from_feature_names(feature_names)
-        verdict = closure_walk(fids=fids, deck_card_names=have_norm)
+        verdict = combo_win_verdict(fids=fids, deck_card_names=have_norm)
         c['win'] = walk_is_win(verdict)
         c['_walk_verdict'] = verdict
 
@@ -483,23 +483,23 @@ def compute_facts(
     }
 
     # ---- weighted attribute densities + support cards + commander attrs
-    adens: defaultdict[str, float] = defaultdict(float)
+    attr_weight: defaultdict[str, float] = defaultdict(float)
     support_cards: dict[str, set[int]] = defaultdict(set)
     cmd_attrs: set[str] = set()
     for i, c in enumerate(cards):
         w = cmd_w if c.get('role') == 'commander' else 1.0
         for a in card_attrs[i]:
-            adens[a] += w
+            attr_weight[a] += w
             if not is_land(c):
                 support_cards[a].add(i)
             if c.get('role') == 'commander':
                 cmd_attrs.add(a)
 
-    nodes = {a for a in adens if node_admitted(len(support_cards[a]), a in cmd_attrs)}
+    nodes = {a for a in attr_weight if node_admitted(len(support_cards[a]), a in cmd_attrs)}
     covered = sum(1 for i, c in enumerate(cards) if not is_land(c) and (card_attrs[i] & nodes))
     coverage = covered / n_nonland if n_nonland else 0.0
 
-    attributes_present = {a: round(adens[a], 1) for a in sorted(nodes, key=lambda a: (-adens[a], a))}
+    attributes_present = {a: round(attr_weight[a], 1) for a in sorted(nodes, key=lambda a: (-attr_weight[a], a))}
 
     card_w: dict[int, float] = {i: (cmd_w if cards[i].get('role') == 'commander' else 1.0) for i in range(len(cards))}
     arch_members: dict[str, set[int]] = defaultdict(set)
@@ -578,7 +578,7 @@ def compute_facts(
             'weighted_quantity': round(wq, 1),
             'n_member_cards': len(mem),
             'requires_met': requires_met(mem),
-            'contributing_attrs': sorted(arch_attrs[arch], key=lambda a: (-adens[a], a)),
+            'contributing_attrs': sorted(arch_attrs[arch], key=lambda a: (-attr_weight[a], a)),
             'member_cards': sorted({cards[i]['name'] for i in mem}),
             'is_identity': arch not in facts_only,
         }
@@ -591,7 +591,7 @@ def compute_facts(
     support_quantities = {}
     for s in sorted(assets.support):
         if s in nodes:
-            support_quantities[s] = {'weighted_quantity': round(adens[s], 1), 'n_cards': len(support_cards[s])}
+            support_quantities[s] = {'weighted_quantity': round(attr_weight[s], 1), 'n_cards': len(support_cards[s])}
 
     # ---- EDGES + ENGINES (structure-only)
     pair_co: Counter = Counter()
@@ -646,12 +646,12 @@ def compute_facts(
                     chains.append(f'{u} --{ev}--> {v}')
         comps.append(
             {
-                'attrs': sorted(comp, key=lambda a: (-adens[a], a)),
+                'attrs': sorted(comp, key=lambda a: (-attr_weight[a], a)),
                 'events': sorted(evset),
                 'chains': sorted(chains),
                 'size': len(comp),
                 'n_events': len(evset),
-                'weight': round(sum(adens[a] for a in comp), 1),
+                'weight': round(sum(attr_weight[a] for a in comp), 1),
                 'archetypes': sorted({x for a in comp if (x := assets.archetype_of_attr(a))}),
             }
         )
@@ -670,9 +670,9 @@ def compute_facts(
         engine_communities.append(
             {
                 'size': len(cl_nodes),
-                'weight': round(sum(adens[a] for a in cl_nodes), 1),
+                'weight': round(sum(attr_weight[a] for a in cl_nodes), 1),
                 'archetypes_merged': sorted(archs),
-                'top_attrs': sorted(cl_nodes, key=lambda a: (-adens[a], a))[:8],
+                'top_attrs': sorted(cl_nodes, key=lambda a: (-attr_weight[a], a))[:8],
             }
         )
     engine_communities.sort(key=lambda e: (-e['weight'], -e['size'], ','.join(e['top_attrs'])))
@@ -787,7 +787,7 @@ def compute_facts(
         arch_has_cmd=arch_has_cmd,
         nodes=nodes,
         support=assets.support,
-        adens=adens,
+        attr_weight=attr_weight,
         card_w=card_w,
         identity_mass=identity_mass,
         coverage=coverage,
@@ -815,7 +815,9 @@ def compute_facts(
     # naming layer consults. ``satisfied`` reads ctx, so this runs post-ctx; the
     # resulting engine_isolation is then placed into the (shared) facts dict.
     earned_archetypes = {arch for arch, st in strategies.items() if requirement_for(arch, cfg).satisfied(st, ctx, arch)}
-    facts['engines']['engine_isolation'] = _isolate_engines(nodes, event_edges, adens, assets, cards, earned_archetypes)
+    facts['engines']['engine_isolation'] = elect_engine_units(
+        nodes, event_edges, attr_weight, assets, cards, earned_archetypes
+    )
 
     # demoted_archetypes (ADR 0002, GENERIC -- no archetype-name branch): an archetype
     # that clears the presence bar (`requires_met`) but fails its fuller

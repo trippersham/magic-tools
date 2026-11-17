@@ -1,4 +1,4 @@
-"""Role-B (L5) engine synthesis -- backend, prompt, reader.
+"""Engine-synthesizer (L5) -- backend, prompt, reader.
 
 This module is the production plumbing that resolves a deck's deterministic
 strategy-graph outputs into the ONE core Engine, with NO separate API key and NO
@@ -8,7 +8,7 @@ human-agent-in-the-loop: the synthesis backend is **headless Claude Code**
 
 Layers
 ------
-* :func:`build_synthesis_input` -- the deterministic role-B *input* for one deck
+* :func:`build_synthesis_input` -- the deterministic engine-synthesizer *input* for one deck
   (``compute_facts`` + ``name_deck``, no LLM).  This is the single source the
   ``scripts/extract_roleb_inputs.py`` tool delegates to.
 * :func:`build_prompt` -- the vendored synthesis rules (``roleb_prompt.md``) +
@@ -51,12 +51,12 @@ DEFAULT_MODEL = 'claude-sonnet-4-5'
 
 
 def load_prompt_rules() -> str:
-    """Return the vendored role-B synthesis rules (``roleb_prompt.md``)."""
+    """Return the vendored engine-synthesizer rules (``roleb_prompt.md``)."""
     return _PROMPT_PATH.read_text(encoding='utf-8')
 
 
 # ---------------------------------------------------------------------------
-# Deterministic role-B input builder (no LLM) -- single source of truth
+# Deterministic engine-synthesizer input builder (no LLM) -- single source of truth
 # ---------------------------------------------------------------------------
 
 
@@ -68,15 +68,15 @@ def build_synthesis_input(
     cfg: StrategyConfig | None = None,
     assets: StrategyAssets | None = None,
 ) -> dict:
-    """Build the role-B synthesis input for one deck (deterministic, no LLM).
+    """Build the engine-synthesizer input for one deck (deterministic, no LLM).
 
     Runs ``compute_facts`` + ``name_deck`` on the CURRENT engine and extracts the
     commanders, elected engine candidates, archetype identity, detected combos,
     commander-loop probe, and the naming-layer resolution.  This is exactly the
     input the synthesiser sees, and the thing the cache's staleness key hashes.
     """
-    from pipeline.transforms.strategy.facts import compute_facts
     from pipeline.transforms.strategy.naming import name_deck
+    from pipeline.transforms.strategy.strategy_graph import compute_facts
 
     if assets is None:
         assets = load_assets(cfg)

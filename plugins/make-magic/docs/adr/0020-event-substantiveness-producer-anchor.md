@@ -5,7 +5,7 @@
 | Status | Accepted. In force on branch `feat/strategy-engine`. Output-changing re-baseline (ADR 0003). |
 | Review | pending owner review: agent-authored from the empirically-validated step-2 design (`event-substantiveness-empirical.md` + `mana-produced-correct-wiring.md`); the orchestrator reconciles, shows the owner the delta, and commits. |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (453 pass). The gate itself: `pytest -k "event_ontology or substantiveness"`. Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` — engine `987f2660…`, resolve `85752bb9…`, full-corpus `7e5190e8…`. Full-170 invariant (vs `7b53e6a`): **exactly 4 elected-set changes** (Selvala, Marwyn, Helga, Derevi gain `mana-produced`), **0 evictions**, **1 `named_strategy` change** (Ghave, from the consumer-side wiring, not the gate). |
-| Code paths | [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py) (`_eval_producer_anchor`, `_EVENT_EVALUATORS`, `EVENT_SUBSTANTIVENESS`, `event_admitted`), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (`_isolate_engines` — the candidate-pool filter), [`data/event_catalog_v4.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog_v4.json) (`mana-produced.produced_by`). |
+| Code paths | [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py) (`_eval_producer_anchor`, `_EVENT_EVALUATORS`, `EVENT_SUBSTANTIVENESS`, `event_admitted`), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` — the candidate-pool filter), [`data/event_catalog_v4.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog_v4.json) (`mana-produced.produced_by`). |
 
 ## Context
 
@@ -43,7 +43,7 @@ Requirement KIND `producer_anchor`, dispatched by DATA through its own entry poi
   specific producers, so `ramp` is carried ANCHOR-SIDE only, via `extra_refs` — a
   commander-tag check that contributes zero election mass. Dropping it (gateA) costs
   exactly one genuine deck (Derevi); keeping it anchor-side (gateB) is the chosen config.
-- **Hook point.** In `_isolate_engines`, between unit construction and the `elected`
+- **Hook point.** In `elect_engine_units`, between unit construction and the `elected`
   keep-walk: `pool = [e for e in engines if event_admitted(e['event'], cmd_attrs, assets)]`;
   the keep-walk runs over `pool` (its `top_mass`/`total_mass` taken over the pool). The
   reported `engines` list stays COMPLETE — exclusion is election-candidacy only, so
@@ -55,9 +55,9 @@ Requirement KIND `producer_anchor`, dispatched by DATA through its own entry poi
 ## Reasons — why anchoring, not density (the empirical core)
 
 Per-event *density* does NOT encode substantiveness for a resource event. Every absolute
-density measure was swept and overlaps badly: specific-producer adens (Ezuri 29, Tayam 31
+density measure was swept and overlaps badly: specific-producer attr_weight (Ezuri 29, Tayam 31
 exceed every genuine deck but Marwyn; Urza sits at 6 below ten incidental decks),
-consumer-side adens (Ezuri/Tovolar/Lathliss out-consume every genuine deck), and the
+consumer-side attr_weight (Ezuri/Tovolar/Lathliss out-consume every genuine deck), and the
 specific:generic ratio (Ezuri is the corpus max). Incidental dork-dense decks are
 compositionally indistinguishable from — often denser than — genuine mana decks. The one
 absolute quantity that separates them is WHERE production is anchored: every genuine deck's
@@ -68,7 +68,7 @@ consumer clauses) are all strictly worse (false-gate Urza or re-admit Ezuri at e
 
 **Robustness.** The gate quantity is integer and bimodal (0 vs 1–3); no ±k ordinary-card
 swap can flip any deck's verdict — only the commander's own otags enter, and commander
-attrs are node-admitted unconditionally (ADR 0004). A ±2-adens perturbation of the mana
+attrs are node-admitted unconditionally (ADR 0004). A ±2-attr_weight perturbation of the mana
 unit gives 3 benign flips gated vs 10 (incl. genuine-engine evictions) ungated — the gate
 strictly REDUCES boundary sensitivity because 16 decks' elections no longer depend on mana
 mass at all.

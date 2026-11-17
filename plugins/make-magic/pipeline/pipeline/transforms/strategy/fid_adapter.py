@@ -9,9 +9,9 @@ Where ``event`` is a slug from the bounded trigger taxonomy
 (``data/event_catalog_v4.json``), or ``None`` for features with no engine role
 (oneshot effects, card-class enablers, inert symmetrics).
 
-This module is DATA + LOADER.  It IS consumed by ``win_walk.py`` (the
+This module is DATA + LOADER.  It IS consumed by ``combo_win.py`` (the
 authoritative win-detection closure walk, ADR 0016) which is imported by
-``facts.py`` and determines every combo's win flag.
+``strategy_graph.py`` and determines every combo's win flag.
 
 Owner-ruled dispositions applied during promotion:
 

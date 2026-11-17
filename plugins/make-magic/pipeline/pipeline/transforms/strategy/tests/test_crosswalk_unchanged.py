@@ -50,9 +50,9 @@ def test_strategy_does_not_reimport_buckets_for():
     # Phase-4 migration will reconcile). Pin that boundary so nobody "fixes" the
     # docstring by silently wiring buckets_for into the engine namespace.
     from pipeline.transforms import strategy
-    from pipeline.transforms.strategy import assets, facts, naming, resolve
+    from pipeline.transforms.strategy import assets, naming, resolve, strategy_graph
 
-    for mod in (strategy, assets, facts, naming, resolve):
+    for mod in (strategy, assets, strategy_graph, naming, resolve):
         assert not hasattr(mod, 'buckets_for'), f'{mod.__name__} unexpectedly imports buckets_for'
 
 

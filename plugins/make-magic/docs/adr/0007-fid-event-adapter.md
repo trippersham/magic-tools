@@ -4,7 +4,7 @@
 |---|---|
 | Status | Accepted. In force on branch `feat/strategy-engine`. |
 | Review | pending owner review: agent-authored as part of the Phase 2B step 5b-ii win-walk flip. |
-| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests/test_fid_adapter.py -q` (adapter coverage + schema assertions). The adapter is consumed by `win_walk.py` (ADR 0016) and transitively by the parity oracle. |
+| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests/test_fid_adapter.py -q` (adapter coverage + schema assertions). The adapter is consumed by `combo_win.py` (ADR 0016) and transitively by the parity oracle. |
 | Code paths | [`fid_adapter.py`](../../pipeline/pipeline/transforms/strategy/fid_adapter.py) (loader), [`data/fid_event_adapter.json`](../../pipeline/pipeline/transforms/strategy/data/fid_event_adapter.json) (the 1,348-row mapping). |
 
 ## Context
@@ -66,13 +66,13 @@ During promotion, ambiguous features received owner-ruled classifications:
 
 - **Resolve events from feature name strings at runtime.** Rejected: brittle
   (Spellbook can change names), slow, and not auditable.
-- **Embed the mapping inside `win_walk.py`.** Rejected: 1,348 rows of data belong
+- **Embed the mapping inside `combo_win.py`.** Rejected: 1,348 rows of data belong
   in a data file, not inline code.
 
 ## Consequences
 
-- The adapter is consumed by `win_walk.py` (ADR 0016), which is the authoritative
-  win-detection path imported by `facts.py`.
+- The adapter is consumed by `combo_win.py` (ADR 0016), which is the authoritative
+  win-detection path imported by `strategy_graph.py`.
 - Adding a new Spellbook feature requires adding its row to
   `fid_event_adapter.json` (a data change, not a code change).
 - The adapter schema (`{fid, name, event, magnitude, scope, object_descriptor}`)

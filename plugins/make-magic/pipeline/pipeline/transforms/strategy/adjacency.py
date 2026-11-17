@@ -1,6 +1,6 @@
-"""Anchor-based event adjacency derivation (Phase 6.1 + 6.2 + 6.1b).
+"""Seed-based event adjacency derivation (Phase 6.1 + 6.2 + 6.1b).
 
-Implements the **Maximal mechanic-exclusive anchor** rule as production code
+Implements the **Maximal mechanic-exclusive seed** rule as production code
 (6.1), the **derived ``produced_by``/``triggers``** as a shadow view behind a
 flag (6.2), and the **mechanic-exclusivity validator** that enforces the rule's
 stop-condition so a cross-mechanic umbrella (``ramp``, ``triggered-ability``,
@@ -8,20 +8,20 @@ stop-condition so a cross-mechanic umbrella (``ramp``, ``triggered-ability``,
 
 The rule
 --------
-Given an event side (produce/trigger), each ANCHOR is the **highest ancestor**
+Given an event side (produce/trigger), each SEED is the **highest ancestor**
 in the otag taxonomy whose descendant-closure stays *mechanic-exclusive* — stop
 one level below any ancestor that admits a different mechanic.  The 27-event
-anchor map below was derived by the build-design measurement pass
+seed map below was derived by the build-design measurement pass
 (``subagents/adjacency-build-design/research/adjacency-build-design.md``) and is
-reused here as DATA: each side's ``anchors`` are the owner-approved mechanic-
+reused here as DATA: each side's ``seeds`` are the owner-approved mechanic-
 exclusive **seed concepts** (``mana-producer`` for "makes mana", ``land-ramp``
 for "puts a land onto the battlefield", …), sitting at the mechanic frontier.
 
 The exclusivity check (the enforcement — task 6.1b)
 ---------------------------------------------------
 :func:`is_mechanic_exclusive` decides whether a candidate taxonomy node may be
-an anchor for a side, measured against the **mechanic population** ``M`` that
-the side's own anchors establish (the union of their descendant-closure card
+a seed for a side, measured against the **mechanic population** ``M`` that
+the side's own seeds establish (the union of their descendant-closure card
 sets).  A node is mechanic-exclusive iff it passes BOTH, generically:
 
 * **(b) empirical precision** — ``|cards(node) ∩ M| / |cards(node)| >=``
@@ -35,7 +35,7 @@ sets).  A node is mechanic-exclusive iff it passes BOTH, generically:
 
 The rule is GENERIC: no per-event branch, no hand-coded umbrella blocklist.
 ``ramp`` is rejected from mana-produced AND land-enters by the same predicate
-and the same thresholds — see :func:`validate_anchor_map` and the
+and the same thresholds — see :func:`validate_seed_map` and the
 ``TestExclusivityValidator`` gate tests.  The derivation never admits ``ramp``
 into the derived output (it is not a listed seed, and
 :func:`refused_climb_targets` refuses all ancestor umbrellas), so ``ramp``
@@ -46,15 +46,15 @@ Enforcement boundary (honest)
 -----------------------------
 The rule has **two facets** under the one-named-rule doctrine (ADR 0001):
 
-1. **Anchor selection** — the seeds themselves are owner-approved DATA.  A
+1. **Seed selection** — the seeds themselves are owner-approved DATA.  A
    cross-mechanic umbrella hand-listed as a seed IS caught by the (fixed)
-   :func:`validate_anchor_map` cross-mechanic umbrella check (CI-enforced; see
-   ``MAKE_MAGIC_VALIDATE_ANCHORS``): an anchor whose descendant-closure covers
+   :func:`validate_seed_map` cross-mechanic umbrella check (CI-enforced; see
+   ``MAKE_MAGIC_VALIDATE_ANCHORS``): a seed whose descendant-closure covers
    >= 50% of a *disjoint* foreign event-side's seed set is flagged.  ``ramp``
    added as a seed is caught because its closure covers 50% of
    ``mana-produced.produced_by`` and 50% of ``land-enters.produced_by`` —
    it IS both mechanics.  Related event-sides (which share seeds) are not
-   compared, so legitimate cross-event anchors like ``sac`` are not flagged.
+   compared, so legitimate cross-event seeds like ``sac`` are not flagged.
 2. **Mechanic-exclusivity** — the ``is_mechanic_exclusive`` predicate refuses
    any candidate ancestor that dilutes the mechanic (the climb guard), and
    ``refused_climb_targets`` proves no refused umbrella leaks into the output.
@@ -67,7 +67,7 @@ Derived view — authoritative (task 6.5 flip, ADR 0022)
 ------------------------------------------------------
 ``derive_event_adjacency(events)`` returns a new events dict where each event's
 ``produced_by``/``triggers`` lists are the sorted descendant-closure of that
-side's anchors.  The committed enumerated lists are a *subset* (no loss).  The
+side's seeds.  The committed enumerated lists are a *subset* (no loss).  The
 exclusivity layer does NOT change this output (the curated seeds are already the
 mechanic frontier).  As of task 6.5 this derivation is applied **at catalog
 load** (``assets.load_assets`` and ``engine_hydration._load_events``) and is the
@@ -76,9 +76,9 @@ single authoritative source for every downstream reader — the former
 
 One named rule (ADR 0001)
 -------------------------
-The anchor map is the SINGLE authoritative source for which otag concepts
+The seed map is the SINGLE authoritative source for which otag concepts
 participate on each event side.  The rule is ONE implementation — no per-event
-branches, no per-deck hardcoding.  New events get an anchor-map row; the rule
+branches, no per-deck hardcoding.  New events get a seed-map row; the rule
 stays the same.
 """
 
@@ -93,27 +93,27 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 # ---------------------------------------------------------------------------
-# 27-event anchor map — owner-approved DATA from the validated build-design.
+# 27-event seed map — owner-approved DATA from the validated build-design.
 #
 # For each event, each side (``triggers`` / ``produced_by``) carries:
-#   - ``anchors``: list[str] — otag slugs whose descendant-closure defines
+#   - ``seeds``: list[str] — otag slugs whose descendant-closure defines
 #     the derived list for this side.  Includes BOTH the structural build-
-#     design anchors (higher concepts) AND the existing enumerated slugs
+#     design seeds (higher concepts) AND the existing enumerated slugs
 #     (for guaranteed slug-level superset).
-#   - ``grade``: "S" (clean structural, one exclusive taxonomy anchor),
-#     "M" (semantic, union of flat concepts), or "empty" (no otag anchor —
+#   - ``grade``: "S" (clean structural, one exclusive taxonomy seed),
+#     "M" (semantic, union of flat concepts), or "empty" (no otag seed —
 #     text-synth / terminal / inert).
 #
-# The union of build-design anchors + enumerated slugs ensures
-# derived ⊇ enumerated while the higher anchors unlock descendant coverage
+# The union of build-design seeds + enumerated slugs ensures
+# derived ⊇ enumerated while the higher seeds unlock descendant coverage
 # (the ~63% edge unlock vs 28% enumerated).
 # ---------------------------------------------------------------------------
 
-ANCHOR_MAP: dict[str, dict[str, Any]] = {
+SEED_MAP: dict[str, dict[str, Any]] = {
     # ── 1. land-enters-battlefield ──────────────────────────────────────
     'land-enters-battlefield': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'islandfall',
                 'land-count-matters',
                 'landfall',
@@ -132,8 +132,8 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             # mechanic) and drops precision to 0.28 (< EXCLUSIVITY_PRECISION_MIN).
             # Same predicate, same thresholds as mana-produced.produced_by —
             # no per-event special-casing.  See is_mechanic_exclusive /
-            # validate_anchor_map (task 6.1b).
-            'anchors': [
+            # validate_seed_map (task 6.1b).
+            'seeds': [
                 'extra-land',
                 'land-ramp',
                 'reanimate-land',
@@ -147,7 +147,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 2. creature-enters-battlefield ──────────────────────────────────
     'creature-enters-battlefield': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'creature-count-matters',
                 'creaturefall',
                 'enters-in-company',
@@ -159,7 +159,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'flicker',
                 'flicker-creature',
                 'multiple-bodies',
@@ -178,7 +178,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 3. permanent-leaves-battlefield ─────────────────────────────────
     'permanent-leaves-battlefield': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'enters-and-leaves-trigger-self',
                 'leaves-battlefield-trigger',
                 'leaves-body-behind',
@@ -187,7 +187,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'flicker',
                 'flicker-artifact',
                 'flicker-creature',
@@ -209,7 +209,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 4. permanent-dies ───────────────────────────────────────────────
     'permanent-dies': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'cheat-death',
                 'cheat-death-self',
                 'death-trigger',
@@ -221,7 +221,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'free-sacrifice-outlet',
                 'removal',
                 'removal-sacrifice',
@@ -243,7 +243,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 5. permanent-sacrificed ─────────────────────────────────────────
     'permanent-sacrificed': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'death-trigger',
                 'death-trigger-opponent',
                 'death-trigger-self',
@@ -254,7 +254,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'alternate-cost-sacrifice',
                 'free-sacrifice-outlet',
                 'removal-sacrifice',
@@ -277,7 +277,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 6. card-enters-graveyard ────────────────────────────────────────
     'card-enters-graveyard': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'activate-from-graveyard',
                 'affinity-for-graveyard',
                 'card-types-in-graveyard-matter',
@@ -343,7 +343,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'discard',
                 'discard-outlet',
                 'discard-outlet-artifact',
@@ -367,7 +367,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 7. spell-cast ───────────────────────────────────────────────────
     'spell-cast': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'cast-trigger',
                 'cast-trigger-other',
                 'cast-trigger-self',
@@ -383,7 +383,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'copy-instant',
                 'copy-sorcery',
                 'copy-spell',
@@ -394,7 +394,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 8. creature-attacks ─────────────────────────────────────────────
     'creature-attacks': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'attack-trigger',
                 'attacking-matters',
                 'attacking-matters-any',
@@ -405,7 +405,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'combat',
                 'extra-combat-phase',
                 'force-attacker',
@@ -419,7 +419,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 9. combat-damage-dealt ──────────────────────────────────────────
     'combat-damage-dealt': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'combat-neutral-damage-trigger',
                 'retaliate-to-damage',
                 'saboteur',
@@ -428,7 +428,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'combat',
                 'damage-multiplier',
                 'gains-double-strike',
@@ -442,7 +442,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 10. lifegain ────────────────────────────────────────────────────
     'lifegain': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'life-total-matters-self',
                 'lifegain-increaser',
                 'lifegain-matters',
@@ -451,7 +451,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'drain-life',
                 'gains-lifelink',
                 'gives-lifelink',
@@ -464,14 +464,14 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 11. life-loss-drain ─────────────────────────────────────────────
     'life-loss-drain': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'life-loss-matters',
                 'self-life-loss-matters',
             ],
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'burn',
                 'burn-player',
                 'burn-player-each',
@@ -486,7 +486,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 12. counter-placed ──────────────────────────────────────────────
     'counter-placed': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'counter-fuel',
                 'counter-fuel-aesthetic',
                 'counter-fuel-any',
@@ -513,7 +513,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'counter-increaser',
                 'counters',
                 'gives-mm-counters',
@@ -528,7 +528,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 13. proliferate ─────────────────────────────────────────────────
     'proliferate': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'counter-fuel',
                 'counter-fuel-aesthetic',
                 'counter-fuel-any',
@@ -552,7 +552,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'pseudo-proliferate',
                 'repeatable-proliferate',
                 'synergy-proliferate',
@@ -563,7 +563,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 14. token-created ───────────────────────────────────────────────
     'token-created': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'artifact-count-matters',
                 'creature-count-matters',
                 'sac',
@@ -573,11 +573,11 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
-            # Build-design P anchors: repeatable-token-generator + multiple-
+            # Build-design P seeds: repeatable-token-generator + multiple-
             # bodies, PLUS self-heal candidates promoted by the build-design:
             # leaves-body-behind (death→token), out-of-color-token (off-color
             # token producers), creates-bigger-body (Reef Worm chain).
-            'anchors': [
+            'seeds': [
                 'artifacts',
                 'creates-bigger-body',
                 'leaves-body-behind',
@@ -598,7 +598,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 15. artifact-enters ─────────────────────────────────────────────
     'artifact-enters': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'affinity-for-artifacts',
                 'artifact-count-matters',
                 'artifactfall',
@@ -608,7 +608,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'animate-artifact',
                 'artifactify',
                 'artifacts',
@@ -621,7 +621,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 16. food-created ────────────────────────────────────────────────
     'food-created': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'eat-food',
                 'lifegain-matters',
                 'synergy-food',
@@ -629,7 +629,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'repeatable-food',
                 'repeatable-treasures',
             ],
@@ -639,7 +639,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 17. draw-a-card ─────────────────────────────────────────────────
     'draw-a-card': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'draw-matters',
                 'hand-size-matters',
                 'second-draw-matters',
@@ -648,7 +648,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'burst-draw',
                 'draw',
                 'draw-engine',
@@ -660,7 +660,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 18. discard ─────────────────────────────────────────────────────
     'discard': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'castable-from-graveyard',
                 'discard-matters',
                 'discarded-type-matters',
@@ -669,7 +669,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'discard-outlet',
                 'discard-outlet-artifact',
                 'discard-outlet-creature',
@@ -689,7 +689,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 19. recursion-from-graveyard ────────────────────────────────────
     'recursion-from-graveyard': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'castable-from-graveyard',
                 'graveyard-fuel',
                 'graveyard-fuel-artifact',
@@ -748,13 +748,13 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
-            # Build-design P anchors: recursion/reanimate (the cards that
+            # Build-design P seeds: recursion/reanimate (the cards that
             # PERFORM the graveyard return) + mill/discard/sac fillers (that
             # put cards INTO the graveyard enabling recursion).  `recursion`
             # is a ROOT (100 descendants) covering all reanimate-*/recursion-*
             # variants.  Adding it here is the single biggest unlock (~25
             # edges) identified by the build-design measurement.
-            'anchors': [
+            'seeds': [
                 'discard',
                 'discard-outlet',
                 'discard-outlet-artifact',
@@ -775,7 +775,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 20. deathtouch-combat ───────────────────────────────────────────
     'deathtouch-combat': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'combat',
                 'old-blocking-deathtouch',
                 'old-damage-deathtouch',
@@ -784,7 +784,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'deathtouch-counter',
                 'gains-deathtouch',
                 'gives-deathtouch',
@@ -795,21 +795,21 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 21. monarch-or-extra-turn ───────────────────────────────────────
     'monarch-or-extra-turn': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'monarch-matters',
                 'off-turn-casting-matters',
             ],
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': ['extra-turn'],
+            'seeds': ['extra-turn'],
             'grade': 'empty',
         },
     },
     # ── 22. creature-copied ─────────────────────────────────────────────
     'creature-copied': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'creature-count-matters',
                 'creaturefall',
                 'eat-food',
@@ -822,7 +822,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'clones',
                 'copy-creature',
                 'copy-self',
@@ -834,14 +834,14 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 23. untap ───────────────────────────────────────────────────────
     'untap': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'synergy-untapped',
                 'untapped-matters-self',
             ],
             'grade': 'M',
         },
         'produced_by': {
-            'anchors': [
+            'seeds': [
                 'etb-untapper',
                 'extra-untap',
                 'ritual-untap',
@@ -861,7 +861,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     # ── 24. player-counter ──────────────────────────────────────────────
     'player-counter': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'mill-any',
                 'mill-each',
                 'mill-opponent',
@@ -876,14 +876,14 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
         'produced_by': {
             # rad-counter is a text-synth attr with NO otag, kept for
             # backward compatibility with the committed catalog.
-            'anchors': ['rad-counter'],
+            'seeds': ['rad-counter'],
             'grade': 'empty',
         },
     },
     # ── 25. mana-produced ───────────────────────────────────────────────
     'mana-produced': {
         'triggers': {
-            'anchors': [
+            'seeds': [
                 'bottomless-mana-sink',
                 'mana-increaser',
                 'mana-sink',
@@ -892,7 +892,7 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
         },
         'produced_by': {
             # THE PROVEN SET (ADR 0020): mana-producer IN, ramp OUT.
-            'anchors': [
+            'seeds': [
                 'adds-multiple-mana',
                 'mana-producer',
                 'repeatable-treasures',
@@ -903,13 +903,13 @@ ANCHOR_MAP: dict[str, dict[str, Any]] = {
     },
     # ── 26. game-end (terminal) ─────────────────────────────────────────
     'game-end': {
-        'triggers': {'anchors': [], 'grade': 'empty'},
-        'produced_by': {'anchors': [], 'grade': 'empty'},
+        'triggers': {'seeds': [], 'grade': 'empty'},
+        'produced_by': {'seeds': [], 'grade': 'empty'},
     },
     # ── 27. library-depleted ────────────────────────────────────────────
     'library-depleted': {
-        'triggers': {'anchors': [], 'grade': 'empty'},
-        'produced_by': {'anchors': [], 'grade': 'empty'},
+        'triggers': {'seeds': [], 'grade': 'empty'},
+        'produced_by': {'seeds': [], 'grade': 'empty'},
     },
 }
 
@@ -1001,9 +1001,9 @@ def descendant_closure(slug: str, taxonomy: dict[str, dict[str, Any]]) -> frozen
 
 
 # ---------------------------------------------------------------------------
-# Mechanic-exclusivity validator (task 6.1b) — the anchor rule as ENFORCED code
+# Mechanic-exclusivity validator (task 6.1b) — the seed rule as ENFORCED code
 #
-# The seed/anchor for each event side must be *mechanic-exclusive*: climbing to
+# The seed for each event side must be *mechanic-exclusive*: climbing to
 # a higher taxonomy concept must not admit a different mechanic's cards.  We
 # measure this against the CARD population (oracle_ids) each slug reaches, which
 # is ancestor-closed in the otag taxonomy (verified 0 violations in the
@@ -1073,14 +1073,14 @@ def card_set(slug: str) -> frozenset[str]:
     return frozenset(cards)
 
 
-def mechanic_population(anchors: list[str] | tuple[str, ...]) -> frozenset[str]:
-    """The card population a side's *anchors* establish as its mechanic.
+def mechanic_population(seeds: list[str] | tuple[str, ...]) -> frozenset[str]:
+    """The card population a side's *seeds* establish as its mechanic.
 
-    = union of the ancestor-closed card sets of every anchor.  This is the
+    = union of the ancestor-closed card sets of every seed.  This is the
     ground-truth ``M`` the exclusivity check measures candidates against.
     """
     pop: set[str] = set()
-    for a in anchors:
+    for a in seeds:
         pop |= card_set(a)
     return frozenset(pop)
 
@@ -1093,7 +1093,7 @@ def is_mechanic_exclusive(
     branch_floor: int = EXCLUSIVITY_BRANCH_FLOOR,
     branch_prec_min: float = EXCLUSIVITY_BRANCH_PRECISION_MIN,
 ) -> ExclusivityResult:
-    """Is *node* exclusive to *mechanic* (so it may be an anchor / be climbed to)?
+    """Is *node* exclusive to *mechanic* (so it may be a seed / be climbed to)?
 
     GENERIC two-part check, no per-event logic:
 
@@ -1147,20 +1147,20 @@ def proper_ancestors(slug: str, taxonomy: dict[str, dict[str, Any]]) -> frozense
     return frozenset(visited)
 
 
-def refused_climb_targets(anchors: list[str]) -> dict[str, ExclusivityResult]:
-    """Ancestors of *anchors* the rule REFUSES (the cross-mechanic umbrellas).
+def refused_climb_targets(seeds: list[str]) -> dict[str, ExclusivityResult]:
+    """Ancestors of *seeds* the rule REFUSES (the cross-mechanic umbrellas).
 
-    For every anchor, every proper ancestor that is NOT itself an anchor and is
+    For every seed, every proper ancestor that is NOT itself a seed and is
     NOT mechanic-exclusive against the side's mechanic.  ``ramp`` appears here
     for both mana-produced and land-enters — the generic auto-exclusion proof.
     """
     taxonomy = load_taxonomy()
-    mechanic = mechanic_population(anchors)
-    anchor_set = set(anchors)
+    mechanic = mechanic_population(seeds)
+    seed_set = set(seeds)
     refused: dict[str, ExclusivityResult] = {}
-    for anchor in anchors:
-        for ancestor in proper_ancestors(anchor, taxonomy):
-            if ancestor in anchor_set or ancestor in refused:
+    for seed in seeds:
+        for ancestor in proper_ancestors(seed, taxonomy):
+            if ancestor in seed_set or ancestor in refused:
                 continue
             res = is_mechanic_exclusive(ancestor, mechanic)
             if not res.ok:
@@ -1168,28 +1168,28 @@ def refused_climb_targets(anchors: list[str]) -> dict[str, ExclusivityResult]:
     return refused
 
 
-#: A single anchor covering >= this fraction of a disjoint foreign event-side's
+#: A single seed covering >= this fraction of a disjoint foreign event-side's
 #: seed set is a cross-mechanic umbrella (it IS the other mechanic).
 UMBRELLA_COVERAGE_MIN: float = 0.5
 
-#: The foreign event-side must have at least this many anchors for the umbrella
+#: The foreign event-side must have at least this many seeds for the umbrella
 #: check to apply (trivially small seed sets are not a meaningful mechanic).
 UMBRELLA_FOREIGN_MIN_ANCHORS: int = 3
 
 
-def validate_anchor_map(
-    anchor_map: dict[str, dict[str, Any]] | None = None,
+def validate_seed_map(
+    seed_map: dict[str, dict[str, Any]] | None = None,
 ) -> list[str]:
-    """Enforce the exclusivity rule over *anchor_map*.  Returns violations.
+    """Enforce the exclusivity rule over *seed_map*.  Returns violations.
 
     Hard invariants (empty list == clean):
 
-    1. **Ancestor-closure** — every non-synthetic anchor resolves to a
+    1. **Ancestor-closure** — every non-synthetic seed resolves to a
        non-empty descendant closure (no dangling slug).
     2. **Output purity** — the refused cross-mechanic umbrella ancestors (e.g.
        ``ramp``, discovered generically via :func:`refused_climb_targets`) never
        appear in the side's derived closure-union output.
-    3. **Cross-mechanic umbrella** (NON-TAUTOLOGICAL) — for each anchor A, if
+    3. **Cross-mechanic umbrella** (NON-TAUTOLOGICAL) — for each seed A, if
        A's descendant-closure covers >= :data:`UMBRELLA_COVERAGE_MIN` of a
        *disjoint* foreign event-side's seed set (where the foreign side has >=
        :data:`UMBRELLA_FOREIGN_MIN_ANCHORS`), A is flagged as a cross-mechanic
@@ -1199,52 +1199,52 @@ def validate_anchor_map(
        whose closure spans ``mana-producer``/``ritual`` (50% of
        ``mana-produced.produced_by``) AND ``land-ramp``/``extra-land``/
        ``sneak-land`` (50% of ``land-enters.produced_by``) is caught, while
-       legitimate same-mechanic anchors whose closures reach into related events
+       legitimate same-mechanic seeds whose closures reach into related events
        (via shared seeds) are not compared.  A ``ramp`` hand-added as a seed is
        a reviewable data error now CAUGHT at validation time.
 
     Parameters
     ----------
-    anchor_map
-        Override for testing; defaults to the module-level :data:`ANCHOR_MAP`.
+    seed_map
+        Override for testing; defaults to the module-level :data:`SEED_MAP`.
     """
-    if anchor_map is None:
-        anchor_map = ANCHOR_MAP
+    if seed_map is None:
+        seed_map = SEED_MAP
     taxonomy = load_taxonomy()
     violations: list[str] = []
 
     # Pre-compute seed sets for the umbrella check.
     seed_sets: dict[tuple[str, str], set[str]] = {}
-    for ev, entry in anchor_map.items():
+    for ev, entry in seed_map.items():
         for s in ('produced_by', 'triggers'):
-            seed_sets[(ev, s)] = set(entry[s]['anchors'])
+            seed_sets[(ev, s)] = set(entry[s]['seeds'])
 
-    for event_name, entry in anchor_map.items():
+    for event_name, entry in seed_map.items():
         for side in ('produced_by', 'triggers'):
-            anchors = entry[side]['anchors']
-            if not anchors:
+            seeds = entry[side]['seeds']
+            if not seeds:
                 continue
 
-            # (1) ancestor-closure: closure non-empty for every anchor.
-            for anchor in anchors:
-                if not descendant_closure(anchor, taxonomy):
-                    violations.append(f'{event_name}.{side}: anchor {anchor!r} has empty closure')
+            # (1) ancestor-closure: closure non-empty for every seed.
+            for seed in seeds:
+                if not descendant_closure(seed, taxonomy):
+                    violations.append(f'{event_name}.{side}: seed {seed!r} has empty closure')
 
             # (2) output purity: no refused umbrella ancestor leaks into the
             # derived closure-union output.
             output: set[str] = set()
-            for anchor in anchors:
-                output |= descendant_closure(anchor, taxonomy)
-            for umbrella in refused_climb_targets(anchors):
+            for seed in seeds:
+                output |= descendant_closure(seed, taxonomy)
+            for umbrella in refused_climb_targets(seeds):
                 if umbrella in output:
                     violations.append(
                         f'{event_name}.{side}: cross-mechanic umbrella {umbrella!r} leaked into the derived output'
                     )
 
             # (3) Cross-mechanic umbrella check (NON-TAUTOLOGICAL).
-            own_seeds = set(anchors)
-            for anchor in anchors:
-                closure = descendant_closure(anchor, taxonomy)
+            own_seeds = set(seeds)
+            for seed in seeds:
+                closure = descendant_closure(seed, taxonomy)
                 for (e2, s2), seeds2 in seed_sets.items():
                     if e2 == event_name or s2 != side:
                         continue
@@ -1257,10 +1257,10 @@ def validate_anchor_map(
                     coverage = len(overlap) / len(seeds2)
                     if coverage >= UMBRELLA_COVERAGE_MIN:
                         violations.append(
-                            f'{event_name}.{side}: anchor {anchor!r} is a '
+                            f'{event_name}.{side}: seed {seed!r} is a '
                             f'cross-mechanic umbrella — its closure covers '
                             f'{len(overlap)}/{len(seeds2)} '
-                            f'({coverage:.0%}) of {e2}.{s2} anchors'
+                            f'({coverage:.0%}) of {e2}.{s2} seeds'
                         )
 
     return violations
@@ -1274,26 +1274,26 @@ def validate_anchor_map(
 def derive_event_adjacency(
     events: dict[str, dict],
 ) -> dict[str, dict]:
-    """Compute derived ``produced_by``/``triggers`` from anchors + taxonomy closure.
+    """Compute derived ``produced_by``/``triggers`` from seeds + taxonomy closure.
 
     For each event side, the derived list = sorted union of descendant-closures
-    of all anchors for that side.  The committed enumerated lists are a subset
-    of the derived lists (no loss) because the anchor map includes both the
-    build-design structural anchors AND the existing enumerated slugs.
+    of all seeds for that side.  The committed enumerated lists are a subset
+    of the derived lists (no loss) because the seed map includes both the
+    build-design structural seeds AND the existing enumerated slugs.
 
     The returned dict has the same shape as *events* — every event key is
     present with the same ``rule``/``abbrev``/``polarity``/``scope`` fields.
     Only ``produced_by`` and ``triggers`` lists are replaced.
 
-    Events not in :data:`ANCHOR_MAP` are passed through unchanged.
+    Events not in :data:`SEED_MAP` are passed through unchanged.
     """
     taxonomy = load_taxonomy()
 
     derived: dict[str, dict] = {}
     for event_name, ev in events.items():
-        entry = ANCHOR_MAP.get(event_name)
+        entry = SEED_MAP.get(event_name)
         if entry is None:
-            # Not in anchor map — pass through unchanged.
+            # Not in seed map — pass through unchanged.
             derived[event_name] = dict(ev)
             continue
 
@@ -1301,15 +1301,15 @@ def derive_event_adjacency(
         new_ev = dict(ev)
 
         for side in ('produced_by', 'triggers'):
-            anchors = entry[side]['anchors']
-            if not anchors:
-                # Empty anchor set — keep the original list (terminal/inert events).
+            seeds = entry[side]['seeds']
+            if not seeds:
+                # Empty seed set — keep the original list (terminal/inert events).
                 continue
 
-            # Expand each anchor via descendant-closure and union.
+            # Expand each seed via descendant-closure and union.
             expanded: set[str] = set()
-            for anchor in anchors:
-                expanded |= descendant_closure(anchor, taxonomy)
+            for seed in seeds:
+                expanded |= descendant_closure(seed, taxonomy)
 
             new_ev[side] = sorted(expanded)
 
@@ -1331,20 +1331,20 @@ def derive_event_adjacency(
 
 
 # ---------------------------------------------------------------------------
-# CI-enforced anchor-map validation (``MAKE_MAGIC_VALIDATE_ANCHORS=1``)
+# CI-enforced seed-map validation (``MAKE_MAGIC_VALIDATE_ANCHORS=1``)
 # ---------------------------------------------------------------------------
 #
 # Full validation (card-set loads from parquet + leave-one-out exclusivity) is
 # too expensive for every import (~0.5 s + I/O + DuckDB).  It runs at module
 # load when the env flag is set, which CI MUST set.  The fail-fast ensures a
-# poisoned seed (e.g. ``ramp`` hand-listed as an anchor) is CAUGHT, not
+# poisoned seed (e.g. ``ramp`` hand-listed as a seed) is CAUGHT, not
 # silently derived.
 
 if _os.environ.get('MAKE_MAGIC_VALIDATE_ANCHORS') == '1':
-    _violations = validate_anchor_map()
+    _violations = validate_seed_map()
     if _violations:
         raise RuntimeError(
-            f'ANCHOR_MAP validation failed ({len(_violations)} violations):\n'
+            f'SEED_MAP validation failed ({len(_violations)} violations):\n'
             + '\n'.join(f'  - {v}' for v in _violations)
         )
 
@@ -1355,10 +1355,10 @@ if _os.environ.get('MAKE_MAGIC_VALIDATE_ANCHORS') == '1':
 #
 # The mechanism below lets the concept-anchored adjacency EXTEND ITSELF from
 # evidence.  When an otag appears on corroborated cards for an event side but
-# is NOT yet in the side's anchor closure, it becomes a **candidate anchor** —
+# is NOT yet in the side's seed closure, it becomes a **candidate seed** —
 # provided it passes the SAME ``is_mechanic_exclusive`` gate as the seeds
 # (so umbrellas like ``ramp`` can never re-enter).  A candidate promotes to
-# the anchor set when >= N=3 independent cards corroborate it.
+# the seed set when >= N=3 independent cards corroborate it.
 #
 # The mechanism is SHADOW (the promotion is behind a flag, owner-gated) — the
 # authoritative derived adjacency is unchanged by this code.
@@ -1372,11 +1372,11 @@ PROMOTION_THRESHOLD: int = 3
 class GateVerdict(enum.Enum):
     """Three-way corroboration gate outcomes."""
 
-    #: The otag is in the current anchor closure — accept immediately.
-    ACCEPT_VIA_ANCHOR = 'accept-via-anchor'
+    #: The otag is in the current seed closure — accept immediately.
+    ACCEPT_VIA_SEED = 'accept-via-seed'
 
     #: The otag is on-mechanic and passes exclusivity, but is not yet in
-    #: the closure — accept provisionally and propose as a candidate anchor.
+    #: the closure — accept provisionally and propose as a candidate seed.
     ACCEPT_PROVISIONAL = 'accept-provisional'
 
     #: The otag fails exclusivity or is genuinely loose — reject.
@@ -1393,8 +1393,8 @@ class GateResult:
 
 
 @dataclass(frozen=True)
-class CandidateAnchor:
-    """A candidate anchor otag discovered from evidence."""
+class CandidateSeed:
+    """A candidate seed otag discovered from evidence."""
 
     event: str
     side: str  # 'triggers' | 'produced_by'
@@ -1406,8 +1406,8 @@ class CandidateAnchor:
         return len(self.corroborating_cards)
 
 
-class CandidateAnchorStore:
-    """In-memory store for candidate anchors with corroboration tracking.
+class CandidateSeedStore:
+    """In-memory store for candidate seeds with corroboration tracking.
 
     Records candidate otags and the independent cards that corroborate them.
     A candidate promotes when its corroboration count reaches
@@ -1435,13 +1435,13 @@ class CandidateAnchorStore:
     def promotable_candidates(
         self,
         threshold: int = PROMOTION_THRESHOLD,
-    ) -> list[CandidateAnchor]:
+    ) -> list[CandidateSeed]:
         """Return candidates with >= *threshold* independent corroborating cards."""
-        result: list[CandidateAnchor] = []
+        result: list[CandidateSeed] = []
         for (event, side, otag), cards in sorted(self._candidates.items()):
             if len(cards) >= threshold:
                 result.append(
-                    CandidateAnchor(
+                    CandidateSeed(
                         event=event,
                         side=side,
                         otag=otag,
@@ -1450,12 +1450,12 @@ class CandidateAnchorStore:
                 )
         return result
 
-    def all_candidates(self) -> list[CandidateAnchor]:
+    def all_candidates(self) -> list[CandidateSeed]:
         """Return ALL candidates regardless of corroboration count."""
-        result: list[CandidateAnchor] = []
+        result: list[CandidateSeed] = []
         for (event, side, otag), cards in sorted(self._candidates.items()):
             result.append(
-                CandidateAnchor(
+                CandidateSeed(
                     event=event,
                     side=side,
                     otag=otag,
@@ -1470,15 +1470,15 @@ class CandidateAnchorStore:
 
 
 def _closure_for_side(event_name: str, side: str) -> frozenset[str]:
-    """Compute the descendant-closure of all anchors for *event_name.side*."""
+    """Compute the descendant-closure of all seeds for *event_name.side*."""
     taxonomy = load_taxonomy()
-    entry = ANCHOR_MAP.get(event_name)
+    entry = SEED_MAP.get(event_name)
     if entry is None:
         return frozenset()
-    anchors = entry[side].get('anchors', [])
+    seeds = entry[side].get('seeds', [])
     closure: set[str] = set()
-    for anchor in anchors:
-        closure |= descendant_closure(anchor, taxonomy)
+    for seed in seeds:
+        closure |= descendant_closure(seed, taxonomy)
     return frozenset(closure)
 
 
@@ -1490,10 +1490,10 @@ def three_way_gate(
 ) -> GateResult:
     """Classify *otag* via the three-way corroboration gate.
 
-    - **accept-via-anchor**: otag is already in the side's anchor closure.
+    - **accept-via-seed**: otag is already in the side's seed closure.
     - **accept-provisional**: otag passes ``is_mechanic_exclusive`` against
       the side's mechanic but is not yet in the closure — propose as
-      candidate anchor.
+      candidate seed.
     - **reject**: otag fails exclusivity or has no cards (genuinely loose).
 
     GENERIC: no per-event branches, no hand-listed umbrellas.
@@ -1503,29 +1503,29 @@ def three_way_gate(
     # (1) Already in closure — immediate accept.
     if otag in closure:
         return GateResult(
-            verdict=GateVerdict.ACCEPT_VIA_ANCHOR,
+            verdict=GateVerdict.ACCEPT_VIA_SEED,
             otag=otag,
-            reason='in anchor closure',
+            reason='in seed closure',
         )
 
     # (2) Check mechanic exclusivity.
-    entry = ANCHOR_MAP.get(event_name)
+    entry = SEED_MAP.get(event_name)
     if entry is None:
         return GateResult(
             verdict=GateVerdict.REJECT,
             otag=otag,
-            reason=f'event {event_name!r} not in ANCHOR_MAP',
+            reason=f'event {event_name!r} not in SEED_MAP',
         )
 
-    anchors = entry[side].get('anchors', [])
-    if not anchors:
+    seeds = entry[side].get('seeds', [])
+    if not seeds:
         return GateResult(
             verdict=GateVerdict.REJECT,
             otag=otag,
-            reason=f'{event_name}.{side} has no anchors',
+            reason=f'{event_name}.{side} has no seeds',
         )
 
-    mechanic = mechanic_population(anchors)
+    mechanic = mechanic_population(seeds)
     excl = is_mechanic_exclusive(otag, mechanic)
 
     if excl.ok:
@@ -1547,8 +1547,8 @@ def discover_candidates(
     event_name: str,
     side: str,
     otag_evidence: dict[str, set[str]] | None = None,
-) -> list[CandidateAnchor]:
-    """Discover candidate anchor otags for *event_name.side* from evidence.
+) -> list[CandidateSeed]:
+    """Discover candidate seed otags for *event_name.side* from evidence.
 
     For each card in *otag_evidence* (oracle_id -> set of otags), if the card
     carries at least one otag in the current closure (i.e. it is a corroborated
@@ -1558,7 +1558,7 @@ def discover_candidates(
     - In the taxonomy (not synthetic)
     - Mechanic-exclusive for the side's mechanic
 
-    Returns candidate anchors with their corroborating cards.
+    Returns candidate seeds with their corroborating cards.
 
     GENERIC: no per-event branches, no hand-listed candidates or blocklists.
 
@@ -1578,15 +1578,15 @@ def discover_candidates(
     if not closure:
         return []
 
-    entry = ANCHOR_MAP.get(event_name)
+    entry = SEED_MAP.get(event_name)
     if entry is None:
         return []
 
-    anchors = entry[side].get('anchors', [])
-    if not anchors:
+    seeds = entry[side].get('seeds', [])
+    if not seeds:
         return []
 
-    mechanic = mechanic_population(anchors)
+    mechanic = mechanic_population(seeds)
     taxonomy = load_taxonomy()
 
     if otag_evidence is None:
@@ -1615,7 +1615,7 @@ def discover_candidates(
             candidates[otag].add(oracle_id)
 
     return [
-        CandidateAnchor(
+        CandidateSeed(
             event=event_name,
             side=side,
             otag=otag,
@@ -1676,10 +1676,10 @@ class HealingShadowReport:
     per_event: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     #: The promotable candidates themselves.
-    promotable: list[CandidateAnchor] = field(default_factory=list)
+    promotable: list[CandidateSeed] = field(default_factory=list)
 
     #: All candidates (for the research report).
-    all_candidates: list[CandidateAnchor] = field(default_factory=list)
+    all_candidates: list[CandidateSeed] = field(default_factory=list)
 
     #: Extended adjacency slugs (what promotion would add).
     projected_new_slugs: dict[str, dict[str, set[str]]] = field(default_factory=dict)
@@ -1703,15 +1703,15 @@ def run_healing_shadow(
     from pipeline.transforms.strategy.engine_hydration import _load_events
 
     events = _load_events()
-    store = CandidateAnchorStore()
+    store = CandidateSeedStore()
     report = HealingShadowReport()
 
     # Phase 1: Discover candidates for every event/side
-    for event_name, entry in ANCHOR_MAP.items():
+    for event_name, entry in SEED_MAP.items():
         event_report: dict[str, Any] = {}
         for side in ('triggers', 'produced_by'):
-            anchors = entry[side].get('anchors', [])
-            if not anchors:
+            seeds = entry[side].get('seeds', [])
+            if not seeds:
                 event_report[side] = {'candidates': 0, 'promotable': 0, 'slugs': []}
                 continue
 
@@ -1751,7 +1751,7 @@ def run_healing_shadow(
 
     report.projected_new_slugs = new_slugs
 
-    # Phase 4: Project unlock on role-A edges
+    # Phase 4: Project unlock on edge-author edges
     edges_dir = Path(__file__).resolve().parent.parent.parent.parent / 'subagents' / '5.3b-work'
 
     role_a_edges: list[dict] = []
@@ -1787,7 +1787,7 @@ def run_healing_shadow(
 
 def _build_projected_events(
     events: dict[str, dict],
-    promotable: list[CandidateAnchor],
+    promotable: list[CandidateSeed],
 ) -> dict[str, dict]:
     """Build a projected events dict with promoted candidates in the adjacency.
 

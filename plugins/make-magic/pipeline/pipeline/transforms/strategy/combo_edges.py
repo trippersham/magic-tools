@@ -37,7 +37,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from pipeline.transforms.strategy.assets import StrategyAssets, load_assets
-from pipeline.transforms.strategy.facts import otag_derived_attrs
+from pipeline.transforms.strategy.combo_win import (
+    fid_route,
+    resolve_fids_from_feature_names,
+)
 from pipeline.transforms.strategy.machine_vocab import (
     DERIVATION_VERSION,
     EXTRACTION_VERSION,
@@ -46,10 +49,7 @@ from pipeline.transforms.strategy.machine_vocab import (
     load_store,
     persist_batch,
 )
-from pipeline.transforms.strategy.win_walk import (
-    fid_route,
-    resolve_fids_from_feature_names,
-)
+from pipeline.transforms.strategy.strategy_graph import otag_derived_attrs
 
 #: Provenance source label for a deterministically lowered combo edge.  Reuses
 #: the existing ``'spellbook'`` provenance value (ADR 0008: combo-database-derived)
@@ -70,7 +70,7 @@ def combo_event_set(result: str, assets: StrategyAssets) -> frozenset[str]:
     """E(C): the combo's recursion-capable catalog events (combo-intrinsic).
 
     Resolves the combo's ``result`` feature names to fids and classifies each
-    via :func:`.win_walk.fid_route` -- the *same* decomposition View A uses.
+    via :func:`.combo_win.fid_route` -- the *same* decomposition View A uses.
     Keeps the events whose route is recursion-capable and that exist in the
     bounded event catalog.  Pure function of the combo's result string.
     """
@@ -96,7 +96,7 @@ def _attr_query(attr: str, assets: StrategyAssets) -> str:
 
     A bucket attribute expands to the OR of its member otag slugs; an
     otag-slug attribute (payoff / event-anchor / ench / edhrec) is itself the
-    slug.  Mirrors how :func:`.facts.otag_derived_attrs` recognises the
+    slug.  Mirrors how :func:`.strategy_graph.otag_derived_attrs` recognises the
     attribute, so Phase-B membership (the ``engine_report`` keystone) matches the
     same cards Phase A reasoned over.
     """

@@ -9,11 +9,11 @@ the verification pipeline and **persists** the ones that pass.
 Skill-Layer Flow (documented here; the dispatch happens at the skill surface)
 -----------------------------------------------------------------------------
 
-1. **Frontier** -- ``engine_hydration.frontier(deck_cards, authored_edges)``
+1. **Unauthored cards** -- ``engine_hydration.unauthored_cards(deck_cards, authored_edges)``
    computes which engine-relevant cards lack an authored within-card edge.
 
 2. **Dispatch haiku subagent** -- the skill surface dispatches a haiku
-   subagent with the decomposition prompt + each frontier card's name, oracle
+   subagent with the decomposition prompt + each unauthored card's name, oracle
    text, and otags.  (NOT done here -- the pipeline stays LLM-free.)
 
 3. **Gate and persist** -- :func:`gate_and_persist` receives the haiku
@@ -23,7 +23,7 @@ Skill-Layer Flow (documented here; the dispatch happens at the skill surface)
 
 4. **Re-walk** -- :func:`~.engine_report.identify_engines` re-runs with the
    now-enriched machine store; the honesty label may flip from PROVISIONAL to
-   RESOLVED if the frontier is fully covered.
+   RESOLVED if every unauthored card is covered.
 
 No LLM call happens in this module.  Every function is deterministic given
 the same inputs.

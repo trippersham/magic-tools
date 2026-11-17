@@ -4,7 +4,7 @@ Validates the production adapter against the research classifier
 (probe2/classify2 + val/outcome_map) and the owner's flag dispositions.
 
 The adapter is DATA only — it is NOT consumed by resolve() or
-_isolate_engines() yet. These tests verify the adapter's correctness
+elect_engine_units() yet. These tests verify the adapter's correctness
 and completeness without touching the engine's output path.
 """
 

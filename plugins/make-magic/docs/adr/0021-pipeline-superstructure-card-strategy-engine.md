@@ -105,6 +105,19 @@ In strict order:
 | Synthesis → Engine | B.3 | role-B wired (`8aad1c2`): `engine_synthesis.py` (reader + backends), `engine_cache.py` (materialized store), `roleb_prompt.md` (vendored rules). See [output contract](../strategy-engine-output-contract.md). |
 | Knowledge placement (orthogonal axis) | — | 0001 |
 
+## Underlying graph model
+
+The Card → Strategy → Engine superstructure operates over a single bipartite
+graph (attribute-nodes × event-nodes) with two projections: the **event
+multigraph** (Events as nodes, EventEffects as edges — the authoring layer) and
+the **election graph** (attributes as nodes, events as edge-labels — where
+`_isolate_engines` runs). Strategy is a quotient of the election graph's
+attribute-nodes by archetype grouping. The formal model, including the projection
+table placing every primitive, lives in [ADR 0012](0012-event-ontology.md) §"The
+bipartite graph and its projections." This ADR's Phase-B ordering
+(substantiveness → centrality → synthesis) operates over Projection 2 and its
+strategy quotient.
+
 ## Consequences
 
 - **Open coherence tasks** (bring the code to this spine; tracked for role-A / the fold):

@@ -1,6 +1,6 @@
 """NAMING layer — thin, derived. Density-rank → label → confidence → combo override.
 
-Reads the :class:`~.facts.FactsContext` and derives the label with NO modularity
+Reads the :class:`~.strategy_graph.FactsContext` and derives the label with NO modularity
 vote: the eligible identity archetypes are ranked by weighted card quantity, the
 top is the label, and the #1-vs-#2 margin feeds confidence.
 
@@ -13,14 +13,14 @@ dominant proactive plan (Ozai → burn) while scattered cEDH residues
 from __future__ import annotations
 
 from pipeline.transforms.strategy.combo import combo_label
-from pipeline.transforms.strategy.facts import FactsContext
+from pipeline.transforms.strategy.strategy_graph import FactsContext
 
 
 def name_deck(ctx: FactsContext) -> dict:
     cfg = ctx.cfg
     strategies = ctx.strategies
     arch_members = ctx.arch_members
-    adens = ctx.adens
+    attr_weight = ctx.attr_weight
     nodes = ctx.nodes
     support = ctx.support
     facts_only = ctx.facts_only
@@ -98,7 +98,7 @@ def name_deck(ctx: FactsContext) -> dict:
         share = min(1.0, top_st['weighted_quantity'] / total_identity)
         n_comparable = 1 + sum(1 for _arch, st in ranked[1:] if st['weighted_quantity'] >= 0.5 * wq1)
         comp_term = max(0.0, 1.0 - (n_comparable - 1) / 3.0)
-        total_node_mass = sum(adens[a] for a in nodes) or 1e-6
+        total_node_mass = sum(attr_weight[a] for a in nodes) or 1e-6
         span = top_st['weighted_quantity'] / total_node_mass
         span_term = min(1.0, span / 0.4)
         coherence = (

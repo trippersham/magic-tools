@@ -8,7 +8,7 @@ Test organisation:
 
 - ``TestEngineRelevantOtags`` — catalog-derived otag universes
 - ``TestCuratedEdgeQueries``  — curated edge-query helper
-- ``TestFrontier``            — frontier computation on the Queza relay fixture
+- ``TestUnauthoredCards``            — unauthored_cards computation on the Queza relay fixture
 - ``TestVerifyPasteability``  — check (a): RE2 guard
 - ``TestVerifyResolution``    — check (b): resolves + expected hit
 - ``TestVerifyCorroboration`` — check (c): over-capture oracle
@@ -27,8 +27,8 @@ from pipeline.transforms.strategy.engine_hydration import (
     SYNTH_BREADTH_WARN,
     curated_edge_queries,
     engine_relevant_otags,
-    frontier,
     make_fixture_search_client,
+    unauthored_cards,
     verify,
 )
 from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
@@ -133,19 +133,19 @@ class TestCuratedEdgeQueries:
 
 
 # =====================================================================
-# TestFrontier
+# TestUnauthoredCards
 # =====================================================================
 
 
 @_skip_no_lake
-class TestFrontier:
-    """Frontier computation on the Queza relay fixture."""
+class TestUnauthoredCards:
+    """Unauthored-cards computation on the Queza relay fixture."""
 
     def test_covered_cards_excluded(self) -> None:
-        """Cards matching a curated edge query are NOT in the frontier."""
+        """Cards matching a curated edge query are NOT among the unauthored cards."""
         fixture = _load_relay_fixture()
         edges = curated_edge_queries()
-        result = frontier(fixture['cards'], edges)
+        result = unauthored_cards(fixture['cards'], edges)
         names = {c['name'] for c in result}
 
         # These match curated edge queries (draw-to-drain, draw-to-gain,
@@ -158,10 +158,10 @@ class TestFrontier:
         assert 'Gain-Draw Relay Filler' not in names
 
     def test_uncovered_engine_relevant_cards_included(self) -> None:
-        """Engine-relevant cards NOT matching any edge query are in the frontier."""
+        """Engine-relevant cards NOT matching any edge query are among the unauthored cards."""
         fixture = _load_relay_fixture()
         edges = curated_edge_queries()
-        result = frontier(fixture['cards'], edges)
+        result = unauthored_cards(fixture['cards'], edges)
         names = {c['name'] for c in result}
 
         # These have engine-relevant otags but no curated edge query matches:
@@ -177,7 +177,7 @@ class TestFrontier:
         """Basic lands have no engine-relevant otags, so they never appear."""
         fixture = _load_relay_fixture()
         edges = curated_edge_queries()
-        result = frontier(fixture['cards'], edges)
+        result = unauthored_cards(fixture['cards'], edges)
         names = {c['name'] for c in result}
 
         assert 'Island' not in names
@@ -187,7 +187,7 @@ class TestFrontier:
     def test_empty_edges_all_relevant_in_frontier(self) -> None:
         """With no authored edges, every engine-relevant card is uncovered."""
         fixture = _load_relay_fixture()
-        result = frontier(fixture['cards'], [])
+        result = unauthored_cards(fixture['cards'], [])
         names = {c['name'] for c in result}
 
         # Every card with engine-relevant otags should appear.
@@ -198,15 +198,15 @@ class TestFrontier:
         assert 'Island' not in names
 
     def test_empty_deck_returns_empty(self) -> None:
-        assert frontier([], curated_edge_queries()) == []
+        assert unauthored_cards([], curated_edge_queries()) == []
 
     def test_preserves_deck_order(self) -> None:
-        """Frontier cards appear in the same order as the input deck."""
+        """Unauthored cards appear in the same order as the input deck."""
         fixture = _load_relay_fixture()
         edges = curated_edge_queries()
-        result = frontier(fixture['cards'], edges)
+        result = unauthored_cards(fixture['cards'], edges)
 
-        # Collect the original indices of frontier cards.
+        # Collect the original indices of unauthored cards.
         frontier_names = [c['name'] for c in result]
         deck_names = [c['name'] for c in fixture['cards']]
         indices = [deck_names.index(n) for n in frontier_names]

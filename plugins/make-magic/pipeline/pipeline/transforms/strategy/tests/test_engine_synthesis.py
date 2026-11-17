@@ -1,4 +1,4 @@
-"""Tests for role-B engine synthesis: prompt, backend, parse/validate, reader.
+"""Tests for engine-synthesizer engine synthesis: prompt, backend, parse/validate, reader.
 
 All tests use the in-process MockBackend -- no claude -p, no network, no key.
 """

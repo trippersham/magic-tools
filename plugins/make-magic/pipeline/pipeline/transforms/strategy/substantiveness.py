@@ -54,7 +54,7 @@ from pipeline.transforms.strategy.assets import EDHREC_NEW_LABELS, is_graveyard_
 if TYPE_CHECKING:
     from pipeline.transforms.strategy.assets import StrategyAssets
     from pipeline.transforms.strategy.config import StrategyConfig
-    from pipeline.transforms.strategy.facts import FactsContext
+    from pipeline.transforms.strategy.strategy_graph import FactsContext
 
 #: Attribute-FAMILY membership predicates, keyed by family name. An
 #: ``attr_density`` Requirement names its family here; the predicate decides which

@@ -1,6 +1,6 @@
 """Engine-isolation byte-parity oracle for the strategy engine.
 
-Records a SHA over (a) the serialized ``_isolate_engines`` output and (b) the
+Records a SHA over (a) the serialized ``elect_engine_units`` output and (b) the
 full ``resolve()`` records for the hermetic fixture corpus, so later phases can
 prove they didn't shift the HELD curated layer.
 
@@ -36,7 +36,7 @@ import json
 from pathlib import Path
 
 from pipeline.transforms.strategy import resolve
-from pipeline.transforms.strategy.facts import compute_facts
+from pipeline.transforms.strategy.strategy_graph import compute_facts
 
 FIX = Path(__file__).resolve().parent / 'fixtures'
 DECKS = FIX / 'decks'
@@ -58,7 +58,7 @@ def _load_combos() -> list[dict]:
 
 
 def compute_engine_isolation_baselines() -> dict[str, str]:
-    """Per-deck SHA of ``facts['engines']['engine_isolation']`` (the ``_isolate_engines`` output).
+    """Per-deck SHA of ``facts['engines']['engine_isolation']`` (the ``elect_engine_units`` output).
 
     This is the (a) oracle: a SHA over the held engine-isolation layer's serialized
     output for each hermetic fixture deck.
@@ -135,7 +135,7 @@ def full_corpus_sha() -> str:
 def main() -> None:
     print('=== Engine Parity Oracle ===\n')
 
-    print('--- (a) _isolate_engines output ---')
+    print('--- (a) elect_engine_units output ---')
     engine_baselines = compute_engine_isolation_baselines()
     for slug, sha in sorted(engine_baselines.items()):
         print(f'  {slug}: {sha[:16]}...')

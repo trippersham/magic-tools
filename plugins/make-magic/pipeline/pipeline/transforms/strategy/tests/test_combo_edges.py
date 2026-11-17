@@ -28,6 +28,10 @@ from pipeline.transforms.strategy.combo_edges import (
     derive_self_couplings,
     populate_combo_edges,
 )
+from pipeline.transforms.strategy.combo_win import (
+    fid_route,
+    resolve_fids_from_feature_names,
+)
 from pipeline.transforms.strategy.engine_report import _assemble_present_combo_edges
 from pipeline.transforms.strategy.machine_vocab import (
     DERIVATION_VERSION,
@@ -38,10 +42,6 @@ from pipeline.transforms.strategy.machine_vocab import (
     persist,
 )
 from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
-from pipeline.transforms.strategy.win_walk import (
-    fid_route,
-    resolve_fids_from_feature_names,
-)
 
 _skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not available')
 
@@ -154,7 +154,7 @@ def _find_self_coupling_otags(assets):
             if a_prod in assets.buckets:
                 continue
             # Confirm this slug is recognized by otag_derived_attrs.
-            from pipeline.transforms.strategy.facts import otag_derived_attrs
+            from pipeline.transforms.strategy.strategy_graph import otag_derived_attrs
 
             if a_prod not in otag_derived_attrs({a_prod}, assets):
                 continue
@@ -198,7 +198,7 @@ class TestDeriveSelfCouplings:
         assert mana_attr in assets.events['mana-produced']['produced_by']
         # Give the card ONLY this one slug.  If it is not a trigger of any
         # other event, no self-coupling is possible.
-        from pipeline.transforms.strategy.facts import otag_derived_attrs
+        from pipeline.transforms.strategy.strategy_graph import otag_derived_attrs
 
         attrs = otag_derived_attrs({mana_attr}, assets)
         # Check there is no trigger-side overlap for any OTHER event.
@@ -259,7 +259,7 @@ class TestAssembly:
 class TestKeystoneProvenanceGate:
     """The 2b keystone in engine_report skips membership re-evaluation only for
     combo-lowered edges whose name is already a native node.  This prevents
-    double-counting adens while letting non-combo store attrs proceed normally
+    double-counting attr_weight while letting non-combo store attrs proceed normally
     (C3 review fix — provenance-gated, not bare node-presence)."""
 
     def test_combo_edge_not_in_native_nodes_still_assembles(self, assets) -> None:
@@ -286,7 +286,7 @@ class TestKeystoneProvenanceGate:
     def test_combo_edge_matching_native_node_no_double_count(self, assets) -> None:
         """A combo-lowered edge (combo_variant_id set) whose name IS a native
         node is skipped by the provenance-gated 2b keystone, so it does NOT
-        double-count adens.  A non-combo attr with the same native-node name
+        double-count attr_weight.  A non-combo attr with the same native-node name
         proceeds to evaluation (provenance gate only blocks combo-lowered)."""
         from pipeline.transforms.strategy.combo_edges import _attr_query, _provenance
 
@@ -439,7 +439,7 @@ def test_author_combo_edges_is_order_stable(assets) -> None:
 import json  # noqa: E402
 
 from pipeline.transforms.strategy.engine_report import identify_engines  # noqa: E402
-from pipeline.transforms.strategy.facts import compute_facts  # noqa: E402
+from pipeline.transforms.strategy.strategy_graph import compute_facts  # noqa: E402
 
 _FIX = Path(__file__).resolve().parent / 'fixtures' / 'decks'
 
@@ -450,7 +450,7 @@ def _load_deck(stem: str) -> dict:
 
 class TestWinWalkParity:
     """Lowering is confined to the engine_report/relay surface; the win view
-    (closure_walk via compute_facts) never sees it (ADR 0016 / 0021 View A)."""
+    (combo_win_verdict via compute_facts) never sees it (ADR 0016 / 0021 View A)."""
 
     def test_win_flags_independent_of_any_store(self) -> None:
         # compute_facts computes win flags with NO store argument at all, so a
@@ -468,11 +468,11 @@ class TestWinWalkParity:
         wins1 = {(c['variant_id'], c['win']) for c in ctx1.detected}
         wins2 = {(c['variant_id'], c['win']) for c in ctx2.detected}
         assert wins1 == wins2
-        # And the public report carries the same frontier win-walk is unaffected.
+        # And the public report carries the same unauthored cards; the win-walk is unaffected.
         assert identify_engines(deck, store=ProvisionalAttributeStore(), combos=combos) is not None
 
-    def test_closure_walk_byte_identical_empty_vs_populated_store(self, assets) -> None:
-        """C4 review fix: closure_walk output is byte-identical with the store
+    def test_combo_win_verdict_byte_identical_empty_vs_populated_store(self, assets) -> None:
+        """C4 review fix: combo_win_verdict output is byte-identical with the store
         EMPTY vs POPULATED with combo edges on a representative combo fixture.
         The lowering must never change win detection."""
         from pipeline.transforms.strategy.combo import load_combos_from_lake
@@ -483,7 +483,7 @@ class TestWinWalkParity:
             pytest.skip('lake unavailable')
         deck = _load_deck('gauntlet__urza-lord-high-artificer')
 
-        # Run compute_facts (which runs closure_walk) with no store influence.
+        # Run compute_facts (which runs combo_win_verdict) with no store influence.
         ctx_baseline = compute_facts(deck, combos)
         wins_baseline = sorted(
             (c['variant_id'], c['win'], c.get('_walk_verdict', {}).get('kind', '')) for c in ctx_baseline.detected
@@ -507,21 +507,23 @@ class TestWinWalkParity:
         populated_store = ProvisionalAttributeStore(attributes=authored)
 
         # Re-run compute_facts — this is the SAME function, store-unaware.
-        # The store only feeds engine_report downstream, never closure_walk.
+        # The store only feeds engine_report downstream, never combo_win_verdict.
         ctx_populated = compute_facts(deck, combos)
         wins_populated = sorted(
             (c['variant_id'], c['win'], c.get('_walk_verdict', {}).get('kind', '')) for c in ctx_populated.detected
         )
-        assert wins_baseline == wins_populated, 'closure_walk output must be byte-identical regardless of store state'
+        assert wins_baseline == wins_populated, (
+            'combo_win_verdict output must be byte-identical regardless of store state'
+        )
 
         # Also verify that identify_engines with a populated store produces
         # the same win-combo set as with an empty store.  The dark_cards and
         # completeness state MAY differ (the populated store covers more cards
         # via authored edges), but win detection itself — which is determined
-        # by closure_walk inside compute_facts — must not change.
+        # by combo_win_verdict inside compute_facts — must not change.
         report_empty = identify_engines(deck, store=ProvisionalAttributeStore(), combos=combos)
         report_pop = identify_engines(deck, store=populated_store, combos=combos)
-        # Win detection is upstream of the store (closure_walk in compute_facts),
+        # Win detection is upstream of the store (combo_win_verdict in compute_facts),
         # so the raw_isolation's win data is identical.
         empty_wins = (
             sorted((c['variant_id'], c['win']) for c in report_empty.raw_isolation.get('_ctx_detected', []))
@@ -842,7 +844,7 @@ class TestEndToEndBlastRadius:
             ctx = compute_facts(deck, list(combos))
             wins_baseline = sorted((c['variant_id'], c['win']) for c in ctx.detected)
             # identify_engines re-runs compute_facts internally; the win flags
-            # come from closure_walk which is store-independent.  Call it to
+            # come from combo_win_verdict which is store-independent.  Call it to
             # confirm the store doesn't interfere, but we verify via the
             # upstream compute_facts directly below.
             identify_engines(deck, store=populated_store, combos=combos)

@@ -1,6 +1,6 @@
 ---
 paths:
-  - "**/pipeline/transforms/strategy/facts.py"
+  - "**/pipeline/transforms/strategy/strategy_graph.py"
   - "**/pipeline/transforms/strategy/engine_report.py"
 ---
 

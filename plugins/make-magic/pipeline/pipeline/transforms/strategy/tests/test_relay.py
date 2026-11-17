@@ -17,7 +17,6 @@ import pytest
 
 from pipeline.transforms.strategy.assets import load_assets
 from pipeline.transforms.strategy.edge_roles import get_role
-from pipeline.transforms.strategy.facts import _isolate_engines, compute_facts
 from pipeline.transforms.strategy.machine_vocab import (
     CardAttribute,
     Provenance,
@@ -27,8 +26,9 @@ from pipeline.transforms.strategy.machine_vocab import (
 from pipeline.transforms.strategy.relay import (
     _get_role_with_store,
     build_relay_augmented_event_edges,
-    isolate_engines_with_relay,
+    elect_engine_units_with_relay,
 )
+from pipeline.transforms.strategy.strategy_graph import compute_facts, elect_engine_units
 from pipeline.transforms.strategy.tests.conftest import LAKE_AVAILABLE
 from pipeline.transforms.strategy.tests.engine_parity_oracle import (
     composite_sha,
@@ -245,10 +245,10 @@ class TestAugmentedPathClosesLoop:
 
     def test_relay_hubs_present(self, relay_ctx, assets) -> None:
         """The augmented engine isolation has relay hubs."""
-        iso = isolate_engines_with_relay(
+        iso = elect_engine_units_with_relay(
             relay_ctx.nodes,
             assets.events,
-            relay_ctx.adens,
+            relay_ctx.attr_weight,
             assets,
             relay_ctx.cards,
         )
@@ -259,10 +259,10 @@ class TestAugmentedPathClosesLoop:
 
     def test_recursive_engines_found(self, relay_ctx, assets) -> None:
         """The augmented path finds recursive-engine(s) (not just static-payoff)."""
-        iso = isolate_engines_with_relay(
+        iso = elect_engine_units_with_relay(
             relay_ctx.nodes,
             assets.events,
-            relay_ctx.adens,
+            relay_ctx.attr_weight,
             assets,
             relay_ctx.cards,
         )
@@ -276,10 +276,10 @@ class TestAugmentedPathClosesLoop:
         consumes draw-a-card and produces lifegain, gain-to-draw consumes
         lifegain — a closed loop.
         """
-        iso = isolate_engines_with_relay(
+        iso = elect_engine_units_with_relay(
             relay_ctx.nodes,
             assets.events,
-            relay_ctx.adens,
+            relay_ctx.attr_weight,
             assets,
             relay_ctx.cards,
         )
@@ -301,10 +301,10 @@ class TestAugmentedPathClosesLoop:
         distinguished single lead field. A non-empty election reports
         determinism='mass-elected'.
         """
-        iso = isolate_engines_with_relay(
+        iso = elect_engine_units_with_relay(
             relay_ctx.nodes,
             assets.events,
-            relay_ctx.adens,
+            relay_ctx.attr_weight,
             assets,
             relay_ctx.cards,
         )
@@ -349,10 +349,10 @@ class TestRelayEdgeCases:
         assert ('gain-to-draw', 'draw-to-gain', 'draw-a-card') in edge_set
         assert ('draw-to-gain', 'gain-to-draw', 'lifegain') in edge_set
 
-    def test_isolate_engines_on_minimal_loop(self, assets) -> None:
-        """_isolate_engines detects a loop from just two complementary relay attrs."""
+    def testelect_engine_units_on_minimal_loop(self, assets) -> None:
+        """elect_engine_units detects a loop from just two complementary relay attrs."""
         nodes = {'gain-to-draw', 'draw-to-gain'}
-        adens: defaultdict[str, float] = defaultdict(
+        attr_weight: defaultdict[str, float] = defaultdict(
             float,
             {
                 'gain-to-draw': 3.0,
@@ -361,7 +361,7 @@ class TestRelayEdgeCases:
         )
         cards: list[dict] = []  # no cards needed for this unit test
         edges = build_relay_augmented_event_edges(nodes, assets.events)
-        iso = _isolate_engines(nodes, edges, adens, assets, cards)
+        iso = elect_engine_units(nodes, edges, attr_weight, assets, cards)
         assert len(iso['relay_hubs']) == 2
         assert 'gain-to-draw' in iso['relay_hubs']
         assert 'draw-to-gain' in iso['relay_hubs']

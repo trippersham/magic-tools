@@ -6,7 +6,7 @@ paths:
 
 # fid-to-Event adapter
 
-The fid adapter is production data consumed by `win_walk.py` (ADR 0016). Each of the 1,348 Spellbook features maps to `{event, magnitude, scope, object_descriptor}` from the bounded trigger taxonomy (ADR 0012).
+The fid adapter is production data consumed by `combo_win.py` (ADR 0016). Each of the 1,348 Spellbook features maps to `{event, magnitude, scope, object_descriptor}` from the bounded trigger taxonomy (ADR 0012).
 
 <fid-adapter>
 

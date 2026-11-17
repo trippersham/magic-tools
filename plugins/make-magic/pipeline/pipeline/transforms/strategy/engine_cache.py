@@ -1,6 +1,6 @@
-"""Engine cache -- the materialized role-B (L5) synthesis store.
+"""Engine cache -- the materialized engine-synthesizer (L5) store.
 
-Role-B resolves each deck's deterministic strategy-graph outputs (elected engine
+Engine-synthesizer resolves each deck's deterministic strategy-graph outputs (elected engine
 candidates + detected combos + commander + archetype identity) into the ONE core
 Engine ``{strategy, win_condition, key_pieces, confidence}``.  Unlike Tier-1
 (the deterministic ``resolve(deck)`` archetype identity, always available), the
@@ -13,7 +13,7 @@ Staleness key (ADR 0021 two-layer model, extended for L5)
 --------------------------------------------------------
 A cached Engine is **fresh** for a deck iff BOTH hold:
 
-* ``input_hash`` matches -- the role-B *input* (the deterministic output of
+* ``input_hash`` matches -- the engine-synthesizer *input* (the deterministic output of
   ``compute_facts`` + ``name_deck`` on the deck) is byte-identical.  Because the
   input carries the full elected set, detected combos, and archetype identity,
   ANY engine-logic change (B1 combo-edges, B6 archetype-gated election, a new
@@ -56,7 +56,7 @@ from pipeline.transforms.strategy.machine_vocab import (
 # Version constant (L5 synthesis layer)
 # ---------------------------------------------------------------------------
 
-#: Bump when the role-B synthesis *prompt / rules* change (``roleb_prompt.md``).
+#: Bump when the engine-synthesizer *prompt / rules* change (``roleb_prompt.md``).
 #: An engine-logic change does NOT need a bump here -- it flows through the
 #: ``input_hash`` automatically.  This only covers "input unchanged, but the
 #: synthesiser should run again because the rules changed".
@@ -75,7 +75,7 @@ SYNTHESIS_VERSION: int = 2
 
 @dataclass(frozen=True)
 class ResolvedEngine:
-    """The ONE core Engine resolved for a deck (role-B output).
+    """The ONE core Engine resolved for a deck (engine-synthesizer output).
 
     This is the strict output shape the synthesiser must produce.  ``key_pieces``
     is a tuple (hashable, immutable) of in-deck card names.
@@ -158,7 +158,7 @@ class EngineCacheRecord:
 
 
 def input_hash(roleb_input: dict) -> str:
-    """Stable SHA-256 over the canonical role-B input.
+    """Stable SHA-256 over the canonical engine-synthesizer input.
 
     Internal ``_``-prefixed keys (``_sparse``, ``_failed``, ``_error`` ...) and
     the free-text ``deck_name`` are excluded so cosmetic changes don't bust the

@@ -247,7 +247,7 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
     # authoritative lists are the descendant-closure of each event side's
     # owner-approved anchors (the taxonomy view), replaced in place here so every
     # downstream reader (relay, facts, combo_edges, substantiveness) sees the
-    # derived view. One named rule: ``derive_event_adjacency`` (anchor_derivation).
+    # derived view. One named rule: ``derive_event_adjacency`` (adjacency).
     #
     # Graceful offline fallback: when the taxonomy parquet is absent (CI / no
     # lake), the committed hand-enumerated adjacency is used.  Tests that
@@ -255,7 +255,7 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
     # strategy conftest.
     raw_events = json.loads(EVENTS_FILE.read_text())['events']
     try:
-        from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
 
         events = derive_event_adjacency(raw_events)
     except FileNotFoundError:

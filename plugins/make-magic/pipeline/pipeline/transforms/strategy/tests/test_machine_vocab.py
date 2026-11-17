@@ -383,20 +383,20 @@ class TestCompoundingReadPath:
 
     @_skip_no_lake
     def test_compounding_frontier_shrinks(self, tmp_path: Path) -> None:
-        """After persisting an edge, the frontier for a 2nd deck shrinks.
+        """After persisting an edge, the unauthored-card set for a 2nd deck shrinks.
 
         This is the key compounding behaviour: a second deck containing a
         card that's already been authored doesn't send it to haiku.
         """
         from pipeline.transforms.strategy.engine_hydration import (
             curated_edge_queries,
-            frontier,
+            unauthored_cards,
         )
 
         # A card with engine-relevant otags (death-trigger = trigger family,
         # tokens = effect family) but oracle text that does NOT match any of
         # the 6 curated draw/drain/gain edge queries.  This ensures the card
-        # lands on the frontier with curated edges alone.
+        # lands among the unauthored cards with curated edges alone.
         card_frontier = {
             'name': 'Test Frontier Card',
             'oracle_text': 'Whenever a creature you control dies, create a 1/1 black Zombie creature token.',
@@ -407,10 +407,10 @@ class TestCompoundingReadPath:
         }
         deck_cards = [card_frontier]
 
-        # With only curated edges, this card IS on the frontier
+        # With only curated edges, this card IS among the unauthored cards
         # (engine-relevant otags, no curated edge match).
         curated_only = curated_edge_queries()
-        front_before = frontier(deck_cards, curated_only)
+        front_before = unauthored_cards(deck_cards, curated_only)
         assert len(front_before) == 1
 
         # Persist a machine attr whose query MATCHES this card.
@@ -428,8 +428,8 @@ class TestCompoundingReadPath:
         store = load_store(store_dir)
         full_edges = curated_only + store.edge_queries()
 
-        # Now the card is covered => NOT on the frontier.
-        front_after = frontier(deck_cards, full_edges)
+        # Now the card is covered => NOT among the unauthored cards.
+        front_after = unauthored_cards(deck_cards, full_edges)
         assert len(front_after) == 0
 
 
@@ -822,7 +822,7 @@ class TestHermeticity:
         import inspect
 
         from pipeline.transforms.strategy import resolve
-        from pipeline.transforms.strategy.facts import compute_facts
+        from pipeline.transforms.strategy.strategy_graph import compute_facts
 
         # Inspect the source for any reference to load_store / machine_vocab.
         inspect.getsource(resolve)  # ensure importable

@@ -4,7 +4,7 @@ Consumes the shipped detector contract semantics
 (``pipeline.transforms.combo_detect``): exact named-card / oracle-id matching.
 
 Win classification is now performed by the closure-mechanism win-walk
-(``win_walk.py``, ADR 0016) which is deck-aware — a combo's win-ness depends
+(``combo_win.py``, ADR 0016) which is deck-aware — a combo's win-ness depends
 on the deck's card composition. The regex path (``is_game_win_result`` +
 ``LETHAL_MANA_SINK_NAMES``) was deleted in the Phase 2B step 5b-ii flip.
 
@@ -32,7 +32,7 @@ def combo_label(result: str) -> str:
     if not clauses:
         return 'combo'
     # Use the fid adapter to find a terminal/lethal clause
-    from pipeline.transforms.strategy.win_walk import fid_route, resolve_fids_from_feature_names
+    from pipeline.transforms.strategy.combo_win import fid_route, resolve_fids_from_feature_names
 
     fids = resolve_fids_from_feature_names(clauses)
     _TERMINAL_ROUTES = frozenset({'terminal-win', 'sba-drain', 'deckout-opp'})
@@ -48,7 +48,7 @@ def normalize_combo(variant_id: Any, names: Any, oids: Any, result: Any) -> dict
     """Build a runtime combo dict from raw lake fields.
 
     The ``win`` flag is a placeholder (False) — the authoritative win
-    determination is deck-dependent and computed by ``facts.py`` via the
+    determination is deck-dependent and computed by ``strategy_graph.py`` via the
     closure walk (ADR 0016). The ``mana`` field is removed.
     """
     names_l = list(names or [])
@@ -60,7 +60,7 @@ def normalize_combo(variant_id: Any, names: Any, oids: Any, result: Any) -> dict
         'oids': oids_l,
         'norm_names': [combo_norm(n) for n in names_l],
         'result': res,
-        'win': False,  # placeholder — set by facts.py via closure walk
+        'win': False,  # placeholder — set by strategy_graph.py via closure walk
     }
 
 

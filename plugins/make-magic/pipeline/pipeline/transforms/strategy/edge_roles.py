@@ -12,7 +12,7 @@ Why a sidecar (not editing the tuples)
 The curated base must stay byte-identical across P0-P2 (the parity oracle gate).
 The held ``SYNTH_ALWAYS_ATTRIBUTES`` are ``list[tuple[str, str]]`` — plain
 ``(name, query)`` pairs that the synth evaluator compiles as-is. Rather than
-change that data shape (which would ripple into ``compile_synth``, ``facts.py``,
+change that data shape (which would ripple into ``compile_synth``, ``strategy_graph.py``,
 and the parity fixture), this module **maps attribute names to their roles** in a
 separate registry, read only by the P2 relay-node derivation that injects
 within-card edges into the event graph.

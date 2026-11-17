@@ -2,7 +2,7 @@
 
 Deterministic building blocks the user-initiated engine derivation uses:
 
-1. ``frontier(deck_cards, authored_edges)`` — cards that carry an engine-relevant
+1. ``unauthored_cards(deck_cards, authored_edges)`` — cards that carry an engine-relevant
    otag but are NOT already covered by an authored within-card edge query.
    These are what the derivation sends to haiku.
 
@@ -57,12 +57,12 @@ def _load_events() -> dict[str, dict]:
     ``produced_by``/``triggers`` are replaced by the descendant-closure of each
     side's owner-approved anchors via the one named rule
     ``derive_event_adjacency`` — the same view ``assets.load_assets`` serves, so
-    the role-A hydration universes never drift from the election path.
+    the edge-author hydration universes never drift from the election path.
     """
     with _CATALOG_PATH.open() as f:
         raw_events = json.load(f)['events']
     try:
-        from pipeline.transforms.strategy.anchor_derivation import derive_event_adjacency
+        from pipeline.transforms.strategy.adjacency import derive_event_adjacency
 
         return derive_event_adjacency(raw_events)
     except FileNotFoundError:
@@ -103,7 +103,7 @@ def curated_edge_queries() -> list[tuple[str, str]]:
     These are the edge-category entries from ``SYNTH_ALWAYS_ATTRIBUTES`` that
     have registered roles in ``CURATED_EDGE_ROLES``.  The caller concatenates
     these with any machine-store edge queries to form the ``authored_edges``
-    argument to :func:`frontier`.
+    argument to :func:`unauthored_cards`.
     """
     from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES
     from pipeline.transforms.strategy.vocab import SYNTH_ALWAYS_ATTRIBUTES
@@ -112,11 +112,11 @@ def curated_edge_queries() -> list[tuple[str, str]]:
 
 
 # ---------------------------------------------------------------------------
-# frontier — deterministic, no inference
+# unauthored_cards — deterministic, no inference
 # ---------------------------------------------------------------------------
 
 
-def frontier(
+def unauthored_cards(
     deck_cards: list[dict],
     authored_edges: list[tuple[str, str]],
 ) -> list[dict]:
@@ -137,7 +137,7 @@ def frontier(
     Returns
     -------
     list[dict]
-        Frontier cards — engine-relevant and uncovered — in deck order.
+        Unauthored cards — engine-relevant and uncovered — in deck order.
     """
     trigger_otags, effect_otags = engine_relevant_otags()
     relevant = trigger_otags | effect_otags

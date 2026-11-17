@@ -11,7 +11,7 @@ Test organisation:
 - ``TestGateAndPersistAccept``        -- good edges pass gate + persist
 - ``TestGateAndPersistReject``        -- bad edges rejected by gate
 - ``TestGateAndPersistMixed``         -- mix of good + bad
-- ``TestEndToEndProvisionalToResolved``-- frontier -> canned haiku -> gate -> RESOLVED
+- ``TestEndToEndProvisionalToResolved``-- unauthored_cards -> canned haiku -> gate -> RESOLVED
 - ``TestStrCoercion``                 -- persist/load_store accept str store_dir
 - ``TestPromptFileExists``            -- decomposition prompt exists on disk
 - ``TestDefaultPathParity``           -- byte-parity gate (curated SHAs unchanged)
@@ -28,8 +28,8 @@ from pipeline.transforms.strategy.engine_hydration import (
     SYNTH_BREADTH_WARN,
     VerificationResult,
     curated_edge_queries,
-    frontier,
     make_fixture_search_client,
+    unauthored_cards,
 )
 from pipeline.transforms.strategy.engine_report import (
     CompletenessState,
@@ -111,9 +111,9 @@ def _search_pool() -> list[dict]:
 
 
 # Canned "good" authored edges that SHOULD pass the gate
-# (matching the 7 dark cards in the relay fixture).
+# (matching the 7 unauthored cards in the relay fixture).
 def _good_edges() -> list[AuthoredEdge]:
-    """Seven canned edges covering the 7 frontier/dark cards."""
+    """Seven canned edges covering the 7 unauthored_cards/unauthored cards."""
     return [
         # Vilis, Broker of Blood: self-life-loss -> draw
         AuthoredEdge(
@@ -482,11 +482,11 @@ class TestGateAndPersistMixed:
 
 @_skip_no_lake
 class TestEndToEndProvisionalToResolved:
-    """The full canned end-to-end: frontier -> canned haiku -> gate -> RESOLVED.
+    """The full canned end-to-end: unauthored_cards -> canned haiku -> gate -> RESOLVED.
 
     Demonstrates:
-    1. Queza fixture + empty store -> PROVISIONAL (7 dark cards)
-    2. Canned haiku edges covering all 7 dark cards
+    1. Queza fixture + empty store -> PROVISIONAL (7 unauthored cards)
+    2. Canned haiku edges covering all 7 unauthored cards
     3. gate_and_persist: good persist, bad reject
     4. identify_engines with enriched store -> RESOLVED
     """
@@ -536,15 +536,15 @@ class TestEndToEndProvisionalToResolved:
         assert len(report_after.engines) > 0
 
     def test_frontier_shrinks_after_gate(self, tmp_path: Path) -> None:
-        """After gating, the frontier is empty (all dark cards covered)."""
+        """After gating, there are no unauthored cards (all unauthored cards covered)."""
         fixture = _load_relay_fixture()
         cards = fixture['cards']
         # Search pool includes corroboration friend (for Erebos edge).
         client = make_fixture_search_client(_search_pool())
 
-        # Before: 7 dark cards.
+        # Before: 7 unauthored cards.
         curated = curated_edge_queries()
-        front_before = frontier(cards, curated)
+        front_before = unauthored_cards(cards, curated)
         assert len(front_before) == 7
 
         # Gate + persist.
@@ -558,8 +558,8 @@ class TestEndToEndProvisionalToResolved:
         enriched_store = load_store(store_dir)
         full_edges = curated + enriched_store.edge_queries()
 
-        # After: 0 dark cards.
-        front_after = frontier(cards, full_edges)
+        # After: 0 unauthored cards.
+        front_after = unauthored_cards(cards, full_edges)
         assert len(front_after) == 0
 
     def test_compounding_across_decks(self, tmp_path: Path) -> None:

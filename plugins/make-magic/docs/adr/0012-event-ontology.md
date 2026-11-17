@@ -119,6 +119,83 @@ lists moves from frozen enumeration to the taxonomy-closure view. The enumerated
 `event_catalog_v4.json` as the frozen seed (a strict subset of the derived output) but are
 overwritten at load. This is an output-moving re-baseline carried under [0022] / [0003].
 
+## The bipartite graph and its projections
+
+The strategy engine operates on ONE bipartite graph with two projections.
+Every primitive in the system — Event, EventEffect, CardAttribute, Strategy,
+engine unit — has a well-defined home in one of these layers.
+
+### Base graph (bipartite)
+
+Two node colors:
+
+- **Attribute** nodes (otag slugs / synthesised CardAttributes — the vocabulary of
+  `vocab.py` + `synth_attrs_for`).
+- **Event** nodes (the 27 slugs in `data/event_catalog_v4.json`).
+
+Two directed edge types, both drawn from the event catalog's adjacency lists
+(produced at load by `derive_event_adjacency`, amendment above):
+
+- `attribute --produces--> event` — an attribute listed in an event's `produced_by`.
+- `event --triggers--> attribute` — an attribute listed in an event's `triggers`.
+
+The base bipartite graph is the **single source of truth**. Every downstream
+structure is a projection of it.
+
+### Projection 1 — the event multigraph (ontology / authoring layer)
+
+Collapse attribute-nodes. What remains:
+
+- **Nodes** = Events.
+- **Edges** = EventEffects (`trigger_event → produced_event`, defined in
+  `edge_roles.py:EventEffect` — "a guarded directed edge in the event
+  multigraph"). Each EventEffect is a path of length 2 through the base
+  bipartite graph (`trigger_event → attribute → produced_event`), with the
+  attribute collapsed out.
+
+This projection is the **authoring surface**: within-card edges are authored
+as EventEffects (Projection 1 edges). They are lowered into Projection 2 by
+relay-injection (`relay.py:build_relay_augmented_event_edges`) — the card's
+attribute is re-expanded as a consumer of `trigger_event` and a producer of
+`produced_event`, restoring the bipartite structure for the election graph.
+
+### Projection 2 — the election graph (`_isolate_engines`)
+
+Collapse event-nodes into edge-labels. What remains:
+
+- **Nodes** = Attributes (the same CardAttribute slugs that were nodes in the
+  base bipartite graph).
+- **Edge-labels** = Events — each edge is a triple
+  `(producer_attr, consumer_attr, event_name)`, constructed in `facts.py`
+  (lines 617–622) by the cross-product of an event's `produced_by` × `triggers`
+  filtered to in-deck nodes.
+
+The mass-election (`_isolate_engines`) runs HERE: per-event convergence clusters
+are the atomic engine units, ranked by node-weighted mass (ADR 0014).
+
+### Strategy view (quotient of Projection 2)
+
+Group Projection 2's attribute-nodes by their archetype
+(`assets.archetype_of_attr`) → strategy-level groupings. This is the
+deck-level language (`strategies` dict in `facts`).
+
+### Engine unit
+
+A connected cluster in Projection 2 (one event's producer ∪ consumer set).
+An **elected** unit is a ranked such cluster that passes event-substantiveness
+(ADR 0020), archetype-substantiveness (ADR 0002 / 0021 B6), and the
+Jaccard-dedup filter.
+
+### Projection summary
+
+| Primitive       | Base bipartite        | Projection 1 (event multigraph) | Projection 2 (election graph)   |
+|-----------------|----------------------|---------------------------------|--------------------------------|
+| Attribute       | node (color A)       | collapsed out                   | **node**                       |
+| Event           | node (color B)       | **node**                        | **edge-label**                 |
+| EventEffect     | length-2 path        | **edge** (trigger → produced)   | relay-injection (attr as consumer + producer) |
+| Strategy        | —                    | —                               | archetype grouping (quotient of attribute-nodes) |
+| Engine unit     | —                    | —                               | connected cluster (producer ∪ consumer per event) |
+
 ## Related records
 
 - 0002 — Substantiveness: the evaluator through which promiscuity-scaled Requirements flow.

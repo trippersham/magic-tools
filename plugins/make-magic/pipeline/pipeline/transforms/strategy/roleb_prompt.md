@@ -1,4 +1,4 @@
-# Role-B Engine Synthesis Prompt
+# Engine-Synthesizer Engine Synthesis Prompt
 
 You are the **Engine-Namer**: given a Magic: The Gathering Commander deck's deterministic strategy-graph outputs, resolve them into the ONE core Engine for the deck.
 

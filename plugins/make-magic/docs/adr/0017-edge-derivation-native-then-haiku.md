@@ -54,7 +54,7 @@ authoring) — not by bespoke regex in the transform layer.
 - **(A) Haiku-as-edge-author** — bounded, structured `trigger_event → produced_event` into
   the machine store, feeding the deterministic walk so the **engine still falls out of graph
   math**. This is the primary role and the subject of this record.
-- **(B) Haiku-as-engine-namer** — a freeform read of the whole decklist that *names* the
+- **(B) Haiku-as-engine-synthesizer** — a freeform read of the whole decklist that *names* the
   engine directly. This is a separate, weaker last-resort fallback (the resolution
   waterfall's tier-2), not an edge-derivation mechanism, and must not substitute for (A)
   where (A) can author the edge.
@@ -72,16 +72,16 @@ authoring) — not by bespoke regex in the transform layer.
 - **Regex/NLP over `oracle_text` in the transform layer.** Rejected: brittle (attack-vs-cast
   mis-parse), blind on DFCs (#68), and provenance-less. It is the anti-pattern that prompted
   this record.
-- **Haiku names the engine for every hard deck (role B everywhere).** Rejected: it abandons
-  the graph derivation wherever a bounded edge (role A) would let the walk find the engine;
-  role B is the last resort, not the default.
+- **Haiku names the engine for every hard deck (engine-synthesizer everywhere).** Rejected: it abandons
+  the graph derivation wherever a bounded edge (edge-author) would let the walk find the engine;
+  engine-synthesizer is the last resort, not the default.
 
 ## Consequences
 - The commander-anchored unit is still **constructed deterministically** from whatever edge
   exists, and it then **competes on mass** in the election like any other unit (ADR-to-come
   on engine election) — it is never auto-promoted into the engine.
 - Results previously attributed to "deterministic tier-1" for the spellslinger family
-  (Sokka, Talrand, Kykar) are re-attributed to **role (A): haiku-authored edges feeding the
+  (Sokka, Talrand, Kykar) are re-attributed to **the edge-author role: haiku-authored edges feeding the
   deterministic walk** — same engine output, honest provisional provenance on the edge.
 - Issue #68 (DFC `oracle_text` dropped at lake ingest) is a prerequisite for native/haiku
   edge quality on double-faced commanders; it is the root cause of the one bad election

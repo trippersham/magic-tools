@@ -6,8 +6,8 @@ snapshots provide the machine store when needed.
 
 Test organisation:
 
-- ``TestIdentifyEnginesQuezaProvisional``  — happy path: PROVISIONAL with dark cards
-- ``TestIdentifyEnginesQuezaResolved``     — frozen snapshot covers frontier -> RESOLVED
+- ``TestIdentifyEnginesQuezaProvisional``  — happy path: PROVISIONAL with unauthored cards
+- ``TestIdentifyEnginesQuezaResolved``     — frozen snapshot covers unauthored_cards -> RESOLVED
 - ``TestIdentifyEnginesEmptyDeck``         — empty deck edge case
 - ``TestNamedEngineCycle``                 — cycle detection + characterization
 - ``TestNamedEngineStandalone``            — non-cycle engines
@@ -100,10 +100,10 @@ def _machine_attr(
 
 
 def _covering_store() -> ProvisionalAttributeStore:
-    """Machine store whose edge queries cover ALL 7 frontier cards in the
-    relay fixture, so ``frontier()`` returns empty -> RESOLVED.
+    """Machine store whose edge queries cover ALL 7 unauthored cards in the
+    relay fixture, so ``unauthored_cards()`` returns empty -> RESOLVED.
 
-    Frontier cards and their engine-relevant otags:
+    Unauthored cards and their engine-relevant otags:
     - Vilis, Broker of Blood: lifegain-matters
     - Archangel of Thune: lifegain-matters
     - Well of Lost Dreams: lifegain-matters
@@ -145,7 +145,7 @@ def _covering_store() -> ProvisionalAttributeStore:
 
 
 class TestIdentifyEnginesQuezaProvisional:
-    """Queza fixture + empty store -> PROVISIONAL with dark cards."""
+    """Queza fixture + empty store -> PROVISIONAL with unauthored cards."""
 
     def test_returns_engine_report(self, relay_deck: dict) -> None:
         report = identify_engines(relay_deck, store=empty_store())
@@ -248,7 +248,7 @@ class TestIdentifyEnginesQuezaProvisional:
 
 
 class TestIdentifyEnginesQuezaResolved:
-    """Queza fixture + covering store -> RESOLVED (frontier empty)."""
+    """Queza fixture + covering store -> RESOLVED (unauthored_cards empty)."""
 
     def test_state_is_resolved(self, relay_deck: dict) -> None:
         report = identify_engines(relay_deck, store=_covering_store())
@@ -324,7 +324,7 @@ class TestIdentifyEnginesEmptyDeck:
         }
         report = identify_engines(deck, store=empty_store())
         assert report.engines == []
-        # No engine-relevant cards -> frontier empty -> RESOLVED.
+        # No engine-relevant cards -> unauthored_cards empty -> RESOLVED.
         assert report.state is CompletenessState.RESOLVED
         assert report.dark_cards == []
 

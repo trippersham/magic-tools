@@ -264,7 +264,7 @@ class ProvisionalAttributeStore:
         The format matches curated edge queries from
         :func:`.engine_hydration.curated_edge_queries`, so the two can be
         concatenated directly for the ``authored_edges`` argument to
-        :func:`.engine_hydration.frontier`.
+        :func:`.engine_hydration.unauthored_cards`.
         """
         return [(a.name, a.query) for a in self.attributes]
 

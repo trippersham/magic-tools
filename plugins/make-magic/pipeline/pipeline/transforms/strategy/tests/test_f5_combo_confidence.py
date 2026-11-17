@@ -24,8 +24,8 @@ from collections import defaultdict
 import pytest
 
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG
-from pipeline.transforms.strategy.facts import FactsContext
 from pipeline.transforms.strategy.naming import name_deck
+from pipeline.transforms.strategy.strategy_graph import FactsContext
 
 
 def _ctx(share: float, wq_top: float, wq_second: float) -> FactsContext:
@@ -55,7 +55,7 @@ def _ctx(share: float, wq_top: float, wq_second: float) -> FactsContext:
         },
     }
     arch_members = {'burn': {0, 1, 2, 3, 4}, 'lifegain': {5, 6, 7, 8}}
-    adens: defaultdict[str, float] = defaultdict(float, {'burn': wq_top, 'lifegain': wq_second, 'filler': 300.0})
+    attr_weight: defaultdict[str, float] = defaultdict(float, {'burn': wq_top, 'lifegain': wq_second, 'filler': 300.0})
     cards = [{'name': c, 'role': None} for c in 'abcdefghi']
     win_combos = [
         {'card_names': [f'p{i}', f'q{i}'], 'win': True, 'mana': False, 'variant_id': f'v{i}', 'result': 'Win the game'}
@@ -74,7 +74,7 @@ def _ctx(share: float, wq_top: float, wq_second: float) -> FactsContext:
         arch_has_cmd={'burn': False, 'lifegain': False},
         nodes={'burn', 'lifegain', 'filler'},
         support=frozenset(),
-        adens=adens,
+        attr_weight=attr_weight,
         card_w={},
         identity_mass=wq_top / share,
         coverage=0.9,

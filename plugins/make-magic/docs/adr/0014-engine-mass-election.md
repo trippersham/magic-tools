@@ -4,12 +4,12 @@
 |---|---|
 | Status | Accepted. In force on branch `feat/strategy-engine`. Output-changing re-baseline (ADR 0003). |
 | Review | pending owner review: agent-authored from the GATE-0 GO-WITH-FIXES design + the re-validated full-170 delta; the orchestrator reconciles, shows the owner the delta, and commits. |
-| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (453 pass). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` — engine `987f2660…`, resolve `85752bb9…`, full-corpus `7e5190e8…` (as of the 2026-11-14 step-2 landing; see amendment). Invariant: the mass election is STRUCTURE-ONLY (the sort/keep-walk reads only `adens`; naming never reads the election). The 1 `named_strategy` change in the step-2 landing (Ghave) comes from WIRING `mana-produced`, not from the election mechanism — see [0020](0020-event-substantiveness-producer-anchor.md) + [0003](0003-byte-parity-held-files.md). |
-| Code paths | [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (`_isolate_engines` — the mass sort + the `event_admitted` (event-grain) and `earned_archetypes` (archetype-grain, B6) candidate-pool filters + the `elected` set; `compute_facts` computes the earned set from `requirement_for(arch).satisfied` post-ctx and passes it in), [`engine_report.py`](../../pipeline/pipeline/transforms/strategy/engine_report.py) (consumes `engines`/`forward_chains`, order-invariant), [`relay.py`](../../pipeline/pipeline/transforms/strategy/relay.py) (runs the SAME `_isolate_engines` over relay-augmented edges, with `earned_archetypes=None` — archetype grain OFF, structure-only). |
+| Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (453 pass). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` — engine `987f2660…`, resolve `85752bb9…`, full-corpus `7e5190e8…` (as of the 2026-11-14 step-2 landing; see amendment). Invariant: the mass election is STRUCTURE-ONLY (the sort/keep-walk reads only `attr_weight`; naming never reads the election). The 1 `named_strategy` change in the step-2 landing (Ghave) comes from WIRING `mana-produced`, not from the election mechanism — see [0020](0020-event-substantiveness-producer-anchor.md) + [0003](0003-byte-parity-held-files.md). |
+| Code paths | [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` — the mass sort + the `event_admitted` (event-grain) and `earned_archetypes` (archetype-grain, B6) candidate-pool filters + the `elected` set; `compute_facts` computes the earned set from `requirement_for(arch).satisfied` post-ctx and passes it in), [`engine_report.py`](../../pipeline/pipeline/transforms/strategy/engine_report.py) (consumes `engines`/`forward_chains`, order-invariant), [`relay.py`](../../pipeline/pipeline/transforms/strategy/relay.py) (runs the SAME `elect_engine_units` over relay-augmented edges, with `earned_archetypes=None` — archetype grain OFF, structure-only). |
 
 ## Context
 
-`_isolate_engines` builds, per directed event, one atomic bipartite unit
+`elect_engine_units` builds, per directed event, one atomic bipartite unit
 (producers → event → consumers) and must pick the deck's **lead engine** (and,
 under the Design-3 ontology, the ranked **Engine set** of 0..n Strategies the deck
 hinges on). The committed implementation ordered units by a recursive-first
@@ -35,9 +35,9 @@ so this change **re-validated** the election against the committed baseline
 ## Decision
 
 Node-weighted mass is the **authoritative** engine-lead signal. In
-`_isolate_engines`, over the per-event units:
+`elect_engine_units`, over the per-event units:
 
-1. **Mass.** `m(U) = Σ adens(a)` over `producers(U) ∪ consumers(U)` — already the
+1. **Mass.** `m(U) = Σ attr_weight(a)` over `producers(U) ∪ consumers(U)` — already the
    unit's `weight`.
 2. **Order.** Sort units by `m` descending. Recursive status breaks an **exact
    mass tie only** (`-weight, kind != 'recursive-engine', event`); it is never a
@@ -62,10 +62,10 @@ in-deck:
 1. **bipartite** — in-deck producers AND in-deck consumers (the classic loop).
 2. **terminal-producer** — in-deck producers toward a terminal event (one whose
    rule-edges reach `game-end`). The terminal set is the game-rules-derived
-   `win_walk._RULE_TERMINAL_EVENTS` (`game-end`, `life-loss-drain`,
+   `combo_win._RULE_TERMINAL_EVENTS` (`game-end`, `life-loss-drain`,
    `library-depleted`), **never a hardcoded payoff literal** (no-frozen-lists).
 3. **exogenous-environmental** — in-deck consumers from an exogenous always-on
-   source; mass-starved (the exogenous producer contributes 0 `adens`), an anti-∅
+   source; mass-starved (the exogenous producer contributes 0 `attr_weight`), an anti-∅
    floor that can never outweigh a real in-deck engine.
 
 **STRUCTURE-ONLY is preserved.** The election is reported under
@@ -80,7 +80,7 @@ because it is the heaviest convergence, not because it is Urza.
 
 ## Scope boundary (this step)
 
-At this step the only edges `_isolate_engines` receives are the committed in-deck
+At this step the only edges `elect_engine_units` receives are the committed in-deck
 → in-deck `event_edges`, so **every unit is bipartite (anchor mode 1)** and the
 anchor distribution is all-bipartite. The terminal-producer (mode 2) and
 exogenous-environmental (mode 3) anchors are implemented and classified but only
@@ -115,7 +115,7 @@ inputs land.
 - **Forcing exactly one engine.** Rejected: wrong on ~72% of decks — the Engine is
   a set (∅ on pure-lock, ≥2 on the majority once edges hydrate).
 - **A substantiveness/share floor to suppress promiscuous events (Fable probe).**
-  Dropped by the owner (2026-11-13) as the wrong layer: `_isolate_engines` gates
+  Dropped by the owner (2026-11-13) as the wrong layer: `elect_engine_units` gates
   units by `node_admitted` (support count) only, never `requires_met`; mana
   over-forming is a Layer-C (synthesis) phenomenon, not an election knob.
 
@@ -128,7 +128,7 @@ inputs land.
 - **`engine_report._characterize_engines` is order-invariant** to the `engines`
   list (it re-sorts named engines by weight and re-sorts hubs by `relay_hubs`
   order), so only the serialized `engine_isolation` SHA shifts, not the named-engine
-  output shape. `relay.py` runs the SAME `_isolate_engines`, so the relay-augmented
+  output shape. `relay.py` runs the SAME `elect_engine_units`, so the relay-augmented
   path mass-elects too (`test_relay::test_determinism_mass_elected`).
 - **Keystone for the execution sequence:** mana-wiring and role-A hydration build
   on this election; the whole-gauntlet owner gut-check is the acceptance gate after
@@ -182,7 +182,7 @@ derived-adjacency flip (same re-baseline); the Test-line SHAs are superseded by 
 ## Amendment — 2026-11-15 (B6): archetype-grain admission completes the ordering invariant ([0021], [0002])
 
 A **third candidacy filter** now sits between the event-grain `event_admitted` filter
-(2026-11-14 amendment) and the rank-don't-cut keep-walk ([0022]). `_isolate_engines` takes a
+(2026-11-14 amendment) and the rank-don't-cut keep-walk ([0022]). `elect_engine_units` takes a
 new `earned_archetypes` argument — the set of the deck's archetypes that clear their [0002]
 `Requirement.satisfied` bar — and, when it is supplied, drops any candidate whose payoff
 archetypes are **ALL unearned** AND that is **not structurally anchored**. Owner-approved

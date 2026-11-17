@@ -22,7 +22,7 @@ from pathlib import Path
 from pipeline.transforms.strategy import substantiveness as S
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG
 from pipeline.transforms.strategy.degree import AXIS_COLOR_GATE, DEGREE_AXES, compute_degree_axes
-from pipeline.transforms.strategy.facts import compute_facts
+from pipeline.transforms.strategy.strategy_graph import compute_facts
 from pipeline.transforms.strategy.vocab import ARCHETYPE_EDGES
 
 _STRATEGY_DIR = Path(__file__).resolve().parent.parent
