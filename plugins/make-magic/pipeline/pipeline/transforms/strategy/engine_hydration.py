@@ -62,7 +62,7 @@ def _load_events() -> dict[str, dict]:
     with _CATALOG_PATH.open() as f:
         raw_events = json.load(f)['events']
     try:
-        from pipeline.transforms.strategy.adjacency import derive_card_events
+        from pipeline.transforms.strategy.derive_card_events import derive_card_events
 
         return derive_card_events(raw_events)
     except FileNotFoundError:

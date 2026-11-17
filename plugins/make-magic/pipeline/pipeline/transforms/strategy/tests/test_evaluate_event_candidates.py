@@ -67,7 +67,7 @@ class TestCandidatePromotion:
 
     def test_candidate_below_threshold_stays_provisional(self) -> None:
         """A candidate with 2 corroborating cards does NOT promote."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
             CandidateSeedStore,
         )
 
@@ -82,7 +82,7 @@ class TestCandidatePromotion:
 
     def test_candidate_at_threshold_promotes(self) -> None:
         """A candidate with exactly 3 corroborating cards DOES promote."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
             CandidateSeedStore,
         )
 
@@ -96,7 +96,7 @@ class TestCandidatePromotion:
 
     def test_candidate_above_threshold_also_promotes(self) -> None:
         """A candidate with 5 corroborating cards still promotes (>= N)."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
             CandidateSeedStore,
         )
 
@@ -110,7 +110,7 @@ class TestCandidatePromotion:
 
     def test_duplicate_card_does_not_count_twice(self) -> None:
         """The same card oracle_id corroborating twice counts as 1."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
             CandidateSeedStore,
         )
 
@@ -134,7 +134,7 @@ class TestUmbrellaRejection:
 
     def test_umbrella_candidate_rejected_by_exclusivity(self) -> None:
         """``ramp`` as a candidate for mana-produced.produced_by is rejected."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.derive_card_events import (
             SEED_MAP,
             is_mechanic_exclusive,
             mechanic_population,
@@ -148,10 +148,10 @@ class TestUmbrellaRejection:
     def test_umbrella_never_enters_candidate_store(self) -> None:
         """The discover_candidates function never returns a slug that fails
         exclusivity, so umbrellas cannot even enter the store."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.engine_hydration import _load_events
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
             discover_candidates,
         )
-        from pipeline.transforms.strategy.engine_hydration import _load_events
 
         events = _load_events()
         candidates = discover_candidates(events, 'mana-produced', 'produced_by')
@@ -160,7 +160,7 @@ class TestUmbrellaRejection:
 
     def test_triggered_ability_umbrella_rejected(self) -> None:
         """``triggered-ability`` is a broad umbrella and should be rejected."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.derive_card_events import (
             SEED_MAP,
             is_mechanic_exclusive,
             mechanic_population,
@@ -191,11 +191,11 @@ class TestThreeWayGate:
 
     def test_accept_via_seed_for_known_slug(self) -> None:
         """An otag in the closure => accept-via-seed."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.engine_hydration import _load_events
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
             GateVerdict,
             three_way_gate,
         )
-        from pipeline.transforms.strategy.engine_hydration import _load_events
 
         events = _load_events()
         # landfall is in creature-enters-battlefield.triggers closure
@@ -209,11 +209,11 @@ class TestThreeWayGate:
 
     def test_reject_for_non_exclusive_slug(self) -> None:
         """An otag that fails exclusivity => reject."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.engine_hydration import _load_events
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
             GateVerdict,
             three_way_gate,
         )
-        from pipeline.transforms.strategy.engine_hydration import _load_events
 
         events = _load_events()
         result = three_way_gate(
@@ -226,7 +226,7 @@ class TestThreeWayGate:
 
     def test_gate_returns_three_distinct_verdicts(self) -> None:
         """All three verdict types are reachable."""
-        from pipeline.transforms.strategy.adjacency import GateVerdict
+        from pipeline.transforms.strategy.evaluate_event_candidates import GateVerdict
 
         assert len(GateVerdict) == 3
 
@@ -243,10 +243,10 @@ class TestGenericDiscovery:
     def test_discover_candidates_works_for_multiple_events(self) -> None:
         """discover_candidates runs on at least 3 different events without
         per-event branches (same function, no dispatch)."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.engine_hydration import _load_events
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
             discover_candidates,
         )
-        from pipeline.transforms.strategy.engine_hydration import _load_events
 
         events = _load_events()
         events_tested = 0
@@ -308,11 +308,11 @@ class TestShadowMeasurement:
         residue_otags: dict[str, set[str]],
     ) -> None:
         """The shadow run discovers at least 1 candidate across all events."""
-        from pipeline.transforms.strategy.adjacency import (
-            run_healing_shadow,
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
+            run_candidate_evaluation_shadow,
         )
 
-        report = run_healing_shadow(residue_otags)
+        report = run_candidate_evaluation_shadow(residue_otags)
         assert report.total_candidates > 0, 'No candidates discovered'
 
     @pytest.mark.skipif(
@@ -325,11 +325,11 @@ class TestShadowMeasurement:
         residue_otags: dict[str, set[str]],
     ) -> None:
         """No umbrella (exclusivity-failing) otags are ever proposed."""
-        from pipeline.transforms.strategy.adjacency import (
-            run_healing_shadow,
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
+            run_candidate_evaluation_shadow,
         )
 
-        report = run_healing_shadow(residue_otags)
+        report = run_candidate_evaluation_shadow(residue_otags)
         assert report.umbrella_proposals == 0, f'{report.umbrella_proposals} umbrella(s) proposed — gate failed'
 
     @pytest.mark.skipif(
@@ -343,10 +343,10 @@ class TestShadowMeasurement:
         residue_otags: dict[str, set[str]],
     ) -> None:
         """Projected unlock with promotions >= 72% (at least matches current)."""
-        from pipeline.transforms.strategy.adjacency import (
-            run_healing_shadow,
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
+            run_candidate_evaluation_shadow,
         )
 
-        report = run_healing_shadow(residue_otags)
+        report = run_candidate_evaluation_shadow(residue_otags)
         # With promoted candidates, unlock should be at least the current 72%
         assert report.projected_unlock_pct >= 72.0, f'Projected unlock {report.projected_unlock_pct:.1f}% < 72%'

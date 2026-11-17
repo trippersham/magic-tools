@@ -264,7 +264,7 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
     # strategy conftest.
     raw_events = json.loads(EVENTS_FILE.read_text())['events']
     try:
-        from pipeline.transforms.strategy.adjacency import derive_card_events
+        from pipeline.transforms.strategy.derive_card_events import derive_card_events
 
         events = derive_card_events(raw_events)
     except FileNotFoundError:

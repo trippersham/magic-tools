@@ -43,7 +43,7 @@ class TestManaProducedSoundness:
 
     def test_mana_produced_derived_includes_committed_producers(self) -> None:
         """Derived produced_by ⊇ committed produced_by for mana-produced."""
-        from pipeline.transforms.strategy.adjacency import derive_card_events
+        from pipeline.transforms.strategy.derive_card_events import derive_card_events
         from pipeline.transforms.strategy.engine_hydration import _load_events
 
         events = _load_events()
@@ -56,7 +56,7 @@ class TestManaProducedSoundness:
 
     def test_mana_produced_derived_excludes_ramp(self) -> None:
         """Derived produced_by does NOT contain ``ramp``."""
-        from pipeline.transforms.strategy.adjacency import derive_card_events
+        from pipeline.transforms.strategy.derive_card_events import derive_card_events
         from pipeline.transforms.strategy.engine_hydration import _load_events
 
         events = _load_events()
@@ -68,7 +68,7 @@ class TestManaProducedSoundness:
 
     def test_mana_produced_derived_includes_mana_dork_descendants(self) -> None:
         """Derived produced_by includes mana-producer descendants (mana-dork etc)."""
-        from pipeline.transforms.strategy.adjacency import derive_card_events
+        from pipeline.transforms.strategy.derive_card_events import derive_card_events
         from pipeline.transforms.strategy.engine_hydration import _load_events
 
         events = _load_events()
@@ -81,7 +81,7 @@ class TestManaProducedSoundness:
 
     def test_mana_produced_anchors_match_adr0020(self) -> None:
         """The produce-side seeds for mana-produced match ADR 0020's committed set."""
-        from pipeline.transforms.strategy.adjacency import SEED_MAP
+        from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
         seeds = set(SEED_MAP['mana-produced']['produced_by']['seeds'])
         expected = {'adds-multiple-mana', 'mana-producer', 'repeatable-treasures', 'ritual'}
@@ -97,18 +97,18 @@ class TestAnchorMapCompleteness:
     """The 27-event seed map covers every catalog event."""
 
     def test_every_event_has_anchor_entry(self, catalog_events: dict[str, dict]) -> None:
-        from pipeline.transforms.strategy.adjacency import SEED_MAP
+        from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
         for event_name in catalog_events:
             assert event_name in SEED_MAP, f'Event {event_name!r} missing from SEED_MAP'
 
     def test_anchor_map_has_27_events(self) -> None:
-        from pipeline.transforms.strategy.adjacency import SEED_MAP
+        from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
         assert len(SEED_MAP) == 27
 
     def test_each_entry_has_both_sides_and_grade(self) -> None:
-        from pipeline.transforms.strategy.adjacency import SEED_MAP
+        from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
         for event_name, entry in SEED_MAP.items():
             assert 'triggers' in entry, f'{event_name}: missing triggers'
@@ -129,7 +129,7 @@ class TestAnchorMapCompleteness:
         formal tally is 15/8/4.  The build-design's "+T-adjacent" is a
         borderline note, not a grade upgrade.
         """
-        from pipeline.transforms.strategy.adjacency import SEED_MAP
+        from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
         has_s = 0
         fully_m = 0
@@ -174,7 +174,7 @@ class TestAncestorClosure:
     )
 
     def test_all_non_synthetic_anchors_exist_in_taxonomy(self) -> None:
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.derive_card_events import (
             SEED_MAP,
             load_taxonomy,
         )
@@ -191,7 +191,7 @@ class TestAncestorClosure:
 
     def test_synthetic_slugs_not_in_taxonomy(self) -> None:
         """Synthetic slugs are indeed absent from the taxonomy (guard)."""
-        from pipeline.transforms.strategy.adjacency import load_taxonomy
+        from pipeline.transforms.strategy.derive_card_events import load_taxonomy
 
         taxonomy = load_taxonomy()
         for slug in self._SYNTHETIC_CATALOG_SLUGS:
@@ -202,7 +202,7 @@ class TestAncestorClosure:
 
     def test_descendant_closure_terminates(self) -> None:
         """Descendant closure on every seed terminates (no cycles)."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.derive_card_events import (
             SEED_MAP,
             descendant_closure,
             load_taxonomy,
@@ -236,7 +236,7 @@ class TestDerivedSupersetOfEnumerated:
     """
 
     def test_derived_produced_by_superset(self, catalog_events: dict[str, dict]) -> None:
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.derive_card_events import (
             SEED_MAP,
             derive_card_events,
             refused_climb_targets,
@@ -254,7 +254,7 @@ class TestDerivedSupersetOfEnumerated:
             assert not missing, f'{event_name}: derived produced_by lost enumerated slugs: {missing}'
 
     def test_derived_triggers_superset(self, catalog_events: dict[str, dict]) -> None:
-        from pipeline.transforms.strategy.adjacency import derive_card_events
+        from pipeline.transforms.strategy.derive_card_events import derive_card_events
 
         derived = derive_card_events(catalog_events)
         for event_name, ev in catalog_events.items():
@@ -322,7 +322,7 @@ class TestUnlockOnRoleAEdges:
         role_a_edges: list[dict],
         residue_otags: dict[str, set[str]],
     ) -> None:
-        from pipeline.transforms.strategy.adjacency import derive_card_events
+        from pipeline.transforms.strategy.derive_card_events import derive_card_events
 
         derived = derive_card_events(catalog_events)
 
@@ -354,8 +354,8 @@ class TestP0SHAUnchanged:
     def test_adjacency_is_derived_at_load(self) -> None:
         # The flip is authoritative: the live catalog's event adjacency equals the
         # derived closure-union, not the frozen enumerated lists (ADR 0022).
-        from pipeline.transforms.strategy.adjacency import derive_card_events
         from pipeline.transforms.strategy.assets import load_assets
+        from pipeline.transforms.strategy.derive_card_events import derive_card_events
 
         events = load_assets().events
         derived = derive_card_events(events)
@@ -399,7 +399,7 @@ class TestDerivedAdjacencyShape:
         self,
         catalog_events: dict[str, dict],
     ) -> None:
-        from pipeline.transforms.strategy.adjacency import derive_card_events
+        from pipeline.transforms.strategy.derive_card_events import derive_card_events
 
         derived = derive_card_events(catalog_events)
         assert set(derived.keys()) == set(catalog_events.keys())
@@ -408,7 +408,7 @@ class TestDerivedAdjacencyShape:
         self,
         catalog_events: dict[str, dict],
     ) -> None:
-        from pipeline.transforms.strategy.adjacency import derive_card_events
+        from pipeline.transforms.strategy.derive_card_events import derive_card_events
 
         derived = derive_card_events(catalog_events)
         for event_name in catalog_events:
@@ -418,7 +418,7 @@ class TestDerivedAdjacencyShape:
         self,
         catalog_events: dict[str, dict],
     ) -> None:
-        from pipeline.transforms.strategy.adjacency import derive_card_events
+        from pipeline.transforms.strategy.derive_card_events import derive_card_events
 
         derived = derive_card_events(catalog_events)
         for event_name, ev in derived.items():
@@ -452,7 +452,7 @@ class TestExclusivityValidator:
         predicate must classify ``ramp`` as non-exclusive.  Both historically
         relevant sides must be discovered and must fail.
         """
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.derive_card_events import (
             SEED_MAP,
             is_mechanic_exclusive,
             load_taxonomy,
@@ -483,7 +483,7 @@ class TestExclusivityValidator:
 
     def test_ramp_absent_from_every_derived_output(self) -> None:
         """Output purity: ``ramp`` is in NO derived produced_by/triggers list."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.derive_card_events import (
             derive_card_events,
         )
         from pipeline.transforms.strategy.engine_hydration import _load_events
@@ -495,7 +495,7 @@ class TestExclusivityValidator:
 
     def test_mana_producer_is_mechanic_exclusive(self) -> None:
         """mana-producer passes exclusivity for mana-produced (the kept seed)."""
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.derive_card_events import (
             SEED_MAP,
             is_mechanic_exclusive,
             mechanic_population,
@@ -509,7 +509,7 @@ class TestExclusivityValidator:
 
     def test_validate_anchor_map_clean(self) -> None:
         """The committed seed map passes the exclusivity validator (0 violations)."""
-        from pipeline.transforms.strategy.adjacency import validate_seed_map
+        from pipeline.transforms.strategy.derive_card_events import validate_seed_map
 
         violations = validate_seed_map()
         assert violations == [], f'Seed-map exclusivity violations: {violations}'
@@ -524,7 +524,7 @@ class TestExclusivityValidator:
         seeds, so the shadow election is byte-identical to the measured
         (ramp-corrected) hand map — the re-confirmed shadow numbers carry over.
         """
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.derive_card_events import (
             SEED_MAP,
             derive_card_events,
             descendant_closure,
@@ -551,7 +551,7 @@ class TestExclusivityValidator:
         Confirms the measured 0.56 (mana) / 0.28 (land) over-capture figures
         that motivated the exclusion.
         """
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.derive_card_events import (
             EXCLUSIVITY_PRECISION_MIN,
             SEED_MAP,
             is_mechanic_exclusive,
@@ -577,7 +577,7 @@ class TestExclusivityValidator:
         """
         import copy
 
-        from pipeline.transforms.strategy.adjacency import (
+        from pipeline.transforms.strategy.derive_card_events import (
             SEED_MAP,
             validate_seed_map,
         )
@@ -595,7 +595,7 @@ class TestExclusivityValidator:
 
     def test_climb_to_frontier_removed(self) -> None:
         """``climb_to_frontier`` is deleted (was dead code with zero callers)."""
-        import pipeline.transforms.strategy.adjacency as ad
+        import pipeline.transforms.strategy.derive_card_events as ad
 
         assert not hasattr(ad, 'climb_to_frontier'), (
             'climb_to_frontier still exists — it was dead code and should be deleted'
