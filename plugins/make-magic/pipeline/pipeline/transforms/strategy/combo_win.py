@@ -68,6 +68,12 @@ EVENT_EDGE_CLASSES: dict[str, list[str]] = {
     'untap': ['altwin::untap'],
     'counter-placed': ['altwin::counter-placed'],
     'player-counter': ['altwin::player-counter'],
+    # Poison is an SBA loss for the opponent (CR 104.3d / 704.5c: 10 poison =
+    # loss), so reaching the poisoned event is a WIN rule-edge (#74 §4.5). Mirrors
+    # player-counter structurally. Walk-inert until a poison fid route exists
+    # (fid 1800 "Gives Infect" -> None today); no payoff card maps to the class
+    # because poison kills by rule, not by a "you win" card (see card_edges.json).
+    'poisoned': ['altwin::poisoned'],
     'card-enters-graveyard': ['altwin::card-enters-graveyard', 'altwin::self-deplete'],
     'library-depleted': ['altwin::self-deplete'],
     'discard': [],
@@ -105,6 +111,7 @@ _ALTWIN_CLASSES = frozenset(
         'altwin::untap',
         'altwin::counter-placed',
         'altwin::player-counter',
+        'altwin::poisoned',
         'altwin::card-enters-graveyard',
         'altwin::self-deplete',
         'altwin::land-enters-battlefield',

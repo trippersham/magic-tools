@@ -153,6 +153,19 @@ the strategy engine path.
   `extra-turn` routes through the fid branch, not an edge class). Carried under the Tier-A
   re-baseline (ADR 0003); `test_combo_win.py` + the parity oracle re-verified green.
 
+- **2026-11-17 — `poisoned → game-end` WIN rule-edge (#74 §4.5).** Poison counters are an SBA
+  loss for the opponent (CR 104.3d / 704.5c: ten poison = loss), so reaching the new `poisoned`
+  event ([0012]) is a game-ending WIN. Registered exactly like the other alt-win classes:
+  `EVENT_EDGE_CLASSES['poisoned'] = ['altwin::poisoned']` + `altwin::poisoned` added to
+  `_ALTWIN_CLASSES`, mirroring `player-counter`/`altwin::player-counter`. **No payoff card maps to
+  the class** (poison kills by rule, not by a "you win the game" card as Azor's Elocutors does for
+  player-counter), so `card_edges.json` carries `altwin::poisoned: []` (empty, for 1:1 class
+  parity). The edge is therefore **walk-inert today**: the walk is fid-route-driven and no fid
+  routes to `poisoned` (fid 1800 "Gives Infect" → None); wiring a poison fid route (a later
+  `fid_adapter` wave) is what will make it fire. This is a pure registration — it adds **0 walk
+  verdicts** on the current corpus, so ENGINE + RESOLVE are unchanged. `test_combo_win.py` + the
+  parity oracle re-verified green under the ADR 0003 re-baseline.
+
 ## Related records
 
 - 0003 — Byte-parity: this change is a sanctioned re-baseline with parity proof.

@@ -199,6 +199,27 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   `38dd7733…`; engine `7a73aba9…` → `1eb27096…`; resolve `1e54293c…` → `00fbb836…`. Proof + per-change
   delta table: `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/tier-a-corrections/outbox.md`.
 
+- **2026-11-17 — decomposition + gaps wave (#74; ADR 0003 re-baseline).** Three SEED_MAP
+  producer/consumer changes: (1) **monarch decomposition** — `monarch.produced_by` seed
+  `monarch-matters` → `monarch-maker` (the new query-membership synth CardAttribute, [0017]; its
+  closure is itself → grade empty, like `rad-counter`), `triggers` keeps `monarch-matters`; the
+  single conflated Scryfall tag is split into maker (producer) + payoff (consumer) sides so the
+  node forms maker→payoff edges instead of zeroing on the `p != c_` self-pair exclusion. (2)
+  **energy gap** — `player-counter.produced_by += energy-generator` (137, mechanic-exclusive
+  precision 1.0) and `triggers += counter-fuel-energy` (moved from `counter-placed.triggers`,
+  where no energy producer sat; kept in `proliferate.triggers`), CR 122.1a. (3) **poison** — new
+  `poisoned` event ([0012]) with `produced_by` the mechanic-exclusive poison givers
+  (`poisonous`/`poison-opponents`/`gives-infect`/`gives-toxic`/`gives-poisonous`; 163 cards; the
+  parent `poison-mechanics` excluded for producer-role impurity) and `triggers` `synergy-poison`.
+  `validate_seed_map()` stays at **0 violations**; **29** events. **Full OFF/ON delta (157
+  gauntlet + 17 fixtures): exactly 1/157 decks moved** — `WakandaForever_2026` gains the monarch
+  maker→payoff engine; **0 evictions, 0 foreign slugs, 0 spurious leads.** The energy + poison
+  edges change 0 gauntlet decks (none run an energy/infect/toxic engine) but are proven live on
+  synthetic decks. Only FULL_CORPUS moved (fixtures carry none of the touched families):
+  full-corpus `38dd7733…` → `604f6673…`; engine `1eb27096…` + resolve `00fbb836…` **unchanged**.
+  Proof + per-change delta:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/monarch-energy-poison/outbox.md`.
+
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
 - 0002 / 0020 — substantiveness + the `producer_anchor` gate this adjacency feeds; `ramp` stays anchor-side-only there, never in the adjacency.

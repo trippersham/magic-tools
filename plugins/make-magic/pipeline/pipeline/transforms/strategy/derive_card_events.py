@@ -500,12 +500,16 @@ SEED_MAP: dict[str, dict[str, Any]] = {
     # ── 12. counter-placed ──────────────────────────────────────────────
     'counter-placed': {
         'triggers': {
+            # counter-fuel-energy MOVED to player-counter (#74 §4.4): energy is a
+            # PLAYER counter (CR 122.1a), not a counter placed on a permanent, and
+            # no energy producer sat in this event's produced_by — the edges were
+            # dead here. It now lives in player-counter.triggers (and stays in
+            # proliferate.triggers).
             'seeds': [
                 'counter-fuel',
                 'counter-fuel-aesthetic',
                 'counter-fuel-any',
                 'counter-fuel-charge',
-                'counter-fuel-energy',
                 'counter-fuel-fade',
                 'counter-fuel-keyword',
                 'counter-fuel-lore',
@@ -831,19 +835,22 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'empty',
         },
     },
-    # ── 21b. monarch (#74 §2 split; §2.2 option (i): EDGE-INERT) ─────────
+    # ── 21b. monarch (#74 §2 split; §2.2 option (ii): FUNCTIONAL SPLIT) ───
     # Scryfall carries ONE monarch-matters tag on both makers and payoffs, so the
-    # single attr on both sides forms no edge (the p != c_ self-pair exclusion in
-    # strategy_graph). The node documents the mechanic and bounds the taxonomy; a
-    # monarch-maker synth-attr split that lights it up comes in a LATER wave.
+    # single attr on both sides formed no edge (the p != c_ self-pair exclusion in
+    # strategy_graph). The `monarch-maker` synth attr (distill_strategies.py,
+    # oracle:'become the monarch', 62 makers) now isolates the PRODUCER side so
+    # maker->payoff edges form: produced_by seeds the makers, triggers keeps the
+    # payoff otag monarch-matters. (monarch-maker is a synth attr with no otag, so
+    # its closure is itself -> grade 'empty', mirroring rad-counter on #24.)
     'monarch': {
         'triggers': {
             'seeds': ['monarch-matters'],
             'grade': 'M',
         },
         'produced_by': {
-            'seeds': ['monarch-matters'],
-            'grade': 'M',
+            'seeds': ['monarch-maker'],
+            'grade': 'empty',
         },
     },
     # ── 22. creature-copied ─────────────────────────────────────────────
@@ -904,7 +911,12 @@ SEED_MAP: dict[str, dict[str, Any]] = {
     # ── 24. player-counter ──────────────────────────────────────────────
     'player-counter': {
         'triggers': {
+            # counter-fuel-energy (#74 §4.4): energy counters are PLAYER counters
+            # (CR 122.1a), so the energy consumer belongs here (moved from
+            # counter-placed, where no energy PRODUCER sat). It stays in
+            # proliferate.triggers too (proliferate can add energy to a player).
             'seeds': [
+                'counter-fuel-energy',
                 'mill-any',
                 'mill-each',
                 'mill-opponent',
@@ -919,8 +931,12 @@ SEED_MAP: dict[str, dict[str, Any]] = {
         'produced_by': {
             # rad-counter is a text-synth attr with NO otag, kept for
             # backward compatibility with the committed catalog.
-            'seeds': ['rad-counter'],
-            'grade': 'empty',
+            # energy-generator (#74 §4.4): the real energy PRODUCER otag (137,
+            # mechanic-exclusive prec 1.0) — energy counters are player counters,
+            # so this lights up energy-generator -> counter-fuel-energy edges that
+            # were permanently dead when no energy producer existed anywhere.
+            'seeds': ['energy-generator', 'rad-counter'],
+            'grade': 'M',
         },
     },
     # ── 25. mana-produced ───────────────────────────────────────────────
@@ -961,6 +977,32 @@ SEED_MAP: dict[str, dict[str, Any]] = {
     'library-depleted': {
         'triggers': {'seeds': [], 'grade': 'empty'},
         'produced_by': {'seeds': [], 'grade': 'empty'},
+    },
+    # ── 28. poisoned (#74 §4.5) ─────────────────────────────────────────
+    # Poison counters are PLAYER counters whose SBA ends the game (CR 104.3d /
+    # 704.5c: 10 poison = loss). produced_by seeds the mechanic-exclusive poison
+    # PRODUCER/giver otags (all prec 1.0 vs the poison family, 163 cards union);
+    # the parent `poison-mechanics` (198) is NOT used because its closure also
+    # carries the consumer `synergy-poison` and the removes-infect/gains-* cards
+    # (producer-role impurity). triggers seeds the payoff/consumer `synergy-poison`
+    # (42). The poisoned -> game-end WIN rule-edge lives in combo_win.py
+    # (EVENT_EDGE_CLASSES['poisoned'] = ['altwin::poisoned']); it is walk-inert
+    # until a poison fid route exists (fid 1800 -> None today, out of scope).
+    'poisoned': {
+        'triggers': {
+            'seeds': ['synergy-poison'],
+            'grade': 'M',
+        },
+        'produced_by': {
+            'seeds': [
+                'gives-infect',
+                'gives-poisonous',
+                'gives-toxic',
+                'poison-opponents',
+                'poisonous',
+            ],
+            'grade': 'M',
+        },
     },
 }
 

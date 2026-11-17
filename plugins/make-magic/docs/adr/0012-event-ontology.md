@@ -134,6 +134,33 @@ turns nor monarch) was dropped. Catalog event count **27 → 28**; the field voc
 its raw JSON lists stay `[]`, preserving the terminal-inert invariant that test asserts). Count
 invariant: `test_adjacency.py::test_anchor_map_has_28_events`. Output-moving re-baseline under [0003].
 
+## Amendment — 2026-11-17 (#74 decomposition + gaps): monarch-maker lights up `monarch`; new `poisoned` event, 28 → 29 events
+
+Two ontology changes land the wave the Tier-A amendment deferred, plus a new event:
+
+1. **`monarch` becomes functional** (§2.2 option ii). The `monarch-maker` synth CardAttribute
+   (`oracle:'become the monarch'`, 62 makers; a query-membership attribute per [0017], distilling
+   to None like `rad-counter`) isolates the PRODUCER side, so `monarch`'s `produced_by` seeds
+   `monarch-maker` and `triggers` keeps the payoff otag `monarch-matters`. Maker→payoff edges now
+   form (the `p != c_` self-pair exclusion no longer zeroes the node). This is the ONE genuine
+   decomposition: the single Scryfall `monarch-matters` tag is split into maker (synth) + payoff
+   (otag) sides.
+2. **The `poisoned` event is added** (CR 104.3d / 704.5c: ten poison counters = loss, an SBA).
+   `produced_by` = the mechanic-exclusive poison GIVER otags (`poisonous`, `poison-opponents`,
+   `gives-infect`, `gives-toxic`, `gives-poisonous`; 163 cards, all precision 1.0 vs the poison
+   family) — the parent `poison-mechanics` (198) is **excluded** because its closure also carries
+   the consumer `synergy-poison` and the `removes-infect`/`gains-*` cards (producer-role impurity).
+   `triggers` = the payoff/consumer `synergy-poison` (42). Its `poisoned → game-end` WIN rule-edge
+   lives in `combo_win.py` ([0016]). The field vocabulary is unchanged (no `polarity`/`scope` on
+   `poisoned`; those stay reserved for `game-end`).
+
+Energy is a GAP fill on the existing `player-counter` node, not an ontology change (producer
+`energy-generator` + consumer `counter-fuel-energy`, CR 122.1a). Catalog event count **28 → 29**;
+count invariant renamed `test_adjacency.py::test_anchor_map_has_29_events`; grade tally 15/11/3
+(monarch's producer went otag→synth so its side grade M→empty; player-counter's producer gained
+the energy-generator otag so empty→M; `poisoned` is M/M). Output-moving re-baseline under [0003];
+`test_event_ontology.py` + `test_adjacency.py` re-verified green.
+
 ## The bipartite graph and its projections
 
 The strategy engine operates on ONE bipartite graph with two projections.

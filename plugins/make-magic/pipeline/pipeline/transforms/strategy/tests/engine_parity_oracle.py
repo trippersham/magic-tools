@@ -121,7 +121,22 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   FULL_CORPUS 188992d290aa98f3… -> 38dd7733a440fb13…
 #   ENGINE      7a73aba98b9fb877… -> 1eb27096118d38ad…
 #   RESOLVE     1e54293cd148f2fd… -> 00fbb8360a711583…
-FULL_CORPUS_SHA = '38dd7733a440fb1397ff720cc8f9e3678a0d1be6e988d256a0843e7972b50367'
+# Re-baselined 2026-11-17 (#74 decomposition+gaps wave): monarch-maker synth attr
+# (produced_by monarch-matters -> monarch-maker; the maker->payoff split lights up
+# the monarch node), energy gap (player-counter.produced_by += energy-generator,
+# triggers += counter-fuel-energy moved from counter-placed), and the new poisoned
+# event (producers = poison givers, triggers = synergy-poison) + its poisoned ->
+# game-end WIN rule-edge in combo_win.py. Measured OFF/ON delta: exactly 1/157
+# gauntlet deck moved (WakandaForever_2026 gains the monarch maker->payoff engine);
+# the energy + poison edges are proven live on synthetic decks (no gauntlet deck
+# runs an energy or infect/toxic engine). 0 regressions, every change traced to
+# one of the 3 edits (proof in subagents/monarch-energy-poison/outbox.md). The 17
+# hermetic fixtures carry NONE of the touched families, so ENGINE + RESOLVE are
+# UNCHANGED this wave — only FULL_CORPUS moves:
+#   FULL_CORPUS 38dd7733a440fb13… -> 604f6673e7d3d42c…
+#   ENGINE      1eb27096118d38ad… (unchanged)
+#   RESOLVE     00fbb8360a711583… (unchanged)
+FULL_CORPUS_SHA = '604f6673e7d3d42c6e69976e25b82438e0fb21ec390250b767415a9aa1470a1e'
 
 
 def full_corpus_sha() -> str:

@@ -102,10 +102,10 @@ class TestAnchorMapCompleteness:
         for event_name in catalog_events:
             assert event_name in SEED_MAP, f'Event {event_name!r} missing from SEED_MAP'
 
-    def test_anchor_map_has_28_events(self) -> None:
+    def test_anchor_map_has_29_events(self) -> None:
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
-        assert len(SEED_MAP) == 28
+        assert len(SEED_MAP) == 29
 
     def test_each_entry_has_both_sides_and_grade(self) -> None:
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
@@ -122,17 +122,25 @@ class TestAnchorMapCompleteness:
                 )
 
     def test_grade_tally_matches_build_design(self) -> None:
-        """15 S-bearing, 10 fully-M, 3 ambiguous/empty (28 events).
+        """15 S-bearing, 11 fully-M, 3 ambiguous/empty (29 events).
 
         The build-design notes "16 + mana-prod T-adjacent" — mana-produced's
         T side is graded M (multi-concept: mana-sink + mana-increaser) so the
-        formal tally is 15/10/3.  The build-design's "+T-adjacent" is a
+        formal tally is 15/11/3.  The build-design's "+T-adjacent" is a
         borderline note, not a grade upgrade.
 
         #74 §2 Tier-A re-baseline (was 15/8/4 at 27 events): game-end gained
         otag seeds (empty/empty -> M/M, moving from empty to fully-M); the
         monarch-or-extra-turn (empty producer) split into extra-turn (still
-        empty producer) + monarch (M/M, fully-M). Net: fully-M 8->10, empty 4->3.
+        empty producer) + monarch (then M/M, fully-M). Net: fully-M 8->10, empty 4->3.
+
+        #74 decomposition wave (this change, 28 -> 29 events): monarch's producer
+        swapped monarch-matters (otag) -> monarch-maker (synth, no otag) so its
+        produced_by grade M -> empty (fully-M -> empty bucket); player-counter's
+        producer gained the energy-generator otag alongside synth rad-counter so
+        empty -> M (empty bucket -> fully-M); the new poisoned event is M/M
+        (fully-M). Net: fully-M 10->11 (monarch -1, player-counter +1, poisoned
+        +1), empty 3->3 (monarch +1, player-counter -1).
         """
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
@@ -150,7 +158,7 @@ class TestAnchorMapCompleteness:
                 fully_m += 1
 
         assert has_s == 15, f'Expected 15 S-bearing events, got {has_s}'
-        assert fully_m == 10, f'Expected 10 fully-M events, got {fully_m}'
+        assert fully_m == 11, f'Expected 11 fully-M events, got {fully_m}'
         assert has_empty == 3, f'Expected 3 ambiguous/empty events, got {has_empty}'
 
 
@@ -172,6 +180,7 @@ class TestAncestorClosure:
             'clones',
             'combat',
             'counters',
+            'monarch-maker',
             'rad-counter',
             'sac',
             'tokens',

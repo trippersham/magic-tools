@@ -146,6 +146,17 @@ only the 4 anchored-and-unstarved decks elect it.
   `188992d2…` → `38dd7733…`; engine `7a73aba9…` → `1eb27096…`; resolve `1e54293c…` → `00fbb836…`.
   Proof + per-change delta: `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/tier-a-corrections/outbox.md`.
 
+- **2026-11-17 — decomposition + gaps producers (#74; ADR 0003 re-baseline).** The `produced_by`
+  admission gate now sees three corrected/new producer sets (SEED_MAP, [0022]): `monarch` swaps its
+  producer otag `monarch-matters` → the `monarch-maker` synth CardAttribute (the maker/payoff
+  decomposition), `player-counter` gains the `energy-generator` producer (CR 122.1a), and the new
+  `poisoned` event carries the poison-giver producers. The gate mechanism is **unchanged** (still
+  DATA-keyed; only `mana-produced` carries a `produced_by_commander` Requirement) — these are
+  producer-SET changes. Live OFF/ON delta: exactly 1 gauntlet deck moved (monarch engine in
+  WakandaForever_2026); energy/poison proven live on synthetic decks. Only FULL_CORPUS moved:
+  `38dd7733…` → `604f6673…`; engine + resolve unchanged. Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/monarch-energy-poison/outbox.md`.
+
 ## Related records
 - 0002 — the generic substantiveness framework; `produced_by_commander` is its first level-3 kind.
 - 0003 — the byte-parity re-baseline this change carries (old→new SHAs + the proof).

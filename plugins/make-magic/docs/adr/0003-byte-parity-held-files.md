@@ -305,6 +305,32 @@ re-baseline makes every *intended* change legible as such.
   traces to one of the 7 fixes. Full measurement + per-change delta table:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/tier-a-corrections/outbox.md`.
 
+- **2026-11-17 — decomposition + gaps wave (#74): monarch-maker, energy, poison.** Three
+  catalog changes: (1) the `monarch-maker` synth CardAttribute (`oracle:'become the monarch'`,
+  62 makers; ADR 0017 query-membership, distills to None like `rad-counter`) replaces the inert
+  `monarch-matters` producer on the `monarch` node (produced_by `monarch-maker`, triggers
+  `monarch-matters`) so the maker→payoff split lights up; (2) the energy gap — `player-counter`
+  gains producer `energy-generator` (137) and consumer `counter-fuel-energy` (moved from
+  `counter-placed.triggers`, where no energy producer sat; kept in `proliferate.triggers`),
+  CR 122.1a; (3) a new `poisoned` event (CR 104.3d / 704.5c; produced_by the mechanic-exclusive
+  poison givers `poisonous`/`poison-opponents`/`gives-infect`/`gives-toxic`/`gives-poisonous`,
+  163 cards, triggers `synergy-poison`) + its `poisoned → game-end` WIN rule-edge
+  (`EVENT_EDGE_CLASSES['poisoned'] = ['altwin::poisoned']`, ADR 0016). Event count **28 → 29**.
+  **Measured OFF/ON delta (157 gauntlet + 17 fixtures): only FULL_CORPUS moved;
+  ENGINE + RESOLVE are UNCHANGED** (the 17 hermetic fixtures carry none of the touched families).
+  `FULL_CORPUS_SHA 38dd7733a440fb13… → 604f6673e7d3d42c…`; ENGINE `1eb27096…` and RESOLVE
+  `00fbb836…` constants left as-is (byte-identical; `distill_parity_baseline.json` +
+  `engine_isolation_baseline.json` unchanged). **Correctness proof:** exactly **1/157** gauntlet
+  decks moved — `WakandaForever_2026` gains the monarch maker→payoff engine
+  (`enabler=monarch-maker, consumers=[monarch-matters], event=monarch`); **0 evictions, 0 foreign
+  slugs, 0 spurious leads.** The energy + poison edges form **0 deck changes on this corpus**
+  (no gauntlet deck runs an energy or infect/toxic engine) but are proven **live on synthetic
+  decks** (`player-counter` enabler=`energy-generator`→`counter-fuel-energy`; `poisoned`
+  enabler=`poisonous`/`gives-infect`→`synergy-poison`). The `poisoned→game-end` walk rule-edge
+  is registered but walk-inert (no poison fid route today — fid 1800 → None, out of scope). Full
+  per-change delta:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/monarch-energy-poison/outbox.md`.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`strategy_graph.py` is shared with this record).

@@ -94,6 +94,18 @@ from Spellbook combo fid-routes, provenance `source='spellbook'`.  This is NOT t
 (no regex/NLP), so it does not violate the two text-authoring sources — it is the ADR 0021
 Phase-A *Derive* box re-viewing fid structure.
 
+## Addendum (monarch-maker, 2026-11-17, #74)
+
+The `monarch` event's producer end is named by a **native query-membership CardAttribute**,
+`monarch-maker` (`oracle:'become the monarch'`, `SYNTH_ALWAYS_ATTRIBUTES` in
+`distill_strategies.py`, 62 makers). It is the first branch of the waterfall (native CardAttribute
+names one end), not a haiku-hydrated provisional: membership is a deterministic oracle-text query
+(like `rad-counter`), it distills to None (no archetype edge), and it supplies the `produced_by`
+side of the `monarch` catalog node so the maker→payoff edge forms against the native payoff otag
+`monarch-matters`. This is the sanctioned use of a synth CardAttribute to **decompose** a single
+Scryfall tag that conflates producer and consumer roles — no prose parsing in code, no new source
+value ([0008]).
+
 ## Related records
 - 0001 — knowledge placement; an edge is curated reference data or an authored provisional
   fact, never prose parsed in code.

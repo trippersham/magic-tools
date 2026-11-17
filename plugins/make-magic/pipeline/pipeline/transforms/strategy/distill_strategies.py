@@ -330,6 +330,18 @@ SYNTH_ALWAYS_ATTRIBUTES: list[tuple[str, str]] = [
     # rad engine; it carries no archetype edge (it distills to None) — the rad engine
     # is isolated at the ENGINE layer, it does not rename the deck.
     ('rad-counter', "oracle:'rad counter'"),
+    # Monarch-makers (#74 §2.2 option ii). Scryfall carries ONE `monarch-matters`
+    # otag (49) over BOTH makers and payoffs, so the `monarch` event's single attr
+    # on both sides formed no edge (the p != c_ self-pair exclusion). This synth
+    # attr isolates the MAKERS by the oracle phrase every maker carries ("become
+    # the monarch"), so `monarch`'s produced_by seeds it and triggers keeps the
+    # payoff otag `monarch-matters` — maker->payoff edges now form. Measured 62
+    # members (all literal "become the monarch" makers; the 2 that also carry a
+    # "whenever you become the monarch" trigger still make the monarch on ETB, so
+    # no pure-payoff contamination). Like `rad-counter` it carries NO archetype
+    # edge (distills to None) — it surfaces the maker cards for the edge pass, it
+    # does not rename the deck.
+    ('monarch-maker', "oracle:'become the monarch'"),
     # Within-card lifetrade edges (Queza family). Each names a card that couples
     # TWO effects in ONE sentence: a trigger effect that drives a second payoff
     # effect (draw -> drain, gain -> draw, ...). Membership is a compound query:
