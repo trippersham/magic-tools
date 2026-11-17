@@ -53,3 +53,6 @@ mechanically (a predicate with two defining sites is detectable).
 - 0003 — the held files that exemplify "generic code / data, byte-frozen."
 - 0005 / 0006 / 0007 (planned) — instances: tribe catalog (authority), config
   universal-or-gone, combo win as feature-ID.
+- 0023 — the **naming doctrine** gathers and extends this record's verb/noun test and
+  one-named-rule into the full naming discipline (principles + bad-name checklist +
+  owner-escalation parameters).

@@ -82,9 +82,20 @@ oracle_id, combo_variant_id)` so that distinct couplings from different combos o
 producer attribute are both recoverable.  **No new source value** — combo-lowered edges
 reuse the existing `source='spellbook'` (combo-database-derived).
 
+## Addendum (monarch-maker, 2026-11-17, #74)
+
+The `monarch-maker` synth attribute (`oracle:'become the monarch'`, `SYNTH_ALWAYS_ATTRIBUTES`) is
+a **curated query-membership `CardAttribute`** — membership by a deterministic oracle-text query,
+provenance effectively curated (same class as `rad-counter`), not a `ProvisionalAttributeStore`
+record. It changes no store model and introduces **no new source value**; it only adds a producer
+attribute the `monarch` event seeds ([0012] / [0017]).
+
 ## Related records
 
 - 0001 -- knowledge placement; one name per concept, provenance on every authored fact.
 - 0003 -- byte-parity held files; the renames do not touch the curated layer.
 - 0011 -- EventEffect guards; `CardAttribute.produced_event` references updated.
 - 0017 -- edge derivation; `CardAttribute` / `ProvisionalAttributeStore` references updated.
+- 0023 -- the naming doctrine gathers this record's "name by concept + lifecycle, not
+  authoring mechanism; no aliases" into the full naming discipline (authoring-mechanism
+  naming is recorded there as a smell, since the mechanism is a legitimate `provenance` field).
