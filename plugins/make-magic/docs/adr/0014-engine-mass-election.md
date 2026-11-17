@@ -44,15 +44,17 @@ Node-weighted mass is the **authoritative** engine-lead signal. In
    primary key. `event` is the final determinism tiebreak.
 3. **Lead.** The top-mass unit (`engines[0]`), not the first `recursive-engine`.
    `None` only when there are no units.
-4. **Engine SET (0..n), reported as `elected`.** Walk the mass-descending units;
+4. **Engine SET (0..n), reported as `ranked_units`** (renamed from `elected`
+   2026-11-16, see amendment). Walk the mass-descending units;
    keep `U` when `m(U) ≥ 0.6·m(top)` **and** `U` is not a near-duplicate of a kept
    unit (member-Jaccard `< 0.5`). The list is mass-descending, so the first unit
    below the 0.6 floor ends the walk. Two structural constants (**0.6 keep-ratio,
    0.5 Jaccard**), **zero per-strategy knobs**.
-5. **Reported attributes, never election inputs.** `recursive` / `hub` /
-   `commander_coupled` / `share` / `anchor` / `thin` are recorded on each elected
-   unit for inspection; none feeds the sort or the keep-set (recursive breaks the
-   exact-mass tie only).
+5. **Reported attributes, never election inputs.** `recursive` / `interior_node` /
+   `commander_coupled` / `share` / `formation_mode` / `marginal` are recorded on each
+   ranked unit for inspection (the last four renamed 2026-11-16 from `hub` / `anchor` /
+   `thin` and the unit mass is `mass`, renamed from `weight`); none feeds the sort or the
+   keep-set (recursive breaks the exact-mass tie only).
 6. **`determinism`** gains `'mass-elected'` (a non-empty election); the
    commander-loop (`'loop-commander-anchored'`) and flat (`'loop-or-flat-no-forward-hub'`)
    fallbacks are unchanged.
@@ -213,6 +215,24 @@ incidental `graveyard/reanimator` engine on a deck the engine ALREADY demotes (`
 not already make (the "genuine engine gated via a `requires_met` false-negative" risk is not
 realizable: the gate consults `satisfied`, the identical bar). STRUCTURE-ONLY-vs-naming is
 preserved: 0 labels changed. Measurement: `research/b6-election-gate-170-delta.md`.
+
+**2026-11-16 — emitted-field naming-clarity renames (pure key renames, values byte-identical).**
+The engine-unit emitted schema was renamed for clarity; the election MECHANISM is unchanged
+(this record's decision stands). The map, applied in `strategy_graph.elect_engine_units` and
+every consumer (`engine_report.py`, `engine_synthesis.py`, the oracle, tests):
+- `facts['engines']['engine_isolation']` → `['engine_units']` (companion name to `elect_engine_units`).
+- the ranked set `engine_units['elected']` → `['ranked_units']`.
+- engine-unit quantity `weight` → `mass` (in both `engine_units['engines']` and each `ranked_units` unit).
+- engine-unit relay position `hub` → `interior_node` (both lists).
+- ranked-unit `anchor` (the formation-mode: bipartite / terminal-producer / exogenous-environmental)
+  → `formation_mode`; `thin` → `marginal`.
+
+The emitted `note` string inside `engine_units` keeps the word "elected" (it is a VALUE, not a key —
+changing it would break the byte-value parity the re-baseline proves). The separate
+`convergent_event_components` / `modularity_communities` keep their own `weight` key (a different
+quantity, out of scope). This is an output-changing re-baseline ([0003], 2026-11-16 entry): engine
+`afcffc8a…` → `7a73aba9…`, resolve `5c4f9c05…` → `1e54293c…`, full-corpus `c0d979ea…` → `07eb6673…`,
+with a 187/187 zero-value-change equivalence proof.
 
 ## Related records
 - 0002 — substantiveness gates archetype LABELS (level 2) and, as of 2026-11-14, EVENT

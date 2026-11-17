@@ -49,8 +49,8 @@ FIX = Path(__file__).resolve().parent / 'fixtures'
 RELAY_DECKS = FIX / 'relay_decks'
 
 # The two parity-oracle SHAs that MUST NOT shift.
-EXPECTED_ENGINE_SHA = 'afcffc8a6cee9d771bcb71b758d1de75664edb469da7da4d4bcfaf2f7f35c047'
-EXPECTED_RESOLVE_SHA = '5c4f9c054c797c476833b2dcf0f438f5ca3fa8f4f90cffa6d54f43f5cf51ba8f'
+EXPECTED_ENGINE_SHA = '7a73aba98b9fb877a30cc7ac97649d7d8935a673750d40a35b0c0be383095442'
+EXPECTED_RESOLVE_SHA = '1e54293cd148f2fd01ce5fc59834361dbb082da8d692ecc8048537237691a59a'
 
 # Event catalog (with co-located abbrevs) for _characterize_engines unit calls.
 CATALOG_EVENTS = json.loads(EVENTS_FILE.read_text())['events']
@@ -343,23 +343,23 @@ class TestNamedEngineCycle:
             'engines': [
                 {
                     'event': 'draw-a-card',
-                    'hub': 'gain-to-draw',
+                    'interior_node': 'gain-to-draw',
                     'enabler': 'gain-to-draw',
                     'kind': 'recursive-engine',
                     'producers': ['gain-to-draw'],
                     'consumers': ['draw-to-gain'],
                     'payoff_archetypes': [],
-                    'weight': 10.0,
+                    'mass': 10.0,
                 },
                 {
                     'event': 'lifegain',
-                    'hub': 'draw-to-gain',
+                    'interior_node': 'draw-to-gain',
                     'enabler': 'draw-to-gain',
                     'kind': 'recursive-engine',
                     'producers': ['draw-to-gain'],
                     'consumers': ['gain-to-draw'],
                     'payoff_archetypes': [],
-                    'weight': 8.0,
+                    'mass': 8.0,
                 },
             ],
             'forward_chains': [['draw-a-card', 'lifegain'], ['lifegain', 'draw-a-card']],
@@ -385,13 +385,13 @@ class TestNamedEngineCycle:
             'engines': [
                 {
                     'event': 'lifegain',
-                    'hub': None,
+                    'interior_node': None,
                     'enabler': 'lifegain',
                     'kind': 'static-payoff',
                     'producers': ['lifegain'],
                     'consumers': ['lifegain-matters'],
                     'payoff_archetypes': [],
-                    'weight': 5.0,
+                    'mass': 5.0,
                 },
             ],
             'forward_chains': [],
@@ -420,23 +420,23 @@ class TestNamedEngineCycle:
             'engines': [
                 {
                     'event': 'A',
-                    'hub': 'h1',
+                    'interior_node': 'h1',
                     'enabler': 'h1',
                     'kind': 'recursive-engine',
                     'producers': ['h1'],
                     'consumers': ['c1'],
                     'payoff_archetypes': [],
-                    'weight': 5.0,
+                    'mass': 5.0,
                 },
                 {
                     'event': 'B',
-                    'hub': 'h2',
+                    'interior_node': 'h2',
                     'enabler': 'h2',
                     'kind': 'recursive-engine',
                     'producers': ['h2'],
                     'consumers': ['c2'],
                     'payoff_archetypes': [],
-                    'weight': 3.0,
+                    'mass': 3.0,
                 },
             ],
             'forward_chains': [['A', 'B']],
@@ -463,13 +463,13 @@ class TestNamedEngineStandalone:
             'engines': [
                 {
                     'event': 'draw-a-card',
-                    'hub': 'my-hub',
+                    'interior_node': 'my-hub',
                     'enabler': 'my-hub',
                     'kind': 'recursive-engine',
                     'producers': ['my-hub', 'p2'],
                     'consumers': ['c1', 'c2'],
                     'payoff_archetypes': [],
-                    'weight': 12.0,
+                    'mass': 12.0,
                 },
             ],
             'forward_chains': [],
@@ -492,13 +492,13 @@ class TestNamedEngineStandalone:
             'engines': [
                 {
                     'event': 'lifegain',
-                    'hub': None,
+                    'interior_node': None,
                     'enabler': 'lifegain',
                     'kind': 'static-payoff',
                     'producers': ['lifegain'],
                     'consumers': ['lifegain-matters'],
                     'payoff_archetypes': [],
-                    'weight': 5.0,
+                    'mass': 5.0,
                 },
             ],
             'forward_chains': [],
@@ -519,23 +519,23 @@ class TestNamedEngineStandalone:
             'engines': [
                 {
                     'event': 'A',
-                    'hub': None,
+                    'interior_node': None,
                     'enabler': 'a',
                     'kind': 'static-payoff',
                     'producers': ['a'],
                     'consumers': ['b'],
                     'payoff_archetypes': [],
-                    'weight': 3.0,
+                    'mass': 3.0,
                 },
                 {
                     'event': 'B',
-                    'hub': None,
+                    'interior_node': None,
                     'enabler': 'c',
                     'kind': 'static-payoff',
                     'producers': ['c'],
                     'consumers': ['d'],
                     'payoff_archetypes': [],
-                    'weight': 10.0,
+                    'mass': 10.0,
                 },
             ],
             'forward_chains': [],

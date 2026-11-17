@@ -15,6 +15,30 @@ from __future__ import annotations
 from pipeline.transforms.strategy.combo import combo_label
 from pipeline.transforms.strategy.strategy_graph import FactsContext
 
+#: The combo-override headline label — a SEPARATE axis from ``archetype_identity``
+#: (the override sets this as the deck's name while the identity set keeps the
+#: pre-combo ranking). One named home for the literal (ADR 0001 §4).
+ALT_WINCON_COMBO = 'alt-wincon/combo'
+
+
+def headline_strategy(named: dict) -> str | None:
+    """The single headline strategy label for a resolved deck — DERIVED, not stored.
+
+    The redundant ``named_strategy`` field was removed (ADR 0014 naming-clarity
+    pass): it is exactly this derivation. The headline is the combo-override label
+    when a winning combo overrode the archetype identity, else the leader of the
+    ``archetype_identity`` set, else ``None`` (abstain). This is the ONE named home
+    for the derivation (ADR 0001 §4), consumed by ``run.py`` (label tally) and
+    ``engine_synthesis`` (role-B deterministic prior).
+
+    Accepts either a :func:`name_deck` return dict or a full :func:`~.resolve.resolve`
+    record (both carry ``combo_override_applied`` + ``archetype_identity``).
+    """
+    if named.get('combo_override_applied'):
+        return ALT_WINCON_COMBO
+    ai = named.get('archetype_identity') or []
+    return ai[0]['strategy'] if ai else None
+
 
 def name_deck(ctx: FactsContext) -> dict:
     cfg = ctx.cfg
@@ -142,7 +166,7 @@ def name_deck(ctx: FactsContext) -> dict:
         and conf_sig['identity_share'] >= cfg.combo_primary_share
         and conf_sig['margin'] >= cfg.combo_primary_margin
     )
-    f4_blocked = override_eligible and primary_dominates
+    override_blocked = override_eligible and primary_dominates
     # F5 dense-competing-primary flag: a deck whose pre-combo primary owns a dense
     # share of the identity mass (>= combo_primary_share) but slipped past the F4
     # MARGIN gate (close #2, margin < combo_primary_margin) is dense-but-not-
@@ -163,7 +187,7 @@ def name_deck(ctx: FactsContext) -> dict:
 
         rep = sorted(win_combos, key=_repkey)[0]
         combo_identity = f'{combo_label(rep["result"])} combo [{"+".join(sorted(rep["card_names"]))}]'
-        name = 'alt-wincon/combo'
+        name = ALT_WINCON_COMBO
         combo_override_applied = True
         margin = 1.0
         tie = False
@@ -220,7 +244,6 @@ def name_deck(ctx: FactsContext) -> dict:
         identity_gap = 1.0
 
     return {
-        'named_strategy': name,
         'archetype_identity': archetype_identity,
         'archetype_identity_gap': identity_gap,
         'tribe': ctx.tribe_info['top'],
@@ -241,6 +264,6 @@ def name_deck(ctx: FactsContext) -> dict:
         'combo_identity': combo_identity,
         'pre_combo_name': pre_combo_name,
         'residue_confidence': residue_confidence,
-        'combo_override_f4_blocked': f4_blocked,
+        'combo_override_blocked': override_blocked,
         'combo_override_dense_primary': combo_dense_primary,
     }

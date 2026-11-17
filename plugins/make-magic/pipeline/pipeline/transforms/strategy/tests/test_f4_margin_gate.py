@@ -25,7 +25,7 @@ from collections import defaultdict
 import pytest
 
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG
-from pipeline.transforms.strategy.naming import name_deck
+from pipeline.transforms.strategy.naming import headline_strategy, name_deck
 from pipeline.transforms.strategy.strategy_graph import FactsContext
 
 _SHARE = 0.55  # identical in every case -> share can never be the discriminator
@@ -106,9 +106,9 @@ def test_margin_just_above_threshold_blocks_override_stays_primary():
     assert sig['margin'] == pytest.approx(0.31)
     # the override WAS eligible (LOW residue, 2 win-combos) but the margin gate held
     assert rec['confidence'] == 'LOW'
-    assert rec['combo_override_f4_blocked'] is True
+    assert rec['combo_override_blocked'] is True
     assert rec['combo_override_applied'] is False
-    assert rec['named_strategy'] == 'burn'
+    assert headline_strategy(rec) == 'burn'
 
 
 def test_margin_just_below_threshold_does_not_block_flips_to_combo():
@@ -118,9 +118,9 @@ def test_margin_just_below_threshold_does_not_block_flips_to_combo():
     assert sig['identity_share'] >= DEFAULT_CONFIG.combo_primary_share  # SAME share...
     assert sig['margin'] < DEFAULT_CONFIG.combo_primary_margin  # ...only margin moved
     assert sig['margin'] == pytest.approx(0.29)
-    assert rec['combo_override_f4_blocked'] is False
+    assert rec['combo_override_blocked'] is False
     assert rec['combo_override_applied'] is True
-    assert rec['named_strategy'] == 'alt-wincon/combo'
+    assert headline_strategy(rec) == 'alt-wincon/combo'
 
 
 def test_share_is_held_constant_so_margin_is_the_discriminator():
@@ -129,4 +129,4 @@ def test_share_is_held_constant_so_margin_is_the_discriminator():
     above = name_deck(_ctx(100.0, 69.0))
     below = name_deck(_ctx(100.0, 71.0))
     assert above['confidence_signals']['identity_share'] == below['confidence_signals']['identity_share']
-    assert above['named_strategy'] != below['named_strategy']
+    assert headline_strategy(above) != headline_strategy(below)

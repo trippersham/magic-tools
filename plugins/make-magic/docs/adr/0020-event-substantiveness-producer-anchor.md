@@ -1,11 +1,15 @@
-# 0020 Event-substantiveness admission: the `producer_anchor` kind (command-zone production anchor)
+# 0020 Event-substantiveness admission: the `produced_by_commander` kind (command-zone production anchor)
+
+> Kind renamed `producer_anchor` → `produced_by_commander` on 2026-11-16 (naming-clarity
+> pass; see amendment). The Requirement kind is internal dispatch DATA — never emitted —
+> so the rename moved NO parity SHA. Historical references below keep the old name.
 
 | Field | Value |
 |---|---|
 | Status | Accepted. In force on branch `feat/strategy-engine`. Output-changing re-baseline (ADR 0003). |
 | Review | pending owner review: agent-authored from the empirically-validated step-2 design (`event-substantiveness-empirical.md` + `mana-produced-correct-wiring.md`); the orchestrator reconciles, shows the owner the delta, and commits. |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (453 pass). The gate itself: `pytest -k "event_ontology or substantiveness"`. Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` — engine `987f2660…`, resolve `85752bb9…`, full-corpus `7e5190e8…`. Full-170 invariant (vs `7b53e6a`): **exactly 4 elected-set changes** (Selvala, Marwyn, Helga, Derevi gain `mana-produced`), **0 evictions**, **1 `named_strategy` change** (Ghave, from the consumer-side wiring, not the gate). |
-| Code paths | [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py) (`_eval_producer_anchor`, `_EVENT_EVALUATORS`, `EVENT_SUBSTANTIVENESS`, `event_admitted`), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` — the candidate-pool filter), [`data/event_catalog_v4.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog_v4.json) (`mana-produced.produced_by`). |
+| Code paths | [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py) (`_eval_produced_by_commander`, `_EVENT_EVALUATORS`, `EVENT_SUBSTANTIVENESS`, `event_admitted`), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` — the candidate-pool filter), [`data/event_catalog_v4.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog_v4.json) (`mana-produced.produced_by`). |
 
 ## Context
 
@@ -24,16 +28,17 @@ deck alone before the election.
 ## Decision
 
 Add a third substantiveness application site (ADR 0002): **event admission**, a new
-Requirement KIND `producer_anchor`, dispatched by DATA through its own entry point.
+Requirement KIND `produced_by_commander` (named `producer_anchor` at authoring; renamed
+2026-11-16), dispatched by DATA through its own entry point.
 
 - **Measure — command-zone PRODUCTION anchor.** An event's unit is admitted to election
   candidacy iff the deck's COMMANDER carries at least one attribute in the event's own
-  producer refs. `_eval_producer_anchor(params, event, cmd_attrs, assets)` returns
+  producer refs. `_eval_produced_by_commander(params, event, cmd_attrs, assets)` returns
   `bool(cmd_attrs & (set(assets.events[event][params['refs']]) | set(params['extra_refs'])))`.
   It is ABSOLUTE and per-event: it reads only the commander's node-admitted attrs and the
   event's own wiring refs — **never** total/top/other-unit mass, centrality, or share.
 - **Data row (the only one today).** `EVENT_SUBSTANTIVENESS = {'mana-produced':
-  Requirement('producer_anchor', {'refs': 'produced_by', 'extra_refs': ['ramp']})}`.
+  Requirement('produced_by_commander', {'refs': 'produced_by', 'extra_refs': ['ramp']})}`.
   An event with no row is admitted (preserves pre-gate behavior). Promiscuity-targeted by
   DATA — one row per promiscuous event, each its own owner-graded measurement.
 - **The `ramp`-in-anchor-not-in-`produced_by` split (load-bearing).** The corrected
@@ -109,8 +114,18 @@ only the 4 anchored-and-unstarved decks elect it.
 - **Single-card tag dependency cuts both ways:** a lake refresh that moves `ramp` on/off a
   commander re-opens the census (same lifecycle as the df table / parity baselines).
 
+## Later changes
+- **2026-11-16 — kind renamed `producer_anchor` → `produced_by_commander`** (naming-clarity
+  pass). Renamed the evaluator (`_eval_produced_by_commander`), the `_EVENT_EVALUATORS` dispatch
+  key, and the `EVENT_SUBSTANTIVENESS` Requirement kind string. The kind is internal dispatch DATA
+  consumed only by `event_admitted` — it is **never serialized into the emitted facts**, so the
+  rename is behavior-preserving and moved NO parity SHA (verified: it was part of the 2026-11-16
+  emitted-key re-baseline, [0014] / [0003], and the SHA shift there is attributable entirely to the
+  emitted-key renames + `named_strategy` removal, not this one). The gate's measure and semantics
+  are unchanged.
+
 ## Related records
-- 0002 — the generic substantiveness framework; `producer_anchor` is its first level-3 kind.
+- 0002 — the generic substantiveness framework; `produced_by_commander` is its first level-3 kind.
 - 0003 — the byte-parity re-baseline this change carries (old→new SHAs + the proof).
 - 0004 — `node_admitted`'s `is_cmd` arm makes the anchor well-defined (a commander's
   `produced_by` otag is never dropped from `nodes`).

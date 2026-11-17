@@ -251,9 +251,9 @@ def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
         for eng in engs:
             all_members.update(eng['producers'])
             all_members.update(eng['consumers'])
-            if eng['hub'] and eng['hub'] not in all_hubs:
-                all_hubs.append(eng['hub'])
-            total_weight += eng['weight']
+            if eng['interior_node'] and eng['interior_node'] not in all_hubs:
+                all_hubs.append(eng['interior_node'])
+            total_weight += eng['mass']
 
         # Sort hubs by the relay_hubs weight ordering from elect_engine_units.
         relay_hub_order = {h: i for i, h in enumerate(iso.get('relay_hubs', []))}
@@ -282,7 +282,7 @@ def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
 
     # --- Standalone engines (not part of a cycle) ---
     for eng in standalone:
-        hub = eng['hub']
+        hub = eng['interior_node']
         members = sorted(set(eng['producers']) | set(eng['consumers']))
         events = [eng['event']]
 
@@ -301,7 +301,7 @@ def _characterize_engines(iso: dict, event_catalog: dict) -> list[NamedEngine]:
                 events=events,
                 forward_chains=[],
                 description=description,
-                weight=eng['weight'],
+                weight=eng['mass'],
             )
         )
 

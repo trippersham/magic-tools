@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from pipeline.transforms.strategy import compute_facts, name_deck, resolve
+from pipeline.transforms.strategy.naming import headline_strategy
 from pipeline.transforms.strategy.tests.conftest import GOLDEN_SLUGS
 
 _FACTS_KEYS = {
@@ -38,7 +39,7 @@ _TOP_KEYS = {
     'density_signals',
     'n_nodes',
     'cmd_attrs',
-    'named_strategy',
+    'archetype_identity',
     'tribe',
     'abstain',
     'confidence',
@@ -104,7 +105,7 @@ def test_evasion_is_a_measure_only_degree_axis(load_deck, combos):
     # under-served threshold → neither flag fires (neutral evasion).
     assert baral['evasion_under_served'] is False and baral['evasion_over_served'] is False
     assert baral['evasion_count'] == ev['n']
-    assert baral['named_strategy'] != 'evasion'
+    assert headline_strategy(baral) != 'evasion'
 
 
 def test_compute_facts_then_name_deck_matches_resolve(load_deck, combos):
@@ -113,6 +114,7 @@ def test_compute_facts_then_name_deck_matches_resolve(load_deck, combos):
     ctx = compute_facts(deck, combos)
     named = name_deck(ctx)
     rec = resolve(deck, combos)
-    assert named['named_strategy'] == rec['named_strategy']
+    assert headline_strategy(named) == headline_strategy(rec)
+    assert named['archetype_identity'] == rec['archetype_identity']
     assert ctx.facts == rec['facts']  # same facts graph (resolve recomputes a fresh, equal object)
     assert named['confidence'] == rec['confidence']

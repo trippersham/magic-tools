@@ -58,9 +58,9 @@ def _load_combos() -> list[dict]:
 
 
 def compute_engine_isolation_baselines() -> dict[str, str]:
-    """Per-deck SHA of ``facts['engines']['engine_isolation']`` (the ``elect_engine_units`` output).
+    """Per-deck SHA of ``facts['engines']['engine_units']`` (the ``elect_engine_units`` output).
 
-    This is the (a) oracle: a SHA over the held engine-isolation layer's serialized
+    This is the (a) oracle: a SHA over the held engine-units layer's serialized
     output for each hermetic fixture deck.
     """
     combos = _load_combos()
@@ -68,7 +68,7 @@ def compute_engine_isolation_baselines() -> dict[str, str]:
     for slug in _fixture_slugs():
         deck = json.loads((DECKS / f'{slug}.json').read_text())
         ctx = compute_facts(deck, list(combos))
-        engine_iso = ctx.facts['engines']['engine_isolation']
+        engine_iso = ctx.facts['engines']['engine_units']
         baselines[slug] = _sha256(engine_iso)
     return baselines
 
@@ -103,7 +103,7 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 # The canonical full-corpus SHA, computed by ``full_corpus_sha()`` below.
 # Supersedes the ad-hoc ``88de96a7`` value recorded in ADR 0003 (which was
 # computed by an unrecoverable method and is NOT reproducible).
-FULL_CORPUS_SHA = 'c0d979ea0f66e91c0796c46b858fcf33a39a6115edccce10aadb2ab363e9e91c'
+FULL_CORPUS_SHA = '07eb6673512cc9a22081ff6473584cf085200a6e8988bb81ff5341147e406149'
 
 
 def full_corpus_sha() -> str:

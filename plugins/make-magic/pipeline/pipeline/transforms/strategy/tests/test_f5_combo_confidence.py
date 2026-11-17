@@ -24,7 +24,7 @@ from collections import defaultdict
 import pytest
 
 from pipeline.transforms.strategy.config import DEFAULT_CONFIG
-from pipeline.transforms.strategy.naming import name_deck
+from pipeline.transforms.strategy.naming import headline_strategy, name_deck
 from pipeline.transforms.strategy.strategy_graph import FactsContext
 
 
@@ -101,9 +101,9 @@ def test_dense_competing_primary_combo_is_med_not_high():
     sig = rec['confidence_signals']
     assert sig['identity_share'] >= DEFAULT_CONFIG.combo_primary_share
     assert sig['margin'] < DEFAULT_CONFIG.combo_primary_margin
-    assert rec['named_strategy'] == 'alt-wincon/combo'
+    assert headline_strategy(rec) == 'alt-wincon/combo'
     assert rec['combo_override_applied'] is True
-    assert rec['combo_override_f4_blocked'] is False
+    assert rec['combo_override_blocked'] is False
     assert rec['combo_override_dense_primary'] is True
     assert rec['confidence'] == 'MED'
 
@@ -114,7 +114,7 @@ def test_weak_residue_combo_keeps_high():
     rec = name_deck(_ctx(share=0.45, wq_top=100.0, wq_second=71.0))
     sig = rec['confidence_signals']
     assert sig['identity_share'] < DEFAULT_CONFIG.combo_primary_share
-    assert rec['named_strategy'] == 'alt-wincon/combo'
+    assert headline_strategy(rec) == 'alt-wincon/combo'
     assert rec['combo_override_applied'] is True
     assert rec['combo_override_dense_primary'] is False
     assert rec['confidence'] == 'HIGH'
@@ -125,7 +125,7 @@ def test_share_is_the_only_mover_between_med_and_high():
     # gate, not anything else, is what demotes the combo label's confidence
     dense = name_deck(_ctx(share=0.55, wq_top=100.0, wq_second=71.0))
     weak = name_deck(_ctx(share=0.45, wq_top=100.0, wq_second=71.0))
-    assert dense['named_strategy'] == weak['named_strategy'] == 'alt-wincon/combo'
+    assert headline_strategy(dense) == headline_strategy(weak) == 'alt-wincon/combo'
     assert dense['confidence'] == 'MED'
     assert weak['confidence'] == 'HIGH'
 
@@ -135,5 +135,5 @@ def test_known_dense_combo_shares_are_med(share: float):
     # the exact T7 shares (Roxanne 0.523, Tayam 0.545, Blight Curse 0.607, and the
     # 0.50 boundary) all land at MED, never HIGH
     rec = name_deck(_ctx(share=share, wq_top=100.0, wq_second=71.0))
-    assert rec['named_strategy'] == 'alt-wincon/combo'
+    assert headline_strategy(rec) == 'alt-wincon/combo'
     assert rec['confidence'] == 'MED'

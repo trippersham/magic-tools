@@ -2,8 +2,9 @@
 
 Resolves every gauntlet ``.dck`` (and, optionally, a directory of owned-deck
 JSON) against the lake, runs the strategy engine, and writes one record per deck
-(the facts graph + named_strategy + confidence + the degree/power + combo
-surface). Byte-deterministic output (``sort_keys=True``).
+(the facts graph + archetype_identity + confidence + the degree/power + combo
+surface; the headline label is derived via ``naming.headline_strategy``).
+Byte-deterministic output (``sort_keys=True``).
 
 Usage::
 
@@ -35,6 +36,7 @@ from pipeline.transforms.strategy.corpus import (
     load_card_meta,
     load_owned,
 )
+from pipeline.transforms.strategy.naming import headline_strategy
 
 
 def recalc_corpus(
@@ -59,17 +61,17 @@ def recalc_corpus(
 
 
 def _summary(records: list[dict]) -> str:
-    labels = Counter(r['named_strategy'] for r in records)
+    labels = Counter(headline_strategy(r) for r in records)
     conf = Counter(r['confidence'] for r in records if r['confidence'])
     overrides = [r for r in records if r.get('combo_override_applied')]
-    f4_blocked = [r for r in records if r.get('combo_override_f4_blocked')]
+    blocked = [r for r in records if r.get('combo_override_blocked')]
     lines = [
         f'decks: {len(records)}',
         '  labels: ' + json.dumps(dict(sorted(labels.items(), key=lambda kv: -kv[1])), default=str),
         '  confidence: ' + json.dumps(dict(conf)),
-        f'  combo-override fired: {len(overrides)}  (F4-blocked dense primaries: {len(f4_blocked)})',
+        f'  combo-override fired: {len(overrides)}  (F4-blocked dense primaries: {len(blocked)})',
     ]
-    for r in sorted(f4_blocked, key=lambda r: r['name'] or ''):
+    for r in sorted(blocked, key=lambda r: r['name'] or ''):
         lines.append(
             f'    F4-blocked: {(r.get("commander_hint") or r["name"])[:34]:35} '
             f'kept {r["pre_combo_name"]} (share/margin dense)'

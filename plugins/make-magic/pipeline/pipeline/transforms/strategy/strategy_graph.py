@@ -146,20 +146,20 @@ def elect_engine_units(
       at what the commander produces and test whether it reaches back to what the
       commander consumes. Non-empty => a commander-anchored cycle the DAG can't hold.
 
-    The ranked ``elected`` set (0..n strategies) is chosen by node-weighted
+    The ranked ``ranked_units`` set (0..n strategies) is chosen by node-weighted
     event-neighborhood **mass** -- ``m(U) = Σ attr_weight`` over a unit's producers U
-    consumers (its ``weight``). Units are ordered by mass desc (recursive status
-    breaks an EXACT mass tie only); the elected set keeps EVERY substantive unit
+    consumers (its ``mass``). Units are ordered by mass desc (recursive status
+    breaks an EXACT mass tie only); the ranked set keeps EVERY substantive unit
     that is not a member-Jaccard-≥-0.5 near-duplicate of a kept unit — rank-don't-
     cut, no relative-mass threshold (ADR 0022, superseding the 0.6 keep-ratio of
-    ADR 0014). ``recursive`` / ``hub`` / ``commander_coupled`` /
-    ``share`` / ``anchor`` / ``thin`` are reported attributes, never election
+    ADR 0014). ``recursive`` / ``interior_node`` / ``commander_coupled`` /
+    ``share`` / ``formation_mode`` / ``marginal`` are reported attributes, never election
     inputs. There is no distinguished single ``lead`` — consumers that need "the
-    top candidate" read ``elected[0]`` locally.
+    top candidate" read ``ranked_units[0]`` locally.
 
     Before the election, EVENT-SUBSTANTIVENESS admission (ADR 0002 third level /
     ADR 0020) filters the candidate pool: a unit whose event carries a
-    ``producer_anchor`` Requirement is an election candidate only when the deck's
+    ``produced_by_commander`` Requirement is an election candidate only when the deck's
     command zone anchors that event's production (``event_admitted``). The gate is
     DATA-keyed (only ``mana-produced`` today) and reads only commander attrs +
     the event's own refs — never mass. The reported ``engines`` list stays
@@ -212,29 +212,29 @@ def elect_engine_units(
         engines.append(
             {
                 'event': ev,
-                'hub': hub,
+                'interior_node': hub,
                 'enabler': hub or (by_w(P)[0] if P else None),
                 'kind': 'recursive-engine' if hub else 'static-payoff',
                 'producers': by_w(P),
                 'consumers': by_w(C),
                 'payoff_archetypes': archs(C),
-                'weight': round(sum(attr_weight[a] for a in P | C), 1),
+                'mass': round(sum(attr_weight[a] for a in P | C), 1),
             }
         )
     # MASS ELECTION (ADR 0014): node-weighted event-neighborhood mass is the
     # authoritative engine signal. Each unit's mass m(U) = Σ attr_weight over
-    # producers ∪ consumers is already computed as e['weight']. Order by mass  # noqa: RUF003
+    # producers ∪ consumers is already computed as e['mass']. Order by mass  # noqa: RUF003
     # desc; recursive status breaks an EXACT mass tie only (a reported attribute,
     # never a primary sort key); event name is the final determinism tiebreak.
-    engines.sort(key=lambda e: (-e['weight'], e['kind'] != 'recursive-engine', e['event']))
+    engines.sort(key=lambda e: (-e['mass'], e['kind'] != 'recursive-engine', e['event']))
 
     # bounded forward chains: feeder_event -> fed_event (fed hub consumes feeder)
     chains = []
     for e in engines:
-        if e['hub'] is None:
+        if e['interior_node'] is None:
             continue
         for e2 in engines:
-            if e2['event'] != e['event'] and e['hub'] in e2['consumers']:
+            if e2['event'] != e['event'] and e['interior_node'] in e2['consumers']:
                 chains.append([e2['event'], e['event']])
     chains.sort()
 
@@ -269,7 +269,7 @@ def elect_engine_units(
         return 'bipartite'
 
     # EVENT-SUBSTANTIVENESS admission (ADR 0002 third level / ADR 0020): before the
-    # mass election, drop any unit whose EVENT fails its ``producer_anchor`` bar for
+    # mass election, drop any unit whose EVENT fails its ``produced_by_commander`` bar for
     # this deck — the event's engine unit is admitted to ELECTION candidacy only when
     # the command zone anchors its production. GENERIC: keyed on the event's
     # Requirement DATA (``EVENT_SUBSTANTIVENESS``), never an ``if mana`` / deck-name
@@ -311,11 +311,11 @@ def elect_engine_units(
     # RANKS, it does not CUT; substantiveness (upstream) already decided which
     # units exist.
     #
-    # recursive / commander_coupled / share / anchor / thin are REPORTED attributes
-    # only, never election inputs.
+    # recursive / commander_coupled / share / formation_mode / marginal are REPORTED
+    # attributes only, never election inputs.
     elected: list[dict] = []
     if pool:
-        total_mass = sum(e['weight'] for e in pool) or 1e-6
+        total_mass = sum(e['mass'] for e in pool) or 1e-6
         kept_members: list[set[str]] = []
         for e in pool:
             mem = _members(e)
@@ -325,13 +325,13 @@ def elect_engine_units(
             elected.append(
                 {
                     'event': e['event'],
-                    'hub': e['hub'],
-                    'mass': e['weight'],
-                    'share': round(e['weight'] / total_mass, 3),
-                    'anchor': anchor,
+                    'interior_node': e['interior_node'],
+                    'mass': e['mass'],
+                    'share': round(e['mass'] / total_mass, 3),
+                    'formation_mode': anchor,
                     'recursive': e['kind'] == 'recursive-engine',
                     'commander_coupled': bool(mem & cmd_attrs),
-                    'thin': anchor == 'exogenous-environmental',
+                    'marginal': anchor == 'exogenous-environmental',
                     'payoff_archetypes': e['payoff_archetypes'],
                 }
             )
@@ -368,7 +368,7 @@ def elect_engine_units(
 
     return {
         'relay_hubs': by_w(relay),
-        'elected': elected,
+        'ranked_units': elected,
         'engines': engines,
         'forward_chains': chains,
         'commander_loop': cmd_loop,
@@ -738,10 +738,10 @@ def compute_facts(
         'engines': {
             'convergent_event_components': comps[:4],
             'modularity_communities': engine_communities[:5],
-            # engine_isolation is computed AFTER ctx (below): the ARCHETYPE-grain
+            # engine_units is computed AFTER ctx (below): the ARCHETYPE-grain
             # election gate (ADR 0021 B6) consults each archetype's
             # ``Requirement.satisfied`` verdict, which reads ctx.
-            'engine_isolation': None,
+            'engine_units': None,
             'note': 'engines/communities are STRUCTURE-ONLY; they do not decide the label',
         },
         'edges': {
@@ -813,9 +813,9 @@ def compute_facts(
     # that clear their substantiveness bar, via the ONE named evaluator
     # (``requirement_for(arch).satisfied``, ADR 0001/0002) — the SAME verdict the
     # naming layer consults. ``satisfied`` reads ctx, so this runs post-ctx; the
-    # resulting engine_isolation is then placed into the (shared) facts dict.
+    # resulting engine_units is then placed into the (shared) facts dict.
     earned_archetypes = {arch for arch, st in strategies.items() if requirement_for(arch, cfg).satisfied(st, ctx, arch)}
-    facts['engines']['engine_isolation'] = elect_engine_units(
+    facts['engines']['engine_units'] = elect_engine_units(
         nodes, event_edges, attr_weight, assets, cards, earned_archetypes
     )
 

@@ -7,7 +7,7 @@
 |---|---|
 | Status | **Production** (2026-11-15). Branch `feat/strategy-engine`, HEAD `8aad1c2`. |
 | Governing ADRs | [0021](adr/0021-pipeline-superstructure-card-strategy-engine.md) (superstructure), [0014](adr/0014-engine-mass-election.md) (election), [0002](adr/0002-substantiveness-generic-evaluator.md) / [0020](adr/0020-event-substantiveness-producer-anchor.md) (substantiveness), [0022](adr/0022-concept-anchored-derived-adjacency.md) (adjacency) |
-| P0 SHAs | engine `afcffc8a` · resolve `3010be2a` · full-corpus `4acf0f41` |
+| P0 SHAs | engine `7a73aba9` · resolve `1e54293c` · full-corpus `07eb6673` |
 
 ---
 
@@ -27,25 +27,25 @@ Tier 2 is a cached enrichment whose resolution depends on the `claude` CLI.
 | Field | Type | Description |
 |---|---|---|
 | `archetype_identity` | `list[dict]` | Ranked set of earned archetypes for the deck, each with name, confidence, and whether it is substantive at the archetype grain (ADR 0002). Ordered by centrality (ADR 0014). |
-| `engines.engine_isolation.elected` | `list[dict]` | The elected engine-candidate set — strategy sub-units that cleared substantiveness gates at all grains (attribute 0004, event 0020, archetype 0002) and survived the mass-election ranking (0014). A set, not a singleton. |
+| `engines.engine_units.ranked_units` | `list[dict]` | The elected engine-candidate set — strategy sub-units that cleared substantiveness gates at all grains (attribute 0004, event 0020, archetype 0002) and survived the mass-election ranking (0014). A set, not a singleton. (Renamed 2026-11-16 from `engines.engine_isolation.elected`; each unit carries `mass`/`interior_node`/`formation_mode`/`marginal`, ADR 0014.) |
 | `core_combos` | `list[dict]` | Detected combos (Spellbook-sourced), each with `variant_id`, `label`, `result`, `requires`, `n_pieces`, `win`, `win_kind`. |
-| `named_strategy` | `str` | The naming-layer resolution (human-readable strategy name). |
+| headline strategy | `str \| None` | The human-readable headline label. NOT a stored field — derived via `naming.headline_strategy(rec)` = combo-override label when applied, else `archetype_identity[0]['strategy']`, else `None`. (The redundant `named_strategy` field was removed 2026-11-16, ADR 0014.) |
 | `combo_override_applied` | `bool` | Whether a winning combo overrode the archetype-derived name. |
 
 **Guarantees:**
 
 - **Byte-deterministic.** Given the same deck input and the same engine-logic version, `compute_facts` and `resolve` produce byte-identical output. This is enforced by SHA-pinned P0 baselines (ADR 0003) that every CI run verifies.
 - **Pure Python, no network.** Tier 1 requires only the hydrated DuckDB lake (card data + otag data) and the curated strategy assets shipped with the package. No LLM, no API key, no ambient auth.
-- **P0 SHAs:** engine `afcffc8a`, resolve `3010be2a`, full-corpus `4acf0f41`. These reproduce from the live lake via `engine_parity_oracle.full_corpus_sha()`. Any code change that moves a SHA is a proof-carrying re-baseline (ADR 0003).
+- **P0 SHAs:** engine `7a73aba9`, resolve `1e54293c`, full-corpus `07eb6673`. These reproduce from the live lake via `engine_parity_oracle.full_corpus_sha()`. Any code change that moves a SHA is a proof-carrying re-baseline (ADR 0003).
 
 **Pipeline flow (Tier 1):**
 
 ```
 deck + combos + assets
   → compute_facts()              # substantiveness at all grains → election → ranked candidates
-    → _isolate_engines()         # mass election (0014) + B6 archetype-substantiveness gate
+    → elect_engine_units()         # mass election (0014) + B6 archetype-substantiveness gate
   → name_deck()                  # naming-layer resolution
-  → archetype_identity + elected set + named_strategy
+  → archetype_identity + ranked_units set + headline_strategy (derived)
 ```
 
 ### Tier 2 — Resolved Engine (cached, provisional)
@@ -116,7 +116,7 @@ A cached Engine is **fresh** if and only if BOTH conditions hold:
 The engine is designed to never crash on unusual input:
 
 - **Unknown mechanic / sparse deck:** The synthesis prompt instructs the model to ground in what it sees. On the 20-deck external validation (decks the engine never trained on, including 3 precons and a 19-card stub), the model produced defensible engines with `LOW` confidence rather than errors. The stub deck (19 cards, `welcoming-vampire`) grounded to "Small Creature Draw" LOW with 4 real cards.
-- **No combos detected:** The engine falls back to the elected archetype candidates and commander identity. The `named_strategy` and `archetype_identity` (Tier 1) are always present.
+- **No combos detected:** The engine falls back to the elected archetype candidates and commander identity. The derived headline (`naming.headline_strategy`) and `archetype_identity` (Tier 1) are always present.
 - **Synthesis failure / timeout:** `resolve_engine` returns `(None, {'status': 'error', ...})`. The error is logged; the consumer can fall back to Tier 1.
 - **Empty elected set:** Possible for decks with no substantive strategy sub-graph (e.g. a pile of good-stuff with no synergy). The naming layer produces a "defensible" fallback via the never-empty waterfall. Tier 2 synthesis handles this by grounding on the commander and card list.
 
@@ -149,7 +149,7 @@ Key flags: `--fixtures` (17 golden fixtures, lake-free), `--gauntlet` (170 lake-
 
 | Module | Role | Tier |
 |---|---|---|
-| `pipeline.transforms.strategy.facts` | `compute_facts`, `_isolate_engines` — the deterministic Tier-1 path | 1 |
+| `pipeline.transforms.strategy.facts` | `compute_facts`, `elect_engine_units` — the deterministic Tier-1 path | 1 |
 | `pipeline.transforms.strategy.naming` | `name_deck` — naming-layer resolution | 1 |
 | `pipeline.transforms.strategy.engine_synthesis` | `resolve_engine`, `build_synthesis_input`, backends, parse/validate | 2 |
 | `pipeline.transforms.strategy.engine_cache` | `ResolvedEngine`, `EngineCacheRecord`, cache store, staleness key | 2 |

@@ -222,6 +222,35 @@ re-baseline makes every *intended* change legible as such.
   incompleteness, now correct. `vocab_parity_baseline.json`, `engine_isolation_baseline.json`,
   and `FULL_CORPUS_SHA` updated in the same change.
 
+- **2026-11-16 — emitted-key naming-clarity re-baseline (pure key renames + one field
+  removal).** The OUTPUT-AFFECTING half of the naming-clarity pass renamed emitted schema
+  keys and removed the redundant derivable `named_strategy` field (see [0014] for the
+  field-rename rationale). Engine isolation `afcffc8a…` → `7a73aba98b9fb877…095442`;
+  resolve composite `5c4f9c05…` → `1e54293cd148f2fd…691a59a`; full-corpus `c0d979ea…` →
+  `07eb6673512cc9a2…406149` (reproduced from the live lake via `full_corpus_sha()`). All
+  three baselines regenerated in the same change (`engine_isolation_baseline.json`,
+  `vocab_parity_baseline.json`, `FULL_CORPUS_SHA`).
+  **Renames** (pure key substitutions, values byte-identical): engine-unit `weight`→`mass`,
+  `hub`→`interior_node` (in both `engine_units['engines']` and `engine_units['ranked_units']`);
+  ranked-unit `anchor`→`formation_mode`, `thin`→`marginal`; `engine_units['elected']`→
+  `['ranked_units']`; `facts['engines']['engine_isolation']`→`['engine_units']`; top-level
+  `combo_override_f4_blocked`→`combo_override_blocked`. The emitted `note` string value inside
+  `engine_units` retains the word "elected" by design (it is a VALUE, not a key — changing it
+  would break byte-value parity). **Removed:** the top-level `named_strategy` field, now
+  derived on demand by `naming.headline_strategy(rec)` (= combo-override label when applied,
+  else `archetype_identity[0]['strategy']`, else `None`).
+  **Equivalence proof (ZERO value changes):** a canonical transform applied the key-rename
+  map + dropped `named_strategy` on the pre-change snapshot of all **187 records** (170
+  lake-backed full-corpus + 17 hermetic fixtures) and deep-compared to the post-change
+  output — **187/187 identical**, the ONLY differences being the renamed keys and the removed
+  field, no value altered. **Lossless-removal proof:** for all 170 corpus decks (and 17
+  fixtures) the old `named_strategy` == the reconstruction (`headline_strategy`) — **170/170
+  + 17/17, 0 mismatches**, so the field carried no information not derivable from
+  `archetype_identity` + `combo_override_applied`. Suite green (580 passed, 4 skipped);
+  offline clean (477 passed, 107 skipped, 0 errors). (Requirement-kind rename
+  `producer_anchor`→`produced_by_commander`, [0020], is internal dispatch data — NOT emitted —
+  so it did not move any SHA.)
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`facts.py` is shared with this record).

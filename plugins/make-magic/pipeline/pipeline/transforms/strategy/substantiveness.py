@@ -169,7 +169,7 @@ def requirement_for(arch: str, cfg: StrategyConfig) -> Requirement:
 # same closed-set dispatch (never an event-name or deck-name branch); the event
 # name reaches the evaluator only as the DATA-map key.
 #
-# The one kind so far is ``producer_anchor``: an ABSOLUTE, per-event check that
+# The one kind so far is ``produced_by_commander``: an ABSOLUTE, per-event check that
 # the command zone ANCHORS production of the event — the deck's commander carries
 # at least one of the event's own producer refs. It reads ONLY the commander's
 # attrs and the event's own wiring refs — never total/top/other-unit mass, so it
@@ -180,7 +180,7 @@ def requirement_for(arch: str, cfg: StrategyConfig) -> Requirement:
 # The measure degenerates to set-nonemptiness: no numeric threshold to drift.
 
 
-def _eval_producer_anchor(params: dict, event: str, cmd_attrs: set[str], assets: StrategyAssets) -> bool:
+def _eval_produced_by_commander(params: dict, event: str, cmd_attrs: set[str], assets: StrategyAssets) -> bool:
     """Event substantiveness: the command zone anchors production of this event.
 
     ADMIT iff the commander carries at least one attr in the event's own
@@ -205,7 +205,7 @@ def _eval_producer_anchor(params: dict, event: str, cmd_attrs: set[str], assets:
 #: ``requires_met`` payoff gate does NOT apply to the event entity, so these are
 #: NOT in ``_EVALUATORS`` and are not wrapped by ``Requirement.satisfied``).
 _EVENT_EVALUATORS: dict[str, Callable[[dict, str, set[str], Any], bool]] = {
-    'producer_anchor': _eval_producer_anchor,
+    'produced_by_commander': _eval_produced_by_commander,
 }
 
 #: DATA — the per-EVENT substantiveness bar. Default (no row) -> admitted, i.e.
@@ -213,7 +213,7 @@ _EVENT_EVALUATORS: dict[str, Callable[[dict, str, set[str], Any], bool]] = {
 #: DATA: only ``mana-produced`` carries a bar (owner decision — land-enters /
 #: permanent-dies extensions are each their own owner-graded measurement).
 EVENT_SUBSTANTIVENESS: dict[str, Requirement] = {
-    'mana-produced': Requirement('producer_anchor', {'refs': 'produced_by', 'extra_refs': ['ramp']}),
+    'mana-produced': Requirement('produced_by_commander', {'refs': 'produced_by', 'extra_refs': ['ramp']}),
 }
 
 

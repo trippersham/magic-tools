@@ -42,8 +42,8 @@ FIX = Path(__file__).resolve().parent / 'fixtures'
 RELAY_DECKS = FIX / 'relay_decks'
 
 # The two parity-oracle SHAs that MUST NOT shift.
-EXPECTED_ENGINE_SHA = 'afcffc8a6cee9d771bcb71b758d1de75664edb469da7da4d4bcfaf2f7f35c047'
-EXPECTED_RESOLVE_SHA = '5c4f9c054c797c476833b2dcf0f438f5ca3fa8f4f90cffa6d54f43f5cf51ba8f'
+EXPECTED_ENGINE_SHA = '7a73aba98b9fb877a30cc7ac97649d7d8935a673750d40a35b0c0be383095442'
+EXPECTED_RESOLVE_SHA = '1e54293cd148f2fd01ce5fc59834361dbb082da8d692ecc8048537237691a59a'
 
 
 # ---------------------------------------------------------------------------
@@ -114,18 +114,18 @@ class TestDefaultPathNoRelayEngines:
 
     def test_no_relay_hubs(self, relay_ctx) -> None:
         """The default engine isolation has zero relay hubs."""
-        iso = relay_ctx.facts['engines']['engine_isolation']
+        iso = relay_ctx.facts['engines']['engine_units']
         assert iso['relay_hubs'] == []
 
     def test_no_recursive_engines(self, relay_ctx) -> None:
         """No recursive-engine on the default path (only static-payoff)."""
-        iso = relay_ctx.facts['engines']['engine_isolation']
+        iso = relay_ctx.facts['engines']['engine_units']
         kinds = {e['kind'] for e in iso['engines']}
         assert 'recursive-engine' not in kinds
 
     def test_commander_loop_does_not_close(self, relay_ctx) -> None:
         """The commander loop probe does not close without relay injection."""
-        iso = relay_ctx.facts['engines']['engine_isolation']
+        iso = relay_ctx.facts['engines']['engine_units']
         assert iso['commander_loop'] is not None
         assert iso['commander_loop']['closes'] is False
 

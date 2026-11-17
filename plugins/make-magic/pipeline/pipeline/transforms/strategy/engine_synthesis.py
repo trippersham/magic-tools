@@ -75,7 +75,7 @@ def build_synthesis_input(
     commander-loop probe, and the naming-layer resolution.  This is exactly the
     input the synthesiser sees, and the thing the cache's staleness key hashes.
     """
-    from pipeline.transforms.strategy.naming import name_deck
+    from pipeline.transforms.strategy.naming import headline_strategy, name_deck
     from pipeline.transforms.strategy.strategy_graph import compute_facts
 
     if assets is None:
@@ -92,8 +92,8 @@ def build_synthesis_input(
         if c.get('role') == 'commander'
     ]
 
-    iso = ctx.facts['engines']['engine_isolation']
-    elected = iso.get('elected', [])
+    iso = ctx.facts['engines']['engine_units']
+    elected = iso.get('ranked_units', [])
 
     archetype_identity = named['archetype_identity']
 
@@ -114,12 +114,15 @@ def build_synthesis_input(
     cmd_loop = iso.get('commander_loop')
 
     naming_resolution = {
-        'named_strategy': named['named_strategy'],
+        # Derived headline (the removed ``named_strategy`` field, ADR 0014): the
+        # SAME deterministic prior role-B received before, reconstructed losslessly
+        # from ``archetype_identity`` + ``combo_override_applied`` (proven 170/170).
+        'named_strategy': headline_strategy(named),
         'combo_override_applied': named['combo_override_applied'],
         'combo_identity': named['combo_identity'],
         'pre_combo_name': named['pre_combo_name'],
         'confidence': named['confidence'],
-        'combo_override_f4_blocked': named['combo_override_f4_blocked'],
+        'combo_override_blocked': named['combo_override_blocked'],
     }
 
     # In-deck card roster (canonical names, non-basic-land) so the synthesiser

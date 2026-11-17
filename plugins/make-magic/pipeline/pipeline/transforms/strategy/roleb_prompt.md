@@ -10,7 +10,7 @@ You receive a JSON object with:
 - **`commanders`** — commander card(s): `{name, oracle_text}`.
 - **`elected`** — the mass-elected engine candidate set (0..N units), each with:
   - `event` — the engine's central event (e.g. `artifact-enters`, `mana-produced`, `lifegain`).
-  - `hub` — the relay hub attribute driving the cycle (or null).
+  - `interior_node` — the relay hub attribute driving the cycle (or null).
   - `mass` — node-weighted event-neighborhood mass (higher = more central).
   - `share` — this unit's fraction of total elected mass.
   - `recursive` — whether this is a recursive engine (cycle) vs static payoff.
