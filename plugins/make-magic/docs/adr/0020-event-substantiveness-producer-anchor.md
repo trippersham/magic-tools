@@ -134,6 +134,18 @@ only the 4 anchored-and-unstarved decks elect it.
   SHA `07eb6673…` → `188992d2…`; engine/resolve SHAs unchanged. Proof:
   `~/.claude/plans/trippersham/magic-tools/2026-11-11-strategy-abstraction-consolidation/research/impulse-seed-scope.md`.
 
+- **2026-11-17 — Tier-A producer corrections (#74 follow-on; ADR 0003 re-baseline).** The
+  `produced_by` admission gate now sees corrected producer families on several events (SEED_MAP,
+  [0022]): `card-enters-graveyard` gains the `sacrifice-outlet` closure (replacing dead `sac`, the
+  1,554-card family), `spell-cast` gains `impulse-cast`, `game-end` gains `alternate-win-condition`,
+  `creature-copied` uses `clone` (was dead `clones`), and `food-created` loses the false
+  `repeatable-treasures` producer (Treasure≠Food). The gate mechanism is **unchanged** (still DATA-keyed,
+  only `mana-produced` carries a `produced_by_commander` Requirement); these are producer-SET
+  corrections, not gate changes. Live OFF/ON delta: `card-enters-graveyard` dominates (sacrifice-outlet
+  family), **0 engines lost** except 3 intended `food-created` false-positives. Full-corpus
+  `188992d2…` → `38dd7733…`; engine `7a73aba9…` → `1eb27096…`; resolve `1e54293c…` → `00fbb836…`.
+  Proof + per-change delta: `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/tier-a-corrections/outbox.md`.
+
 ## Related records
 - 0002 — the generic substantiveness framework; `produced_by_commander` is its first level-3 kind.
 - 0003 — the byte-parity re-baseline this change carries (old→new SHAs + the proof).

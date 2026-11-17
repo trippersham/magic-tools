@@ -177,6 +177,28 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   (Note: this is the interim manual seed; the scope doc's primary recommendation is the
   concept-anchored self-healing fix that would *re-derive* exactly this family — WS3, not yet built.)
 
+- **2026-11-17 — Tier-A catalog corrections + monarch/extra-turn split (#74 follow-on; ADR 0003
+  re-baseline).** Seven SEED_MAP/catalog corrections from the event-catalog CR audit: (1)
+  `creature-copied.produced_by` `clones`→`clone` (dead ref → real 77-card slug; its closure adds
+  `clone-assassin`/`clone-graveyard`); (2) `card-enters-graveyard.produced_by` `sac`→`sacrifice-outlet`
+  (dead ref → the real sacrifice-outlet subtree, +23 producer slugs: sacrifice-outlet-*, free-/
+  repeatable-sacrifice-outlet, devour, emerge, fling/plunder/casualty — all sacrifice mechanics,
+  precision clean); (3) `proliferate` `synergy-proliferate` producer→trigger (payoff, not producer);
+  (4) `food-created` −`repeatable-treasures` −`eat-food`, `creature-copied.triggers` −`eat-food`
+  (Treasure≠Food; eat-food is an Un-set flavor tag); (5) `game-end` += producer `alternate-win-condition`
+  / trigger `lose-trigger` as SEED_MAP seeds (raw JSON lists stay `[]`, so the derived view carries the
+  edges while `test_event_ontology`'s terminal-inert invariant holds); (6) `spell-cast.produced_by +=
+  impulse-cast` (copy-spell over-promise documented in the rule text — copies aren't cast CR 707.12,
+  but magecraft counts them); (7) `monarch-or-extra-turn` split into `extra-turn` + edge-inert `monarch`,
+  `off-turn-casting-matters` dropped (ADR 0012). `validate_seed_map()` stays at **0 violations**; 28
+  events. **Full OFF/ON delta (157 gauntlet + 17 fixtures):** catalog-level diff is EXACTLY the 7 fixes
+  (no foreign slug in any closure); 60/157 + 5/17 decks moved; **0 engines lost** except the 3 intended
+  `food-created` false-positives (Karlov/Liesa/Judith — Treasure, not Food); `sac`→`sacrifice-outlet`
+  replaced edges 1:1 and expanded coverage; `clones`→`clone` dropped only redundant edges. SHAs (all
+  three moved — fixtures carry the sacrifice-outlet/clone families): full-corpus `188992d2…` →
+  `38dd7733…`; engine `7a73aba9…` → `1eb27096…`; resolve `1e54293c…` → `00fbb836…`. Proof + per-change
+  delta table: `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/tier-a-corrections/outbox.md`.
+
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
 - 0002 / 0020 — substantiveness + the `producer_anchor` gate this adjacency feeds; `ramp` stays anchor-side-only there, never in the adjacency.

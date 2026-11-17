@@ -119,6 +119,21 @@ lists moves from frozen enumeration to the taxonomy-closure view. The enumerated
 `event_catalog.json` as the frozen seed (a strict subset of the derived output) but are
 overwritten at load. This is an output-moving re-baseline carried under [0022] / [0003].
 
+## Amendment — 2026-11-17 (#74 Tier-A): monarch/extra-turn split, 27 → 28 events
+
+The conflated `monarch-or-extra-turn` node (CR 720 Taking an Extra Turn ∪ CR 726 The Monarch —
+two unrelated mechanics that formed a false `extra-turn → monarch-matters` edge) is split into two
+bounded nodes: **`extra-turn`** (produced_by `extra-turn`, triggers `turns-taken-matter`) and
+**`monarch`** (produced_by `monarch-matters`, triggers `monarch-matters`). `monarch` is **edge-inert
+by construction**: Scryfall carries one `monarch-matters` tag on both makers and payoffs, so the
+single attribute on both sides forms no edge (the `p != c_` self-pair exclusion in `strategy_graph`);
+the node documents the mechanic and bounds the taxonomy until a `monarch-maker` synth-attribute split
+lights it up in a later wave. `off-turn-casting-matters` (a flash/off-turn-cast payoff, neither extra
+turns nor monarch) was dropped. Catalog event count **27 → 28**; the field vocabulary is unchanged and
+`test_event_ontology.py` still passes (`game-end` gained producers/consumers via SEED_MAP seeds while
+its raw JSON lists stay `[]`, preserving the terminal-inert invariant that test asserts). Count
+invariant: `test_adjacency.py::test_anchor_map_has_28_events`. Output-moving re-baseline under [0003].
+
 ## The bipartite graph and its projections
 
 The strategy engine operates on ONE bipartite graph with two projections.
@@ -131,7 +146,7 @@ Two node colors:
 
 - **Attribute** nodes (otag slugs / synthesised CardAttributes — the vocabulary of
   `distill_strategies.py` + `synth_attrs_for`).
-- **Event** nodes (the 27 slugs in `data/event_catalog.json`).
+- **Event** nodes (the 28 slugs in `data/event_catalog.json`; see the 2026-11-17 amendment).
 
 Two directed edge types, both drawn from the event catalog's adjacency lists
 (produced at load by `derive_card_events`, amendment above):

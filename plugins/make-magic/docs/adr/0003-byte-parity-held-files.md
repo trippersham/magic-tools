@@ -277,6 +277,34 @@ re-baseline makes every *intended* change legible as such.
   `~/.claude/plans/trippersham/magic-tools/2026-11-11-strategy-abstraction-consolidation/research/impulse-seed-scope.md`.
   The seeds govern under [0020]/[0022]; the live delta reproduced the measurement exactly.
 
+- **2026-11-17 — Tier-A event-catalog corrections + monarch/extra-turn split (#74 follow-on).**
+  Seven correctness fixes landed as one proof-carrying re-baseline (`derive_card_events.py` SEED_MAP
+  + `event_catalog.json` + `fid_event_adapter.json` + `combo_win.py`): (1) `creature-copied.produced_by`
+  `clones`→`clone` (real Scryfall slug); (2) `card-enters-graveyard.produced_by` `sac`→`sacrifice-outlet`
+  (recovers the 1,554-card sacrifice-outlet family); (3) `proliferate` `synergy-proliferate` moved
+  producer→trigger (it is a payoff, not a producer); (4) `food-created` dropped `repeatable-treasures`
+  + `eat-food`, and `creature-copied.triggers` dropped `eat-food` (Treasure≠Food CR 111.10; eat-food is
+  an Un-set flavor tag); (5) `game-end.produced_by += alternate-win-condition` (87), `triggers +=
+  lose-trigger` (12) via SEED_MAP seeds (raw JSON lists stay `[]` so the terminal invariant holds);
+  (6) `spell-cast.produced_by += impulse-cast` (28); (7) `monarch-or-extra-turn` split into `extra-turn`
+  (produced_by `extra-turn`, triggers `turns-taken-matter`) + `monarch` (edge-inert: one `monarch-matters`
+  attr on both sides, no edge via the `p != c_` self-pair exclusion), `off-turn-casting-matters` dropped,
+  fids 42/621/1183/1742 remapped to `extra-turn`, `combo_win.fid_route` branch renamed (27→28 events).
+  SHAs (ALL three moved — the hermetic fixtures DO carry the sacrifice-outlet/clone families this time):
+  full-corpus `188992d290aa98f3…708fae6` → `38dd7733a440fb13…b50367`; engine isolation
+  `7a73aba98b9fb877…095442` → `1eb27096118d38ad…f3529b`; resolve `1e54293cd148f2fd…691a59a` →
+  `00fbb8360a711583…e77063`. `FULL_CORPUS_SHA` + all engine/resolve constants (7 test files) +
+  `distill_parity_baseline.json` + `engine_isolation_baseline.json` regenerated in the same change.
+  **Correctness proof (full OFF/ON delta over 157 gauntlet + 17 fixtures):** 60/157 + 5/17 decks moved;
+  the catalog-level diff is EXACTLY the 7 fixes (no foreign slug leaked into any closure); **0 engines
+  lost** except the **3 intended** `food-created` false-positives (Karlov/Liesa/Judith are Treasure decks,
+  not Food); `sac`→`sacrifice-outlet` replaced sac-node edges 1:1 at the deck level and expanded coverage;
+  `clones`→`clone` removed only redundant edges (copy-creature already covers those consumers); the
+  game-end/spell-cast/proliferate/extra-turn/monarch producer changes are catalog-correct with 0
+  deck-edge impact on this corpus (rare co-occurrence; monarch edge-inert by design). Every changed edge
+  traces to one of the 7 fixes. Full measurement + per-change delta table:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/tier-a-corrections/outbox.md`.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`strategy_graph.py` is shared with this record).

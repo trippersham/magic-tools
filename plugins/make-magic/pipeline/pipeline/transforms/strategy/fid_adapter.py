@@ -21,7 +21,8 @@ Owner-ruled dispositions applied during promotion:
 - bounce → ``permanent-leaves-battlefield``.
 - life-total-set → ``life-loss-drain`` (pragmatic: threatens same SBA).
 - fid 2113 "Lich" → ``cant-lose`` (reclassified from terminal-win).
-- fid 1742 "Extra Turn Spell" → ``monarch-or-extra-turn`` (finite magnitude).
+- fid 1742 "Extra Turn Spell" → ``extra-turn`` (finite magnitude; renamed from
+  monarch-or-extra-turn in the #74 §2 split — turn fids 42/621/1183/1742 all route here).
 - fid 1394 "Skip your future turns" → ``None`` (non-terminal standing condition;
   all-players-no-turns is a derived ``game-end(draw)`` the walk recognizes).
 - Saga/dice/dungeon: NOT lumped — saga→counter-placed (lore counters),

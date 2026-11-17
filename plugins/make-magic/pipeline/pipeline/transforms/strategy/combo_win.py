@@ -308,8 +308,9 @@ def fid_route(fid: int) -> dict[str, Any] | None:
         base.update(route='state')
         return base
 
-    # monarch-or-extra-turn: policy cell — infinite turns = win
-    if event == 'monarch-or-extra-turn':
+    # extra-turn: policy cell — infinite turns = win (renamed from
+    # monarch-or-extra-turn in the #74 §2 split; all 4 turn fids route here)
+    if event == 'extra-turn':
         if unbounded:
             base.update(route='turn-monopoly', timing='deferred')
             return base

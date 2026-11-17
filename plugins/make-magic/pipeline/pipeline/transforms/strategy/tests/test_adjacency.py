@@ -94,7 +94,7 @@ class TestManaProducedSoundness:
 
 
 class TestAnchorMapCompleteness:
-    """The 27-event seed map covers every catalog event."""
+    """The 28-event seed map covers every catalog event."""
 
     def test_every_event_has_anchor_entry(self, catalog_events: dict[str, dict]) -> None:
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
@@ -102,10 +102,10 @@ class TestAnchorMapCompleteness:
         for event_name in catalog_events:
             assert event_name in SEED_MAP, f'Event {event_name!r} missing from SEED_MAP'
 
-    def test_anchor_map_has_27_events(self) -> None:
+    def test_anchor_map_has_28_events(self) -> None:
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
-        assert len(SEED_MAP) == 27
+        assert len(SEED_MAP) == 28
 
     def test_each_entry_has_both_sides_and_grade(self) -> None:
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
@@ -122,12 +122,17 @@ class TestAnchorMapCompleteness:
                 )
 
     def test_grade_tally_matches_build_design(self) -> None:
-        """15 S-bearing, 8 fully-M, 4 ambiguous/empty.
+        """15 S-bearing, 10 fully-M, 3 ambiguous/empty (28 events).
 
         The build-design notes "16 + mana-prod T-adjacent" — mana-produced's
         T side is graded M (multi-concept: mana-sink + mana-increaser) so the
-        formal tally is 15/8/4.  The build-design's "+T-adjacent" is a
+        formal tally is 15/10/3.  The build-design's "+T-adjacent" is a
         borderline note, not a grade upgrade.
+
+        #74 §2 Tier-A re-baseline (was 15/8/4 at 27 events): game-end gained
+        otag seeds (empty/empty -> M/M, moving from empty to fully-M); the
+        monarch-or-extra-turn (empty producer) split into extra-turn (still
+        empty producer) + monarch (M/M, fully-M). Net: fully-M 8->10, empty 4->3.
         """
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
@@ -145,8 +150,8 @@ class TestAnchorMapCompleteness:
                 fully_m += 1
 
         assert has_s == 15, f'Expected 15 S-bearing events, got {has_s}'
-        assert fully_m == 8, f'Expected 8 fully-M events, got {fully_m}'
-        assert has_empty == 4, f'Expected 4 ambiguous/empty events, got {has_empty}'
+        assert fully_m == 10, f'Expected 10 fully-M events, got {fully_m}'
+        assert has_empty == 3, f'Expected 3 ambiguous/empty events, got {has_empty}'
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +376,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_engine_isolation_baselines()
         sha = composite_sha(baselines)
-        assert sha == '7a73aba98b9fb877a30cc7ac97649d7d8935a673750d40a35b0c0be383095442', (
+        assert sha == '1eb27096118d38ad1dacf6a6d49f63531d3f334b63074f41db8090b207f3529b', (
             f'Engine isolation SHA shifted: {sha}'
         )
 
@@ -383,7 +388,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == '1e54293cd148f2fd01ce5fc59834361dbb082da8d692ecc8048537237691a59a', f'Resolve SHA shifted: {sha}'
+        assert sha == '00fbb8360a7115835c86ddb64929801f909070e528e320245fb8e66398e77063', f'Resolve SHA shifted: {sha}'
 
 
 # ---------------------------------------------------------------------------

@@ -143,6 +143,16 @@ the strategy engine path.
 - Re-baseline: engine isolation SHA unchanged (`a6dfa607`); resolve composite
   `7d35fe19…` → `d409069e…`; full-corpus `de5313af…` → `0901bc62…` (ADR 0003).
 
+## Later changes
+
+- **2026-11-17 — `extra-turn` branch rename (#74 Tier-A).** The `fid_route` policy-cell
+  branch `if event == 'monarch-or-extra-turn':` was renamed to `if event == 'extra-turn':`
+  following the catalog split (ADR 0012) and the fid remap (ADR 0007). Policy is **unchanged**:
+  unbounded → `turn-monopoly` (deferred win), finite → oneshot. No `EVENT_EDGE_CLASSES` entry
+  existed for the old name and none is needed for either new node (`monarch` is edge-inert;
+  `extra-turn` routes through the fid branch, not an edge class). Carried under the Tier-A
+  re-baseline (ADR 0003); `test_combo_win.py` + the parity oracle re-verified green.
+
 ## Related records
 
 - 0003 — Byte-parity: this change is a sanctioned re-baseline with parity proof.

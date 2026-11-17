@@ -109,7 +109,19 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 # 0003 + 2026-11-11-strategy-abstraction-consolidation/research/impulse-seed-scope.md).
 # ENGINE (7a73aba9) + RESOLVE (1e54293c) were UNCHANGED — the 17 hermetic
 # fixtures carry none of the touched cheat-into-play commanders.
-FULL_CORPUS_SHA = '188992d290aa98f3731b6e2ffb8a43dfe25c5dbcde19fb1c8866625c7708fae6'
+# Re-baselined 2026-11-17 (#74 Tier-A catalog corrections + monarch/extra-turn
+# split): sac->sacrifice-outlet (card-enters-graveyard recovers the 1,554-card
+# sacrifice-outlet family), clones->clone, food-created -repeatable-treasures
+# (3 FALSE treasure-as-food engines dropped: Karlov/Liesa/Judith), + game-end/
+# spell-cast/proliferate/monarch catalog corrections. Measured OFF/ON delta:
+# 60/157 gauntlet + 5/17 fixture decks moved, 0 engines lost except the 3 intended
+# food false-edges, every edge traced to one of the 7 fixes (proof in subagents/
+# tier-a-corrections/outbox.md). This time the hermetic fixtures DO carry the
+# touched families, so ENGINE + RESOLVE moved too:
+#   FULL_CORPUS 188992d290aa98f3… -> 38dd7733a440fb13…
+#   ENGINE      7a73aba98b9fb877… -> 1eb27096118d38ad…
+#   RESOLVE     1e54293cd148f2fd… -> 00fbb8360a711583…
+FULL_CORPUS_SHA = '38dd7733a440fb1397ff720cc8f9e3678a0d1be6e988d256a0843e7972b50367'
 
 
 def full_corpus_sha() -> str:

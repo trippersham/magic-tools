@@ -138,7 +138,7 @@
         "mill",
         "mill-self",
         "rummage",
-        "sac",
+        "sacrifice-outlet",
         "sacrifice-self",
         "wheel"
       ],
@@ -207,11 +207,12 @@
       ]
     },
     "spell-cast": {
-      "rule": "CR 601: casting a spell; noncreature/instant-sorcery casts drive magecraft/spellslinger/storm",
+      "rule": "CR 601: casting a spell; noncreature/instant-sorcery casts drive magecraft/spellslinger/storm. impulse-cast (exile-and-you-may-cast) is a real CR 601.1b producer. COPY CAVEAT: copies are NOT cast (CR 707.12), so copy-* producers over-promise for cast-only payoffs (storm/prowess/cast-trigger) — but magecraft (CR 702.157a) counts 'casts or copies' and is in the trigger closure, so the copy->cast-trigger edge is precise for magecraft and a deliberate over-promise elsewhere.",
       "produced_by": [
         "copy-instant",
         "copy-sorcery",
-        "copy-spell"
+        "copy-spell",
+        "impulse-cast"
       ],
       "triggers": [
         "cast-trigger",
@@ -335,8 +336,7 @@
       "rule": "CR 701.27: proliferate adds another of each kind of counter",
       "produced_by": [
         "pseudo-proliferate",
-        "repeatable-proliferate",
-        "synergy-proliferate"
+        "repeatable-proliferate"
       ],
       "triggers": [
         "counter-fuel",
@@ -357,7 +357,8 @@
         "counter-fuel-stun",
         "counter-fuel-time",
         "counters-matter",
-        "pp-counters-matter"
+        "pp-counters-matter",
+        "synergy-proliferate"
       ]
     },
     "token-created": {
@@ -402,11 +403,9 @@
     "food-created": {
       "rule": "CR 701.6: Food token creation and consumption (eat Food to gain life); Food is defined at CR 111.10",
       "produced_by": [
-        "repeatable-food",
-        "repeatable-treasures"
+        "repeatable-food"
       ],
       "triggers": [
-        "eat-food",
         "lifegain-matters",
         "synergy-food"
       ]
@@ -537,20 +536,28 @@
         "synergy-deathtouch"
       ]
     },
-    "monarch-or-extra-turn": {
-      "rule": "CR 720/726: taking extra turns / becoming the monarch (repeatable advantage engines)",
+    "extra-turn": {
+      "rule": "CR 500.7 / CR 720 (Taking an Extra Turn): an extra turn is created and taken after this one; infinite turns = effective win (policy). Split from the former monarch-or-extra-turn (#74 §2).",
       "produced_by": [
         "extra-turn"
       ],
       "triggers": [
-        "monarch-matters",
-        "off-turn-casting-matters"
+        "turns-taken-matter"
+      ]
+    },
+    "monarch": {
+      "rule": "CR 726 (The Monarch): a player becomes the monarch (draw at end step; designation moves on combat damage / monarch leaving). EDGE-INERT for now (#74 §2.2 option i): Scryfall carries one monarch-matters tag on both makers and payoffs, so the single attr on both sides forms no edge (the p != c_ self-pair exclusion). A monarch-maker synth-attr split comes in a later wave.",
+      "produced_by": [
+        "monarch-matters"
+      ],
+      "triggers": [
+        "monarch-matters"
       ]
     },
     "creature-copied": {
       "rule": "CR 707 / 701.6: a token or permanent that is a COPY of a creature is minted under your control (clone, steal-via-copy of a dying creature, populate-of-a-creature-token). Producers are the copy-creature/clone identity (the `clones` bucket) plus the token-copy families (copy-token/copy-self = populate); the EVENT covers token-copy even though the clones ARCHETYPE does not. A minted copy is a new creature/token permanent, so it is consumed by the creature-/token-enters payoffs (and, when the copy is also a Food as with Shelob, by the Food/lifegain payoffs).",
       "produced_by": [
-        "clones",
+        "clone",
         "copy-token",
         "copy-self"
       ],
@@ -560,8 +567,7 @@
         "synergy-token",
         "enters-in-company",
         "leaves-body-behind",
-        "synergy-food",
-        "eat-food"
+        "synergy-food"
       ]
     },
     "untap": {

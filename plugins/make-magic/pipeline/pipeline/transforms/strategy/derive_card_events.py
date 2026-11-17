@@ -10,7 +10,7 @@ The rule
 --------
 Given an event side (produce/trigger), each SEED is the **highest ancestor**
 in the otag taxonomy whose descendant-closure stays *mechanic-exclusive* — stop
-one level below any ancestor that admits a different mechanic.  The 27-event
+one level below any ancestor that admits a different mechanic.  The 28-event
 seed map below was derived by the build-design measurement pass
 (``subagents/adjacency-build-design/research/adjacency-build-design.md``) and is
 reused here as DATA: each side's ``seeds`` are the owner-approved mechanic-
@@ -91,7 +91,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 # ---------------------------------------------------------------------------
-# 27-event seed map — owner-approved DATA from the validated build-design.
+# 28-event seed map — owner-approved DATA from the validated build-design.
 #
 # For each event, each side (``triggers`` / ``produced_by``) carries:
 #   - ``seeds``: list[str] — otag slugs whose descendant-closure defines
@@ -362,7 +362,7 @@ SEED_MAP: dict[str, dict[str, Any]] = {
                 'mill',
                 'mill-self',
                 'rummage',
-                'sac',
+                'sacrifice-outlet',
                 'sacrifice-self',
                 'wheel',
             ],
@@ -388,10 +388,19 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
+            # impulse-cast (#74 §4.1): exile-and-you-may-CAST producers (Sunbird's
+            # Invocation, Aetherworks Marvel) make real CR 601.1b casts. copy-*
+            # producers are a documented over-promise: copies are NOT cast
+            # (CR 707.12), so storm/prowess/cast-only payoffs don't see them —
+            # but magecraft (CR 702.157a) counts "casts or copies", and magecraft
+            # IS in the trigger closure, so the copy->cast-trigger edge is precise
+            # for magecraft consumers. The larger cast families
+            # (cast-on-resolution/free-cast-another/theft-cast) stay OUT (owner call).
             'seeds': [
                 'copy-instant',
                 'copy-sorcery',
                 'copy-spell',
+                'impulse-cast',
             ],
             'grade': 'M',
         },
@@ -553,14 +562,17 @@ SEED_MAP: dict[str, dict[str, Any]] = {
                 'counter-fuel-time',
                 'counters-matter',
                 'pp-counters-matter',
+                'synergy-proliferate',
             ],
             'grade': 'M',
         },
         'produced_by': {
+            # synergy-proliferate (#74 §MISCAT) moved to triggers: those 7 cards
+            # (Tekuthal, Ezuri Stalker, Venser Corpse Puppet) are proliferate-MATTERS
+            # payoffs/amplifiers — they consume/amplify proliferate, they don't perform it.
             'seeds': [
                 'pseudo-proliferate',
                 'repeatable-proliferate',
-                'synergy-proliferate',
             ],
             'grade': 'M',
         },
@@ -631,17 +643,20 @@ SEED_MAP: dict[str, dict[str, Any]] = {
     # ── 16. food-created ────────────────────────────────────────────────
     'food-created': {
         'triggers': {
+            # eat-food dropped (#74 §3.5): it is a flavor/external-prop Un-set tag
+            # ("actual food, generally being eaten"), not a Food-token payoff;
+            # synergy-food is the real consumer and stays.
             'seeds': [
-                'eat-food',
                 'lifegain-matters',
                 'synergy-food',
             ],
             'grade': 'M',
         },
         'produced_by': {
+            # repeatable-treasures dropped (#74 §3.5): Treasure != Food (CR 111.10);
+            # measured overlap with repeatable-food is 4 cards (98% false).
             'seeds': [
                 'repeatable-food',
-                'repeatable-treasures',
             ],
             'grade': 'M',
         },
@@ -802,27 +817,43 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
     },
-    # ── 21. monarch-or-extra-turn ───────────────────────────────────────
-    'monarch-or-extra-turn': {
+    # ── 21. extra-turn (#74 §2 split: was monarch-or-extra-turn) ─────────
+    # off-turn-casting-matters dropped: its members are flash/cast-on-opponents'-
+    # turns payoffs, produced by neither extra turns nor monarch.
+    'extra-turn': {
         'triggers': {
-            'seeds': [
-                'monarch-matters',
-                'off-turn-casting-matters',
-            ],
+            'seeds': ['turns-taken-matter'],
             'grade': 'M',
         },
         'produced_by': {
+            # extra-turn is a text-synth attr (no otag); closure is itself.
             'seeds': ['extra-turn'],
             'grade': 'empty',
+        },
+    },
+    # ── 21b. monarch (#74 §2 split; §2.2 option (i): EDGE-INERT) ─────────
+    # Scryfall carries ONE monarch-matters tag on both makers and payoffs, so the
+    # single attr on both sides forms no edge (the p != c_ self-pair exclusion in
+    # strategy_graph). The node documents the mechanic and bounds the taxonomy; a
+    # monarch-maker synth-attr split that lights it up comes in a LATER wave.
+    'monarch': {
+        'triggers': {
+            'seeds': ['monarch-matters'],
+            'grade': 'M',
+        },
+        'produced_by': {
+            'seeds': ['monarch-matters'],
+            'grade': 'M',
         },
     },
     # ── 22. creature-copied ─────────────────────────────────────────────
     'creature-copied': {
         'triggers': {
+            # eat-food dropped (#74 §3.5): flavor Un-set tag that rode along with
+            # the Shelob food-copy note; synergy-food is the real consumer.
             'seeds': [
                 'creature-count-matters',
                 'creaturefall',
-                'eat-food',
                 'enters-in-company',
                 'leaves-body-behind',
                 'synergy-food',
@@ -832,8 +863,10 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
+            # clones -> clone (#74 #22): the real Scryfall slug is `clone` (77
+            # cards, "enter as copies of other things"); `clones` matched zero.
             'seeds': [
-                'clones',
+                'clone',
                 'copy-creature',
                 'copy-self',
                 'copy-token',
@@ -912,9 +945,17 @@ SEED_MAP: dict[str, dict[str, Any]] = {
         },
     },
     # ── 26. game-end (terminal) ─────────────────────────────────────────
+    # #74 §4.2: alternate-win-condition (87: Approach, Thassa's Oracle, Simic
+    # Ascendancy, Mechanized Production) genuinely produces game-end; lose-trigger
+    # (12: Curse of Vengeance, Sengir the Dark Baron) is a genuine consumer of
+    # game-end(loss, opponent-scope). alternate-loss-condition is DEFERRED (the
+    # node-level polarity field cannot distinguish loss- from win-producers on the
+    # otag side). Seeds live here (not the raw JSON lists) so the committed catalog
+    # keeps game-end's raw produced_by/triggers == [] (the terminal invariant) while
+    # the derived view carries the edges.
     'game-end': {
-        'triggers': {'seeds': [], 'grade': 'empty'},
-        'produced_by': {'seeds': [], 'grade': 'empty'},
+        'triggers': {'seeds': ['lose-trigger'], 'grade': 'M'},
+        'produced_by': {'seeds': ['alternate-win-condition'], 'grade': 'M'},
     },
     # ── 27. library-depleted ────────────────────────────────────────────
     'library-depleted': {

@@ -78,6 +78,16 @@ During promotion, ambiguous features received owner-ruled classifications:
 - The adapter schema (`{fid, name, event, magnitude, scope, object_descriptor}`)
   is fixed; changing it requires updating this record.
 
+## Later changes
+
+- **2026-11-17 — fid remap for the monarch/extra-turn split (#74 Tier-A).** The four turn
+  fids 42 (`Infinite turns`), 621 (`Near-infinite turns`), 1183 (`Infinite turns after one
+  turn cycle`), 1742 (`Extra Turn Spell`) had `event: "monarch-or-extra-turn"`; that catalog
+  slug was split (ADR 0012) and all four now carry `event: "extra-turn"`. Magnitudes/scopes/
+  routes unchanged (1742 stays `finite` → oneshot; the three unbounded stay → `turn-monopoly`).
+  No monarch fids exist (verified). `combo_win.fid_route`'s branch renamed to match (ADR 0016).
+  Data-only change to the `event` field; carried under the Tier-A re-baseline (ADR 0003).
+
 ## Related records
 
 - 0012 — Event ontology: the bounded trigger taxonomy the adapter maps into.

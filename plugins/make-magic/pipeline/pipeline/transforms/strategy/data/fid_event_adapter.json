@@ -260,7 +260,7 @@
     "scope": "unscoped"
   },
   {
-    "event": "monarch-or-extra-turn",
+    "event": "extra-turn",
     "fid": 42,
     "magnitude": "infinite",
     "name": "Infinite turns",
@@ -2829,7 +2829,7 @@
     "scope": "self"
   },
   {
-    "event": "monarch-or-extra-turn",
+    "event": "extra-turn",
     "fid": 621,
     "magnitude": "near-infinite",
     "name": "Near-infinite turns",
@@ -5000,7 +5000,7 @@
     "scope": "self"
   },
   {
-    "event": "monarch-or-extra-turn",
+    "event": "extra-turn",
     "fid": 1183,
     "magnitude": "infinite",
     "name": "Infinite turns after one turn cycle",
@@ -6929,7 +6929,7 @@
     "scope": "unscoped"
   },
   {
-    "event": "monarch-or-extra-turn",
+    "event": "extra-turn",
     "fid": 1742,
     "magnitude": "finite",
     "name": "Extra Turn Spell",

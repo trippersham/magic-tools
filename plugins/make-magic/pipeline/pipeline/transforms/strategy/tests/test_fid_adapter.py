@@ -83,7 +83,7 @@ _TERMINAL_REACHING_EVENTS = frozenset(
         'game-end',
         'life-loss-drain',  # SBA 104.3b
         'library-depleted',  # CR 104.3c
-        'monarch-or-extra-turn',  # policy cell: treated as WIN
+        'extra-turn',  # policy cell: treated as WIN (renamed from monarch-or-extra-turn, #74 §2)
         # Combat events reach game-end via damage:
         'combat-damage-dealt',
         'creature-attacks',
@@ -239,10 +239,10 @@ class TestOwnerDispositions:
         assert m.event == 'cant-lose', f'fid 2113 maps to {m.event!r}, expected cant-lose'
 
     def test_fid_1742_extra_turn_is_finite(self) -> None:
-        """fid 1742 "Extra Turn Spell" maps to monarch-or-extra-turn with finite magnitude."""
+        """fid 1742 "Extra Turn Spell" maps to extra-turn with finite magnitude (#74 §2 split)."""
         m = lookup(1742)
         assert m is not None
-        assert m.event == 'monarch-or-extra-turn'
+        assert m.event == 'extra-turn'
         assert m.magnitude == 'finite'
 
     def test_fid_1394_skip_turns_non_terminal(self) -> None:
