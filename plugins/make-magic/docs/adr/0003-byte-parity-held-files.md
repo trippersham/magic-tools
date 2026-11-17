@@ -5,7 +5,7 @@
 | Status | Accepted. In force on branch `feat/strategy-engine`. |
 | Review | ratified by the owner on 2026-11-11. (Agent-authored; owner-ratified.) |
 | Test | From `plugins/make-magic/pipeline`: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` records a composite SHA over the serialized `_isolate_engines` output plus the full `resolve()` records for the 17 hermetic fixture decks; a parity test imports `composite_sha` to assert no drift. The full 170-deck curated-corpus SHA is now **independently checkable** via `full_corpus_sha()` in `engine_parity_oracle.py` (canonical serialization: `json.dumps(records, sort_keys=True, separators=(',',':'), default=list)` → SHA-256; pinned as `FULL_CORPUS_SHA`). A lake-gated test in `test_resolution_fidelity.py::TestFullCorpusCanonicalSha` asserts the value. |
-| Code paths | [`pipeline/.../strategy/data/attribute_vocab_v4.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_vocab_v4.json), [`event_catalog_v4.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog_v4.json), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py), [`vocab.py`](../../pipeline/pipeline/transforms/strategy/vocab.py), [`win_walk.py`](../../pipeline/pipeline/transforms/strategy/win_walk.py), [`data/card_edges.json`](../../pipeline/pipeline/transforms/strategy/data/card_edges.json), [`combo.py`](../../pipeline/pipeline/transforms/strategy/combo.py), [`tests/fixtures/vocab_parity_baseline.json`](../../pipeline/pipeline/transforms/strategy/tests/fixtures/vocab_parity_baseline.json) |
+| Code paths | [`pipeline/.../strategy/data/attribute_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/attribute_catalog.json), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py), [`query.py`](../../pipeline/pipeline/transforms/strategy/query.py), [`vocab.py`](../../pipeline/pipeline/transforms/strategy/vocab.py), [`win_walk.py`](../../pipeline/pipeline/transforms/strategy/win_walk.py), [`data/card_edges.json`](../../pipeline/pipeline/transforms/strategy/data/card_edges.json), [`combo.py`](../../pipeline/pipeline/transforms/strategy/combo.py), [`tests/fixtures/vocab_parity_baseline.json`](../../pipeline/pipeline/transforms/strategy/tests/fixtures/vocab_parity_baseline.json) |
 
 ## Context
 The higher-order engine-identification work (machine-authored attributes, within-card
@@ -15,8 +15,8 @@ machine store must leave the committed engine's output byte-for-byte identical, 
 regression in the curated base could never hide inside the new layer.
 
 ## Decision
-Six curated files are **byte-frozen** on `feat/strategy-engine`: `attribute_vocab_v4.json`,
-`event_catalog_v4.json`, `facts.py`, `query.py`, `vocab.py`, and the parity fixture
+Six curated files are **byte-frozen** on `feat/strategy-engine`: `attribute_catalog.json`,
+`event_catalog.json`, `facts.py`, `query.py`, `vocab.py`, and the parity fixture
 `vocab_parity_baseline.json`. The oracle (`tests/engine_parity_oracle.py`) records a
 composite SHA over `_isolate_engines` + `resolve()` for the 17 hermetic fixture decks;
 the current baselines live in `engine_isolation_baseline.json` and

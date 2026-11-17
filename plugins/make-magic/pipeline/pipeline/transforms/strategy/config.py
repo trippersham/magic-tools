@@ -33,7 +33,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 #: DELETED (no routing identity, no ``_v4_groups`` entry), so it can no longer be
 #: re-enabled. The anthem archetype is fed ONLY the NARROW ``power-matters-self``
 #: payoff, folded into the ``anthem`` bucket by the vocab data itself
-#: (``_v4_base_buckets['anthem']`` in ``attribute_vocab_v4.json``). See ADR 0006.
+#: (``_v4_base_buckets['anthem']`` in ``attribute_catalog.json``). See ADR 0006.
 ALL_GROUPS: tuple[str, ...] = (
     'new_buckets',
     'dual',

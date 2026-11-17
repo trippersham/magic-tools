@@ -1,7 +1,7 @@
 """Frozen vocabulary + event catalog + routing — the engine's committed data.
 
-Loads the promoted data files (``data/attribute_vocab_v4.json``,
-``data/event_catalog_v4.json``) and assembles, as a function of a
+Loads the promoted data files (``data/attribute_catalog.json``,
+``data/event_catalog.json``) and assembles, as a function of a
 :class:`~.config.StrategyConfig`, every derived constant the facts/naming layers
 need: the bucket set, payoff/support vocab, density thresholds, event anchors,
 the EDHREC membership family, the compiled synth-attribute predicates, and the
@@ -42,8 +42,8 @@ from pipeline.transforms.strategy.vocab import (
 )
 
 DATA_DIR = Path(__file__).resolve().parent / 'data'
-VOCAB_FILE = DATA_DIR / 'attribute_vocab_v4.json'
-EVENTS_FILE = DATA_DIR / 'event_catalog_v4.json'
+VOCAB_FILE = DATA_DIR / 'attribute_catalog.json'
+EVENTS_FILE = DATA_DIR / 'event_catalog.json'
 #: The T5.5 EDHREC NEW-NODE nameable label space. SINGLE SOURCE OF TRUTH: the
 #: set is loaded from the committed ``labelspace.json`` (data-authoritative) so
 #: the code and the realized label space can never silently diverge.

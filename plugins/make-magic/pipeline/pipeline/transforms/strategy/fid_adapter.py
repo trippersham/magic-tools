@@ -6,7 +6,7 @@ into production data.  Each of the 1,348 Spellbook features maps to:
     fid  ->  {event, magnitude, scope, object_descriptor}
 
 Where ``event`` is a slug from the bounded trigger taxonomy
-(``data/event_catalog_v4.json``), or ``None`` for features with no engine role
+(``data/event_catalog.json``), or ``None`` for features with no engine role
 (oneshot effects, card-class enablers, inert symmetrics).
 
 This module is DATA + LOADER.  It IS consumed by ``combo_win.py`` (the

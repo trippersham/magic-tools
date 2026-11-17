@@ -19,7 +19,7 @@ _skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not
 # Fixtures
 # ---------------------------------------------------------------------------
 
-_CATALOG_PATH = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog_v4.json'
+_CATALOG_PATH = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog.json'
 _EDGES_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent / 'subagents' / '5.3b-work'
 
 

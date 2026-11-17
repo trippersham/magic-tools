@@ -135,7 +135,7 @@ def _abbrev_event(event: str, events: dict) -> str:
     """Abbreviate an event-catalog slug for human-readable names.
 
     The display abbreviation is co-located on the catalog event (the
-    ``abbrev`` field in ``data/event_catalog_v4.json``); events without one
+    ``abbrev`` field in ``data/event_catalog.json``); events without one
     fall back to the slug itself.
     """
     return events.get(event, {}).get('abbrev', event)

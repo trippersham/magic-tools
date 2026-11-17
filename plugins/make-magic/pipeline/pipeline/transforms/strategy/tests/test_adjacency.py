@@ -20,7 +20,7 @@ _skip_no_lake = pytest.mark.skipif(not LAKE_AVAILABLE, reason='lake parquets not
 # Fixtures
 # ---------------------------------------------------------------------------
 
-_CATALOG_PATH = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog_v4.json'
+_CATALOG_PATH = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog.json'
 
 
 @pytest.fixture()
@@ -227,7 +227,7 @@ class TestDerivedSupersetOfEnumerated:
     """Derived lists ⊇ enumerated for every event, except slugs the exclusivity
     rule refuses as cross-mechanic umbrellas.
 
-    The committed ``event_catalog_v4.json`` (ADR 0012 byte-parity) still lists
+    The committed ``event_catalog.json`` (ADR 0012 byte-parity) still lists
     ``ramp`` in ``land-enters-battlefield.produced_by``.  The seed rule now
     REFUSES ``ramp`` there (it dilutes the land mechanic), so the single
     documented superset exception is exactly the rule's refused set — not a

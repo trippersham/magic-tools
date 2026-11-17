@@ -1,6 +1,6 @@
 ---
 paths:
-  - "**/pipeline/transforms/strategy/data/event_catalog_v4.json"
+  - "**/pipeline/transforms/strategy/data/event_catalog.json"
   - "**/pipeline/transforms/strategy/substantiveness.py"
   - "**/pipeline/transforms/strategy/strategy_graph.py"
 ---

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-_CATALOG_PATH = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog_v4.json'
+_CATALOG_PATH = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog.json'
 
 
 @pytest.fixture()

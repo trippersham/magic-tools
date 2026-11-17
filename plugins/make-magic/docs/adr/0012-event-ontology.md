@@ -2,14 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted. Observed from `data/event_catalog_v4.json` as built; invariant test added. |
+| Status | Accepted. Observed from `data/event_catalog.json` as built; invariant test added. |
 | Review | pending owner review: agent-authored from observed catalog shape + design-3 section 3.1 / design-2 section 2. |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests/test_event_ontology.py -q` (8 assertions: no role/terminal on any event; polarity/scope reserved for game-end; field-vocabulary guard; required-field guard; baseline non-emptiness). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` — both P0 SHAs unchanged (test-only addition). |
-| Code paths | [`data/event_catalog_v4.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog_v4.json) (the held event catalog), [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py) (promiscuity-scaled Requirements — ADR 0002), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (presence gate), [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (`_load_events`). |
+| Code paths | [`data/event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (the held event catalog), [`substantiveness.py`](../../pipeline/pipeline/transforms/strategy/substantiveness.py) (promiscuity-scaled Requirements — ADR 0002), [`facts.py`](../../pipeline/pipeline/transforms/strategy/facts.py) (presence gate), [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (`_load_events`). |
 
 ## Context
 
-The event catalog (`data/event_catalog_v4.json`) defines the **bounded trigger taxonomy**
+The event catalog (`data/event_catalog.json`) defines the **bounded trigger taxonomy**
 of the game — the complete set of game events a deck's cards can produce or respond to
 (land-ETB, creature-ETB, dies, attacks, spell-cast, lifegain, etc.). Each event node
 carries `{rule, produced_by, triggers}` and optionally `abbrev` for display.
@@ -116,7 +116,7 @@ anchors (`anchor_derivation.ANCHOR_MAP` → `derive_event_adjacency`), applied i
 unchanged** (`{rule, produced_by, triggers, abbrev}` + `game-end` extras) — `test_event_ontology.py`
 still passes — and no `role`/`terminal` field is added; only the *source* of the two adjacency
 lists moves from frozen enumeration to the taxonomy-closure view. The enumerated lists remain in
-`event_catalog_v4.json` as the frozen seed (a strict subset of the derived output) but are
+`event_catalog.json` as the frozen seed (a strict subset of the derived output) but are
 overwritten at load. This is an output-moving re-baseline carried under [0022] / [0003].
 
 ## The bipartite graph and its projections
@@ -131,7 +131,7 @@ Two node colors:
 
 - **Attribute** nodes (otag slugs / synthesised CardAttributes — the vocabulary of
   `vocab.py` + `synth_attrs_for`).
-- **Event** nodes (the 27 slugs in `data/event_catalog_v4.json`).
+- **Event** nodes (the 27 slugs in `data/event_catalog.json`).
 
 Two directed edge types, both drawn from the event catalog's adjacency lists
 (produced at load by `derive_event_adjacency`, amendment above):

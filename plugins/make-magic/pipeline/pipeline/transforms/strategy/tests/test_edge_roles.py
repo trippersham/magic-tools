@@ -39,7 +39,7 @@ REFERENCED_EVENTS = frozenset({'draw-a-card', 'lifegain', 'life-loss-drain'})
 
 @pytest.fixture()
 def event_catalog() -> dict:
-    catalog_path = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog_v4.json'
+    catalog_path = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog.json'
     with open(catalog_path) as f:
         return json.load(f)
 
@@ -98,7 +98,7 @@ class TestCuratedEdgeRoles:
             assert isinstance(role.provenance, Provenance)
 
     def test_referenced_events_exist_in_catalog(self, event_catalog: dict) -> None:
-        """All trigger/produced slugs map to real events in event_catalog_v4."""
+        """All trigger/produced slugs map to real events in event_catalog."""
         from pipeline.transforms.strategy.edge_roles import CURATED_EDGE_ROLES
 
         catalog_events = set(event_catalog['events'].keys())

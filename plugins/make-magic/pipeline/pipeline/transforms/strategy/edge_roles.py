@@ -19,7 +19,7 @@ within-card edges into the event graph.
 
 Event alignment
 ---------------
-Each trigger/produced role is an event slug from ``data/event_catalog_v4.json``.
+Each trigger/produced role is an event slug from ``data/event_catalog.json``.
 The 6 curated edges use exactly 3 events:
 
     ``draw-a-card``     — CR 120: drawing cards
@@ -64,10 +64,10 @@ class EventEffect:
     ----------
     trigger_event
         The event this edge fires on (e.g. ``'draw-a-card'``).
-        Must be a slug in ``data/event_catalog_v4.json``.
+        Must be a slug in ``data/event_catalog.json``.
     produced_event
         The event this edge produces (e.g. ``'life-loss-drain'``).
-        Must be a slug in ``data/event_catalog_v4.json``.
+        Must be a slug in ``data/event_catalog.json``.
         Renamed from ``effect_event`` in Phase 2A.
     provenance
         Origin metadata. For curated attrs: ``source='curated'``.

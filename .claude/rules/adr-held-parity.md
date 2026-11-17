@@ -1,7 +1,7 @@
 ---
 paths:
-  - "**/pipeline/transforms/strategy/data/attribute_vocab_v4.json"
-  - "**/pipeline/transforms/strategy/data/event_catalog_v4.json"
+  - "**/pipeline/transforms/strategy/data/attribute_catalog.json"
+  - "**/pipeline/transforms/strategy/data/event_catalog.json"
   - "**/pipeline/transforms/strategy/strategy_graph.py"
   - "**/pipeline/transforms/strategy/query.py"
   - "**/pipeline/transforms/strategy/vocab.py"

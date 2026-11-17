@@ -23,7 +23,7 @@ from pipeline.transforms.strategy.fid_adapter import (
 )
 
 _DATA_PATH = Path(__file__).resolve().parent.parent / 'data' / 'fid_event_adapter.json'
-_CATALOG_PATH = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog_v4.json'
+_CATALOG_PATH = Path(__file__).resolve().parent.parent / 'data' / 'event_catalog.json'
 
 # The 43 hand-audited win-fids (from the research validation).
 _WIN_FIDS = frozenset(

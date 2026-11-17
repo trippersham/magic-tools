@@ -5,7 +5,7 @@
 | Status | **Accepted.** In force on branch `feat/strategy-engine`. Output-moving re-baseline (ADR 0003) carried at the 2026-11-14 flip (task 6.5). |
 | Review | Agent-authored from the empirically-validated build design (`research/adjacency-build-design.md`) and the three-round shadow measurement (`research/derived-adjacency-shadow-delta.md`); the orchestrator reconciled, ran the full-170 gauntlet (0 genuine regressions), showed the owner the delta + old→new SHAs, and committed + re-baselined. (Supersedes the `0018-DRAFT` proposal; 0018–0019 remain unused.) |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (547 passed, 4 skipped). Seed rule: `test_adjacency.py` (superset `derived ⊇ enumerated` except the intended ramp-correction; `validate_seed_map()` 0 violations; `TestExclusivityValidator` gate — `ramp` refused for both `mana-produced` and `land-enters-battlefield`; `test_ramp_as_seed_caught_by_validator` — non-tautological acceptance test; `TestEventAdmittedGate` — producer-anchor admission). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` + `test_event_ontology.py` + the re-baselined `FULL_CORPUS_SHA`. |
-| Code paths | [`adjacency.py`](../../pipeline/pipeline/transforms/strategy/adjacency.py) (`SEED_MAP`, `derive_event_adjacency`, the enforced exclusivity validator), [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py) + [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (derive-at-load), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` rank-don't-cut), [`event_catalog_v4.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog_v4.json) (the frozen enumerated seed, now overwritten at load). |
+| Code paths | [`adjacency.py`](../../pipeline/pipeline/transforms/strategy/adjacency.py) (`SEED_MAP`, `derive_event_adjacency`, the enforced exclusivity validator), [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py) + [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (derive-at-load), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` rank-don't-cut), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (the frozen enumerated seed, now overwritten at load). |
 
 ## Context
 
@@ -50,7 +50,7 @@ Two coupled changes, each one named rule (ADR 0001 — one rule, one implementat
   hydration path) — so every downstream reader (relay, facts, combo_edges, substantiveness,
   `event_anchors` → `otag_derived_attrs`) sees the derived view. The former
   `SHADOW_DERIVED_ADJACENCY` flag is retired. The enumerated lists remain in
-  `event_catalog_v4.json` as the frozen seed but are overwritten at load and are no longer
+  `event_catalog.json` as the frozen seed but are overwritten at load and are no longer
   authoritative.
 - **Corroboration = carries-the-concept.** Card otags are ancestor-closed (verified: a card tagged
   with any descendant already carries the ancestor — 0 violations / 5,439 instances), so

@@ -46,7 +46,7 @@ SearchClient = Callable[[str], list[dict]]
 # Event-catalog access
 # ---------------------------------------------------------------------------
 
-_CATALOG_PATH = Path(__file__).resolve().parent / 'data' / 'event_catalog_v4.json'
+_CATALOG_PATH = Path(__file__).resolve().parent / 'data' / 'event_catalog.json'
 
 
 @lru_cache(maxsize=1)
