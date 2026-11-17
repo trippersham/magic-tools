@@ -391,8 +391,15 @@ def otag_derived_attrs(closure: set[str], assets: StrategyAssets) -> set[str]:
     NOT included here -- :func:`compute_facts` unions those separately from the
     full card via :func:`.vocab.synth_attrs_for`.
     """
-    attrs = {b for b, slugs in assets.buckets.items() if closure & set(slugs)}
-    attrs |= closure & assets.payoff_slugs
+    # One matcher (ADR 0009): a CardAttribute -- bucket or payoff -- is carried iff
+    # its compiled ``card_attributes`` query matches the card's otag closure. The
+    # closure is the ancestor-closed otag set, so a view over just those otags
+    # resolves every ``otag:`` query; this replaced the separate bucket
+    # (OR-of-slug) and payoff (slug-intersection) tests with identical membership.
+    # The event-anchor / enchantment / EDHREC lines stay direct closure
+    # intersections (already clean ``otag:name`` membership, out of scope).
+    view = CardView(otags=frozenset(closure), keywords=frozenset(), type_line='', oracle_text_lower='', mana_cost='')
+    attrs = {name for name, pred in assets.card_attr_preds if pred(view)}
     attrs |= closure & assets.event_anchors
     attrs |= closure & ENCH_ATTR_SLUGS
     attrs |= closure & EDHREC_ATTR_SLUGS

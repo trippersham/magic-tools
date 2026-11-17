@@ -5,7 +5,63 @@
     "draw",
     "tutor"
   ],
+  "bucket_attributes": [
+    "clones",
+    "removal",
+    "ramp",
+    "draw",
+    "tokens",
+    "counters",
+    "burn",
+    "tutor",
+    "sac",
+    "counterspells",
+    "flicker",
+    "typal",
+    "anthem",
+    "combat",
+    "protection",
+    "stax",
+    "extra_combat",
+    "wincon",
+    "lifegain",
+    "artifacts",
+    "graveyard",
+    "equipment",
+    "landfall",
+    "spellslinger",
+    "food",
+    "mm_counters",
+    "theft"
+  ],
   "card_attributes": {
+    "clones": "otag:copy-creature OR otag:clone",
+    "removal": "otag:removal",
+    "ramp": "otag:ramp OR otag:land-ramp OR otag:multi-land-ramp OR otag:tutor-land OR otag:tutor-land-any OR otag:tutor-land-basic OR otag:tutor-land-basic-forest OR otag:tutor-land-basic-island OR otag:tutor-land-basic-mountain OR otag:tutor-land-basic-plains OR otag:tutor-land-basic-swamp OR otag:tutor-land-cave OR otag:tutor-land-desert OR otag:tutor-land-forest OR otag:tutor-land-gate OR otag:tutor-land-island OR otag:tutor-land-mountain OR otag:tutor-land-plains OR otag:tutor-land-snow OR otag:tutor-land-specific OR otag:tutor-land-swamp OR otag:tutor-land-to-battlefield OR otag:tutor-land-town",
+    "draw": "otag:card-advantage",
+    "tokens": "otag:token-increaser OR otag:repeatable-token-generator OR otag:repeatable-creature-tokens OR otag:repeatable-artifact-tokens OR otag:copy-artifact OR otag:sacrifice-outlet-token",
+    "counters": "otag:counter-increaser OR otag:pp-counters-matter OR otag:counters-matter OR otag:gives-pp-counters OR otag:gives-pp-counters-to-all OR otag:gains-pp-counters OR otag:repeatable-pp-counters",
+    "burn": "otag:burn OR otag:opponent-loses-life OR otag:drain-life",
+    "tutor": "otag:tutor",
+    "sac": "otag:sacrifice-outlet OR otag:free-sacrifice-outlet OR otag:repeatable-sacrifice-outlet OR otag:sacrifice-outlet-land OR otag:sacrifice-outlet-token OR otag:hate-removal-sacrifice",
+    "counterspells": "otag:counterspell",
+    "flicker": "otag:flicker",
+    "typal": "otag:typal OR otag:typal-creature OR otag:typal-hero OR otag:typal-share OR otag:noncreature-typal OR otag:changeling OR otag:cost-reducer-creature",
+    "anthem": "otag:power-boost-to-all OR otag:toughness-boost-to-all OR otag:anthem OR otag:power-matters-self",
+    "combat": "otag:attacking-matters OR otag:attacking-matters-self OR otag:attack-trigger OR otag:gives-double-strike OR otag:gives-evasion OR otag:gives-flying OR otag:gives-trample OR otag:gives-menace",
+    "protection": "otag:protection OR otag:protects-creature OR otag:protects-all OR otag:gives-indestructible OR otag:gives-hexproof",
+    "stax": "otag:tax OR otag:cast-tax OR otag:tax-attack OR otag:tax-block",
+    "extra_combat": "otag:extra-combat-phase",
+    "wincon": "otag:alternate-win-condition",
+    "lifegain": "otag:lifegain OR otag:repeatable-lifegain OR otag:lifegain-matters OR otag:lifegain-to-damage OR otag:lifegain-increaser OR otag:life-total-matters-self",
+    "artifacts": "otag:synergy-artifact OR otag:artifact-count-matters OR otag:affinity-for-artifacts OR otag:synergy-artifact-creature OR otag:repeatable-artifact-tokens OR otag:metalcraft OR otag:improvise OR otag:recursion-artifact OR otag:reanimate-artifact OR otag:regrowth-artifact OR otag:copy-artifact OR otag:cost-reducer-artifact",
+    "graveyard": "otag:cards-in-graveyard-matter OR otag:graveyard-fuel OR otag:graveyard-fuel-self OR otag:castable-from-graveyard OR otag:activate-from-graveyard OR otag:synergy-graveyard-cast OR otag:leaving-graveyard-matters OR otag:recursion-land OR otag:reanimate-land OR otag:regrowth-land OR otag:recursion-artifact OR otag:reanimate-artifact OR otag:regrowth-artifact OR otag:recursion-enchantment OR otag:reanimate-aura OR otag:regrowth-enchantment OR otag:reanimate-equipment OR otag:lands-in-graveyard-matter OR otag:synergy-land-graveyard",
+    "equipment": "otag:synergy-equipment OR otag:quick-equip OR otag:auto-equip OR otag:synergy-aura OR otag:quick-attach OR otag:recursion-enchantment OR otag:reanimate-aura OR otag:regrowth-enchantment OR otag:reanimate-equipment",
+    "landfall": "otag:landfall OR otag:lands-matter OR otag:extra-land OR otag:land-count-matters OR otag:landfall-other OR otag:recursion-land OR otag:reanimate-land OR otag:regrowth-land OR otag:lands-in-graveyard-matter OR otag:synergy-land-graveyard OR otag:land-ramp OR otag:multi-land-ramp OR otag:sacrifice-outlet-land",
+    "spellslinger": "otag:cast-trigger-you OR otag:cast-trigger-other OR otag:second-spell-matters OR otag:storm-count-matters OR otag:prowess-like",
+    "food": "otag:repeatable-food OR otag:synergy-food OR otag:eat-food",
+    "mm_counters": "otag:gives-mm-counters OR otag:gains-mm-counters OR otag:mm-counters-matter OR otag:removes-mm-counters-self",
+    "theft": "otag:theft-creature OR otag:theft-artifact OR otag:theft-land OR otag:theft-planeswalker OR otag:theft-spell",
     "power-matters": "otag:power-matters",
     "attacking-matters": "otag:attacking-matters",
     "mana-value-matters": "otag:mana-value-matters",
@@ -374,7 +430,6 @@
     "synergy-craft": "otag:synergy-craft",
     "synergy-mentor": "otag:synergy-mentor",
     "synergy-color-non-share": "otag:synergy-color-non-share",
-    "typal": "otag:typal",
     "typal-creature": "otag:typal-creature",
     "typal-coupling": "otag:typal-coupling",
     "typal-dragon": "otag:typal-dragon",
@@ -857,320 +912,5 @@
       "threshold_cards": 8,
       "rationale": "generic typal detector: a dominant shared creature subtype, independent of any specific tribe."
     }
-  },
-  "_v4_base_buckets": {
-    "clones": [
-      "copy-creature",
-      "clone"
-    ],
-    "removal": [
-      "removal"
-    ],
-    "ramp": [
-      "ramp"
-    ],
-    "draw": [
-      "card-advantage"
-    ],
-    "tokens": [
-      "token-increaser",
-      "repeatable-token-generator",
-      "repeatable-creature-tokens"
-    ],
-    "counters": [
-      "counter-increaser",
-      "pp-counters-matter",
-      "counters-matter",
-      "gives-pp-counters",
-      "gives-pp-counters-to-all",
-      "gains-pp-counters",
-      "repeatable-pp-counters"
-    ],
-    "burn": [
-      "burn",
-      "opponent-loses-life",
-      "drain-life"
-    ],
-    "tutor": [
-      "tutor"
-    ],
-    "sac": [
-      "sacrifice-outlet",
-      "free-sacrifice-outlet",
-      "repeatable-sacrifice-outlet"
-    ],
-    "counterspells": [
-      "counterspell"
-    ],
-    "flicker": [
-      "flicker"
-    ],
-    "typal": [
-      "typal",
-      "typal-creature",
-      "typal-hero",
-      "typal-share",
-      "noncreature-typal",
-      "changeling"
-    ],
-    "anthem": [
-      "power-boost-to-all",
-      "toughness-boost-to-all",
-      "anthem",
-      "power-matters-self"
-    ],
-    "combat": [
-      "attacking-matters",
-      "attacking-matters-self",
-      "attack-trigger",
-      "gives-double-strike",
-      "gives-evasion",
-      "gives-flying",
-      "gives-trample",
-      "gives-menace"
-    ],
-    "protection": [
-      "protection",
-      "protects-creature",
-      "protects-all",
-      "gives-indestructible",
-      "gives-hexproof"
-    ],
-    "stax": [
-      "tax",
-      "cast-tax",
-      "tax-attack",
-      "tax-block"
-    ],
-    "extra_combat": [
-      "extra-combat-phase"
-    ],
-    "wincon": [
-      "alternate-win-condition"
-    ],
-    "lifegain": [
-      "lifegain",
-      "repeatable-lifegain",
-      "lifegain-matters",
-      "lifegain-to-damage",
-      "lifegain-increaser",
-      "life-total-matters-self"
-    ],
-    "artifacts": [
-      "synergy-artifact",
-      "artifact-count-matters",
-      "affinity-for-artifacts",
-      "synergy-artifact-creature",
-      "repeatable-artifact-tokens",
-      "metalcraft",
-      "improvise"
-    ],
-    "graveyard": [
-      "cards-in-graveyard-matter",
-      "graveyard-fuel",
-      "graveyard-fuel-self",
-      "castable-from-graveyard",
-      "activate-from-graveyard",
-      "synergy-graveyard-cast",
-      "leaving-graveyard-matters"
-    ],
-    "equipment": [
-      "synergy-equipment",
-      "quick-equip",
-      "auto-equip",
-      "synergy-aura",
-      "quick-attach"
-    ],
-    "landfall": [
-      "landfall",
-      "lands-matter",
-      "extra-land",
-      "land-count-matters",
-      "landfall-other"
-    ],
-    "spellslinger": [
-      "cast-trigger-you",
-      "cast-trigger-other",
-      "second-spell-matters",
-      "storm-count-matters",
-      "prowess-like"
-    ],
-    "food": [
-      "repeatable-food",
-      "synergy-food",
-      "eat-food"
-    ],
-    "mm_counters": [
-      "gives-mm-counters",
-      "gains-mm-counters",
-      "mm-counters-matter",
-      "removes-mm-counters-self"
-    ],
-    "theft": [
-      "theft-creature",
-      "theft-artifact",
-      "theft-land",
-      "theft-planeswalker",
-      "theft-spell"
-    ]
-  },
-  "_v4_groups": {
-    "dual": {
-      "graveyard": [
-        "recursion-land",
-        "reanimate-land",
-        "regrowth-land",
-        "recursion-artifact",
-        "reanimate-artifact",
-        "regrowth-artifact",
-        "recursion-enchantment",
-        "reanimate-aura",
-        "regrowth-enchantment",
-        "reanimate-equipment",
-        "lands-in-graveyard-matter",
-        "synergy-land-graveyard"
-      ],
-      "landfall": [
-        "recursion-land",
-        "reanimate-land",
-        "regrowth-land",
-        "lands-in-graveyard-matter",
-        "synergy-land-graveyard",
-        "land-ramp",
-        "multi-land-ramp",
-        "sacrifice-outlet-land"
-      ],
-      "artifacts": [
-        "recursion-artifact",
-        "reanimate-artifact",
-        "regrowth-artifact",
-        "copy-artifact",
-        "repeatable-artifact-tokens"
-      ],
-      "equipment": [
-        "recursion-enchantment",
-        "reanimate-aura",
-        "regrowth-enchantment",
-        "reanimate-equipment"
-      ],
-      "ramp": [
-        "land-ramp",
-        "multi-land-ramp"
-      ],
-      "sac": [
-        "sacrifice-outlet-land",
-        "sacrifice-outlet-token",
-        "hate-removal-sacrifice"
-      ],
-      "tokens": [
-        "repeatable-artifact-tokens",
-        "copy-artifact",
-        "sacrifice-outlet-token"
-      ]
-    },
-    "affinity": {
-      "artifacts": [
-        "cost-reducer-artifact"
-      ],
-      "typal": [
-        "cost-reducer-creature"
-      ]
-    },
-    "ramp_tutor": {
-      "ramp": [
-        "tutor-land",
-        "tutor-land-any",
-        "tutor-land-basic",
-        "tutor-land-basic-forest",
-        "tutor-land-basic-island",
-        "tutor-land-basic-mountain",
-        "tutor-land-basic-plains",
-        "tutor-land-basic-swamp",
-        "tutor-land-cave",
-        "tutor-land-desert",
-        "tutor-land-forest",
-        "tutor-land-gate",
-        "tutor-land-island",
-        "tutor-land-mountain",
-        "tutor-land-plains",
-        "tutor-land-snow",
-        "tutor-land-specific",
-        "tutor-land-swamp",
-        "tutor-land-to-battlefield",
-        "tutor-land-town"
-      ]
-    },
-    "dual_land": {
-      "graveyard": [
-        "recursion-land",
-        "reanimate-land",
-        "regrowth-land",
-        "lands-in-graveyard-matter",
-        "synergy-land-graveyard"
-      ],
-      "landfall": [
-        "recursion-land",
-        "reanimate-land",
-        "regrowth-land",
-        "lands-in-graveyard-matter",
-        "synergy-land-graveyard",
-        "land-ramp",
-        "multi-land-ramp",
-        "sacrifice-outlet-land"
-      ],
-      "ramp": [
-        "land-ramp",
-        "multi-land-ramp"
-      ],
-      "sac": [
-        "sacrifice-outlet-land"
-      ]
-    },
-    "dual_art": {
-      "graveyard": [
-        "recursion-artifact",
-        "reanimate-artifact",
-        "regrowth-artifact"
-      ],
-      "artifacts": [
-        "recursion-artifact",
-        "reanimate-artifact",
-        "regrowth-artifact",
-        "copy-artifact",
-        "repeatable-artifact-tokens"
-      ],
-      "tokens": [
-        "repeatable-artifact-tokens",
-        "copy-artifact"
-      ]
-    },
-    "dual_ench": {
-      "graveyard": [
-        "recursion-enchantment",
-        "reanimate-aura",
-        "regrowth-enchantment",
-        "reanimate-equipment"
-      ],
-      "equipment": [
-        "recursion-enchantment",
-        "reanimate-aura",
-        "regrowth-enchantment",
-        "reanimate-equipment"
-      ]
-    },
-    "dual_sac": {
-      "sac": [
-        "sacrifice-outlet-token",
-        "hate-removal-sacrifice"
-      ],
-      "tokens": [
-        "sacrifice-outlet-token"
-      ]
-    }
-  },
-  "_v4_new_bucket_names": [
-    "food",
-    "mm_counters",
-    "theft"
-  ]
+  }
 }

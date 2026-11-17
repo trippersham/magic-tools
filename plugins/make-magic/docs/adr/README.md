@@ -20,6 +20,7 @@ which points back here.
 | [0006](0006-config-universal-or-gone.md) | Configuration: universal or gone — frozen boolean knobs removed, not toggled | Accepted | pending owner review | config.py |
 | [0007](0007-fid-event-adapter.md) | Spellbook fid-to-Event adapter: 1,348-row production data layer mapping features to the bounded trigger taxonomy; consumed by the win-walk (ADR 0016) | Accepted | pending owner review | fid_adapter.py, data/fid_event_adapter.json |
 | [0008](0008-canonical-normalization.md) | Canonical normalization: `CardAttribute` (one concept, provenance-tagged source in {curated, haiku, spellbook}); `ProvisionalAttributeStore` (lifecycle-named storage); no compat aliases | Accepted | pending owner review | machine_vocab.py |
+| [0009](0009-unified-card-attribute-query-model.md) | Unified CardAttribute membership: one `card_attributes` `otag:`-query map + one compiled matcher — buckets and payoffs are not special cases; `bucket_attributes`/`support` are role lists beside the map; group-merge mechanism collapsed (byte-parity) | Accepted | pending owner review | attribute_catalog.json, assets.py, strategy_graph.py, query.py |
 | [0011](0011-eventeffect-guards.md) | EventEffect guards: query/reference over a defined operand set at one evaluation chokepoint — characteristic CardAttribute-ref + bounded scope/identity enum + event-reachable ref + unresolved; the guard defines the producer set; per trigger-ability; scaffolded Phase 2A, evaluation 2B | Accepted | pending owner review | edge_roles.py, relay.py, machine_vocab.py |
 | [0012](0012-event-ontology.md) | Event = the game's bounded trigger taxonomy; no `role` field — sink-ness is pure topology; `polarity`/`scope` on `game-end` only; mechanic-class is a CardAttribute not an Event; promiscuity-scaled substantiveness via ADR 0002 | Accepted | pending owner review | event_catalog.json, substantiveness.py, strategy_graph.py |
 | [0014](0014-engine-mass-election.md) | Engine = node-weighted event-neighborhood MASS election (the "2C flip"): mass authoritative for lead + the 0..n `elected` set (0.6 keep-ratio, Jaccard-0.5 dedup); recursive/hub demoted to reported attributes; three generic anchor modes; STRUCTURE-ONLY (0 labels change); distinct from `archetype_identity` | Accepted | pending owner review | strategy_graph.py (`elect_engine_units`), engine_report.py, relay.py |
@@ -34,9 +35,11 @@ implemented them, from observed post-change behavior.*
 
 *0007 (fid-to-Event adapter) and 0016 (closure-mechanism win-walk) were authored as part of
 the Phase 2B step 5b-ii flip. 0014 (Engine mass-election) was authored with the 2C flip that
-implemented it, from the re-validated full-170 delta. 0009–0010, 0013, 0015 are reserved for the
-remaining Design-2/3 fold (query contract, Strategy, DeckAssessment) and will be authored in that
-change. 0011 (EventEffect guards) and 0012 (Event ontology) were authored ahead of the full
+implemented it, from the re-validated full-170 delta. 0010, 0013, 0015 are reserved for the
+remaining Design-2/3 fold (Strategy, DeckAssessment) and will be authored in that
+change. 0009 (query contract) was authored with the WS1.2 consolidation that unified the
+CardAttribute membership model (one `card_attributes` query map + one matcher), from the
+byte-parity delta (all three P0 SHAs unchanged). 0011 (EventEffect guards) and 0012 (Event ontology) were authored ahead of the full
 fold as part of Phase 2A scaffolding; 0012 was updated with the mechanic-class clause in 5b-ii.
 0017 was authored ahead of the fold because a probe prototype violated its rule; it is closely
 related to 0008/0011/0014 and may be merged into 0008 at fold time. 0020 (event-substantiveness
