@@ -62,6 +62,21 @@ other clauses police. The value/branch test (ADR 0001) is the discriminator.
 - All strategy boolean knobs are now removed (incl. `enable_tutor_land_enabler`, via the
   F2 rework); only tunable thresholds remain in `StrategyConfig`.
 
+## Amendment — WS1.2: the group MECHANISM is gone (last group knob removed)
+The `new_buckets` collapse (above) left the broader **group-merge mechanism** standing —
+`enabled_groups: frozenset` on `StrategyConfig`, `_enabled_groups` / `REFINED_GROUPS` /
+`ALL_GROUPS`, and the `_v4_base_buckets` + `_v4_groups` merge in `assets.py`. Audit: that
+field **never narrowed** from its all-groups default in production, tests, or CLI — the
+merge result is a constant, so `enabled_groups` was itself a frozen branch (dead config).
+
+The WS1.2 CardAttribute-model unification (**ADR 0009**) removes the whole mechanism:
+`enabled_groups` / `_enabled_groups` / `REFINED_GROUPS` / `ALL_GROUPS` are deleted, and the
+group slugs are baked into each bucket's query in the unified `card_attributes` map
+(`_v4_base_buckets` / `_v4_groups` / `_v4_new_bucket_names` deleted). Byte-parity: the three
+P0 SHAs (engine `7a73aba9…`, resolve `1e54293c…`, full-corpus `07eb6673…`) are unchanged
+pre/post. `test_config_settings` drops its `enabled_groups` assertions; no behavior changed.
+
 ## Related records
 - 0001 — the value/branch test this applies.
 - 0003 — held files (`vocab.py`, `facts.py`); this change is output-preserving.
+- 0009 — the CardAttribute-model unification that bakes the group slugs into the query map.

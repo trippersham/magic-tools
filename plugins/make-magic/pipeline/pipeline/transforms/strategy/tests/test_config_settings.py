@@ -22,9 +22,6 @@ from pipeline.transforms.strategy.substantiveness import build_substantiveness
 
 #: The validated engine's default field values (the byte-parity contract).
 _EXPECTED_DEFAULTS = {
-    'enabled_groups': frozenset(
-        {'dual', 'affinity', 'ramp_tutor', 'dual_land', 'dual_art', 'dual_ench', 'dual_sac'}
-    ),
     'gy_distinct': 4,
     'gy_ratio': 0.15,
     'conf_high': 0.66,
@@ -72,7 +69,6 @@ def test_default_no_env_is_byte_parity() -> None:
     for field, expected in _EXPECTED_DEFAULTS.items():
         assert getattr(cfg, field) == expected, f'{field}: {getattr(cfg, field)!r} != {expected!r}'
     # frozenset fields stay frozensets (hashable)
-    assert isinstance(cfg.enabled_groups, frozenset)
     assert isinstance(cfg.combo_conf, frozenset)
 
 

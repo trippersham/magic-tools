@@ -278,7 +278,7 @@ def _load_assets_cached(cfg: StrategyConfig) -> StrategyAssets:
         )
         events = raw_events
 
-    support = frozenset(vocab['support_buckets'])
+    support = frozenset(vocab['support_attributes'])
     density = vocab['ranking_only_density']
     bucket_names = frozenset(bucket_name_list)
     # The ONE matcher: compile every CardAttribute query once (buckets + payoffs).

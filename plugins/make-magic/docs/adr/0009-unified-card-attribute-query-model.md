@@ -53,7 +53,7 @@ Two **role name-lists** ride alongside the unified map, carrying metadata the fl
   double-surfaced as an anchor. A payoff name that is an event ref **stays** an anchor — this
   is why the split subtracts the bucket subset, not all of `card_attributes` (263 anchors, not
   177).
-- **`support`** (catalog `support_buckets`) — the removal/ramp/draw/tutor role set, consumed
+- **`support`** (catalog `support_attributes`) — the removal/ramp/draw/tutor role set, consumed
   for `support_quantities`. Byte-identical; preserved as a role tag, not membership.
 
 **Group collapse.** Because `enabled_groups` always equalled all groups, the merge result is a

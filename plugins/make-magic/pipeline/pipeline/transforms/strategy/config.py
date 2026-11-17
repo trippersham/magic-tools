@@ -1,8 +1,10 @@
 """Strategy-engine configuration — the validated T5.5 knobs as a frozen settings model.
 
 Every value defaults to the setting the validated prototype (``facts_naming_t55``)
-ran under (``GROUPS=all``, ``EDHREC_LABELS=on``, ``COMBO_OVERRIDE=on`` …), so a
-default-constructed :class:`StrategyConfig` reproduces the validated engine.
+ran under, so a default-constructed :class:`StrategyConfig` reproduces the validated
+engine. The prototype's boolean knobs (``GROUPS``, ``EDHREC_LABELS``,
+``COMBO_OVERRIDE`` …) are all gone — universal-or-gone (ADR 0006); only tunable
+thresholds remain here.
 
 :class:`StrategyConfig` is a ``pydantic-settings`` :class:`BaseSettings` model
 (matching :mod:`pipeline.config`): ``frozen=True`` so it stays hashable (it is the
@@ -23,31 +25,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-#: The v4 attribute groups the prototype folds into the bucket set at the
-#: validated default. Order is fixed for determinism.
-#:
-#: Fix **J2/B6** (now permanent): the anthem over-fire — the BROAD
-#: ``power-matters`` / ``toughness-matters`` slugs routing into ``anthem/go-wide`` —
-#: is removed. The ``deconf_anthem`` group that carried the broad routing was
-#: DELETED (no routing identity, no ``_v4_groups`` entry), so it can no longer be
-#: re-enabled. The anthem archetype is fed ONLY the NARROW ``power-matters-self``
-#: payoff, folded into the ``anthem`` bucket by the vocab data itself
-#: (``_v4_base_buckets['anthem']`` in ``attribute_catalog.json``). See ADR 0006.
-#: The ``new_buckets`` group was collapsed to always-on as dead config (its slugs
-#: are folded unconditionally into ``_v4_base_buckets`` and its new-bucket
-#: identities are unconditional in ``vocab.py``) — ADR 0006.
-ALL_GROUPS: tuple[str, ...] = (
-    'dual',
-    'affinity',
-    'ramp_tutor',
-    'dual_land',
-    'dual_art',
-    'dual_ench',
-    'dual_sac',
-)
-#: The ``GROUPS=refined`` subset (kept for parity with the prototype knob).
-REFINED_GROUPS: frozenset[str] = frozenset({'affinity', 'dual_land', 'dual_art', 'dual_sac'})
 
 #: Archetypes reported as FACTS but never NAMING candidates — the ``facts_only`` set
 #: as DATA (not an inline literal in the facts branch). The enchantments synergy
@@ -73,9 +50,6 @@ class StrategyConfig(BaseSettings):
         # this stub makes the method visible to pyright (which otherwise sees
         # BaseSettings.__hash__ as None).
         def __hash__(self) -> int: ...
-
-    # ---- bucket / group assembly (vocab-driven) ----------------------------
-    enabled_groups: frozenset[str] = frozenset(ALL_GROUPS)
 
     # ---- substantiveness / density knobs -----------------------------------
     gy_distinct: int = 4
