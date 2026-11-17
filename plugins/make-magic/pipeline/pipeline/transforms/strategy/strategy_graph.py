@@ -41,7 +41,7 @@ from pipeline.transforms.strategy.config import FACTS_ONLY_WHEN_DISABLED, Strate
 from pipeline.transforms.strategy.degree import compute_degree_axes, power_profile
 from pipeline.transforms.strategy.derive_card_attributes import derive_card_attributes
 from pipeline.transforms.strategy.query import CardView
-from pipeline.transforms.strategy.substantiveness import event_admitted
+from pipeline.transforms.strategy.substantiveness import determine_event
 from pipeline.transforms.strategy.tribes import compute_tribes, creature_subtypes
 from pipeline.transforms.strategy.vocab import synth_attrs_for
 
@@ -84,17 +84,17 @@ class FactsContext:
     mana_sinks_present: list[str] = field(default_factory=list)
 
 
-def node_eligible(support_count: int, is_cmd: bool) -> bool:
+def determine_node_eligible(support_count: int, is_cmd: bool) -> bool:
     """Substantiveness presence gate: >= 3 payoffs, or >= 2 when a commander carries
     the attr. ONE named implementation (ADR 0004) -- requires_met, lands_signal_present,
     and otag_typal_registered all call it."""
     return support_count >= 3 or (is_cmd and support_count >= 2)
 
 
-def node_admitted(support_count: int, is_cmd: bool) -> bool:
+def determine_node_admitted(support_count: int, is_cmd: bool) -> bool:
     """Graph node admission: >= 3 support cards, or a commander-carried attr admitted
     UNCONDITIONALLY. ONE named implementation (ADR 0004) -- the facts `nodes` set and
-    engine_report's machine-attr admission both call it. Distinct from node_eligible:
+    engine_report's machine-attr admission both call it. Distinct from determine_node_eligible:
     a commander attr is admitted here at any support count."""
     return support_count >= 3 or is_cmd
 
@@ -159,7 +159,7 @@ def elect_engine_units(
     Before the election, EVENT-SUBSTANTIVENESS admission (ADR 0002 third level /
     ADR 0020) filters the candidate pool: a unit whose event carries a
     ``produced_by_commander`` Requirement is an election candidate only when the deck's
-    command zone anchors that event's production (``event_admitted``). The gate is
+    command zone anchors that event's production (``determine_event``). The gate is
     DATA-keyed (only ``mana-produced`` today) and reads only commander attrs +
     the event's own refs — never mass. The reported ``engines`` list stays
     complete; exclusion applies to election candidacy only.
@@ -275,7 +275,7 @@ def elect_engine_units(
     # branch; an event with no data row is admitted (today's behavior). The reported
     # ``engines`` list stays COMPLETE — exclusion applies to candidacy only, so
     # diagnostics, chains, hubs and the loop probe are untouched.
-    pool = [e for e in engines if event_admitted(e['event'], cmd_attrs, assets)]
+    pool = [e for e in engines if determine_event(e['event'], cmd_attrs, assets)]
 
     # ARCHETYPE-SUBSTANTIVENESS admission (ADR 0002 second level / ADR 0021 B6):
     # after the EVENT grain, gate a candidate whose SOLE basis is an UNEARNED
@@ -304,7 +304,7 @@ def elect_engine_units(
     # Engine SET (0..n): RANK-DON'T-CUT (ADR 0022, #72).  Keep ALL substantive
     # units ranked by mass desc, with ONLY the Jaccard<0.5 near-duplicate dedup —
     # there is no relative-mass cut.  Units are already substantive by
-    # construction (node_admitted + producer-anchor event-admission upstream), so
+    # construction (determine_node_admitted + producer-anchor event-admission upstream), so
     # a relative-mass cut among them discarded earned engines on a density-
     # sensitive ratio (the retired 0.6·top keep-ratio of ADR 0014).  Centrality
     # RANKS, it does not CUT; substantiveness (upstream) already decided which
@@ -476,7 +476,7 @@ def compute_facts(
             if c.get('role') == 'commander':
                 cmd_attrs.add(a)
 
-    nodes = {a for a in attr_weight if node_admitted(len(support_cards[a]), a in cmd_attrs)}
+    nodes = {a for a in attr_weight if determine_node_admitted(len(support_cards[a]), a in cmd_attrs)}
     covered = sum(1 for i, c in enumerate(cards) if not is_land(c) and (card_attrs[i] & nodes))
     coverage = covered / n_nonland if n_nonland else 0.0
 
@@ -502,7 +502,7 @@ def compute_facts(
     dominant = set(tribe_info['dominant_tribes'])
     _n_ot = len(typal_otag_members)
     _ot_has_cmd = any(cards[i].get('role') == 'commander' for i in typal_otag_members)
-    otag_typal_registered = node_eligible(_n_ot, _ot_has_cmd)
+    otag_typal_registered = determine_node_eligible(_n_ot, _ot_has_cmd)
     typal_conc_members: set[int] = set()
     if dominant and not otag_typal_registered:
         for i in range(len(cards)):
@@ -523,7 +523,7 @@ def compute_facts(
     lands_base_mem = set(arch_members.get(lands, set()))
     base_n = len(lands_base_mem)
     base_has_cmd = any(cards[i].get('role') == 'commander' for i in lands_base_mem)
-    lands_signal_present = node_eligible(base_n, base_has_cmd)
+    lands_signal_present = determine_node_eligible(base_n, base_has_cmd)
     land_tutor_cards = sorted(
         i for i in range(len(cards)) if not is_land(cards[i]) and assets.tutor_land_pred(CardView.from_card(cards[i]))
     )
@@ -550,7 +550,7 @@ def compute_facts(
     def requires_met(mem: set[int]) -> bool:
         n = len(mem)
         has_cmd = any(cards[i].get('role') == 'commander' for i in mem)
-        return node_eligible(n, has_cmd)
+        return determine_node_eligible(n, has_cmd)
 
     strategies: dict[str, dict] = {}
     for arch, mem in arch_members.items():

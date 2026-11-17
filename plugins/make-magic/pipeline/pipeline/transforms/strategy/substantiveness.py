@@ -82,7 +82,7 @@ class Requirement:
     def satisfied(self, st: dict, ctx: FactsContext, arch: str) -> bool:
         if not st['requires_met']:
             return False
-        return _EVALUATORS[self.kind](self.params, st, ctx, arch)
+        return _DETERMINERS[self.kind](self.params, st, ctx, arch)
 
 
 # --- the closed set of kind determiners (the ONLY substantiveness algorithms) ---
@@ -90,7 +90,7 @@ class Requirement:
 # applied by Requirement.satisfied before dispatch.
 
 
-def _eval_member_count(params: dict, st: dict, ctx: FactsContext, arch: str) -> bool:
+def _determine_member_count(params: dict, st: dict, ctx: FactsContext, arch: str) -> bool:
     """Presence of payoffs: >= ``min`` members, and (optionally) >= ``noncmd``
     non-commander members. ``noncmd=0`` is the pure ``requires_met`` default."""
     noncmd = params.get('noncmd', 0)
@@ -103,7 +103,7 @@ def _eval_member_count(params: dict, st: dict, ctx: FactsContext, arch: str) -> 
     return nc >= noncmd
 
 
-def _eval_attr_density(params: dict, st: dict, ctx: FactsContext, arch: str) -> bool:
+def _determine_attr_density(params: dict, st: dict, ctx: FactsContext, arch: str) -> bool:
     """Mass of an attribute FAMILY: present-node family breadth >= ``distinct`` OR
     the archetype's member mass >= ``ratio`` of the identity mass."""
     pred = FAMILY_PREDICATES[params['family']]
@@ -115,17 +115,17 @@ def _eval_attr_density(params: dict, st: dict, ctx: FactsContext, arch: str) -> 
     return ratio >= params['ratio'] or len(fam) >= params['distinct']
 
 
-def _eval_axis_density(params: dict, st: dict, ctx: FactsContext, arch: str) -> bool:
+def _determine_axis_density(params: dict, st: dict, ctx: FactsContext, arch: str) -> bool:
     """A degree axis read as identity: the axis count >= ``min``. Reuses the one
     ``compute_degree_axes`` reading (``ctx.facts['degree_axes']``) — no parallel code."""
     axis = ctx.facts['degree_axes'][params['axis']]
     return axis['n'] >= params['min']
 
 
-_EVALUATORS: dict[str, Callable[[dict, dict, Any, str], bool]] = {
-    'member_count': _eval_member_count,
-    'attr_density': _eval_attr_density,
-    'axis_density': _eval_axis_density,
+_DETERMINERS: dict[str, Callable[[dict, dict, Any, str], bool]] = {
+    'member_count': _determine_member_count,
+    'attr_density': _determine_attr_density,
+    'axis_density': _determine_axis_density,
 }
 
 #: The default bar: presence of payoffs (== legacy ``requires_met``).
@@ -162,10 +162,10 @@ def requirement_for(arch: str, cfg: StrategyConfig) -> Requirement:
 
 
 # --- third substantiveness level: EVENT admission (ADR 0002 + ADR 0020) -------
-# Levels 1 (``node_admitted``, attribute) and 2 (archetype ``Requirement`` above)
-# gate ATTRIBUTES and ARCHETYPES. This third level gates whether a promiscuous
+# Levels 1 (``determine_node_admitted``, attribute) and 2 (archetype ``Requirement``
+# above) gate ATTRIBUTES and ARCHETYPES. This third level gates whether a promiscuous
 # EVENT's engine unit may ENTER the mass election at all — the event analog of
-# ``node_admitted``'s ``is_cmd`` arm. It is a Requirement KIND reused through the
+# ``determine_node_admitted``'s ``is_cmd`` arm. It is a Requirement KIND reused through the
 # same closed-set dispatch (never an event-name or deck-name branch); the event
 # name reaches the determiner only as the DATA-map key.
 #
@@ -180,7 +180,7 @@ def requirement_for(arch: str, cfg: StrategyConfig) -> Requirement:
 # The measure degenerates to set-nonemptiness: no numeric threshold to drift.
 
 
-def _eval_produced_by_commander(params: dict, event: str, cmd_attrs: set[str], assets: StrategyAssets) -> bool:
+def _determine_produced_by_commander(params: dict, event: str, cmd_attrs: set[str], assets: StrategyAssets) -> bool:
     """Event substantiveness: the command zone anchors production of this event.
 
     ADMIT iff the commander carries at least one attr in the event's own
@@ -203,9 +203,9 @@ def _eval_produced_by_commander(params: dict, event: str, cmd_attrs: set[str], a
 
 #: The event-admission determiner set (its own closed dispatch; the universal
 #: ``requires_met`` payoff gate does NOT apply to the event entity, so these are
-#: NOT in ``_EVALUATORS`` and are not wrapped by ``Requirement.satisfied``).
-_EVENT_EVALUATORS: dict[str, Callable[[dict, str, set[str], Any], bool]] = {
-    'produced_by_commander': _eval_produced_by_commander,
+#: NOT in ``_DETERMINERS`` and are not wrapped by ``Requirement.satisfied``).
+_EVENT_DETERMINERS: dict[str, Callable[[dict, str, set[str], Any], bool]] = {
+    'produced_by_commander': _determine_produced_by_commander,
 }
 
 #: DATA — the per-EVENT substantiveness bar. Default (no row) -> admitted, i.e.
@@ -217,7 +217,7 @@ EVENT_SUBSTANTIVENESS: dict[str, Requirement] = {
 }
 
 
-def event_admitted(event: str, cmd_attrs: set[str], assets: StrategyAssets) -> bool:
+def determine_event(event: str, cmd_attrs: set[str], assets: StrategyAssets) -> bool:
     """Is ``event``'s engine unit an ELECTION candidate for this deck?
 
     Data lookup in :data:`EVENT_SUBSTANTIVENESS`, dispatched by Requirement kind —
@@ -228,4 +228,4 @@ def event_admitted(event: str, cmd_attrs: set[str], assets: StrategyAssets) -> b
     req = EVENT_SUBSTANTIVENESS.get(event)
     if req is None:
         return True
-    return _EVENT_EVALUATORS[req.kind](req.params, event, cmd_attrs, assets)
+    return _EVENT_DETERMINERS[req.kind](req.params, event, cmd_attrs, assets)

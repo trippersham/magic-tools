@@ -603,12 +603,12 @@ class TestExclusivityValidator:
 
 
 # ---------------------------------------------------------------------------
-# 8. event_admitted gate test (Gate-2 test gap)
+# 8. determine_event gate test (Gate-2 test gap)
 # ---------------------------------------------------------------------------
 
 
-class TestEventAdmittedGate:
-    """``event_admitted`` gates the mana-produced engine unit into the mass
+class TestDetermineEventGate:
+    """``determine_event`` gates the mana-produced engine unit into the mass
     election based on whether the command zone seeds mana production.
 
     A mana commander (commander carries a producer_anchor ref like
@@ -619,48 +619,48 @@ class TestEventAdmittedGate:
     def test_mana_commander_admitted(self) -> None:
         """A commander with a mana-production attr admits mana-produced."""
         from pipeline.transforms.strategy.assets import load_assets
-        from pipeline.transforms.strategy.substantiveness import event_admitted
+        from pipeline.transforms.strategy.substantiveness import determine_event
 
         assets = load_assets()
         # A commander carrying 'mana-producer' (or 'ramp' via extra_refs)
         # seeds mana-produced election candidacy.
         cmd_attrs_mana = {'mana-producer', 'lifegain-matters'}
-        assert event_admitted('mana-produced', cmd_attrs_mana, assets), (
+        assert determine_event('mana-produced', cmd_attrs_mana, assets), (
             'A mana-producer commander should admit mana-produced'
         )
 
     def test_ramp_commander_admitted(self) -> None:
         """A commander carrying 'ramp' (via extra_refs) still seeds mana."""
         from pipeline.transforms.strategy.assets import load_assets
-        from pipeline.transforms.strategy.substantiveness import event_admitted
+        from pipeline.transforms.strategy.substantiveness import determine_event
 
         assets = load_assets()
         # 'ramp' is in extra_refs for mana-produced (seed-side-only).
         cmd_attrs_ramp = {'ramp', 'landfall'}
-        assert event_admitted('mana-produced', cmd_attrs_ramp, assets), (
+        assert determine_event('mana-produced', cmd_attrs_ramp, assets), (
             'A ramp-only commander (e.g. Derevi) should still admit mana-produced via the extra_refs seed'
         )
 
     def test_non_mana_commander_refused(self) -> None:
         """A commander with no mana-production attrs refuses mana-produced."""
         from pipeline.transforms.strategy.assets import load_assets
-        from pipeline.transforms.strategy.substantiveness import event_admitted
+        from pipeline.transforms.strategy.substantiveness import determine_event
 
         assets = load_assets()
         # A pure combat commander carries no mana-production ref.
         cmd_attrs_combat = {'attack-trigger', 'saboteur', 'gives-haste'}
-        assert not event_admitted('mana-produced', cmd_attrs_combat, assets), (
+        assert not determine_event('mana-produced', cmd_attrs_combat, assets), (
             'A non-mana commander should refuse mana-produced election candidacy'
         )
 
     def test_non_gated_event_always_admitted(self) -> None:
         """Events without a substantiveness bar are always admitted."""
         from pipeline.transforms.strategy.assets import load_assets
-        from pipeline.transforms.strategy.substantiveness import event_admitted
+        from pipeline.transforms.strategy.substantiveness import determine_event
 
         assets = load_assets()
         # creature-enters-battlefield has no EVENT_SUBSTANTIVENESS entry.
         cmd_attrs_empty: set[str] = set()
-        assert event_admitted('creature-enters-battlefield', cmd_attrs_empty, assets), (
+        assert determine_event('creature-enters-battlefield', cmd_attrs_empty, assets), (
             'An ungated event should always be admitted'
         )

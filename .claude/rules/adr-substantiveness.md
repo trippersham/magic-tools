@@ -6,7 +6,7 @@ paths:
 
 # Substantiveness gate
 
-Identity archetypes are earned through one generic evaluator over a closed kind-set plus per-archetype data — never archetype-name branches, never an inline re-type of the presence gate.
+Identity archetypes are earned through one generic determiner over a closed kind-set plus per-archetype data — never archetype-name branches, never an inline re-type of the presence gate.
 
 <substantiveness-model>
 

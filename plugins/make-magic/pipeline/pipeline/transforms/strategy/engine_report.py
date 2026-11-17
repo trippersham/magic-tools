@@ -41,7 +41,7 @@ from pipeline.transforms.strategy.machine_vocab import (
 )
 from pipeline.transforms.strategy.query import CardView, compile_query
 from pipeline.transforms.strategy.relay import elect_engine_units_with_relay
-from pipeline.transforms.strategy.strategy_graph import compute_facts, node_admitted
+from pipeline.transforms.strategy.strategy_graph import compute_facts, determine_node_admitted
 
 # ---------------------------------------------------------------------------
 # Types
@@ -486,8 +486,8 @@ def identify_engines(
                     if card.get('role') == 'commander':
                         is_cmd_attr = True
 
-            # Node admission: >= 3 support cards OR commander attr (node_admitted, ADR 0004).
-            if node_admitted(support_count, is_cmd_attr):
+            # Node admission: >= 3 support cards OR commander attr (determine_node_admitted, ADR 0004).
+            if determine_node_admitted(support_count, is_cmd_attr):
                 ctx.nodes.add(ma.name)
             if is_cmd_attr:
                 ctx.cmd_attrs.add(ma.name)
