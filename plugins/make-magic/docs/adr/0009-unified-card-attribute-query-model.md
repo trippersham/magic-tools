@@ -62,6 +62,33 @@ constant: it is computed once and baked into each bucket's query. `_v4_base_buck
 `REFINED_GROUPS` / `ALL_GROUPS` mechanism are removed (ADR 0006's value/branch test — the last
 group knob was a frozen branch).
 
+### Bounded query vocabulary — the evaluator never grows a new atom (hard rule)
+
+The query language is **closed** over exactly the atoms `query.py` already compiles against the
+`CardView` fields: `otag:<slug>` · `keyword:<kw>` · `type:<T>` · `oracle:<substr>` /
+`oracle:/<re>/` · `devotion`. A CardAttribute's membership MUST be expressible in **that**
+vocabulary — otags plus the card's keywords / type line / oracle text.
+
+**Adding a new atom or field predicate to the evaluator is prohibited.** Concretely: no
+`produced_mana`, no `power`/`toughness`, no board-state or produced-resource predicate — anything
+that reads a card field `CardView` does not already expose, or that computes over game state. The
+reasons are load-bearing: `query.py` is byte-parity-held (ADR 0003), and every new predicate is an
+**unbounded class of change** — it expands the membership surface in a way that couples attribute
+membership to arbitrary card internals, is hard to validate, and invites exactly the per-concept
+evaluator growth this engine rejects elsewhere (the regex-parsing anti-pattern, ADR 0017).
+
+When a concept is not cleanly expressible in the closed vocabulary (e.g. `color-fixing` wants
+"produces ≥3 of WUBRG", which has no atom): **union the existing atoms** (`oracle:` text +
+`otag:` families) to approximate it, or **accept the coverage limit** and record it — **never grow
+the evaluator.** If the union is too lossy to be worth authoring, that is a signal the concept is
+not otag/oracle-expressible, not a license to extend `query.py`. (Worked case: `color-fixing` is
+authored as `oracle:'mana of any color' OR otag:rainbow-land OR <land-fetch otags>`, 2026-11-17 —
+mana-fixing via oracle text unioned with the land-type fixers via their otags, entirely inside the
+closed vocabulary.)
+
+If you believe the vocabulary genuinely must change, that is an owner-level ADR amendment here,
+not an inline evaluator edit.
+
 ## Reasons
 Membership had one named definition (the `otag:` query) but three evaluators; a per-card
 attribute was recognised one way by the facts layer and another way (already a query string)
