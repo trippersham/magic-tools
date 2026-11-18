@@ -394,12 +394,17 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             # (CR 707.12), so storm/prowess/cast-only payoffs don't see them —
             # but magecraft (CR 702.157a) counts "casts or copies", and magecraft
             # IS in the trigger closure, so the copy->cast-trigger edge is precise
-            # for magecraft consumers. The larger cast families
-            # (cast-on-resolution/free-cast-another/theft-cast) stay OUT (owner call).
+            # for magecraft consumers. free-cast-another (#74; ADR 0024 wave) is now
+            # folded IN by owner call: a card that casts ANOTHER spell for free makes a
+            # real CR 601 cast (437 cards, measured in extra-cast-breadth.md), so it is
+            # a genuine spell-cast producer. Diagnostic-only this wave (no gauntlet
+            # label flips). The remaining cast families (cast-on-resolution/theft-cast)
+            # stay OUT (owner call).
             'seeds': [
                 'copy-instant',
                 'copy-sorcery',
                 'copy-spell',
+                'free-cast-another',
                 'impulse-cast',
             ],
             'grade': 'M',
@@ -1002,6 +1007,30 @@ SEED_MAP: dict[str, dict[str, Any]] = {
                 'poisonous',
             ],
             'grade': 'M',
+        },
+    },
+    # ── 29. domain (ADR 0024; #74) ──────────────────────────────────────
+    # A five-color/domain board-state WIN (Coalition Victory: control a land of
+    # each basic type AND a creature of each color -> you win). The reusable
+    # game-state is a STATE-EVENT `domain` (ADR 0024 Home-3), mirroring `poisoned`:
+    # the enablers PRODUCE the state and the wincon CONSUMES it. Both sides are
+    # authored SYNTH attrs (no clean otag), so grade 'empty' (closure = itself,
+    # like monarch-maker/rad-counter): produced_by = `color-fixing` (union of
+    # oracle:'mana of any color' + rainbow-land, 709 fixers), triggers =
+    # `five-color-win` (alternate-win-condition AND oracle:'each color' = Coalition
+    # Victory + Call the Spirit Dragons). The domain -> game-end WIN rule-edge lives
+    # in combo_win.py (EVENT_EDGE_CLASSES['domain'] = ['altwin::domain']); it is
+    # walk-inert until a domain fid route exists (none today, mirrors poison). The
+    # enabler->win link is the strategy-graph event edge color-fixing -> domain ->
+    # five-color-win — the point of ADR 0024.
+    'domain': {
+        'triggers': {
+            'seeds': ['five-color-win'],
+            'grade': 'empty',
+        },
+        'produced_by': {
+            'seeds': ['color-fixing'],
+            'grade': 'empty',
         },
     },
 }

@@ -166,6 +166,18 @@ the strategy engine path.
   verdicts** on the current corpus, so ENGINE + RESOLVE are unchanged. `test_combo_win.py` + the
   parity oracle re-verified green under the ADR 0003 re-baseline.
 
+- **2026-11-17 — `domain → game-end` WIN rule-edge (ADR 0024 realization).** A five-color/all-basic-
+  type board-state is a game-ending WIN (CR 104.2a; Coalition Victory), so reaching the new `domain`
+  state-event ([0012]/[0024]) is registered like the other alt-win classes:
+  `EVENT_EDGE_CLASSES['domain'] = ['altwin::domain']` + `altwin::domain` added to `_ALTWIN_CLASSES`,
+  mirroring `poisoned`. `card_edges.json` carries `altwin::domain: []` (empty): the two "you win"
+  cards (Coalition Victory, Call the Spirit Dragons) stay in `_altwin_unmapped` until a domain fid
+  route exists, so the class is **walk-inert today** (the walk is fid-route-driven; no fid routes to
+  `domain`). The enabler→win link is instead the strategy-graph event edge `color-fixing → domain →
+  five-color-win` — the point of ADR 0024. This registration adds **0 walk verdicts** on the current
+  corpus; the all-three-SHA move this wave is from the `color-fixing`/`free-cast-another` producer
+  additions ([0003]/[0012]), not the walk. `test_combo_win.py` + the parity oracle re-verified green.
+
 - **2026-11-17 — combat magnitude guard + genuine alt-win converter edges (win-walk hygiene).**
   Two parity-neutral hygiene fixes from the win-walk-completeness design pass.
   **(1) Combat guard.** The two direct-combat branches in `fid_route`

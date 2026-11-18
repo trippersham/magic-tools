@@ -74,6 +74,14 @@ EVENT_EDGE_CLASSES: dict[str, list[str]] = {
     # (fid 1800 "Gives Infect" -> None today); no payoff card maps to the class
     # because poison kills by rule, not by a "you win" card (see card_edges.json).
     'poisoned': ['altwin::poisoned'],
+    # Domain is a five-color/all-basic-type board-state WIN (CR 104.2a; Coalition
+    # Victory), so reaching the `domain` state-event is a WIN rule-edge (ADR 0024).
+    # Mirrors poisoned structurally; walk-inert until a domain fid route exists
+    # (none today). card_edges.json altwin::domain is [] — Coalition Victory / Call
+    # the Spirit Dragons stay in _altwin_unmapped until a fid routes to the event
+    # (same posture as poison fid 1800 -> None); the enabler->win link is the
+    # strategy-graph event edge color-fixing -> domain -> five-color-win.
+    'domain': ['altwin::domain'],
     'card-enters-graveyard': ['altwin::card-enters-graveyard', 'altwin::self-deplete'],
     'library-depleted': ['altwin::self-deplete'],
     'discard': [],
@@ -112,6 +120,7 @@ _ALTWIN_CLASSES = frozenset(
         'altwin::counter-placed',
         'altwin::player-counter',
         'altwin::poisoned',
+        'altwin::domain',
         'altwin::card-enters-graveyard',
         'altwin::self-deplete',
         'altwin::land-enters-battlefield',

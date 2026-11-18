@@ -773,7 +773,7 @@ class TestHermeticity:
         engine_sha = composite_sha(engine_baselines)
 
         # The HELD expected SHAs from the parity oracle baseline.
-        expected_engine_sha = '1eb27096118d38ad1dacf6a6d49f63531d3f334b63074f41db8090b207f3529b'
+        expected_engine_sha = '84b9617efcf0ec7481ee167874cb6802b4762ce494a2a8a72085785ddda7441a'
         assert engine_sha == expected_engine_sha, (
             f'Engine isolation SHA shifted!\n'
             f'  Expected: {expected_engine_sha}\n'
@@ -808,7 +808,7 @@ class TestHermeticity:
         resolve_baselines = compute_resolve_baselines()
         resolve_sha = composite_sha(resolve_baselines)
 
-        expected_resolve_sha = '00fbb8360a7115835c86ddb64929801f909070e528e320245fb8e66398e77063'
+        expected_resolve_sha = '5a43fc56ce9fd371f8a4729e7cbc11a7855ec08185fac81fe35873c57dfad889'
         assert resolve_sha == expected_resolve_sha, (
             f'Resolve SHA shifted!\n'
             f'  Expected: {expected_resolve_sha}\n'

@@ -342,6 +342,30 @@ SYNTH_ALWAYS_ATTRIBUTES: list[tuple[str, str]] = [
     # edge (distills to None) — it surfaces the maker cards for the edge pass, it
     # does not rename the deck.
     ('monarch-maker', "oracle:'become the monarch'"),
+    # Color-fixing producer (ADR 0024 domain state-event; #74). No Scryfall otag is
+    # both mechanic-exclusive AND producer-role-pure for "fixes your colors", so it
+    # is authored here as a UNION inside the closed query vocabulary (ADR 0009: the
+    # evaluator must NOT grow a `produced_mana:` atom — the field form is off-limits).
+    # `oracle:'mana of any color'` (686) catches the any-color mana sources (dorks /
+    # rocks / lands); `otag:rainbow-land` (118) adds the any-color LANDS. Union = 709,
+    # 92% produce >=3 of WUBRG (producer-role), 2/709 incidental payoff tags (Revel in
+    # Riches, Luck Bobblehead). KNOWN GAP: basic-land-TYPE fixers (fetchlands, Prismatic
+    # Omen) are NOT covered — no clean otag exists (`fetchland` 56 is 1-2 types not all;
+    # `dual-land` 468 / basic-land-search 380 drag in generic ramp), so the land-fetch
+    # half of domain fixing is deferred (see subagents/r1-realize-adr0024/outbox.md).
+    # Like `rad-counter`/`monarch-maker` it carries NO archetype edge (distills to None)
+    # — it surfaces the fixer cards for the `domain` event producer seed, it does not
+    # rename the deck.
+    ('color-fixing', "oracle:'mana of any color' OR otag:rainbow-land"),
+    # Five-color-win consumer (ADR 0024 domain state-event). The domain/five-color WIN
+    # payoff: `otag:alternate-win-condition AND oracle:'each color'` = exactly
+    # {Coalition Victory, Call the Spirit Dragons} — the two cards that win by composing
+    # all five colors (Coalition also needs a land of each basic type). Mechanic-
+    # exclusive and payoff-pure (the broader `otag:alternate-win-condition AND
+    # otag:lifegain` was rejected as coarse). Seeds the `domain` event's triggers
+    # (consumer). Distills to None (no archetype edge) — the enabler->win link lives in
+    # the event graph (color-fixing -> domain -> five-color-win), not the archetype.
+    ('five-color-win', "otag:alternate-win-condition AND oracle:'each color'"),
     # Within-card lifetrade edges (Queza family). Each names a card that couples
     # TWO effects in ONE sentence: a trigger effect that drives a second payoff
     # effect (draw -> drain, gain -> draw, ...). Membership is a compound query:

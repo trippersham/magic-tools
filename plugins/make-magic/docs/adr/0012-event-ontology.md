@@ -161,6 +161,36 @@ count invariant renamed `test_adjacency.py::test_anchor_map_has_29_events`; grad
 the energy-generator otag so empty→M; `poisoned` is M/M). Output-moving re-baseline under [0003];
 `test_event_ontology.py` + `test_adjacency.py` re-verified green.
 
+## Amendment — 2026-11-17 (ADR 0024 realization): new `domain` state-event, 29 → 30 events
+
+Realizes [0024] (a wincon is an event that reaches `game-end`; its enablers are the producers of
+that event). One ontology change plus a producer gap-fill:
+
+1. **The `domain` state-event is added** (CR 104.2a: an effect states that a player wins — Coalition
+   Victory: control a land of each basic land type AND a creature of each color → you win). The
+   reusable board-state is a state-event keyed by KIND (not by threshold), mirroring `poisoned`.
+   `produced_by` = the authored SYNTH CardAttribute `color-fixing` (`oracle:'mana of any color' OR
+   otag:rainbow-land`, 709 fixers; no otag is both mechanic-exclusive and producer-role-pure, so it
+   is authored per [0009]/[0017]/[0023] principle 8 — the evaluator is NOT grown with a
+   `produced_mana` atom, [0009]; KNOWN GAP: basic-land-TYPE fixers are not covered). `triggers` =
+   the authored SYNTH CardAttribute `five-color-win` (`otag:alternate-win-condition AND oracle:'each
+   color'` = exactly Coalition Victory + Call the Spirit Dragons). Both synth attrs distill to None
+   and have no otag, so both sides grade `empty` (closure = themselves). Its `domain → game-end` WIN
+   rule-edge lives in `combo_win.py` (`EVENT_EDGE_CLASSES['domain'] = ['altwin::domain']`, [0016]),
+   walk-inert until a domain fid route exists (none today, as with `poisoned`). Field vocabulary
+   unchanged (no `polarity`/`scope`).
+2. **`free-cast-another` (437) folds into `spell-cast.produced_by`** — a card that casts another
+   spell for free makes a real CR 601 cast; a producer gap-fill, not an ontology change.
+
+**`life-threshold` was specced in [0024] but DROPPED**: the existing `lifegain` event already models
+the lifegain-win end-to-end (`EVENT_EDGE_CLASSES['lifegain']` already owns `altwin::lifegain` =
+Felidar/Angel/Test, and its triggers already carry the `life-total-matters-self`/`lifegain-matters`
+payoffs). A second `life-threshold` event would double-count that win-edge, so it is subsumed rather
+than added. Catalog event count **29 → 30**; count invariant renamed
+`test_adjacency.py::test_anchor_map_has_30_events`; grade tally 15/11/**4** (`domain` is empty/empty).
+Output-moving re-baseline under [0003]; `test_event_ontology.py` + `test_adjacency.py` re-verified
+green.
+
 ## The bipartite graph and its projections
 
 The strategy engine operates on ONE bipartite graph with two projections.

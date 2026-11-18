@@ -331,6 +331,32 @@ re-baseline makes every *intended* change legible as such.
   per-change delta:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/monarch-energy-poison/outbox.md`.
 
+- **2026-11-17 — ADR 0024 realization: `domain` state-event + `color-fixing` producer + free-cast.**
+  Four catalog changes realizing [0024]: (1) the `color-fixing` synth CardAttribute
+  (`oracle:'mana of any color' OR otag:rainbow-land`, 709 fixers, 92% produce ≥3 of WUBRG — a UNION
+  inside the closed query vocabulary; the `produced_mana` FIELD form is forbidden by [0009], and
+  the land-type-fetch otags are too dirty/absent to include, a documented coverage gap); (2) the
+  `five-color-win` synth CardAttribute (`otag:alternate-win-condition AND oracle:'each color'` =
+  Coalition Victory + Call the Spirit Dragons); (3) a new `domain` state-event (CR 104.2a;
+  produced_by `color-fixing`, triggers `five-color-win`) + its `domain → game-end` WIN rule-edge
+  (`EVENT_EDGE_CLASSES['domain'] = ['altwin::domain']`, ADR 0016); (4) `free-cast-another` (437)
+  folded into `spell-cast.produced_by`. `life-threshold` was specced in [0024] but **dropped**
+  (the existing `lifegain` event already owns `altwin::lifegain` = Felidar/Angel/Test; a second
+  event would double-count). Event count **29 → 30**. **Measured OFF (code@736afe0) vs ON (157
+  gauntlet + 17 fixtures): all three SHAs moved** — the fixtures DO carry color-fixing/free-cast.
+  `FULL_CORPUS_SHA 604f6673e7d3d42c… → 39f1136e9c2289ef…`; `ENGINE 1eb27096… → 84b9617efcf0…`
+  (3 fixtures: urza/grandlarceny/fantastic-four); `RESOLVE 00fbb836… → 5a43fc56ce9f…` (12 fixtures);
+  all engine/resolve constants (7 test files) + `distill_parity_baseline.json` +
+  `engine_isolation_baseline.json` regenerated. **Correctness proof:** 105/157 gauntlet decks moved,
+  **0 label/identity flips, 0 spurious leads, 0 evictions**; every changed leaf traces to
+  `color-fixing` (attribute surfacing + ramp-community membership + `n_nodes`+1 + tiny confidence
+  drift) or `free-cast-another` (spell-cast producer, mass 116→122; +5 commander-loop closures).
+  `domain` forms **0 engine-units on the corpus** — no deck runs the 2 wincon cards, and the
+  consumer `five-color-win` (2 cards total, neither a legal commander) can never reach node-admission
+  support≥3 — exactly as `poisoned` is walk-inert; the wiring + rule-edge are proven live
+  (`five-color-win`/`color-fixing` synth membership + derived-catalog match). Full per-change delta:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r1-realize-adr0024/outbox.md`.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`strategy_graph.py` is shared with this record).

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | **Accepted as the modeling principle; pending owner ratification.** Partially realized: `game-end`, `library-depleted`, and `poisoned` are already state-events of this shape (committed through `1e77c18`). The `domain` and `life-threshold` state-events + the `color-fixing` producer CardAttribute are specified here but **not yet wired** (a proof-carrying re-baseline, ADR 0003). |
+| Status | **Accepted as the modeling principle; pending owner ratification.** Realized: `game-end`, `library-depleted`, `poisoned` (through `1e77c18`), and now **`domain`** (CR 104.2a; produced_by the authored `color-fixing` CardAttribute, triggers the authored `five-color-win` consumer; event count 29 → 30) are state-events of this shape. **`life-threshold` was specced here but DROPPED** on realization: the existing `lifegain` event already owns the lifegain-win end-to-end (`altwin::lifegain` = Felidar/Angel/Test + the `life-total-matters-self`/`lifegain-matters` payoff triggers), so a `life-threshold` event would double-count — it is subsumed, not added. See the realization amendment below + ADR 0003. |
 | Review | Agent-authored 2026-11-17 from the session's measurements — `research/win-walk-completeness.md` (the walk is an infinite-closure detector; thresholds/states are inexpressible there) and `research/altwincon-decomposition-and-modeling.md` (the `alt-wincon/combo` catch-all drops every enabler→win link). Owner-adjudicated live. **Pending owner ratification**, as with 0023. |
 | Test | Review-enforced today. Mechanical enforcement is the WS3 catalog-integrity layer (`ws3-integrity-system-design.md`): the recurring CR audit flags a wincon modeled in the wrong home (a threshold/state wincon wired as a walk edge; a catch-all wincon identity), and the dead-ref validator covers the producer seeds. **Honest gap:** until those land, this is review-enforced — same posture as 0001 clause 4 / 0023. Parity: any wiring of a new state-event is a proof-carrying re-baseline (`engine_parity_oracle` + `test_event_ontology`). |
 | Code paths | [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (`game-end`, `library-depleted`, `poisoned`; `domain`/`life-threshold` to be added), [`combo_win.py`](../../pipeline/pipeline/transforms/strategy/combo_win.py) (`EVENT_EDGE_CLASSES`, the `altwin::<event>` rule-edges + `combo_win_verdict` — the combo producer), [`derive_card_events.py`](../../pipeline/pipeline/transforms/strategy/derive_card_events.py) (`SEED_MAP` — the producer seeds of each wincon event), [`distill_strategies.py`](../../pipeline/pipeline/transforms/strategy/distill_strategies.py) (the archetype *identity* that names the plan — **not** the enabler→win link). |
@@ -101,3 +101,41 @@ proliferation ADR 0023 guards against).
 
 If you add a wincon event, a state-event, or change how a wincon's producers are modeled, update this
 record in the same change.
+
+## Realization amendment — 2026-11-17 (`domain` wired; `life-threshold` dropped)
+
+The principle was realized as a proof-carrying re-baseline (ADR 0003). Three things landed and one
+was deliberately *not*:
+
+- **`color-fixing` producer CardAttribute** — authored as a SYNTH attribute (distills to None, like
+  `monarch-maker`/`rad-counter`): `oracle:'mana of any color' OR otag:rainbow-land` (709 fixers, 92%
+  produce ≥3 of WUBRG; measured payoff-contamination 2/709). The `produced_mana ⊇ 3-of-WUBRG` FIELD
+  form the design floated is **off-limits** — ADR 0009 forbids growing the query evaluator with a
+  new `produced_mana:` atom, so the producer is this union inside the closed vocabulary. **Known
+  gap:** basic-land-TYPE fixers (fetchlands, Prismatic Omen) are not covered — no otag is clean for
+  them (`fetchland` is 1–2 types; `dual-land`/basic-land-search drag in generic ramp). Documented,
+  deferred.
+- **`five-color-win` consumer CardAttribute** — `otag:alternate-win-condition AND oracle:'each
+  color'` = exactly {Coalition Victory, Call the Spirit Dragons}. The coarser
+  `otag:alternate-win-condition AND otag:lifegain` was rejected (it drags in cast-count/combat/group-
+  hug wincons and misses Test of Endurance).
+- **`domain` state-event** — `produced_by=['color-fixing']`, `triggers=['five-color-win']`, WIN
+  rule-edge `EVENT_EDGE_CLASSES['domain']=['altwin::domain']` ([0016]); mirrors `poisoned`. It is
+  **engine-inert on the corpus** (no deck runs the 2 wincon cards, and the consumer — 2 cards total,
+  neither a legal commander — can never reach the `determine_node_admitted` support≥3 bar, [0004]),
+  exactly as `poisoned` is walk-inert. The wiring is proven live by synth-membership + derived-catalog
+  match; the enabler→win link is the strategy-graph event edge `color-fixing → domain → five-color-win`,
+  which is the point of this record. `altwin::domain` is `[]` (the two wincon cards stay in
+  `_altwin_unmapped` until a domain fid route exists — same posture as poison fid 1800 → None).
+- **`life-threshold` DROPPED.** The practical (2)-vs-(3) test in this record asks "does the win
+  requirement already correspond to a tracked event?" For lifegain the answer is **yes**: `lifegain`
+  is already a first-class event whose `EVENT_EDGE_CLASSES` owns `altwin::lifegain` (Felidar/Angel/
+  Test) and whose triggers carry the `life-total-matters-self`/`lifegain-matters` payoffs. Adding a
+  separate `life-threshold` state-event would double-count that win-edge, and the only payoff-pure
+  consumer collapses to the same three cards. So the lifegain-win is modeled by **consuming the
+  existing `lifegain` event** (Home 2), not by minting a new state-event. This is the record's own
+  anti-duplication guidance applied to itself.
+
+Event count 29 → 30. Measured OFF (code@`736afe0`) vs ON: 105/157 gauntlet decks moved, 0 label/
+identity flips, 0 spurious leads, 0 evictions; all three parity SHAs re-baselined (ADR 0003). Proof:
+`subagents/r1-realize-adr0024/outbox.md`.

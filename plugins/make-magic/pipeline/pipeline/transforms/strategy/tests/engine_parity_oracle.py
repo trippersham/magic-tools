@@ -136,7 +136,26 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   FULL_CORPUS 38dd7733a440fb13… -> 604f6673e7d3d42c…
 #   ENGINE      1eb27096118d38ad… (unchanged)
 #   RESOLVE     00fbb8360a711583… (unchanged)
-FULL_CORPUS_SHA = '604f6673e7d3d42c6e69976e25b82438e0fb21ec390250b767415a9aa1470a1e'
+# Re-baselined 2026-11-17 (ADR 0024 realization): the `domain` state-event + the
+# `color-fixing` producer (union oracle:'mana of any color' OR otag:rainbow-land,
+# 709 fixers) + the `five-color-win` consumer (Coalition Victory + Call the Spirit
+# Dragons) + folding `free-cast-another` (437) into spell-cast.produced_by.
+# life-threshold was DROPPED (the existing `lifegain` event already owns
+# altwin::lifegain = Felidar/Angel/Test; a second event would double-count). Event
+# count 29 -> 30. Measured OFF (code@736afe0) vs ON: 105/157 gauntlet decks moved,
+# 0 label/identity flips, 0 spurious leads, 0 evictions; every changed leaf traces
+# to color-fixing (attribute surfacing + ramp-community membership + n_nodes+1) or
+# free-cast-another (spell-cast producer + 5 commander-loop closures). `domain` is
+# engine-inert on the corpus (no deck runs the 2 wincon cards, and the consumer
+# can never reach node-admission support>=3) — exactly as `poisoned` is walk-inert;
+# the wiring + rule-edge are proven live (five-color-win/color-fixing membership +
+# derived-catalog match). The 17 hermetic fixtures DO carry color-fixing/free-cast,
+# so ENGINE (3 decks: urza/grandlarceny/fantastic-four) + RESOLVE (12 decks) moved:
+#   FULL_CORPUS 604f6673e7d3d42c… -> 39f1136e9c2289ef…
+#   ENGINE      1eb27096118d38ad… -> 84b9617efcf0ec74…
+#   RESOLVE     00fbb8360a711583… -> 5a43fc56ce9fd371…
+# Proof: subagents/r1-realize-adr0024/outbox.md.
+FULL_CORPUS_SHA = '39f1136e9c2289ef58e8295026ac8ff0a7df197daeb221b76e0ec9125c72d449'
 
 
 def full_corpus_sha() -> str:

@@ -212,6 +212,7 @@
         "copy-instant",
         "copy-sorcery",
         "copy-spell",
+        "free-cast-another",
         "impulse-cast"
       ],
       "triggers": [
@@ -654,6 +655,15 @@
       ],
       "triggers": [
         "synergy-poison"
+      ]
+    },
+    "domain": {
+      "rule": "CR 104.2a: an effect states that a player wins the game (Coalition Victory: control a land of each basic land type and a creature of each color -> you win). The reusable board-state is a STATE-EVENT `domain` (ADR 0024): enablers PRODUCE the five-color/all-basic-type state, the wincon CONSUMES it. produced_by = the authored SYNTH attr `color-fixing` (union oracle:'mana of any color' OR otag:rainbow-land, 709 fixers; no clean otag exists and the evaluator must not grow a produced_mana atom, ADR 0009 — KNOWN GAP: basic-land-TYPE fixers are not covered). triggers = the authored SYNTH attr `five-color-win` (otag:alternate-win-condition AND oracle:'each color' = Coalition Victory + Call the Spirit Dragons). The domain -> game-end WIN rule-edge lives in combo_win.py (EVENT_EDGE_CLASSES['domain'] = ['altwin::domain']); walk-inert until a domain fid route exists (none today, mirrors poisoned). life-threshold was DROPPED this wave — the existing `lifegain` event already models the lifegain-win (altwin::lifegain = Felidar/Angel/Test); a second event would double-count.",
+      "produced_by": [
+        "color-fixing"
+      ],
+      "triggers": [
+        "five-color-win"
       ]
     }
   }
