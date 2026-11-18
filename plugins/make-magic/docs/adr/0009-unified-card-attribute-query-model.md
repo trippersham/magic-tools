@@ -123,6 +123,16 @@ three P0 SHAs hold.
 - `attribute_catalog.json` is a byte-frozen held file (ADR 0003); this is a behavior-preserving
   restructure (no output shifts), so no baseline re-generation is required — the equivalence
   proof is the three unchanged SHAs.
+- **Dead-ref enforcement (WS3 layer 1, #74).** The closed vocabulary means every `otag:<slug>`
+  atom names a concrete resolution target: a live otag, a registered synth attr, or a surfaced
+  (defined) attribute name. [`catalog_integrity.py`](../../pipeline/pipeline/transforms/strategy/catalog_integrity.py)
+  enforces that **statically** — a BLOCKING validator (`validate_distill_atoms` over the distill
+  identity vocabulary + `ARCHETYPE_EDGES` keys; `validate_membership_atoms` over the `SYNTH_*` and
+  `card_attributes` queries; `validate_seed_map` over the event SEED_MAP) so a dead disjunct
+  (the A.1 `otag:alternate-win-condition` case — reads as if it does something it does not) can
+  never land unnoticed. The guard is **read-only / byte-parity** (it reads the catalog + taxonomy,
+  it never changes engine output; the three P0 SHAs are unchanged). It never auto-fixes: a real
+  dead ref it surfaces is an owner-ratified frozen-catalog edit (ADR 0003), not a silent rewrite.
 
 ## Related records
 - 0001 — one-named-rule (clause 4): the drift this removes.
