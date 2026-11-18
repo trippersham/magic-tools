@@ -154,6 +154,83 @@ def test_oracle_tags_fail_open_reuses_cache_not_snapshot(data_dir: Path, monkeyp
     assert n == 2  # the cached pull is preserved, NOT overwritten by the 4,499-row snapshot
 
 
+def test_oracle_tags_sync_not_newer_is_byte_identical_noop(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Lake-read-only invariant: a cursor-gated (not-newer) sync must NOT mutate.
+
+    The live-sync regression that this suite's ``live`` marker now fences off hinged
+    on a stale cursor letting ``oracle_tags.sync`` overwrite ``raw/oracle_tags.parquet``
+    + ``raw/_cursors.json``. This pins the complementary guarantee: once the cursor
+    is current, a re-sync is a pure no-op — the parquet bytes and the cursor are
+    BYTE-IDENTICAL before and after, and the big payload is never re-downloaded.
+    """
+    from pipeline.sources._common import Cursor
+
+    updated = '2026-07-26T21:00:00+00:00'
+    monkeypatch.setattr(oracle_tags, '_fetch_meta', lambda c: ('http://x/uri', updated))
+    monkeypatch.setattr(oracle_tags, '_fetch_payload', lambda c, uri: _TAGS_PAYLOAD)
+    path = oracle_tags.sync(client=httpx.Client())  # first load: cursor advances to `updated`
+    assert Cursor.load().get('oracle_tags') == updated
+
+    before_parquet = path.read_bytes()
+    before_cursor = Cursor.path().read_bytes()
+
+    # Second sync: meta reports the SAME updated_at -> not newer -> skip. The ~18 MB
+    # payload GET must NOT run, and nothing on disk may change.
+    calls = {'payload': 0}
+
+    def counting_payload(client: httpx.Client, uri: str):
+        calls['payload'] += 1
+        return _TAGS_PAYLOAD
+
+    monkeypatch.setattr(oracle_tags, '_fetch_payload', counting_payload)
+    oracle_tags.sync(client=httpx.Client())
+
+    assert calls['payload'] == 0  # not-newer: the big download was skipped
+    assert path.read_bytes() == before_parquet  # parquet byte-identical (no rewrite)
+    assert Cursor.path().read_bytes() == before_cursor  # cursor byte-identical (no advance)
+
+
+def test_scoring_bridge_load_card_otag_is_offline_fail_open(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The CRISPI scoring bridge loads an otag closure OFFLINE (fail-open to snapshot).
+
+    ``scripts/deck_factsheet._load_card_otag`` is the lake-backed bridge that the
+    now-``live``-marked ``test_bracket_band_sanity_on_golden_decks`` drove against the
+    REAL lake. This is its hermetic analogue: with the network hard-blocked and an
+    isolated (empty) tmp lake, the bridge must still yield a usable
+    ``oracle_id -> {slug}`` closure via the puller's bundled-snapshot fail-open — no
+    network, no real lake. This is exactly the path an offline CI runner takes, so
+    deselecting the live golden test loses no offline coverage of the bridge.
+    """
+    # Hard-block the one network boundary the bridge reaches (belt-and-suspenders
+    # with the autouse guard): any egress attempt would raise here instead.
+    def _no_network(client: httpx.Client) -> tuple[str, str]:
+        raise httpx.ConnectError('network blocked for offline bridge test')
+
+    monkeypatch.setattr(oracle_tags, '_fetch_meta', _no_network)
+
+    scripts_dir = Path(__file__).resolve().parents[2] / 'scripts'
+    import sys
+
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    import deck_factsheet  # type: ignore[import-not-found]
+
+    closure = deck_factsheet._load_card_otag()
+
+    assert closure is not None, 'bridge must fail-open to the bundled snapshot offline'
+    assert len(closure) > 0, 'offline snapshot closure must be non-empty'
+    # Shape: oracle_id -> set[slug].
+    oid, slugs = next(iter(closure.items()))
+    assert isinstance(oid, str)
+    assert isinstance(slugs, set)
+    # The puller fail-open landed the bundled snapshot into the ISOLATED tmp lake.
+    assert store.table_exists('raw', 'oracle_tags')
+
+
 # --------------------------------------------------------------------------- #
 # spellbook: parse/load + fail-open
 # --------------------------------------------------------------------------- #
