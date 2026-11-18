@@ -417,7 +417,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_engine_isolation_baselines()
         sha = composite_sha(baselines)
-        assert sha == '7a83891a6c191f2b4cb1197261e21f55110456d33091f0f32e8dadab18cd4d37', (
+        assert sha == '4d3f5e6d9d8ed142f50e241940de58c5b92aad5b30629b9b81d2d5a73c3131e3', (
             f'Engine isolation SHA shifted: {sha}'
         )
 
@@ -429,7 +429,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == 'c2dbd766bccef939c2b4b1ab559eec8c137b5a0ce36a46403c69530277e31dd9', f'Resolve SHA shifted: {sha}'
+        assert sha == '940c38811193b6f4ca9ab2b2b20e2df63e70bc1f4ba8911f7486c0a1a11c8814', f'Resolve SHA shifted: {sha}'
 
 
 # ---------------------------------------------------------------------------
@@ -613,13 +613,27 @@ class TestExclusivityValidator:
             )
 
     def test_ramp_as_seed_caught_by_validator(self) -> None:
-        """Adding ``ramp`` as a seed to land-enters.produced_by or
-        mana-produced.produced_by MUST make ``validate_seed_map()`` return a
-        violation.
+        """Adding ``ramp`` (a mana+land cross-mechanic umbrella) as a seed to
+        ``land-enters-battlefield.produced_by`` MUST make ``validate_seed_map()``
+        return a violation.
 
-        This is the NON-TAUTOLOGICAL acceptance test: the leave-one-out
-        exclusivity check catches a cross-mechanic umbrella hand-listed as a
-        seed — the validator is no longer a tautology.
+        This is the NON-TAUTOLOGICAL acceptance test: the cross-mechanic umbrella
+        check catches an umbrella hand-listed as a seed — the validator is no
+        longer a tautology.  ``ramp``'s closure covers 2/4 (50% == the
+        ``UMBRELLA_COVERAGE_MIN`` floor) of ``mana-produced.produced_by``, so a
+        ``ramp`` hand-added to a land event is caught as the documented reviewable
+        data error.
+
+        R5d NOTE (2026-11-18): the SYMMETRIC probe (``ramp`` added to
+        ``mana-produced``) relied on ``ramp``'s closure covering >=50% of
+        ``land-enters-battlefield.produced_by``.  R5d legitimately grew that seed
+        set 6 -> 11 (tutor-land-basic/seek-land/donate-rampant-growth/ramp-with-
+        set-s-mechanic/land-or-hand), so ``ramp`` now covers only 5/11 (45%) of
+        it — below the 50% floor — and the mana-produced direction is no longer
+        flagged.  That is the guard behaving as designed (a richer, well-populated
+        land event is no longer ramp-dominated); the PRIMARY guarantee — a ``ramp``
+        data error in a LAND event is caught — is unchanged.  This test now pins
+        BOTH facts so a future threshold/seed change cannot silently drift either.
         """
         import copy
 
@@ -628,16 +642,24 @@ class TestExclusivityValidator:
             validate_seed_map,
         )
 
-        for event_name in ('land-enters-battlefield', 'mana-produced'):
-            poisoned = copy.deepcopy(SEED_MAP)
-            poisoned[event_name]['produced_by']['seeds'].append('ramp')
-            violations = validate_seed_map(seed_map=poisoned)
-            ramp_violations = [v for v in violations if 'ramp' in v]
-            assert ramp_violations, (
-                f'Adding ramp as a seed to {event_name}.produced_by did NOT '
-                f'trigger a violation — the validator is tautological. '
-                f'All violations: {violations}'
-            )
+        # PRIMARY: ramp in a land event IS caught (covers 50% of mana-produced).
+        poisoned = copy.deepcopy(SEED_MAP)
+        poisoned['land-enters-battlefield']['produced_by']['seeds'].append('ramp')
+        violations = validate_seed_map(seed_map=poisoned)
+        assert [v for v in violations if 'ramp' in v], (
+            f'Adding ramp as a seed to land-enters.produced_by did NOT trigger a '
+            f'violation — the validator is tautological. All violations: {violations}'
+        )
+
+        # SYMMETRIC (post-R5d): ramp in mana-produced now falls to 45% coverage of
+        # the enlarged land-enters set, below UMBRELLA_COVERAGE_MIN (0.5) — pinned.
+        poisoned_mp = copy.deepcopy(SEED_MAP)
+        poisoned_mp['mana-produced']['produced_by']['seeds'].append('ramp')
+        mp_violations = [v for v in validate_seed_map(seed_map=poisoned_mp) if 'ramp' in v]
+        assert not mp_violations, (
+            'R5d expectation: ramp in mana-produced should now be BELOW the 50% '
+            f'coverage floor against the 11-seed land-enters set, got: {mp_violations}'
+        )
 
     def test_climb_to_frontier_removed(self) -> None:
         """``climb_to_frontier`` is deleted (was dead code with zero callers)."""

@@ -67,8 +67,17 @@ class TestWS2GroundTruthRederivation:
     set that no longer (or never) contains it."""
 
     def test_rederives_impulse_family_with_sneak_seed_removed(self) -> None:
-        """Remove ``sneak-from-library`` from the SEEDS but keep it in the frozen
-        CONCEPT → discovery recovers the exact WS2 family."""
+        """Remove the impulse-family anchor SEEDS but keep them in the frozen
+        CONCEPT → discovery recovers the exact WS2 family.
+
+        R5d (2026-11-18) promoted ``impulse-to-zone`` into
+        ``creature-enters-battlefield.produced_by``; its closure covers
+        ``impulse-onto-battlefield``, so that slug is no longer a SURFACED
+        candidate when only ``sneak-from-library`` is dropped.  To keep this a
+        true re-derivation proof we drop BOTH anchoring seeds whose closures
+        reach the impulse family (``sneak-from-library`` + the R5d-promoted
+        ``impulse-to-zone``); discovery must then re-surface the whole family.
+        """
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
         from pipeline.transforms.strategy.evaluate_event_candidates import (
             build_lake_evidence,
@@ -78,8 +87,9 @@ class TestWS2GroundTruthRederivation:
 
         concept = producer_concept('creature-enters-battlefield')
         all_seeds = SEED_MAP['creature-enters-battlefield']['produced_by']['seeds']
-        seeds = [s for s in all_seeds if s != 'sneak-from-library']
-        assert 'sneak-from-library' not in seeds, 'guard: the WS2 seed must be absent from the reduced set'
+        _removed = {'sneak-from-library', 'impulse-to-zone'}
+        seeds = [s for s in all_seeds if s not in _removed]
+        assert not (_removed & set(seeds)), 'guard: the WS2 anchor seeds must be absent from the reduced set'
 
         result = discover_for_concept(concept, seeds, build_lake_evidence())
         slugs = {c.otag for c in result.candidates}
@@ -212,6 +222,25 @@ class TestBookkeepingVeto:
         assert not is_bookkeeping_family('impulse-to-zone')
         assert not is_bookkeeping_family('reanimate-from-opponent')
         assert not is_bookkeeping_family('pseudo-proliferate')  # pseudo-* = real "acts like X"
+
+    def test_extra_bookkeeping_slugs_vetoed(self) -> None:
+        """The three stray errata/availability tags outside the prefix families
+        (owner-ratified R5d skip-list) are bookkeeping, so discovery never
+        resurfaces them as producer candidates."""
+        from pipeline.transforms.strategy.catalog_integrity import (
+            BOOKKEEPING_EXTRA_SLUGS,
+            is_bookkeeping_family,
+        )
+
+        assert {'unprinted-token', 'token-errata', 'no-planeswalker-type'} == BOOKKEEPING_EXTRA_SLUGS
+        assert is_bookkeeping_family('unprinted-token')
+        assert is_bookkeeping_family('token-errata')
+        assert is_bookkeeping_family('no-planeswalker-type')
+        # They are not prefixed by any of the four families, so the skip set is
+        # what catches them (not the regex).
+        assert not any(
+            s.startswith(('cycle-', 'typal-', 'type-', 'unique-')) for s in BOOKKEEPING_EXTRA_SLUGS
+        )
 
 
 # ---------------------------------------------------------------------------

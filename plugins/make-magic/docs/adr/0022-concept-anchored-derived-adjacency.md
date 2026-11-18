@@ -405,6 +405,28 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   P0 SHAs are UNCHANGED. **Test:** `TestBookkeepingVeto` (no bookkeeping candidate, observable skip,
   family matcher incl. pseudo-keep) — `test_concept_anchored_discovery.py` 15 passed; `validate_catalog()`
   0 blocking.
+- **2026-11-18 — R5d owner-ratified producer promotions APPLIED + bookkeeping skip-list REALIZED
+  (ADR 0003 re-baseline).** The de-noised shadow queue above was walked event-by-event under the
+  owner-ratified promotion rule (make-a-thing is go-wide and never identifies the archetype; a producer
+  is promoted only when it makes THAT type AND a payoff fires because that type entered — consumer-
+  connection, enforced at election time). This MOVES derived output (not shadow). `SEED_MAP` gained:
+  **creature-copied +9** (eternalize/gains-myriad/gives-encore/gives-double-team/multi-copy/shapesharing/
+  copy-from-graveyard/copy-legendary/has-identical-token), **creature-enters-battlefield +11**
+  (reanimate-from-opponent/-from-any/mass-reanimation/genesis-effect/grim-return/creates-token-of-a-card/
+  polymorph/gives-escape/impulse-to-zone/zoo/bring-your-own-crew), **land-enters-battlefield +5**
+  (tutor-land-basic/seek-land/donate-rampant-growth/ramp-with-set-s-mechanic/land-or-hand),
+  **token-created +3** (creates-token-of-a-card/copy-token/tokenlink); **artifact-enters += NOTHING**
+  (all candidates incidental — firebend-like makes mana not artifacts, Treasure/sneak cheat anything,
+  karnstructs are go-wide Constructs whose artifact-ness is the TRIGGER side). `event_catalog.json`
+  `produced_by` regenerated from `SEED_MAP` for the four events (the stale `ramp` ref in land-enters is
+  gone, replaced by the `land-ramp` seed; `_derivation` note updated). The **bookkeeping skip-list is
+  now REALIZED as data**: `BOOKKEEPING_EXTRA_SLUGS = {unprinted-token, token-errata, no-planeswalker-type}`
+  (three stray errata/availability tags outside the four prefix families), which `is_bookkeeping_family`
+  also consults, so future discovery never resurfaces them — proving the prefix-family veto above is
+  extensible by owner-ratified data, not code. `validate_seed_map()` 0 violations; every promotion
+  passes the mechanic-exclusivity gate. **Test:** `TestBookkeepingVeto::test_extra_bookkeeping_slugs_vetoed`.
+  Measured delta + the three moved SHAs: see ADR 0003 (R5d entry). Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5d-promotions/outbox.md`.
 
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.

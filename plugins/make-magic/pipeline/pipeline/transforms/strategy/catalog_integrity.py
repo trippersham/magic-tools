@@ -271,6 +271,21 @@ def is_payoff_family(slug: str) -> bool:
 BOOKKEEPING_FAMILY_PATTERNS: tuple[str, ...] = (r'^cycle-', r'^typal-', r'^type-', r'^unique-')
 _BOOKKEEPING_FAMILY_RE: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in BOOKKEEPING_FAMILY_PATTERNS)
 
+#: Stray Scryfall bookkeeping/errata otags that fall OUTSIDE the ``^cycle-/
+#: ^typal-/^type-/^unique-`` prefix families but are nonetheless cataloguing
+#: facts, not mechanics a card DOES.  Owner-ratified 2026-11-18 (R5d producer
+#: walkthrough) as an explicit skip set so future concept-anchored discovery
+#: never resurfaces them as candidate producers:
+#:   * ``unprinted-token``     — "tokens not yet printed in paper" (a paper-
+#:     availability fact, not an in-game token-making ability).
+#:   * ``token-errata``        — "used to make a different token type, since
+#:     updated" (an errata note about a past printing).
+#:   * ``no-planeswalker-type`` — planeswalker-identity trivia (a card that lacks
+#:     a planeswalker type), not a creature/permanent-entering producer.
+BOOKKEEPING_EXTRA_SLUGS: frozenset[str] = frozenset(
+    {'unprinted-token', 'token-errata', 'no-planeswalker-type'}
+)
+
 
 def is_bookkeeping_family(slug: str) -> bool:
     """True if *slug* is a Scryfall bookkeeping (provenance/identity) otag name.
@@ -279,8 +294,12 @@ def is_bookkeeping_family(slug: str) -> bool:
     not what the card DOES, so it must never be proposed as an event producer.
     ``typal-*`` is skipped on the producer side here but remains authoritative for
     tribal-archetype detection in :mod:`.distill_strategies` (a different layer).
+
+    Covers the four prefix families (``^cycle-/^typal-/^type-/^unique-``) AND the
+    explicit :data:`BOOKKEEPING_EXTRA_SLUGS` stragglers (owner-ratified) so a
+    future discovery run never resurfaces the stray errata/availability tags.
     """
-    return any(rx.search(slug) for rx in _BOOKKEEPING_FAMILY_RE)
+    return slug in BOOKKEEPING_EXTRA_SLUGS or any(rx.search(slug) for rx in _BOOKKEEPING_FAMILY_RE)
 
 
 @dataclass(frozen=True)

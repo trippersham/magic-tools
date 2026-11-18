@@ -256,6 +256,18 @@ adds `gains-poisonous` to `poisoned.produced_by` (grade already M). **B1/B2** re
 the still-inert set (game-end stays inert). Output-moving re-baseline under [0003] (0 hard flips; 35/157
 + 1/17 benign n_nodes +1 — the edge-less color-fixing node; 0 engine relocations).
 
+## Amendment — 2026-11-18 (R5d: owner-ratified producer promotions), 33 events unchanged
+
+No events added or removed (33 unchanged); field vocabulary unchanged; no ontology-shape change. Four
+already-M-graded producer events gained ratified `produced_by` seeds under the owner's promotion rule
+(detail in [0003]/[0022]): **creature-copied** 4 → 13 seeds (+9), **creature-enters-battlefield** 11 →
+22 (+11), **land-enters-battlefield** 6 → 11 (+5), **token-created** 13 → 16 (+3); **artifact-enters**
+unchanged (promoted nothing). Because all four were already grade **M** with non-empty seeds, the
+**grade tally stays 15/13/5** and the count invariant `test_anchor_map_has_33_events` is unchanged — the
+promotion only enriches existing events' producer seed sets, it does not touch the event ontology
+shape. Output-moving re-baseline under [0003] (0 headline/identity flips; 2 engines recovered, 0
+spurious; 73 strengthened; Shelob preserved + strictly improved).
+
 ## The bipartite graph and its projections
 
 The strategy engine operates on ONE bipartite graph with two projections.

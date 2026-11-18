@@ -1,13 +1,19 @@
 {
-  "_derivation": "AUTHORITATIVE ADJACENCY IS DERIVED, NOT THIS FILE (ADR 0022). The produced_by/triggers lists below are a human-readable, frozen SEED SUBSET. At catalog load, derive_card_events(SEED_MAP) replaces every non-empty-seed side with the sorted descendant-closure of that side's SEED_MAP seeds (derive_card_events.py); only empty-seed sides (e.g. game-end's raw lists, kept [] as the terminal invariant) pass through from this file. So these lists may lag the derived view (e.g. land-enters shows `ramp` but the derived view uses the `land-ramp` closure; game-end shows [] but the derived view carries alternate-win-condition/alternate-loss-condition/lose-trigger from SEED_MAP; library-depleted shows its mill seeds but the derived view expands mill-opponent's closure to mill-any/ingest). To see the real adjacency, read SEED_MAP in derive_card_events.py. Some refs match zero live cards in the lake (sac, clones, tokens, combat, counters, artifacts) but are RETAINED: sac/clones await a seed rename in a later wave; tokens/combat/counters/artifacts are carried as shorthand otags by the hermetic parity fixtures, so deleting them shifts the held engine/resolve parity SHAs and is NOT output-inert (the audit's §8 lake-only inert estimate does not account for the fixtures). Their removal is deferred to a fixture-aware re-baseline.",
+  "_derivation": "AUTHORITATIVE ADJACENCY IS DERIVED, NOT THIS FILE (ADR 0022). The produced_by/triggers lists below are a human-readable, frozen SEED SUBSET. At catalog load, derive_card_events(SEED_MAP) replaces every non-empty-seed side with the sorted descendant-closure of that side's SEED_MAP seeds (derive_card_events.py); only empty-seed sides (e.g. game-end's raw lists, kept [] as the terminal invariant) pass through from this file. So these lists may lag the derived view (e.g. land-enters lists its seeds but the derived view expands land-ramp's closure to the full ramp-child set; game-end shows [] but the derived view carries alternate-win-condition/alternate-loss-condition/lose-trigger from SEED_MAP; library-depleted shows its mill seeds but the derived view expands mill-opponent's closure to mill-any/ingest). The four R5d-promoted producer events (land-enters/creature-enters-battlefield/token-created/creature-copied) were resynced to their current SEED_MAP seed sets 2026-11-18 (owner-ratified producer promotions; the stale `ramp` ref is gone, replaced by the `land-ramp` seed). To see the real adjacency, read SEED_MAP in derive_card_events.py. Some refs match zero live cards in the lake (sac, clones, tokens, combat, counters, artifacts) but are RETAINED: sac/clones await a seed rename in a later wave; tokens/combat/counters/artifacts are carried as shorthand otags by the hermetic parity fixtures, so deleting them shifts the held engine/resolve parity SHAs and is NOT output-inert (the audit's §8 lake-only inert estimate does not account for the fixtures). Their removal is deferred to a fixture-aware re-baseline.",
   "events": {
     "land-enters-battlefield": {
       "rule": "CR 305: a land entering the battlefield (play/fetch/extra land drop)",
       "produced_by": [
+        "donate-rampant-growth",
         "extra-land",
-        "ramp",
+        "land-or-hand",
+        "land-ramp",
+        "ramp-with-set-s-mechanic",
         "reanimate-land",
         "recursion-land",
+        "seek-land",
+        "sneak-land",
+        "tutor-land-basic",
         "tutor-land-to-battlefield"
       ],
       "triggers": [
@@ -23,14 +29,28 @@
     "creature-enters-battlefield": {
       "rule": "CR 603.6: ETB triggered abilities; tokens/reanimation/flicker put creatures onto the battlefield. Uses `repeatable-creature-tokens` (not the `repeatable-token-generator` umbrella — its non-creature-token children make no creature ETB) (#74 R2 §3.4 coupled fix)",
       "produced_by": [
+        "bring-your-own-crew",
+        "creates-token-of-a-card",
         "flicker",
         "flicker-creature",
+        "genesis-effect",
+        "gives-escape",
+        "grim-return",
+        "impulse-to-zone",
+        "mass-reanimation",
+        "multiple-bodies",
+        "polymorph",
         "reanimate-artifact-creature",
         "reanimate-creature",
+        "reanimate-from-any",
+        "reanimate-from-opponent",
         "reanimate-nonland",
         "reanimate-permanent",
         "repeatable-creature-tokens",
-        "tokens"
+        "sneak-creature",
+        "sneak-from-library",
+        "tokens",
+        "zoo"
       ],
       "triggers": [
         "creature-count-matters",
@@ -388,6 +408,12 @@
       "abbrev": "tokens",
       "produced_by": [
         "artifacts",
+        "copy-token",
+        "creates-bigger-body",
+        "creates-token-of-a-card",
+        "leaves-body-behind",
+        "multiple-bodies",
+        "out-of-color-token",
         "repeatable-artifact-tokens",
         "repeatable-clues",
         "repeatable-creature-tokens",
@@ -395,6 +421,7 @@
         "repeatable-noncreature-tokens",
         "repeatable-token-generator",
         "repeatable-treasures",
+        "tokenlink",
         "tokens"
       ],
       "triggers": [
@@ -501,8 +528,18 @@
       "rule": "CR 707 / 701.6: a token or permanent that is a COPY of a creature is minted under your control (clone, steal-via-copy of a dying creature, populate-of-a-creature-token). Producers are the copy-creature/clone identity (the `clones` bucket) plus the token-copy families (copy-token/copy-self = populate); the EVENT covers token-copy even though the clones ARCHETYPE does not. A minted copy is a new creature/token permanent, so it is consumed by the creature-/token-enters payoffs (and, when the copy is also a Food as with Shelob, by the Food/lifegain payoffs).",
       "produced_by": [
         "clone",
+        "copy-creature",
+        "copy-from-graveyard",
+        "copy-legendary",
+        "copy-self",
         "copy-token",
-        "copy-self"
+        "eternalize",
+        "gains-myriad",
+        "gives-double-team",
+        "gives-encore",
+        "has-identical-token",
+        "multi-copy",
+        "shapesharing"
       ],
       "triggers": [
         "creature-count-matters",

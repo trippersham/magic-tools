@@ -131,12 +131,29 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             # Same predicate, same thresholds as mana-produced.produced_by —
             # no per-event special-casing.  See is_mechanic_exclusive /
             # validate_seed_map (task 6.1b).
+            # R5d ratified promotion (+5, owner-ratified 2026-11-18): more ways a
+            # LAND enters the battlefield (and a landfall/lands-matter payoff fires).
+            # tutor-land-basic/seek-land fetch a (basic) land onto the battlefield;
+            # donate-rampant-growth is a rampant-growth variant; ramp-with-set-s-
+            # mechanic puts lands out via a set mechanic; land-or-hand = "reveal/look
+            # -> if a land, put onto the battlefield, else to hand" (Nadu, Wickerfolk
+            # Thresher, Parcelbeast), a real landfall enabler CORRECTED here from
+            # creature-enters.  Dropped (too broad — put ANY permanent out, mostly
+            # non-land): tutor-to-battlefield (346, mostly creatures/Birthing Pod),
+            # sneak-permanent, reanimate-permanent (already a creature-enters seed),
+            # show-and-tell.  Proof: ratified-promotions-R5d.md +
+            # subagents/r5d-promotions/outbox.md.
             'seeds': [
+                'donate-rampant-growth',
                 'extra-land',
+                'land-or-hand',
                 'land-ramp',
+                'ramp-with-set-s-mechanic',
                 'reanimate-land',
                 'recursion-land',
+                'seek-land',
                 'sneak-land',
+                'tutor-land-basic',
                 'tutor-land-to-battlefield',
             ],
             'grade': 'M',
@@ -184,6 +201,36 @@ SEED_MAP: dict[str, dict[str, Any]] = {
                 # 2026-11-11-strategy-abstraction-consolidation/research/impulse-seed-scope.md.
                 'sneak-from-library',
                 'tokens',
+                # R5d ratified promotion (+11, owner-ratified 2026-11-18): more ways
+                # a CREATURE enters (and a payoff fires on the ETB).  Reanimation
+                # variants reanimate-from-opponent/-from-any/mass-reanimation/
+                # genesis-effect/grim-return bring creatures back to the battlefield;
+                # creates-token-of-a-card makes a token copy of a creature card (also
+                # a token-created producer); polymorph swaps a creature in from the
+                # library; gives-escape returns a creature from the graveyard; impulse-
+                # to-zone's closure covers impulse-onto-battlefield; zoo floods the
+                # board with creatures.  bring-your-own-crew INCLUDED (owner caught it):
+                # the built-in crew is a CREATED creature token on ETB (Wedgelight
+                # Rammer -> 2/2 Robot; Magitek Armor -> 1/1 Hero; S.H.I.E.L.D.
+                # Helicarrier -> two 1/1 Soldiers) -> a creature enters.  Dropped
+                # (wrong type): reanimate-planeswalker/-vehicle, repeatable-enchantment-
+                # tokens; dropped (not a producer): finality-counter/proto-finality
+                # (death-replacement, not entering), hate-theft/homeward-effect (change
+                # CONTROL), trading-post-like (generic ability engine), no-planeswalker-
+                # type (trivia -> bookkeeping skip-list).  land-or-hand MOVED to
+                # land-enters (it puts LANDS onto the battlefield).  Proof:
+                # ratified-promotions-R5d.md + subagents/r5d-promotions/outbox.md.
+                'bring-your-own-crew',
+                'creates-token-of-a-card',
+                'genesis-effect',
+                'gives-escape',
+                'grim-return',
+                'impulse-to-zone',
+                'mass-reanimation',
+                'polymorph',
+                'reanimate-from-any',
+                'reanimate-from-opponent',
+                'zoo',
             ],
             'grade': 'M',
         },
@@ -695,9 +742,16 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             # bodies, PLUS seed-discovery candidates promoted by the build-design:
             # leaves-body-behind (death→token), out-of-color-token (off-color
             # token producers), creates-bigger-body (Reef Worm chain).
+            # R5d ratified promotion (+3, owner-ratified 2026-11-18): creates-token-
+            # of-a-card makes a token copy of a card (also a creature-enters producer);
+            # copy-token copies an existing token; tokenlink makes a linked token.
+            # Dropped (not a producer): gives-loyalty-ability, roll-d4 (incidental).
+            # Proof: ratified-promotions-R5d.md + subagents/r5d-promotions/outbox.md.
             'seeds': [
                 'artifacts',
+                'copy-token',
                 'creates-bigger-body',
+                'creates-token-of-a-card',
                 'leaves-body-behind',
                 'multiple-bodies',
                 'out-of-color-token',
@@ -708,6 +762,7 @@ SEED_MAP: dict[str, dict[str, Any]] = {
                 'repeatable-noncreature-tokens',
                 'repeatable-token-generator',
                 'repeatable-treasures',
+                'tokenlink',
                 'tokens',
             ],
             'grade': 'M',
@@ -921,11 +976,30 @@ SEED_MAP: dict[str, dict[str, Any]] = {
         'produced_by': {
             # clones -> clone (#74 #22): the real Scryfall slug is `clone` (77
             # cards, "enter as copies of other things"); `clones` matched zero.
+            # R5d ratified promotion (+9, owner-ratified 2026-11-18): the ways a
+            # card makes a COPY OF A CREATURE (not a non-creature) and a payoff
+            # fires because that creature entered.  eternalize/gains-myriad/
+            # gives-encore/gives-double-team/multi-copy/shapesharing make copies;
+            # copy-from-graveyard/copy-legendary are creature-copy variants;
+            # has-identical-token makes an identical creature token.  Dropped
+            # (wrong type — copy NON-creatures): copy-artifact/-enchantment/
+            # -planeswalker/-land/-aura/-equipment; dropped (not a producer):
+            # mirror-gallery (voids the legend rule, copies nothing).  Proof:
+            # ratified-promotions-R5d.md + subagents/r5d-promotions/outbox.md.
             'seeds': [
                 'clone',
                 'copy-creature',
+                'copy-from-graveyard',
+                'copy-legendary',
                 'copy-self',
                 'copy-token',
+                'eternalize',
+                'gains-myriad',
+                'gives-double-team',
+                'gives-encore',
+                'has-identical-token',
+                'multi-copy',
+                'shapesharing',
             ],
             'grade': 'M',
         },

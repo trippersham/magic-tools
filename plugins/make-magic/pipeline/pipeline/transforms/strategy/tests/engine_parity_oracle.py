@@ -349,7 +349,40 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   ENGINE      7a83891a6c191f2b… -> 7a83891a6c191f2b… (UNCHANGED)
 #   RESOLVE     a63f268b0884a474… -> c2dbd766bccef939…
 # Proof: subagents/batch-b-concepts/outbox.md.
-FULL_CORPUS_SHA = '5c75bb44a57d0590f175fcb0efa125f08e51cc033e44b4ab6d9fca0a5443cc1e'
+# Re-baselined 2026-11-18 (R5d: owner-ratified producer promotions — concept-anchored
+# self-healing walkthrough). Four producer events gained ratified producer seeds (a
+# producer belongs on an event only when it makes THAT type AND a payoff fires because
+# that type entered — production alone never elects; consumer-connection enforced at
+# election time): creature-copied += 9 (eternalize/gains-myriad/gives-encore/gives-
+# double-team/multi-copy/shapesharing/copy-from-graveyard/copy-legendary/has-identical-
+# token), creature-enters-battlefield += 11 (reanimate-from-opponent/-from-any/mass-
+# reanimation/genesis-effect/grim-return/creates-token-of-a-card/polymorph/gives-escape/
+# impulse-to-zone/zoo/bring-your-own-crew), land-enters-battlefield += 5 (tutor-land-
+# basic/seek-land/donate-rampant-growth/ramp-with-set-s-mechanic/land-or-hand),
+# token-created += 3 (creates-token-of-a-card/copy-token/tokenlink). artifact-enters
+# promoted NOTHING (all candidates incidental). Plus the catalog_integrity bookkeeping
+# skip-list BOOKKEEPING_EXTRA_SLUGS = {unprinted-token, token-errata, no-planeswalker-type}.
+# Measured OFF (166defe) / ON (170 gauntlet + 17 fixtures): 0 headline / pre_combo_name /
+# archetype_identity / ranked_identity / combo_identity / confidence / bracket / n_win_combos
+# / n_detected_combos flips. 2 engines GAINED, both a genuine producer+consumer pair (0
+# spurious, 0 with empty consumers): mono-white__giada-font-of-hope + Shelob (owned__
+# spiders-play-with-their-food) each RECOVER a land-enters-battlefield engine (producer
+# tutor-land-basic, consumer landfall already present at support>=3) — the promotion
+# recovers a real engine that was missed because the basic-land tutor was not a recognized
+# land-enters producer. 0 engines lost. 73 engines STRENGTHENED (R5d producers added to an
+# EXISTING engine whose consumer was already present — benign). 56 gauntlet + 4 fixture
+# benign n_nodes increments (newly-admitted producer attribute nodes). Shelob PRESERVED +
+# strictly improved: its aristocrats/sacrifice identity (token-created 94, permanent-dies 74,
+# permanent-sacrificed 58, card-enters-graveyard, creature-copied) is BYTE-IDENTICAL; it
+# only gains the minor landfall engine (mass 6.0). validate_seed_map 0 violations (every
+# promotion passes the mechanic-exclusivity gate); validate_catalog 0 blocking. The 17
+# hermetic fixtures carry the promoted families (Shelob's tutor-land-basic), so all three
+# SHAs moved this wave:
+#   FULL_CORPUS 5c75bb44a57d0590… -> e18456ebd15bcd5f…
+#   ENGINE      7a83891a6c191f2b… -> 4d3f5e6d9d8ed142…
+#   RESOLVE     c2dbd766bccef939… -> 940c38811193b6f4…
+# Proof: subagents/r5d-promotions/outbox.md + ratified-promotions-R5d.md.
+FULL_CORPUS_SHA = 'e18456ebd15bcd5fcd54b022a65811c33f4683049fef0d9efa32cf79f10f36ab'
 
 
 def full_corpus_sha() -> str:

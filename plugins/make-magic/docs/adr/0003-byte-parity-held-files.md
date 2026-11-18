@@ -635,6 +635,42 @@ re-baseline makes every *intended* change legible as such.
   `distill_parity_baseline.json` regenerated (`engine_isolation_baseline.json` unchanged); grade tally
   now **15/13/5** (library-depleted empty → fully-M); `validate_catalog()` 0 blocking. Proof:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/batch-b-concepts/outbox.md`.
+- **2026-11-18 — R5d owner-ratified producer promotions (on top of `166defe`).** The de-noised
+  concept-anchored shadow proposals were walked event-by-event under the owner-ratified promotion
+  rule (a producer belongs on an event only when it makes THAT type AND a payoff fires because that
+  type entered; production alone never elects — consumer-connection enforced at election time). Four
+  events gained ratified `produced_by` seeds; **`artifact-enters` promoted NOTHING** (all candidates
+  incidental): **`creature-copied` +9** (eternalize/gains-myriad/gives-encore/gives-double-team/
+  multi-copy/shapesharing/copy-from-graveyard/copy-legendary/has-identical-token); **`creature-enters-
+  battlefield` +11** (reanimate-from-opponent/-from-any/mass-reanimation/genesis-effect/grim-return/
+  creates-token-of-a-card/polymorph/gives-escape/impulse-to-zone/zoo/bring-your-own-crew — the
+  built-in crew is a CREATED creature token on ETB); **`land-enters-battlefield` +5** (tutor-land-
+  basic/seek-land/donate-rampant-growth/ramp-with-set-s-mechanic/land-or-hand — `land-or-hand`
+  corrected here from creature-enters); **`token-created` +3** (creates-token-of-a-card/copy-token/
+  tokenlink). Plus the bookkeeping skip-list `BOOKKEEPING_EXTRA_SLUGS = {unprinted-token, token-errata,
+  no-planeswalker-type}` in `catalog_integrity.is_bookkeeping_family`. **Measured OFF (`166defe`:
+  `5c75bb44`/`7a83891a`/`c2dbd766`) / ON (170 gauntlet + 17 fixtures):** **0** headline / pre_combo_name
+  / archetype_identity / ranked_identity / combo_identity / confidence / bracket / n_win_combos /
+  n_detected_combos flips; **2 engines GAINED, 0 lost, 0 spurious** (0 gained engines with empty
+  consumers): `mono-white__giada-font-of-hope` + Shelob (`owned__spiders-play-with-their-food`) each
+  RECOVER a `land-enters-battlefield` engine (producer `tutor-land-basic`, consumer `landfall` already
+  present at support ≥3 — a real engine that was missed because the basic-land tutor was not a
+  recognized land-enters producer); **73 engines STRENGTHENED** (an R5d producer added to an EXISTING
+  engine whose consumer was already present — benign); 56 gauntlet + 4 fixture benign `n_nodes`
+  increments (newly-admitted producer attr nodes). **Shelob PRESERVED + strictly improved:** its
+  aristocrats/sacrifice identity (token-created 94 / permanent-dies 74 / permanent-sacrificed 58 /
+  card-enters-graveyard / creature-copied) is BYTE-IDENTICAL; it only gains the minor landfall engine
+  (mass 6.0). `validate_seed_map()` 0 violations (every promotion passes the mechanic-exclusivity
+  gate); `validate_catalog()` 0 blocking. The 17 hermetic fixtures carry the promoted families (Shelob's
+  `tutor-land-basic`), so **all three SHAs moved**: `FULL_CORPUS 5c75bb44a57d0590… → e18456ebd15bcd5f…`;
+  `ENGINE 7a83891a6c191f2b… → 4d3f5e6d9d8ed142…`; `RESOLVE c2dbd766bccef939… → 940c38811193b6f4…`.
+  All three constants (7 test files + `engine_parity_oracle.py`) + `distill_parity_baseline.json` +
+  `engine_isolation_baseline.json` regenerated. Two guard unit-tests updated for post-R5d reality
+  (not regressions): the WS2 re-derivation probe now drops BOTH `sneak-from-library` + the promoted
+  `impulse-to-zone` (whose closure covers `impulse-onto-battlefield`); the `ramp` umbrella probe pins
+  that `ramp`-in-land-enters is still caught while the symmetric `ramp`-in-mana-produced fell to 45%
+  (< the 0.5 `UMBRELLA_COVERAGE_MIN`) because land-enters legitimately grew 6 → 11 seeds. Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5d-promotions/outbox.md`.
 
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
