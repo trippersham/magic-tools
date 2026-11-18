@@ -697,6 +697,16 @@ re-baseline makes every *intended* change legible as such.
   violations; `validate_catalog()` ok=True, 0 blocking. Full OFF/ON delta + root-cause tie-outs:
   `~/.claude/plans/trippersham/magic-tools/2026-11-18-reproducibility-adversarial-test/subagents/component0/delta-report.md`.
 
+- **2026-11-18 — standing reproducibility gate (extends the test-of-record story).** The
+  `FULL_CORPUS_SHA` tripwire is now backed by a repeatable, infrequently-run gate at
+  `pipeline/transforms/strategy/tests/repro/` (`-m repro`): **Leg B** proves the extraction is a
+  pure function of a *committed* pinned lake (two fresh subprocesses, varied `PYTHONHASHSEED` + CPU
+  load → identical ENGINE/RESOLVE/FULL_CORPUS composites + zero semantic drift), and **Leg A**
+  (opt-in, `live`) quantifies real Scryfall tag drift vs the pin. No held file changed; the gate
+  only observes. The pinned lake (the 4 extraction-read parquets + manifest) is committed as the
+  self-contained reference, and the `repin` flow re-pins it as part of any future sanctioned
+  re-baseline. See ADR 0022 (the derived adjacency the gate verifies did not silently fall back).
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`strategy_graph.py` is shared with this record).
