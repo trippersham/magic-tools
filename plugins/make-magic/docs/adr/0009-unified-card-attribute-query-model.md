@@ -133,6 +133,15 @@ three P0 SHAs hold.
   never land unnoticed. The guard is **read-only / byte-parity** (it reads the catalog + taxonomy,
   it never changes engine output; the three P0 SHAs are unchanged). It never auto-fixes: a real
   dead ref it surfaces is an owner-ratified frozen-catalog edit (ADR 0003), not a silent rewrite.
+- **Dead-ref gate activated (R5a, 2026-11-17).** The 3 dead refs the guard surfaced on the
+  canonical catalog were owner-ratified and corrected as a measured re-baseline, all **inside this
+  closed vocabulary** (the corrected disjuncts are live otags — `otag:repeatable-proliferate OR
+  otag:pseudo-proliferate OR otag:synergy-proliferate` for `counters`, `otag:gains-deathtouch OR
+  otag:gives-deathtouch` for `deathtouch`, and the redundant `otag:auras` dropped — never a new
+  evaluator atom). With the dead refs gone, the `test_distill_atoms_resolve_clean` xfail is removed
+  and `validate_distill_atoms` is now **fully blocking** (`validate_catalog()` → 0 blocking
+  violations). Proof + the ENGINE-chain-unchanged measurement: ADR 0003 and
+  `subagents/r5a-latent-bug-hunt/outbox.md`.
 
 ## Related records
 - 0001 — one-named-rule (clause 4): the drift this removes.

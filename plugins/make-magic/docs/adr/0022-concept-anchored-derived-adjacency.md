@@ -309,6 +309,23 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   per-change delta:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r3-recursion-restructure/outbox.md`.
 
+- **2026-11-17 — latent coverage-bug otag refs corrected; the NAMING layer is decoupled from this
+  adjacency layer (R5a; ADR 0003/0009 re-baseline).** Three dead `otag:` refs in the distill
+  *identity* vocabulary (`distill_strategies.py`) were corrected — `counters:otag:proliferate` (an
+  EVENT name) → the live proliferate family, `voltron/equipment:otag:auras` dropped (redundant with
+  `synergy-aura`), and `deathtouch:otag:deathtouch-combat` (an EVENT name) → `otag:gains-deathtouch
+  OR otag:gives-deathtouch`. The `deathtouch-combat` EVENT's `produced_by` **already** carried
+  `gains-deathtouch`/`gives-deathtouch` (its convergent-event-component chains show
+  `gains-deathtouch --deathtouch-combat--> combat` etc.) — the event/adjacency layer was never
+  under-covered; only the distill *archetype label* was. The correction therefore touches the
+  NAMING layer ONLY: **SEED_MAP, the event set, and every EventEffect edge are byte-unchanged** —
+  proven by the ENGINE composite SHA and every per-deck `facts['engines']`/`facts['edges']` SHA
+  (170 gauntlet + 17 fixtures, incl. Shelob) being identical OFF/ON. This is the clean separation
+  this record's event layer and ADR 0009's naming layer are meant to have: an identity-query fix
+  re-labels decks without re-deriving a single edge. ENGINE unchanged; RESOLVE/FULL_CORPUS moved
+  (`cb1a103b…`→`38aad6df…`, `f209237b…`→`ed36de37…`). Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5a-latent-bug-hunt/outbox.md`.
+
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
 - 0002 / 0020 — substantiveness + the `producer_anchor` gate this adjacency feeds; `ramp` stays anchor-side-only there, never in the adjacency.

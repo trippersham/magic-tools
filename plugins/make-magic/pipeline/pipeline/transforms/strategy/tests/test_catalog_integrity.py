@@ -165,18 +165,10 @@ class TestCatalogBlockingGate:
         assert report.membership_atoms == ()
         assert report.payoff_producers == ()
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            'STOP / owner-ratification pending: the dead-ref guard surfaces 3 long-standing distill '
-            'dead refs on the canonical catalog — counters:otag:proliferate, voltron/equipment:otag:auras, '
-            'deathtouch:otag:deathtouch-combat (none is a live otag or a surfaced attribute; all 3 are '
-            'inert, matching no card). See subagents/r5a-integrity-guards/outbox.md. They are '
-            'byte-parity-safe to remove, but a frozen-catalog edit needs owner ratification (ADR 0003), so '
-            'the guard surfaces rather than auto-fixes. Once the owner removes them this XPASSes; '
-            'strict=True then fails the run, forcing this marker off and activating the full distill '
-            'dead-ref gate as blocking.'
-        ),
-    )
     def test_distill_atoms_resolve_clean(self) -> None:
+        # R5a (2026-11-17): the 3 long-standing distill dead refs were corrected in a measured
+        # re-baseline (counters:otag:proliferate -> live proliferate family; voltron/equipment:
+        # otag:auras dropped as redundant with synergy-aura; deathtouch:otag:deathtouch-combat ->
+        # otag:gains-deathtouch OR otag:gives-deathtouch). The xfail marker is removed and this
+        # guard is now FULLY BLOCKING. See subagents/r5a-latent-bug-hunt/outbox.md.
         assert ci.validate_distill_atoms() == []

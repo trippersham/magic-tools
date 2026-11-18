@@ -498,6 +498,40 @@ re-baseline makes every *intended* change legible as such.
   `mass-elected` engines). `validate_seed_map()` 0 violations; 30 events (count unchanged). Full
   per-change delta:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r3-recursion-restructure/outbox.md`.
+- **2026-11-17 — latent coverage-bug otag refs corrected + distill dead-ref gate activated (R5a).**
+  Three DISTILL-identity corrections in `distill_strategies.py`, all inside the closed query
+  vocabulary (ADR 0009 — otag only, no new evaluator atom). Each was a dead ref the R5a dead-ref
+  guard surfaced (a slug that is neither a live otag nor a surfaced attribute — it reads as if it
+  does something it does not):
+  - `counters`: the dead `otag:proliferate` (an EVENT name, 0 cards) → the live proliferate family
+    `otag:repeatable-proliferate OR otag:pseudo-proliferate OR otag:synergy-proliferate` (3
+    attribute names move None → `+1/+1 counters`).
+  - `voltron/equipment`: DROP the dead `otag:auras` (0 cards). `synergy-aura` (200 cards) is already
+    in the query and covers aura-voltron, so the removal is member-neutral.
+  - `deathtouch`: the dead `otag:deathtouch-combat` (an EVENT name, 0 cards) → `otag:gains-deathtouch
+    OR otag:gives-deathtouch` (the deathtouch-GRANTING / Shelob family, 314 cards). The
+    `deathtouch-combat` EVENT already carried gains/gives-deathtouch as PRODUCERS — only the distill
+    identity under-covered (the dead event-name ref silently matched no card).
+  These edit the NAMING layer only. **Belt-and-suspenders proof (owner-requested):** the Shelob
+  fixture (`owned__spiders-play-with-their-food`) `facts['engines']` + `facts['edges']` SHAs are
+  BYTE-IDENTICAL OFF/ON (`engines be46237d…`, `edges eac41b9d…`), and every per-deck
+  `facts['engines']` SHA across all 170 gauntlet + 17 fixture decks is identical — the event set +
+  EventEffect edges are untouched; only the archetype label shifts (Shelob gains the `deathtouch`
+  identity via Shelob + Mirkwood Spider; headline/bracket/confidence unchanged). **Measured OFF
+  (`86a7087`) / ON:** 7/170 gauntlet records moved (3 gain the `deathtouch` identity —
+  kathril/nethroi/judith; 4 counters decks gain `repeatable-proliferate`/`pseudo-proliferate` in
+  `contributing_attrs` with `member_cards` + `weighted_quantity` UNCHANGED — pure provenance) +
+  2/17 fixtures (Shelob + fantastic-four). **0 hard flips** (pre_combo_name/combo_identity/
+  confidence/bracket/abstain), 1 legitimate top-3 reshuffle (kathril's #3 `deathtouch` over
+  `+1/+1 counters`), **0 spurious joins**: nethroi's 1-card deathtouch is gated out by the
+  substantiveness bar (ADR 0004 — `support_count ≥ 3`, or `≥ 2` with a commander). **ENGINE
+  UNCHANGED**; RESOLVE + FULL_CORPUS moved: `FULL_CORPUS cb1a103be7614116… → 38aad6df13fc352d…`;
+  `ENGINE 4549062831f5bfc9…` (unchanged); `RESOLVE f209237b352ebf62… → ed36de37ee5436bb…`. RESOLVE
+  constants (7 test files) + `distill_parity_baseline.json` regenerated (`engine_isolation_baseline.
+  json` byte-unchanged). The R5a `test_distill_atoms_resolve_clean` xfail is removed — the distill
+  dead-ref gate is now FULLY BLOCKING; `validate_catalog()` 0 blocking violations. Full per-change
+  delta:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5a-latent-bug-hunt/outbox.md`.
 
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.

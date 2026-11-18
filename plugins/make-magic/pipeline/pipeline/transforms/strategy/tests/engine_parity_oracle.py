@@ -236,7 +236,31 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   ENGINE      9559fa42ea76f661… -> 4549062831f5bfc9…
 #   RESOLVE     b88d8bb5d3a32414… -> f209237b352ebf62…
 # Proof: subagents/r3-recursion-restructure/outbox.md.
-FULL_CORPUS_SHA = 'cb1a103be761411600577e66bdd81b9688eb3f48cfaaa93872dda3a394c77231'
+# Re-baselined 2026-11-17 (R5a: latent coverage-bug otag refs corrected + distill dead-ref gate
+# activated). Three DISTILL-identity corrections, all inside the closed query vocabulary (ADR 0009):
+#   * counters: the dead `otag:proliferate` (an EVENT name, 0 cards) -> the live proliferate family
+#     `otag:repeatable-proliferate OR otag:pseudo-proliferate OR otag:synergy-proliferate` (3
+#     attribute names None -> +1/+1 counters).
+#   * voltron/equipment: DROP the dead `otag:auras` (0 cards; `synergy-aura` already in the query
+#     covers aura-voltron) — member-neutral.
+#   * deathtouch: the dead `otag:deathtouch-combat` (an EVENT name, 0 cards) -> `otag:gains-deathtouch
+#     OR otag:gives-deathtouch` (the deathtouch-GRANTING / Shelob family, 314 cards; the deathtouch-
+#     combat EVENT already carried these as producers — only the distill identity under-covered).
+# These edit the NAMING layer only — NOT events/EventEffect edges. PROVEN: ENGINE composite +
+# every per-deck `facts['engines']` SHA (all 170 gauntlet + 17 fixtures) are BYTE-IDENTICAL; the
+# Shelob fixture (owned__spiders-play-with-their-food) `engines`+`edges` SHAs are identical OFF/ON,
+# only its archetype label gains deathtouch (headline/bracket/confidence unchanged). Measured OFF
+# (86a7087) / ON: 7/170 gauntlet records moved (3 gain the deathtouch identity: kathril/nethroi/
+# judith; 4 counters decks gain `repeatable-proliferate` in contributing_attrs with member_cards +
+# weight UNCHANGED — pure provenance) + 2/17 fixtures (Shelob + fantastic-four). 0 hard flips
+# (pre_combo/combo/confidence/bracket/abstain), 1 legit top-3 reshuffle (kathril's #3 deathtouch
+# over +1/+1 counters), 0 spurious: nethroi's 1-card deathtouch is gated out by the substantiveness
+# bar (ADR 0004: >=3, or >=2 with commander). ENGINE UNCHANGED; RESOLVE + FULL_CORPUS moved:
+#   FULL_CORPUS cb1a103be7614116… -> 38aad6df13fc352d…
+#   ENGINE      4549062831f5bfc9… (unchanged)
+#   RESOLVE     f209237b352ebf62… -> ed36de37ee5436bb…
+# Proof: subagents/r5a-latent-bug-hunt/outbox.md.
+FULL_CORPUS_SHA = '38aad6df13fc352d062af5666b84898845a96678f526421aef9cc77760f36b69'
 
 
 def full_corpus_sha() -> str:

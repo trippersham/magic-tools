@@ -116,9 +116,13 @@ NEWBUCKET_IDENTITIES: list[tuple[str, str]] = [
 #: ``lifegain`` + ``lifegain-matters``/``-increaser``/``-to-damage``; ``tax`` +
 #: ``tax-attack``/``-block``; ``synergy-artifact`` + ``-creature``). The hand-rolled
 #: unions (``counters`` pp-counters; ``deathtouch``) are likewise exact OR-lists.
-#: A granted-keyword payload slug is simply left out of the list rather than guarded
-#: away: ``gives-pp-counters`` is not counters, ``gives-deathtouch`` is not
-#: deathtouch, and an unlisted ``gives-*`` slug falls through to "no identity". The
+#: A granted-keyword payload slug is included only where GRANTING *is* the strategy:
+#: ``gives-pp-counters`` is not a ``counters`` deck (a one-shot pump is not a
+#: +1/+1-counters plan — left out), but ``gains-deathtouch``/``gives-deathtouch`` ARE
+#: the ``deathtouch`` identity (a deck that hands out deathtouch — Shelob, the
+#: deathtouch-combat payoff producers — is a deathtouch strategy; R5a restored these
+#: 314 cards after the dead event-name ref ``deathtouch-combat`` silently under-covered
+#: them). An unlisted ``gives-*`` slug not named here falls through to "no identity". The
 #: facts-only ``enchantments`` archetype lists the enchantment-*synergy* members
 #: (the removal/hate/disenchant slugs the old broad regex also swept up are not an
 #: enchantment strategy); the real synergy payoffs distill to ``enchantress`` first.
@@ -151,7 +155,8 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
         'counters',
         'otag:counters OR otag:gains-pp-counters OR otag:pp-counters-matter '
         'OR otag:repeatable-pp-counters OR otag:counters-matter '
-        'OR otag:counter-increaser OR otag:proliferate',
+        'OR otag:counter-increaser '
+        'OR otag:repeatable-proliferate OR otag:pseudo-proliferate OR otag:synergy-proliferate',
     ),
     (
         'sacrifice',
@@ -196,7 +201,7 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
     ('blink/flicker', 'otag:flicker'),
     (
         'voltron/equipment',
-        'otag:equipment OR otag:auras OR otag:synergy-equipment '
+        'otag:equipment OR otag:synergy-equipment '
         'OR otag:synergy-equipment-legendary OR otag:synergy-aura '
         'OR otag:quick-equip OR otag:auto-equip',
     ),
@@ -208,7 +213,7 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
     ('stax/prison', 'otag:stax OR otag:tax OR otag:tax-attack OR otag:tax-block OR otag:cast-tax'),
     (
         'deathtouch',
-        'otag:deathtouch-combat OR otag:deathtouch-counter '
+        'otag:gains-deathtouch OR otag:gives-deathtouch OR otag:deathtouch-counter '
         'OR otag:deathtouch-to-planeswalkers '
         'OR otag:hate-deathtouch OR otag:old-blocking-deathtouch '
         'OR otag:old-damage-deathtouch OR otag:removes-deathtouch '
