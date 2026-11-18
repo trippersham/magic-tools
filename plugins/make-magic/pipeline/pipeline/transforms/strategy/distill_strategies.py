@@ -384,33 +384,58 @@ SYNTH_ALWAYS_ATTRIBUTES: list[tuple[str, str]] = [
     # carries NO archetype edge (it distills to None) — it surfaces the producer
     # cards for the `experience` event seed, it does not rename the deck.
     ('experience-counter', "oracle:'experience counter'"),
-    # Monarch-makers (#74 §2.2 option ii). Scryfall carries ONE `monarch-matters`
-    # otag (49) over BOTH makers and payoffs, so the `monarch` event's single attr
-    # on both sides formed no edge (the p != c_ self-pair exclusion). This synth
-    # attr isolates the MAKERS by the oracle phrase every maker carries ("become
-    # the monarch"), so `monarch`'s produced_by seeds it and triggers keeps the
-    # payoff otag `monarch-matters` — maker->payoff edges now form. Measured 62
-    # members (all literal "become the monarch" makers; the 2 that also carry a
-    # "whenever you become the monarch" trigger still make the monarch on ETB, so
-    # no pure-payoff contamination). Like `rad-counter` it carries NO archetype
-    # edge (distills to None) — it surfaces the maker cards for the edge pass, it
-    # does not rename the deck.
-    ('monarch-maker', "oracle:'become the monarch'"),
-    # Color-fixing producer (ADR 0024 domain state-event; #74). No Scryfall otag is
-    # both mechanic-exclusive AND producer-role-pure for "fixes your colors", so it
-    # is authored here as a UNION inside the closed query vocabulary (ADR 0009: the
-    # evaluator must NOT grow a `produced_mana:` atom — the field form is off-limits).
-    # `oracle:'mana of any color'` (686) catches the any-color mana sources (dorks /
-    # rocks / lands); `otag:rainbow-land` (118) adds the any-color LANDS. Union = 709,
-    # 92% produce >=3 of WUBRG (producer-role), 2/709 incidental payoff tags (Revel in
-    # Riches, Luck Bobblehead). KNOWN GAP: basic-land-TYPE fixers (fetchlands, Prismatic
-    # Omen) are NOT covered — no clean otag exists (`fetchland` 56 is 1-2 types not all;
-    # `dual-land` 468 / basic-land-search 380 drag in generic ramp), so the land-fetch
-    # half of domain fixing is deferred (see subagents/r1-realize-adr0024/outbox.md).
-    # Like `rad-counter`/`monarch-maker` it carries NO archetype edge (distills to None)
-    # — it surfaces the fixer cards for the `domain` event producer seed, it does not
-    # rename the deck.
-    ('color-fixing', "oracle:'mana of any color' OR otag:rainbow-land"),
+    # Monarch-makers (#74 §2.2 option ii; Batch B B1 refinement). Scryfall carries
+    # ONE `monarch-matters` otag (49) over BOTH makers and payoffs, so the `monarch`
+    # event's single attr on both sides formed no edge (the p != c_ self-pair
+    # exclusion). This synth attr isolates the MAKERS by the oracle phrases every
+    # maker carries. The naive `oracle:'become the monarch'` (62) swept in the
+    # Fioran-style FP (Fioran Reformist: "Players can't become the monarch" — an
+    # ANTI-monarch answer, not a maker) and missed the "target player becomes the
+    # monarch" makers. The refined maker-only pattern is the union of the self-maker
+    # phrase `you become the monarch` and the opponent/target-maker regex
+    # `(target player|target opponent|that player|an opponent|another player)
+    # becomes the monarch` (bare spaces rewritten to `.` for RE2/Scryfall
+    # paste-ability — ADR 0009). Measured 65 clean makers: it DROPS the Fioran FP
+    # and ADDS the 4 target-maker cards (Denethor Stone Seer, Garland Royal
+    # Kidnapper, M'Baku Jabari Chieftain, Éomer King of Rohan — all literal
+    # "target/that player becomes the monarch"); 0 pure whenever-payoff FPs (the
+    # cards that also carry a "whenever you become the monarch" trigger, e.g.
+    # Starscream, still literally MAKE the monarch, so they belong). Like
+    # `rad-counter` it carries NO archetype edge (distills to None) — it surfaces the
+    # maker cards for the edge pass, it does not rename the deck.
+    (
+        'monarch-maker',
+        "oracle:'you become the monarch' OR "
+        "oracle:/(target.player|target.opponent|that.player|an.opponent|another.player).becomes.the.monarch/",
+    ),
+    # Color-fixing producer (ADR 0024 domain state-event; #74; Batch B B2 extension
+    # to the full basic/type-fixing family). No Scryfall otag is both mechanic-
+    # exclusive AND producer-role-pure for "fixes your colors", so it is authored
+    # here as a UNION inside the closed query vocabulary (ADR 0009: the evaluator must
+    # NOT grow a `produced_mana:` atom — the field form is off-limits). The union has
+    # two halves: (a) the MANA-of-any-color fixers — `oracle:'mana of any color'`
+    # (any-color dorks / rocks / lands) + `otag:rainbow-land` (118, the any-color
+    # LANDS); and (b) the BASIC-LAND-TYPE fixers (the former KNOWN GAP, now closed):
+    # `otag:nonbasic-basic-land-type` (110, duals that carry basic types),
+    # `otag:tutor-land-basic` (basic-land fetch — closure incl. per-type children),
+    # `otag:fetchland` (56, the fetch cycle), and the all-basic-type CONVERTER oracle
+    # `oracle:'every basic land type'` (5: Prismatic Omen, Dryad of the Ilysian Grove,
+    # Leyline of the Guildpact, Nylea's Presence, Overlord of the Hauntwoods — all 0-FP
+    # "your lands are every basic land type" converters; the raw `land-conversion` otag
+    # was REJECTED as mixed — it carries Urborg mono-type + Mind Bend text-change). The
+    # converter oracle is chosen over `oracle:'all basic land types'` (that phrase only
+    # matches 1 unrelated card). Generic `land-ramp`/`tutor-land-any` stay OUT (pure
+    # mana-ramp, not color-fixing). Union = 1284 (was 709). color-fixing stays EDGE-LESS
+    # (distills to None — a fixer must not rename a ramp deck); over-fire is impossible
+    # because the `domain` archetype needs the `five-color-win` payoff, so broadening
+    # the fixer set is safe (no new archetype FP — a ramp deck must NOT become domain).
+    # Like `rad-counter`/`monarch-maker` it carries NO archetype edge — it surfaces the
+    # fixer cards for the `domain` event producer seed, it does not rename the deck.
+    (
+        'color-fixing',
+        "oracle:'mana of any color' OR otag:rainbow-land OR otag:nonbasic-basic-land-type "
+        "OR oracle:'every basic land type' OR otag:tutor-land-basic OR otag:fetchland",
+    ),
     # Five-color-win payoff (ADR 0024 domain state-event). The domain/five-color WIN
     # payoff: `otag:alternate-win-condition AND oracle:'each color'` = exactly
     # {Coalition Victory, Call the Spirit Dragons} — the two cards that win by composing

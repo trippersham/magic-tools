@@ -1,5 +1,5 @@
 {
-  "_derivation": "AUTHORITATIVE ADJACENCY IS DERIVED, NOT THIS FILE (ADR 0022). The produced_by/triggers lists below are a human-readable, frozen SEED SUBSET. At catalog load, derive_card_events(SEED_MAP) replaces every non-empty-seed side with the sorted descendant-closure of that side's SEED_MAP seeds (derive_card_events.py); only empty-seed sides (game-end, library-depleted raw lists) pass through from this file. So these lists may lag the derived view (e.g. land-enters shows `ramp` but the derived view uses the `land-ramp` closure; game-end shows [] but the derived view carries alternate-win-condition/lose-trigger from SEED_MAP). To see the real adjacency, read SEED_MAP in derive_card_events.py. Some refs match zero live cards in the lake (sac, clones, tokens, combat, counters, artifacts) but are RETAINED: sac/clones await a seed rename in a later wave; tokens/combat/counters/artifacts are carried as shorthand otags by the hermetic parity fixtures, so deleting them shifts the held engine/resolve parity SHAs and is NOT output-inert (the audit's §8 lake-only inert estimate does not account for the fixtures). Their removal is deferred to a fixture-aware re-baseline.",
+  "_derivation": "AUTHORITATIVE ADJACENCY IS DERIVED, NOT THIS FILE (ADR 0022). The produced_by/triggers lists below are a human-readable, frozen SEED SUBSET. At catalog load, derive_card_events(SEED_MAP) replaces every non-empty-seed side with the sorted descendant-closure of that side's SEED_MAP seeds (derive_card_events.py); only empty-seed sides (e.g. game-end's raw lists, kept [] as the terminal invariant) pass through from this file. So these lists may lag the derived view (e.g. land-enters shows `ramp` but the derived view uses the `land-ramp` closure; game-end shows [] but the derived view carries alternate-win-condition/alternate-loss-condition/lose-trigger from SEED_MAP; library-depleted shows its mill seeds but the derived view expands mill-opponent's closure to mill-any/ingest). To see the real adjacency, read SEED_MAP in derive_card_events.py. Some refs match zero live cards in the lake (sac, clones, tokens, combat, counters, artifacts) but are RETAINED: sac/clones await a seed rename in a later wave; tokens/combat/counters/artifacts are carried as shorthand otags by the hermetic parity fixtures, so deleting them shifts the held engine/resolve parity SHAs and is NOT output-inert (the audit's §8 lake-only inert estimate does not account for the fixtures). Their removal is deferred to a fixture-aware re-baseline.",
   "events": {
     "land-enters-battlefield": {
       "rule": "CR 305: a land entering the battlefield (play/fetch/extra land drop)",
@@ -489,7 +489,7 @@
       ]
     },
     "monarch": {
-      "rule": "CR 726 (The Monarch): a player becomes the monarch (draw at end step; designation moves on combat damage / monarch leaving). #74 §2.2 option ii (FUNCTIONAL SPLIT): Scryfall carries one monarch-matters tag on both makers and payoffs, so a single attr on both sides formed no edge (the p != c_ self-pair exclusion). The monarch-maker synth attr (oracle:'become the monarch', 62 makers) now isolates the PRODUCER side, so maker -> payoff edges form.",
+      "rule": "CR 726 (The Monarch): a player becomes the monarch (draw at end step; designation moves on combat damage / monarch leaving). #74 §2.2 option ii (FUNCTIONAL SPLIT): Scryfall carries one monarch-matters tag on both makers and payoffs, so a single attr on both sides formed no edge (the p != c_ self-pair exclusion). The monarch-maker synth attr now isolates the PRODUCER side, so maker -> payoff edges form. Batch B B1: the maker-only pattern is oracle:'you become the monarch' OR the opponent/target-maker regex (target/that/an-/another player becomes the monarch) = 65 clean makers — it drops the Fioran-Reformist anti-monarch FP and adds the 4 target-maker cards; 0 pure whenever-payoff FPs.",
       "produced_by": [
         "monarch-maker"
       ],
@@ -587,7 +587,7 @@
       ]
     },
     "game-end": {
-      "rule": "CR 104.1/104.2/104.3: the game ends. Terminal node \u2014 the walk target. Fids map here with polarity (win/draw/loss) from the research route and scope from the feature. Rule-edges from life-loss-drain (SBA 104.3b), library-depleted (CR 104.3c), and combat-damage-dealt reach game-end through the EventEffect graph.",
+      "rule": "CR 104.1/104.2/104.3: the game ends. Terminal node \u2014 the walk target. Fids map here with polarity (win/draw/loss) from the research route and scope from the feature. Rule-edges from life-loss-drain (SBA 104.3b), library-depleted (CR 104.3c), and combat-damage-dealt reach game-end through the EventEffect graph. Producers (SEED_MAP, derived): alternate-win-condition (win) + alternate-loss-condition (loss) \u2014 Batch B B4. Polarity is DERIVED PER-PRODUCER-OTAG / per-card (combo_win.fid_route reads the fid's own win-vs-loss text), NOT from the node's multi-polarity field, so a Lich/Last-Chance reads loss and an Approach reads win; the produced_by list adds graph structure only and never maps an otag to a win attribution. The raw lists below stay [] (terminal invariant); the derived view carries the producers/consumers.",
       "polarity": [
         "win",
         "draw",
@@ -602,12 +602,19 @@
       "triggers": []
     },
     "library-depleted": {
-      "rule": "CR 104.3c: a player with an empty library who would draw loses. Covers mill/library-exile fids directed at opponents (32 features). Replaces the implicit 'deckout' concept with an explicit event node; a rule-edge to game-end (CR 104.3c) will be wired in the EventEffect graph when the adapter is consumed.",
-      "produced_by": [],
-      "triggers": []
+      "rule": "CR 104.3c: a player with an empty library who would draw loses. Covers mill/library-exile fids directed at opponents. Batch B B5: the deckout mechanic was an empty terminal node; now populated. produced_by = the opponent-depleting mill seeds mill-opponent (476) / mill-each (61) / mill-exile (160) — mill-self is NOT a producer (self-deplete is the fid/alt-win path and is not reached by these seeds' closures). triggers = the deckout consumers empty-library (9, the Lab-Man/Thassa's-Oracle win-flip) + library-size-matters (23). The CR-104.3c rule-edge to game-end lives in combo_win.py (library-depleted is a _RULE_TERMINAL_EVENT; fid_route routes opponent depletion to deckout-opp, self to self-deplete).",
+      "produced_by": [
+        "mill-each",
+        "mill-exile",
+        "mill-opponent"
+      ],
+      "triggers": [
+        "empty-library",
+        "library-size-matters"
+      ]
     },
     "poisoned": {
-      "rule": "CR 104.3d / 704.5c: a player with ten or more poison counters loses the game (SBA). Poison counters are PLAYER counters; producers are the mechanic-exclusive poison GIVER otags (poisonous, poison-opponents, gives-infect/toxic/poisonous; 163 cards, all prec 1.0 vs the poison family) — the parent poison-mechanics (198) is excluded because its closure also carries the consumer synergy-poison and removes-infect/gains-* cards. The payoff/consumer is synergy-poison (42). The poisoned -> game-end WIN rule-edge lives in combo_win.py (EVENT_EDGE_CLASSES['poisoned'] = ['altwin::poisoned']); it is walk-inert until a poison fid route exists (fid 1800 -> None today).",
+      "rule": "CR 104.3d / 704.5c: a player with ten or more poison counters loses the game (SBA). Poison counters are PLAYER counters; producers are the 6-giver union of mechanic-exclusive poison GIVER otags (gains-poisonous, gives-infect, gives-poisonous, gives-toxic, poison-opponents, poisonous; all prec 1.0 vs the poison family) — Batch B B3 aligned SEED_MAP (was 5) with this file (was already 6); gains-poisonous's 2 members (Hish, Virulent Sliver) already carried gives-poisonous so the card-level set is unchanged. The parent poison-mechanics (198) is still excluded because its closure also carries the consumer synergy-poison and the removes-infect cards (producer-role impurity). The payoff/consumer is synergy-poison (42). The poisoned -> game-end WIN rule-edge lives in combo_win.py (EVENT_EDGE_CLASSES['poisoned'] = ['altwin::poisoned']); it is walk-inert until a poison fid route exists (fid 1800 -> None today).",
       "produced_by": [
         "gains-poisonous",
         "gives-infect",
@@ -621,7 +628,7 @@
       ]
     },
     "domain": {
-      "rule": "CR 104.2a: an effect states that a player wins the game (Coalition Victory: control a land of each basic land type and a creature of each color -> you win). The reusable board-state is a STATE-EVENT `domain` (ADR 0024): enablers PRODUCE the five-color/all-basic-type state, the wincon CONSUMES it. produced_by = the authored SYNTH attr `color-fixing` (union oracle:'mana of any color' OR otag:rainbow-land, 709 fixers; no clean otag exists and the evaluator must not grow a produced_mana atom, ADR 0009 — KNOWN GAP: basic-land-TYPE fixers are not covered). triggers = the authored SYNTH attr `five-color-win` (otag:alternate-win-condition AND oracle:'each color' = Coalition Victory + Call the Spirit Dragons). The domain -> game-end WIN rule-edge lives in combo_win.py (EVENT_EDGE_CLASSES['domain'] = ['altwin::domain']); walk-inert until a domain fid route exists (none today, mirrors poisoned). life-threshold was DROPPED this wave — the existing `lifegain` event already models the lifegain-win (altwin::lifegain = Felidar/Angel/Test); a second event would double-count.",
+      "rule": "CR 104.2a: an effect states that a player wins the game (Coalition Victory: control a land of each basic land type and a creature of each color -> you win). The reusable board-state is a STATE-EVENT `domain` (ADR 0024): enablers PRODUCE the five-color/all-basic-type state, the wincon CONSUMES it. produced_by = the authored SYNTH attr `color-fixing` (Batch B B2: union oracle:'mana of any color' OR otag:rainbow-land OR otag:nonbasic-basic-land-type OR oracle:'every basic land type' OR otag:tutor-land-basic OR otag:fetchland, 1284 fixers; no clean otag exists and the evaluator must not grow a produced_mana atom, ADR 0009 — the former KNOWN GAP of basic-land-TYPE fixers is now closed, incl. the 0-FP all-basic-type converter oracle 'every basic land type' = Prismatic Omen/Dryad/Leyline-of-the-Guildpact/Nylea's-Presence/Overlord-of-the-Hauntwoods; color-fixing stays EDGE-LESS so broadening cannot create a domain archetype FP). triggers = the authored SYNTH attr `five-color-win` (otag:alternate-win-condition AND oracle:'each color' = Coalition Victory + Call the Spirit Dragons). The domain -> game-end WIN rule-edge lives in combo_win.py (EVENT_EDGE_CLASSES['domain'] = ['altwin::domain']); walk-inert until a domain fid route exists (none today, mirrors poisoned). life-threshold was DROPPED this wave — the existing `lifegain` event already models the lifegain-win (altwin::lifegain = Felidar/Angel/Test); a second event would double-count.",
       "produced_by": [
         "color-fixing"
       ],

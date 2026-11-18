@@ -287,7 +287,7 @@ class TestP0SHAIntact:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == 'a63f268b0884a47432659a9053a20ab7e8ec3b85ab227cf473049581586bd2cd', f'Resolve SHA shifted: {sha}'
+        assert sha == 'c2dbd766bccef939c2b4b1ab559eec8c137b5a0ce36a46403c69530277e31dd9', f'Resolve SHA shifted: {sha}'
 
 
 # ---------------------------------------------------------------------------

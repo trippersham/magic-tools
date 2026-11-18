@@ -695,7 +695,7 @@ class TestPopulateComboEdgesDriver:
         engine_sha = composite_sha(compute_engine_isolation_baselines())
         resolve_sha = composite_sha(compute_resolve_baselines())
         assert engine_sha == '7a83891a6c191f2b4cb1197261e21f55110456d33091f0f32e8dadab18cd4d37'
-        assert resolve_sha == 'a63f268b0884a47432659a9053a20ab7e8ec3b85ab227cf473049581586bd2cd'
+        assert resolve_sha == 'c2dbd766bccef939c2b4b1ab559eec8c137b5a0ce36a46403c69530277e31dd9'
 
 
 class TestHasFreshEdgesForCombo:

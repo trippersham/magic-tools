@@ -385,6 +385,17 @@ SEED_MAP: dict[str, dict[str, Any]] = {
                 'discard-outlet-random',
                 'loot',
                 'mill',
+                # mill-each / mill-opponent are already covered by the `mill`
+                # parent's closure (so listing them is OUTPUT-INERT — the derived
+                # union is byte-identical). They are named EXPLICITLY to record that
+                # `card-enters-graveyard` and `library-depleted` SHARE the mill
+                # mechanic (opponent/each mill both fills a graveyard AND depletes a
+                # library — Batch B B5): the shared direct seed is the sanctioned
+                # signal that the two events are RELATED, so the cross-mechanic
+                # umbrella check (validate_seed_map guard 3) correctly does not flag
+                # the broad `mill` seed as stealing library-depleted's mechanic.
+                'mill-each',
+                'mill-opponent',
                 'mill-self',
                 'rummage',
                 'sacrifice-outlet',
@@ -1029,22 +1040,42 @@ SEED_MAP: dict[str, dict[str, Any]] = {
         },
     },
     # ── 26. game-end (terminal) ─────────────────────────────────────────
-    # #74 §4.2: alternate-win-condition (87: Approach, Thassa's Oracle, Simic
-    # Ascendancy, Mechanized Production) genuinely produces game-end; lose-trigger
+    # #74 §4.2: alternate-win-condition (86: Approach, Thassa's Oracle, Simic
+    # Ascendancy, Mechanized Production) produces game-end(WIN); lose-trigger
     # (12: Curse of Vengeance, Sengir the Dark Baron) is a genuine consumer of
-    # game-end(loss, opponent-scope). alternate-loss-condition is DEFERRED (the
-    # node-level polarity field cannot distinguish loss- from win-producers on the
-    # otag side). Seeds live here (not the raw JSON lists) so the committed catalog
-    # keeps game-end's raw produced_by/triggers == [] (the terminal invariant) while
-    # the derived view carries the edges.
+    # game-end(loss, opponent-scope). Batch B B4: alternate-loss-condition (39:
+    # Lich, Last Chance, Final Fortune) is now ADDED as a producer alongside
+    # alternate-win-condition. The game-end node carries BOTH polarities (win/draw/
+    # loss) — polarity is NOT read off the node's multi-polarity field; it is DERIVED
+    # PER-PRODUCER-OTAG and, in the win-walk, PER-CARD from the fid route
+    # (combo_win.fid_route: a `lose the game` + self fid → polarity='loss',
+    # `win the game` → 'win'). So a Lich / Last-Chance loss-wincon reads LOSS and an
+    # Approach reads WIN — the produced_by otag list adds graph structure only (combo
+    # relay edges + the node), and never maps an otag to a win attribution, so adding
+    # the loss producer cannot manufacture a spurious win (verified OFF/ON: 0 new
+    # win_combos / win engines on any loss card). Seeds live here (not the raw JSON
+    # lists) so the committed catalog keeps game-end's raw produced_by/triggers == []
+    # (the terminal invariant) while the derived view carries the edges.
     'game-end': {
         'triggers': {'seeds': ['lose-trigger'], 'grade': 'M'},
-        'produced_by': {'seeds': ['alternate-win-condition'], 'grade': 'M'},
+        'produced_by': {'seeds': ['alternate-loss-condition', 'alternate-win-condition'], 'grade': 'M'},
     },
     # ── 27. library-depleted ────────────────────────────────────────────
+    # Batch B B5: the deckout mechanic was an EMPTY terminal node; now populated.
+    # produced_by = the opponent-depleting mill otags (CR 104.3c: a player who would
+    # draw from an empty library loses): `mill-opponent` (476), `mill-each` (61),
+    # `mill-exile` (160). `mill-self` is DELIBERATELY NOT a producer — self-deplete is
+    # the fid / alt-win (Lab-Man / Thassa's-Oracle) path, not opponent-depletion; and
+    # the closures of these three seeds do NOT reach mill-self (they expand to
+    # mill-any/ingest/mill-each only). triggers = the deckout consumers: `empty-library`
+    # (9, the Lab-Man / Thassa's-Oracle win-flip) + `library-size-matters` (23). This
+    # gives the deckout mechanic both its producers and its consumers so mill ->
+    # library-depleted engines form. The CR-104.3c rule-edge to game-end lives in
+    # combo_win.py (`library-depleted` is a _RULE_TERMINAL_EVENT; fid_route routes
+    # opponent-scoped depletion to deckout-opp, self-scoped to self-deplete).
     'library-depleted': {
-        'triggers': {'seeds': [], 'grade': 'empty'},
-        'produced_by': {'seeds': [], 'grade': 'empty'},
+        'triggers': {'seeds': ['empty-library', 'library-size-matters'], 'grade': 'M'},
+        'produced_by': {'seeds': ['mill-each', 'mill-exile', 'mill-opponent'], 'grade': 'M'},
     },
     # ── 28. poisoned (#74 §4.5) ─────────────────────────────────────────
     # Poison counters are PLAYER counters whose SBA ends the game (CR 104.3d /
@@ -1062,7 +1093,16 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
+            # 6-giver union (Batch B B3; SEED_MAP↔event_catalog.json alignment — the
+            # JSON already listed all 6 while SEED_MAP lagged at 5). `gains-poisonous`
+            # (2 cards: Hish of the Snake Cult, Virulent Sliver) is added for catalog
+            # consistency; both members already carry `gives-poisonous`/`poisonous`, so
+            # the card-level producer set is unchanged (net +0 cards) — the edit closes
+            # the drift, it is not a coverage expansion. Parent `poison-mechanics` (198)
+            # stays REFUSED (its closure also carries the consumer `synergy-poison` +
+            # removes-infect, producer-role impurity).
             'seeds': [
+                'gains-poisonous',
                 'gives-infect',
                 'gives-poisonous',
                 'gives-toxic',

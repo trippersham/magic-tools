@@ -335,6 +335,26 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   0 label flip). ENGINE unchanged; RESOLVE/FULL_CORPUS moved (`38aad6df…`→`855edd45…`,
   `ed36de37…`→`be2981c3…`). Proof: same outbox.
 
+- **2026-11-18 — Batch B five producer-concept edits (ADR 0003 re-baseline).** `SEED_MAP` /
+  `event_catalog.json` / `distill_strategies.py` producer-concept refinements: **B3**
+  `poisoned.produced_by += gains-poisonous` (SEED_MAP 5→6, aligning with the JSON which already had
+  6; net +0 cards); **B4** `game-end.produced_by += alternate-loss-condition` (polarity derived
+  per-producer/per-card in `combo_win.fid_route`, raw JSON stays `[]`); **B5** `library-depleted`
+  populated — `produced_by` = `mill-opponent`/`mill-each`/`mill-exile` (NOT `mill-self`), `triggers` =
+  `empty-library`/`library-size-matters`. A shared-mechanic surfacing: `card-enters-graveyard.produced_by
+  += mill-each/mill-opponent` is **output-inert** (already in the `mill` parent closure) and names the
+  shared mill mechanic so `validate_seed_map()` guard-3 (cross-mechanic umbrella) does not flag the broad
+  `mill` seed against library-depleted's specific mill children — the sanctioned "related events share a
+  direct seed" escape. Attribute-layer: **B1** `monarch-maker` → maker-only union (65 makers, drops the
+  Fioran FP); **B2** `color-fixing` → full basic/type-fixing family (1284 fixers, edge-less). Net
+  catalog diff is exactly these edits (no foreign slug in any closure); `validate_seed_map()` stays **0
+  violations**, `validate_catalog()` **0 blocking**. **OFF/ON (157 gauntlet + 17 fixtures): 0 label /
+  pre_combo_name / bracket / confidence / identity / combo / win-combo flips; 0 engine relocations;
+  35/157 + 1/17 benign n_nodes +1 (the edge-less color-fixing node).** B4/B5 are gauntlet-inert (no deck
+  carries an alternate-loss card or a deckout consumer). **ENGINE unchanged (`7a83891a…`); RESOLVE
+  `a63f268b…`→`c2dbd766…`, FULL_CORPUS `03a5880c…`→`5c75bb44…`.** Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/batch-b-concepts/outbox.md`.
+
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
 - 0002 / 0020 — substantiveness + the `producer_anchor` gate this adjacency feeds; `ramp` stays anchor-side-only there, never in the adjacency.

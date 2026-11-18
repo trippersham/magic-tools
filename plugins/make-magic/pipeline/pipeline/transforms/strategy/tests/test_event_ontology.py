@@ -137,7 +137,11 @@ class TestPhase2BInertEvents:
     tested separately below.
     """
 
-    _STILL_INERT = ('game-end', 'library-depleted')
+    # game-end keeps the raw terminal invariant (produced_by/triggers == []); the
+    # derived view carries alternate-win/loss-condition + lose-trigger from SEED_MAP.
+    # library-depleted was populated in Batch B B5 (mill producers + deckout
+    # consumers), so it is no longer catalog-inert.
+    _STILL_INERT = ('game-end',)
     _ALL_PHASE2B = ('mana-produced', 'game-end', 'library-depleted')
 
     def test_new_events_present(self, events: dict[str, dict]) -> None:
@@ -152,11 +156,20 @@ class TestPhase2BInertEvents:
             assert 'triggers' in ev, f'{slug}: missing triggers'
 
     def test_inert_events_are_inert(self, events: dict[str, dict]) -> None:
-        """game-end and library-depleted remain inert (empty edges)."""
+        """game-end keeps the raw terminal invariant (empty edges)."""
         for slug in self._STILL_INERT:
             ev = events[slug]
             assert ev['produced_by'] == [], f'{slug}: produced_by should be empty (inert)'
             assert ev['triggers'] == [], f'{slug}: triggers should be empty (inert)'
+
+    def test_library_depleted_is_populated(self, events: dict[str, dict]) -> None:
+        """Batch B B5: library-depleted carries its mill producers + deckout consumers
+        in the raw catalog (mill-self is NOT a producer — self-deplete is the
+        fid/alt-win path)."""
+        ev = events['library-depleted']
+        assert ev['produced_by'] == ['mill-each', 'mill-exile', 'mill-opponent']
+        assert ev['triggers'] == ['empty-library', 'library-size-matters']
+        assert 'mill-self' not in ev['produced_by']
 
     def test_mana_produced_is_live(self, events: dict[str, dict]) -> None:
         """mana-produced is LIVE with the corrected, taxonomy-derived wiring.

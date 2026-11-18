@@ -162,6 +162,13 @@ class TestAnchorMapCompleteness:
         rad (M/M, fully-M) and experience (produced_by M / triggers empty -> empty bucket).
         Net A2: fully-M 11->12 (player-counter -1, energy +1, rad +1), empty 5->6
         (experience +1). Grand total: S 15 (unchanged), fully-M 10->12, empty 4->6.
+
+        Batch B (five producer-concept edits): B5 populates library-depleted from
+        empty/empty (empty bucket) to M/M (fully-M) — mill producers + deckout
+        consumers. B3 (poisoned) and B4 (game-end) stay M/M (grade unchanged — B3 adds
+        gains-poisonous to an already-M side, B4 adds alternate-loss-condition to an
+        already-M side). B1/B2 touch distill synth attrs, not SEED_MAP events. Net
+        Batch B: fully-M 12->13, empty 6->5. Grand total: S 15, fully-M 13, empty 5.
         """
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
@@ -179,8 +186,8 @@ class TestAnchorMapCompleteness:
                 fully_m += 1
 
         assert has_s == 15, f'Expected 15 S-bearing events, got {has_s}'
-        assert fully_m == 12, f'Expected 12 fully-M events, got {fully_m}'
-        assert has_empty == 6, f'Expected 6 ambiguous/empty events, got {has_empty}'
+        assert fully_m == 13, f'Expected 13 fully-M events, got {fully_m}'
+        assert has_empty == 5, f'Expected 5 ambiguous/empty events, got {has_empty}'
 
 
 # ---------------------------------------------------------------------------
@@ -422,7 +429,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == 'a63f268b0884a47432659a9053a20ab7e8ec3b85ab227cf473049581586bd2cd', f'Resolve SHA shifted: {sha}'
+        assert sha == 'c2dbd766bccef939c2b4b1ab559eec8c137b5a0ce36a46403c69530277e31dd9', f'Resolve SHA shifted: {sha}'
 
 
 # ---------------------------------------------------------------------------

@@ -240,6 +240,22 @@ vocabulary unchanged (no `polarity`/`scope`). Count invariant renamed
 Output-moving re-baseline under [0003] (exactly 10/157 gauntlet engine relocations + 1 benign n_nodes,
 0 hard flips; 1/17 fixtures moved); `test_event_ontology.py` + `test_adjacency.py` re-verified green.
 
+## Amendment — 2026-11-18 (Batch B: five producer-concept edits), 33 events unchanged
+
+No events added or removed (33 unchanged); five producer/consumer concept refinements (full detail in
+[0003]). The only ontology-shape change: **B5** populates `library-depleted` (was empty/empty) with
+`produced_by` = `mill-opponent`/`mill-each`/`mill-exile` (NOT `mill-self`) + `triggers` =
+`empty-library`/`library-size-matters`, moving it from the empty bucket to **fully-M**. **B4** adds
+`alternate-loss-condition` to `game-end.produced_by` alongside `alternate-win-condition` — `game-end`
+keeps its raw terminal invariant (`produced_by`/`triggers` == `[]`); polarity stays `game-end`-only and
+is read per-producer/per-card by `combo_win.fid_route`, never off the node's polarity field. **B3**
+adds `gains-poisonous` to `poisoned.produced_by` (grade already M). **B1/B2** refine the `monarch-maker`
+/ `color-fixing` synth CardAttributes (attribute layer, not events). Grade tally **15/12/6 → 15/13/5**
+(library-depleted empty → fully-M); count invariant `test_anchor_map_has_33_events` unchanged.
+`test_event_ontology.py` gains `test_library_depleted_is_populated` and drops `library-depleted` from
+the still-inert set (game-end stays inert). Output-moving re-baseline under [0003] (0 hard flips; 35/157
++ 1/17 benign n_nodes +1 — the edge-less color-fixing node; 0 engine relocations).
+
 ## The bipartite graph and its projections
 
 The strategy engine operates on ONE bipartite graph with two projections.

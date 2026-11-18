@@ -602,6 +602,39 @@ re-baseline makes every *intended* change legible as such.
   baseline.json` (fantastic-four only) regenerated; count invariant `test_anchor_map_has_33_events` +
   grade tally 15/12/6. `validate_catalog()` 0 blocking. Proof:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/batch-a-splits/outbox.md`.
+- **2026-11-18 — five producer-concept edits (Batch B; on top of `fc22e46`).** No new events (33
+  unchanged); five producer/consumer concept refinements. **B1 monarch:** `monarch-maker` synth →
+  the maker-only union `oracle:'you become the monarch'` OR the target-maker regex
+  `(target.player|target.opponent|that.player|an.opponent|another.player).becomes.the.monarch` =
+  **65** clean makers (was 62) — drops the Fioran-Reformist anti-monarch FP, adds 4 target-makers,
+  0 whenever-payoff FP. **B2 domain:** `color-fixing` synth extended to the full basic/type-fixing
+  family (`+nonbasic-basic-land-type`, `tutor-land-basic`, `fetchland`, and the 0-FP all-basic-type
+  converter oracle `oracle:'every basic land type'` = Prismatic Omen/Dryad/Leyline-of-the-Guildpact/
+  Nylea's-Presence/Overlord) = **1284** fixers (was 709); `color-fixing` stays **edge-less**, so the
+  broadening cannot create a domain archetype FP. **B3 poisoned:** `gains-poisonous` added to the
+  producer seeds (SEED_MAP 5 → 6, aligning with `event_catalog.json` which already had 6); net **+0**
+  cards (both members already carry `gives-poisonous`); parent `poison-mechanics` still refused.
+  **B4 game-end:** `produced_by += alternate-loss-condition` alongside `alternate-win-condition` —
+  polarity is read **per-producer / per-card** (`combo_win.fid_route`), never off the node's
+  multi-polarity field, so a Lich/Last-Chance loss-wincon reads loss and an Approach reads win; the
+  raw JSON terminal invariant (`produced_by: []`) stays. **B5 library-depleted:** populated from
+  empty → `produced_by` = `mill-opponent`/`mill-each`/`mill-exile` (NOT `mill-self` — self-deplete is
+  the fid/alt-win path, and these seeds' closures never reach `mill-self`), `triggers` =
+  `empty-library` + `library-size-matters`. `card-enters-graveyard.produced_by` gains
+  `mill-each`/`mill-opponent` as an **output-inert** shared-seed signal (already under the `mill`
+  parent closure) so the cross-mechanic umbrella guard does not flag the shared mill mechanic.
+  **Measured OFF (`fc22e46`: `03a5880c`/`a63f268b`) / ON (157 gauntlet + 17 fixtures):** **0** label /
+  pre_combo_name / bracket / confidence / archetype_identity / combo_identity / ranked_identity /
+  n_win_combos / n_detected_combos flips; **0** engine relocations; **35/157** gauntlet + **1/17**
+  fixture benign `n_nodes` +1 (all the newly-admitted edge-less `color-fixing` attr node from B2).
+  B4/B5 are gauntlet-inert (0 decks carry an alternate-loss card or a deckout consumer — wiring is
+  correct, lights up for a real loss-wincon/deckout deck, mirroring domain/poison). **ENGINE SHA
+  UNCHANGED** (`7a83891a…`; the 17-fixture engine layer is byte-identical); only RESOLVE + FULL_CORPUS
+  move: `FULL_CORPUS 03a5880c44d4cdd3… → 5c75bb44a57d0590…`; `RESOLVE a63f268b0884a474… →
+  c2dbd766bccef939…`. RESOLVE + FULL_CORPUS constants (7 test files + `engine_parity_oracle.py`) +
+  `distill_parity_baseline.json` regenerated (`engine_isolation_baseline.json` unchanged); grade tally
+  now **15/13/5** (library-depleted empty → fully-M); `validate_catalog()` 0 blocking. Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/batch-b-concepts/outbox.md`.
 
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.

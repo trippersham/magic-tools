@@ -165,6 +165,19 @@ axis. The two axes are separate (`headline_strategy` returns the combo label whe
   `38dd7733…` → `604f6673…`; engine + resolve unchanged. Proof:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/monarch-energy-poison/outbox.md`.
 
+- **2026-11-18 — Batch B producer-concept edits (ADR 0003 re-baseline).** The `produced_by` admission
+  gate now sees refined producer sets on four events (SEED_MAP, [0022]): `poisoned += gains-poisonous`
+  (5→6 givers, net +0 cards), `game-end += alternate-loss-condition` (both polarities; polarity is read
+  per-producer/per-card downstream, not off the node), `library-depleted` populated with the
+  opponent-mill producers `mill-opponent`/`mill-each`/`mill-exile` (NOT `mill-self`), and
+  `card-enters-graveyard += mill-each/mill-opponent` (output-inert, naming the shared mill mechanic).
+  The gate mechanism is **unchanged** (still DATA-keyed; only `mana-produced` carries a
+  `produced_by_commander` Requirement) — these are producer-SET changes. Live OFF/ON delta: **0 engine
+  relocations, 0 spurious leads, 0 evictions**; the only movement is 35/157 + 1/17 decks gaining the
+  inert `color-fixing` attr node (B2). ENGINE unchanged; RESOLVE `a63f268b…`→`c2dbd766…`, FULL_CORPUS
+  `03a5880c…`→`5c75bb44…`. Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/batch-b-concepts/outbox.md`.
+
 ## Related records
 - 0002 — the generic substantiveness framework; `produced_by_commander` is its first level-3 kind.
 - 0003 — the byte-parity re-baseline this change carries (old→new SHAs + the proof).

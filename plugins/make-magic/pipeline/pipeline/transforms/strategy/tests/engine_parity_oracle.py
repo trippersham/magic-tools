@@ -325,7 +325,31 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   ENGINE      f4b98a79a70bdf02… -> 7a83891a6c191f2b…
 #   RESOLVE     7b1245a16310da63… -> a63f268b0884a474…
 # Proof: subagents/batch-a-splits/outbox.md.
-FULL_CORPUS_SHA = '03a5880c44d4cdd32c4811625c0d0bbbe0efc77902218b60da091a9318d672d1'
+# Re-baselined 2026-11-18 (Batch B: five producer-concept edits). B1 monarch-maker refined to the
+# maker-only union (oracle:'you become the monarch' OR the target-maker regex) = 65 clean makers
+# (drops the Fioran anti-monarch FP, adds 4 target-makers, 0 payoff FP). B2 color-fixing extended to
+# the full basic/type-fixing family (+nonbasic-basic-land-type / tutor-land-basic / fetchland / the
+# 0-FP all-basic-type converter oracle 'every basic land type') = 1284 fixers (was 709); color-fixing
+# stays EDGE-LESS so the broadening cannot create a domain archetype FP. B3 poisoned aligned SEED_MAP
+# (was 5) with event_catalog.json (was 6) by adding gains-poisonous (net +0 cards — both members
+# already carried gives-poisonous). B4 game-end.produced_by += alternate-loss-condition alongside
+# alternate-win-condition; polarity stays PER-PRODUCER/per-card (combo_win.fid_route), never read off
+# the node field, so a loss-wincon cannot manufacture a spurious win. B5 library-depleted populated:
+# produced_by = mill-opponent/mill-each/mill-exile (NOT mill-self), triggers = empty-library /
+# library-size-matters. card-enters-graveyard.produced_by gains mill-each/mill-opponent as an
+# OUTPUT-INERT shared-seed signal (already under the `mill` parent's closure) so the umbrella guard
+# does not flag the shared mill mechanic. Measured OFF (03a5880c / a63f268b) / ON (157 gauntlet + 17
+# fixtures): 0 label / pre_combo_name / bracket / confidence / archetype_identity / combo_identity /
+# ranked_identity / n_win_combos / n_detected_combos flips; 0 engine relocations; 35/157 gauntlet +
+# 1/17 fixture benign n_nodes +1 (ALL the newly-admitted edge-less color-fixing attr node from B2).
+# B4/B5 are gauntlet-inert (0 decks carry an alternate-loss card or a deckout consumer — the wiring is
+# correct, it lights up for a real loss-wincon / deckout deck, mirroring domain/poison). ENGINE SHA is
+# UNCHANGED (the 17-fixture engine layer is byte-identical); only RESOLVE + FULL_CORPUS move:
+#   FULL_CORPUS 03a5880c44d4cdd3… -> 5c75bb44a57d0590…
+#   ENGINE      7a83891a6c191f2b… -> 7a83891a6c191f2b… (UNCHANGED)
+#   RESOLVE     a63f268b0884a474… -> c2dbd766bccef939…
+# Proof: subagents/batch-b-concepts/outbox.md.
+FULL_CORPUS_SHA = '5c75bb44a57d0590f175fcb0efa125f08e51cc033e44b4ab6d9fca0a5443cc1e'
 
 
 def full_corpus_sha() -> str:

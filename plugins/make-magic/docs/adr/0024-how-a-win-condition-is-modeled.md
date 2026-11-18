@@ -110,13 +110,20 @@ The principle was realized as a proof-carrying re-baseline (ADR 0003). Three thi
 was deliberately *not*:
 
 - **`color-fixing` producer CardAttribute** — authored as a SYNTH attribute (distills to None, like
-  `monarch-maker`/`rad-counter`): `oracle:'mana of any color' OR otag:rainbow-land` (709 fixers, 92%
-  produce ≥3 of WUBRG; measured payoff-contamination 2/709). The `produced_mana ⊇ 3-of-WUBRG` FIELD
-  form the design floated is **off-limits** — ADR 0009 forbids growing the query evaluator with a
-  new `produced_mana:` atom, so the producer is this union inside the closed vocabulary. **Known
-  gap:** basic-land-TYPE fixers (fetchlands, Prismatic Omen) are not covered — no otag is clean for
-  them (`fetchland` is 1–2 types; `dual-land`/basic-land-search drag in generic ramp). Documented,
-  deferred.
+  `monarch-maker`/`rad-counter`). Originally `oracle:'mana of any color' OR otag:rainbow-land` (709
+  fixers, 92% produce ≥3 of WUBRG; measured payoff-contamination 2/709). The `produced_mana ⊇
+  3-of-WUBRG` FIELD form the design floated is **off-limits** — ADR 0009 forbids growing the query
+  evaluator with a new `produced_mana:` atom, so the producer is this union inside the closed
+  vocabulary. **Batch B B2 (2026-11-18) closed the former known gap:** the union was extended to the
+  full basic/type-fixing family — `+ otag:nonbasic-basic-land-type + otag:tutor-land-basic +
+  otag:fetchland + oracle:'every basic land type'` (the last is the 0-FP all-basic-type CONVERTER
+  oracle = Prismatic Omen / Dryad of the Ilysian Grove / Leyline of the Guildpact / Nylea's Presence /
+  Overlord of the Hauntwoods — chosen over the raw `land-conversion` otag, which is mixed: Urborg
+  mono-type + Mind Bend text-change). **1284 fixers now** (was 709). Generic `land-ramp`/`tutor-land-any`
+  stay OUT (pure mana-ramp, not color-fixing). Because `color-fixing` is **edge-less** (distills to
+  None — a fixer must not rename a ramp deck) and the `domain` archetype requires the `five-color-win`
+  payoff, the broadening cannot create a domain false-positive (measured: 0 label flips; the only
+  gauntlet effect is 35 decks gaining an inert `color-fixing` attr node).
 - **`five-color-win` consumer CardAttribute** — `otag:alternate-win-condition AND oracle:'each
   color'` = exactly {Coalition Victory, Call the Spirit Dragons}. The coarser
   `otag:alternate-win-condition AND otag:lifegain` was rejected (it drags in cast-count/combat/group-
