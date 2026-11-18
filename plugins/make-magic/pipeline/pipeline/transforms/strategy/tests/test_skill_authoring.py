@@ -1071,5 +1071,5 @@ class TestDefaultPathParity:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        expected = 'ed36de37ee5436bbf20197d6b27de0a6111cc274c1e790dcf86ee19d7ffdf88b'
+        expected = 'be2981c37ff3c3a044af5ce467f95b78e3f7640b815c9f61541d8f27fb752ead'
         assert sha == expected, f'resolve SHA shifted: {sha}'

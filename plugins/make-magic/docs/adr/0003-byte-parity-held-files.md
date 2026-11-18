@@ -532,6 +532,26 @@ re-baseline makes every *intended* change legible as such.
   dead-ref gate is now FULLY BLOCKING; `validate_catalog()` 0 blocking violations. Full per-change
   delta:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5a-latent-bug-hunt/outbox.md`.
+- **2026-11-17 — granted-keyword under-coverage consistency adds (R5a consistency wave; on top of
+  `0ec5759`).** Two owner-approved DISTILL-identity additions, both live otags inside the closed
+  vocabulary (ADR 0009): `counters += otag:gives-pp-counters` (1,772 cards — resolves the asymmetry
+  where `counters` excluded `gives-pp-counters` while `mm-counters`/`deathtouch` include their
+  `gives-*`; granting +1/+1 counters IS a counters plan) and `deathtouch += otag:gives-deathtouch-
+  noncreature` (2 cards — the trivial completion of the deathtouch-granting family). NAMING layer
+  only. **Measured OFF (`0ec5759`) / ON:** 2 attribute names move `None` → their identity; 48/170
+  gauntlet records + 6/17 fixtures change ONLY the `contributing_attrs` provenance of `+1/+1
+  counters` (47) / `deathtouch` (1) — **member_cards + weighted_quantity + eligibility IDENTICAL in
+  every case (0 CORE mismatches), 0 top-level field changes, 0 label/headline/bracket/confidence
+  flips, 0 spurious joins** (every `gives-*` card was already a member via another attr; the ≥3
+  substantiveness bar is never crossed anew). **ENGINE byte-untouched:** composite + every per-deck
+  `facts['engines']` SHA identical; the 6 moved fixtures (abzanarmor / sokka / Shelob / fantastic-
+  four / world-reclaimer / peace-offering) have identical `engines`+`edges` SHAs. ENGINE unchanged;
+  RESOLVE + FULL_CORPUS moved: `FULL_CORPUS 38aad6df13fc352d… → 855edd458402f0f6…`; `ENGINE
+  4549062831f5bfc9…` (unchanged); `RESOLVE ed36de37ee5436bb… → be2981c37ff3c3a0…`. RESOLVE constants
+  (7 test files) + `distill_parity_baseline.json` (6 fixtures) regenerated; `engine_isolation_
+  baseline.json` byte-unchanged. `validate_catalog()` 0 blocking (the dead-ref gate stays blocking).
+  Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5a-latent-bug-hunt/outbox.md`.
 
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.

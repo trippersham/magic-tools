@@ -260,7 +260,28 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   ENGINE      4549062831f5bfc9… (unchanged)
 #   RESOLVE     f209237b352ebf62… -> ed36de37ee5436bb…
 # Proof: subagents/r5a-latent-bug-hunt/outbox.md.
-FULL_CORPUS_SHA = '38aad6df13fc352d062af5666b84898845a96678f526421aef9cc77760f36b69'
+# Re-baselined 2026-11-17 (R5a consistency wave — owner-approved under-coverage adds on top of the
+# R5a dead-ref re-baseline). Two DISTILL-identity additions, both live otags inside the closed
+# vocabulary (ADR 0009):
+#   * counters += `otag:gives-pp-counters` (1,772 cards) — resolves the granted-keyword asymmetry
+#     (counters excluded it while mm-counters/deathtouch include their gives-*); a card that GRANTS
+#     +1/+1 counters is a counters-archetype card.
+#   * deathtouch += `otag:gives-deathtouch-noncreature` (2 cards) — the trivial completion of the
+#     deathtouch-granting coverage.
+# NAMING-layer only. PROVEN engine-untouched: ENGINE composite + every per-deck `facts['engines']`
+# SHA (170 gauntlet + 17 fixtures) byte-identical; the 6 moved fixtures (abzanarmor/sokka/Shelob/
+# fantastic-four/world-reclaimer/peace-offering) have identical engines+edges SHAs and unchanged
+# headline/bracket/confidence. Measured OFF (0ec5759) / ON: 2 attribute names move None -> their
+# identity; 48 gauntlet records + 6 fixtures change ONLY the `+1/+1 counters` (47) / `deathtouch`
+# (1) `contributing_attrs` provenance — member_cards + weighted_quantity + eligibility IDENTICAL in
+# every case (0 CORE mismatches), **0 label changes, 0 headline flips, 0 spurious joins** (every
+# gives-* card was already a member via another attr; the >=3 substantiveness bar is never crossed
+# anew). ENGINE UNCHANGED; RESOLVE + FULL_CORPUS moved:
+#   FULL_CORPUS 38aad6df13fc352d… -> 855edd458402f0f6…
+#   ENGINE      4549062831f5bfc9… (unchanged)
+#   RESOLVE     ed36de37ee5436bb… -> be2981c37ff3c3a0…
+# Proof: subagents/r5a-latent-bug-hunt/outbox.md.
+FULL_CORPUS_SHA = '855edd458402f0f68b9145bbe8cc266f3f9b97b30a9c906270fc930ba6b80b89'
 
 
 def full_corpus_sha() -> str:

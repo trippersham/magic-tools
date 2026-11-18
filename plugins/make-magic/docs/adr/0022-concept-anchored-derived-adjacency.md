@@ -326,6 +326,15 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   (`cb1a103b…`→`38aad6df…`, `f209237b…`→`ed36de37…`). Proof:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5a-latent-bug-hunt/outbox.md`.
 
+- **2026-11-17 — R5a consistency wave (same naming-layer / event-layer separation).** Two
+  owner-approved granted-keyword adds — `counters += otag:gives-pp-counters` and `deathtouch +=
+  otag:gives-deathtouch-noncreature` — again touch the distill *identity* vocabulary ONLY. Proven
+  event-layer-untouched exactly as above: ENGINE composite + every per-deck `facts['engines']` SHA
+  byte-identical (the 6 moved fixtures carry identical `engines`+`edges` SHAs); the 48 gauntlet + 6
+  fixture record moves are pure `contributing_attrs` provenance (0 member/weight/eligibility change,
+  0 label flip). ENGINE unchanged; RESOLVE/FULL_CORPUS moved (`38aad6df…`→`855edd45…`,
+  `ed36de37…`→`be2981c3…`). Proof: same outbox.
+
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
 - 0002 / 0020 — substantiveness + the `producer_anchor` gate this adjacency feeds; `ramp` stays anchor-side-only there, never in the adjacency.
