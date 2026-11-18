@@ -53,7 +53,7 @@ permanent-sacrificed, permanent-dies, creature-enters-battlefield,
 permanent-leaves-battlefield, land-enters-battlefield, spell-cast,
 creature-attacks, combat-damage-dealt, counter-placed, proliferate,
 artifact-enters, food-created, discard, card-enters-graveyard,
-recursion-from-graveyard, deathtouch-combat, extra-turn, monarch,
+recursion-from-graveyard, extra-turn, monarch,
 untap, player-counter, creature-copied
 ```
 

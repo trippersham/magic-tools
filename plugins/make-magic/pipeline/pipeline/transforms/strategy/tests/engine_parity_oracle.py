@@ -281,7 +281,26 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   ENGINE      4549062831f5bfc9… (unchanged)
 #   RESOLVE     ed36de37ee5436bb… -> be2981c37ff3c3a0…
 # Proof: subagents/r5a-latent-bug-hunt/outbox.md.
-FULL_CORPUS_SHA = '855edd458402f0f68b9145bbe8cc266f3f9b97b30a9c906270fc930ba6b80b89'
+# Re-baselined 2026-11-18 (ADR 0025: collapse deathtouch-combat per the grant-vs-use rule).
+# deathtouch is a static combat-damage modifier (like double-strike/trample/evasion), not its
+# own CR event: the deathtouch-combat pseudo-event is REMOVED and its grants (deathtouch-counter/
+# gains-deathtouch/gives-deathtouch) become PRODUCERS of combat-damage-dealt (#9) AND permanent-dies
+# (#4 — deathtouch damage is lethal, so it kills what it fights). synergy-deathtouch / old-*-deathtouch
+# payoffs stay in the `deathtouch` distill identity (naming layer, untouched). Event count 30 -> 29.
+# EVENT_EDGE_CLASSES unchanged (deathtouch-combat was never a key). Measured OFF (a696bd0) / ON
+# (157 gauntlet + 17 fixtures): exactly 2/170 gauntlet records moved (Kathril, Nethroi) + 1/17
+# fixtures (Shelob); 0 pre_combo_name / bracket / confidence / n_nodes flips, 0 spurious new engines,
+# ranked_identity top-3 byte-identical on every moved deck. The deathtouch archetype identity is
+# byte-identical on Kathril (deathtouch #3, share 0.275) and Shelob. The only engine-unit removed is
+# Kathril's standalone `deathtouch-combat` pseudo-engine (mass 38; a grant->synergy keyword loop) —
+# the intended collapse target; Shelob's permanent-dies engine STRENGTHENS (mass 68->74, gains
+# gives-deathtouch as a producer) and Nethroi's likewise (49->54). The 17 hermetic fixtures carry the
+# deathtouch-granting family (Shelob), so ENGINE + RESOLVE moved alongside FULL_CORPUS:
+#   FULL_CORPUS 855edd458402f0f6… -> ab1a6074a6cff086…
+#   ENGINE      4549062831f5bfc9… -> f4b98a79a70bdf02…
+#   RESOLVE     be2981c37ff3c3a0… -> 7b1245a16310da63…
+# Proof: subagents/deathtouch-collapse/outbox.md.
+FULL_CORPUS_SHA = 'ab1a6074a6cff08646388de792dad2e3ee32c5485d3a0ffe4a79e5f24c887152'
 
 
 def full_corpus_sha() -> str:

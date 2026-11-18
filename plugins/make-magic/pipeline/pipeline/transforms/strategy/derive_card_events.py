@@ -245,9 +245,15 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             # — keeps every destroy/burn/sacrifice/sweeper, subtracts only the pure
             # zone-changes.  5,551 members (from 6,751); residual disable-auras ~1.5%.
             # The holistic `removal` otag stays untouched in permanent-leaves-battlefield.
+            # deathtouch grants also produce permanent-dies: deathtouch damage is lethal,
+            # so a deathtouch creature KILLS what it fights (the Shelob death->food signal).
+            # This is the second home of the collapsed deathtouch-combat event (ADR 0025).
             'seeds': [
+                'deathtouch-counter',
                 'dies-removal',
                 'free-sacrifice-outlet',
+                'gains-deathtouch',
+                'gives-deathtouch',
                 'removal-sacrifice',
                 'sac',
                 'sacrifice-outlet',
@@ -466,10 +472,18 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
+            # deathtouch is a static combat-damage modifier ("any damage is lethal"),
+            # the same shape as double-strike/trample/evasion — its grant is a PRODUCER
+            # of combat-damage-dealt, not its own event (ADR 0025, grant-vs-use rule).
+            # The deathtouch-combat pseudo-event was collapsed here (+ permanent-dies);
+            # the synergy-deathtouch payoff lives in the `deathtouch` distill identity.
             'seeds': [
                 'combat',
                 'damage-multiplier',
+                'deathtouch-counter',
+                'gains-deathtouch',
                 'gains-double-strike',
+                'gives-deathtouch',
                 'gives-double-strike',
                 'gives-evasion',
                 'gives-trample',
@@ -799,26 +813,13 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
     },
-    # ── 20. deathtouch-combat ───────────────────────────────────────────
-    'deathtouch-combat': {
-        'triggers': {
-            'seeds': [
-                'combat',
-                'old-blocking-deathtouch',
-                'old-damage-deathtouch',
-                'synergy-deathtouch',
-            ],
-            'grade': 'M',
-        },
-        'produced_by': {
-            'seeds': [
-                'deathtouch-counter',
-                'gains-deathtouch',
-                'gives-deathtouch',
-            ],
-            'grade': 'M',
-        },
-    },
+    # ── (collapsed) deathtouch-combat ───────────────────────────────────
+    # REMOVED per ADR 0025 (grant-vs-use rule). deathtouch is a static combat-damage
+    # modifier, not its own CR event: its grants (deathtouch-counter / gains-deathtouch /
+    # gives-deathtouch) are now PRODUCERS of combat-damage-dealt (#9) AND permanent-dies
+    # (#4 — deathtouch kills what it fights). Its synergy-deathtouch / old-*-deathtouch
+    # payoffs are keyword-tribal characteristics -> the `deathtouch` distill identity
+    # (distill_strategies.py, R5a), not event triggers. Event count 30 -> 29.
     # ── 21. extra-turn (#74 §2 split: was monarch-or-extra-turn) ─────────
     # off-turn-casting-matters dropped: its members are flash/cast-on-opponents'-
     # turns payoffs, produced by neither extra turns nor monarch.

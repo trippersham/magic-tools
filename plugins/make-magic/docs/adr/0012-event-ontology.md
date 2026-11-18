@@ -191,6 +191,24 @@ than added. Catalog event count **29 → 30**; count invariant renamed
 Output-moving re-baseline under [0003]; `test_event_ontology.py` + `test_adjacency.py` re-verified
 green.
 
+## Amendment — 2026-11-18 (ADR 0025: grant-vs-use collapse of `deathtouch-combat`), 30 → 29 events
+
+Realizes [0025] (a keyword's grant produces its nearest tracked event; a keyword is never its own
+event — the mechanic-class clause above, generalized). The one over-modeled keyword USE node,
+**`deathtouch-combat`**, is removed: deathtouch is a static combat-damage modifier of the same shape as
+double-strike/trample/evasion, so its grants (`deathtouch-counter`/`gains-deathtouch`/`gives-deathtouch`)
+become **producers of `combat-damage-dealt`** (lethal combat damage) **and `permanent-dies`**
+(deathtouch kills what it fights), not their own event. The keyword-tribal payoff (`synergy-deathtouch`
++ the tiny `old-*-deathtouch`) stays in the `deathtouch` distill identity (the archetype layer, where
+mechanic-class belongs) — dropped from the event layer, not rehomed as a trigger. `deathtouch-combat`
+was fully-M (both sides grade M) and carried no win-edge, so `EVENT_EDGE_CLASSES` is unchanged.
+Catalog event count **30 → 29**; count invariant renamed
+`test_adjacency.py::test_anchor_map_has_29_events`; grade tally 15/**10**/4 (fully-M 11 → 10).
+Field vocabulary unchanged (no `polarity`/`scope`). Gated on the Shelob fixture (PRESERVED + IMPROVED:
+its `permanent-dies` aristocrats engine gains the deathtouch producer, identity byte-identical);
+output-moving re-baseline under [0003] (exactly 2/170 gauntlet + 1/17 fixture records moved, 0 hard
+flips); `test_event_ontology.py` + `test_adjacency.py` re-verified green.
+
 ## The bipartite graph and its projections
 
 The strategy engine operates on ONE bipartite graph with two projections.

@@ -102,10 +102,10 @@ class TestAnchorMapCompleteness:
         for event_name in catalog_events:
             assert event_name in SEED_MAP, f'Event {event_name!r} missing from SEED_MAP'
 
-    def test_anchor_map_has_30_events(self) -> None:
+    def test_anchor_map_has_29_events(self) -> None:
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
-        assert len(SEED_MAP) == 30
+        assert len(SEED_MAP) == 29
 
     def test_each_entry_has_both_sides_and_grade(self) -> None:
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
@@ -122,7 +122,7 @@ class TestAnchorMapCompleteness:
                 )
 
     def test_grade_tally_matches_build_design(self) -> None:
-        """15 S-bearing, 11 fully-M, 4 ambiguous/empty (30 events).
+        """15 S-bearing, 10 fully-M, 4 ambiguous/empty (29 events).
 
         The build-design notes "16 + mana-prod T-adjacent" — mana-produced's
         T side is graded M (multi-concept: mana-sink + mana-increaser) so the
@@ -142,11 +142,16 @@ class TestAnchorMapCompleteness:
         (fully-M). Net: fully-M 10->11 (monarch -1, player-counter +1, poisoned
         +1), empty 3->3 (monarch +1, player-counter -1).
 
-        ADR 0024 wave (this change, 29 -> 30 events): the new `domain` state-event is
+        ADR 0024 wave (29 -> 30 events): the new `domain` state-event is
         empty/empty (produced_by `color-fixing`, triggers `five-color-win` — both synth
         attrs with no otag, closure = themselves). Net: empty 3->4 (domain +1); S and
         fully-M unchanged. (free-cast-another folds into spell-cast.produced_by, already
         grade M; life-threshold was dropped — subsumed by the existing `lifegain` event.)
+
+        ADR 0025 wave (this change, 30 -> 29 events): deathtouch-combat (fully-M: both
+        sides grade M) is REMOVED per the grant-vs-use rule — deathtouch is a static
+        combat-damage modifier, so its grants become producers of combat-damage-dealt +
+        permanent-dies, not their own event. Net: fully-M 11->10; S and empty unchanged.
         """
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
@@ -164,7 +169,7 @@ class TestAnchorMapCompleteness:
                 fully_m += 1
 
         assert has_s == 15, f'Expected 15 S-bearing events, got {has_s}'
-        assert fully_m == 11, f'Expected 11 fully-M events, got {fully_m}'
+        assert fully_m == 10, f'Expected 10 fully-M events, got {fully_m}'
         assert has_empty == 4, f'Expected 4 ambiguous/empty events, got {has_empty}'
 
 
@@ -394,7 +399,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_engine_isolation_baselines()
         sha = composite_sha(baselines)
-        assert sha == '4549062831f5bfc9606df4539069a16565eeebd275997b8f3b97dc1edc9d5d3b', (
+        assert sha == 'f4b98a79a70bdf027c099e490db9ce59c66159338fec3a9275d2a7331c1a4857', (
             f'Engine isolation SHA shifted: {sha}'
         )
 
@@ -406,7 +411,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == 'be2981c37ff3c3a044af5ce467f95b78e3f7640b815c9f61541d8f27fb752ead', f'Resolve SHA shifted: {sha}'
+        assert sha == '7b1245a16310da63dbea7f635d71584abc736c0e45f80782e3b7053ae73344f0', f'Resolve SHA shifted: {sha}'
 
 
 # ---------------------------------------------------------------------------

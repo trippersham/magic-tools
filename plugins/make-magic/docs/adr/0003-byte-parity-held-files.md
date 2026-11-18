@@ -552,6 +552,29 @@ re-baseline makes every *intended* change legible as such.
   baseline.json` byte-unchanged. `validate_catalog()` 0 blocking (the dead-ref gate stays blocking).
   Proof:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5a-latent-bug-hunt/outbox.md`.
+- **2026-11-18 — collapse `deathtouch-combat` per the grant-vs-use rule (ADR 0025; on top of
+  `a696bd0`).** The one over-modeled keyword USE event is removed: deathtouch is a static combat-damage
+  modifier (like double-strike/trample/evasion), so its grants (`deathtouch-counter`/`gains-deathtouch`/
+  `gives-deathtouch`) become **producers of `combat-damage-dealt` + `permanent-dies`** (deathtouch
+  damage is lethal — it kills what it fights), not their own node. The `synergy-deathtouch` /
+  `old-*-deathtouch` payoffs stay in the `deathtouch` distill identity (archetype layer, unchanged);
+  event count **30 → 29**; `EVENT_EDGE_CLASSES` unchanged (no win-edge). **Gated on Shelob**
+  (`owned__spiders-play-with-their-food`): **PRESERVED + IMPROVED** — its `permanent-dies` aristocrats
+  engine gains `gives-deathtouch` as a producer (mass 68 → 74), `archetype_identity`/`pre_combo_name`/
+  `bracket`/`confidence` byte-identical. **Measured OFF (`a696bd0`) / ON:** exactly **2/170** gauntlet
+  records moved (Kathril, Nethroi — both graveyard/reanimator) + **1/17** fixtures (Shelob); **0
+  pre_combo_name / bracket / confidence / n_nodes flips, 0 spurious new engines**, ranked_identity
+  top-3 byte-identical on every moved deck. Nethroi's `permanent-dies` strengthens (49 → 54); Kathril's
+  only change is removal of its standalone `deathtouch-combat` pseudo-engine (mass 38, a grant→synergy
+  keyword loop — the intended collapse target), with its `deathtouch` archetype identity (#3, share
+  0.275) + four real engines preserved. The 17 hermetic fixtures carry the deathtouch-granting family
+  (Shelob), so all three SHAs moved: `FULL_CORPUS 855edd458402f0f6… → ab1a6074a6cff086…`;
+  `ENGINE 4549062831f5bfc9… → f4b98a79a70bdf02…`; `RESOLVE be2981c37ff3c3a0… → 7b1245a16310da63…`.
+  ENGINE + RESOLVE constants (7 test files) + `distill_parity_baseline.json` + `engine_isolation_
+  baseline.json` (Shelob only) regenerated; count invariant `test_anchor_map_has_29_events` + grade
+  tally 15/10/4. `validate_catalog()` 0 blocking (and one `combat` role-ambiguity advisory cleared).
+  Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/deathtouch-collapse/outbox.md`.
 
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.

@@ -66,10 +66,13 @@
       ]
     },
     "permanent-dies": {
-      "rule": "CR 700.4: a creature/permanent going to the graveyard from the battlefield (dies). The removal producer is the SUBTRACTIVE synth attribute `dies-removal` (otag:removal minus removal-exile/-bounce/-tuck) — zone-changes to exile/hand/library are NOT deaths and dodge death triggers; the holistic `removal` otag stays in permanent-leaves-battlefield (#74 R2 §3.1)",
+      "rule": "CR 700.4: a creature/permanent going to the graveyard from the battlefield (dies). The removal producer is the SUBTRACTIVE synth attribute `dies-removal` (otag:removal minus removal-exile/-bounce/-tuck) — zone-changes to exile/hand/library are NOT deaths and dodge death triggers; the holistic `removal` otag stays in permanent-leaves-battlefield (#74 R2 §3.1). deathtouch grants (deathtouch-counter/gains-deathtouch/gives-deathtouch) also produce death here: deathtouch damage is lethal, so it KILLS what it fights (ADR 0025, collapsed deathtouch-combat)",
       "produced_by": [
+        "deathtouch-counter",
         "dies-removal",
         "free-sacrifice-outlet",
+        "gains-deathtouch",
+        "gives-deathtouch",
         "removal-sacrifice",
         "sac",
         "sacrifice-outlet",
@@ -248,11 +251,14 @@
       ]
     },
     "combat-damage-dealt": {
-      "rule": "CR 510: combat damage; double-strike/evasion convert attacks to damage",
+      "rule": "CR 510: combat damage; double-strike/evasion/deathtouch are static combat-damage modifiers — their grants produce this event (deathtouch is lethal damage; ADR 0025, collapsed deathtouch-combat)",
       "produced_by": [
         "combat",
         "damage-multiplier",
+        "deathtouch-counter",
+        "gains-deathtouch",
         "gains-double-strike",
+        "gives-deathtouch",
         "gives-double-strike",
         "gives-evasion",
         "gives-trample"
@@ -452,20 +458,6 @@
       "triggers": [
         "leaving-graveyard-matters",
         "trigger-from-graveyard"
-      ]
-    },
-    "deathtouch-combat": {
-      "rule": "CR 702.2: deathtouch; any damage is lethal \u2014 a combat/removal pseudo-event",
-      "produced_by": [
-        "deathtouch-counter",
-        "gains-deathtouch",
-        "gives-deathtouch"
-      ],
-      "triggers": [
-        "combat",
-        "old-blocking-deathtouch",
-        "old-damage-deathtouch",
-        "synergy-deathtouch"
       ]
     },
     "extra-turn": {
