@@ -253,6 +253,36 @@ def is_payoff_family(slug: str) -> bool:
     return any(rx.search(slug) for rx in _PAYOFF_FAMILY_RE)
 
 
+#: Scryfall-taxonomy BOOKKEEPING families — labels that catalogue a card's
+#: provenance or identity rather than what it DOES.  Verified against the live
+#: taxonomy (``cycle-*`` 1677, ``typal-*`` 254, ``type-*`` 49, ``unique-*`` 19):
+#:   * ``cycle-*``  — "printed together as a themed group in one set" (a
+#:     publishing fact; e.g. ``cycle-c18-planeswalker`` = four unrelated 2018
+#:     commanders).
+#:   * ``typal-*``  — tribal-theme membership.  Load-bearing for TRIBAL-ARCHETYPE
+#:     detection in distill (``otag:typal``), but never a producer of a game
+#:     event — skipped on the producer side ONLY.
+#:   * ``type-*``   — type-line errata / additions (``type-errata-*`` / ``type-addition-*``).
+#:   * ``unique-*`` — one-of-a-kind trivia (``unique-mana-symbol`` / ``unique-p-t`` …).
+#: These are Scryfall's cataloguing labels (``raw/oracle_tags.parquet`` from
+#: tagger.scryfall.com), not pipeline-authored.  A bookkeeping tag corroborates
+#: at N>=3 by coincidence of set design or trivia, so it must never be proposed
+#: as an event producer (owner-ratified 2026-11-18).
+BOOKKEEPING_FAMILY_PATTERNS: tuple[str, ...] = (r'^cycle-', r'^typal-', r'^type-', r'^unique-')
+_BOOKKEEPING_FAMILY_RE: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p in BOOKKEEPING_FAMILY_PATTERNS)
+
+
+def is_bookkeeping_family(slug: str) -> bool:
+    """True if *slug* is a Scryfall bookkeeping (provenance/identity) otag name.
+
+    A bookkeeping tag describes where a card was printed or a one-of-a-kind trait,
+    not what the card DOES, so it must never be proposed as an event producer.
+    ``typal-*`` is skipped on the producer side here but remains authoritative for
+    tribal-archetype detection in :mod:`.distill_strategies` (a different layer).
+    """
+    return any(rx.search(slug) for rx in _BOOKKEEPING_FAMILY_RE)
+
+
 @dataclass(frozen=True)
 class RoleReport:
     """Outcome of :func:`validate_role_consistency`.

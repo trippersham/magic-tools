@@ -61,7 +61,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-from pipeline.transforms.strategy.catalog_integrity import is_payoff_family
+from pipeline.transforms.strategy.catalog_integrity import is_bookkeeping_family, is_payoff_family
 from pipeline.transforms.strategy.derive_card_events import (
     SEED_MAP,
     descendant_closure,
@@ -243,6 +243,7 @@ class ConceptDiscovery:
     event: str
     candidates: tuple[CandidateSeed, ...]
     role_rejected: tuple[str, ...]
+    bookkeeping_rejected: tuple[str, ...]
     decomposition_ticket: DecompositionTicket | None
     skipped_fixed: bool
 
@@ -267,7 +268,7 @@ def discover_for_concept(
     """
     # (1) Fixed reference — the authored query is authoritative; never grow it.
     if concept.kind is ConceptKind.FIXED_SYNTH:
-        return ConceptDiscovery(concept.event, (), (), None, skipped_fixed=True)
+        return ConceptDiscovery(concept.event, (), (), (), None, skipped_fixed=True)
 
     # (2) Decomposition-escalation — a payoff-family (role-impure) concept anchor
     # means no clean PRODUCER otag serves the concept (the monarch-matters
@@ -285,7 +286,7 @@ def discover_for_concept(
             ),
             role_impure_examples=tuple(coarse),
         )
-        return ConceptDiscovery(concept.event, (), (), ticket, skipped_fixed=False)
+        return ConceptDiscovery(concept.event, (), (), (), ticket, skipped_fixed=False)
 
     # (3) Concept-anchored discovery proper.
     taxonomy = load_taxonomy()
@@ -299,6 +300,7 @@ def discover_for_concept(
 
     candidates: dict[str, set[str]] = {}
     role_rejected: set[str] = set()
+    bookkeeping_rejected: set[str] = set()
     for oracle_id, card_otags in otag_evidence.items():
         # On-concept corroboration: the card carries at least one concept otag.
         if not (card_otags & concept_closure):
@@ -311,9 +313,14 @@ def discover_for_concept(
             # The gate's reference is the CONCEPT population (the R5c fix).
             if not _cached_exclusivity_check(otag, mechanic):
                 continue
-            # Role-purity: a payoff is never a producer.
+            # Producer-role purity: a payoff ("cares about X") is never a producer.
             if is_payoff_family(otag):
                 role_rejected.add(otag)
+                continue
+            # Bookkeeping families (cycle-/typal-/type-/unique-) catalogue a card's
+            # provenance or identity, not what it does — never an event producer.
+            if is_bookkeeping_family(otag):
+                bookkeeping_rejected.add(otag)
                 continue
             candidates.setdefault(otag, set()).add(oracle_id)
 
@@ -321,7 +328,14 @@ def discover_for_concept(
         CandidateSeed(event=concept.event, side='produced_by', otag=otag, corroborating_cards=frozenset(cards))
         for otag, cards in sorted(candidates.items())
     )
-    return ConceptDiscovery(concept.event, cand_seeds, tuple(sorted(role_rejected)), None, skipped_fixed=False)
+    return ConceptDiscovery(
+        concept.event,
+        cand_seeds,
+        tuple(sorted(role_rejected)),
+        tuple(sorted(bookkeeping_rejected)),
+        None,
+        skipped_fixed=False,
+    )
 
 
 class GateVerdict(enum.Enum):
@@ -909,7 +923,7 @@ def format_shadow_proposals_md(report: ShadowProposalsReport) -> str:
     def _event_block(event: str) -> None:
         disc = report.growable[event]
         promotable = report.promotable(event)
-        if not disc.candidates and not disc.role_rejected:
+        if not disc.candidates and not disc.role_rejected and not disc.bookkeeping_rejected:
             return
         concept = producer_concept(event)
         lines.append(f'### `{event}`')
@@ -918,7 +932,8 @@ def format_shadow_proposals_md(report: ShadowProposalsReport) -> str:
         lines.append(
             f'- candidates: {len(disc.candidates)} '
             f'(promotable at N>={report.promotion_threshold}: {len(promotable)}) · '
-            f'role-rejected (payoff-family vetoed): {len(disc.role_rejected)}'
+            f'rejected — payoff-family: {len(disc.role_rejected)}, '
+            f'bookkeeping (cycle/typal/type/unique): {len(disc.bookkeeping_rejected)}'
         )
         if promotable:
             lines.append('- promotable producer proposals (otag . corroborating cards):')
@@ -926,6 +941,11 @@ def format_shadow_proposals_md(report: ShadowProposalsReport) -> str:
                 lines.append(f'  - `{c.otag}` . {c.corroboration_count}')
         if disc.role_rejected:
             lines.append(f'- vetoed payoff-family otags: {", ".join(f"`{x}`" for x in disc.role_rejected)}')
+        if disc.bookkeeping_rejected:
+            lines.append(
+                f'- skipped bookkeeping otags (not producers): '
+                f'{", ".join(f"`{x}`" for x in disc.bookkeeping_rejected)}'
+            )
         lines.append('')
 
     # Growable proposals — the 5 ratified-concept (b) bootstrap-gap events FIRST

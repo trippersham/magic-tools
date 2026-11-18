@@ -386,6 +386,26 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   decomposition-ticket, shadow-no-mutation) — 12 passed; `validate_catalog()` 0 blocking. Proof:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5c-discovery-rewire/outbox.md`.
 
+- **2026-11-18 — producer-role purity extended to Scryfall BOOKKEEPING families (shadow, byte-parity).**
+  The R5c role filter rejected payoff-family (`synergy-*`/`*-matters`) otags but still admitted two
+  families that are not producer mechanics at all: Scryfall *bookkeeping* tags that catalogue a card's
+  provenance or identity rather than what it does. `catalog_integrity.is_bookkeeping_family`
+  (`BOOKKEEPING_FAMILY_PATTERNS = ^cycle-/^typal-/^type-/^unique-`) now vetoes them on the **producer
+  side** of `discover_for_concept`, recorded as `ConceptDiscovery.bookkeeping_rejected` (distinct from
+  `role_rejected` — a cycle tag is not a payoff, and labelling it one would violate ADR 0023). Verified
+  against the live taxonomy (owner-ratified 2026-11-18): `cycle-*` 1677 (printed-together groups — e.g.
+  `cycle-c18-planeswalker` = four unrelated 2018 commanders), `typal-*` 254 (tribal theme), `type-*` 49
+  (type-line errata/additions), `unique-*` 19 (one-of-a-kind trivia); all are `raw/oracle_tags.parquet`
+  from tagger.scryfall.com, not pipeline-authored. **`typal-*` is skipped on the producer side ONLY** —
+  it remains authoritative for tribal-ARCHETYPE detection in `distill_strategies.py` (`otag:typal`,
+  a different layer); `pseudo-*` ("acts like X without the keyword") is a real mechanic and is KEPT.
+  Effect on the shadow queue (promotable at N>=3, pre→post de-noise): creature-enters 83→26,
+  token-created 66→15, artifact-enters 10→4, creature-copied 28→16, land-enters 21→15 — the removed
+  tail was coincidental set-design / tribal corroboration. **Shadow is still output-inert:** the three
+  P0 SHAs are UNCHANGED. **Test:** `TestBookkeepingVeto` (no bookkeeping candidate, observable skip,
+  family matcher incl. pseudo-keep) — `test_concept_anchored_discovery.py` 15 passed; `validate_catalog()`
+  0 blocking.
+
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
 - 0002 / 0020 — substantiveness + the `producer_anchor` gate this adjacency feeds; `ramp` stays anchor-side-only there, never in the adjacency.

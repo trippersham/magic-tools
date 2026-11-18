@@ -166,6 +166,54 @@ class TestPayoffVeto:
         assert all(is_payoff_family(o) for o in result.role_rejected)
 
 
+class TestBookkeepingVeto:
+    """Scryfall bookkeeping families (cycle-/typal-/type-/unique-) catalogue a
+    card's provenance or identity, not what it does — never an event producer
+    (owner-ratified 2026-11-18).  ``typal-*`` stays authoritative for tribal
+    detection in distill; this veto is the PRODUCER side only."""
+
+    def test_no_candidate_is_bookkeeping_family(self) -> None:
+        from pipeline.transforms.strategy.catalog_integrity import is_bookkeeping_family
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
+            build_lake_evidence,
+            discover_for_concept,
+            producer_concept,
+        )
+
+        ev = build_lake_evidence()
+        for event in GROWABLE_B_EVENTS:
+            result = discover_for_concept(producer_concept(event), [], ev)
+            offenders = [c.otag for c in result.candidates if is_bookkeeping_family(c.otag)]
+            assert not offenders, f'{event}: bookkeeping otag(s) admitted as producers: {offenders}'
+
+    def test_bookkeeping_otags_are_recorded_as_skipped(self) -> None:
+        """The skip is observable: the inflated creature-enters run records
+        cycle-/typal- bookkeeping otags as bookkeeping_rejected, not as
+        promotable candidates."""
+        from pipeline.transforms.strategy.catalog_integrity import is_bookkeeping_family
+        from pipeline.transforms.strategy.evaluate_event_candidates import (
+            build_lake_evidence,
+            discover_for_concept,
+            producer_concept,
+        )
+
+        result = discover_for_concept(producer_concept('creature-enters-battlefield'), [], build_lake_evidence())
+        assert result.bookkeeping_rejected, 'expected cycle-/typal- bookkeeping skips on the wiped creature-enters run'
+        assert all(is_bookkeeping_family(o) for o in result.bookkeeping_rejected)
+
+    def test_bookkeeping_family_matcher(self) -> None:
+        from pipeline.transforms.strategy.catalog_integrity import is_bookkeeping_family
+
+        assert is_bookkeeping_family('cycle-c18-planeswalker')
+        assert is_bookkeeping_family('typal-fish')
+        assert is_bookkeeping_family('type-errata-egg')
+        assert is_bookkeeping_family('unique-mana-symbol')
+        # Real producer mechanics are NOT bookkeeping.
+        assert not is_bookkeeping_family('impulse-to-zone')
+        assert not is_bookkeeping_family('reanimate-from-opponent')
+        assert not is_bookkeeping_family('pseudo-proliferate')  # pseudo-* = real "acts like X"
+
+
 # ---------------------------------------------------------------------------
 # 3. Fixed-reference skip (hermetic — the FIXED branch returns before the lake)
 # ---------------------------------------------------------------------------
