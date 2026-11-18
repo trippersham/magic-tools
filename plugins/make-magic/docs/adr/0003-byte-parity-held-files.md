@@ -671,6 +671,31 @@ re-baseline makes every *intended* change legible as such.
   that `ramp`-in-land-enters is still caught while the symmetric `ramp`-in-mana-produced fell to 45%
   (< the 0.5 `UMBRELLA_COVERAGE_MIN`) because land-enters legitimately grew 6 → 11 seeds. Proof:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5d-promotions/outbox.md`.
+- **2026-11-18 — coherence rebuild: `card_otag` re-rolled from `df31df7c` raw tags (on top of
+  `4ac52ce`).** No code or catalog change — a pure lake-coherence fix. The committed
+  `normalized/card_otag.parquet` was rolled up Nov 13 from the older `bf52d6d1` tag snapshot while
+  `raw/oracle_tags.parquet` had since advanced to `df31df7c`, so the attribute layer and the event
+  layer disagreed on which tag snapshot was in force. Re-rolling `card_otag` straight from the
+  current `df31df7c` raw tags (`pipeline.transforms.otag_rollup`) restores one coherent snapshot:
+  `card_otag` `8d267cab…` → `a51097a5…` (+1,135 `(oracle_id, slug)` rows = +1,209 added / −74
+  removed, +39 cards, +4 tags; driven by new tagger families `gives-saboteur`/`sea-monster`/
+  `star-trek-episode-saga`, a clean rename `repeatable-dilemma` → `repeatable-modal-choice`, and
+  Un-set housekeeping cleanup). The 17 hermetic fixtures embed their otags in the deck JSON
+  (lake-independent), so **ENGINE + RESOLVE are UNCHANGED** (`4d3f5e6d…` / `940c3881…`); only the
+  lake-backed full corpus moves: `FULL_CORPUS e18456eb… → ec917355…` — exactly and only the hash
+  that should move when the lake's tag snapshot is made coherent. `FULL_CORPUS_SHA` +
+  `fixtures/lake_snapshot.json` updated in the same change (`distill_parity_baseline.json` +
+  `engine_isolation_baseline.json` byte-identical, so the 7 test-file ENGINE/RESOLVE literals are
+  untouched). **Monotonic-enrichment proof (OFF/ON, 170 gauntlet + 17 fixtures):** 11/170 decks
+  moved, **every move ADDITIVE** — **0** headline / pre_combo_name / archetype_identity /
+  ranked_identity / combo_identity / confidence / bracket / n_win_combos / n_detected_combos flips
+  (0 identity-level movement across all nine fields); 2 decks GAIN a `mana-produced` unit
+  (`temur__ureni-of-the-unwritten`, `abzan__doran-the-siege-tower`), **0 lost**, 16 additive
+  enrichments on existing units (mass rises, new producers/consumers appear — e.g. `combat-damage-dealt`
+  gains the new `gives-saboteur` consumer on Rafiq/Ardenn-Rograkh/Bello/Sram), **0 spurious
+  empty-consumer units**; all 17 hermetic fixtures hold byte-identical. `validate_seed_map()` 0
+  violations; `validate_catalog()` ok=True, 0 blocking. Full OFF/ON delta + root-cause tie-outs:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-18-reproducibility-adversarial-test/subagents/component0/delta-report.md`.
 
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.

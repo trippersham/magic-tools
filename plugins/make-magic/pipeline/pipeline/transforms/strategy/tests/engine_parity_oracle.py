@@ -382,7 +382,31 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   ENGINE      7a83891a6c191f2b… -> 4d3f5e6d9d8ed142…
 #   RESOLVE     c2dbd766bccef939… -> 940c38811193b6f4…
 # Proof: subagents/r5d-promotions/outbox.md + ratified-promotions-R5d.md.
-FULL_CORPUS_SHA = 'e18456ebd15bcd5fcd54b022a65811c33f4683049fef0d9efa32cf79f10f36ab'
+# Re-baselined 2026-11-18 (coherence rebuild: card_otag re-rolled from df31df7c raw
+# tags, was stale bf52d6d1 rollup). No code/catalog change — a pure lake-coherence
+# fix: the committed card_otag was rolled up Nov 13 from the older bf52d6d1 tag
+# snapshot while raw/oracle_tags.parquet had since advanced to df31df7c, so the
+# attribute layer and the event layer disagreed on which tag snapshot was in force.
+# Re-rolling card_otag straight from the current df31df7c raw tags (pipeline.transforms.
+# otag_rollup) restores one coherent snapshot. card_otag delta: +1,135 (oracle_id, slug)
+# rows (+1,209 added / -74 removed) / +39 cards / +4 tags; driven by new tagger families
+# (gives-saboteur/sea-monster/star-trek-episode-saga), a clean rename repeatable-dilemma->
+# repeatable-modal-choice, and Un-set housekeeping cleanup. Measured OFF/ON (170 gauntlet
+# + 17 fixtures): 11/170 decks moved, every move ADDITIVE — 0 headline / pre_combo_name /
+# archetype_identity / ranked_identity / combo_identity / confidence / bracket / n_win_combos
+# / n_detected_combos flips (0 identity-level movement across all nine fields); 2 decks GAIN
+# a mana-produced unit (temur__ureni, abzan__doran), 0 lost, 16 additive enrichments on
+# existing units (mass rises, new producers/consumers), 0 spurious empty-consumer units.
+# validate_seed_map 0 violations; validate_catalog 0 blocking. The 17 hermetic fixtures
+# embed their otags in the deck JSON (lake-independent), so ENGINE + RESOLVE are UNCHANGED;
+# only the lake-backed FULL_CORPUS moves — exactly and only the hash that should move when
+# the lake's tag snapshot is made coherent:
+#   FULL_CORPUS e18456ebd15bcd5f… -> ec917355dd3eb2cf…
+#   ENGINE      4d3f5e6d9d8ed142… -> 4d3f5e6d9d8ed142… (UNCHANGED)
+#   RESOLVE     940c38811193b6f4… -> 940c38811193b6f4… (UNCHANGED)
+# Proof: ~/.claude/plans/trippersham/magic-tools/2026-11-18-reproducibility-adversarial-test/
+# subagents/component0/delta-report.md.
+FULL_CORPUS_SHA = 'ec917355dd3eb2cfb8136fb0e078e83eee88950ce257fcedac79ea0a01307eff'
 
 
 def full_corpus_sha() -> str:

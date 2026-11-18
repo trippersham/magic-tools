@@ -1,14 +1,19 @@
 {
-  "note": "Lake snapshot the P0 byte-parity SHAs (engine a6dfa607 / resolve 7d35fe19 / full-corpus 88de96a7) are valid against. Scryfall bulk + community oracle-tags are upstream-mutable; this pins the exact inputs so drift is DETECTABLE. Follow-up: make ingest honor this pin (fetch this bulk date) rather than latest.",
+  "note": "Lake snapshot the P0 byte-parity SHAs (engine 4d3f5e6d / resolve 940c3881 / full-corpus ec917355) are valid against. Coherent triple: raw/oracle_cards.parquet (829d7c86) + raw/oracle_tags.parquet (df31df7c) + normalized/card_otag.parquet (a51097a5), the card_otag re-rolled from the df31df7c raw tags on 2026-11-18 (superseding the stale bf52d6d1 rollup and the ad-hoc 88de96a7 full-corpus value). Scryfall bulk + community oracle-tags are upstream-mutable; this pins the exact inputs so drift is DETECTABLE. Follow-up: make ingest honor this pin (fetch this bulk date) rather than latest.",
   "oracle_cards.parquet": {
     "bytes": 8895033,
     "mtime": "2026-11-13T09:15:05.437079",
     "sha256": "829d7c86be45f0ff8f1a8ad188de43254ac9748acef25ac27ccfb70e9f25a66e"
   },
   "oracle_tags.parquet": {
-    "bytes": 4383564,
-    "mtime": "2026-11-13T09:28:57.587559",
-    "sha256": "bf52d6d19a139a5a161f3ff7d72e191b028325a28f8ce1776745e6def0462956"
+    "bytes": 4393150,
+    "mtime": "2026-11-18T00:31:11.623525",
+    "sha256": "df31df7ceaf4354a0ee5b9b15f5b897fd6b59a9902fa3df605f01833b71dfe3d"
   },
-  "pinned_at": "2026-11-13T09:44:09.359905"
+  "normalized/card_otag.parquet": {
+    "bytes": 1688740,
+    "mtime": "2026-11-18T11:28:35.910888",
+    "sha256": "a51097a5f4a2ad53171ec30601a37d81ca4f55d4f6eed36790c4d5d9e755c0fc"
+  },
+  "pinned_at": "2026-11-18T11:47:30.285486"
 }
