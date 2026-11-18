@@ -759,89 +759,44 @@ SEED_MAP: dict[str, dict[str, Any]] = {
         },
     },
     # ── 19. recursion-from-graveyard ────────────────────────────────────
+    # Reading B (CR 404 + prose; audit §3.6, #19).  The event is "a card
+    # RETURNS from the graveyard" (the regrowth/reanimate act), so the PRODUCERS
+    # are the cards that DO the returning and the CONSUMERS are the payoffs that
+    # care about something leaving the graveyard / triggering from it.
+    #
+    # Role inversion fixed: the prior shape had produced_by = the graveyard-
+    # FILLERS (discard/mill/sac) and triggers = the reanimate/recursion family —
+    # i.e. it re-modeled "graveyard stocked -> recursion consumes", which IS
+    # `card-enters-graveyard`'s semantics (same filler producers, same reanimate-
+    # family consumers) and made this node a role-inverted near-duplicate.
+    #   * produced_by -> the `recursion` ROOT (2,370 cards, 100-slug closure
+    #     covering EVERY reanimate-*/recursion-* variant + regrowth/restock/
+    #     copy-from-graveyard/grim-return/...).  It is mechanic-exclusive against
+    #     the returner mechanic (precision 1.0, no foreign heavy child) and the
+    #     highest such anchor (a root — nothing to climb to).  grade 'S'.
+    #   * triggers -> the recursion PAYOFFS: `leaving-graveyard-matters` (59) +
+    #     `trigger-from-graveyard` (147) — the cards that care about a card
+    #     leaving / acting from the graveyard.  grade 'M'.
+    #   * The gy-FILLERS move OUT: they own `card-enters-graveyard.produced_by`
+    #     (discard/mill/sacrifice), where the filler->reanimate "graveyard engine"
+    #     still lives (the reanimate family is a consumer THERE).  Relocation,
+    #     not loss.
+    #   * The opponent-scoped `discard` otag (opponent-hand attack — fills the
+    #     OPPONENT's graveyard, wrong scope for your recursion payoffs) is dropped
+    #     with the fillers (audit §3.3/§3.6).
     'recursion-from-graveyard': {
         'triggers': {
             'seeds': [
-                'castable-from-graveyard',
-                'graveyard-fuel',
-                'graveyard-fuel-artifact',
-                'graveyard-fuel-creature',
-                'graveyard-fuel-enchantment',
-                'graveyard-fuel-historic',
-                'graveyard-fuel-instant',
-                'graveyard-fuel-land',
-                'graveyard-fuel-legendary',
-                'graveyard-fuel-noncreature',
-                'graveyard-fuel-nonland',
-                'graveyard-fuel-permanent',
-                'graveyard-fuel-saga',
-                'graveyard-fuel-self',
-                'graveyard-fuel-sorcery',
-                'reanimate',
-                'reanimate-artifact',
-                'reanimate-artifact-creature',
-                'reanimate-aura',
-                'reanimate-battle',
-                'reanimate-cast',
-                'reanimate-creature',
-                'reanimate-enchantment',
-                'reanimate-equipment',
-                'reanimate-face-down',
-                'reanimate-from-any',
-                'reanimate-from-opponent',
-                'reanimate-historic',
-                'reanimate-instant-sorcery',
-                'reanimate-land',
-                'reanimate-legendary',
-                'reanimate-matters',
-                'reanimate-noncreature',
-                'reanimate-nonland',
-                'reanimate-permanent',
-                'reanimate-planeswalker',
-                'reanimate-saga',
-                'reanimate-self',
-                'reanimate-spacecraft',
-                'reanimate-vehicle',
-                'recursion',
-                'recursion-any',
-                'recursion-artifact',
-                'recursion-battle',
-                'recursion-creature',
-                'recursion-enchantment',
-                'recursion-from-exile',
-                'recursion-instant',
-                'recursion-land',
-                'recursion-permanent',
-                'recursion-planeswalker',
-                'recursion-self',
-                'recursion-sorcery',
-                'synergy-graveyard-cast',
-            ],
-            'grade': 'S',
-        },
-        'produced_by': {
-            # Build-design P seeds: recursion/reanimate (the cards that
-            # PERFORM the graveyard return) + mill/discard/sac fillers (that
-            # put cards INTO the graveyard enabling recursion).  `recursion`
-            # is a ROOT (100 descendants) covering all reanimate-*/recursion-*
-            # variants.  Adding it here is the single biggest unlock (~25
-            # edges) identified by the build-design measurement.
-            'seeds': [
-                'discard',
-                'discard-outlet',
-                'discard-outlet-artifact',
-                'discard-outlet-creature',
-                'discard-outlet-land',
-                'discard-outlet-last-drawn',
-                'discard-outlet-legendary',
-                'discard-outlet-nonland',
-                'discard-outlet-random',
-                'mill',
-                'mill-self',
-                'recursion',
-                'sac',
+                'leaving-graveyard-matters',
+                'trigger-from-graveyard',
             ],
             'grade': 'M',
+        },
+        'produced_by': {
+            'seeds': [
+                'recursion',
+            ],
+            'grade': 'S',
         },
     },
     # ── 20. deathtouch-combat ───────────────────────────────────────────

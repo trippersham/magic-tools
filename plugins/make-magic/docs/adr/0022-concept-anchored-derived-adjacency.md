@@ -281,6 +281,33 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   Sydri loop correction. All three SHAs moved: full-corpus `9c26ad89…` → `62d5fa5c…`; engine
   `84b9617e…` → `9559fa42…`; resolve `3fbd927f…` → `b88d8bb5…`. Proof + per-change delta:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r2-tier-b-narrowing/outbox.md`.
+- **2026-11-17 — recursion-from-graveyard restructure (R3, Reading B; audit §3.6 / #19; ADR 0003
+  re-baseline).** A ROLE-INVERSION fix, not a narrowing or a climb: the event's two sides are
+  SWAPPED to the correct orientation. The prior shape had `produced_by` = the gy-FILLERS
+  (discard/mill/sac) and `triggers` = the reanimate/recursion family, which modeled "graveyard
+  stocked → recursion consumes" — `card-enters-graveyard`'s exact semantics (same filler producers,
+  same reanimate-family consumers), so the node was a role-inverted near-duplicate. Reading B
+  (CR-literal "a card RETURNS from the graveyard"):
+  - `produced_by` → the `recursion` ROOT (the cards that DO the returning): a mechanic-exclusive
+    taxonomy root (2,370 cards / 100-slug closure covering every reanimate-*/recursion-* + regrowth/
+    restock/…; precision 1.0 vs the returner mechanic, no foreign heavy child; nothing to climb to).
+    grade `S`. This is the clean single-structural-seed case the Maximal-mechanic-exclusive-seed rule
+    is built for — the producer side collapses from the 13-slug filler enumeration to one root.
+  - `triggers` → `leaving-graveyard-matters` (59) + `trigger-from-graveyard` (147), the recursion
+    PAYOFFS. grade `M`.
+  - the gy-FILLERS leave for their correct home `card-enters-graveyard.produced_by`; the
+    opponent-scoped `discard` otag (§3.3) + dead `sac` ref go with them.
+  `validate_seed_map()` stays at **0 violations** (the shared `leaving-graveyard-matters`/
+  `trigger-from-graveyard`/`recursion` seeds make rfg and card-enters-graveyard RELATED, not
+  disjoint, so the cross-mechanic umbrella check does not compare them); 30 events (count unchanged).
+  **Measured OFF (`31f5c7c`) / ON: 85/157 records moved, 0 headline/identity/confidence/combo/bracket/
+  win/tribe/determinism flips, 0 reanimator engine losses** — rfg stops electing as a redundant dup
+  on 23 decks (relocating to `card-enters-graveyard` on 8, incl. Marchesa-Dealer + Dihada) and elects
+  only where a genuine returns→payoff pair exists; 8 `commander_loop.closes` True→False correct the
+  spurious self-loop the role-inversion created. All three SHAs moved: full-corpus `62d5fa5c…` →
+  `cb1a103b…`; engine `9559fa42…` → `4549062831f5bfc9…`; resolve `b88d8bb5…` → `f209237b…`. Proof +
+  per-change delta:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r3-recursion-restructure/outbox.md`.
 
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.

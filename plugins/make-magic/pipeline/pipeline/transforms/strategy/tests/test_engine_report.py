@@ -49,8 +49,8 @@ FIX = Path(__file__).resolve().parent / 'fixtures'
 RELAY_DECKS = FIX / 'relay_decks'
 
 # The two parity-oracle SHAs that MUST NOT shift.
-EXPECTED_ENGINE_SHA = '9559fa42ea76f661d03120e34a086cc35b3d776053ebdfd08523459cdfa30cca'
-EXPECTED_RESOLVE_SHA = 'b88d8bb5d3a3241471833a6337b98c746cadb0c669142094cf799d061cbd8c2d'
+EXPECTED_ENGINE_SHA = '4549062831f5bfc9606df4539069a16565eeebd275997b8f3b97dc1edc9d5d3b'
+EXPECTED_RESOLVE_SHA = 'f209237b352ebf62b38d1f0e6f19fd9380436d68454000a2eb57941d14bd48fb'
 
 # Event catalog (with co-located abbrevs) for _characterize_engines unit calls.
 CATALOG_EVENTS = json.loads(EVENTS_FILE.read_text())['events']

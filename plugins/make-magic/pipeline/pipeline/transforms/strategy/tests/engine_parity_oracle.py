@@ -208,7 +208,35 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   ENGINE      84b9617efcf0ec74… -> 9559fa42ea76f661…
 #   RESOLVE     3fbd927f92d21dbb… -> b88d8bb5d3a32414…
 # Proof: subagents/r2-tier-b-narrowing/outbox.md.
-FULL_CORPUS_SHA = '62d5fa5c87e2c962ee7c320da8ae6c6844b847b8d4aa21f4759b01c6290a10fa'
+# Re-baselined 2026-11-17 (R3: recursion-from-graveyard restructure — Reading B, audit §3.6 #19).
+# The event was role-inverted: produced_by = the graveyard-FILLERS (discard/mill/sac) and triggers =
+# the reanimate/recursion family — i.e. it re-modeled "graveyard stocked -> recursion consumes",
+# which IS card-enters-graveyard's semantics (same filler producers, same reanimate-family
+# consumers), a role-inverted near-duplicate.  Reading B restores the correct orientation:
+#   * produced_by -> the `recursion` ROOT (2,370 cards / 100-slug closure, every reanimate-*/
+#     recursion-* + regrowth/restock/... ; mechanic-exclusive, precision 1.0, no foreign heavy
+#     child, a root with nothing to climb to) — the cards that DO the returning.
+#   * triggers -> `leaving-graveyard-matters` (59) + `trigger-from-graveyard` (147) — the payoffs.
+#   * the gy-FILLERS (discard/mill/sac) move OUT (they own card-enters-graveyard.produced_by, where
+#     the filler->reanimate graveyard engine still lives); the opponent-scoped `discard` otag is
+#     dropped (§3.3) and the dead `sac` ref goes with it.
+# Measured OFF (31f5c7c) / ON (157 gauntlet): 85/157 records moved, but 0 headline/pre_combo_name/
+# archetype_identity/ranked_identity/confidence/bracket/combo/win-combo/tribe flips and 0 DETERMINISM
+# flips.  No reanimator deck loses its engine: recursion-from-graveyard stops electing as a redundant
+# graveyard engine on 23 decks (it was a role-inverted dup of card-enters-graveyard they already had,
+# or it RELOCATES — 8 decks, incl. the graveyard/reanimator Marchesa-Dealer + Dihada, gain
+# card-enters-graveyard as rfg drops) and now elects ONLY where a genuine returns->payoff pair exists
+# (braids, xu-ifit: producers=recursion/reanimate, consumers=leaving-graveyard-matters).  8
+# commander_loop.closes True->False (Karador/Nethroi/Sheoldred/Mimeoplasm/Sharuum/Hashaton/Kess/
+# Feather) = the correct removal of the SPURIOUS self-loop the role-inversion created (OFF, `recursion`
+# was a PRODUCER and the reanimate family CONSUMERS of the SAME event, so any commander carrying a
+# recursion attr trivially closed a loop); none change determinism (all keep mass-elected engines).
+# The 17 hermetic fixtures carry the recursion/reanimate families, so all three SHAs moved:
+#   FULL_CORPUS 62d5fa5c87e2c962… -> cb1a103be7614116…
+#   ENGINE      9559fa42ea76f661… -> 4549062831f5bfc9…
+#   RESOLVE     b88d8bb5d3a32414… -> f209237b352ebf62…
+# Proof: subagents/r3-recursion-restructure/outbox.md.
+FULL_CORPUS_SHA = 'cb1a103be761411600577e66bdd81b9688eb3f48cfaaa93872dda3a394c77231'
 
 
 def full_corpus_sha() -> str:

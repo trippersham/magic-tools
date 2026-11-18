@@ -464,6 +464,40 @@ re-baseline makes every *intended* change legible as such.
   exile/bounce/tuck; creature-enters trim removes only non-creature-token generators, 0 creature
   producers). Full per-change delta:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r2-tier-b-narrowing/outbox.md`.
+- **2026-11-17 — recursion-from-graveyard restructure (R3, Reading B; audit §3.6 / #19).** The
+  event was role-inverted: `produced_by` = the graveyard-FILLERS (discard/mill/sac) and `triggers` =
+  the reanimate/recursion family — i.e. it re-modeled "graveyard stocked → recursion consumes",
+  which IS `card-enters-graveyard`'s semantics (same filler producers, same reanimate-family
+  consumers): a role-inverted near-duplicate. Reading B restores the CR-literal orientation ("a card
+  RETURNS from the graveyard"):
+  - `produced_by` → the `recursion` ROOT (2,370 cards / 100-slug closure; every reanimate-*/
+    recursion-* variant + regrowth/restock/copy-from-graveyard/…). It is mechanic-exclusive against
+    the returner mechanic (precision 1.0, no foreign heavy child) and the HIGHEST such anchor — a
+    taxonomy root with nothing to climb to. grade `S`.
+  - `triggers` → the recursion PAYOFFS `leaving-graveyard-matters` (59) + `trigger-from-graveyard`
+    (147) — the cards that care about something leaving / acting from the graveyard. grade `M`.
+  - the gy-FILLERS move OUT: they own `card-enters-graveyard.produced_by` (discard/mill/sacrifice),
+    where the filler→reanimate "graveyard engine" still lives (the reanimate family is a consumer
+    THERE). Relocation, not loss. The opponent-scoped `discard` otag (opponent-hand attack; §3.3) and
+    the dead `sac` ref are dropped with them.
+  **Measured OFF (`31f5c7c`) / ON (157 gauntlet + 17 fixtures): all three SHAs moved** (fixtures
+  carry the recursion/reanimate families). `FULL_CORPUS 62d5fa5c87e2c962… → cb1a103be7614116…`;
+  `ENGINE 9559fa42ea76f661… → 4549062831f5bfc9…`; `RESOLVE b88d8bb5d3a32414… → f209237b352ebf62…`;
+  all engine/resolve constants (7 test files) + `distill_parity_baseline.json` +
+  `engine_isolation_baseline.json` regenerated. **Correctness proof:** 85/157 records moved, but **0
+  headline/pre_combo_name/archetype_identity/ranked_identity/confidence-tier/combo/bracket/win-combo/
+  tribe flips, 0 determinism flips, 0 reanimator engine losses.** `recursion-from-graveyard` stops
+  electing as a redundant graveyard engine on 23 decks (each already had `card-enters-graveyard`, or
+  RELOCATES to it — 8 decks incl. the graveyard/reanimator Marchesa-Dealer-of-Death + Dihada gain
+  `card-enters-graveyard` as rfg drops) and now elects ONLY where a genuine returns→payoff pair
+  exists (braids, xu-ifit: producers = recursion/reanimate, consumers = leaving-graveyard-matters).
+  **8 `commander_loop.closes` True→False** (Karador/Nethroi/Sheoldred/Mimeoplasm/Sharuum/Hashaton/
+  Kess/Feather) = the correct removal of the SPURIOUS self-loop the role-inversion created (OFF,
+  `recursion` was a PRODUCER and the reanimate family CONSUMERS of the SAME event, so any commander
+  carrying a recursion attr trivially closed a loop); none change `determinism` (all keep their
+  `mass-elected` engines). `validate_seed_map()` 0 violations; 30 events (count unchanged). Full
+  per-change delta:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r3-recursion-restructure/outbox.md`.
 
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.

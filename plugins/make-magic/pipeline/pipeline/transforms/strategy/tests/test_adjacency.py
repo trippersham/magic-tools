@@ -394,7 +394,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_engine_isolation_baselines()
         sha = composite_sha(baselines)
-        assert sha == '9559fa42ea76f661d03120e34a086cc35b3d776053ebdfd08523459cdfa30cca', (
+        assert sha == '4549062831f5bfc9606df4539069a16565eeebd275997b8f3b97dc1edc9d5d3b', (
             f'Engine isolation SHA shifted: {sha}'
         )
 
@@ -406,7 +406,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == 'b88d8bb5d3a3241471833a6337b98c746cadb0c669142094cf799d061cbd8c2d', f'Resolve SHA shifted: {sha}'
+        assert sha == 'f209237b352ebf62b38d1f0e6f19fd9380436d68454000a2eb57941d14bd48fb', f'Resolve SHA shifted: {sha}'
 
 
 # ---------------------------------------------------------------------------
