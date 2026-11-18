@@ -5,7 +5,7 @@
 | Status | **Accepted.** In force on branch `feat/strategy-engine`. Output-moving re-baseline (ADR 0003) carried at the 2026-11-14 flip (task 6.5). |
 | Review | Agent-authored from the empirically-validated build design (`research/adjacency-build-design.md`) and the three-round shadow measurement (`research/derived-adjacency-shadow-delta.md`); the orchestrator reconciled, ran the full-170 gauntlet (0 genuine regressions), showed the owner the delta + old→new SHAs, and committed + re-baselined. (Supersedes the `0018-DRAFT` proposal; 0018–0019 remain unused.) |
 | Test | From `plugins/make-magic/pipeline`: `uv run --extra dev pytest pipeline/transforms/strategy/tests -q` (547 passed, 4 skipped). Seed rule: `test_adjacency.py` (superset `derived ⊇ enumerated` except the intended ramp-correction; `validate_seed_map()` 0 violations; `TestExclusivityValidator` gate — `ramp` refused for both `mana-produced` and `land-enters-battlefield`; `test_ramp_as_seed_caught_by_validator` — non-tautological acceptance test; `TestEventAdmittedGate` — producer-anchor admission). Parity gate: `uv run python -m pipeline.transforms.strategy.tests.engine_parity_oracle` + `test_event_ontology.py` + the re-baselined `FULL_CORPUS_SHA`. |
-| Code paths | [`derive_card_events.py`](../../pipeline/pipeline/transforms/strategy/derive_card_events.py) (`SEED_MAP`, `derive_card_events`, the enforced exclusivity validator), [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py) + [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (derive-at-load), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` rank-don't-cut), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (the frozen enumerated seed, now overwritten at load). |
+| Code paths | [`derive_card_events.py`](../../pipeline/pipeline/transforms/strategy/derive_card_events.py) (`SEED_MAP`, `derive_card_events`, the enforced exclusivity validator), [`assets.py`](../../pipeline/pipeline/transforms/strategy/assets.py) + [`engine_hydration.py`](../../pipeline/pipeline/transforms/strategy/engine_hydration.py) (derive-at-load), [`strategy_graph.py`](../../pipeline/pipeline/transforms/strategy/strategy_graph.py) (`elect_engine_units` rank-don't-cut), [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (the frozen enumerated seed, now overwritten at load), [`evaluate_event_candidates.py`](../../pipeline/pipeline/transforms/strategy/evaluate_event_candidates.py) (R5c concept-anchored shadow discovery — `PRODUCER_CONCEPTS`, `discover_for_concept`, `run_concept_shadow`; off the live derive path). |
 
 ## Context
 
@@ -99,7 +99,7 @@ ADR 0014** (the Jaccard-0.5 dedup is retained).
   override case, via the event-anchor expansion deflating one span-confidence signal MED→LOW).
   Full classified delta: `research/flip-170-gauntlet-delta.md`.
 
-## Seed-discovery direction — event-candidate evaluation (ADR 0008 lifecycle — not yet built)
+## Seed-discovery direction — event-candidate evaluation (ADR 0008 lifecycle — REALIZED shadow, see 2026-11-18 Later-changes)
 
 > Formerly described as "self-healing." The machinery *evaluates candidate* event-producers/
 > triggers and *discovers* new seeds from evidence; it does not "heal." The canonical verb for
@@ -149,7 +149,9 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   on average). Its only output consequence across 170 decks is the single Shiko label correction,
   but the density-rank `span` confidence signal is now mildly sensitive to the derived attribute
   count — flagged for the owner as a future confidence-tuning consideration.
-- **Seed discovery (event-candidate evaluation) is a direction, not built** — the flip derives from static seeds.
+- **Seed discovery (event-candidate evaluation) is now built — SHADOW, concept-anchored** (R5c,
+  2026-11-18 Later-changes). The authoritative flip still derives from static seeds; discovery only
+  PROPOSES to an owner-review artifact (it never auto-promotes), so the P0 output is unchanged.
 
 ## Later changes
 
@@ -354,6 +356,35 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   carries an alternate-loss card or a deckout consumer). **ENGINE unchanged (`7a83891a…`); RESOLVE
   `a63f268b…`→`c2dbd766…`, FULL_CORPUS `03a5880c…`→`5c75bb44…`.** Proof:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/batch-b-concepts/outbox.md`.
+
+- **2026-11-18 — concept-anchored discovery REALIZED (R5c, #74 / WS3 layer 2; shadow, byte-parity).**
+  The "Seed-discovery direction" below is now built, SHADOW-only. `discover_candidates`
+  (`evaluate_event_candidates.py`) no longer gates the **producer** side on the circular
+  *current closure* — it anchors on each event's ratified **PRODUCER CONCEPT** (`PRODUCER_CONCEPTS`,
+  owner-ratified DATA from `research/event-concepts-for-ratification-v2.md` + the 2026-11-18
+  ratification), the fix `impulse-seed-scope.md` §A3 prescribed (the gate logic was sound; the
+  *reference population* was the bug). Three realized facets: (1) **concept-anchor** — the gate's
+  reference is `mechanic_population(concept.anchors)`, frozen independently of the mutable seeds, so
+  a producer family dropped from the seeds self-heals (`discover_for_concept`); the headline proof is
+  the WS2 impulse-seed re-derivation — with `sneak-from-library` removed from the seeds (or the whole
+  producer set wiped), discovery re-derives `sneak-from-library` / `impulse-onto-battlefield` /
+  `consult-onto-battlefield` from the concept. (2) **role-purity** — a payoff-family
+  (`synergy-*`/`*-matters`/`*-fuel-*`/`*-cares`) otag is never admitted as a producer (reuses
+  `catalog_integrity.is_payoff_family`); precision alone is necessary-but-not-sufficient (the v2
+  `group-slug` 0.973 / `inverted-effects` 0.825 false-pass). (3) **decomposition-escalation** — a
+  concept whose only otag anchor is a coarse role-impure tag (the monarch `monarch-matters`
+  maker+payoff conflation) emits a `DecompositionTicket` ("author a CardAttribute") to the owner queue
+  instead of promoting the noisy otag. **Fixed vs growable is DATA:** the synth-attr / curated-union
+  producer events (monarch, domain, permanent-dies, poisoned, rad, experience) are `FIXED_SYNTH` —
+  discovery proposes 0 (their authored query auto-evolves at distill time); the 5 bootstrap-gap (b)
+  events (creature-enters, artifact-enters, land-enters, token-created, creature-copied) carry the
+  ratified broad concept; all other events default to `GROWABLE` with concept == current seeds.
+  **Shadow is output-inert:** nothing on the live derive path imports `evaluate_event_candidates`, so
+  the three P0 SHAs are UNCHANGED (ENGINE `7a83891a…`, RESOLVE `c2dbd766…`, FULL_CORPUS `5c75bb44…`);
+  `run_concept_shadow` / `write_shadow_proposals` emit an owner-review artifact and mutate no catalog.
+  **Test:** `test_concept_anchored_discovery.py` (WS2 re-derivation, payoff-veto, fixed-skip,
+  decomposition-ticket, shadow-no-mutation) — 12 passed; `validate_catalog()` 0 blocking. Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5c-discovery-rewire/outbox.md`.
 
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
