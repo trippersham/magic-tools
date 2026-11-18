@@ -177,7 +177,35 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   ENGINE      84b9617efcf0ec74… (unchanged)
 #   RESOLVE     5a43fc56ce9fd371… -> 50cd387393ba7a7a…
 # Proof: subagents/r1b-decompose-altwincon/outbox.md.
-FULL_CORPUS_SHA = '62abb4b19c4eddfce01445fbfcf75afb3bc091ba88b3ebe3cb9d54f22341fddc'
+# Re-baselined 2026-11-17 (R2: Tier-B over-inclusion narrowing — 1 of 3 shipped, 2 STOPPED).
+# SHIPPED: life-loss-drain DROPS the `burn` umbrella (keeps burn-player/-each) + the dead
+# `sac` ref — CR 120.3, only damage to a PLAYER is life loss; the burn closure dragged in
+# removal-burn/burn-battle/bombard/burn-creature/-planeswalker/removal-fight (1,253 cards
+# dropped, 0 carrying any player-damage tag — 100% creature/planeswalker/battle/fight
+# damage). STOPPED (reported, not shipped):
+#   * permanent-dies (replace `removal` with removal-destroy+burn+sacrifice) UNDER-COVERS
+#     at scale — 141 genuine board-wipe deaths tagged sweeper/sweeper-one-sided/sunder +
+#     removal-toughness but NOT removal-destroy (Meathook Massacre, Black Sun's Zenith, …)
+#     + 669 no-method cards; removal's children mix a method axis and a target-type axis
+#     and aren't a clean tree, so no union separates death from non-death. `removal` KEPT.
+#   * artifact-enters (drop animate-artifact+artifactify) is output-CLEAN (136 cards, CR
+#     603.6a — a type-change is not an ETB; 0 evictions) BUT cannot ship standalone: the
+#     4-seed narrowed set pushes creature-enters's pre-existing over-broad
+#     `repeatable-token-generator` umbrella to 2/4 (50%) coverage, tripping
+#     validate_seed_map (ADR 0022). A clean ship is coupled to narrowing that umbrella
+#     (out of R2 scope). Reported for owner (proof: subagents/r2-tier-b-narrowing/outbox.md).
+# Measured OFF (e60dbe5) / ON delta for the SHIPPED change: 29/170 gauntlet records moved,
+# 0 headline/identity/confidence-tier/combo/bracket/win-combo flips, 0 engine evictions
+# (engine identity-sets + per-deck counts unchanged everywhere), 0 commander_loop.closes
+# flips. Every changed leaf traces to the burn-drop (burn-battle attribute surfacing off,
+# n_nodes-1, downstream communities/edges/confidence drift). The 17 hermetic fixtures carry
+# burn-creature in 4 owned fixtures (ozai/sokka/spiders/world-reclaimer) so RESOLVE moved;
+# ENGINE is UNCHANGED (elect_engine_units carries none of the touched layers):
+#   FULL_CORPUS 62abb4b19c4eddfce… -> 9c26ad8907b63e7d…
+#   ENGINE      84b9617efcf0ec74… (unchanged)
+#   RESOLVE     50cd387393ba7a7a… -> 3fbd927f92d21dbb…
+# Proof: subagents/r2-tier-b-narrowing/outbox.md.
+FULL_CORPUS_SHA = '9c26ad8907b63e7dc85cde5f4ae110c2a8a6219205c6b5fd0f4d6f54751245e9'
 
 
 def full_corpus_sha() -> str:

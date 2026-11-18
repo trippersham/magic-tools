@@ -490,14 +490,23 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
+            # burn DROPPED (#74 §3.2): CR 120.3 — only damage dealt to a PLAYER is
+            # life loss.  The `burn` parent closure dragged in removal-burn (2,536),
+            # burn-battle, bombard/bombard-self, burn-creature/-planeswalker,
+            # removal-fight — damage to creatures/battles/planeswalkers, which causes
+            # NO player life loss.  Keeping burn-player (+ burn-player-each) is the
+            # exact player-damage slice.  sac was a DEAD ref (0 cards, §0.1) and is
+            # conceptually wrong anyway (sacrifice alone ≠ life loss; the aristocrats
+            # chain runs sac → dies → drain-life/opponent-loses-life, already present).
+            # Measured OFF/ON: 1,253 cards dropped, 0 carried any player-damage tag
+            # (100% creature/planeswalker/battle/fight damage) → no player-drain
+            # producer lost (proof: subagents/r2-tier-b-narrowing/outbox.md).
             'seeds': [
-                'burn',
                 'burn-player',
                 'burn-player-each',
                 'drain-life',
                 'omnivore-ability',
                 'opponent-loses-life',
-                'sac',
             ],
             'grade': 'M',
         },
@@ -634,6 +643,17 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
+            # NOTE (#74 R2 §3.4): animate-artifact + artifactify are CR-off-mechanic
+            # producers here (CR 603.6a — a permanent that BECOMES/is animated into an
+            # artifact does not re-enter, so fires no ETB).  Dropping them is output-
+            # clean (136 cards, 0 engine evictions) BUT cannot ship standalone: it
+            # shrinks this side to 4 seeds, which pushes creature-enters-battlefield's
+            # pre-existing over-broad `repeatable-token-generator` umbrella to 2/4 (50%)
+            # coverage of this seed set and TRIPS validate_seed_map (ADR 0022).  A clean
+            # ship is coupled to narrowing that umbrella to `repeatable-creature-tokens`
+            # (itself correct — non-creature token generators don't produce creature
+            # ETBs), which is out of R2 scope.  STOP-reported for owner
+            # (subagents/r2-tier-b-narrowing/outbox.md).
             'seeds': [
                 'animate-artifact',
                 'artifactify',

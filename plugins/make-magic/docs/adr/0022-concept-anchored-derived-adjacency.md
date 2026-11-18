@@ -220,6 +220,41 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   Proof + per-change delta:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/monarch-energy-poison/outbox.md`.
 
+- **2026-11-17 — Tier-B over-inclusion narrowing (R2; #74 §3.2/§3.4; ADR 0003 re-baseline): 1
+  shipped, 2 STOPPED.** One producer seed was NARROWED to drop off-mechanic cards (the opposite
+  direction from over-capture, but the same rule — a seed must be mechanic-exclusive for the event
+  it feeds): `life-loss-drain.produced_by` drops the `burn` umbrella (keeps `burn-player` +
+  `burn-player-each`, drops the dead `sac` ref) because `burn`'s closure spans creature/battle/
+  planeswalker damage (removal-burn/burn-battle/bombard/burn-creature/-planeswalker/removal-fight),
+  which is NOT player life loss (CR 120.3) — 1,253 cards dropped, 0 carrying any player-damage tag.
+  Clean (measured OFF/ON: 29/170 records moved, 0 label/identity/confidence-tier flips, 0 evictions,
+  0 loop-closure flips). `validate_seed_map()` stays at 0 violations; 30 events (count unchanged —
+  seeds narrowed, no event added/removed). The two STOPPED narrowings:
+  - **`permanent-dies`** (replace `removal` with `removal-destroy ∪ removal-burn ∪ removal-sacrifice`)
+    was STOPPED and `removal` KEPT — it exposes a **limitation of the Maximal-mechanic-exclusive-seed
+    rule for NARROWING**: `removal`'s otag children are NOT a clean tree but mix a METHOD axis
+    (destroy/burn/sacrifice/exile/bounce/tuck/sweeper/sunder) and a TARGET-TYPE axis
+    (removal-creature/-artifact/…), and `removal-creature` itself parents method-children
+    (doom-blade/burn-creature/man-o-war/pacifism). No union of method-children separates death from
+    non-death: the narrowing drops 141 genuine board-wipe deaths tagged `sweeper`/`sweeper-one-sided`/
+    `sunder` + `removal-toughness` but NOT `removal-destroy` (The Meathook Massacre, Black Sun's
+    Zenith, Night of Souls' Betrayal, …) plus 669 no-method cards. When off-mechanic contamination
+    lives in an entangled sibling axis that the climb/union mechanism cannot exclude, the honest move
+    is to keep the umbrella + document the approximation (removal-approx-death), not silently
+    under-cover.
+  - **`artifact-enters`** (drop `animate-artifact` + `artifactify`, CR 603.6a type-change ≠ ETB) is
+    output-CLEAN (136 cards, measured 0 evictions) but STOPPED on the GATE: narrowing this side to 4
+    seeds pushes `creature-enters-battlefield`'s pre-existing over-broad `repeatable-token-generator`
+    umbrella (parent of `repeatable-artifact-tokens` + `repeatable-treasures`) to 2/4 = 50% coverage
+    of the artifact-enters seed set, which trips the `UMBRELLA_COVERAGE_MIN` cross-mechanic guard —
+    a **denominator-sensitivity** of the validator's ratio metric: the same umbrella was 2/6 = 33%
+    (clean) before the drop. The validator is correctly flagging that `repeatable-token-generator`
+    is over-broad for creature-enters (its closure reaches non-creature token generators that make
+    no creature ETB); the clean fix is to narrow THAT seed to `repeatable-creature-tokens`, coupled
+    but out of R2 scope. Seeds KEPT as-is; reported to the owner.
+  Both STOPs reported. Full per-narrowing delta + the STOP analyses:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r2-tier-b-narrowing/outbox.md`.
+
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
 - 0002 / 0020 — substantiveness + the `producer_anchor` gate this adjacency feeds; `ramp` stays anchor-side-only there, never in the adjacency.

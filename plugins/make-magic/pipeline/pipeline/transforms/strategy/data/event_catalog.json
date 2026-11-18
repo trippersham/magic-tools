@@ -282,15 +282,13 @@
       ]
     },
     "life-loss-drain": {
-      "rule": "CR 119.3: losing life; drain and symmetric life-loss payoffs (aristocrats)",
+      "rule": "CR 119.3 (life loss) / CR 120.3 (only damage to a PLAYER causes life loss): drain and symmetric life-loss payoffs (aristocrats). Producers are the player-facing damage/drain slice ONLY — burn to creatures/battles/planeswalkers (removal-burn, burn-battle, bombard, burn-creature) is NOT life loss and the `burn` umbrella was dropped (#74 R2 §3.2)",
       "abbrev": "drain",
       "produced_by": [
-        "burn",
         "burn-player",
         "burn-player-each",
         "drain-life",
-        "opponent-loses-life",
-        "sac"
+        "opponent-loses-life"
       ],
       "triggers": [
         "life-loss-matters",

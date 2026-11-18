@@ -388,6 +388,46 @@ re-baseline makes every *intended* change legible as such.
   the combo-override label, untouched; byte-identical OFF→ON). Full per-change delta:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r1b-decompose-altwincon/outbox.md`.
 
+- **2026-11-17 — Tier-B over-inclusion narrowing (R2, ADR 0022 seeds; #74 §3.2/§3.4): 1 of 3
+  shipped, 2 STOPPED.** One held file changed (`derive_card_events.py` SEED_MAP), one event
+  producer seed list narrowed to drop off-mechanic cards: **life-loss-drain** drops the `burn`
+  umbrella (keeps `burn-player` + `burn-player-each`) and the dead `sac` ref — CR 120.3, only damage
+  to a PLAYER is life loss; the `burn` closure dragged in removal-burn/burn-battle/bombard/
+  burn-creature/-planeswalker/removal-fight (1,253 cards dropped, **0 carrying any player-damage
+  tag** — 100% creature/planeswalker/battle/fight damage; `drain-life`/`opponent-loses-life`/
+  `burn-player`/`burn-player-each` retained, so no player-drain producer lost). The other two
+  intended narrowings were **STOPPED**:
+  - **permanent-dies** (replace `removal` with `removal-destroy ∪ removal-burn ∪ removal-sacrifice`)
+    UNDER-COVERS genuine deaths at scale — 141 board-wipe deaths tagged `sweeper`/`sweeper-one-sided`/
+    `sunder` + `removal-toughness` but NOT `removal-destroy` (The Meathook Massacre, Black Sun's
+    Zenith, Night of Souls' Betrayal, Find // Finality, …) plus 669 no-method cards with only generic
+    spot-removal/target-type tags. `removal`'s children mix a METHOD axis and a TARGET-TYPE axis and
+    are not a clean tree (`removal-creature` itself parents destroy/burn/bounce/fight children), so no
+    union of method-children cleanly separates death from non-death. `removal` KEPT; reported to the
+    owner (keep + document as removal-approx-death, or a measured richer narrowing that re-adds
+    sweeper/sunder and still owner-adjudicates the 669 no-method bucket).
+  - **artifact-enters** (drop `animate-artifact` + `artifactify`) is output-CLEAN (136 cards, CR
+    603.6a — a type-change is not an ETB; measured 0 engine evictions, 0 label flips) BUT cannot
+    ship standalone: narrowing this side to 4 seeds pushes `creature-enters-battlefield`'s
+    pre-existing over-broad `repeatable-token-generator` umbrella to **2/4 (50%)** coverage of the
+    artifact-enters seed set, tripping `validate_seed_map` (`UMBRELLA_COVERAGE_MIN`, ADR 0022). A
+    clean ship is coupled to narrowing that umbrella to `repeatable-creature-tokens` (itself correct
+    — non-creature token generators don't produce creature ETBs), which is out of R2 scope. Seeds
+    KEPT as-is; reported to the owner.
+  **Measured OFF (`e60dbe5`) / ON delta for the SHIPPED change (170-record corpus + 17 fixtures):
+  only FULL_CORPUS + RESOLVE moved; ENGINE is UNCHANGED** (`elect_engine_units` carries none of the
+  touched layers). `FULL_CORPUS_SHA 62abb4b19c4eddfce… → 9c26ad8907b63e7d…`; `RESOLVE 50cd387393ba7a7a…
+  → 3fbd927f92d21dbb…` (4 owned fixtures: ozai/sokka/spiders/world-reclaimer carry burn-creature);
+  `ENGINE 84b9617e…` left as-is (byte-identical; `engine_isolation_baseline.json` unchanged,
+  `distill_parity_baseline.json` regenerated). **Correctness proof:** 29/170 records moved; **0
+  headline/archetype_identity/confidence-tier/combo/bracket/win-combo flips, 0 engine evictions**
+  (engine identity-sets + per-deck counts unchanged everywhere), 0 `commander_loop.closes` flips.
+  Every changed leaf traces to the burn-drop (`burn-battle` attribute surfacing off, `n_nodes`−1,
+  downstream communities/edges/confidence drift). `FULL_CORPUS_SHA` + the RESOLVE constant across 7
+  test files updated in the same change. Full per-narrowing delta + the permanent-dies/artifact-enters
+  STOP analyses:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r2-tier-b-narrowing/outbox.md`.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`strategy_graph.py` is shared with this record).
