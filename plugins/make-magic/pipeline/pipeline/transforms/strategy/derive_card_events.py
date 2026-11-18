@@ -413,18 +413,56 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
-            # impulse-cast (#74 §4.1): exile-and-you-may-CAST producers (Sunbird's
-            # Invocation, Aetherworks Marvel) make real CR 601.1b casts. copy-*
-            # producers are a documented over-promise: copies are NOT cast
-            # (CR 707.12), so storm/prowess/cast-only payoffs don't see them —
-            # but magecraft (CR 702.157a) counts "casts or copies", and magecraft
-            # IS in the trigger closure, so the copy->cast-trigger edge is precise
-            # for magecraft consumers. free-cast-another (#74; ADR 0024 wave) is now
-            # folded IN by owner call: a card that casts ANOTHER spell for free makes a
-            # real CR 601 cast (437 cards, measured in extra-cast-breadth.md), so it is
-            # a genuine spell-cast producer. Diagnostic-only this wave (no gauntlet
-            # label flips). The remaining cast families (cast-on-resolution/theft-cast)
-            # stay OUT (owner call).
+            # ADR 0025 resource split (A1): spell-cast is the CAST-ONLY node.
+            # Producers are the real CR 601.1b cast-generators ONLY: impulse-cast
+            # (exile-and-you-may-CAST — Sunbird's Invocation, Aetherworks Marvel)
+            # and free-cast-another (cast ANOTHER spell for free, 437 cards). The
+            # copy-* producers LEFT this node: copies are NOT cast (CR 707.12), so
+            # they must not reach the cast-only payoffs (storm/prowess). They now
+            # live on spell-copied (copy-production) + spell-on-stack (the union,
+            # where a copy reaches magecraft). A cast still reaches magecraft via
+            # this node's cast-trigger closure (magecraft is a taxonomy child of
+            # cast-trigger) AND via spell-on-stack. The remaining cast families
+            # (cast-on-resolution/theft-cast) stay OUT (owner call).
+            'seeds': [
+                'free-cast-another',
+                'impulse-cast',
+            ],
+            'grade': 'M',
+        },
+    },
+    # ── 7b. spell-copied (ADR 0025 resource split — A1) ─────────────────
+    # A COPY of a spell on the stack (CR 707.10/.12) — NOT a cast. The copy-
+    # production node: producers are the copy-* families (copy-instant/-sorcery/
+    # -spell closure); triggers is empty (no clean copy-ONLY payoff otag — the
+    # cast-or-copy payoff magecraft fires on either and lives on spell-on-stack).
+    'spell-copied': {
+        'triggers': {
+            'seeds': [],
+            'grade': 'empty',
+        },
+        'produced_by': {
+            'seeds': [
+                'copy-instant',
+                'copy-sorcery',
+                'copy-spell',
+            ],
+            'grade': 'M',
+        },
+    },
+    # ── 7c. spell-on-stack (ADR 0025 resource split — A1) ───────────────
+    # The UNION node (cast-or-copied): a spell OR a copy is on the stack.
+    # produced_by = the union of spell-cast's cast-generators and spell-copied's
+    # copy-producers. triggers = magecraft (CR 702.157a: "cast OR copy") — the one
+    # payoff that fires on either. This is the magecraft home: a COPY engine
+    # reaches magecraft ONLY here (copies never touch spell-cast), the point of
+    # the split.
+    'spell-on-stack': {
+        'triggers': {
+            'seeds': ['magecraft'],
+            'grade': 'M',
+        },
+        'produced_by': {
             'seeds': [
                 'copy-instant',
                 'copy-sorcery',
@@ -547,10 +585,11 @@ SEED_MAP: dict[str, dict[str, Any]] = {
     # ── 12. counter-placed ──────────────────────────────────────────────
     'counter-placed': {
         'triggers': {
-            # counter-fuel-energy MOVED to player-counter (#74 §4.4): energy is a
-            # PLAYER counter (CR 122.1a), not a counter placed on a permanent, and
-            # no energy producer sat in this event's produced_by — the edges were
-            # dead here. It now lives in player-counter.triggers (and stays in
+            # counter-fuel-energy is NOT here (#74 §4.4): energy is a PLAYER counter
+            # (CR 122.1a), not a counter placed on a permanent, and no energy producer
+            # sat in this event's produced_by. It lives in the `energy` event's
+            # triggers (ADR 0025 resource split — A2; formerly player-counter.triggers)
+            # alongside its real producer energy-generator (and stays in
             # proliferate.triggers).
             'seeds': [
                 'counter-fuel',
@@ -907,15 +946,34 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
     },
-    # ── 24. player-counter ──────────────────────────────────────────────
-    'player-counter': {
+    # ── 24a/b/c. energy / rad / experience (ADR 0025 resource split — A2) ─
+    # The former generic `player-counter` node lumped three DISTINCT CR resources
+    # (energy CR 122.1a, Fallout rad, experience) under one event. Per the ADR 0025
+    # resource-split doctrine (distinct resources with their own producers/consumers
+    # = distinct events), it splits into three. `proliferate` (pseudo-proliferate/
+    # repeatable-proliferate) adds to ANY counter a player has, so it is a SHARED
+    # producer of all three (same producers it already feeds into counter-placed).
+    'energy': {
         'triggers': {
-            # counter-fuel-energy (#74 §4.4): energy counters are PLAYER counters
-            # (CR 122.1a), so the energy consumer belongs here (moved from
-            # counter-placed, where no energy PRODUCER sat). It stays in
-            # proliferate.triggers too (proliferate can add energy to a player).
+            # energy counters are PLAYER counters (CR 122.1a); the energy consumer
+            # counter-fuel-energy (122). No foreign-resource dilution now.
+            'seeds': ['counter-fuel-energy'],
+            'grade': 'M',
+        },
+        'produced_by': {
+            # energy-generator (137, mechanic-exclusive prec 1.0) + proliferate.
+            'seeds': ['energy-generator', 'pseudo-proliferate', 'repeatable-proliferate'],
+            'grade': 'M',
+        },
+    },
+    'rad': {
+        'triggers': {
+            # rad fuels self-mill (mill-* / synergy-mill — the rad->mill engine) and
+            # feeds proliferate. pseudo-proliferate/repeatable-proliferate appear on
+            # BOTH sides of rad (proliferate makes rad AND rad feeds proliferate) —
+            # a legitimate producer/consumer dual (advisory role-ambiguity, not a
+            # block), the same posture flicker/sac carry.
             'seeds': [
-                'counter-fuel-energy',
                 'mill-any',
                 'mill-each',
                 'mill-opponent',
@@ -928,13 +986,24 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'M',
         },
         'produced_by': {
-            # rad-counter is a text-synth attr with NO otag, kept for
-            # backward compatibility with the committed catalog.
-            # energy-generator (#74 §4.4): the real energy PRODUCER otag (137,
-            # mechanic-exclusive prec 1.0) — energy counters are player counters,
-            # so this lights up energy-generator -> counter-fuel-energy edges that
-            # were permanently dead when no energy producer existed anywhere.
-            'seeds': ['energy-generator', 'rad-counter'],
+            # rad-counter is a text-synth attr with NO otag (closure = itself) +
+            # proliferate.
+            'seeds': ['rad-counter', 'pseudo-proliferate', 'repeatable-proliferate'],
+            'grade': 'M',
+        },
+    },
+    'experience': {
+        'triggers': {
+            # No otag-expressible experience payoff — the payoff is the producing
+            # card's OWN scaling ability (Ezuri/Mizzix). Empty, like untap's self-
+            # ability caveat. The experience fids still route here in the walk.
+            'seeds': [],
+            'grade': 'empty',
+        },
+        'produced_by': {
+            # experience-counter is the NEW oracle-text synth attr (oracle:'experience
+            # counter', 19 members, 0 FP — closure = itself) + proliferate.
+            'seeds': ['experience-counter', 'pseudo-proliferate', 'repeatable-proliferate'],
             'grade': 'M',
         },
     },

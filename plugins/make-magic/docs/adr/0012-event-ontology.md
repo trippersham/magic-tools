@@ -209,6 +209,37 @@ its `permanent-dies` aristocrats engine gains the deathtouch producer, identity 
 output-moving re-baseline under [0003] (exactly 2/170 gauntlet + 1/17 fixture records moved, 0 hard
 flips); `test_event_ontology.py` + `test_adjacency.py` re-verified green.
 
+## Amendment — 2026-11-18 (ADR 0025 resource-split doctrine — Batch A: two splits), 29 → 33 events
+
+Realizes the **split half** of [0025] (distinct CR resources, each with their own producers/consumers,
+earn their own event — the mirror of the keyword fold). **Two splits:**
+
+- **A1 — `spell-cast` split (29 → 31).** A cast (CR 601) and a copy (CR 707.10/.12) are distinct stack
+  events (a copy is not cast). The old `spell-cast` is redefined to the **cast-only** node (producers
+  `impulse-cast`/`free-cast-another`; copies removed); two new events are added: **`spell-copied`**
+  (the `copy-*` producers; empty triggers — no copy-only payoff otag exists) and **`spell-on-stack`**
+  (the cast∪copy union; triggers `magecraft`, CR 702.157a "cast or copy" — the one payoff on the
+  superset). A copy engine lands on spell-copied + spell-on-stack and reaches magecraft without
+  over-promising the cast-only storm/prowess payoffs.
+- **A2 — `player-counter` split (31 → 33).** The generic `player-counter` lumped three distinct CR
+  resources; it is **removed** and replaced by **`energy`** (CR 122.1a; `energy-generator` →
+  `counter-fuel-energy`), **`rad`** (Fallout; synth `rad-counter` → self-mill), and **`experience`**
+  (C15+; the NEW synth `experience-counter`, `oracle:'experience counter'`, 19 members 0 FP; triggers
+  empty — the payoff is the card's own scaling ability). `proliferate` (`pseudo-proliferate`/
+  `repeatable-proliferate`) is the shared producer seeded into all three.
+
+Net catalog event count **29 → 33** — **6 new** (`spell-cast`[redefined], `spell-copied`,
+`spell-on-stack`, `energy`, `rad`, `experience`) and **2 removed** (old `spell-cast`, `player-counter`).
+`combo_win.py`: `EVENT_EDGE_CLASSES['spell-cast']` keeps `cast_drain`+`altwin::spell-cast`;
+`spell-on-stack` gets `cast_drain`; `altwin::player-counter` (Azor's filibuster) is now **unmapped**
+(walk-inert — the former node spuriously let infinite energy/experience "win" through it); `fid_route`
+re-routes 7 magecraft/copy fids → `spell-on-stack`, energy/experience fids → their events. Field
+vocabulary unchanged (no `polarity`/`scope`). Count invariant renamed
+`test_adjacency.py::test_anchor_map_has_33_events`; grade tally **15/12/6** (S unchanged; fully-M 10 →
+12 via spell-on-stack/energy/rad +3, player-counter −1; empty 4 → 6 via spell-copied + experience).
+Output-moving re-baseline under [0003] (exactly 10/157 gauntlet engine relocations + 1 benign n_nodes,
+0 hard flips; 1/17 fixtures moved); `test_event_ontology.py` + `test_adjacency.py` re-verified green.
+
 ## The bipartite graph and its projections
 
 The strategy engine operates on ONE bipartite graph with two projections.

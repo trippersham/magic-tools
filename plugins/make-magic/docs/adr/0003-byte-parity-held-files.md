@@ -576,6 +576,33 @@ re-baseline makes every *intended* change legible as such.
   Proof:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/deathtouch-collapse/outbox.md`.
 
+- **2026-11-18 — two event splits per the ADR 0025 resource-split doctrine (Batch A; on top of
+  `34b2a08`).** Distinct CR resources, each with their own producers/consumers, earn their own event
+  (the mirror of the keyword fold). **A1:** old `spell-cast` → **`spell-cast`** (cast-only: producers
+  `impulse-cast`/`free-cast-another`) + **`spell-copied`** (`copy-*` producers) + **`spell-on-stack`**
+  (the cast∪copy union; triggers `magecraft`) — a copy is not a cast (CR 707.12), so copies leave the
+  cast-only storm/prowess payoffs and reach magecraft on the union node. **A2:** `player-counter` →
+  **`energy`** / **`rad`** / **`experience`** (the NEW synth `experience-counter`, `oracle:'experience
+  counter'`, 19 members 0 FP), with `proliferate` the shared producer of all three. Event count **29 →
+  33** (6 new, 2 removed). `combo_win.py`: `spell-cast` keeps `cast_drain`+`altwin::spell-cast`;
+  `spell-on-stack` gets `cast_drain`; `altwin::player-counter` (Azor's filibuster) is **unmapped**
+  (the former node spuriously let infinite energy/experience win through it); `fid_route` re-routes 7
+  magecraft/copy fids → `spell-on-stack` + the energy/experience fids. **Measured OFF (`34b2a08`) /
+  ON (157 gauntlet + 17 fixtures):** **0** pre_combo_name / bracket / confidence / archetype_identity /
+  ranked_identity / combo_identity flips; **1** benign `n_nodes` +1 (`simic__ezuri` gains the
+  `experience-counter` attr); **10/157** gauntlet engine relocations, all `spell-cast ↔ spell-copied/
+  spell-on-stack` — genuine cast decks (carrying `impulse-cast`/`free-cast-another`) **KEEP**
+  `spell-cast`, pure-copy decks drop the mis-attributed copy→storm/prowess engine, copy+magecraft decks
+  (veyran/kalamax/JeskaiStriker/shiko) relocate to `spell-on-stack`; **0 player-counter engines** in the
+  gauntlet; **0 spurious new engines**. Exactly **1/17** fixtures moved (`owned__the-fantastic-four`, a
+  spellslinger that KEEPS `spell-cast` via `free-cast-another` with copies relocated; identity/bracket/
+  confidence preserved). All three SHAs moved: `FULL_CORPUS ab1a6074a6cff086… → 03a5880c44d4cdd3…`;
+  `ENGINE f4b98a79a70bdf02… → 7a83891a6c191f2b…`; `RESOLVE 7b1245a16310da63… → a63f268b0884a474…`.
+  ENGINE + RESOLVE constants (7 test files) + `distill_parity_baseline.json` + `engine_isolation_
+  baseline.json` (fantastic-four only) regenerated; count invariant `test_anchor_map_has_33_events` +
+  grade tally 15/12/6. `validate_catalog()` 0 blocking. Proof:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/batch-a-splits/outbox.md`.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`strategy_graph.py` is shared with this record).

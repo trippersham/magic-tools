@@ -102,10 +102,10 @@ class TestAnchorMapCompleteness:
         for event_name in catalog_events:
             assert event_name in SEED_MAP, f'Event {event_name!r} missing from SEED_MAP'
 
-    def test_anchor_map_has_29_events(self) -> None:
+    def test_anchor_map_has_33_events(self) -> None:
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
-        assert len(SEED_MAP) == 29
+        assert len(SEED_MAP) == 33
 
     def test_each_entry_has_both_sides_and_grade(self) -> None:
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
@@ -122,7 +122,7 @@ class TestAnchorMapCompleteness:
                 )
 
     def test_grade_tally_matches_build_design(self) -> None:
-        """15 S-bearing, 10 fully-M, 4 ambiguous/empty (29 events).
+        """15 S-bearing, 12 fully-M, 6 ambiguous/empty (33 events).
 
         The build-design notes "16 + mana-prod T-adjacent" — mana-produced's
         T side is graded M (multi-concept: mana-sink + mana-increaser) so the
@@ -148,10 +148,20 @@ class TestAnchorMapCompleteness:
         fully-M unchanged. (free-cast-another folds into spell-cast.produced_by, already
         grade M; life-threshold was dropped — subsumed by the existing `lifegain` event.)
 
-        ADR 0025 wave (this change, 30 -> 29 events): deathtouch-combat (fully-M: both
+        ADR 0025 wave (30 -> 29 events): deathtouch-combat (fully-M: both
         sides grade M) is REMOVED per the grant-vs-use rule — deathtouch is a static
         combat-damage modifier, so its grants become producers of combat-damage-dealt +
         permanent-dies, not their own event. Net: fully-M 11->10; S and empty unchanged.
+
+        ADR 0025 resource-split wave — Batch A (this change, 29 -> 33 events):
+        A1 spell-cast split: the old spell-cast (S/M -> S-bearing) stays S-bearing as the
+        CAST-ONLY node; the new spell-copied is produced_by M / triggers empty (-> empty
+        bucket) and the new spell-on-stack is M/M (-> fully-M). Net A1: empty +1
+        (spell-copied), fully-M +1 (spell-on-stack). A2 player-counter split: the old
+        player-counter (M/M, fully-M) is REMOVED and replaced by energy (M/M, fully-M),
+        rad (M/M, fully-M) and experience (produced_by M / triggers empty -> empty bucket).
+        Net A2: fully-M 11->12 (player-counter -1, energy +1, rad +1), empty 5->6
+        (experience +1). Grand total: S 15 (unchanged), fully-M 10->12, empty 4->6.
         """
         from pipeline.transforms.strategy.derive_card_events import SEED_MAP
 
@@ -169,8 +179,8 @@ class TestAnchorMapCompleteness:
                 fully_m += 1
 
         assert has_s == 15, f'Expected 15 S-bearing events, got {has_s}'
-        assert fully_m == 10, f'Expected 10 fully-M events, got {fully_m}'
-        assert has_empty == 4, f'Expected 4 ambiguous/empty events, got {has_empty}'
+        assert fully_m == 12, f'Expected 12 fully-M events, got {fully_m}'
+        assert has_empty == 6, f'Expected 6 ambiguous/empty events, got {has_empty}'
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +203,7 @@ class TestAncestorClosure:
             'combat',
             'counters',
             'dies-removal',
+            'experience-counter',
             'five-color-win',
             'monarch-maker',
             'rad-counter',
@@ -399,7 +410,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_engine_isolation_baselines()
         sha = composite_sha(baselines)
-        assert sha == 'f4b98a79a70bdf027c099e490db9ce59c66159338fec3a9275d2a7331c1a4857', (
+        assert sha == '7a83891a6c191f2b4cb1197261e21f55110456d33091f0f32e8dadab18cd4d37', (
             f'Engine isolation SHA shifted: {sha}'
         )
 
@@ -411,7 +422,7 @@ class TestP0SHAUnchanged:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        assert sha == '7b1245a16310da63dbea7f635d71584abc736c0e45f80782e3b7053ae73344f0', f'Resolve SHA shifted: {sha}'
+        assert sha == 'a63f268b0884a47432659a9053a20ab7e8ec3b85ab227cf473049581586bd2cd', f'Resolve SHA shifted: {sha}'
 
 
 # ---------------------------------------------------------------------------

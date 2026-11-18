@@ -62,7 +62,7 @@ COMBO_EDGE_SOURCE = 'spellbook'
 #: -- the natural trigger set for lowering (prior design Q2: >=2 coupled
 #: intermediate events).  ``intermediate`` is the route fid_route assigns to an
 #: unbounded, non-terminal catalog event (mana-produced, draw-a-card,
-#: creature-enters-battlefield, counter-placed, player-counter, ...).
+#: creature-enters-battlefield, counter-placed, energy, ...).
 _RECURSION_ROUTES = frozenset({'intermediate'})
 
 

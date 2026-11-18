@@ -473,7 +473,7 @@
     "scope": "self"
   },
   {
-    "event": "spell-cast",
+    "event": "spell-on-stack",
     "fid": 77,
     "magnitude": "infinite",
     "name": "Infinite magecraft triggers",
@@ -673,7 +673,7 @@
     "scope": "unscoped"
   },
   {
-    "event": "spell-cast",
+    "event": "spell-on-stack",
     "fid": 110,
     "magnitude": "near-infinite",
     "name": "Near-infinite magecraft triggers",
@@ -1187,7 +1187,7 @@
     "scope": "unscoped"
   },
   {
-    "event": "spell-cast",
+    "event": "spell-on-stack",
     "fid": 202,
     "magnitude": "infinite",
     "name": "Infinite copies of instant or sorcery spells you cast",
@@ -1714,7 +1714,7 @@
     "scope": "unscoped"
   },
   {
-    "event": "player-counter",
+    "event": "energy",
     "fid": 317,
     "magnitude": "infinite",
     "name": "Infinite energy counters",
@@ -4766,7 +4766,7 @@
     "scope": "self"
   },
   {
-    "event": "spell-cast",
+    "event": "spell-on-stack",
     "fid": 1144,
     "magnitude": "infinite",
     "name": "Infinite copies of spells exiled by Eye of the Storm",
@@ -4981,7 +4981,7 @@
     "scope": "table"
   },
   {
-    "event": "player-counter",
+    "event": "experience",
     "fid": 1179,
     "magnitude": "infinite",
     "name": "Infinite experience counters",
@@ -6141,7 +6141,7 @@
     "scope": "table"
   },
   {
-    "event": "spell-cast",
+    "event": "spell-on-stack",
     "fid": 1465,
     "magnitude": "infinite",
     "name": "Infinite magecraft triggers for all players",
@@ -8152,7 +8152,7 @@
     "scope": "unscoped"
   },
   {
-    "event": "player-counter",
+    "event": "energy",
     "fid": 2018,
     "magnitude": "near-infinite",
     "name": "Near-infinite energy counters",
@@ -9553,7 +9553,7 @@
     "scope": "self"
   },
   {
-    "event": "spell-cast",
+    "event": "spell-on-stack",
     "fid": 2366,
     "magnitude": "infinite",
     "name": "Infinite copies of the cast enchantment",
@@ -10993,7 +10993,7 @@
     "scope": "unscoped"
   },
   {
-    "event": "player-counter",
+    "event": "experience",
     "fid": 2646,
     "magnitude": "near-infinite",
     "name": "Near-infinite experience counters",
@@ -11229,7 +11229,7 @@
     "scope": "unscoped"
   },
   {
-    "event": "spell-cast",
+    "event": "spell-on-stack",
     "fid": 2682,
     "magnitude": "infinite",
     "name": "Infinite copies of the cast instant or sorcery",

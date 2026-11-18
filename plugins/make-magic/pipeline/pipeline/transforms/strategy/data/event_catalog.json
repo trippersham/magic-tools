@@ -209,11 +209,8 @@
       ]
     },
     "spell-cast": {
-      "rule": "CR 601: casting a spell; noncreature/instant-sorcery casts drive magecraft/spellslinger/storm. impulse-cast (exile-and-you-may-cast) is a real CR 601.1b producer. COPY CAVEAT: copies are NOT cast (CR 707.12), so copy-* producers over-promise for cast-only payoffs (storm/prowess/cast-trigger) — but magecraft (CR 702.157a) counts 'casts or copies' and is in the trigger closure, so the copy->cast-trigger edge is precise for magecraft and a deliberate over-promise elsewhere.",
+      "rule": "CR 601 (casting a spell): the CAST-ONLY node (ADR 0025 resource split — A1). Producers are the real CR 601.1b cast-generators: impulse-cast (exile-and-you-may-cast) and free-cast-another (cast ANOTHER spell for free). Copies are NOT cast (CR 707.12), so copy-* producers LEFT this node (they moved to spell-copied + spell-on-stack). The triggers are the cast-only/cast-or-copy payoffs a CAST sees: storm (storm-count-matters), prowess (prowess-like, via cast-trigger), second-spell-matters, cast-trigger(+you/other/self), and magecraft (CR 702.157a counts a cast, and magecraft is a taxonomy child of cast-trigger — a cast legitimately triggers it). The copy path to magecraft lives on spell-on-stack, so a COPY engine reaches magecraft there, NOT here.",
       "produced_by": [
-        "copy-instant",
-        "copy-sorcery",
-        "copy-spell",
         "free-cast-another",
         "impulse-cast"
       ],
@@ -229,6 +226,28 @@
         "synergy-noncreature",
         "synergy-sorcery",
         "times-resolved-matters"
+      ]
+    },
+    "spell-copied": {
+      "rule": "CR 707.10 / 707.12 (copying a spell): a COPY of a spell is put onto the stack and is NOT cast. The copy-production node (ADR 0025 resource split — A1). Producers are the copy-* families (copy-instant/copy-sorcery/copy-spell closure: copy-permanent-spell + gives-casualty/conspire/replicate/storm). triggers are empty — there is no clean copy-ONLY payoff otag; the cast-or-copy payoff (magecraft) fires on either and lives on the union node spell-on-stack, where a copy engine reaches it. A copy effect therefore lands in spell-copied + spell-on-stack, never in spell-cast (copies are not casts, so they must not reach storm/prowess).",
+      "produced_by": [
+        "copy-instant",
+        "copy-sorcery",
+        "copy-spell"
+      ],
+      "triggers": []
+    },
+    "spell-on-stack": {
+      "rule": "The UNION node (cast ∪ copied): a spell OR a copy is on the stack (ADR 0025 resource split — A1). Producers = the union of spell-cast's cast-generators and spell-copied's copy-producers (impulse-cast/free-cast-another ∪ copy-*). triggers = magecraft (CR 702.157a: 'whenever you cast OR copy an instant or sorcery'), the one payoff that fires on EITHER a cast or a copy. This is the magecraft home: a cast reaches magecraft here AND via spell-cast's cast-trigger closure; a COPY reaches magecraft ONLY here (copies never touch spell-cast), which is the point of the split — a copy engine lands on spell-on-stack + spell-copied and sees magecraft without over-promising storm/prowess.",
+      "produced_by": [
+        "copy-instant",
+        "copy-sorcery",
+        "copy-spell",
+        "free-cast-another",
+        "impulse-cast"
+      ],
+      "triggers": [
+        "magecraft"
       ]
     },
     "creature-attacks": {
@@ -515,23 +534,43 @@
         "synergy-untapped"
       ]
     },
-    "player-counter": {
-      "rule": "CR 122 + Fallout rad / CR 122.1a energy: a counter placed on a PLAYER (rad + energy counters). Rad counters have NO Scryfall otag, so the producer `rad-counter` is an oracle-text synth attribute; energy counters ARE player counters (CR 122.1a) with a real producer `energy-generator` (137) and consumer `counter-fuel-energy` (122), moved here from counter-placed (#74 §4.4) where no energy producer sat. Rad counters fuel self-mill (and feed proliferate); energy fuels its payoffs.",
+    "energy": {
+      "rule": "CR 122.1a: energy counters are PLAYER counters. One of the three resource events split out of the former generic `player-counter` (ADR 0025 resource-split doctrine — A2: distinct resources = distinct events). Producer = `energy-generator` (137, mechanic-exclusive prec 1.0) + proliferate (pseudo-proliferate/repeatable-proliferate — proliferate adds to ANY counter a player has, so it is a SHARED producer of energy/rad/experience). Consumer = `counter-fuel-energy` (122). This lights up the energy-generator -> counter-fuel-energy engine with no foreign-resource dilution (energy no longer shares a node with rad/experience).",
       "produced_by": [
         "energy-generator",
-        "rad-counter"
+        "pseudo-proliferate",
+        "repeatable-proliferate"
       ],
       "triggers": [
-        "counter-fuel-energy",
-        "synergy-mill",
-        "mill-self",
-        "mill-any",
-        "mill-opponent",
-        "mill-each",
-        "repeatable-proliferate",
+        "counter-fuel-energy"
+      ]
+    },
+    "rad": {
+      "rule": "Fallout rad counters (a PLAYER counter): on your upkeep you mill that many and lose life per nonland milled, then remove one. One of the three resource events split out of the former generic `player-counter` (ADR 0025 resource-split doctrine — A2). Rad counters have NO Scryfall otag, so the producer is the oracle-text synth attr `rad-counter` + proliferate (shared producer). Consumers are the rad payoffs: rad fuels self-mill (mill-* / synergy-mill — the rad->mill engine) and feeds proliferate (pseudo-proliferate/repeatable-proliferate/synergy-proliferate). The rad self-mill is modeled as a self-deplete route in combo_win.fid_route (card-enters-graveyard / self-deplete).",
+      "produced_by": [
+        "rad-counter",
         "pseudo-proliferate",
+        "repeatable-proliferate"
+      ],
+      "triggers": [
+        "mill-any",
+        "mill-each",
+        "mill-opponent",
+        "mill-self",
+        "pseudo-proliferate",
+        "repeatable-proliferate",
+        "synergy-mill",
         "synergy-proliferate"
       ]
+    },
+    "experience": {
+      "rule": "Experience counters (a PLAYER counter, C15+ e.g. Ezuri/Mizzix/Meren and later Avatar/God-of-War commanders): they accumulate on a player and the card's own ability scales with the count. One of the three resource events split out of the former generic `player-counter` (ADR 0025 resource-split doctrine — A2). No Scryfall otag exists, so the producer is the NEW oracle-text synth attr `experience-counter` (oracle:'experience counter', 19 members — 16 legendary-creature commanders incl. all 5 original C15, + the Experience/Spirit tokens and The Goblin Sparring Grounds land; 0 false positives) + proliferate (shared producer). triggers is empty: the experience PAYOFF is the producing card's OWN scaling ability (Ezuri's +1/+1 on attack, Mizzix's cost reduction), which is not a separate otag-expressible consumer (same posture as untap's self-ability caveat). The experience fids still route to this event in the combo walk.",
+      "produced_by": [
+        "experience-counter",
+        "pseudo-proliferate",
+        "repeatable-proliferate"
+      ],
+      "triggers": []
     },
     "mana-produced": {
       "rule": "CR 106: producing mana (tapping lands, mana dorks, rituals, Treasure sacrifice). Covers 179 Spellbook mana fids (13.3% of features, 34% of corpus combos had no event home before this). Classified by feature name, not by the uncountable+mana derivation (see ADR 0007 when wired).",

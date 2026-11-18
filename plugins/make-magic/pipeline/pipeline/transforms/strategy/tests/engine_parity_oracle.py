@@ -300,7 +300,32 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   ENGINE      4549062831f5bfc9… -> f4b98a79a70bdf02…
 #   RESOLVE     be2981c37ff3c3a0… -> 7b1245a16310da63…
 # Proof: subagents/deathtouch-collapse/outbox.md.
-FULL_CORPUS_SHA = 'ab1a6074a6cff08646388de792dad2e3ee32c5485d3a0ffe4a79e5f24c887152'
+# Re-baselined 2026-11-18 (ADR 0025 resource-split doctrine — Batch A: two event splits).
+# A1 spell-cast split (29->31): spell-cast is now the CAST-ONLY node (producers impulse-cast/
+# free-cast-another); copies LEFT it to the two new events spell-copied (copy-* producers) and
+# spell-on-stack (the cast-or-copy union, magecraft home). A2 player-counter split (31->33): the
+# generic player-counter node is REPLACED by energy (energy-generator + proliferate -> counter-
+# fuel-energy), rad (rad-counter synth + proliferate -> self-mill), and experience (NEW synth
+# `experience-counter` oracle:'experience counter', 19 members 0 FP). Net event count 29 -> 33
+# (6 new: spell-cast[redef]/spell-copied/spell-on-stack, energy/rad/experience; 2 removed: old
+# spell-cast, player-counter). combo_win: EVENT_EDGE_CLASSES['spell-cast'] keeps cast_drain+altwin::
+# spell-cast; spell-on-stack gets cast_drain (magecraft drains on cast-or-copy); player-counter's
+# altwin::player-counter (Azor's filibuster) is now UNMAPPED (energy/experience no longer spuriously
+# reach it); fid routes: 7 magecraft/copy fids -> spell-on-stack, energy fids(317/2018) -> energy,
+# experience fids(1179/2646) -> experience. Measured OFF (34b2a08) / ON (157 gauntlet + 17 fixtures):
+# 0 pre_combo_name / bracket / confidence / archetype_identity / ranked_identity / combo_identity flips;
+# 1 benign n_nodes +1 (simic__ezuri, now carries the experience-counter attr); 10/157 gauntlet engine
+# relocations, ALL spell-cast<->spell-copied/spell-on-stack: genuine cast decks (impulse-cast/free-cast
+# producers) KEEP spell-cast; pure-copy decks correctly drop the mis-attributed copy->storm/prowess
+# engine; copy+magecraft decks (veyran/kalamax/JeskaiStriker/shiko) relocate to spell-on-stack
+# (copy->magecraft). 0 player-counter engines existed in the gauntlet (A2 engine impact nil there).
+# Exactly 1/17 fixtures moved (owned__the-fantastic-four, a spellslinger that KEEPS spell-cast via
+# free-cast-another with copies relocated; pre_combo_name=spellslinger / bracket 3 / MED preserved):
+#   FULL_CORPUS ab1a6074a6cff086… -> 03a5880c44d4cdd3…
+#   ENGINE      f4b98a79a70bdf02… -> 7a83891a6c191f2b…
+#   RESOLVE     7b1245a16310da63… -> a63f268b0884a474…
+# Proof: subagents/batch-a-splits/outbox.md.
+FULL_CORPUS_SHA = '03a5880c44d4cdd32c4811625c0d0bbbe0efc77902218b60da091a9318d672d1'
 
 
 def full_corpus_sha() -> str:

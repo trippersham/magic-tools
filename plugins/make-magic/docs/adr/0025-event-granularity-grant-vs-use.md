@@ -1,11 +1,22 @@
-# 0025 Event granularity: a keyword's grant produces its nearest tracked event; a keyword is never its own event
+# 0025 Event granularity matches the CR mechanic boundary: a keyword's grant FOLDS into its nearest tracked event (never its own event); distinct resources SPLIT into their own events
+
+> **Two complementary halves of one doctrine — "event granularity = the CR mechanic boundary."**
+> **(A) Grant/use (fold):** a keyword or static ability is never its own event; model its grant as a
+> producer of the nearest bounded CR event its *use* manifests as. The original decision; `deathtouch-
+> combat` collapse is the worked example.
+> **(B) Resource (split):** a node that lumps **distinct CR resources** (each with its own producers
+> AND consumers) is too coarse — split it, one event per resource. Added 2026-11-18 (Batch A);
+> `player-counter → energy / rad / experience` and `spell-cast → spell-cast / spell-copied /
+> spell-on-stack` are the worked examples. The one test for both halves: **does the thing have its own
+> producers/consumers as a distinct CR mechanic?** No → fold it into the event it manifests as. Yes →
+> it earns (or keeps) its own event.
 
 | Field | Value |
 |---|---|
 | Status | **Accepted as the modeling principle; pending owner ratification.** Owner instruction (verbatim): *"Check Shelob, if it clears then yes yes simplify and capture in ADRs."* Shelob cleared (PRESERVED + IMPROVED), so the one violator — `deathtouch-combat` — was collapsed. The catalog was already consistent for every other keyword mechanic (29 of 30 events); this record states the rule and records the single application. |
 | Review | Agent-authored 2026-11-18 from the grant-vs-use consistency audit (`research/grant-vs-use-event-modeling.md`): a read of how all 30 events handle the grant ("gets the keyword") vs use ("the ability resolves into an effect") distinction. Owner-adjudicated live via the Shelob gate. **Pending owner ratification**, as with 0023 / 0024. |
-| Test | Review-enforced today; mechanical home is the WS3 catalog-integrity layer (`catalog_integrity.py`): a keyword-USE node whose use already corresponds to a tracked event is the next flag to add there (the role-consistency linter already catches the adjacent payoff-as-producer inversion). Parity: the `deathtouch-combat` collapse is a proof-carrying re-baseline (`engine_parity_oracle` + `test_event_ontology` + `test_adjacency` 30 → 29) under [0003]. |
-| Code paths | [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (the `deathtouch-combat` node removed; `combat-damage-dealt` / `permanent-dies` producer lists), [`derive_card_events.py`](../../pipeline/pipeline/transforms/strategy/derive_card_events.py) (`SEED_MAP` — the deathtouch grants reseeded onto combat-damage-dealt + permanent-dies), [`distill_strategies.py`](../../pipeline/pipeline/transforms/strategy/distill_strategies.py) (the `deathtouch` archetype *identity* — the correct, unchanged home of the keyword-tribal payoff), [`combo_win.py`](../../pipeline/pipeline/transforms/strategy/combo_win.py) (`EVENT_EDGE_CLASSES` — `deathtouch-combat` was never a key; unchanged). |
+| Test | Review-enforced today; mechanical home is the WS3 catalog-integrity layer (`catalog_integrity.py`): a keyword-USE node whose use already corresponds to a tracked event is the next flag to add there (the role-consistency linter already catches the adjacent payoff-as-producer inversion). Parity: the `deathtouch-combat` collapse (30 → 29) and the Batch A splits (29 → 33) are each a proof-carrying re-baseline (`engine_parity_oracle` + `test_event_ontology` + `test_adjacency`) under [0003]. |
+| Code paths | [`event_catalog.json`](../../pipeline/pipeline/transforms/strategy/data/event_catalog.json) (fold: `deathtouch-combat` removed; split: `player-counter` removed → `energy`/`rad`/`experience`, `spell-cast` → `spell-cast`/`spell-copied`/`spell-on-stack`), [`derive_card_events.py`](../../pipeline/pipeline/transforms/strategy/derive_card_events.py) (`SEED_MAP`), [`distill_strategies.py`](../../pipeline/pipeline/transforms/strategy/distill_strategies.py) (the `deathtouch` archetype *identity*; the `experience-counter` synth attr), [`combo_win.py`](../../pipeline/pipeline/transforms/strategy/combo_win.py) (`EVENT_EDGE_CLASSES` + `fid_route` — split re-routing), [`fid_event_adapter.json`](../../pipeline/pipeline/transforms/strategy/data/fid_event_adapter.json) (split fid re-routes). |
 
 ## Context
 
@@ -124,16 +135,94 @@ Zero spurious new leads anywhere; the only engine-unit removed is the intended p
 cleanup bonus: the `combat` role-ambiguity advisory in `validate_catalog()` (produced-by seed of
 combat-damage-dealt/creature-attacks AND a triggers seed of deathtouch-combat) is gone.
 
+## Decision — the resource side (the split half; added 2026-11-18, Batch A)
+
+The grant/use half folds things that are **not their own mechanic** (a keyword is a property, not a CR
+event). The mirror-image failure is a node that is **too coarse**: one event standing in for several
+**distinct CR resources**, each with its own producers and consumers. The doctrine's second half:
+
+> **Distinct resources split into their own events.** When one event node lumps mechanics that are
+> separate CR resources — each with (a) its own producer concept and (b) its own consumer/payoff —
+> split it into one event per resource. The granularity test is the same as the fold half, read the
+> other way: *does this thing have its own producers/consumers as a distinct CR mechanic?* If **yes**,
+> it earns its own event (don't lump it under a generic node); if **no**, fold it. A generic node like
+> `player-counter` ("any counter on a player") or `spell-on-stack` used as a catch-all **dilutes every
+> engine built on it** — a producer of resource X forms spurious edges to a payoff for resource Y that
+> it never actually fuels. Splitting removes the cross-resource over-promise at the structural layer,
+> the same way the grant/use fold removes the keyword-tribal pseudo-engine.
+
+This is **[0024]'s state-event reasoning run forward**: [0024] names a *new* state-event when a reusable
+game state has no tracked home; this clause *subdivides* an existing node when it secretly holds several.
+Both keep **one event = one bounded CR mechanic**.
+
+### The worked example — `player-counter → energy / rad / experience` (A2)
+
+The former `player-counter` node ("a counter on a player") lumped **three unrelated CR resources**:
+**energy** (CR 122.1a; producer `energy-generator` 137, consumer `counter-fuel-energy`), **rad**
+(Fallout; producer the text-synth `rad-counter`, consumer self-mill `mill-*`), and **experience**
+(C15+; producer the NEW text-synth `experience-counter`, consumer = the card's own scaling ability).
+An energy producer has nothing to do with a rad self-mill payoff, yet on the shared node every
+energy-generator formed a (dead-but-present) edge to every rad/experience consumer, and — worse — the
+walk let an infinite-**energy** combo "win" through `altwin::player-counter` (Azor's Elocutors, a
+**filibuster**-counter card that is none of the three). Split into `energy` / `rad` / `experience`,
+each resource's producers reach only its own consumers; `proliferate` (it adds to *any* counter a
+player has) is the one **shared** producer seeded into all three. `altwin::player-counter` is now
+unmapped (walk-inert) — filibuster has no producer concept among the three, so the spurious
+energy→filibuster win is gone (a future filibuster event would re-map it, mirroring poison/domain).
+
+### The worked example — `spell-cast → spell-cast / spell-copied / spell-on-stack` (A1)
+
+A cast (CR 601) and a copy (CR 707.10/.12) are **distinct stack events**: a copy is **not** cast, so it
+must not reach the cast-only payoffs (storm, prowess), yet `magecraft` (CR 702.157a, "cast **or** copy")
+sees both. The old `spell-cast` lumped copy producers (`copy-*`) with cast producers and let copies
+reach storm/prowess. Split: **`spell-cast`** keeps the real cast-generators (`impulse-cast`,
+`free-cast-another`) and the cast payoffs; **`spell-copied`** owns the `copy-*` producers (no copy-only
+payoff otag exists, so its triggers are empty); **`spell-on-stack`** is the **union** (cast ∪ copy) and
+the `magecraft` home — a copy engine lands on spell-copied + spell-on-stack and sees magecraft there
+**without** over-promising storm/prowess. (This is also why a resource can need a *union* node, not only
+disjoint ones: magecraft is a real payoff on the superset.)
+
+## The Batch A worked application — the two splits (2026-11-18)
+
+Realized as a proof-carrying re-baseline under [0003], event count **29 → 33** (6 new:
+`spell-cast`[redefined] / `spell-copied` / `spell-on-stack`, `energy` / `rad` / `experience`; 2
+removed: old `spell-cast`, `player-counter`). `combo_win.py`: `EVENT_EDGE_CLASSES['spell-cast']` keeps
+`cast_drain` + `altwin::spell-cast` (Approach wins on the second **cast**); `spell-on-stack` gets
+`cast_drain` only (magecraft drains on cast-or-copy, but you cannot cast Approach by copying);
+`spell-copied` has no win-edge; `energy`/`experience` have none (an infinite resource is not itself a
+win); `rad` routes self-deplete in `fid_route`; `altwin::player-counter` unmapped. `fid_event_adapter`:
+7 magecraft/copy fids → `spell-on-stack`, energy fids (317/2018) → `energy`, experience fids
+(1179/2646) → `experience`. The `experience-counter` synth (`oracle:'experience counter'`, 19 members —
+all 5 original C15 commanders + 11 later + 3 tokens/land, **0 FP**) distills to `None` (edge-less, like
+`rad-counter`/`monarch-maker`).
+
+**Measured OFF (`34b2a08`) vs ON (157 gauntlet + 17 fixtures).** **0** pre_combo_name / bracket /
+confidence / archetype_identity / ranked_identity / combo_identity flips across all 157 gauntlet decks;
+**1** benign `n_nodes` +1 (`simic__ezuri`, now carries the `experience-counter` attr node). 10/157
+gauntlet engine relocations, **all** `spell-cast ↔ spell-copied/spell-on-stack`: genuine cast decks
+(carrying `impulse-cast`/`free-cast-another`) **KEEP** `spell-cast`; pure-copy decks correctly drop the
+mis-attributed copy→storm/prowess engine; copy+magecraft decks (veyran, kalamax, JeskaiStriker, shiko)
+relocate to `spell-on-stack` (copy→magecraft). **0** `player-counter` engines existed in the gauntlet
+(A2's structural impact there is nil; its effect is the combo-walk re-route + the Ezuri attr). Exactly
+**1/17** fixtures moved — `owned__the-fantastic-four`, a spellslinger that **keeps** `spell-cast` via
+`free-cast-another` with its copies relocated; `pre_combo_name`=spellslinger / bracket 3 / MED
+preserved. 0 spurious new engines (every `spell-on-stack` appearance is a real copy+magecraft deck; the
+only engines removed were the mis-attributed copy→cast-payoff ones). `validate_catalog()` 0 blocking.
+
 ## Consequences
 
-- `deathtouch-combat` is removed; the catalog is now consistent for **all 29 events** (4 keyword-
-  collapsed hosts + 1 keyword-consumer + 24 keyword-free). The rule is already how the catalog behaves
-  everywhere; this record names it so the next keyword is modeled uniformly.
+- `deathtouch-combat` is removed (fold) and `player-counter` / old `spell-cast` are split; the catalog
+  is now **33 events**, each one bounded CR mechanic. The fold half keeps keywords off the event layer;
+  the split half keeps distinct resources off a shared generic node. Both are the one doctrine:
+  event granularity = the CR mechanic boundary.
 - `synergy-deathtouch` loses its (only) event home; the `deathtouch` distill identity is its correct
   and unchanged home.
-- Three parity SHAs re-baselined (the 17 hermetic fixtures carry the deathtouch-granting family via
-  Shelob): `FULL_CORPUS 855edd45… → ab1a6074…`, `ENGINE 45490628… → f4b98a79…`,
-  `RESOLVE be2981c3… → 7b1245a1…`. See [0003].
+- Three parity SHAs re-baselined by the deathtouch fold (the 17 hermetic fixtures carry the
+  deathtouch-granting family via Shelob): `FULL_CORPUS 855edd45… → ab1a6074…`,
+  `ENGINE 45490628… → f4b98a79…`, `RESOLVE be2981c3… → 7b1245a1…`. See [0003].
+- Three parity SHAs re-baselined again by the Batch A splits (the fantastic-four fixture carries the
+  copy/cast family): `FULL_CORPUS ab1a6074… → 03a5880c…`, `ENGINE f4b98a79… → 7a83891a…`,
+  `RESOLVE 7b1245a1… → a63f268b…`. See [0003].
 - **Optional, consistent-direction, NOT done here** (owner-graded coverage, deferrable): widening
   `combat-damage-dealt.produced_by` to the specific evasion/damage grants (`gives-flying`,
   `gives-menace`, `gives-unblockable`, `gives-first-strike`) beyond the generic `gives-evasion`. This

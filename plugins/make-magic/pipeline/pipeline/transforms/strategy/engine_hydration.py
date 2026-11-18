@@ -414,7 +414,7 @@ def verify(
 
     # A produced_by/triggers ref may be a SYNTH CardAttribute (no lake otag):
     # dies-removal (permanent-dies), monarch-maker (monarch), color-fixing/
-    # five-color-win (domain), rad-counter (player-counter).  Otag-only
+    # five-color-win (domain), rad-counter (rad), experience-counter (experience).  Otag-only
     # corroboration cannot see these, so a card that IS a synth producer would
     # be scored as non-corroborating.  Compile the synth predicates for the refs
     # present in THIS role and let a card corroborate via otag OR synth match.

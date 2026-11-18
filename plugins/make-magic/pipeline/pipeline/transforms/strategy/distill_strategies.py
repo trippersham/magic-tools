@@ -366,10 +366,24 @@ SYNTH_ALWAYS_ATTRIBUTES: list[tuple[str, str]] = [
     ('morph', 'keyword:morph OR keyword:megamorph OR keyword:disguise OR keyword:cloak'),
     # Rad counters (Fallout) are a novel PLAYER-targeted counter with NO Scryfall
     # otag, so membership is synthesized from the oracle text. This surfaces the
-    # rad-giving (and rad-caring) cards so the `player-counter` event can model the
+    # rad-giving (and rad-caring) cards so the `rad` event (ADR 0025 resource split —
+    # A2; formerly the generic player-counter) can model the
     # rad engine; it carries no archetype edge (it distills to None) — the rad engine
     # is isolated at the ENGINE layer, it does not rename the deck.
     ('rad-counter', "oracle:'rad counter'"),
+    # Experience counters (C15+) are a novel PLAYER-targeted counter with NO
+    # Scryfall otag (only the cycle tag `cycle-c15-experience-commander` exists,
+    # which is a grouping tag, not a mechanic producer), so membership is
+    # synthesized from the oracle text. This surfaces the experience-giving cards
+    # so the `experience` event (ADR 0025 resource split — A2) can model the
+    # experience engine. Measured 19 members: all 5 original C15 experience
+    # commanders (Daxos, Ezuri, Kalemne, Meren, Mizzix) + 11 later experience
+    # commanders (Avatar/God-of-War/etc.) + the Experience & Spirit tokens and
+    # The Goblin Sparring Grounds land — 0 false positives (every match literally
+    # references "experience counter"). Like `rad-counter`/`monarch-maker` it
+    # carries NO archetype edge (it distills to None) — it surfaces the producer
+    # cards for the `experience` event seed, it does not rename the deck.
+    ('experience-counter', "oracle:'experience counter'"),
     # Monarch-makers (#74 §2.2 option ii). Scryfall carries ONE `monarch-matters`
     # otag (49) over BOTH makers and payoffs, so the `monarch` event's single attr
     # on both sides formed no edge (the p != c_ self-pair exclusion). This synth

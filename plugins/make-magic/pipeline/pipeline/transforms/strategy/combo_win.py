@@ -59,7 +59,16 @@ EVENT_EDGE_CLASSES: dict[str, list[str]] = {
     'mana-produced': ['mana_sink', 'altwin::mana-produced', 'mana_to_combat'],
     'draw-a-card': ['draw_drain', 'altwin::draw-a-card', 'altwin::self-deplete'],
     'lifegain': ['gain_drain', 'altwin::lifegain'],
+    # ADR 0025 resource split (A1): spell-cast is the CAST-ONLY node; cast_drain
+    # (whenever-you-CAST drains: Aria of Flame, Aetherflux) + altwin::spell-cast
+    # (Approach of the Second Sun — won by the SECOND CAST, a cast-only wincon) stay
+    # here. spell-on-stack carries cast_drain too (magecraft drains on cast OR copy),
+    # but NOT altwin::spell-cast (you cannot cast Approach twice by copying). spell-
+    # copied has no win-edge (a bare copy closes nothing without a cast-or-copy payoff,
+    # which it reaches via the union node spell-on-stack).
     'spell-cast': ['cast_drain', 'altwin::spell-cast'],
+    'spell-copied': [],
+    'spell-on-stack': ['cast_drain'],
     'creature-enters-battlefield': ['etb_drain'],
     'permanent-sacrificed': ['death_drain'],
     'permanent-dies': ['death_drain'],
@@ -67,7 +76,21 @@ EVENT_EDGE_CLASSES: dict[str, list[str]] = {
     'token-created': ['etb_drain', 'altwin::token-created'],
     'untap': ['altwin::untap'],
     'counter-placed': ['altwin::counter-placed'],
-    'player-counter': ['altwin::player-counter'],
+    # ADR 0025 resource split (A2): the former generic `player-counter` node is gone,
+    # replaced by energy/rad/experience. NONE of them carries a win-edge:
+    #  * energy — infinite energy is not itself a win (Aetherworks-style energy combos
+    #    close through a DIFFERENT event's payoff, not an energy wincon card), so [].
+    #  * experience — infinite experience is not a win (the commander's +1/+1 or
+    #    cost-reduction payoff is a different event), so [].
+    #  * rad — self-mill, modeled as a self-deplete route in fid_route (not a win-edge).
+    # altwin::player-counter (Azor's Elocutors / filibuster counters) is now UNMAPPED:
+    # filibuster is neither energy/rad/experience, and the former node spuriously let
+    # an infinite-energy/experience combo "win" via Azor's. It stays in card_edges.json
+    # as data but no event references it — walk-inert, the same posture as a poison/
+    # domain altwin with no fid route (a future filibuster producer-concept would re-map it).
+    'energy': [],
+    'rad': [],
+    'experience': [],
     # Poison is an SBA loss for the opponent (CR 104.3d / 704.5c: 10 poison =
     # loss), so reaching the poisoned event is a WIN rule-edge (#74 §4.5). Mirrors
     # player-counter structurally. Walk-inert until a poison fid route exists
@@ -399,13 +422,21 @@ def fid_route(fid: int) -> dict[str, Any] | None:
             base.update(route='oneshot')
         return base
 
-    # player-counter (radiation): self-deplete risk
-    if event == 'player-counter':
-        if 'rad' in name_lower or 'radiation' in name_lower:
-            base.update(route='self-deplete', event='card-enters-graveyard', risk='self-deplete', note='RAD-RULE')
-            return base
+    # rad (radiation): self-deplete risk — rad counters mill YOUR OWN library on
+    # upkeep (CR self-deplete). ADR 0025 resource split (A2): the former generic
+    # player-counter 'rad' sub-rule is now keyed on the event itself.
+    if event == 'rad':
+        base.update(route='self-deplete', event='card-enters-graveyard', risk='self-deplete', note='RAD-RULE')
+        return base
+
+    # energy / experience (player resource counters, ADR 0025 A2): intermediate if
+    # unbounded (no win-edge in EVENT_EDGE_CLASSES, so an infinite stream closes
+    # nothing by itself), oneshot otherwise. Replaces the old player-counter ->
+    # altwin::player-counter (Azor's filibuster) path, which spuriously let infinite
+    # energy/experience "win" through an unrelated filibuster card.
+    if event in ('energy', 'experience'):
         if unbounded:
-            base.update(route='intermediate', event='player-counter')
+            base.update(route='intermediate', event=event)
         else:
             base.update(route='oneshot')
         return base
