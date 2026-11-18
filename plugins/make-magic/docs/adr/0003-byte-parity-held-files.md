@@ -357,6 +357,37 @@ re-baseline makes every *intended* change legible as such.
   (`five-color-win`/`color-fixing` synth membership + derived-catalog match). Full per-change delta:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r1-realize-adr0024/outbox.md`.
 
+- **2026-11-17 — decompose the `alt-wincon/combo` DISTILL catch-all (R1b, ADR 0023/0024).**
+  One held file changed (`distill_strategies.py`): the catch-all distill identity
+  `('alt-wincon/combo', 'otag:wincon OR otag:alternate-win-condition')` — whose 2nd disjunct
+  was a **dead ref** (no CardAttribute named `alternate-win-condition` is ever surfaced; the
+  lake slug surfaces as the attribute NAME `wincon`) — is decomposed into honest archetype
+  names: a new `deckout/thoracle` identity (synth payoff `deckout-win` =
+  `otag:alternate-win-condition AND otag:empty-library`, 5 cards, 0 FP) and a `domain`
+  identity (the existing `five-color-win` synth payoff now carries an archetype edge). Every
+  OTHER wincon RIDES its family (lifegain/poison/spellslinger) once the catch-all is gone, and
+  the standalone-state tail distills to **None** (no `misc-wincon` bucket — a broad one would
+  re-bundle unrelated mechanics, the conflation ADR 0023 forbids). The combo-override HEADLINE
+  literal (`naming.ALT_WINCON_COMBO`) is a **separate axis** and is **untouched**. Spec
+  narrowed on measurement: `otag:mill-self`/`oracle:'no cards in'` were dropped (they misroute
+  Central Elevator / Barren Glory / The Cheese Stands Alone — empty-board, not deckout).
+  SHAs: `ENGINE 84b9617e… UNCHANGED` (elect_engine_units never read the distill archetype);
+  `RESOLVE 5a43fc56… → 50cd3873…`; `FULL_CORPUS 39f1136e… → 62abb4b1…` (both carry the
+  facts-graph strategies/community archetypes). `distill_parity_baseline.json` regenerated
+  (2 fixtures: Baral, Peace Offering); `engine_isolation_baseline.json` byte-identical;
+  `FULL_CORPUS_SHA` + the RESOLVE constant across 7 test files updated in the same change.
+  **Correctness proof (OFF/ON, 157 gauntlet + 17 fixtures):** exactly **2 gauntlet decks**
+  (Azami, Baral) + **2 fixtures** (Baral, Peace Offering) moved — precisely the 4 that admit
+  `wincon` as a node (≥3 wincon cards); **0 headline flips, 0 archetype_identity membership
+  flips, 0 confidence-tier flips, 0 spurious leads, 0 evictions**. Every changed leaf traces to
+  dropping the inert `alt-wincon/combo` strategy from those decks' identity-mass accounting
+  (confidence SCORES nudged UP — the catch-all was diluting the real archetype's share — tiers
+  unchanged). The new `deckout/thoracle`/`domain` identities are **engine-inert on the corpus**
+  (`deckout-win` max co-occurrence 2 < node-admission 3; `five-color-win` = 2 non-commander
+  cards) — honest vocabulary, no output. **Ghave did NOT re-flip** (its `alt-wincon/combo` is
+  the combo-override label, untouched; byte-identical OFF→ON). Full per-change delta:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r1b-decompose-altwincon/outbox.md`.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`strategy_graph.py` is shared with this record).

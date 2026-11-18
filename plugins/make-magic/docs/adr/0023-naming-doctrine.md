@@ -125,6 +125,15 @@ prompted this record produced confident wrong assertions (`game-end has no produ
   "author a query," not a lowered standard).
 - Mechanical enforcement is the WS3 catalog-integrity guards; until they are blocking CI,
   Part B is a human checklist and Part C a human judgment — the same honest gap as 0001.
+- **Realized Part C-1 conflation (2026-11-17, R1b):** the distill identity `alt-wincon/combo`
+  (`otag:wincon OR otag:alternate-win-condition`) bundled 87 unrelated wincon cards (deckout +
+  lifegain-threshold + five-color state + poison + the standalone tail) under one name and dropped
+  every enabler — a conflation of the `monarch-or-extra-turn` family. Decomposed into honest
+  per-archetype names (`deckout/thoracle`, `domain`) + family riders (lifegain/poison/spellslinger),
+  with the genuine singletons distilling to None (a `misc-wincon` bucket would re-bundle unrelated
+  mechanics — the conflation this doctrine forbids). The decomposition also fixed the exact dead-ref
+  Part B checklist item 5 targets: `otag:alternate-win-condition` in the identity query resolved to
+  no surfaced CardAttribute. Proof: `subagents/r1b-decompose-altwincon/outbox.md` (ADR 0003/0024).
 
 ## Related records
 - 0001 — the verb/noun test + one-named-rule; this record gathers and extends its naming clauses.

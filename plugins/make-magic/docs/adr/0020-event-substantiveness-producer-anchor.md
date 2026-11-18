@@ -88,6 +88,14 @@ Ghave's commander), not the gate. The final mana-elected cohort is exactly the 4
 decks, **0 false admits**, **0 genuine regressions**. Of 170 decks, 54 carry a mana unit;
 only the 4 anchored-and-unstarved decks elect it.
 
+**Note (2026-11-17, R1b):** Ghave's `alt-wincon/combo` here is the combo-override HEADLINE
+label (`naming.ALT_WINCON_COMBO`) — a win-combo overrode the archetype identity — **not** the
+distill `alt-wincon/combo` identity. When that distill catch-all was decomposed into honest
+archetype names (`deckout/thoracle` + `domain` + family riders; ADR 0023/0024, held-file
+re-baseline in ADR 0003), Ghave **did not re-flip**: its label is the untouched combo-override
+axis. The two axes are separate (`headline_strategy` returns the combo label when
+`combo_override_applied`, else the `archetype_identity` leader).
+
 ## Options not taken
 
 - **A mass-share / density floor inside the election.** Rejected (ADR 0014): wrong layer,

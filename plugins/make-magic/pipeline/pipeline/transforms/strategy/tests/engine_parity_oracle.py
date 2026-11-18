@@ -155,7 +155,29 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   ENGINE      1eb27096118d38ad… -> 84b9617efcf0ec74…
 #   RESOLVE     00fbb8360a711583… -> 5a43fc56ce9fd371…
 # Proof: subagents/r1-realize-adr0024/outbox.md.
-FULL_CORPUS_SHA = '39f1136e9c2289ef58e8295026ac8ff0a7df197daeb221b76e0ec9125c72d449'
+# Re-baselined 2026-11-17 (R1b: decompose the alt-wincon/combo DISTILL catch-all).
+# The `alt-wincon/combo` catch-all identity (`otag:wincon OR otag:alternate-win-
+# condition`; the 2nd disjunct a DEAD REF) is decomposed into honest archetype names:
+# `deckout/thoracle` (synth `deckout-win` = otag:alternate-win-condition AND
+# otag:empty-library, 5 cards) + `domain` (the five-color-win payoff now carries an
+# archetype edge). Every other wincon RIDES its family (lifegain/poison/spellslinger)
+# or distills to None (the standalone-state tail — no `misc-wincon` bucket, which would
+# re-bundle unrelated mechanics). The combo-override HEADLINE literal (naming.ALT_WINCON
+# _COMBO) is a SEPARATE axis and is untouched (29 combo-override decks, incl. Ghave,
+# byte-identical). Measured OFF/ON (157 gauntlet + 17 fixtures): 2 gauntlet decks
+# (Azami, Baral) + 2 fixtures (Baral, Peace Offering) moved — exactly the 4 that admit
+# `wincon` as a node (>=3 wincon cards); 0 headline flips, 0 archetype_identity
+# membership flips, 0 confidence-tier flips, 0 spurious leads. Every changed leaf traces
+# to dropping the inert `alt-wincon/combo` strategy from those decks' identity-mass
+# accounting (confidence scores nudged UP as the catch-all stops diluting the real
+# archetype's share); the new deckout/domain identities are engine-inert (never reach
+# node-admission). ENGINE UNCHANGED (elect_engine_units never read the distill archetype);
+# RESOLVE + FULL_CORPUS moved (they carry the facts-graph strategies/community archetypes):
+#   FULL_CORPUS 39f1136e9c2289ef… -> 62abb4b19c4eddfce…
+#   ENGINE      84b9617efcf0ec74… (unchanged)
+#   RESOLVE     5a43fc56ce9fd371… -> 50cd387393ba7a7a…
+# Proof: subagents/r1b-decompose-altwincon/outbox.md.
+FULL_CORPUS_SHA = '62abb4b19c4eddfce01445fbfcf75afb3bc091ba88b3ebe3cb9d54f22341fddc'
 
 
 def full_corpus_sha() -> str:

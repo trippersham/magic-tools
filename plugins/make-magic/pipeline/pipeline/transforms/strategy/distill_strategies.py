@@ -249,7 +249,33 @@ BASE_IDENTITIES: list[tuple[str, str]] = [
     # precons need (`political-puppets`). The goad payoff slug is `synergy-goad`
     # (`hate-goad` is the ANSWER, deliberately excluded).
     ('politics', 'otag:monarch-matters OR otag:synergy-vote OR otag:synergy-goad'),
-    ('alt-wincon/combo', 'otag:wincon OR otag:alternate-win-condition'),
+    # Wincon archetypes (ADR 0023 conflation decomposed; ADR 0024 the archetype
+    # NAMES the plan while the enabler->win link lives in the event graph). The old
+    # `alt-wincon/combo` catch-all (`otag:wincon OR otag:alternate-win-condition`)
+    # collapsed all 87 `alternate-win-condition` cards into one identity and dropped
+    # every enabler; its second disjunct `otag:alternate-win-condition` was a DEAD REF
+    # (no CardAttribute of that name is ever surfaced — the lake slug is surfaced as
+    # the attribute NAME `wincon`). It is decomposed into honest per-archetype names:
+    #   * `deckout/thoracle` — the self-deplete (empty-your-own-library) win, keyed on
+    #     the `deckout-win` synth payoff (`otag:empty-library`, 5 cards). The spec's
+    #     coarser `otag:mill-self OR oracle:'no cards in'` disjuncts were REJECTED on
+    #     measurement: `mill-self` is a broad graveyard-fuel enabler (drags in Central
+    #     Elevator, not a deckout win) and `oracle:'no cards in'` matches "no cards in
+    #     HAND" (Barren Glory, The Cheese Stands Alone — empty-board wins, not deckout).
+    #   * `domain` — the five-color state-composition win (Coalition Victory + Call the
+    #     Spirit Dragons), keyed on the `five-color-win` synth payoff authored in R1.
+    # Every OTHER wincon RIDES its existing family: a lifegain-win (Felidar/Test of
+    # Endurance) rides `lifegain`, a poison-win rides `poison`, a cast-count win rides
+    # `spellslinger` — because those cards already carry their family's otag attribute,
+    # and the win itself is an event-edge (`altwin::lifegain`/`altwin::poisoned`/…),
+    # not an archetype. The genuine standalone-state singletons (Phage, Barren Glory,
+    # coin-flip, Door to Nothingness, …) distill to None: a card's one-off build-around
+    # win does not name the deck, and a `misc-wincon` bucket broad enough to catch them
+    # would re-bundle unrelated mechanics (the very conflation ADR 0023 forbids). The
+    # threshold wincons that key to a tracked event (Darksteel->counters,
+    # Hellkite->artifacts, Maze's End->land) are Home-2 event riders, NOT forced here.
+    ('deckout/thoracle', 'otag:deckout-win'),
+    ('domain', 'otag:five-color-win'),
     (
         'enchantments',
         'otag:synergy-enchantment OR otag:synergy-enchantment-creature '
@@ -302,7 +328,12 @@ ARCHETYPE_EDGES: dict[str, str] = {
     'pillowfort': 'pillowfort',
     'group-hug': 'group-hug',
     'politics': 'politics',
-    'alt-wincon/combo': 'alt-wincon/combo',
+    # wincon archetypes (the `alt-wincon/combo` catch-all decomposed, see BASE_IDENTITIES).
+    # `alt-wincon/combo` survives ONLY as the combo-override HEADLINE literal
+    # (`naming.ALT_WINCON_COMBO`) — a separate axis from `archetype_identity`, not a
+    # distill edge.
+    'deckout/thoracle': 'deckout/thoracle',
+    'domain': 'domain',
     'enchantments': 'enchantments',
 }
 
@@ -357,15 +388,38 @@ SYNTH_ALWAYS_ATTRIBUTES: list[tuple[str, str]] = [
     # — it surfaces the fixer cards for the `domain` event producer seed, it does not
     # rename the deck.
     ('color-fixing', "oracle:'mana of any color' OR otag:rainbow-land"),
-    # Five-color-win consumer (ADR 0024 domain state-event). The domain/five-color WIN
+    # Five-color-win payoff (ADR 0024 domain state-event). The domain/five-color WIN
     # payoff: `otag:alternate-win-condition AND oracle:'each color'` = exactly
     # {Coalition Victory, Call the Spirit Dragons} — the two cards that win by composing
     # all five colors (Coalition also needs a land of each basic type). Mechanic-
     # exclusive and payoff-pure (the broader `otag:alternate-win-condition AND
-    # otag:lifegain` was rejected as coarse). Seeds the `domain` event's triggers
-    # (consumer). Distills to None (no archetype edge) — the enabler->win link lives in
-    # the event graph (color-fixing -> domain -> five-color-win), not the archetype.
+    # otag:lifegain` was rejected as coarse). TWO consumers read this synth: (a) the
+    # `domain` EVENT's triggers (the enabler->win link color-fixing -> domain ->
+    # five-color-win, ADR 0024); (b) the `domain` DISTILL identity (R1b naming layer) —
+    # it carries an archetype edge `-> domain`, so a deck running the payoff is NAMED
+    # `domain` (ADR 0024: "the distill archetype names the plan: domain"). Unlike the
+    # `color-fixing` PRODUCER (which stays edge-less — a fixer must not rename a ramp
+    # deck), the WIN payoff legitimately names the deck. Inert on the gauntlet corpus
+    # (2 cards, neither a legal commander, never reaches node-admission support>=3),
+    # exactly as the `domain` event is engine-inert.
     ('five-color-win', "otag:alternate-win-condition AND oracle:'each color'"),
+    # Deckout / Thassa's-Oracle payoff (ADR 0023 decomposition of alt-wincon/combo; R1b).
+    # The self-deplete WIN: win by emptying YOUR OWN library. Keyed on the mechanic-
+    # exclusive `otag:empty-library` intersected with the wincon bucket = exactly
+    # {Laboratory Maniac, Jace Wielder of Mysteries, Fblthp Impossibly Lost, Doctor Doom
+    # Unrivaled, Platinum Persecutor} (5 cards, 0 false positives). Carries an archetype
+    # edge `-> deckout/thoracle` (the DISTILL identity above), so a self-mill deck is
+    # NAMED deckout, not the catch-all. NARROWER than the design's floated
+    # `otag:mill-self OR oracle:'no cards in'`: `mill-self` is a broad graveyard-fuel
+    # enabler (Central Elevator is not a deckout win) and `oracle:'no cards in'` matches
+    # "no cards in HAND" (Barren Glory / The Cheese Stands Alone — empty-board wins).
+    # KNOWN MISS: Thassa's Oracle carries no empty-library/mill-self otag and no
+    # distinguishing oracle phrase (its text keys on devotion), so it is not surfaced —
+    # the design flags it as the honest core of the problem (a threshold wincon whose
+    # enabler is not otag-expressible); its infinite case is still closed by the walk
+    # (`altwin::self-deplete`), and a real deckout deck runs Lab Maniac/Jace alongside it.
+    # Inert on the gauntlet corpus (max co-occurrence 2 < node-admission 3).
+    ('deckout-win', 'otag:alternate-win-condition AND otag:empty-library'),
     # Within-card lifetrade edges (Queza family). Each names a card that couples
     # TWO effects in ONE sentence: a trigger effect that drives a second payoff
     # effect (draw -> drain, gain -> draw, ...). Membership is a compound query:

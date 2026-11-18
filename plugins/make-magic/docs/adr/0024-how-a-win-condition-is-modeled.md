@@ -82,7 +82,9 @@ proliferation ADR 0023 guards against).
   magnitude-guard fix removed three such false wins; see 0016.)
 - **A catch-all wincon identity** that names the payoff and drops the enablers (`alt-wincon/combo`).
   This is a conflation of the same family as `monarch-or-extra-turn` (ADR 0023 / the 2026-11-17 CR
-  audit); decompose it so each wincon's enabler→win link is modeled as above.
+  audit); decompose it so each wincon's enabler→win link is modeled as above. **Realized 2026-11-17
+  (R1b):** decomposed into `deckout/thoracle` + `domain` distill identities + family riders; see the
+  second realization amendment below.
 - **A per-threshold event** (`life-40`) or a **per-card event** for a one-off condition.
 
 ### Relationship to the other records
@@ -139,3 +141,46 @@ was deliberately *not*:
 Event count 29 → 30. Measured OFF (code@`736afe0`) vs ON: 105/157 gauntlet decks moved, 0 label/
 identity flips, 0 spurious leads, 0 evictions; all three parity SHAs re-baselined (ADR 0003). Proof:
 `subagents/r1-realize-adr0024/outbox.md`.
+
+## Realization amendment — 2026-11-17 (the `alt-wincon/combo` distill catch-all decomposed; R1b)
+
+The naming half of this record ("the distill **archetype** still names the deck's plan — `domain`,
+`deckout`, `voltron`") was realized as a second proof-carrying re-baseline (ADR 0003). The distill
+catch-all identity `alt-wincon/combo` (`otag:wincon OR otag:alternate-win-condition`) — the
+anti-pattern this record and ADR 0023 both name — is decomposed:
+
+- **`deckout/thoracle`** — a new distill identity for the self-deplete (empty-your-own-library) win,
+  keyed on a new `deckout-win` SYNTH payoff `otag:alternate-win-condition AND otag:empty-library`
+  (5 cards: Lab Maniac / Jace WoM / Fblthp / Doctor Doom / Platinum Persecutor; 0 false positives).
+  The design's coarser `otag:mill-self OR oracle:'no cards in'` disjuncts were **rejected on
+  measurement**: `mill-self` is a broad graveyard-fuel enabler (Central Elevator is not a deckout
+  win) and `oracle:'no cards in'` matches "no cards in **hand**" (Barren Glory / The Cheese Stands
+  Alone — empty-board wins). Known miss: Thassa's Oracle carries no distinguishing otag/phrase (the
+  design's flagged "honest core of the problem"); its infinite case is still closed by the walk
+  (`altwin::self-deplete`).
+- **`domain`** — the `five-color-win` SYNTH payoff (above) now carries an archetype edge `→ domain`
+  (it previously distilled to None). This is exactly "the distill archetype names the plan: domain" —
+  the payoff (not the `color-fixing` PRODUCER, which stays edge-less so a fixer never renames a ramp
+  deck) names a deck that runs the five-color win. Inert on the corpus (2 non-commander cards, never
+  node-admitted).
+- **Riders, not new identities** — every other wincon rides its existing family once the catch-all is
+  gone: a lifegain-win rides `lifegain` (its win is the `altwin::lifegain` event-edge), a poison-win
+  rides `poison` (`altwin::poisoned`), a cast-count win rides `spellslinger`. The `otag:alternate-win-
+  condition AND otag:lifegain` coarse set was NOT authored (it drags in cast-count/combat/group-hug
+  wincons — the same reason it was rejected for `five-color-win`).
+- **The standalone-state tail distills to None** — the genuine singletons (Phage, Barren Glory,
+  coin-flip, Door to Nothingness, …) get no archetype name: a one-off build-around win does not name
+  the deck, and a `misc-wincon` bucket broad enough to catch them re-bundles unrelated mechanics (the
+  ADR 0023 conflation). Their win is modeled in the event graph (Home 2) or the walk (Home 1).
+- **Dead-ref fixed** — the catch-all's 2nd disjunct `otag:alternate-win-condition` resolved to no
+  CardAttribute (the lake slug surfaces as the attribute NAME `wincon`); removed with the line.
+- **The combo-override headline `alt-wincon/combo` (`naming.ALT_WINCON_COMBO`) is a SEPARATE axis**
+  from `archetype_identity` and is **untouched**. This is why **Ghave did not re-flip** (its label was
+  always the combo-override, not this distill identity) — the research doc's Ghave caveat resolves to
+  "no re-flip," confirming the two axes are cleanly separated.
+
+Measured OFF/ON (157 gauntlet + 17 fixtures): exactly 2 gauntlet decks (Azami, Baral) + 2 fixtures
+(Baral, Peace Offering) moved — the 4 that admit `wincon` as a node; **0 headline flips, 0
+archetype_identity membership flips, 0 confidence-tier flips, 0 spurious leads**. ENGINE SHA
+unchanged; RESOLVE + FULL_CORPUS re-baselined (ADR 0003). Proof:
+`subagents/r1b-decompose-altwincon/outbox.md`.
