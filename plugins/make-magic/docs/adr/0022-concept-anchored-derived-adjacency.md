@@ -255,6 +255,33 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   Both STOPs reported. Full per-narrowing delta + the STOP analyses:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r2-tier-b-narrowing/outbox.md`.
 
+- **2026-11-17 — R2 wave 2: both wave-1 STOPs resolved (owner-adjudicated); all three Tier-B
+  narrowings shipped (ADR 0003 re-baseline).** On top of `e579682`.
+  - **permanent-dies** — resolution is a SUBTRACTIVE synth CardAttribute, not a seed climb: the raw
+    `removal` producer seed is replaced by `dies-removal` = `otag:removal AND NOT removal-exile AND
+    NOT removal-bounce AND NOT removal-tuck` (authored in `distill_strategies.SYNTH_ALWAYS_ATTRIBUTES`,
+    the color-fixing/rad-counter pattern; distills to None, carries no archetype edge). This is the
+    answer to the wave-1 limitation: when off-mechanic contamination lives in an entangled sibling
+    axis the climb/union cannot exclude, a **card-level AND/NOT query** (closed ADR 0009 vocabulary —
+    no new atom) carves it precisely. Keeps all destroys/burns/sacrifices/sweepers (the 141 return),
+    subtracts only the 1,200 exile/bounce/tuck (measured carve: 6,751 → 5,551, residual disable-auras
+    1.5% << 10% STOP; conservative under-coverage ~182 modal death-or-zonechange cards). Holistic
+    `removal` otag UNTOUCHED elsewhere (permanent-leaves-battlefield keeps it).
+  - **artifact-enters** — DROP `animate-artifact` + `artifactify` (CR 603.6a; 136 cards), shipped
+    WITH the coupled fix below so `validate_seed_map` passes.
+  - **creature-enters-battlefield (the coupled fix)** — seed `repeatable-token-generator` →
+    `repeatable-creature-tokens`: the umbrella's non-creature-token children (446 cards:
+    artifact/enchantment/land/noncreature token generators, 0 making creature tokens) were false
+    creature-ETB edges — a correctness improvement, not just the gate workaround that cleared the
+    wave-1 `UMBRELLA_COVERAGE_MIN` flag. `validate_seed_map()` stays at **0 violations**; 30 events
+    (count unchanged).
+  **Measured OFF (`e579682`) / ON: 153/170 records moved** (`dies-removal` is a new corpus-wide
+  producer attribute surfacing on 146 decks — same shape as `color-fixing` in the 0024 wave), **0
+  headline/identity/confidence-tier/combo/bracket/win flips, 0 engine-set evictions**, 1 intended
+  Sydri loop correction. All three SHAs moved: full-corpus `9c26ad89…` → `62d5fa5c…`; engine
+  `84b9617e…` → `9559fa42…`; resolve `3fbd927f…` → `b88d8bb5…`. Proof + per-change delta:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r2-tier-b-narrowing/outbox.md`.
+
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
 - 0002 / 0020 — substantiveness + the `producer_anchor` gate this adjacency feeds; `ramp` stays anchor-side-only there, never in the adjacency.

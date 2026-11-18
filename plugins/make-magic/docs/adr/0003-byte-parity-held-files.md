@@ -428,6 +428,43 @@ re-baseline makes every *intended* change legible as such.
   STOP analyses:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r2-tier-b-narrowing/outbox.md`.
 
+- **2026-11-17 — R2 wave 2: the two wave-1 STOPs resolved (owner-adjudicated), all three Tier-B
+  narrowings now shipped.** On top of `e579682`. Two held files changed (`derive_card_events.py`
+  SEED_MAP + `distill_strategies.py` SYNTH_ALWAYS_ATTRIBUTES):
+  - **permanent-dies** — the raw `removal` producer seed is replaced by a new SUBTRACTIVE synth
+    CardAttribute `dies-removal` = `otag:removal AND NOT removal-exile AND NOT removal-bounce AND
+    NOT removal-tuck` (authored in `SYNTH_ALWAYS_ATTRIBUTES`, the rad-counter/color-fixing pattern;
+    AND/NOT over otags is in the closed ADR 0009 vocabulary — no new atom). This KEEPS every
+    destroy/burn/sacrifice/sweeper (the 141 sweeper/sunder deaths return) and subtracts only the
+    1,200 pure zone-changes. **Measured carve:** raw `removal` 6,751 → `dies-removal` 5,551;
+    carved-out = exactly the exile(617)/bounce(448)/tuck(151) cards (0 "neither"). Residual
+    imperfection = disable-auras on a bare `removal` tag (Pacifism-likes): ~84 pacifism = 1.5% of
+    the set (owner STOP threshold was >~10% — passes), and these were in the raw `removal` seed
+    before (the carve only REMOVES). Known conservative under-coverage: ~182 MODAL cards with a
+    death method AND an exile/bounce/tuck mode (Bant Charm, Chandra Awakened Inferno) are excluded
+    by the NOT. The holistic `removal` otag is UNTOUCHED in permanent-leaves-battlefield.
+  - **artifact-enters** — DROP `animate-artifact` + `artifactify` (CR 603.6a type-change ≠ ETB; 136
+    cards).
+  - **creature-enters-battlefield (coupled fix)** — seed `repeatable-token-generator` →
+    `repeatable-creature-tokens`. The umbrella's non-creature-token children (446 cards:
+    artifact/enchantment/land/noncreature token generators, **0 of which make a creature token**)
+    were false creature-ETB edges; this also clears the `validate_seed_map` cross-mechanic flag the
+    artifact-enters narrowing surfaced in wave 1.
+  **Measured OFF (`e579682`) / ON (170-record corpus + 17 fixtures): all three SHAs moved**
+  (fixtures carry the touched families). `FULL_CORPUS_SHA 9c26ad8907b63e7d… → 62d5fa5c87e2c962…`;
+  `ENGINE 84b9617efcf0ec74… → 9559fa42ea76f661…`; `RESOLVE 3fbd927f92d21dbb… → b88d8bb5d3a32414…`;
+  all engine/resolve constants (7 test files) + `distill_parity_baseline.json` +
+  `engine_isolation_baseline.json` regenerated. **Correctness proof:** 153/170 records moved
+  (`dies-removal` is a new corpus-wide producer attribute surfacing on 146 decks — the same
+  attribute-surfacing shape as `color-fixing` in the ADR 0024 wave), but **0 headline/
+  archetype_identity/confidence-tier/combo/bracket/win-combo flips, 0 engine-set evictions** (every
+  deck keeps its engine identity-set), **1 intended loop correction** (Sydri Galvanic Genius
+  `commander_loop.closes` True→False — her `artifactify` is a type-change, not an ETB). Every
+  changed leaf traces to one of the three edits; membership-verified (carve removes only
+  exile/bounce/tuck; creature-enters trim removes only non-creature-token generators, 0 creature
+  producers). Full per-change delta:
+  `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r2-tier-b-narrowing/outbox.md`.
+
 ## Related records
 - 0001 — the knowledge-placement doctrine these files exemplify.
 - 0002 — the substantiveness model (`strategy_graph.py` is shared with this record).

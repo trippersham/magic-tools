@@ -412,10 +412,25 @@ def verify(
     trigger_expected = frozenset(events.get(trigger_event, {}).get('triggers', []))
     effect_expected = frozenset(events.get(produced_event, {}).get('produced_by', []))
 
+    # A produced_by/triggers ref may be a SYNTH CardAttribute (no lake otag):
+    # dies-removal (permanent-dies), monarch-maker (monarch), color-fixing/
+    # five-color-win (domain), rad-counter (player-counter).  Otag-only
+    # corroboration cannot see these, so a card that IS a synth producer would
+    # be scored as non-corroborating.  Compile the synth predicates for the refs
+    # present in THIS role and let a card corroborate via otag OR synth match.
+    from pipeline.transforms.strategy.distill_strategies import compile_synth
+
+    _synth_preds = dict(compile_synth())
+    trig_synth = [p for n, p in _synth_preds.items() if n in trigger_expected]
+    eff_synth = [p for n, p in _synth_preds.items() if n in effect_expected]
+
     corroborating = 0
     for card in captured:
         card_otags = frozenset(t.lower() for t in (card.get('otags') or []))
-        if (card_otags & trigger_expected) and (card_otags & effect_expected):
+        view = CardView.from_card(card)
+        trig_ok = bool(card_otags & trigger_expected) or any(p(view) for p in trig_synth)
+        eff_ok = bool(card_otags & effect_expected) or any(p(view) for p in eff_synth)
+        if trig_ok and eff_ok:
             corroborating += 1
         else:
             failing_cards.append(card.get('name', '<unknown>'))

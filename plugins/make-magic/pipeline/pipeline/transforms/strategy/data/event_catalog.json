@@ -21,7 +21,7 @@
       ]
     },
     "creature-enters-battlefield": {
-      "rule": "CR 603.6: ETB triggered abilities; tokens/reanimation/flicker put creatures onto the battlefield",
+      "rule": "CR 603.6: ETB triggered abilities; tokens/reanimation/flicker put creatures onto the battlefield. Uses `repeatable-creature-tokens` (not the `repeatable-token-generator` umbrella — its non-creature-token children make no creature ETB) (#74 R2 §3.4 coupled fix)",
       "produced_by": [
         "flicker",
         "flicker-creature",
@@ -30,7 +30,6 @@
         "reanimate-nonland",
         "reanimate-permanent",
         "repeatable-creature-tokens",
-        "repeatable-token-generator",
         "tokens"
       ],
       "triggers": [
@@ -67,10 +66,10 @@
       ]
     },
     "permanent-dies": {
-      "rule": "CR 700.4: a creature/permanent going to the graveyard from the battlefield (dies)",
+      "rule": "CR 700.4: a creature/permanent going to the graveyard from the battlefield (dies). The removal producer is the SUBTRACTIVE synth attribute `dies-removal` (otag:removal minus removal-exile/-bounce/-tuck) — zone-changes to exile/hand/library are NOT deaths and dodge death triggers; the holistic `removal` otag stays in permanent-leaves-battlefield (#74 R2 §3.1)",
       "produced_by": [
+        "dies-removal",
         "free-sacrifice-outlet",
-        "removal",
         "removal-sacrifice",
         "sac",
         "sacrifice-outlet",
@@ -382,10 +381,8 @@
       ]
     },
     "artifact-enters": {
-      "rule": "CR 603.6: artifact ETB; Treasure/Clue/Food and artifact tokens",
+      "rule": "CR 603.6 / CR 603.6a: artifact ETB on a zone change (a permanent ENTERING); Treasure/Clue/Food and artifact tokens. A permanent that merely BECOMES an artifact (artifactify) or is animated into a creature (animate-artifact) does NOT re-enter, so fires no ETB — both dropped (#74 R2 §3.4)",
       "produced_by": [
-        "animate-artifact",
-        "artifactify",
         "artifacts",
         "repeatable-artifact-tokens",
         "repeatable-treasures"

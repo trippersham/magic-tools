@@ -1060,7 +1060,7 @@ class TestDefaultPathParity:
 
         baselines = compute_engine_isolation_baselines()
         sha = composite_sha(baselines)
-        expected = '84b9617efcf0ec7481ee167874cb6802b4762ce494a2a8a72085785ddda7441a'
+        expected = '9559fa42ea76f661d03120e34a086cc35b3d776053ebdfd08523459cdfa30cca'
         assert sha == expected, f'engine SHA shifted: {sha}'
 
     def test_resolve_sha_unchanged(self) -> None:
@@ -1071,5 +1071,5 @@ class TestDefaultPathParity:
 
         baselines = compute_resolve_baselines()
         sha = composite_sha(baselines)
-        expected = '3fbd927f92d21dbb41870f296c1098b7092cef76f619a64f6011ebed54d4d642'
+        expected = 'b88d8bb5d3a3241471833a6337b98c746cadb0c669142094cf799d061cbd8c2d'
         assert sha == expected, f'resolve SHA shifted: {sha}'

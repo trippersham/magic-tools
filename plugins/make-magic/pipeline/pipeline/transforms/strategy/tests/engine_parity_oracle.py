@@ -177,35 +177,38 @@ def composite_sha(per_deck: dict[str, str]) -> str:
 #   ENGINE      84b9617efcf0ec74… (unchanged)
 #   RESOLVE     5a43fc56ce9fd371… -> 50cd387393ba7a7a…
 # Proof: subagents/r1b-decompose-altwincon/outbox.md.
-# Re-baselined 2026-11-17 (R2: Tier-B over-inclusion narrowing — 1 of 3 shipped, 2 STOPPED).
-# SHIPPED: life-loss-drain DROPS the `burn` umbrella (keeps burn-player/-each) + the dead
-# `sac` ref — CR 120.3, only damage to a PLAYER is life loss; the burn closure dragged in
-# removal-burn/burn-battle/bombard/burn-creature/-planeswalker/removal-fight (1,253 cards
-# dropped, 0 carrying any player-damage tag — 100% creature/planeswalker/battle/fight
-# damage). STOPPED (reported, not shipped):
-#   * permanent-dies (replace `removal` with removal-destroy+burn+sacrifice) UNDER-COVERS
-#     at scale — 141 genuine board-wipe deaths tagged sweeper/sweeper-one-sided/sunder +
-#     removal-toughness but NOT removal-destroy (Meathook Massacre, Black Sun's Zenith, …)
-#     + 669 no-method cards; removal's children mix a method axis and a target-type axis
-#     and aren't a clean tree, so no union separates death from non-death. `removal` KEPT.
-#   * artifact-enters (drop animate-artifact+artifactify) is output-CLEAN (136 cards, CR
-#     603.6a — a type-change is not an ETB; 0 evictions) BUT cannot ship standalone: the
-#     4-seed narrowed set pushes creature-enters's pre-existing over-broad
-#     `repeatable-token-generator` umbrella to 2/4 (50%) coverage, tripping
-#     validate_seed_map (ADR 0022). A clean ship is coupled to narrowing that umbrella
-#     (out of R2 scope). Reported for owner (proof: subagents/r2-tier-b-narrowing/outbox.md).
-# Measured OFF (e60dbe5) / ON delta for the SHIPPED change: 29/170 gauntlet records moved,
-# 0 headline/identity/confidence-tier/combo/bracket/win-combo flips, 0 engine evictions
-# (engine identity-sets + per-deck counts unchanged everywhere), 0 commander_loop.closes
-# flips. Every changed leaf traces to the burn-drop (burn-battle attribute surfacing off,
-# n_nodes-1, downstream communities/edges/confidence drift). The 17 hermetic fixtures carry
-# burn-creature in 4 owned fixtures (ozai/sokka/spiders/world-reclaimer) so RESOLVE moved;
-# ENGINE is UNCHANGED (elect_engine_units carries none of the touched layers):
-#   FULL_CORPUS 62abb4b19c4eddfce… -> 9c26ad8907b63e7d…
-#   ENGINE      84b9617efcf0ec74… (unchanged)
-#   RESOLVE     50cd387393ba7a7a… -> 3fbd927f92d21dbb…
+# Re-baselined 2026-11-17 (R2 wave 1): life-loss-drain DROPS the `burn` umbrella + dead
+# `sac` ref (CR 120.3 — only player damage is life loss). FULL_CORPUS 62abb4b1… -> 9c26ad89…,
+# RESOLVE 50cd3873… -> 3fbd927f…, ENGINE unchanged. (Commit e579682; superseded by wave 2.)
+# Re-baselined 2026-11-17 (R2 wave 2 — owner-adjudicated resolutions of the two wave-1 STOPs;
+# all three Tier-B narrowings now shipped as one re-baseline on top of e579682):
+#   * permanent-dies: the raw `removal` producer seed is replaced by the SUBTRACTIVE synth
+#     CardAttribute `dies-removal` = `otag:removal AND NOT removal-exile AND NOT removal-bounce
+#     AND NOT removal-tuck` (distill_strategies.py, ADR 0009 in-vocabulary — no new atom). This
+#     keeps every destroy/burn/sacrifice/sweeper (the 141 sweeper/sunder deaths return) and
+#     subtracts only the 1,200 pure zone-changes. 5,551 members (from raw removal 6,751); residual
+#     disable-auras ~84 pacifism (1.5% << owner's 10% STOP); known conservative under-coverage ~182
+#     MODAL cards (death + an exile/bounce/tuck mode). Holistic `removal` UNTOUCHED elsewhere.
+#   * artifact-enters: DROP animate-artifact + artifactify (CR 603.6a — a type-change is not an
+#     ETB; 136 cards).
+#   * creature-enters-battlefield (coupled fix): seed `repeatable-token-generator` ->
+#     `repeatable-creature-tokens` — the umbrella's non-creature-token children (446 cards:
+#     artifact/enchantment/land/noncreature token generators, 0 making creature tokens) were false
+#     creature-ETB edges; this also clears the validate_seed_map cross-mechanic flag the
+#     artifact-enters narrowing surfaced.
+# Measured OFF (e579682) / ON: 153/170 gauntlet records moved (dies-removal is a new corpus-wide
+# producer attribute, surfacing on 146 decks — like color-fixing in R1), but 0 headline/identity/
+# confidence-tier/combo/bracket/win-combo flips, 0 engine-set evictions (every deck keeps its
+# engine identity-set), 1 intended loop correction (Sydri commander_loop.closes True->False — her
+# artifactify is a type-change, not an ETB). Every changed leaf traces to one of the 3 edits
+# (dies-removal attribute surfacing + n_nodes/community/edge/confidence drift, animate-artifact/
+# artifactify drop, creature-token producer trim). The 17 hermetic fixtures carry the touched
+# families, so all three SHAs moved:
+#   FULL_CORPUS 9c26ad8907b63e7d… -> 62d5fa5c87e2c962…
+#   ENGINE      84b9617efcf0ec74… -> 9559fa42ea76f661…
+#   RESOLVE     3fbd927f92d21dbb… -> b88d8bb5d3a32414…
 # Proof: subagents/r2-tier-b-narrowing/outbox.md.
-FULL_CORPUS_SHA = '9c26ad8907b63e7dc85cde5f4ae110c2a8a6219205c6b5fd0f4d6f54751245e9'
+FULL_CORPUS_SHA = '62d5fa5c87e2c962ee7c320da8ae6c6844b847b8d4aa21f4759b01c6290a10fa'
 
 
 def full_corpus_sha() -> str:

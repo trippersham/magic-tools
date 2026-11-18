@@ -420,6 +420,31 @@ SYNTH_ALWAYS_ATTRIBUTES: list[tuple[str, str]] = [
     # (`altwin::self-deplete`), and a real deckout deck runs Lab Maniac/Jace alongside it.
     # Inert on the gauntlet corpus (max co-occurrence 2 < node-admission 3).
     ('deckout-win', 'otag:alternate-win-condition AND otag:empty-library'),
+    # Death-removal producer (#74 R2 §3.1). The `permanent-dies` event wants the
+    # removal that KILLS (destroy/burn/sacrifice/sweeper/-X-X → graveyard, CR 700.4),
+    # NOT the removal that changes zone without a death (exile/bounce/tuck, which
+    # actively DODGE death triggers). Scryfall's `removal` otag children mix a METHOD
+    # axis with a TARGET-TYPE axis and are not a clean tree (removal-creature itself
+    # parents destroy/burn/bounce/fight children), so no union of method-children
+    # separates death from non-death (it drops 141 sweeper/sunder deaths carrying only
+    # removal-toughness, R2 STOP). The honest carve is SUBTRACTIVE: the holistic
+    # `removal` population MINUS the three pure zone-change methods. AND/NOT over otags
+    # is in the closed query vocabulary (ADR 0009 — no new atom). Measured 5,551 members
+    # (raw removal 6,751 minus 1,200 exile/bounce/tuck); all destroys/burns/sacrifices/proper
+    # sweepers kept (the 141 return). Residual imperfection = disable-auras that carry a
+    # bare `removal` tag with no death method (Pacifism/Sleep Paralysis-likes): only ~84
+    # pacifism-tagged (1.5% of the set) — a small bounded set that was ALSO in the raw
+    # `removal` seed before (the carve only ever REMOVES, never adds, so precision
+    # strictly improves). Known conservative under-coverage: ~182 MODAL cards that carry
+    # a death method AND an exile/bounce/tuck mode (Bant Charm destroy-or-tuck, Chandra
+    # Awakened Inferno burn+exile sweeper) are excluded by the NOT — modal, not pure
+    # death-producers, so the conservative drop is acceptable (proof:
+    # subagents/r2-tier-b-narrowing/outbox.md). The holistic `removal` otag is UNTOUCHED
+    # elsewhere (permanent-leaves-battlefield etc. correctly keep it). Like
+    # `color-fixing`/`rad-counter` it carries NO archetype edge (distills to None) — it
+    # surfaces the death-removal cards for the `permanent-dies` producer seed, it does
+    # not rename the deck.
+    ('dies-removal', 'otag:removal AND NOT otag:removal-exile AND NOT otag:removal-bounce AND NOT otag:removal-tuck'),
     # Within-card lifetrade edges (Queza family). Each names a card that couples
     # TWO effects in ONE sentence: a trigger effect that drives a second payoff
     # effect (draw -> drain, gain -> draw, ...). Membership is a compound query:

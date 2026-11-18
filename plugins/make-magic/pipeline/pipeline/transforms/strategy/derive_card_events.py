@@ -165,8 +165,16 @@ SEED_MAP: dict[str, dict[str, Any]] = {
                 'reanimate-creature',
                 'reanimate-nonland',
                 'reanimate-permanent',
+                # `repeatable-token-generator` umbrella REMOVED (#74 R2 §3.4 coupled
+                # fix): it is the taxonomy parent of repeatable-{creature,artifact,
+                # enchantment,land,noncreature}-tokens — but only CREATURE tokens
+                # produce a creature ETB.  The non-creature children were false
+                # creature-enters producers.  `repeatable-creature-tokens` (already a
+                # seed, just above) is the correct mechanic-exclusive child.  This also
+                # resolves the validate_seed_map cross-mechanic flag the artifact-enters
+                # narrowing surfaced (the umbrella covered 50% of the 4-seed
+                # artifact-enters.produced_by set).
                 'repeatable-creature-tokens',
-                'repeatable-token-generator',
                 'sneak-creature',
                 # impulse / cheat-into-play (#74 decision 5): maximal onto-bf node
                 # on the from-library branch; closure adds sneak-from-library,
@@ -226,9 +234,20 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
+            # `removal` → `dies-removal` (#74 R2 §3.1): CR 700.4, "dies" = put into a
+            # graveyard FROM the battlefield.  The holistic `removal` closure dragged in
+            # removal-exile (617), removal-bounce (448), removal-tuck (151) — zone
+            # changes that are NOT deaths and actively dodge death triggers.  Narrowing
+            # to method-children (removal-destroy/-burn/-sacrifice) UNDER-covered — it
+            # dropped 141 sweeper/sunder board-wipe deaths tagged only removal-toughness
+            # (R2 STOP).  The carve is the SUBTRACTIVE synth attr `dies-removal`
+            # (distill_strategies.py): `otag:removal AND NOT removal-exile/-bounce/-tuck`
+            # — keeps every destroy/burn/sacrifice/sweeper, subtracts only the pure
+            # zone-changes.  5,551 members (from 6,751); residual disable-auras ~1.5%.
+            # The holistic `removal` otag stays untouched in permanent-leaves-battlefield.
             'seeds': [
+                'dies-removal',
                 'free-sacrifice-outlet',
-                'removal',
                 'removal-sacrifice',
                 'sac',
                 'sacrifice-outlet',
@@ -643,20 +662,19 @@ SEED_MAP: dict[str, dict[str, Any]] = {
             'grade': 'S',
         },
         'produced_by': {
-            # NOTE (#74 R2 §3.4): animate-artifact + artifactify are CR-off-mechanic
-            # producers here (CR 603.6a — a permanent that BECOMES/is animated into an
-            # artifact does not re-enter, so fires no ETB).  Dropping them is output-
-            # clean (136 cards, 0 engine evictions) BUT cannot ship standalone: it
-            # shrinks this side to 4 seeds, which pushes creature-enters-battlefield's
-            # pre-existing over-broad `repeatable-token-generator` umbrella to 2/4 (50%)
-            # coverage of this seed set and TRIPS validate_seed_map (ADR 0022).  A clean
-            # ship is coupled to narrowing that umbrella to `repeatable-creature-tokens`
-            # (itself correct — non-creature token generators don't produce creature
-            # ETBs), which is out of R2 scope.  STOP-reported for owner
-            # (subagents/r2-tier-b-narrowing/outbox.md).
+            # animate-artifact + artifactify DROPPED (#74 R2 §3.4): CR 603.6a — an ETB
+            # ability triggers on a zone change (a permanent ENTERING).  A permanent
+            # that merely BECOMES an artifact (artifactify: Sydri, Encroaching
+            # Mycosynth) or is animated into a creature (animate-artifact: Ensoul
+            # Artifact, Tezzeret's Touch) does NOT re-enter — no ETB event fires.  The
+            # consumers (artifact-count-matters / affinity-for-artifacts) read an ETB
+            # zone change, not a type-change, so these are off-mechanic producers.
+            # Measured 136 cards dropped, all animation/becoming effects, 0 artifact-ETB
+            # engine evicted.  Shipped together with the coupled creature-enters fix
+            # (repeatable-token-generator → repeatable-creature-tokens) so
+            # validate_seed_map stays at 0 violations (proof:
+            # subagents/r2-tier-b-narrowing/outbox.md).
             'seeds': [
-                'animate-artifact',
-                'artifactify',
                 'artifacts',
                 'repeatable-artifact-tokens',
                 'repeatable-treasures',
