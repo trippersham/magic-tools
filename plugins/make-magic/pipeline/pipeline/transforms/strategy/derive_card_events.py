@@ -1471,6 +1471,23 @@ def refused_climb_targets(seeds: list[str]) -> dict[str, ExclusivityResult]:
 #: seed set is a cross-mechanic umbrella (it IS the other mechanic).
 UMBRELLA_COVERAGE_MIN: float = 0.5
 
+#: Back-pressure against silent sensitivity loss (owner-ratified 2026-11-18).
+#: The single-event ``UMBRELLA_COVERAGE_MIN`` ratio shrinks as a *legitimate*
+#: seed set grows (a bigger denominator), so the same cross-mechanic error could
+#: slip under 50% unnoticed once a side grows (e.g. ``ramp`` fell to 45% of
+#: ``land-enters`` after it grew 6->11).  The robust signal is SPAN: a true
+#: cross-mechanic umbrella covers TWO or more *disjoint* mechanics at once
+#: (``ramp`` = mana-produced 50% AND land-enters 45%), whereas a legitimate
+#: related-mechanic parent concentrates in ONE event with a falling tail
+#: (``recursion`` = creature-enters 41%, then 23%, 18% — reanimation is recursion
+#: that makes a creature enter).  So a seed is ALSO flagged when its closure
+#: covers >= UMBRELLA_SPAN_COVERAGE_MIN of >= UMBRELLA_SPAN_MIN_EVENTS distinct
+#: disjoint foreign events.  Verified 0 false positives on the current seed map
+#: (only ``recursion`` reaches >=40%, and on ONE event); the canary test
+#: (hand-added ``ramp`` must flag) locks the guard against going silently blind.
+UMBRELLA_SPAN_COVERAGE_MIN: float = 0.40
+UMBRELLA_SPAN_MIN_EVENTS: int = 2
+
 #: The foreign event-side must have at least this many seeds for the umbrella
 #: check to apply (trivially small seed sets are not a meaningful mechanic).
 UMBRELLA_FOREIGN_MIN_ANCHORS: int = 3
@@ -1544,6 +1561,9 @@ def validate_seed_map(
             own_seeds = set(seeds)
             for seed in seeds:
                 closure = descendant_closure(seed, taxonomy)
+                # Per-seed span: coverage of each disjoint foreign EVENT (keyed by
+                # event, not event-side) for the back-pressure span signal below.
+                span_cov: dict[str, float] = {}
                 for (e2, s2), seeds2 in seed_sets.items():
                     if e2 == event_name or s2 != side:
                         continue
@@ -1554,6 +1574,10 @@ def validate_seed_map(
                         continue
                     overlap = closure & seeds2
                     coverage = len(overlap) / len(seeds2)
+                    if coverage > span_cov.get(e2, 0.0):
+                        span_cov[e2] = coverage
+                    # (3a) single-event swallow: a seed covering >= half of one
+                    # disjoint foreign mechanic IS that mechanic.
                     if coverage >= UMBRELLA_COVERAGE_MIN:
                         violations.append(
                             f'{event_name}.{side}: seed {seed!r} is a '
@@ -1561,6 +1585,20 @@ def validate_seed_map(
                             f'{len(overlap)}/{len(seeds2)} '
                             f'({coverage:.0%}) of {e2}.{s2} seeds'
                         )
+                # (3b) multi-mechanic span (back-pressure): a seed covering
+                # >= UMBRELLA_SPAN_COVERAGE_MIN of >= UMBRELLA_SPAN_MIN_EVENTS
+                # distinct disjoint foreign events spans multiple mechanics — an
+                # umbrella even when no single ratio reaches 50% (denominator
+                # growth can't hide it the way the single-event ratio can).
+                spanned = sorted(
+                    (f'{e2} ({cov:.0%})' for e2, cov in span_cov.items() if cov >= UMBRELLA_SPAN_COVERAGE_MIN),
+                )
+                if len(spanned) >= UMBRELLA_SPAN_MIN_EVENTS:
+                    violations.append(
+                        f'{event_name}.{side}: seed {seed!r} is a cross-mechanic '
+                        f'umbrella — its closure spans {len(spanned)} disjoint mechanics '
+                        f'at >={UMBRELLA_SPAN_COVERAGE_MIN:.0%}: {", ".join(spanned)}'
+                    )
 
     return violations
 

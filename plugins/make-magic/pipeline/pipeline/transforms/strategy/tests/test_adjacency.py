@@ -613,53 +613,61 @@ class TestExclusivityValidator:
             )
 
     def test_ramp_as_seed_caught_by_validator(self) -> None:
-        """Adding ``ramp`` (a mana+land cross-mechanic umbrella) as a seed to
-        ``land-enters-battlefield.produced_by`` MUST make ``validate_seed_map()``
-        return a violation.
+        """Adding ``ramp`` (a mana+land cross-mechanic umbrella) as a seed MUST
+        make ``validate_seed_map()`` return a violation — the NON-TAUTOLOGICAL
+        acceptance test (the validator catches an umbrella hand-listed as a seed).
 
-        This is the NON-TAUTOLOGICAL acceptance test: the cross-mechanic umbrella
-        check catches an umbrella hand-listed as a seed — the validator is no
-        longer a tautology.  ``ramp``'s closure covers 2/4 (50% == the
-        ``UMBRELLA_COVERAGE_MIN`` floor) of ``mana-produced.produced_by``, so a
-        ``ramp`` hand-added to a land event is caught as the documented reviewable
-        data error.
-
-        R5d NOTE (2026-11-18): the SYMMETRIC probe (``ramp`` added to
-        ``mana-produced``) relied on ``ramp``'s closure covering >=50% of
-        ``land-enters-battlefield.produced_by``.  R5d legitimately grew that seed
-        set 6 -> 11 (tutor-land-basic/seek-land/donate-rampant-growth/ramp-with-
-        set-s-mechanic/land-or-hand), so ``ramp`` now covers only 5/11 (45%) of
-        it — below the 50% floor — and the mana-produced direction is no longer
-        flagged.  That is the guard behaving as designed (a richer, well-populated
-        land event is no longer ramp-dominated); the PRIMARY guarantee — a ``ramp``
-        data error in a LAND event is caught — is unchanged.  This test now pins
-        BOTH facts so a future threshold/seed change cannot silently drift either.
+        This is also the BACK-PRESSURE canary (owner-ratified 2026-11-18): the
+        single-event ``UMBRELLA_COVERAGE_MIN`` ratio shrinks as a legitimate seed
+        set grows, so without a lock a future growth could silently blind the
+        guard.  Pinning ``ramp`` here means any such drift fails LOUDLY.
         """
         import copy
 
-        from pipeline.transforms.strategy.derive_card_events import (
-            SEED_MAP,
-            validate_seed_map,
-        )
+        from pipeline.transforms.strategy.derive_card_events import SEED_MAP, validate_seed_map
 
         # PRIMARY: ramp in a land event IS caught (covers 50% of mana-produced).
         poisoned = copy.deepcopy(SEED_MAP)
         poisoned['land-enters-battlefield']['produced_by']['seeds'].append('ramp')
-        violations = validate_seed_map(seed_map=poisoned)
-        assert [v for v in violations if 'ramp' in v], (
-            f'Adding ramp as a seed to land-enters.produced_by did NOT trigger a '
-            f'violation — the validator is tautological. All violations: {violations}'
+        assert [v for v in validate_seed_map(seed_map=poisoned) if 'ramp' in v], (
+            'Adding ramp to land-enters.produced_by did NOT trigger a violation — '
+            'the validator is tautological or has gone blind.'
         )
 
-        # SYMMETRIC (post-R5d): ramp in mana-produced now falls to 45% coverage of
-        # the enlarged land-enters set, below UMBRELLA_COVERAGE_MIN (0.5) — pinned.
-        poisoned_mp = copy.deepcopy(SEED_MAP)
-        poisoned_mp['mana-produced']['produced_by']['seeds'].append('ramp')
-        mp_violations = [v for v in validate_seed_map(seed_map=poisoned_mp) if 'ramp' in v]
-        assert not mp_violations, (
-            'R5d expectation: ramp in mana-produced should now be BELOW the 50% '
-            f'coverage floor against the 11-seed land-enters set, got: {mp_violations}'
-        )
+    def test_span_backpressure_catches_umbrella_without_a_50pct_ratio(self) -> None:
+        """BACK-PRESSURE (3b): a seed whose closure spans >= UMBRELLA_SPAN_MIN_EVENTS
+        disjoint foreign events at >= UMBRELLA_SPAN_COVERAGE_MIN is flagged even
+        when NO single foreign reaches the 50% ratio.  This is the signal that
+        does not degrade as a single denominator grows: ``ramp`` added to an
+        unrelated event (draw-a-card) spans mana-produced (50%) AND land-enters
+        (45%), and the span violation names both mechanics.
+        """
+        import copy
+
+        from pipeline.transforms.strategy.derive_card_events import SEED_MAP, validate_seed_map
+
+        poisoned = copy.deepcopy(SEED_MAP)
+        poisoned['draw-a-card']['produced_by']['seeds'].append('ramp')
+        spans = [v for v in validate_seed_map(seed_map=poisoned) if 'ramp' in v and 'spans' in v]
+        assert spans, 'span back-pressure (3b) did NOT flag ramp spanning two disjoint mechanics'
+
+    def test_umbrella_span_has_no_false_positives_on_current_map(self) -> None:
+        """The span signal must not flag any LEGITIMATE seed.  The sharpest case is
+        ``recursion`` (seed of recursion-from-graveyard): its closure covers 9/22
+        (41%) of creature-enters — reanimation genuinely IS recursion that makes a
+        creature enter — then falls off (23%, 18%).  It is STRUCTURALLY identical
+        to ``ramp`` seen from a small home event (one foreign >=40%), so no coverage
+        threshold can flag ramp-from-mana-produced without also flagging legit
+        recursion.  HONEST RESIDUE: that single small-denominator direction is left
+        uncaught by design; the canary above is the back-pressure, not a wider net.
+        """
+        from pipeline.transforms.strategy.derive_card_events import SEED_MAP, validate_seed_map
+
+        # The committed map is clean (span adds zero false positives).
+        assert validate_seed_map() == []
+        # And recursion specifically is NOT flagged (its one >=40% foreign is a
+        # related mechanic, not a second disjoint one).
+        assert not [v for v in validate_seed_map(seed_map=SEED_MAP) if 'recursion' in v]
 
     def test_climb_to_frontier_removed(self) -> None:
         """``climb_to_frontier`` is deleted (was dead code with zero callers)."""

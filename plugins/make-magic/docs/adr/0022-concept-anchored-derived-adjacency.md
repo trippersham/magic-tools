@@ -428,6 +428,25 @@ fix *widens* coverage rather than being load-bearing for engine formation.
   Measured delta + the three moved SHAs: see ADR 0003 (R5d entry). Proof:
   `~/.claude/plans/trippersham/magic-tools/2026-11-17-concept-anchored-self-healing/subagents/r5d-promotions/outbox.md`.
 
+- **2026-11-18 — umbrella guard back-pressure: multi-mechanic SPAN signal (validator-only, P0 unchanged).**
+  The cross-mechanic umbrella check in `validate_seed_map` (guard 3) was a single-event RATIO
+  (`overlap / foreign_seed_count >= UMBRELLA_COVERAGE_MIN` 0.5). A ratio's denominator grows as a
+  *legitimate* seed set grows, so the SAME error silently slips under the bar once a side is enriched
+  (`ramp` fell to 45% of `land-enters` after R5d grew it 6→11). Added a second, denominator-robust
+  signal (3b): a seed is also flagged when its closure covers `>= UMBRELLA_SPAN_COVERAGE_MIN` (0.40) of
+  `>= UMBRELLA_SPAN_MIN_EVENTS` (2) distinct *disjoint* foreign events — a true umbrella spans TWO
+  unrelated mechanics (`ramp` = mana-produced 50% AND land-enters 45%), while a legitimate related-
+  mechanic parent concentrates in ONE event with a falling tail (`recursion` = creature-enters 41%,
+  then 23%, 18% — reanimation *is* recursion that makes a creature enter). Verified **0 false positives**
+  on the committed map. **Honest residue:** from a *small* home event a real umbrella shows a single
+  foreign `>=40%` (`ramp`-from-mana-produced = land-enters 45%) that is STRUCTURALLY identical to legit
+  `recursion` (creature-enters 41%) — no coverage threshold separates them, so that one direction is
+  left uncaught by design. The real back-pressure against silent blinding is the **canary test**
+  (`test_adjacency.py`: `test_ramp_as_seed_caught_by_validator` + `test_span_backpressure_*` +
+  `test_umbrella_span_has_no_false_positives_on_current_map`): a `ramp` data error is pinned caught,
+  the span signal is pinned firing, and the clean-map / recursion-not-flagged facts are pinned — so any
+  future drift fails LOUDLY instead of silently. P0 SHAs UNCHANGED (guard-only; no derived output moves).
+
 ## Related records
 - 0001 — one-named-rule doctrine; the Maximal-mechanic-exclusive-seed rule and rank-don't-cut are each one rule, one impl.
 - 0002 / 0020 — substantiveness + the `producer_anchor` gate this adjacency feeds; `ramp` stays anchor-side-only there, never in the adjacency.
