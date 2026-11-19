@@ -38,8 +38,16 @@ def _fixture_variant() -> dict:
         'notablePrerequisites': 'Card A must be untapped.',
         'manaNeeded': '{2}{U}',
         'produces': [
-            {'feature': {'name': 'Target opponent loses the game', 'status': 'R', 'uncountable': True}, 'quantity': 1},
-            {'feature': {'name': 'Infinite card draw', 'status': 'S', 'uncountable': True}, 'quantity': 1},
+            {
+                'feature': {
+                    'id': 63,
+                    'name': 'Target opponent loses the game',
+                    'status': 'R',
+                    'uncountable': True,
+                },
+                'quantity': 1,
+            },
+            {'feature': {'id': 24, 'name': 'Infinite card draw', 'status': 'S', 'uncountable': True}, 'quantity': 1},
         ],
         'uses': [
             {'card': {'name': 'Card A', 'oracleId': 'oid-a'}},
@@ -70,14 +78,33 @@ def test_project_carries_typed_produces_with_per_feature_win() -> None:
     combo = _combo_from_variant(_fixture_variant())
     assert combo is not None
     assert combo.produces == (
-        {'name': 'Target opponent loses the game', 'status': 'R', 'win': True},
-        {'name': 'Infinite card draw', 'status': 'S', 'win': False},
+        {'fid': 63, 'name': 'Target opponent loses the game', 'status': 'R', 'win': True},
+        {'fid': 24, 'name': 'Infinite card draw', 'status': 'S', 'win': False},
     )
     # The per-feature `win` uses the SAME predicate as the litmus, applied per feature name.
     assert [p['win'] for p in combo.produces] == [
         is_game_win_result('Target opponent loses the game'),
         is_game_win_result('Infinite card draw'),
     ]
+
+
+def test_project_carries_feature_id_as_fid() -> None:
+    """The Spellbook feature.id is kept as ``fid`` through the projection (Phase 2B prerequisite)."""
+    combo = _combo_from_variant(_fixture_variant())
+    assert combo is not None
+    assert all('fid' in p for p in combo.produces), 'every produce must carry fid'
+    assert [p['fid'] for p in combo.produces] == [63, 24]
+
+
+def test_project_fid_absent_when_raw_feature_has_no_id() -> None:
+    """When the raw feature has no ``id`` (legacy data), fid is 0 (sentinel)."""
+    variant = _fixture_variant()
+    # Strip feature.id from the first produce
+    del variant['produces'][0]['feature']['id']
+    combo = _combo_from_variant(variant)
+    assert combo is not None
+    assert combo.produces[0]['fid'] == 0  # sentinel for missing id
+    assert combo.produces[1]['fid'] == 24  # second feature still has its id
 
 
 def test_project_leaves_existing_fields_unchanged() -> None:
@@ -110,7 +137,7 @@ def test_materialize_load_roundtrip_preserves_widened_fields(data_dir: Path) -> 
     assert len(loaded) == 1
     got = loaded[0]
     # Every field survives the parquet round-trip byte-for-byte, including the
-    # STRUCT(name,status,win)[] produces with its per-feature `win` booleans.
+    # STRUCT(fid,name,status,win)[] produces with its per-feature `win` booleans.
     assert got.variant_id == projected.variant_id
     assert got.card_names == projected.card_names
     assert got.card_oracle_ids == projected.card_oracle_ids

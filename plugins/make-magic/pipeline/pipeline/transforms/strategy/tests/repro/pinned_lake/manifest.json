@@ -1,0 +1,52 @@
+{
+  "description": "Pinned-lake snapshot (Component 1) \u2014 authoritative reference every reproducibility leg copies into its isolated MAKE_MAGIC_DATA_DIR. Pins the coherent lake the re-baselined P0 SHAs are valid against.",
+  "pinned_at": "2026-11-18T11:55:16.629528",
+  "git_commit": "327e57af1d068c0c56ef78bbfbb38e1512cf82da",
+  "git_branch": "feat/strategy-engine",
+  "pinned_composites": {
+    "ENGINE": "4d3f5e6d9d8ed142f50e241940de58c5b92aad5b30629b9b81d2d5a73c3131e3",
+    "RESOLVE": "940c38811193b6f4ca9ab2b2b20e2df63e70bc1f4ba8911f7486c0a1a11c8814",
+    "FULL_CORPUS": "ec917355dd3eb2cfb8136fb0e078e83eee88950ce257fcedac79ea0a01307eff"
+  },
+  "extraction_reads": [
+    "raw/oracle_cards.parquet",
+    "normalized/card_otag.parquet",
+    "normalized/combo.parquet"
+  ],
+  "extraction_reads_note": "CORRECTED 2026-11-18 (adversarial verdict): the full-corpus extraction reads oracle_cards + card_otag + combo via the lake query path, AND derive_card_events reads raw/oracle_tags.parquet directly as the adjacency taxonomy (derive_card_events.py ~1222-1251). A lake WITHOUT oracle_tags silently falls back to the enumerated adjacency (a different algorithm; ADR-0022 warning fires - behaviorally verified). Any isolated data dir MUST seed all FOUR files in this manifest. The earlier claim that oracle_tags is unread was wrong; see verdict-report.md.",
+  "files": {
+    "raw/oracle_cards.parquet": {
+      "lake_rel_path": "raw/oracle_cards.parquet",
+      "bytes": 8895033,
+      "sha256": "829d7c86be45f0ff8f1a8ad188de43254ac9748acef25ac27ccfb70e9f25a66e",
+      "source_mtime": "2026-11-13T09:15:05.437079",
+      "read_by_extraction": true
+    },
+    "normalized/card_otag.parquet": {
+      "lake_rel_path": "normalized/card_otag.parquet",
+      "bytes": 1688740,
+      "sha256": "a51097a5f4a2ad53171ec30601a37d81ca4f55d4f6eed36790c4d5d9e755c0fc",
+      "source_mtime": "2026-11-18T11:28:35.910888",
+      "read_by_extraction": true,
+      "note": "Re-rolled from the coherent df31df7c raw tags (pipeline.transforms.otag_rollup); the coherent file FULL_CORPUS ec917355 reflects."
+    },
+    "normalized/combo.parquet": {
+      "lake_rel_path": "normalized/combo.parquet",
+      "bytes": 494279,
+      "sha256": "f020ac847dc4699d1cb082b5f6ee2ca04709ab787650b2328c26f9abac139460",
+      "source_mtime": "2026-11-13T09:15:07.032865",
+      "read_by_extraction": true,
+      "note": "The combo mart (combo.load_combos_from_lake). Fourth extraction-read file; not in implementation.md's '3 parquets'."
+    },
+    "raw/oracle_tags.parquet": {
+      "lake_rel_path": "raw/oracle_tags.parquet",
+      "bytes": 4394431,
+      "sha256": "9289959165d59b64a3b90f9ad182929aab10e874614a274317104ae394785858",
+      "source_mtime": "2026-11-18T11:48:32.952916",
+      "read_by_extraction": false,
+      "provenance_only": true,
+      "coherent_source_sha256": "df31df7ceaf4354a0ee5b9b15f5b897fd6b59a9902fa3df605f01833b71dfe3d",
+      "drift_note": "DRIFTED. card_otag (a51097a5) was rolled from oracle_tags df31df7c (bytes 4393150, mtime 2026-11-18T00:31:11), the coherent source. During the Phase-2 full pytest suite a test performed a LIVE Scryfall oracle_tags.sync() that overwrote raw/oracle_tags.parquet with the upstream 10:00 version (9289959165..., bytes 4394431, cursor 2026-11-18T10:00:37). df31df7c is no longer on the live disk and is unrecoverable from live. This copy is the current live (9289959), recorded for completeness; it is NOT the coherent source. FULL_CORPUS ec917355 is UNAFFECTED because extraction does not read oracle_tags. Upstream re-fetches tags live anyway; the pinned check must NOT rebuild card_otag from this file."
+    }
+  }
+}
