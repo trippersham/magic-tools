@@ -1,0 +1,286 @@
+---
+import '../styles/global.css';
+import '../styles/combo.css';
+import Card from '../components/Card.astro';
+import type { TaggedCard } from '../lib/types';
+import combos from '../data/combos.json';
+
+// ── Combo-graph data shapes (a thin local view of combos.json) ──────────────
+interface OutcomeType {
+  id: string;
+  label: string;
+  icon: string;
+  win: boolean;
+}
+interface RawNode {
+  id: string;
+  kind: 'card' | 'outcome';
+  name?: string;
+  image?: string | null;
+  labels?: string[];
+  degree?: number;
+  outcomeType?: string;
+}
+interface RawEdge {
+  source: string;
+  target: string;
+  kind: 'combo' | 'produces';
+  comboId?: string;
+}
+interface ComboDetail {
+  id: string;
+  cards: string[];
+  steps: string[];
+  prerequisites: string[];
+  produces: { name: string; status?: string; win?: boolean }[];
+  outcomeTypes: string[];
+  spellbookUrl: string;
+  triggerMechanic?: string | null;
+}
+interface EnablerDef {
+  name: string;
+  image: string | null;
+  labels: string[];
+  chainsLeft: boolean;
+}
+interface TriggerMechanic {
+  mechanic: string;
+  label: string;
+  sublabel?: string | null;
+  icon: string;
+  enablers: EnablerDef[];
+}
+interface TriggerNode {
+  id: string;
+  kind: 'trigger';
+  mechanic: string;
+  label: string;
+  sublabel?: string | null;
+  icon: string;
+}
+interface EnablerNode extends RawNode {
+  enablerOnly?: boolean;
+}
+interface Triggers {
+  mechanics: Record<string, TriggerMechanic>;
+  comboMechanic: Record<string, string | null>;
+  fauxEdge: Record<string, string[]>;
+}
+
+const data = combos as unknown as {
+  generated_for: string;
+  outcomeTypes: OutcomeType[];
+  nodes: RawNode[];
+  edges: RawEdge[];
+  combos: ComboDetail[];
+  triggers: Triggers;
+  triggerNodes: TriggerNode[];
+  enablerNodes: EnablerNode[];
+};
+
+const outcomeById = new Map(data.outcomeTypes.map((t) => [t.id, t]));
+const cardNodes = data.nodes.filter((n) => n.kind === 'card');
+const outcomeNodes = data.nodes.filter((n) => n.kind === 'outcome');
+
+// Hub sizing: scale a card tile by how many combos it touches (degree 1..6).
+// Peer into the Abyss (6) / Exquisite Blood (5) end up noticeably larger.
+const maxDegree = Math.max(1, ...cardNodes.map((n) => n.degree ?? 1));
+function hubScale(degree = 1): number {
+  return 1 + ((degree - 1) / 5) * 0.6; // 1× … 1.6×
+}
+
+// Minimal TaggedCard so Card.astro renders the tile (image + neutral border).
+function toTile(n: RawNode): TaggedCard {
+  return {
+    name: n.name ?? n.id,
+    qty: 1,
+    cmc: 0,
+    mana_cost: null,
+    type_line: '',
+    colors: [],
+    image_normal: n.image ?? null,
+    usd: null,
+    reason: null,
+    cut: null,
+    labels: n.labels ?? [],
+    membership: 'untouched',
+  };
+}
+
+// Legend: only the outcome tints actually present in this deck's graph.
+const presentOutcomeTypes = outcomeNodes
+  .map((n) => outcomeById.get(n.outcomeType ?? ''))
+  .filter((t): t is OutcomeType => Boolean(t));
+
+// Keep in sync with OUTCOME_COLORS in overview-client.ts.
+const OUTCOME_COLORS: Record<string, string> = {
+  drain: '#dc2626',
+  draw: '#3b82f6',
+  tokens: '#d4a017',
+  lifegain: '#ec4899',
+  mana: '#06b6d4',
+  damage: '#f97316',
+  other: '#a78bfa',
+};
+
+// Data handed to the client script for layout + edge drawing. The OVERVIEW graph
+// stays exactly the combo web (cards + outcomes); the trigger metadata rides
+// alongside so the FOCUS interaction can synthesize Layer 0 — it never enters the
+// overview force layout (which only reads nodes/edges).
+const graphData = {
+  nodes: data.nodes.map((n) => ({
+    id: n.id,
+    kind: n.kind,
+    name: n.name,
+    degree: n.degree,
+    outcomeType: n.outcomeType,
+  })),
+  edges: data.edges,
+  triggers: data.triggers,
+};
+
+// Enabler card tiles that aren't already combo-participant nodes need their own
+// TaggedCard tile (rendered hidden; only the focus view brings them on-screen).
+const enablerTiles = (data.enablerNodes ?? []).map((n) => ({
+  node: n,
+  tile: toTile(n),
+}));
+const triggerNodes = data.triggerNodes ?? [];
+
+// Detail-panel payload for the focus interaction (steps/prereqs/spellbook links).
+const detailData = {
+  combos: data.combos,
+  outcomeTypes: data.outcomeTypes,
+};
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Combo Web — {data.generated_for}</title>
+  </head>
+  <body class="combo-page min-h-screen bg-zinc-950 text-zinc-100 antialiased">
+    <header class="combo-header">
+      <div>
+        <h1>Combo Web</h1>
+        <p class="combo-sub">
+          {data.generated_for} — {cardNodes.length} combo pieces, {outcomeNodes.length} outcomes.
+          Card size reflects how many combos a piece touches.
+        </p>
+      </div>
+      <a class="combo-back" href="/">← Deck diff</a>
+    </header>
+
+    <div class="combo-legend" aria-label="Outcome legend">
+      {
+        presentOutcomeTypes.map((t) => (
+          <span class="legend-chip" style={`--outcome-color:${OUTCOME_COLORS[t.id] ?? OUTCOME_COLORS.other}`}>
+            <span class="legend-swatch" aria-hidden="true" />
+            <span>{t.icon} {t.label}</span>
+          </span>
+        ))
+      }
+    </div>
+
+    <button type="button" id="combo-reset" hidden aria-label="Back to overview">⤺ Overview</button>
+
+    <!-- Mobile focus column-pager: shift between DAG columns one at a time. -->
+    <div id="combo-pager" hidden>
+      <button type="button" id="combo-prev" aria-label="Previous column">‹</button>
+      <span id="combo-pager-ind" aria-live="polite">1 / 1</span>
+      <button type="button" id="combo-next" aria-label="Next column">›</button>
+    </div>
+
+    <div id="combo-stage">
+      <svg id="edge-layer" xmlns="http://www.w3.org/2000/svg"></svg>
+
+      {
+        cardNodes.map((n) => {
+          const degree = n.degree ?? 1;
+          return (
+            <div
+              class="graph-node card"
+              data-node-kind="card"
+              data-node-id={n.id}
+              data-degree={degree}
+              data-hub={degree >= Math.max(3, maxDegree - 1) ? 'true' : 'false'}
+              style={`--hub-scale:${hubScale(degree)}`}
+              title={`${n.name} — ${degree} combo${degree === 1 ? '' : 's'}`}
+            >
+              <Card card={toTile(n)} />
+            </div>
+          );
+        })
+      }
+
+      {
+        outcomeNodes.map((n) => {
+          const t = outcomeById.get(n.outcomeType ?? '');
+          const color = OUTCOME_COLORS[n.outcomeType ?? 'other'] ?? OUTCOME_COLORS.other;
+          return (
+            <div
+              class="graph-node outcome"
+              data-node-kind="outcome"
+              data-node-id={n.id}
+              data-outcome-type={n.outcomeType}
+            >
+              <span class="outcome-pill" style={`--outcome-color:${color}`}>
+                <span class="outcome-icon" aria-hidden="true">{t?.icon ?? '✨'}</span>
+                <span class="outcome-label">{t?.label ?? n.outcomeType}</span>
+              </span>
+            </div>
+          );
+        })
+      }
+
+      {/* TRUE LAYER 0 — trigger-mechanic capsules (left of the clicked card). Hidden
+          in the overview; the focus interaction reveals + positions them. */}
+      {
+        triggerNodes.map((n) => (
+          <div
+            class="graph-node trigger"
+            data-node-kind="trigger"
+            data-node-id={n.id}
+            data-layer0="true"
+            data-mechanic={n.mechanic}
+            style="opacity:0;pointer-events:none"
+          >
+            <span class="trigger-pill">
+              <span class="trigger-icon" aria-hidden="true">{n.icon}</span>
+              <span class="trigger-text">
+                <span class="trigger-tag">Trigger</span>
+                <span class="trigger-label">{n.label}</span>
+                {n.sublabel && <span class="trigger-sub">{n.sublabel}</span>}
+              </span>
+            </span>
+          </div>
+        ))
+      }
+
+      {/* Enabler card tiles (full flood) that aren't already combo-piece nodes.
+          Hidden in the overview; only Layer 0 of a focus brings them on-screen. */}
+      {
+        enablerTiles.map(({ node, tile }) => (
+          <div
+            class="graph-node card"
+            data-node-kind="card"
+            data-node-id={node.id}
+            data-degree={0}
+            data-hub="false"
+            data-layer0="true"
+            data-enabler="true"
+            style="--hub-scale:1;opacity:0;pointer-events:none"
+            title={`${node.name} — trigger enabler`}
+          >
+            <Card card={tile} />
+          </div>
+        ))
+      }
+    </div>
+
+    <script type="application/json" id="combo-graph-data" set:html={JSON.stringify(graphData)}></script>
+    <script type="application/json" id="combo-detail-data" set:html={JSON.stringify(detailData)}></script>
+    <script src="../scripts/combo/overview-client.ts"></script>
+  </body>
+</html>

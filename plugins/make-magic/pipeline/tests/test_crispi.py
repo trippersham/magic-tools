@@ -1586,11 +1586,22 @@ def test_score_populates_non_null_bracket():
     assert 1 <= result.bracket.bracket <= 5
 
 
+@pytest.mark.live
 def test_bracket_band_sanity_on_golden_decks():
     # Band sanity: score the golden decks (read-only from the canonical store, via
     # the same lake-backed bridge the harness uses) and assert their brackets are
     # SANE — a ~CRISPI-4-5 deck lands B2-B3, none is absurdly B5. Skips cleanly when
     # the store isn't present (CI without the local data dir).
+    #
+    # MARKED ``live``: this reads the REAL local canonical store (unset
+    # MAKE_MAGIC_DATA_DIR -> ~/.local/share/make-magic) and its scoring bridge
+    # (deck_factsheet._load_card_otag -> oracle_tags.sync) self-refreshes the otag
+    # lake from live Scryfall. In the default (offline) suite that live sync would
+    # fetch the daily oracle-tags file and OVERWRITE raw/oracle_tags.parquet +
+    # raw/_cursors.json in the real lake — a non-hermetic, lake-mutating side
+    # effect. Deselected by default; run with ``-m live``. The hermetic bracket /
+    # scoring-bridge behaviour is covered offline (see test_crispi synthetic
+    # bracket tests + tests/test_sources_pullers.py::test_scoring_bridge_* ).
     import os
     import sys as _sys
     from pathlib import Path as _Path

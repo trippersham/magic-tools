@@ -1,0 +1,14 @@
+{
+  "deck": [
+    { "name": "Sanguine Bond", "image_normal": "https://fixture.test/sanguine-bond.jpg", "labels": ["Drain payoff"] },
+    { "name": "Exquisite Blood", "image_normal": "https://fixture.test/exquisite-blood.jpg", "labels": ["Drain payoff"] },
+    { "name": "Vito, Thorn of the Dusk Rose", "image_normal": "https://fixture.test/vito.jpg", "labels": ["Drain payoff"] },
+    { "name": "Soul Warden", "image_normal": "https://fixture.test/soul-warden.jpg", "labels": ["Lifegain enabler"] },
+    { "name": "Alhammarret's Archive", "image_normal": "https://fixture.test/archive.jpg", "labels": ["Draw doubler"] },
+    { "name": "Queza, Augur of Agonies", "image_normal": "https://fixture.test/queza.jpg", "labels": ["Draw → drain"] },
+    { "name": "Children of Korlis", "image_normal": "https://fixture.test/children.jpg", "labels": ["Life reset"] },
+    { "name": "Peer into the Abyss", "image_normal": "https://fixture.test/peer.jpg", "labels": ["Draw bomb"] }
+  ],
+  "adds": [],
+  "considerations": []
+}
