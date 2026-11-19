@@ -5,7 +5,7 @@ name: make-magic repro gate
 # property of the PROJECT (code + its committed pinned lake), not of a developer's
 # machine state. INFREQUENT by design — NOT on ordinary push/PR (that is ci.yml's
 # offline suite). Runs:
-#   * pinned (determinism): two fresh runs vs the committed pinned lake under a varied
+#   * pinned (reproducibility): two fresh runs vs the committed pinned lake under a varied
 #     PYTHONHASHSEED + CPU load -> identical ENGINE/RESOLVE/FULL_CORPUS composites +
 #     a zero-divergence semantic diff. Network-free; works from the in-repo fixture.
 #   * upstream (drift impact): ONE genuine live Scryfall oracle_tags fetch into a
@@ -36,7 +36,7 @@ defaults:
 
 jobs:
   repro:
-    name: pinned (determinism) + optional upstream (drift)
+    name: pinned (reproducibility) + optional upstream (drift)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
       - name: Sync dev dependencies
         run: uv sync --extra dev
 
-      - name: pinned — determinism (from the committed pinned lake, network-free)
+      - name: pinned — reproducibility (from the committed pinned lake, network-free)
         run: uv run --extra dev pytest -m 'repro and not live' -q -rs
 
       - name: upstream — drift impact (ONE live Scryfall fetch; opt-in only)

@@ -27,7 +27,7 @@ scheduling pressure, must produce:
 - a **zero-divergence** semantic diff (0/187 decks moved).
 
 PASS iff all three composites match across both runs and the pin, and the diff
-is empty. Any divergence is a **code non-determinism bug**; the verdict names the
+is empty. Any divergence is a **reproducibility failure**; the verdict names the
 layer and the likely cause (DuckDB scan order / hash seed / float formatting).
 There is no DuckDB thread knob in the strategy path (every `duckdb.connect` is
 `:memory:` with no `threads`/`PRAGMA`/`config=` — verified), so run2's scheduling

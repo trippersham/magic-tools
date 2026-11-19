@@ -10,7 +10,7 @@ local machine state:
   committed pinned lake, under a deliberately varied ``PYTHONHASHSEED`` + external
   scheduling pressure, must produce **identical** composite SHAs (ENGINE /
   RESOLVE / FULL_CORPUS) == the pinned manifest values AND a **zero-divergence**
-  semantic diff. Any divergence is a code-non-determinism bug.
+  semantic diff. Any divergence is a reproducibility failure.
 
 * **Upstream check.** A genuinely live Scryfall ``oracle_tags.sync`` into an
   isolated lake that keeps the pinned card bulk frozen, re-rolled into a fresh
@@ -494,7 +494,7 @@ def restore_fixture() -> None:
     """Restore the committed ``engine_isolation_baseline.json`` from git.
 
     The parity oracle rewrites this *repo* file (not the isolated lake). On the
-    pinned check the rewrite is byte-identical (a no-op checkout); if a determinism bug or
+    pinned check the rewrite is byte-identical (a no-op checkout); if a reproducibility break or
     genuine tag drift moves it, this still leaves the working tree clean so the
     harness never pollutes the repo. Best-effort (swallows git errors).
     """
@@ -528,7 +528,7 @@ def dump_composites(dump_path: Path) -> dict[str, str]:
 
 
 def check_pinned(out_dir: Path) -> dict:
-    """Pinned: determinism across two fresh runs on the pinned lake, varied seed + CPU load.
+    """Pinned: reproducibility across two fresh runs on the pinned lake, varied seed + CPU load.
 
     PASS iff run1 SHAs == run2 SHAs == pinned composites (all three) AND the
     semantic diff is zero-divergence.
@@ -583,13 +583,13 @@ def check_pinned(out_dir: Path) -> dict:
             if not (comp_a.get(key) == comp_b.get(key) == pinned.get(key)):
                 ra, rb, pp = comp_a.get(key, '?')[:12], comp_b.get(key, '?')[:12], pinned.get(key, '?')[:12]
                 reasons.append(
-                    f'{key} composite diverged (code-non-determinism: DuckDB scan order / hash seed / float): '
+                    f'{key} composite diverged (reproducibility break: DuckDB scan order / hash seed / float): '
                     f'runA={ra} runB={rb} pinned={pp}'
                 )
     if not diff_clean:
         reasons.append(
             f'semantic diff nonzero (exit {diff["exit_code"]}, {diff["decks_moved"]} decks moved, '
-            f'{diff["n_substantive"]} substantive) — a layer is non-deterministic'
+            f'{diff["n_substantive"]} substantive) — a layer is not reproducible'
         )
     if not primary_ok:
         reasons.append('primary lake MUTATED by the harness (integrity breach)')
