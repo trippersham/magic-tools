@@ -182,6 +182,7 @@ class TestBookkeepingVeto:
     (owner-ratified 2026-11-18).  ``typal-*`` stays authoritative for tribal
     detection in distill; this veto is the PRODUCER side only."""
 
+    @_skip_no_lake
     def test_no_candidate_is_bookkeeping_family(self) -> None:
         from pipeline.transforms.strategy.catalog_integrity import is_bookkeeping_family
         from pipeline.transforms.strategy.evaluate_event_candidates import (
@@ -196,6 +197,7 @@ class TestBookkeepingVeto:
             offenders = [c.otag for c in result.candidates if is_bookkeeping_family(c.otag)]
             assert not offenders, f'{event}: bookkeeping otag(s) admitted as producers: {offenders}'
 
+    @_skip_no_lake
     def test_bookkeeping_otags_are_recorded_as_skipped(self) -> None:
         """The skip is observable: the inflated creature-enters run records
         cycle-/typal- bookkeeping otags as bookkeeping_rejected, not as
@@ -307,9 +309,11 @@ class TestDecompositionEscalation:
         assert result.decomposition_ticket.coarse_otag == 'monarch-matters'
         assert result.candidates == (), 'the coarse otag must NOT be promoted as a producer'
 
+    @_skip_no_lake
     def test_clean_concept_yields_no_ticket(self) -> None:
         """A clean producer concept (no coarse anchor) emits no decomposition
-        ticket — escalation is for the role-impure case only."""
+        ticket — escalation is for the role-impure case only. (Lake-gated: a clean
+        concept falls through the coarse-anchor early-return to ``load_taxonomy``.)"""
         from pipeline.transforms.strategy.evaluate_event_candidates import (
             ConceptKind,
             ProducerConcept,
