@@ -1,4 +1,4 @@
-# Reproducibility gate (Leg A / Leg B)
+# Reproducibility gate (pinned + upstream)
 
 A standing, **infrequently-run** verification gate that proves the strategy
 engine's rich extraction — **attributes → events → eventeffects → strategies →
@@ -17,7 +17,7 @@ falls back away from).
 
 ## What it proves
 
-### Leg B — determinism
+### Pinned
 Two independent **fresh-subprocess** runs against the committed pinned lake,
 under a deliberately varied `PYTHONHASHSEED` (0 vs 4242) **and** external CPU
 scheduling pressure, must produce:
@@ -34,7 +34,7 @@ There is no DuckDB thread knob in the strategy path (every `duckdb.connect` is
 variation is applied externally via portable, self-terminating CPU burners
 (best-effort).
 
-### Leg A — drift impact
+### Upstream
 One **genuinely live** Scryfall `oracle_tags.sync` into an isolated lake that
 keeps the pinned 39,288-card bulk **frozen** and refetches **only** the
 oracle-tags, re-rolls `card_otag`, extracts, and diffs against the pinned
@@ -58,7 +58,7 @@ N/187 decks moved, M substantive, card-universe bucket = 0
   breach. Drift is *expected*; the verdict is the benign-vs-substantive judgment,
   not diff-is-empty.
 
-Leg A never runs the parity oracle (which rewrites the repo fixture — genuine
+Upstream never runs the parity oracle (which rewrites the repo fixture — genuine
 drift would dirty the tree); its composites come from the dump's own
 `meta.composites`, and fixture-layer drift surfaces as `fixture::` decks in the
 diff. The harness also restores the fixture and SHA-checks the primary lake
@@ -66,12 +66,12 @@ before/after, so a run never mutates the repo or `~/.local/share/make-magic`.
 
 ## When to run
 
-- **pre-release** (the CI workflow's `v*` tag trigger, Leg B; Leg A is opt-in);
+- **pre-release** (the CI workflow's `v*` tag trigger, pinned; upstream is opt-in);
 - after a **major refactor** to extraction / adjacency derivation / hydration;
 - after an **intentional re-baseline** (then re-pin — see below).
 
 Not on ordinary push/PR — that is `ci.yml`'s offline suite. The default
-`pytest` runs **neither** leg (deselected via the `repro` marker) and makes zero
+`pytest` runs **neither** check (deselected via the `repro` marker) and makes zero
 network calls.
 
 ## How to run
@@ -79,22 +79,22 @@ network calls.
 ```bash
 cd plugins/make-magic/pipeline
 
-# Leg B only (network-free; works from the committed fixture, no primary lake):
+# pinned only (network-free; works from the committed fixture, no primary lake):
 uv run --extra dev pytest -m repro -q -rs
-#   -> Leg B PASSES; Leg A skips-with-notice (needs the opt-in below)
+#   -> pinned PASSES; upstream skips-with-notice (needs the opt-in below)
 
-# Both legs (ONE live Scryfall fetch):
+# Both checks (ONE live Scryfall fetch):
 MAKE_MAGIC_REPRO_ALLOW_LIVE=1 uv run --extra dev pytest -m repro -q -rs
 
 # Or drive the harness CLI directly (durable artifacts + verdict.json/md in --out):
-uv run python -m pipeline.transforms.strategy.tests.repro.harness legb --out /tmp/repro
-uv run python -m pipeline.transforms.strategy.tests.repro.harness lega --out /tmp/repro   # live
+uv run python -m pipeline.transforms.strategy.tests.repro.harness pinned --out /tmp/repro
+uv run python -m pipeline.transforms.strategy.tests.repro.harness upstream --out /tmp/repro   # live
 uv run python -m pipeline.transforms.strategy.tests.repro.harness all  --out /tmp/repro   # both
 ```
 
-`MAKE_MAGIC_REPRO_FETCH_LOG=<path>` steers the Leg A FETCH-* evidence log
+`MAKE_MAGIC_REPRO_FETCH_LOG=<path>` steers the upstream FETCH-* evidence log
 (default `<out>/fetch.log`). The CLI exits 0 on PASS, non-zero on FAIL, naming
-the failing leg; each run writes `verdict.json` (machine) + `verdict.md` (human).
+the failing check; each run writes `verdict.json` (machine) + `verdict.md` (human).
 
 ## Re-pin procedure (intentional re-baseline moves `FULL_CORPUS`)
 
@@ -137,6 +137,6 @@ Four content-addressed parquet files (lake-relative layout) + `manifest.json`:
 
 All four are required in any isolated lake: a lake **without**
 `raw/oracle_tags.parquet` silently falls back to the enumerated adjacency (a
-different algorithm, ADR 0022) — the harness fails the leg if that warning fires.
+different algorithm, ADR 0022) — the harness fails the check if that warning fires.
 The pinned composites are `ENGINE 4d3f5e6d…`, `RESOLVE 940c3881…`,
 `FULL_CORPUS ec917355…`.

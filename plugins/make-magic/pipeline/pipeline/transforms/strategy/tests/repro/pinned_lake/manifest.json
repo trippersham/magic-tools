@@ -46,7 +46,7 @@
       "read_by_extraction": false,
       "provenance_only": true,
       "coherent_source_sha256": "df31df7ceaf4354a0ee5b9b15f5b897fd6b59a9902fa3df605f01833b71dfe3d",
-      "drift_note": "DRIFTED. card_otag (a51097a5) was rolled from oracle_tags df31df7c (bytes 4393150, mtime 2026-11-18T00:31:11), the coherent source. During the Phase-2 full pytest suite a test performed a LIVE Scryfall oracle_tags.sync() that overwrote raw/oracle_tags.parquet with the upstream 10:00 version (9289959165..., bytes 4394431, cursor 2026-11-18T10:00:37). df31df7c is no longer on the live disk and is unrecoverable from live. This copy is the current live (9289959), recorded for completeness; it is NOT the coherent source. FULL_CORPUS ec917355 is UNAFFECTED because extraction does not read oracle_tags. Leg A re-fetches tags live anyway; Leg B must NOT rebuild card_otag from this file."
+      "drift_note": "DRIFTED. card_otag (a51097a5) was rolled from oracle_tags df31df7c (bytes 4393150, mtime 2026-11-18T00:31:11), the coherent source. During the Phase-2 full pytest suite a test performed a LIVE Scryfall oracle_tags.sync() that overwrote raw/oracle_tags.parquet with the upstream 10:00 version (9289959165..., bytes 4394431, cursor 2026-11-18T10:00:37). df31df7c is no longer on the live disk and is unrecoverable from live. This copy is the current live (9289959), recorded for completeness; it is NOT the coherent source. FULL_CORPUS ec917355 is UNAFFECTED because extraction does not read oracle_tags. Upstream re-fetches tags live anyway; the pinned check must NOT rebuild card_otag from this file."
     }
   }
 }

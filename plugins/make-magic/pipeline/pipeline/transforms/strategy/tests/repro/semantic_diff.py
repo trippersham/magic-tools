@@ -8,7 +8,7 @@ every divergence into one of three buckets:
   *normalization gap* in the instrument and is listed explicitly as such.
 * **substantive** — an engine gained/lost or its mass/producers/consumers
   changed; an attribute appeared/disappeared; a strategy/archetype key changed;
-  an eventeffect edge changed; any strategies-layer field flip.
+  an eventeffect edge changed; any archetype_identity-layer field flip.
 * **card-universe-change** — divergence attributable to the card pool moving
   (``pool`` sets differ for a deck, or a deck appears/disappears). Under a
   tags-only comparison this bucket MUST be empty; a non-empty bucket is an
@@ -95,7 +95,7 @@ def _canon_layer(layer: str, v: Any) -> Any:
         }
     if layer == 'pool':
         return _sorted_outer(v)  # outer order benign; [name, oid] positions fixed
-    # strategies (and any scalar layer): round floats, never reorder ranked rows.
+    # archetype_identity (and any scalar layer): round floats, never reorder ranked rows.
     return _round(v)
 
 

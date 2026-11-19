@@ -111,8 +111,8 @@ def test_build_record_layers_and_normalization() -> None:
         },
     }
 
-    # strategies: the nine named fields; floats rounded to 6dp
-    strat = record['strategies']
+    # archetype_identity: the nine named fields; floats rounded to 6dp
+    strat = record['archetype_identity']
     assert strat['archetype_identity'] == [{'strategy': 'aggro', 'weighted_quantity': 10.123457, 'share': 0.5}]
     assert strat['ranked_identity'] == [['aggro', 10.1, True], ['control', 5.0, False]]
     assert strat['combo_identity'] is None
@@ -132,8 +132,8 @@ def test_headline_from_combo_override() -> None:
     rec['combo_override_applied'] = True
     rec['combo_identity'] = 'infinite combo [A+B]'
     record = dump.build_record(_synthetic_deck(), rec)
-    assert record['strategies']['headline'] == 'alt-wincon/combo'
-    assert record['strategies']['combo_identity'] == 'infinite combo [A+B]'
+    assert record['archetype_identity']['headline'] == 'alt-wincon/combo'
+    assert record['archetype_identity']['combo_identity'] == 'infinite combo [A+B]'
 
 
 def test_build_record_is_pure() -> None:
@@ -223,11 +223,11 @@ def test_substantive_engine_mass_changed() -> None:
 def test_substantive_strategy_field_flip() -> None:
     a = _dump_of(_record())
     b_rec = _record()
-    b_rec['strategies']['confidence'] = 'MED'
+    b_rec['archetype_identity']['confidence'] = 'MED'
     b = _dump_of(b_rec)
     diff = sd.diff_dumps(a, b)
     assert sd.exit_code(diff) == 2
-    assert diff['counts']['strategies']['substantive'] == 1
+    assert diff['counts']['archetype_identity']['substantive'] == 1
 
 
 def test_substantive_eventeffect_edge_changed() -> None:
@@ -263,7 +263,7 @@ def test_card_universe_deck_appears() -> None:
 def test_precedence_card_universe_over_substantive() -> None:
     a = _dump_of(_record())
     b_rec = _record()
-    b_rec['strategies']['confidence'] = 'LOW'  # substantive
+    b_rec['archetype_identity']['confidence'] = 'LOW'  # substantive
     b_rec['pool'] = [['Z', '9']]  # card-universe
     b = _dump_of(b_rec)
     diff = sd.diff_dumps(a, b)
@@ -273,7 +273,7 @@ def test_precedence_card_universe_over_substantive() -> None:
 def test_report_renders_markdown() -> None:
     a = _dump_of(_record())
     b_rec = _record()
-    b_rec['strategies']['confidence'] = 'MED'
+    b_rec['archetype_identity']['confidence'] = 'MED'
     b = _dump_of(b_rec)
     diff = sd.diff_dumps(a, b)
     report = sd.render_report(diff)

@@ -16,11 +16,11 @@ Layers (field-source map, verified against ``resolve.py`` / ``strategy_graph.py`
   ``triggers`` membership (``consumers``).
 * ``eventeffects`` — ``...['engine_units']['forward_chains']``: event→event edges
   (feeder_event → fed_event).
-* ``strategies``   — the naming-layer fields merged onto the record:
-  ``archetype_identity`` (ranked {strategy, weighted_quantity, share}),
-  ``ranked_identity``, ``combo_identity``, ``headline`` (derived via
-  ``naming.headline_strategy``), ``pre_combo_name``, ``confidence``, ``bracket``,
-  ``n_win_combos``, ``n_detected_combos``.
+* ``archetype_identity`` — the compatibility/naming projection merged onto the
+  record (NOT the strategy graph itself): ``archetype_identity`` (ranked
+  {strategy, weighted_quantity, share}), ``ranked_identity``, ``combo_identity``,
+  ``headline`` (derived via ``naming.headline_strategy``), ``pre_combo_name``,
+  ``confidence``, ``bracket``, ``n_win_combos``, ``n_detected_combos``.
 * ``engines``      — the ELECTED ``...['engine_units']['ranked_units']`` (what
   "a deck gained/lost an engine" means), keyed by event, each enriched with
   ``producers``/``consumers``/``kind`` joined from the complete ``engines`` list
@@ -57,7 +57,7 @@ from typing import Any
 from pipeline.transforms.strategy.naming import headline_strategy
 
 #: The five engine layers + the input card pool, in dump order.
-LAYERS: tuple[str, ...] = ('attributes', 'events', 'eventeffects', 'strategies', 'engines', 'pool')
+LAYERS: tuple[str, ...] = ('attributes', 'events', 'eventeffects', 'archetype_identity', 'engines', 'pool')
 
 #: Frozen clock used by ``--frozen-meta`` so two runs are byte-identical.
 _FROZEN_CLOCK = '1970-01-01T00:00:00+00:00'
@@ -119,7 +119,7 @@ def _engines_layer(rec: dict) -> dict[str, dict[str, Any]]:
     return out
 
 
-def _strategies_layer(rec: dict) -> dict[str, Any]:
+def _archetype_identity_layer(rec: dict) -> dict[str, Any]:
     ai = [
         {
             'strategy': d['strategy'],
@@ -155,7 +155,7 @@ def build_record(deck: dict, rec: dict) -> dict:
         'attributes': _attributes_layer(rec),
         'events': _events_layer(rec),
         'eventeffects': _eventeffects_layer(rec),
-        'strategies': _strategies_layer(rec),
+        'archetype_identity': _archetype_identity_layer(rec),
         'engines': _engines_layer(rec),
         'pool': _pool_layer(deck),
     }

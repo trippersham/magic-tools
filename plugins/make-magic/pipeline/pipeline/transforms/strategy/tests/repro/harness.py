@@ -1,18 +1,18 @@
-"""Standing reproducibility gate — Leg A / Leg B harness (library + CLI).
+"""Standing reproducibility gate — pinned / upstream harness (library + CLI).
 
-Promotes the proven two-leg reproducibility procedure into a repeatable,
+Promotes the proven two-check reproducibility procedure into a repeatable,
 *infrequently-run* verification gate. It proves the rich strategy-engine
 extraction (attributes -> events -> eventeffects -> strategies -> engines) is a
 property of the *project* (code + its declared inputs), not of a developer's
 local machine state:
 
-* **Leg B (determinism, ADR 0003/0022).** Two independent fresh runs against the
+* **Pinned check (ADR 0003/0022).** Two independent fresh runs against the
   committed pinned lake, under a deliberately varied ``PYTHONHASHSEED`` + external
   scheduling pressure, must produce **identical** composite SHAs (ENGINE /
   RESOLVE / FULL_CORPUS) == the pinned manifest values AND a **zero-divergence**
   semantic diff. Any divergence is a code-non-determinism bug.
 
-* **Leg A (drift impact).** A genuinely live Scryfall ``oracle_tags.sync`` into an
+* **Upstream check.** A genuinely live Scryfall ``oracle_tags.sync`` into an
   isolated lake that keeps the pinned card bulk frozen, re-rolled into a fresh
   ``card_otag``, then extracted and diffed against the pinned reference. Quantifies
   how much real upstream tag drift perturbs the rich outputs. The card-universe
@@ -29,7 +29,7 @@ Design doctrine this honors:
   run on a fixture that does not match the manifest.
 * ``build.run()`` / ``hydrate-lake`` are **never** called (they hardcode the
   primary ``~/.local/share/make-magic`` store). The only builder invoked is
-  ``pipeline.transforms.otag_rollup`` (Leg A), and only inside the isolated dir.
+  ``pipeline.transforms.otag_rollup`` (upstream), and only inside the isolated dir.
 * The ADR-0022 enumerated-adjacency fallback (a *different* algorithm, fired when
   the lake lacks ``raw/oracle_tags.parquet``) **fails the leg** if its warning
   appears in any subprocess's output.
@@ -38,13 +38,13 @@ Design doctrine this honors:
 
 CLI::
 
-    python -m pipeline.transforms.strategy.tests.repro.harness legb --out <dir>
-    python -m pipeline.transforms.strategy.tests.repro.harness lega --out <dir>   # live fetch
-    python -m pipeline.transforms.strategy.tests.repro.harness all  --out <dir>   # legb then lega
+    python -m pipeline.transforms.strategy.tests.repro.harness pinned --out <dir>
+    python -m pipeline.transforms.strategy.tests.repro.harness upstream --out <dir>   # live fetch
+    python -m pipeline.transforms.strategy.tests.repro.harness all  --out <dir>   # pinned then upstream
     python -m pipeline.transforms.strategy.tests.repro.harness repin --from <lake>  # re-pin fixture
 
 Each run writes ``verdict.json`` (machine) + ``verdict.md`` (human) to ``--out``;
-exit 0 on PASS, non-zero on FAIL (naming the failing leg).
+exit 0 on PASS, non-zero on FAIL (naming the failing check).
 """
 
 from __future__ import annotations
@@ -80,15 +80,15 @@ SEED_FILES: tuple[str, ...] = (
     'normalized/combo.parquet',
 )
 
-#: Leg A freezes the card bulk + combo mart and refetches tags live, so it seeds
+#: Upstream freezes the card bulk + combo mart and refetches tags live, so it seeds
 #: ONLY these two (no tags, no cursor, no card_otag) before the live sync.
-LEG_A_SEED: tuple[str, ...] = ('raw/oracle_cards.parquet', 'normalized/combo.parquet')
+UPSTREAM_SEED: tuple[str, ...] = ('raw/oracle_cards.parquet', 'normalized/combo.parquet')
 
 #: Substring that marks the ADR-0022 enumerated-adjacency fallback warning
 #: (emitted by both ``assets.load_assets`` and ``engine_hydration._load_events``).
 FALLBACK_SIGNATURE = 'enumerated event adjacency'
 
-#: Leg-A liveness floor: the bundled offline snapshot carries ~4,499 tags, so a
+#: Upstream liveness floor: the bundled offline snapshot carries ~4,499 tags, so a
 #: genuine live fetch must exceed it comfortably (fail-open yields the snapshot).
 MIN_LIVE_TAGS = 4600
 
@@ -326,7 +326,7 @@ def run_diff(a: Path, b: Path, report: Path | None = None, json_out: Path | None
 
 
 # --------------------------------------------------------------------------- #
-# CPU-load variation for Leg B run2 (best-effort, portable, self-terminating)
+# CPU-load variation for the pinned check's run2 (best-effort, portable, self-terminating)
 # --------------------------------------------------------------------------- #
 
 
@@ -364,7 +364,7 @@ def _stop_burners(burners: list[subprocess.Popen]) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Live oracle_tags fetch (Leg A) — ONE sync, structured evidence log
+# Live oracle_tags fetch (upstream) — ONE sync, structured evidence log
 # --------------------------------------------------------------------------- #
 
 
@@ -493,8 +493,8 @@ def repo_tree_dirty_paths() -> list[str]:
 def restore_fixture() -> None:
     """Restore the committed ``engine_isolation_baseline.json`` from git.
 
-    The parity oracle rewrites this *repo* file (not the isolated lake). On Leg B
-    the rewrite is byte-identical (a no-op checkout); if a determinism bug or
+    The parity oracle rewrites this *repo* file (not the isolated lake). On the
+    pinned check the rewrite is byte-identical (a no-op checkout); if a determinism bug or
     genuine tag drift moves it, this still leaves the working tree clean so the
     harness never pollutes the repo. Best-effort (swallows git errors).
     """
@@ -511,8 +511,8 @@ def dump_composites(dump_path: Path) -> dict[str, str]:
 
     These are computed by ``semantic_dump`` over the SAME records it serializes,
     and (on a full corpus) are byte-equal to the parity oracle's composites — so
-    Leg A reads them here instead of running the oracle, which would write to the
-    repo fixture (drift would dirty the tree).
+    Upstream reads them here instead of running the oracle, which would write to the
+    repo fixture (genuine tag drift would dirty the tree).
     """
     comp = json.loads(dump_path.read_text())['meta']['composites']
     return {
@@ -527,8 +527,8 @@ def dump_composites(dump_path: Path) -> dict[str, str]:
 # --------------------------------------------------------------------------- #
 
 
-def leg_b(out_dir: Path) -> dict:
-    """Determinism: two fresh runs, pinned lake, varied seed + CPU load.
+def check_pinned(out_dir: Path) -> dict:
+    """Pinned: determinism across two fresh runs on the pinned lake, varied seed + CPU load.
 
     PASS iff run1 SHAs == run2 SHAs == pinned composites (all three) AND the
     semantic diff is zero-divergence.
@@ -538,7 +538,7 @@ def leg_b(out_dir: Path) -> dict:
     primary_before = primary_lake_shas()
     pinned = pinned_composites()
 
-    tmp = Path(tempfile.mkdtemp(prefix='repro-legb-'))
+    tmp = Path(tempfile.mkdtemp(prefix='repro-pinned-'))
     lake_a = tmp / 'lake-runA'
     lake_b = tmp / 'lake-runB'
     dump_a = out_dir / 'runA-dump.json'
@@ -597,8 +597,8 @@ def leg_b(out_dir: Path) -> dict:
         reasons.append(f'{FIXTURE_REWRITTEN} not rewritten byte-identically (held fixture moved)')
 
     return {
-        'leg': 'B',
-        'name': 'determinism',
+        'leg': 'pinned',
+        'name': 'pinned',
         'pass': passed,
         'verdict': 'PASS' if passed else 'FAIL',
         'reasons': reasons,
@@ -614,8 +614,8 @@ def leg_b(out_dir: Path) -> dict:
     }
 
 
-def leg_a(out_dir: Path, *, reference_dump: Path | None = None, fetch_log: Path | None = None) -> dict:
-    """Drift impact: live tags into a frozen-bulk lake, diffed vs the pinned reference.
+def check_upstream(out_dir: Path, *, reference_dump: Path | None = None, fetch_log: Path | None = None) -> dict:
+    """Upstream: drift impact of live tags into a frozen-bulk lake, diffed vs the pinned reference.
 
     PASS iff the fetch is genuine-live, the card-universe bucket is empty (else
     INVALID — isolation breach), and there are zero substantive divergences.
@@ -629,20 +629,21 @@ def leg_a(out_dir: Path, *, reference_dump: Path | None = None, fetch_log: Path 
     if fetch_log is None:
         fetch_log = out_dir / 'fetch.log'
 
-    tmp = Path(tempfile.mkdtemp(prefix='repro-lega-'))
-    lake = tmp / 'lake-legA'
+    tmp = Path(tempfile.mkdtemp(prefix='repro-upstream-'))
+    lake = tmp / 'lake-upstream'
     ref_lake = tmp / 'lake-ref'
-    dump_lega = out_dir / 'legA-dump.json'
+    dump_upstream = out_dir / 'upstream-dump.json'
     try:
-        # Reference dump: if not supplied (e.g. `all` passes Leg B's run1), build
-        # one from the full pinned 4-file seed so Leg A has a pinned baseline.
+        # Reference dump: if not supplied (e.g. `all` passes the pinned check's
+        # run1), build one from the full pinned 4-file seed so upstream has a
+        # pinned baseline.
         if reference_dump is None:
             seed_lake(ref_lake, SEED_FILES)
             reference_dump = out_dir / 'pinned-ref-dump.json'
             run_dump(ref_lake, reference_dump, '0')
 
         # Frozen bulk only: no tags, no cursor, no card_otag.
-        seed_lake(lake, LEG_A_SEED)
+        seed_lake(lake, UPSTREAM_SEED)
         fetch = fetch_live_tags(lake, fetch_log)
         card_otag_sha = None
         card_otag_counts: dict[str, int] = {}
@@ -653,14 +654,16 @@ def leg_a(out_dir: Path, *, reference_dump: Path | None = None, fetch_log: Path 
             card_otag_parquet = lake / 'normalized' / 'card_otag.parquet'
             card_otag_sha = sha256_file(card_otag_parquet)
             card_otag_counts = _card_otag_counts(card_otag_parquet)
-            # NB: Leg A does NOT run the parity oracle — the oracle writes the repo
+            # NB: upstream does NOT run the parity oracle — the oracle writes the repo
             # fixture (engine_isolation_baseline.json), which genuine tag drift would
             # legitimately move, dirtying the tree. Composites come from the dump's
             # own meta (same records, byte-equal to the oracle on a full corpus); the
             # fixture-layer drift surfaces properly as fixture:: decks in the diff.
-            run_dump(lake, dump_lega, '0')
-            comp = dump_composites(dump_lega)
-            diff = run_diff(reference_dump, dump_lega, out_dir / 'legA-vs-pinned.md', out_dir / 'legA-vs-pinned.json')
+            run_dump(lake, dump_upstream, '0')
+            comp = dump_composites(dump_upstream)
+            diff = run_diff(
+                reference_dump, dump_upstream, out_dir / 'upstream-vs-pinned.md', out_dir / 'upstream-vs-pinned.json'
+            )
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
         restore_fixture()  # belt-and-suspenders: never leave the repo dirty
@@ -685,22 +688,22 @@ def leg_a(out_dir: Path, *, reference_dump: Path | None = None, fetch_log: Path 
         verdict = 'SUBSTANTIVE-REVIEW'
         reasons.append(
             f'{diff["n_substantive"]} substantive divergence(s) across {diff["decks_moved"]} deck(s) — '
-            f'needs human adjudication (benign-by-judgment / improvement / regression). See legA-vs-pinned.md.'
+            f'needs human adjudication (benign-by-judgment / improvement / regression). See upstream-vs-pinned.md.'
         )
     else:
         verdict = 'PASS'
 
     composites_match = bool(comp) and comp == pinned
     return {
-        'leg': 'A',
-        'name': 'drift-impact',
+        'leg': 'upstream',
+        'name': 'upstream',
         'pass': verdict == 'PASS',
         'verdict': verdict,
         'reasons': reasons,
         'fetch': {k: fetch[k] for k in ('genuine', 'returncode', 'fetched_sha', 'tag_count', 'invalid_reasons')},
         'card_otag_rebuilt_sha': card_otag_sha,
         'card_otag_counts': card_otag_counts,
-        'composites_legA': comp,
+        'composites_upstream': comp,
         'composites_pinned': pinned,
         'composites_match_pinned': composites_match,
         'diff': {
@@ -712,7 +715,7 @@ def leg_a(out_dir: Path, *, reference_dump: Path | None = None, fetch_log: Path 
             f'{diff.get("n_substantive", "?")} substantive'
         ),
         'primary_lake_integrity': 'ok' if primary_ok else 'MUTATED',
-        'artifacts': {'legA_dump': str(dump_lega), 'fetch_log': str(fetch_log)},
+        'artifacts': {'upstream_dump': str(dump_upstream), 'fetch_log': str(fetch_log)},
     }
 
 
@@ -752,9 +755,9 @@ def write_verdicts(out_dir: Path, legs: list[dict]) -> bool:
 
     lines = ['# Reproducibility gate verdict', '', f'**Overall: {"PASS" if overall else "FAIL"}**', '']
     for leg in legs:
-        lines.append(f'## Leg {leg["leg"]} — {leg["name"]}: {leg["verdict"]}')
+        lines.append(f'## {leg["name"]} check — {leg["verdict"]}')
         lines.append('')
-        if leg['leg'] == 'B':
+        if leg['leg'] == 'pinned':
             lines.append('| composite | runA | runB | pinned | match |')
             lines.append('| --- | --- | --- | --- | --- |')
             for key in ('ENGINE', 'RESOLVE', 'FULL_CORPUS'):
@@ -868,14 +871,14 @@ def _default_out() -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description='Standing reproducibility gate (Leg A / Leg B).')
+    ap = argparse.ArgumentParser(description='Standing reproducibility gate (pinned + upstream).')
     sub = ap.add_subparsers(dest='cmd', required=True)
 
-    for name in ('legb', 'lega', 'all'):
+    for name in ('pinned', 'upstream', 'all'):
         p = sub.add_parser(name)
         p.add_argument('--out', type=Path, default=None, help='artifact dir (default: a fresh tmp dir)')
         p.add_argument(
-            '--fetch-log', type=Path, default=None, help='Leg A: append FETCH-* lines here (default <out>/fetch.log)'
+            '--fetch-log', type=Path, default=None, help='upstream: append FETCH-* lines here (default <out>/fetch.log)'
         )
 
     pre = sub.add_parser('repin', help='re-pin the fixture from a source lake (ADR 0003 re-baseline)')
@@ -903,21 +906,21 @@ def main(argv: list[str] | None = None) -> int:
     fetch_log = args.fetch_log or (out / 'fetch.log')
     legs: list[dict] = []
 
-    if args.cmd in ('legb', 'all'):
-        legs.append(leg_b(out))
-    if args.cmd in ('lega', 'all'):
+    if args.cmd in ('pinned', 'all'):
+        legs.append(check_pinned(out))
+    if args.cmd in ('upstream', 'all'):
         ref = (out / 'runA-dump.json') if args.cmd == 'all' else None
         ref = ref if (ref and ref.exists()) else None
-        legs.append(leg_a(out, reference_dump=ref, fetch_log=fetch_log))
+        legs.append(check_upstream(out, reference_dump=ref, fetch_log=fetch_log))
 
     overall = write_verdicts(out, legs)
     for leg in legs:
-        print(f'Leg {leg["leg"]} ({leg["name"]}): {leg["verdict"]}')
+        print(f'{leg["name"]} check: {leg["verdict"]}')
         for r in leg['reasons']:
             print(f'    - {r}')
     print(f'verdict -> {out}/verdict.json  (overall: {"PASS" if overall else "FAIL"})')
     if not overall:
-        failed = [f'Leg {leg["leg"]}' for leg in legs if not leg['pass']]
+        failed = [f'{leg["name"]} check' for leg in legs if not leg['pass']]
         print(f'FAIL: {", ".join(failed)}', file=sys.stderr)
         return 1
     return 0
