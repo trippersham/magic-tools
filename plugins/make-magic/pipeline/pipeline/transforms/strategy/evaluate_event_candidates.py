@@ -122,15 +122,21 @@ class ProducerConcept:
 #: discovery skips growing them (ratified-concepts-implementation.md §R5c).
 _FIXED_CONCEPTS: dict[str, ProducerConcept] = {
     'monarch': ProducerConcept(
-        'monarch', ('monarch-maker',), ConceptKind.FIXED_SYNTH,
+        'monarch',
+        ('monarch-maker',),
+        ConceptKind.FIXED_SYNTH,
         "authored synth attr `monarch-maker` (oracle:'become the monarch')",
     ),
     'domain': ProducerConcept(
-        'domain', ('color-fixing',), ConceptKind.FIXED_SYNTH,
+        'domain',
+        ('color-fixing',),
+        ConceptKind.FIXED_SYNTH,
         "authored synth attr `color-fixing` (oracle:'mana of any color' + rainbow-land etc.)",
     ),
     'permanent-dies': ProducerConcept(
-        'permanent-dies', ('dies-removal',), ConceptKind.FIXED_SYNTH,
+        'permanent-dies',
+        ('dies-removal',),
+        ConceptKind.FIXED_SYNTH,
         'authored subtractive synth attr `dies-removal` (otag:removal minus exile/-bounce/-tuck) + sacrifice family',
     ),
     'poisoned': ProducerConcept(
@@ -140,11 +146,15 @@ _FIXED_CONCEPTS: dict[str, ProducerConcept] = {
         'curated poison-giver union (bounded below the refused `poison-mechanics` parent)',
     ),
     'rad': ProducerConcept(
-        'rad', ('rad-counter',), ConceptKind.FIXED_SYNTH,
+        'rad',
+        ('rad-counter',),
+        ConceptKind.FIXED_SYNTH,
         'text-synth attr `rad-counter` (no otag — synthetic-inert)',
     ),
     'experience': ProducerConcept(
-        'experience', ('experience-counter',), ConceptKind.FIXED_SYNTH,
+        'experience',
+        ('experience-counter',),
+        ConceptKind.FIXED_SYNTH,
         "oracle-text synth attr `experience-counter` (oracle:'experience counter')",
     ),
 }
@@ -157,9 +167,17 @@ _GROWABLE_B_CONCEPTS: dict[str, ProducerConcept] = {
     'creature-enters-battlefield': ProducerConcept(
         'creature-enters-battlefield',
         (
-            'flicker', 'flicker-creature', 'multiple-bodies', 'reanimate-artifact-creature',
-            'reanimate-creature', 'reanimate-nonland', 'reanimate-permanent',
-            'repeatable-creature-tokens', 'sneak-creature', 'sneak-from-library', 'tokens',
+            'flicker',
+            'flicker-creature',
+            'multiple-bodies',
+            'reanimate-artifact-creature',
+            'reanimate-creature',
+            'reanimate-nonland',
+            'reanimate-permanent',
+            'repeatable-creature-tokens',
+            'sneak-creature',
+            'sneak-from-library',
+            'tokens',
         ),
         ConceptKind.GROWABLE,
         'creature onto battlefield: creature-token-gen + reanimate + flicker + onto-bf (sneak/cheat-into-play)',
@@ -179,10 +197,19 @@ _GROWABLE_B_CONCEPTS: dict[str, ProducerConcept] = {
     'token-created': ProducerConcept(
         'token-created',
         (
-            'artifacts', 'creates-bigger-body', 'leaves-body-behind', 'multiple-bodies',
-            'out-of-color-token', 'repeatable-artifact-tokens', 'repeatable-clues',
-            'repeatable-creature-tokens', 'repeatable-food', 'repeatable-noncreature-tokens',
-            'repeatable-token-generator', 'repeatable-treasures', 'tokens',
+            'artifacts',
+            'creates-bigger-body',
+            'leaves-body-behind',
+            'multiple-bodies',
+            'out-of-color-token',
+            'repeatable-artifact-tokens',
+            'repeatable-clues',
+            'repeatable-creature-tokens',
+            'repeatable-food',
+            'repeatable-noncreature-tokens',
+            'repeatable-token-generator',
+            'repeatable-treasures',
+            'tokens',
         ),
         ConceptKind.GROWABLE,
         'mints a token: repeatable-token-generator + death-to-token + off-color + chain',
@@ -216,7 +243,9 @@ def producer_concept(event: str) -> ProducerConcept:
     entry = SEED_MAP.get(event)
     anchors = tuple(entry['produced_by'].get('seeds', [])) if entry else ()
     return ProducerConcept(
-        event, anchors, ConceptKind.GROWABLE,
+        event,
+        anchors,
+        ConceptKind.GROWABLE,
         'default: concept == current produced_by seeds (class-a clean / frontier-confirmed)',
     )
 
@@ -943,8 +972,7 @@ def format_shadow_proposals_md(report: ShadowProposalsReport) -> str:
             lines.append(f'- vetoed payoff-family otags: {", ".join(f"`{x}`" for x in disc.role_rejected)}')
         if disc.bookkeeping_rejected:
             lines.append(
-                f'- skipped bookkeeping otags (not producers): '
-                f'{", ".join(f"`{x}`" for x in disc.bookkeeping_rejected)}'
+                f'- skipped bookkeeping otags (not producers): {", ".join(f"`{x}`" for x in disc.bookkeeping_rejected)}'
             )
         lines.append('')
 

@@ -406,7 +406,7 @@ SYNTH_ALWAYS_ATTRIBUTES: list[tuple[str, str]] = [
     (
         'monarch-maker',
         "oracle:'you become the monarch' OR "
-        "oracle:/(target.player|target.opponent|that.player|an.opponent|another.player).becomes.the.monarch/",
+        'oracle:/(target.player|target.opponent|that.player|an.opponent|another.player).becomes.the.monarch/',
     ),
     # Color-fixing producer (ADR 0024 domain state-event; #74; Batch B B2 extension
     # to the full basic/type-fixing family). No Scryfall otag is both mechanic-

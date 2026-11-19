@@ -128,8 +128,8 @@ class TestRoleConsistency:
         """BLOCKING: the frozen SEED_MAP seeds no payoff-family otag as a producer
         (the synergy-proliferate inversion class is clean, Tier-A fixed it)."""
         report = ci.validate_role_consistency()
-        assert report.payoff_producers == (), (
-            'payoff-family otag(s) seeded as producer:\n  ' + '\n  '.join(report.payoff_producers)
+        assert report.payoff_producers == (), 'payoff-family otag(s) seeded as producer:\n  ' + '\n  '.join(
+            report.payoff_producers
         )
 
     def test_role_ambiguity_is_advisory_only(self) -> None:

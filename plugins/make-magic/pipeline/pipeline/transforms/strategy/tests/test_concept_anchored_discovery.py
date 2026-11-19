@@ -238,9 +238,7 @@ class TestBookkeepingVeto:
         assert is_bookkeeping_family('no-planeswalker-type')
         # They are not prefixed by any of the four families, so the skip set is
         # what catches them (not the regex).
-        assert not any(
-            s.startswith(('cycle-', 'typal-', 'type-', 'unique-')) for s in BOOKKEEPING_EXTRA_SLUGS
-        )
+        assert not any(s.startswith(('cycle-', 'typal-', 'type-', 'unique-')) for s in BOOKKEEPING_EXTRA_SLUGS)
 
 
 # ---------------------------------------------------------------------------

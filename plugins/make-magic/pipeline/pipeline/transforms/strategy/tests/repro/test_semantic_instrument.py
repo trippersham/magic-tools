@@ -113,9 +113,7 @@ def test_build_record_layers_and_normalization() -> None:
 
     # strategies: the nine named fields; floats rounded to 6dp
     strat = record['strategies']
-    assert strat['archetype_identity'] == [
-        {'strategy': 'aggro', 'weighted_quantity': 10.123457, 'share': 0.5}
-    ]
+    assert strat['archetype_identity'] == [{'strategy': 'aggro', 'weighted_quantity': 10.123457, 'share': 0.5}]
     assert strat['ranked_identity'] == [['aggro', 10.1, True], ['control', 5.0, False]]
     assert strat['combo_identity'] is None
     assert strat['headline'] == 'aggro'

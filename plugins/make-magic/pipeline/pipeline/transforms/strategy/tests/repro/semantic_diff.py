@@ -238,10 +238,7 @@ def render_report(diff: dict) -> str:
     lines.append('')
     lines.append(f'**Verdict:** {verdict} (exit {code})')
     lines.append('')
-    lines.append(
-        f'- decks moved: **{diff["decks_moved"]} / {diff["total_decks"]}**'
-        f' ({diff["n_common"]} common)'
-    )
+    lines.append(f'- decks moved: **{diff["decks_moved"]} / {diff["total_decks"]}** ({diff["n_common"]} common)')
     lines.append(
         f'- totals: {len(diff["substantive_list"])} substantive · '
         f'{len(diff["benign_list"])} benign · {len(diff["card_universe_list"])} card-universe'

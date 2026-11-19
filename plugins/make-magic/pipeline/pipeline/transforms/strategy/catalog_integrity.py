@@ -282,9 +282,7 @@ _BOOKKEEPING_FAMILY_RE: tuple[re.Pattern[str], ...] = tuple(re.compile(p) for p 
 #:     updated" (an errata note about a past printing).
 #:   * ``no-planeswalker-type`` — planeswalker-identity trivia (a card that lacks
 #:     a planeswalker type), not a creature/permanent-entering producer.
-BOOKKEEPING_EXTRA_SLUGS: frozenset[str] = frozenset(
-    {'unprinted-token', 'token-errata', 'no-planeswalker-type'}
-)
+BOOKKEEPING_EXTRA_SLUGS: frozenset[str] = frozenset({'unprinted-token', 'token-errata', 'no-planeswalker-type'})
 
 
 def is_bookkeeping_family(slug: str) -> bool:
