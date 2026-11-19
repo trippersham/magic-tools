@@ -12,7 +12,29 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-11-19
+
+A **feature** release — under this project's pre-1.0 `0.y.z` convention the **minor**
+bump is the major/breaking increment. Ships the higher-order **Strategy / Engine
+classification engine**: a deck is resolved into the strategy graph and its engine,
+not just a flat archetype guess.
+
 ### Added
+
+- **Higher-order Strategy / Engine classification engine (Card → Strategy → Engine; ADR 0021).**
+  A deck resolves through a staged, deterministic pipeline — **derive** CardAttributes +
+  Events from Scryfall otags, **distill** the substantive strategy sub-graph, **determine**
+  substantiveness at every grain (attribute / event / archetype), **elect** the ranked engine
+  units by mass-centrality, and **synthesize** the engine. *Strategy* is the substantive
+  sub-graph and its ranked engine units; `archetype_identity` is a **compatibility projection**
+  into the shared community archetype vocabulary (validated against published precon themes —
+  12/12 recoverable, 0 misses), not the strategy itself. Built on the one-CardAttribute query
+  model (ADR 0009), concept-anchored event-candidate discovery with role-purity +
+  decomposition-escalation (ADR 0022), the wincon-as-event model (ADR 0024), grant-vs-use
+  event granularity (ADR 0025), and the naming doctrine (ADR 0023). Tier 1 is
+  byte-deterministic and network-free, SHA-pinned (ADR 0003); a standing **reproducibility
+  gate** (pinned + upstream legs, `pytest -m repro`) proves the extraction reproduces from the
+  lake and is robust to upstream otag drift.
 
 - **`collection deck-combos` returns the full combo line, not just a label.** Each detected
   combo now carries the ORDERED assembly `steps` (the Spellbook `description`, newline-split
