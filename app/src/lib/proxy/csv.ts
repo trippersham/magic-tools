@@ -140,19 +140,15 @@ export function toCsv(state: AppState): string {
   for (const card of state.cards) {
     for (const sel of card.selections) {
       const isBuy = sel.ppId === '';
-      let art: PpArt | undefined;
-
-      if (isBuy) {
-        // Buy row: find the sentinel art with ppId === ''
-        art = card.arts.find((a) => a.ppId === '');
-      } else {
-        art = card.arts.find((a) => a.ppId === sel.ppId);
-      }
+      // Scryfall-sourced art (printingproxies had no match): keep the Scryfall
+      // link but blank the PP ID/confidence — it's not orderable on pp.
+      const isScryfall = sel.ppId.startsWith('sf:');
+      const art = card.arts.find((a) => a.ppId === sel.ppId);
 
       const scryfallLink = art?.scryfallUri ?? '';
-      const ppId = sel.ppId;
+      const ppId = isBuy || isScryfall ? '' : sel.ppId;
       const confidence =
-        isBuy || art?.score == null
+        isBuy || isScryfall || art?.score == null
           ? ''
           : (art.score / 100).toFixed(3);
       const quantity = String(sel.quantity);

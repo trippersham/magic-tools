@@ -51,6 +51,7 @@ describe('identify', () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       'https://api.scryfall.com/cards/vma/323',
+      expect.objectContaining({ signal: expect.anything() }),
     );
     expect(result).toEqual({
       name: 'Underground Sea',
@@ -73,6 +74,7 @@ describe('identify', () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       'https://api.scryfall.com/cards/vma/3',
+      expect.objectContaining({ signal: expect.anything() }),
     );
     expect(result).toEqual({
       name: 'Timetwister',
@@ -100,6 +102,7 @@ describe('identify', () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       'https://api.scryfall.com/cards/search?q=Underground%20Sea&unique=cards',
+      expect.objectContaining({ signal: expect.anything() }),
     );
     expect(result).toEqual({
       name: 'Underground Sea',
@@ -194,6 +197,7 @@ describe('resolvePrinting', () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       'https://api.scryfall.com/cards/sf-uuid-1',
+      expect.objectContaining({ signal: expect.anything() }),
     );
     expect(result).toEqual({
       scryfallCid: 'vma/323',

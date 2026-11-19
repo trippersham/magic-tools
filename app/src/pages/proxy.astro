@@ -33,6 +33,18 @@ import '../styles/global.css';
         <!-- Actions -->
         <div class="flex items-center gap-2">
           <button
+            id="btn-expand-all"
+            class="rounded bg-zinc-700 hover:bg-zinc-600 border border-zinc-600 px-3 py-1.5 text-sm"
+          >
+            Expand all
+          </button>
+          <button
+            id="btn-collapse-all"
+            class="rounded bg-zinc-700 hover:bg-zinc-600 border border-zinc-600 px-3 py-1.5 text-sm"
+          >
+            Collapse all
+          </button>
+          <button
             id="btn-import"
             class="rounded bg-zinc-700 hover:bg-zinc-600 border border-zinc-600 px-3 py-1.5 text-sm"
           >
@@ -45,6 +57,12 @@ import '../styles/global.css';
             Export
           </button>
         </div>
+
+        <!-- Filter: show only remaining (unchosen) -->
+        <label class="flex items-center gap-1.5 text-sm text-zinc-300 cursor-pointer select-none" title="Hide cards that already have an art selected">
+          <input type="checkbox" id="filter-remaining" class="accent-emerald-500" />
+          Only remaining
+        </label>
 
         <!-- Counter + dirty dot -->
         <div class="flex items-center gap-2 text-sm text-zinc-400">

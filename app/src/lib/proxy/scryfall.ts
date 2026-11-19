@@ -48,6 +48,7 @@ export async function identify(
     await gate();
     const resp = await fetchImpl(
       `https://api.scryfall.com/cards/${classified.set}/${classified.cn}`,
+      { signal: AbortSignal.timeout(15000) },
     );
     if (!resp.ok) return { disambiguation: [] };
     const data = await resp.json();
@@ -62,6 +63,7 @@ export async function identify(
   await gate();
   const resp = await fetchImpl(
     `https://api.scryfall.com/cards/search?q=${encodeURIComponent(classified.text)}&unique=cards`,
+    { signal: AbortSignal.timeout(15000) },
   );
   if (!resp.ok) return { disambiguation: [] };
   const data = await resp.json();
@@ -90,6 +92,45 @@ export async function identify(
   };
 }
 
+export interface ScryfallPrinting {
+  scryfallId: string;
+  scryfallUri: string;
+  imageUrl: string;
+  setName: string;
+}
+
+/**
+ * Fallback art source when printingproxies has no match for a card name (common
+ * for named/flavor reprints and newer Universes Beyond cards). Returns every
+ * unique printing of the exact-named card from Scryfall, mapped for the art grid.
+ */
+export async function getPrintings(
+  name: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ScryfallPrinting[]> {
+  await gate();
+  const q = `!"${name}" game:paper unique:prints`;
+  const resp = await fetchImpl(
+    `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=released`,
+    { signal: AbortSignal.timeout(15000) },
+  );
+  if (!resp.ok) return [];
+  const data = await resp.json();
+  const out: ScryfallPrinting[] = [];
+  for (const c of data.data ?? []) {
+    const img =
+      c.image_uris?.normal ?? c.card_faces?.[0]?.image_uris?.normal ?? '';
+    if (!img) continue;
+    out.push({
+      scryfallId: c.id,
+      scryfallUri: `https://scryfall.com/card/${c.id}`,
+      imageUrl: img,
+      setName: c.set_name ?? '',
+    });
+  }
+  return out;
+}
+
 export async function resolvePrinting(
   scryfallId: string,
   fetchImpl: typeof fetch = fetch,
@@ -97,6 +138,7 @@ export async function resolvePrinting(
   await gate();
   const resp = await fetchImpl(
     `https://api.scryfall.com/cards/${scryfallId}`,
+    { signal: AbortSignal.timeout(15000) },
   );
   if (!resp.ok) return { scryfallCid: '', scryfallUri: '' };
   const data = await resp.json();

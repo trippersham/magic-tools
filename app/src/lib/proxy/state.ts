@@ -54,9 +54,12 @@ export function toggleSelection(
         selections: card.selections.filter((s) => s.ppId !== ppId),
       };
     }
+    // A newly-picked art defaults to the card's target quantity (so a "need 2"
+    // card auto-orders 2 of the chosen art); user can still adjust the stepper.
+    const qty = card.selections.length === 0 ? Math.max(1, card.targetQty || 1) : 1;
     return {
       ...card,
-      selections: [...card.selections, { ppId, quantity: 1 }],
+      selections: [...card.selections, { ppId, quantity: qty }],
     };
   });
 }
@@ -77,6 +80,11 @@ export function setQuantity(
   });
 }
 
+export function setTargetQty(state: AppState, localId: string, n: number): AppState {
+  const clamped = Math.max(1, Math.floor(n));
+  return mapCard(state, localId, (card) => ({ ...card, targetQty: clamped }));
+}
+
 export function setArts(
   state: AppState,
   localId: string,
@@ -88,6 +96,34 @@ export function setArts(
     arts,
     artsStatus: status,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Ordering
+// ---------------------------------------------------------------------------
+
+/**
+ * A card is "pp-backed" if any selection references a real printingproxies
+ * print — i.e. a ppId that is neither blank (a buy-only row) nor an `sf:`
+ * Scryfall fallback. These are the arts we can actually order from pp.
+ */
+export function hasPpArt(card: CardEntry): boolean {
+  return card.selections.some((s) => s.ppId !== '' && !s.ppId.startsWith('sf:'));
+}
+
+/**
+ * Stable partition that sinks Scryfall-only picks to the bottom: cards with an
+ * orderable pp art (and still-unchosen cards, which belong in the working area)
+ * stay on top; a card whose every selection is a Scryfall/blank row goes last.
+ * Relative order within each group is preserved.
+ */
+export function sortScryfallLast(cards: CardEntry[]): CardEntry[] {
+  const rank = (c: CardEntry): number =>
+    c.selections.length > 0 && !hasPpArt(c) ? 1 : 0;
+  return cards
+    .map((card, i) => ({ card, i }))
+    .sort((a, b) => rank(a.card) - rank(b.card) || a.i - b.i)
+    .map(({ card }) => card);
 }
 
 // ---------------------------------------------------------------------------
@@ -134,13 +170,22 @@ export function applyRestore(rows: RestoreRow[]): AppState {
   const cards: CardEntry[] = [];
   for (const [name, groupRows] of groups) {
     const selections: Selection[] = [];
-    // Synthesize a minimal PpArt per selection so a restore -> export BEFORE
-    // the row is lazily reloaded still carries the Scryfall link + confidence
-    // (and, for buy rows, the link) instead of blanking those CSV columns.
-    // On expand, setArts() replaces these with the full fetched art list.
     const arts: PpArt[] = [];
+    let blankTarget = 0; // target carried by a fully-blank (unchosen) row
     for (const r of groupRows) {
+      const hasPp = r.ppId !== '';
+      const hasLink = r.scryfallLink !== '';
+      if (!hasPp && !hasLink) {
+        // Fully-blank row = a card that has NO selection yet (in-progress export).
+        // Record its target quantity but add no selection, so it shows as "not
+        // chosen" and the user can still pick art on expand.
+        blankTarget = Math.max(blankTarget, r.quantity);
+        continue;
+      }
+      // A real pick (has PP ID) or a buy row (blank PP ID but has a link).
       selections.push({ ppId: r.ppId, quantity: r.quantity });
+      // Synthesize a minimal PpArt so a restore -> export before the row is lazily
+      // reloaded still carries the link + confidence. setArts() replaces these on expand.
       arts.push({
         ppId: r.ppId,
         setName: setCodeFromLink(r.scryfallLink),
@@ -151,6 +196,7 @@ export function applyRestore(rows: RestoreRow[]): AppState {
         stolenValor: 'none',
       });
     }
+    const selectedTotal = selections.reduce((n, s) => n + s.quantity, 0);
     cards.push({
       localId: `restore-${counter++}`,
       name,
@@ -158,11 +204,13 @@ export function applyRestore(rows: RestoreRow[]): AppState {
       arts,
       artsStatus: 'unloaded',
       selections,
-      collapsed: false,
+      collapsed: true, // start collapsed; expanding a row lazy-loads its art grid
+      // target = ordered copies (sum of selections) or, for an unchosen card, the blank row's qty
+      targetQty: Math.max(1, selectedTotal || blankTarget),
     });
   }
 
-  return { schemaVersion: 1, cards, lastExportSignature: null };
+  return { schemaVersion: 1, cards: sortScryfallLast(cards), lastExportSignature: null };
 }
 
 // ---------------------------------------------------------------------------

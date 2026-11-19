@@ -6,6 +6,43 @@ import type { AppState, CardEntry, PpArt } from './types';
 // Regression: restoring an exported CSV then re-exporting BEFORE lazily reloading
 // a row must preserve the Scryfall link + confidence (and buy-row link), not blank
 // them. applyRestore synthesizes minimal arts to carry those through.
+describe('Scryfall-fallback selection (sf: ppId)', () => {
+  it('exports a Scryfall link but blank PP ID + confidence (not pp-orderable)', () => {
+    const state: AppState = {
+      schemaVersion: 1,
+      lastExportSignature: null,
+      cards: [
+        {
+          localId: 'c1',
+          name: "T'Challa's Protection",
+          oracleId: '',
+          arts: [
+            {
+              ppId: 'sf:abc-123',
+              setName: "Marvel's Spider-Man",
+              score: null,
+              imageUrl: 'https://cards.scryfall.io/normal/x.jpg',
+              kind: 'official',
+              stolenValor: 'none',
+              scryfallId: 'abc-123',
+              scryfallUri: 'https://scryfall.com/card/abc-123',
+            },
+          ],
+          artsStatus: 'loaded',
+          selections: [{ ppId: 'sf:abc-123', quantity: 1 }],
+          collapsed: false,
+          targetQty: 1,
+        },
+      ],
+    };
+    const csv = toCsv(state);
+    const row = csv.split(/\r?\n/)[1];
+    // Card, Scryfall link (kept), PP ID (blank), PP confidence (blank), Quantity.
+    // (Apostrophes aren't CSV-special, so the name is not quoted.)
+    expect(row).toBe("T'Challa's Protection,https://scryfall.com/card/abc-123,,,1");
+  });
+});
+
 describe('restore -> export preserves link + confidence (no lazy reload)', () => {
   it('round-trips scryfall link + confidence + buy row through applyRestore', () => {
     const original =
@@ -49,6 +86,7 @@ function mkCard(overrides: Partial<CardEntry> = {}): CardEntry {
     artsStatus: 'loaded',
     selections: [{ ppId: 'art-1', quantity: 2 }],
     collapsed: false,
+    targetQty: 1,
     ...overrides,
   };
 }

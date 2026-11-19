@@ -31,7 +31,7 @@ describe('CORS-simple request shape', () => {
     });
     const mockResolve = vi.fn();
 
-    await getArts('123', mockFetch, { resolvePrinting: mockResolve });
+    await getArts('123', mockFetch);
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, init] = mockFetch.mock.calls[0];
@@ -60,7 +60,7 @@ describe('HTTP error handling', () => {
       json: async () => ({}),
     });
     await expect(
-      getArts('123', mockFetch, { resolvePrinting: vi.fn() }),
+      getArts('123', mockFetch),
     ).rejects.toThrow(/503/);
   });
 });
@@ -80,6 +80,33 @@ describe('searchCard', () => {
 
     const id = await searchCard('underground sea', mockFetch);
     expect(id).toBe('42');
+  });
+
+  it('rejects a fuzzy near-match (pp returns a different card)', async () => {
+    // pp search is fuzzy: querying "T'Challa's Protection" returns Teferi's.
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ cards: [{ id: '7', name: "Teferi's Protection" }] }),
+    });
+    expect(await searchCard("T'Challa's Protection", mockFetch)).toBeNull();
+  });
+
+  it('matches a double-faced card by its front face (pp lists "Front // Back")', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        cards: [{ id: '55', name: 'Primal Amulet // Primal Wellspring' }],
+      }),
+    });
+    expect(await searchCard('Primal Amulet', mockFetch)).toBe('55');
+  });
+
+  it('normalizes curly vs straight apostrophes', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ cards: [{ id: '8', name: "Jeska’s Will" }] }),
+    });
+    expect(await searchCard("Jeska's Will", mockFetch)).toBe('8');
   });
 
   it('returns null when no exact match', async () => {
@@ -149,9 +176,7 @@ describe('getArts', () => {
       scryfallUri: 'https://scryfall.com/card/3ed/290/underground-sea',
     });
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts.map((a) => a.ppId)).toEqual(['pp-high', 'pp-mid', 'pp-low']);
     expect(arts.map((a) => a.score)).toEqual([90, 70, 50]);
@@ -172,9 +197,7 @@ describe('getArts', () => {
       scryfallUri: 'https://scryfall.com/card/3ed/290/underground-sea',
     });
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts).toHaveLength(1);
     expect(arts[0].ppId).toBe('pp-ok');
@@ -198,9 +221,7 @@ describe('getArts', () => {
     });
     const mockResolve = vi.fn();
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts[0].kind).toBe('custom');
     // Custom arts should NOT call resolvePrinting
@@ -224,9 +245,7 @@ describe('getArts', () => {
     });
     const mockResolve = vi.fn();
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts[0].kind).toBe('custom');
   });
@@ -248,9 +267,7 @@ describe('getArts', () => {
     });
     const mockResolve = vi.fn();
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts[0].kind).toBe('custom');
   });
@@ -272,14 +289,12 @@ describe('getArts', () => {
     });
     const mockResolve = vi.fn();
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts[0].kind).toBe('custom');
   });
 
-  it('parses Scryfall UUID from image_url and calls resolvePrinting for official arts', async () => {
+  it('parses Scryfall UUID from image_url and builds the link inline (no API call)', async () => {
     const uuid = 'ab12cd34-5678-90ab-cdef-1234567890ab';
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -292,21 +307,16 @@ describe('getArts', () => {
         ],
       }),
     });
-    const mockResolve = vi.fn().mockResolvedValue({
-      scryfallCid: '3ed/290',
-      scryfallUri: 'https://scryfall.com/card/3ed/290/underground-sea',
-    });
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
-    expect(mockResolve).toHaveBeenCalledWith(uuid);
+    // UUID parsed + canonical link built inline (scryfall.com/card/<uuid> redirects
+    // to the exact printing) — no Scryfall API round-trip.
     expect(arts[0].scryfallId).toBe(uuid);
-    expect(arts[0].scryfallCid).toBe('3ed/290');
-    expect(arts[0].scryfallUri).toBe(
-      'https://scryfall.com/card/3ed/290/underground-sea',
-    );
+    expect(arts[0].scryfallUri).toBe(`https://scryfall.com/card/${uuid}`);
+    expect(arts[0].scryfallCid).toBeUndefined();
+    // getArts only ever hits the pp endpoint — one fetch, never Scryfall.
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it('handles official art with no UUID in image_url', async () => {
@@ -323,9 +333,7 @@ describe('getArts', () => {
     });
     const mockResolve = vi.fn();
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(mockResolve).not.toHaveBeenCalled();
     expect(arts[0].scryfallId).toBeUndefined();
@@ -346,9 +354,7 @@ describe('getArts', () => {
       scryfallUri: 'https://scryfall.com/card/3ed/290/x',
     });
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts.every((a) => a.stolenValor === 'high')).toBe(true);
   });
@@ -367,9 +373,7 @@ describe('getArts', () => {
       scryfallUri: 'https://scryfall.com/card/3ed/290/x',
     });
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts[0].stolenValor).toBe('high');
   });
@@ -388,9 +392,7 @@ describe('getArts', () => {
       scryfallUri: 'https://scryfall.com/card/3ed/290/x',
     });
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts[0].stolenValor).toBe('low');
   });
@@ -409,9 +411,7 @@ describe('getArts', () => {
       scryfallUri: 'https://scryfall.com/card/3ed/290/x',
     });
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts[0].stolenValor).toBe('low');
   });
@@ -430,9 +430,7 @@ describe('getArts', () => {
       scryfallUri: 'https://scryfall.com/card/3ed/290/x',
     });
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts[0].stolenValor).toBe('low');
   });
@@ -451,9 +449,7 @@ describe('getArts', () => {
       scryfallUri: 'https://scryfall.com/card/3ed/290/x',
     });
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts[0].stolenValor).toBe('low');
   });
@@ -472,9 +468,7 @@ describe('getArts', () => {
       scryfallUri: 'https://scryfall.com/card/3ed/290/x',
     });
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts[0].stolenValor).toBe('low');
   });
@@ -491,9 +485,7 @@ describe('getArts', () => {
       scryfallUri: 'https://scryfall.com/card/3ed/290/x',
     });
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts[0].stolenValor).toBe('none');
   });
@@ -505,9 +497,7 @@ describe('getArts', () => {
     });
     const mockResolve = vi.fn();
 
-    const arts = await getArts('42', mockFetch, {
-      resolvePrinting: mockResolve,
-    });
+    const arts = await getArts('42', mockFetch);
 
     expect(arts).toEqual([]);
   });

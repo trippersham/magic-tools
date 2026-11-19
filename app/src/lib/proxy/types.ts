@@ -26,6 +26,9 @@ export interface CardEntry {
   artsStatus: 'unloaded' | 'loading' | 'loaded' | 'error' | 'not-on-pp';
   selections: Selection[];
   collapsed: boolean;
+  /** How many copies of this card are needed (e.g. # decks that run it). Drives
+   *  the row's "need N" badge; a newly-picked art defaults its quantity to this. */
+  targetQty: number;
 }
 
 export interface AppState {

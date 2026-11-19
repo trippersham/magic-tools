@@ -12,13 +12,15 @@ import {
   removeCard,
   toggleSelection,
   setQuantity,
+  setTargetQty,
   setArts,
   importSeed,
   applyRestore,
   signature,
   isDirty,
+  sortScryfallLast,
 } from '../lib/proxy/state';
-import { identify, resolvePrinting } from '../lib/proxy/scryfall';
+import { identify, getPrintings } from '../lib/proxy/scryfall';
 import { searchCard, getArts } from '../lib/proxy/pp-client';
 import { toCsv, fromCsv } from '../lib/proxy/csv';
 
@@ -83,10 +85,19 @@ function mutate(next: AppState): void {
 function mutateCard(next: AppState, localId: string): void {
   state = next;
   persist();
-  renderRow(localId);
-  renderHeader();
+  // When filtering to "only remaining", a newly-chosen card must drop out of the
+  // view — a targeted row re-render would leave it visible, so re-render the list.
+  if (hideChosen) {
+    render();
+  } else {
+    renderRow(localId);
+    renderHeader();
+  }
   document.dispatchEvent(new CustomEvent('proxy-changed'));
 }
+
+/** When true, the list shows only cards that still have no art selected. */
+let hideChosen = false;
 
 // ---------------------------------------------------------------------------
 // DOM refs
@@ -161,9 +172,13 @@ function renderArtTile(art: PpArt, card: CardEntry): string {
       : '';
 
   const qty = sel ? sel.quantity : 1;
+  const isScryfall = art.ppId.startsWith('sf:');
 
   // Escape ppId for HTML attribute safety (some ids may have special chars)
   const safePpId = art.ppId.replace(/"/g, '&quot;');
+  const idLine = isScryfall
+    ? '<span class="text-blue-400">via Scryfall (not on printingproxies)</span>'
+    : safePpId;
 
   return `
     <div class="relative rounded-lg overflow-hidden cursor-pointer bg-zinc-800 ${ringClass}
@@ -176,7 +191,7 @@ function renderArtTile(art: PpArt, card: CardEntry): string {
           <span class="truncate font-medium">${art.setName}</span>
           ${scoreText ? `<span class="text-zinc-400 shrink-0">${scoreText}</span>` : ''}
         </div>
-        <div class="text-zinc-500 font-mono text-[10px] truncate">${safePpId}</div>
+        <div class="text-zinc-500 font-mono text-[10px] truncate">${idLine}</div>
         ${valorBadge}
         ${isSeed ? '<div class="text-[10px] text-blue-400 font-medium">your seed art</div>' : ''}
         ${
@@ -209,14 +224,31 @@ function renderCardRow(card: CardEntry): string {
       : '—';
 
   const chevron = card.collapsed ? '▶' : '▼';
+  // "need N" target control + selected-vs-target status
+  const selectedTotal = card.selections.reduce((n, s) => n + s.quantity, 0);
+  const met = selectedTotal === card.targetQty;
+  const status = card.selections.length
+    ? met
+      ? '<span class="text-emerald-400" title="target met">&#10003;</span>'
+      : `<span class="text-amber-400 font-mono" title="selected ${selectedTotal} of ${card.targetQty}">${selectedTotal}/${card.targetQty}</span>`
+    : '';
+  const targetControl = `
+      <span class="flex items-center gap-1 shrink-0 text-xs text-zinc-400" title="Copies needed (across decks)">
+        <span class="text-zinc-500">need</span>
+        <button data-target-dec="${card.localId}" class="w-5 h-5 rounded bg-zinc-700 hover:bg-zinc-600 font-bold leading-none">&minus;</button>
+        <span class="font-mono w-4 text-center ${card.targetQty > 1 ? 'text-amber-300' : 'text-zinc-200'}">${card.targetQty}</span>
+        <button data-target-inc="${card.localId}" class="w-5 h-5 rounded bg-zinc-700 hover:bg-zinc-600 font-bold leading-none">+</button>
+        ${status}
+      </span>`;
   const collapsed = `
     <div class="flex items-center gap-3 px-4 py-3 bg-zinc-800 rounded-lg border border-zinc-700 ${mutedClass}"
          data-row="${card.localId}">
       <button data-toggle="${card.localId}"
               class="text-zinc-400 hover:text-zinc-200 text-sm shrink-0 w-5 text-center">${chevron}</button>
       <span class="font-medium flex-1 truncate">${card.name}</span>
+      ${targetControl}
       <span class="text-xs bg-zinc-700 px-2 py-0.5 rounded text-zinc-300 shrink-0">${artsCount} art${artsCount !== '1' ? 's' : ''}</span>
-      <span class="text-xs text-zinc-400 truncate max-w-[260px] ${noSelection ? 'italic' : ''}">
+      <span class="text-xs text-zinc-400 truncate max-w-[220px] ${noSelection ? 'italic' : ''}">
         ${summary || 'not chosen yet'}
       </span>
       <button data-remove="${card.localId}"
@@ -328,14 +360,25 @@ function renderRow(localId: string): void {
 
 function render(): void {
   const list = cardListEl();
+  // Scryfall-only picks (no orderable pp art) sink to the bottom of the list.
+  const ordered = sortScryfallLast(state.cards);
+  const visible = hideChosen
+    ? ordered.filter((c) => c.selections.length === 0)
+    : ordered;
   if (state.cards.length === 0) {
     list.innerHTML = `
       <div class="text-center py-16 text-zinc-500">
         <p class="text-lg mb-1">No cards yet</p>
         <p class="text-sm">Search for a card above or import a list</p>
       </div>`;
+  } else if (visible.length === 0) {
+    list.innerHTML = `
+      <div class="text-center py-16 text-zinc-500">
+        <p class="text-lg mb-1">🎉 Every card has a selection</p>
+        <p class="text-sm">Uncheck “Only remaining” to review them, or Export.</p>
+      </div>`;
   } else {
-    list.innerHTML = state.cards.map(renderCardRow).join('');
+    list.innerHTML = visible.map(renderCardRow).join('');
   }
   renderHeader();
 }
@@ -344,11 +387,94 @@ function render(): void {
 // Card expand + lazy art fetch
 // ---------------------------------------------------------------------------
 
+/** Lazy-load a card's PP art grid if it hasn't been fetched yet. Shared by
+ *  single-row expand and Expand-all. No-op if already loaded/loading. */
+async function loadArtsIfNeeded(localId: string): Promise<void> {
+  const card = state.cards.find((c) => c.localId === localId);
+  if (!card || card.artsStatus !== 'unloaded') return;
+
+  // Keep the existing (e.g. restored) arts under the spinner rather than wiping
+  // to [] — so a mid-load export still finds the selected art's known link.
+  state = setArts(state, localId, card.arts, 'loading');
+  persist();
+  renderRow(localId);
+  renderHeader();
+
+  try {
+    // Try printingproxies first.
+    const ppCardId = await searchCard(card.name);
+    let arts: PpArt[] = [];
+    if (ppCardId !== null) {
+      const ppArts = await getArts(ppCardId);
+      // Preserve any Scryfall link/cid we already knew for a ppId (e.g. synthesized
+      // from a restored CSV) — fresh pp arts don't carry it. Read from `card.arts`
+      // captured at entry (state.arts was just set to the same list).
+      const prevById = new Map(card.arts.map((a) => [a.ppId, a]));
+      arts = ppArts.map((a) => {
+        const old = prevById.get(a.ppId);
+        return old?.scryfallUri && !a.scryfallUri
+          ? { ...a, scryfallCid: old.scryfallCid, scryfallUri: old.scryfallUri, scryfallId: a.scryfallId ?? old.scryfallId }
+          : a;
+      });
+    }
+
+    // Fall back to Scryfall whenever pp yields no usable arts — either no name
+    // match (flavor-name reprints / newer UB cards) OR pp has the card but no
+    // official prints. These get scryfall-sourced ppIds ('sf:<uuid>') that export
+    // with a Scryfall link + blank PP ID (proxy from the Scryfall art, not pp).
+    if (arts.length === 0) {
+      const prints = await getPrintings(card.name);
+      if (prints.length === 0) {
+        mutateCard(setArts(state, localId, card.arts, 'not-on-pp'), localId);
+        return;
+      }
+      arts = prints.map((pr) => ({
+        ppId: `sf:${pr.scryfallId}`,
+        setName: pr.setName,
+        score: null,
+        imageUrl: pr.imageUrl,
+        kind: 'official' as const,
+        stolenValor: 'none' as const,
+        scryfallId: pr.scryfallId,
+        scryfallUri: pr.scryfallUri,
+      }));
+    }
+
+    // Flip to 'loaded' and show the art grid NOW — do NOT block the drawer on a
+    // Scryfall call. (Previously an `await identify()` oracleId backfill ran here
+    // before loaded; since Scryfall shares one rate-limit gate, a throttled/hung
+    // request wedged the gate and stranded drawers in "loading" forever.)
+    mutateCard(setArts(state, localId, arts, 'loaded'), localId);
+
+    // Backfill oracleId in the background (fire-and-forget; never gates the UI).
+    const c = state.cards.find((x) => x.localId === localId);
+    if (c && c.oracleId === '') {
+      void identify(c.name)
+        .then((idResult) => {
+          if ('name' in idResult && idResult.oracleId) {
+            state = {
+              ...state,
+              cards: state.cards.map((x) =>
+                x.localId === localId && x.oracleId === '' ? { ...x, oracleId: idResult.oracleId } : x,
+              ),
+            };
+            persist();
+          }
+        })
+        .catch(() => {
+          /* backfill is best-effort */
+        });
+    }
+  } catch {
+    mutateCard(setArts(state, localId, [], 'error'), localId);
+  }
+}
+
 async function expandCard(localId: string): Promise<void> {
   const card = state.cards.find((c) => c.localId === localId);
   if (!card) return;
 
-  // Toggle collapsed flag
+  const willExpand = card.collapsed;
   state = {
     ...state,
     cards: state.cards.map((c) =>
@@ -356,52 +482,38 @@ async function expandCard(localId: string): Promise<void> {
     ),
   };
   persist();
+  renderRow(localId);
+  renderHeader();
+  document.dispatchEvent(new CustomEvent('proxy-changed'));
 
-  const updated = state.cards.find((c) => c.localId === localId)!;
+  if (willExpand) await loadArtsIfNeeded(localId);
+}
 
-  if (!updated.collapsed && updated.artsStatus === 'unloaded') {
-    // Begin async art fetch
-    state = setArts(state, localId, [], 'loading');
-    persist();
-    renderRow(localId);
-    renderHeader();
-
-    try {
-      const ppCardId = await searchCard(card.name);
-      if (ppCardId === null) {
-        mutateCard(setArts(state, localId, [], 'not-on-pp'), localId);
-        return;
-      }
-      const arts = await getArts(ppCardId, fetch, { resolvePrinting });
-      let next = setArts(state, localId, arts, 'loaded');
-
-      // Backfill oracleId if empty (from a restore)
-      const c = next.cards.find((x) => x.localId === localId);
-      if (c && c.oracleId === '') {
-        try {
-          const idResult = await identify(c.name);
-          if ('name' in idResult && idResult.oracleId) {
-            next = {
-              ...next,
-              cards: next.cards.map((x) =>
-                x.localId === localId ? { ...x, oracleId: idResult.oracleId } : x,
-              ),
-            };
-          }
-        } catch {
-          /* backfill is best-effort */
-        }
-      }
-
-      mutateCard(next, localId);
-    } catch {
-      mutateCard(setArts(state, localId, [], 'error'), localId);
+/** Expand every row and lazy-load any unloaded art grids with bounded
+ *  concurrency. getArts no longer does ~40 Scryfall resolves per card (those are
+ *  deferred to selection), so a small pool of parallel pp fetches is safe and
+ *  well under the WAF's burst threshold. */
+async function expandAll(): Promise<void> {
+  state = { ...state, cards: state.cards.map((c) => ({ ...c, collapsed: false })) };
+  persist();
+  render();
+  const ids = state.cards.map((c) => c.localId);
+  const CONCURRENCY = 5;
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < ids.length) {
+      await loadArtsIfNeeded(ids[next++]);
     }
-  } else {
-    renderRow(localId);
-    renderHeader();
-    document.dispatchEvent(new CustomEvent('proxy-changed'));
-  }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker),
+  );
+}
+
+function collapseAll(): void {
+  state = { ...state, cards: state.cards.map((c) => ({ ...c, collapsed: true })) };
+  persist();
+  render();
 }
 
 // ---------------------------------------------------------------------------
@@ -457,6 +569,20 @@ function showDisambiguation(
       </div>
     </div>`;
 
+  // Bind clicks on the picker itself — it lives in <main>, OUTSIDE #card-list,
+  // so the #card-list delegated handler never sees these clicks.
+  disambiguationEl.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-dismiss-disambig]')) {
+      clearDisambiguation();
+      return;
+    }
+    const pick = target.closest<HTMLElement>('[data-pick-card]');
+    if (pick) {
+      void addCardFromDisambiguation(JSON.parse(pick.dataset.pickCard!));
+    }
+  });
+
   const main = document.querySelector('main');
   main?.prepend(disambiguationEl);
 }
@@ -503,6 +629,7 @@ async function addCardFromInput(): Promise<void> {
         artsStatus: 'unloaded',
         selections: [],
         collapsed: true,
+        targetQty: 1,
       };
       mutate(addCard(state, entry));
       input.value = '';
@@ -537,6 +664,7 @@ async function addCardFromDisambiguation(item: {
         artsStatus: 'unloaded',
         selections: [],
         collapsed: true,
+        targetQty: 1,
       };
       mutate(addCard(state, entry));
       $<HTMLInputElement>('#search-input')!.value = '';
@@ -552,7 +680,7 @@ async function addCardFromDisambiguation(item: {
 // Buy toggle for not-on-PP cards
 // ---------------------------------------------------------------------------
 
-async function handleBuyToggle(localId: string): Promise<void> {
+function handleBuyToggle(localId: string): void {
   const card = state.cards.find((c) => c.localId === localId);
   if (!card) return;
 
@@ -563,15 +691,11 @@ async function handleBuyToggle(localId: string): Promise<void> {
     let next = state;
     // Add sentinel PpArt if absent
     if (!card.arts.some((a) => a.ppId === '')) {
-      let scryfallUri = '';
-      if (card.repScryfallId) {
-        try {
-          const resolved = await resolvePrinting(card.repScryfallId);
-          scryfallUri = resolved.scryfallUri;
-        } catch {
-          /* best effort */
-        }
-      }
+      // Buy link built inline from the identified printing's UUID (no fetch);
+      // scryfall.com/card/<uuid> redirects to the exact printing.
+      const scryfallUri = card.repScryfallId
+        ? `https://scryfall.com/card/${card.repScryfallId}`
+        : '';
       const sentinel: PpArt = {
         ppId: '',
         setName: 'Buy',
@@ -593,7 +717,8 @@ async function handleBuyToggle(localId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 function doExport(): void {
-  const csv = toCsv(state);
+  // Export in the same order the list shows: Scryfall-only picks at the bottom.
+  const csv = toCsv({ ...state, cards: sortScryfallLast(state.cards) });
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -735,6 +860,16 @@ function wireEvents(): void {
     }
   });
 
+  // Expand / collapse all
+  $<HTMLButtonElement>('#btn-expand-all')!.addEventListener('click', () => void expandAll());
+  $<HTMLButtonElement>('#btn-collapse-all')!.addEventListener('click', collapseAll);
+
+  // "Only remaining" filter — hide cards that already have a selection
+  $<HTMLInputElement>('#filter-remaining')!.addEventListener('change', (e) => {
+    hideChosen = (e.target as HTMLInputElement).checked;
+    render();
+  });
+
   // Export
   $<HTMLButtonElement>('#btn-export')!.addEventListener('click', doExport);
 
@@ -752,9 +887,9 @@ function wireEvents(): void {
   });
 
   // Exit modal buttons
-  $<HTMLButtonElement>('#exit-export')!.addEventListener('click', () => {
+  $<HTMLButtonElement>('#exit-export')!.addEventListener('click', async () => {
     exitModal().close();
-    doExport();
+    await doExport();
     // If this modal was opened by an import-when-dirty, proceed with that
     // import after exporting (and clear it so it can't fire again on dismiss).
     if (pendingImportAction) {
@@ -813,6 +948,22 @@ function wireEvents(): void {
       return;
     }
 
+    // Target quantity ("need N") steppers
+    const tDec = target.closest<HTMLElement>('[data-target-dec]');
+    if (tDec) {
+      const localId = tDec.dataset.targetDec!;
+      const c = state.cards.find((x) => x.localId === localId);
+      if (c) mutateCard(setTargetQty(state, localId, c.targetQty - 1), localId);
+      return;
+    }
+    const tInc = target.closest<HTMLElement>('[data-target-inc]');
+    if (tInc) {
+      const localId = tInc.dataset.targetInc!;
+      const c = state.cards.find((x) => x.localId === localId);
+      if (c) mutateCard(setTargetQty(state, localId, c.targetQty + 1), localId);
+      return;
+    }
+
     // Quantity decrement
     const decBtn = target.closest<HTMLElement>('[data-qty-dec]');
     if (decBtn) {
@@ -845,20 +996,8 @@ function wireEvents(): void {
       return;
     }
 
-    // Dismiss disambiguation
-    const dismissBtn = target.closest<HTMLElement>('[data-dismiss-disambig]');
-    if (dismissBtn) {
-      clearDisambiguation();
-      return;
-    }
-
-    // Pick from disambiguation
-    const pickBtn = target.closest<HTMLElement>('[data-pick-card]');
-    if (pickBtn) {
-      const item = JSON.parse(pickBtn.dataset.pickCard!);
-      addCardFromDisambiguation(item);
-      return;
-    }
+    // (Disambiguation picker clicks are handled on the picker element itself —
+    // it lives outside #card-list, so this delegated handler never sees them.)
 
     // Art tile toggle (avoid if clicking qty steppers)
     const tile = target.closest<HTMLElement>('[data-pp-id][data-local-id]');
@@ -866,6 +1005,8 @@ function wireEvents(): void {
       const ppId = tile.dataset.ppId!;
       const localId = tile.dataset.localId!;
       if (ppId !== undefined && localId) {
+        // Pure client-side toggle — the art's Scryfall link is already on the
+        // art record (built inline in getArts from the UUID). No network here.
         mutateCard(toggleSelection(state, localId, ppId), localId);
       }
     }
@@ -885,23 +1026,126 @@ function wireEvents(): void {
     }
   });
 
-  // Unload guard
-  window.addEventListener('beforeunload', (e) => {
-    if (!isDirty(state, state.lastExportSignature)) return;
-    openExitModal();
-    e.preventDefault();
-    e.returnValue = '';
-  });
+  // NOTE: intentionally NO `beforeunload` navigation guard. Every change is
+  // autosaved to localStorage and restored on return, so navigating away never
+  // loses work — a hard interrupt on every navigation was pure friction. The
+  // header dirty-dot is the passive "unexported changes" hint, and the exit
+  // modal is still offered on the in-app Import-replace path (which DOES discard).
 }
 
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 
+/**
+ * Optional agent/URL pre-population (spec: "the app can be instantiated with the
+ * card list pre-populated"). `?seed=<url>` fetches a CSV and loads it:
+ *   - restore-format CSV (has PP ID/Quantity) → applyRestore (replace)
+ *   - bare list → additive seed (each identifier resolved via Scryfall)
+ * Applies only when the list is empty, unless `?replace=1` forces it. A seeded
+ * load is marked exported (not dirty) so it won't nag the unload guard.
+ */
+async function maybeSeed(): Promise<void> {
+  const params = new URLSearchParams(location.search);
+  const seedUrl = params.get('seed');
+  if (!seedUrl) return;
+  const replace = params.get('replace') === '1';
+  const raw = params.get('raw') === '1';
+  if (state.cards.length > 0 && !replace) return;
+  try {
+    const resp = await fetch(seedUrl);
+    if (!resp.ok) return;
+    const text = await resp.text();
+    const parsed = fromCsv(text);
+    // replace=1 loads ONLY this set (a clean review), even in additive seed mode.
+    if (replace) {
+      // Safety net: only back up when a reload would actually DISCARD UNEXPORTED
+      // changes (dirty). A clean reload of the same set is not dirty, so it won't
+      // nag with a download every time.
+      if (isDirty(state, state.lastExportSignature)) {
+        try {
+          const backup = new Blob([toCsv(state)], { type: 'text/csv;charset=utf-8' });
+          const bu = URL.createObjectURL(backup);
+          const a = document.createElement('a');
+          a.href = bu;
+          a.download = `proxy-autobackup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(bu), 1000);
+        } catch {
+          /* backup best-effort */
+        }
+      }
+      state = emptyState();
+    }
+    if (parsed.mode === 'restore') {
+      state = applyRestore(parsed.rows);
+    } else if (raw) {
+      // Fast path: rows are exact card NAMES (+ optional target Quantity). Create
+      // cards directly with no per-card Scryfall identify (which throttles on
+      // large lists). The pp art fetch on expand keys off the name; oracleId/link
+      // are backfilled lazily when a row is expanded.
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      const header = lines.length && /card name/i.test(lines[0]) ? lines.shift()! : '';
+      const qtyCol = header ? header.split(',').findIndex((h) => /quantity|target|qty/i.test(h)) : -1;
+      const parseLine = (l: string): string[] => {
+        const m = l.match(/("([^"]|"")*"|[^,]*)/g) || [];
+        return m.filter((_, i) => i % 2 === 0).map((f) => f.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
+      };
+      const newCards: CardEntry[] = lines.map((l) => {
+        const f = parseLine(l);
+        const name = f[0];
+        const t = qtyCol >= 0 ? parseInt(f[qtyCol] || '1', 10) : 1;
+        return {
+          localId: newLocalId(),
+          name,
+          oracleId: '',
+          arts: [],
+          artsStatus: 'unloaded' as const,
+          selections: [],
+          collapsed: true,
+          targetQty: Number.isFinite(t) && t > 0 ? t : 1,
+        };
+      }).filter((c) => c.name);
+      state = importSeed(state, newCards);
+    } else {
+      const newCards: CardEntry[] = [];
+      for (const ident of parsed.identifiers) {
+        try {
+          const r = await identify(ident);
+          if ('name' in r) {
+            newCards.push({
+              localId: newLocalId(),
+              name: r.name,
+              oracleId: r.oracleId,
+              repScryfallId: r.repScryfallId,
+              arts: [],
+              artsStatus: 'unloaded',
+              selections: [],
+              collapsed: true,
+              targetQty: 1,
+            });
+          }
+        } catch {
+          /* skip unresolved identifiers */
+        }
+      }
+      state = importSeed(state, newCards);
+    }
+    state.lastExportSignature = signature(state);
+    persist();
+    render();
+  } catch {
+    /* seed is best-effort; app still works empty */
+  }
+}
+
 function init(): void {
   state = loadState();
   render();
   wireEvents();
+  void maybeSeed();
 }
 
 if (document.readyState === 'loading') {

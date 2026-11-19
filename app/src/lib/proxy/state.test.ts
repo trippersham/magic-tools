@@ -11,6 +11,8 @@ import {
   exportableRows,
   signature,
   isDirty,
+  hasPpArt,
+  sortScryfallLast,
 } from './state';
 import type { AppState, CardEntry, PpArt } from './types';
 
@@ -35,6 +37,7 @@ function mkCard(overrides: Partial<CardEntry> = {}): CardEntry {
     artsStatus: 'unloaded',
     selections: [],
     collapsed: false,
+    targetQty: 1,
     ...overrides,
   };
 }
@@ -212,6 +215,71 @@ describe('exportableRows', () => {
     expect(rows[0].cardName).toBe('A');
     expect(rows[0].ppId).toBe('art-1');
     expect(rows[0].quantity).toBe(1);
+  });
+});
+
+describe('hasPpArt', () => {
+  it('is true for a real pp print selection', () => {
+    const c = mkCard({ selections: [{ ppId: 'pp-123', quantity: 1 }] });
+    expect(hasPpArt(c)).toBe(true);
+  });
+
+  it('is false for a Scryfall fallback (sf:) selection', () => {
+    const c = mkCard({ selections: [{ ppId: 'sf:abc-uuid', quantity: 1 }] });
+    expect(hasPpArt(c)).toBe(false);
+  });
+
+  it('is false for a blank buy-only selection', () => {
+    const c = mkCard({ selections: [{ ppId: '', quantity: 1 }] });
+    expect(hasPpArt(c)).toBe(false);
+  });
+
+  it('is false with no selections', () => {
+    expect(hasPpArt(mkCard({ selections: [] }))).toBe(false);
+  });
+});
+
+describe('sortScryfallLast', () => {
+  it('sinks Scryfall-only picks below pp-backed cards, stably', () => {
+    const cards = [
+      mkCard({ localId: 'sf1', name: 'SF-A', selections: [{ ppId: 'sf:u1', quantity: 1 }] }),
+      mkCard({ localId: 'pp1', name: 'PP-A', selections: [{ ppId: 'pp-1', quantity: 1 }] }),
+      mkCard({ localId: 'sf2', name: 'SF-B', selections: [{ ppId: '', quantity: 1 }] }),
+      mkCard({ localId: 'pp2', name: 'PP-B', selections: [{ ppId: 'pp-2', quantity: 1 }] }),
+    ];
+    const order = sortScryfallLast(cards).map((c) => c.localId);
+    expect(order).toEqual(['pp1', 'pp2', 'sf1', 'sf2']);
+  });
+
+  it('keeps unchosen (pending) cards in the top group', () => {
+    const cards = [
+      mkCard({ localId: 'sf1', selections: [{ ppId: 'sf:u1', quantity: 1 }] }),
+      mkCard({ localId: 'pending', selections: [] }),
+      mkCard({ localId: 'pp1', selections: [{ ppId: 'pp-1', quantity: 1 }] }),
+    ];
+    const order = sortScryfallLast(cards).map((c) => c.localId);
+    expect(order).toEqual(['pending', 'pp1', 'sf1']);
+  });
+
+  it('treats a mixed card (has one pp art) as pp-backed', () => {
+    const cards = [
+      mkCard({ localId: 'sf1', selections: [{ ppId: 'sf:u1', quantity: 1 }] }),
+      mkCard({
+        localId: 'mixed',
+        selections: [{ ppId: 'sf:u2', quantity: 1 }, { ppId: 'pp-9', quantity: 1 }],
+      }),
+    ];
+    const order = sortScryfallLast(cards).map((c) => c.localId);
+    expect(order).toEqual(['mixed', 'sf1']);
+  });
+
+  it('does not mutate the input array', () => {
+    const cards = [
+      mkCard({ localId: 'sf1', selections: [{ ppId: 'sf:u1', quantity: 1 }] }),
+      mkCard({ localId: 'pp1', selections: [{ ppId: 'pp-1', quantity: 1 }] }),
+    ];
+    sortScryfallLast(cards);
+    expect(cards.map((c) => c.localId)).toEqual(['sf1', 'pp1']);
   });
 });
 
