@@ -371,7 +371,9 @@ re-baseline makes every *intended* change legible as such.
   literal (`naming.ALT_WINCON_COMBO`) is a **separate axis** and is **untouched**. Spec
   narrowed on measurement: `otag:mill-self`/`oracle:'no cards in'` were dropped (they misroute
   Central Elevator / Barren Glory / The Cheese Stands Alone — empty-board, not deckout).
-  SHAs: `ENGINE 84b9617e… UNCHANGED` (elect_engine_units never read the distill archetype);
+  SHAs: `ENGINE 84b9617e… UNCHANGED` (this edit touched only the final named identity
+  `archetype_identity`, which `elect_engine_units` does not read — note: election DOES read
+  distilled archetype *mappings* for `payoff_archetypes`, just not the named identity);
   `RESOLVE 5a43fc56… → 50cd3873…`; `FULL_CORPUS 39f1136e… → 62abb4b1…` (both carry the
   facts-graph strategies/community archetypes). `distill_parity_baseline.json` regenerated
   (2 fixtures: Baral, Peace Offering); `engine_isolation_baseline.json` byte-identical;

@@ -342,7 +342,7 @@ Jaccard-dedup filter.
 | Attribute       | node (color A)       | collapsed out                   | **node**                       |
 | Event           | node (color B)       | **node**                        | **edge-label**                 |
 | EventEffect     | length-2 path        | **edge** (trigger → produced)   | relay-injection (attr as consumer + producer) |
-| Strategy        | —                    | —                               | archetype grouping (quotient of attribute-nodes) |
+| Strategy        | —                    | —                               | the substantive sub-graph itself (admitted nodes + event edges + engine units); `archetype_identity` is its quotient into the shared archetype vocabulary — a compatibility projection, not the Strategy |
 | Engine unit     | —                    | —                               | connected cluster (producer ∪ consumer per event) |
 
 ## Related records

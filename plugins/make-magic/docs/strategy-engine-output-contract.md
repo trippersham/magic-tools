@@ -18,7 +18,14 @@ has no external dependency.** Tier 2 enriches Tier 1 with a synthesised Engine.
 Consumers MUST treat them as separate: Tier 1 is the deterministic foundation;
 Tier 2 is a cached enrichment whose resolution depends on the `claude` CLI.
 
-### Tier 1 — Deterministic archetype identity (frozen, P0-pinned)
+### Tier 1 — Deterministic strategy graph (frozen, P0-pinned)
+
+Tier 1's output is the deterministic **strategy graph**: the substantive
+attribute / event / eventeffect sub-graph and its ranked engine-unit set
+(`engines.engine_units`). `archetype_identity` is **one projection** of that
+graph into the shared archetype vocabulary for external comparison — a
+classification the graph emits, not the graph itself (the richer structure is
+the sub-graph and its engine units).
 
 **Entry points:** `compute_facts(deck, combos, assets)` and `resolve(deck)`.
 
@@ -26,7 +33,7 @@ Tier 2 is a cached enrichment whose resolution depends on the `claude` CLI.
 
 | Field | Type | Description |
 |---|---|---|
-| `archetype_identity` | `list[dict]` | Ranked set of earned archetypes for the deck, each with name, confidence, and whether it is substantive at the archetype grain (ADR 0002). Ordered by centrality (ADR 0014). |
+| `archetype_identity` | `list[dict]` | The deck's identity in the **shared, community archetype vocabulary** — the ranked set of recognized archetypes (e.g. aristocrats, landfall, spellslinger, aggro) the deck substantively earns (member-count / density gated, ADR 0002), ordered by centrality (ADR 0014), each with confidence. This is the engine's **interoperability projection**: it maps the rich internal strategy graph onto the common taxonomy other tools, sites (EDHREC / DeckCheck), and players use, so a deck can be classified, compared against external sources, and communicated in shared terms (and it seeds the headline). A true, earned classification in its own right — distinct from, and coarser than, the full strategy graph it is quotiented from. |
 | `engines.engine_units.ranked_units` | `list[dict]` | The elected engine-candidate set — strategy sub-units that cleared substantiveness gates at all grains (attribute 0004, event 0020, archetype 0002) and survived the mass-election ranking (0014). A set, not a singleton. (Renamed 2026-11-16 from `engines.engine_isolation.elected`; each unit carries `mass`/`interior_node`/`formation_mode`/`marginal`, ADR 0014.) |
 | `core_combos` | `list[dict]` | Detected combos (Spellbook-sourced), each with `variant_id`, `label`, `result`, `requires`, `n_pieces`, `win`, `win_kind`. |
 | headline strategy | `str \| None` | The human-readable headline label. NOT a stored field — derived via `naming.headline_strategy(rec)` = combo-override label when applied, else `archetype_identity[0]['strategy']`, else `None`. (The redundant `named_strategy` field was removed 2026-11-16, ADR 0014.) |
@@ -45,7 +52,8 @@ deck + combos + assets
   → compute_facts()              # substantiveness at all grains → election → ranked candidates
     → elect_engine_units()         # mass election (0014) + B6 archetype-substantiveness gate
   → name_deck()                  # naming-layer resolution
-  → archetype_identity + ranked_units set + headline_strategy (derived)
+  → strategy graph: ranked_units set (engine candidates)
+       + archetype_identity (compatibility projection) + headline_strategy (derived)
 ```
 
 ### Tier 2 — Resolved Engine (cached, provisional)
