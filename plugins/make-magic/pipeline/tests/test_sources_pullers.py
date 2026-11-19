@@ -154,9 +154,7 @@ def test_oracle_tags_fail_open_reuses_cache_not_snapshot(data_dir: Path, monkeyp
     assert n == 2  # the cached pull is preserved, NOT overwritten by the 4,499-row snapshot
 
 
-def test_oracle_tags_sync_not_newer_is_byte_identical_noop(
-    data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_oracle_tags_sync_not_newer_is_byte_identical_noop(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Lake-read-only invariant: a cursor-gated (not-newer) sync must NOT mutate.
 
     The live-sync regression that this suite's ``live`` marker now fences off hinged
@@ -192,9 +190,7 @@ def test_oracle_tags_sync_not_newer_is_byte_identical_noop(
     assert Cursor.path().read_bytes() == before_cursor  # cursor byte-identical (no advance)
 
 
-def test_scoring_bridge_load_card_otag_is_offline_fail_open(
-    data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_scoring_bridge_load_card_otag_is_offline_fail_open(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The CRISPI scoring bridge loads an otag closure OFFLINE (fail-open to snapshot).
 
     ``scripts/deck_factsheet._load_card_otag`` is the lake-backed bridge that the
@@ -205,6 +201,7 @@ def test_scoring_bridge_load_card_otag_is_offline_fail_open(
     network, no real lake. This is exactly the path an offline CI runner takes, so
     deselecting the live golden test loses no offline coverage of the bridge.
     """
+
     # Hard-block the one network boundary the bridge reaches (belt-and-suspenders
     # with the autouse guard): any egress attempt would raise here instead.
     def _no_network(client: httpx.Client) -> tuple[str, str]:
