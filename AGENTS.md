@@ -18,6 +18,7 @@ This file is the one always-on contract. Read it first. Everything the repo map 
 | `scripts/install-hooks` | installs the pre-commit hook that runs the check |
 | `scripts/check_context.py` | the linter that keeps this file honest against the tree |
 | `scripts/check_pr.py` | the PR-body and attribution-footer validator |
+| `scripts/apply-ruleset` | applies the main-branch ruleset through gh api and reads it back |
 | `.github/pull_request_template.md` | the PR body template the validator checks |
 | `.github/workflows/ci.yml` | the offline gate plus the PR-body and ci-ok jobs |
 | `.github/workflows/upstream-canary.yml` | the weekly check that runtime-fetched deps still resolve |
@@ -76,7 +77,6 @@ Work is trunk-based off `main`. The skill at `.claude/skills/mm-change/SKILL.md`
 
 Later phases bolt on the untrusted-contributor governance, modeled on the rae-labs exemplar and reserved here, not built. Each path moves into the repo map in the same change that creates it:
 
-- `scripts/apply-ruleset`: the main-branch ruleset applied through gh api. phase 5.
 - `.github/areas.json`: the reviewer auto-assign map. phase 2.
 
 The governance itself, each modeled on the exemplar: DCO sign-off on commits, reviewer auto-assign, fork-safe handling of outside pull requests, offline semgrep threat-model rules, and a plain-prose linter for the agent files.
