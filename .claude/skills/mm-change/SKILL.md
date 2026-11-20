@@ -90,6 +90,34 @@ Do not watch in the foreground, because it blocks past the command timeout. On a
 
 Report the PR URL, the proof, and the review state. Do not merge, and do not delete the branch. A reviewer merges on a green gate.
 
+## Stacked PRs with `gh stack`
+
+Default to one small independent PR branched off fresh `origin/main`. It reviews and lands on its own, so prefer splitting work that way. Reach for a stack **only when a change genuinely depends on another unmerged change** — then the second branch must build on the first, and a stack keeps each PR small and separately reviewable.
+
+Stacking uses the official `github/gh-stack` extension; there is no `flow` command. The verbs:
+
+| Verb | Does |
+|---|---|
+| `gh stack init` | start tracking the current branch as the bottom of a stack |
+| `gh stack add` | add the current branch onto the stack, based on the one below it |
+| `gh stack submit` | open or update the PRs for the stack, each based on the branch below it |
+| `gh stack view` | show the stack; `gh stack view --json` exposes a per-branch `⚠ Needs rebase` signal |
+| `gh stack sync --prune` | fast-forward trunk, cascade-rebase children, force-with-lease push, prune merged branches |
+
+Two facts to work with, both established empirically:
+
+- `gh stack submit --auto` opens the PRs as **drafts**, and the async merge refuses a draft. Submit without `--auto`, or run `gh pr ready <n>`, before a stacked PR can merge.
+- Merging the bottom PR **auto-retargets and rebases the rest of the stack server-side** — even when a child edited the same line a squashed parent did. You do not hand-rebase children after a parent merges; GitHub does it. A local working copy then only needs `gh stack sync --prune` to catch up.
+
+## Merging (reviewer only)
+
+The author never merges; this section is for the reviewer who merges on a green gate. Pick the command by the PR's shape:
+
+- **Ordinary PR** (based on `main`): `gh pr merge <n> --squash --delete-branch`.
+- **Native stacked PR** (opened by `gh stack submit`): `scripts/merge-stacked <n>`. A stacked PR **cannot** be merged with `gh pr merge` or the ordinary REST merge — both 403 with "Use the asynchronous merge endpoint." `scripts/merge-stacked` squash-merges through `merge-async` and polls until the PR is actually MERGED, failing loud if the enqueue never lands (for example when `ci-ok` is red). "Enqueued" is not "merged".
+
+In both cases merge only on a green `ci-ok`. For a stacked PR, merge the bottom of the stack first; GitHub restacks the rest server-side.
+
 ## Red flags
 
 | Bad instinct | Do this instead |

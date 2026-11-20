@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# Squash-merge a GitHub-NATIVE stacked PR, then block until it has actually landed.
+#
+# Only for a stacked PR created by `gh stack submit`. An ordinary PR merges with
+# `gh pr merge <n> --squash --delete-branch`; a native stacked PR cannot — GitHub
+# 403s both `gh pr merge` and the ordinary `PUT /pulls/{n}/merge` for a stacked PR
+# ("Use the asynchronous merge endpoint"). The only path is the async endpoint:
+#   PUT  repos/{o}/{r}/pulls/{n}/merge-async   (merge_method=squash) -> {uuid}
+#   GET  repos/{o}/{r}/pulls/{n}/merge-async/{uuid}                  (poll)
+#
+# The enqueue returns `{status:"pending", details:{uuid,...}}`. "enqueued" is NOT
+# "merged": a merge blocked by the ruleset (e.g. a red `ci-ok`) stays pending and
+# the PR stays OPEN, so this script polls until the PR state is MERGED and FAILS
+# LOUD (non-zero) if it never lands within the budget — it never exits 0 on a PR
+# that did not merge. Merging the bottom PR auto-restacks the rest server-side.
+#
+# Usage: scripts/merge-stacked <pr-number>
+# Env:   MERGE_STACKED_POLL_INTERVAL  seconds between polls (default 5)
+#        MERGE_STACKED_MAX_ATTEMPTS   poll attempts before giving up (default 60)
+set -euo pipefail
+
+# --- pure helpers (sourced by the test; see tests/test_merge_stacked.py) --------
+
+# Read a merge-async JSON response on stdin and print its uuid. The enqueue nests
+# it at .details.uuid; accept a top-level .uuid too. Exit non-zero (loud) if absent
+# so a malformed/error response can never be mistaken for a valid enqueue.
+parse_uuid() {
+  python3 -c '
+import json, sys
+try:
+    doc = json.load(sys.stdin)
+except (ValueError, TypeError):
+    sys.exit("merge-stacked: enqueue response was not JSON")
+uuid = (doc.get("details") or {}).get("uuid") or doc.get("uuid")
+if not uuid:
+    sys.exit("merge-stacked: no merge-async uuid in enqueue response")
+print(uuid)
+'
+}
+
+# Decide the terminal state from the authoritative PR state plus the async status.
+# Prints exactly one of: merged | failed | pending.
+#   - MERGED pr state is the one authoritative "it landed" signal.
+#   - a CLOSED-unmerged PR, or an async status that reports a conflict/error, is a
+#     hard failure to surface now rather than wait out the budget.
+#   - anything else (incl. a still-"pending" async status) means keep polling.
+classify_state() {
+  local pr_state=${1:-} async_status=${2:-}
+  case "$pr_state" in
+    MERGED) echo merged; return 0 ;;
+    CLOSED) echo failed; return 0 ;;
+  esac
+  case "$async_status" in
+    conflict | error | failure | failed | invalid) echo failed; return 0 ;;
+  esac
+  echo pending
+}
+
+# --- the command --------------------------------------------------------------
+
+main() {
+  local pr=${1:-}
+  case "$pr" in
+    '' | -h | --help)
+      echo "usage: scripts/merge-stacked <pr-number>" >&2
+      [ "$pr" = '' ] && exit 2 || exit 0
+      ;;
+  esac
+  case "$pr" in
+    *[!0-9]*) echo "merge-stacked: pr-number must be a positive integer, got '$pr'" >&2; exit 2 ;;
+  esac
+
+  local interval=${MERGE_STACKED_POLL_INTERVAL:-5}
+  local max_attempts=${MERGE_STACKED_MAX_ATTEMPTS:-60}
+
+  local slug
+  slug=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+  echo "merge-stacked: repo $slug, PR #$pr"
+
+  # Refuse up front what the async endpoint would refuse anyway, with a clearer
+  # message: a draft is rejected, and a PR already closed/merged is not our job.
+  local pre state is_draft
+  pre=$(gh pr view "$pr" --repo "$slug" --json state,isDraft)
+  state=$(printf '%s' "$pre" | python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])')
+  is_draft=$(printf '%s' "$pre" | python3 -c 'import json,sys; print(json.load(sys.stdin)["isDraft"])')
+  if [ "$state" = "MERGED" ]; then
+    echo "merge-stacked: PR #$pr is already MERGED; nothing to do"
+    exit 0
+  fi
+  if [ "$state" = "CLOSED" ]; then
+    echo "merge-stacked: PR #$pr is CLOSED (not merged); refusing" >&2
+    exit 1
+  fi
+  if [ "$is_draft" = "True" ]; then
+    echo "merge-stacked: PR #$pr is a draft; the async merge refuses drafts — run 'gh pr ready $pr' first" >&2
+    exit 1
+  fi
+
+  # Enqueue the squash merge. gh exits non-zero on an HTTP error (e.g. a 403 on a
+  # non-stacked PR, which should use 'gh pr merge --squash' instead).
+  echo "merge-stacked: enqueuing squash merge via merge-async..."
+  local enqueue uuid
+  if ! enqueue=$(gh api -X PUT "repos/$slug/pulls/$pr/merge-async" -f merge_method=squash 2>&1); then
+    echo "merge-stacked: enqueue failed:" >&2
+    printf '%s\n' "$enqueue" >&2
+    echo "merge-stacked: if this is not a native stacked PR, merge it with 'gh pr merge $pr --squash --delete-branch'" >&2
+    exit 1
+  fi
+  uuid=$(printf '%s' "$enqueue" | parse_uuid)
+  echo "merge-stacked: enqueued, uuid=$uuid"
+
+  # Poll until the PR is MERGED, a hard failure is reported, or the budget runs out.
+  local attempt async_status async_json decision
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    async_status=pending
+    if async_json=$(gh api "repos/$slug/pulls/$pr/merge-async/$uuid" 2>/dev/null); then
+      async_status=$(printf '%s' "$async_json" | python3 -c 'import json,sys
+try:
+    print((json.load(sys.stdin).get("status") or "pending"))
+except Exception:
+    print("pending")')
+    fi
+    state=$(gh pr view "$pr" --repo "$slug" --json state --jq .state)
+    decision=$(classify_state "$state" "$async_status")
+    echo "merge-stacked: poll $attempt/$max_attempts: pr=$state async=$async_status -> $decision"
+    case "$decision" in
+      merged)
+        echo "merge-stacked: PR #$pr MERGED"
+        exit 0
+        ;;
+      failed)
+        echo "merge-stacked: merge of PR #$pr failed (pr=$state async=$async_status); check 'gh pr checks $pr'" >&2
+        exit 1
+        ;;
+    esac
+    [ "$attempt" -lt "$max_attempts" ] && sleep "$interval"
+  done
+
+  echo "merge-stacked: PR #$pr did not merge within $max_attempts polls x ${interval}s — enqueued is not merged." >&2
+  echo "merge-stacked: it is most likely BLOCKED by the ruleset (a red 'ci-ok'); check 'gh pr checks $pr'" >&2
+  exit 1
+}
+
+# Run only when executed, not when sourced, so the test can exercise the helpers.
+if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
+  main "$@"
+fi

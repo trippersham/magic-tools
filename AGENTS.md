@@ -20,6 +20,7 @@ This file is the one always-on contract. Read it first. Everything the repo map 
 | `scripts/check_pr.py` | the PR-body and attribution-footer validator |
 | `scripts/check_versions.py` | the plugin-version lockstep linter the check runs |
 | `scripts/apply-ruleset` | applies the main-branch ruleset through gh api and reads it back |
+| `scripts/merge-stacked` | squash-merges a native stacked PR through merge-async and polls until it lands |
 | `.github/pull_request_template.md` | the PR body template the validator checks |
 | `.github/workflows/ci.yml` | the offline gate plus the PR-body, repro, and ci-ok jobs |
 | `.github/workflows/release.yml` | cuts the GitHub Release on a `v<x.y.z>` tag push |
