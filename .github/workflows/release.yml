@@ -1,0 +1,87 @@
+name: release
+
+# Cuts a GitHub Release when a strict vMAJOR.MINOR.PATCH tag is pushed. The release
+# PR is an ordinary agent/human-authored version-bump PR that clears `ci-ok` like any
+# other; after it squash-merges, a human pushes the `vX.Y.Z` tag (tags are not
+# ruleset-protected, so the tag push is the one deliberate, human-only act that ships
+# a public Release). This workflow then verifies and publishes — with GITHUB_TOKEN
+# only, no PAT, no repo setting, no carve-out.
+#
+# The tag grammar is strict (vN.N.N) so this NEVER fires on the component-specific
+# `xmage-dist-*` tags, which have their own workflow. It is tag-scoped, so it is NOT
+# part of the PR-scoped `ci-ok` fan-in.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'   # strict release grammar; never matches xmage-dist-*
+
+permissions:
+  contents: write                 # gh release create
+
+jobs:
+  release:
+    name: verify lockstep + publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0           # full history: the changelog range + the tag list
+
+      # Release-time backstop for the lockstep that `scripts/check` already enforced at
+      # PR time: both version files must equal the tag's version. A mismatch means a tag
+      # was pushed that disagrees with the merged version of record — fail loud, cut no
+      # Release. (ubuntu-latest python3 is 3.12, so tomllib is available.)
+      - name: Assert version lockstep against the tag
+        run: |
+          set -euo pipefail
+          TAG='${{ github.ref_name }}'
+          WANT="${TAG#v}"
+          PLUGIN="$(python3 -c "import json; print(json.load(open('plugins/make-magic/.claude-plugin/plugin.json'))['version'])")"
+          PYPROJECT="$(python3 -c "import tomllib; print(tomllib.load(open('plugins/make-magic/pipeline/pyproject.toml','rb'))['project']['version'])")"
+          echo "tag=$WANT plugin.json=$PLUGIN pyproject.toml=$PYPROJECT"
+          if [ "$PLUGIN" != "$WANT" ] || [ "$PYPROJECT" != "$WANT" ]; then
+            echo "::error::version lockstep mismatch — tag $TAG wants $WANT but plugin.json=$PLUGIN pyproject.toml=$PYPROJECT. No Release cut."
+            exit 1
+          fi
+
+      # Previous release tag = the strict-grammar tag immediately below this one in
+      # version order. NOT `git describe`/"latest tag": the tag set is sparse (no v0.7.0)
+      # and carries foreign `xmage-dist-*` tags, so a naive resolver would pick a wrong or
+      # foreign tag and produce a garbage changelog range. Empty PREV (this is the lowest
+      # release tag) means the changelog spans from the start of history.
+      - name: Resolve the previous release tag
+        id: prev
+        run: |
+          set -euo pipefail
+          TAG='${{ github.ref_name }}'
+          PREV="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | awk -v t="$TAG" '$0==t{print prev; exit} {prev=$0}')"
+          echo "previous tag: ${PREV:-<none>}"
+          echo "prev=$PREV" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          set -euo pipefail
+          TAG='${{ github.ref_name }}'
+          PREV='${{ steps.prev.outputs.prev }}'
+          if [ -n "$PREV" ]; then
+            RANGE="$PREV..$TAG"
+          else
+            RANGE="$TAG"
+          fi
+          echo "changelog range: $RANGE"
+          {
+            echo "## $TAG"
+            echo ""
+            git log --no-merges --pretty='- %s' "$RANGE"
+          } > changelog.md
+          cat changelog.md
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='${{ github.ref_name }}'
+          gh release create "$TAG" --title "$TAG" --notes-file changelog.md
