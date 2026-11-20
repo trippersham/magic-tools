@@ -10,7 +10,7 @@
 # a fast local pass is not a CI pass on its own: run `./scripts/check` with no
 # flag before you push.
 cd "$(dirname "$0")/.." || exit 1
-set -eu
+set -euo pipefail
 
 fast=
 case "${1:-}" in
@@ -69,5 +69,7 @@ else
   echo "markdown: no agent files yet (skipped)"
 fi
 
-# Single-source-of-truth gate, last. Pure stdlib; run on the pipeline venv python.
+# Single-source-of-truth gate, last. Pure stdlib, run on the pipeline venv python
+# that the `uv run` steps above have already created (true in both --fast and full
+# mode, since ruff runs via uv either way). Keep an invocation above this line.
 plugins/make-magic/pipeline/.venv/bin/python scripts/check_context.py
