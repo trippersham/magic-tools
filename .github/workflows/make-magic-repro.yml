@@ -12,9 +12,12 @@ name: make-magic repro gate
 #     frozen-card-bulk lake -> quantifies how upstream tag drift perturbs the rich
 #     outputs vs the pin. Opt-in only (it hits the network).
 #
-# Triggers: manual (workflow_dispatch, with a boolean to also run upstream) + pre-release
-# tags. The repo has no pipeline-wide release-tag convention (only the component-specific
-# `xmage-dist-*`), so this uses the conventional `v*` tag pattern for the pre-release run.
+# Triggers: manual (workflow_dispatch, with a boolean to also run upstream) + reusable
+# (workflow_call). `ci.yml` calls it as the pre-merge regression gate on a `release/*`
+# PR, where it runs pinned mode (network-free) and joins the `ci-ok` fan-in. A regression
+# then surfaces before the merge that ships, not on the tag after it — and is bisected
+# across the feature PRs since the last tag. The opt-in upstream drift probe runs on a
+# manual dispatch only (it hits the network), never on the reusable call.
 
 on:
   workflow_dispatch:
@@ -23,9 +26,7 @@ on:
         description: 'Also run upstream (ONE live Scryfall oracle_tags fetch)'
         type: boolean
         default: false
-  push:
-    tags:
-      - 'v*'            # pre-release gate (no pipeline-wide release convention -> `v*`)
+  workflow_call: {}    # ci.yml invokes pinned mode as the release-PR regression gate
 
 permissions:
   contents: read

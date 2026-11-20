@@ -18,9 +18,12 @@ This file is the one always-on contract. Read it first. Everything the repo map 
 | `scripts/install-hooks` | installs the pre-commit hook that runs the check |
 | `scripts/check_context.py` | the linter that keeps this file honest against the tree |
 | `scripts/check_pr.py` | the PR-body and attribution-footer validator |
+| `scripts/check_versions.py` | the plugin-version lockstep linter the check runs |
 | `scripts/apply-ruleset` | applies the main-branch ruleset through gh api and reads it back |
 | `.github/pull_request_template.md` | the PR body template the validator checks |
-| `.github/workflows/ci.yml` | the offline gate plus the PR-body and ci-ok jobs |
+| `.github/workflows/ci.yml` | the offline gate plus the PR-body, repro, and ci-ok jobs |
+| `.github/workflows/release.yml` | cuts the GitHub Release on a `v<x.y.z>` tag push |
+| `.github/workflows/make-magic-repro.yml` | the reproducibility gate, called on a release PR |
 | `.github/workflows/upstream-canary.yml` | the weekly check that runtime-fetched deps still resolve |
 | `.github/workflows/forge-simai-build.yml` | the Forge sim-AI harness jar bytecode check |
 | `.github/workflows/xmage-dist-release.yml` | the XMage dist build and harness jar check |
@@ -54,12 +57,16 @@ Run the `uv run` commands from `plugins/make-magic/pipeline`.
 
 Work is trunk-based off `main`. The skill at `.claude/skills/mm-change/SKILL.md` holds the full procedure. In short:
 
-- branch `<type>/<slug>` off `main`. the type is one of feat, fix, chore, docs, ci, test, refactor. never push to `main`, because the branch and PR are the only path in.
+- branch `<type>/<slug>` off `main`. the type is one of feat, fix, chore, docs, ci, test, refactor, release. never push to `main`, because the branch and PR are the only path in.
 - write Conventional Commits. the PR title becomes the squash subject on `main`.
-- the pre-commit hook runs `./scripts/check --fast` (ruff, format, markdown, context linter) on commit, so commits stay quick. run the full `./scripts/check` before you push, because CI runs the full gate and a fast pass is not a CI pass.
+- the pre-commit hook runs `./scripts/check --fast` (ruff, format, markdown, version lockstep, context linter) on commit, so commits stay quick. run the full `./scripts/check` before you push, because CI runs the full gate and a fast pass is not a CI pass.
 - open a PR and fill the template. the PR body references an issue with `Closes #N` or `Part of #N` and ends with the attribution footer. the template is `.github/pull_request_template.md` and `scripts/check_pr.py` validates the body in CI.
 - merge is squash-only with linear history, and the branch deletes on merge. the author never merges; a separate reviewer merges on a green gate, because a second person is the last check before `main`.
-- the synthesized `ci-ok` status is the one required check. it fans in over the `check` and `pr-body` jobs and passes only when both do.
+- the synthesized `ci-ok` status is the one required check. it fans in over the `check`, `pr-body`, and `repro` jobs and passes when each is success or skipped. `repro` runs only on a `release/*` PR and is skipped (a pass) elsewhere.
+
+### Releases
+
+A release is a version-bump PR, not a special ceremony. On a `release/<x.y.z>` branch, bump both version files to the same version (`scripts/check_versions.py` enforces the lockstep), fill the template, and let it clear `ci-ok` like any PR — on a `release/*` PR the `repro` reproducibility gate runs and must pass. A reviewer squash-merges; then a human pushes the `v<x.y.z>` tag (tags are not ruleset-protected, so the tag push is a deliberate human-only act), which fires `.github/workflows/release.yml` to verify the lockstep against the tag and cut the GitHub Release. The version bump follows the pre-1.0 policy: `fix`/`chore`/`ci`/`docs` → patch, `feat` → minor, and a breaking change → minor (major is reserved for `1.0.0`).
 
 ## Safety
 

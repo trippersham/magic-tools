@@ -69,7 +69,10 @@ else
   echo "markdown: no agent files yet (skipped)"
 fi
 
-# Single-source-of-truth gate, last. Pure stdlib, run on the pipeline venv python
-# that the `uv run` steps above have already created (true in both --fast and full
-# mode, since ruff runs via uv either way). Keep an invocation above this line.
+# Version lockstep + single-source-of-truth gates, last. Both are pure stdlib, run
+# on the pipeline venv python that the `uv run` steps above have already created
+# (true in both --fast and full mode, since ruff runs via uv either way). Keep an
+# invocation above this line. The lockstep check is a cheap file read, so it runs in
+# both modes — it is the PR-time half of the release-tag assertion in release.yml.
+plugins/make-magic/pipeline/.venv/bin/python scripts/check_versions.py
 plugins/make-magic/pipeline/.venv/bin/python scripts/check_context.py
