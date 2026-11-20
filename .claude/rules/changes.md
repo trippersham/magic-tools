@@ -14,4 +14,5 @@ These files control CI and the way a change reaches `main`. A wrong workflow can
 - never remove a job from the `needs` list of the synthesized `ci-ok` merge check, and add every new job to it. reason: a job outside that list cannot block a merge, and a skipped required check counts as a pass.
 - never add `pull_request_target` to a workflow. reason: it runs fork code with the repo secrets. the fork-safe governance is reserved for phase 2.
 - never print a secret or pass one on a command line in a workflow. read it from a repo secret or a file, because the run log is public on a public repo.
-- keep the existing release, canary, and harness-jar workflows working when you edit CI. they verify the lockstep version, the runtime-fetched pins, and the harness bytecode, and a merge that breaks one ships a broken release.
+- keep the existing release, canary, and harness-jar workflows working when you edit CI. they verify the runtime-fetched pins and the harness bytecode, and a merge that breaks one ships a broken release.
+- keep the plugin-version lockstep enforced at both gates. `scripts/check` asserts `plugin.json` equals `pyproject.toml` on every PR (inside `ci-ok`), and `release.yml` re-asserts both against the pushed tag before it cuts a Release, so a mistagged or divergent release cannot ship.
