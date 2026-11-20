@@ -1,0 +1,2814 @@
+{
+  "bracket": 2,
+  "bundle": "precons",
+  "cards": [
+    {
+      "cmc": 4.0,
+      "color_identity": [
+        "G",
+        "U",
+        "W"
+      ],
+      "keywords": [
+        "Vigilance"
+      ],
+      "mana_cost": "{1}{G}{W}{U}",
+      "name": "Ms. Bumbleflower",
+      "oracle_id": "25636214-c6ea-4655-a5e8-98e735da5b05",
+      "oracle_text": "Vigilance\nWhenever you cast a spell, target opponent draws a card. Put a +1/+1 counter on target creature. It gains flying until end of turn. If this is the second time this ability has resolved this turn, you draw two cards.",
+      "otags": [
+        "card-advantage",
+        "cast-trigger",
+        "cast-trigger-you",
+        "cycle",
+        "cycle-blc-face-commander",
+        "draw",
+        "draw-engine",
+        "drawback",
+        "evasion",
+        "face-commander",
+        "force-draw",
+        "gains-flying",
+        "gains-pp-counters",
+        "gives-evasion",
+        "gives-flying",
+        "gives-pp-counters",
+        "group-hug",
+        "jump",
+        "multiple-targets",
+        "pure-draw",
+        "repeatable-card-advantage",
+        "repeatable-crime",
+        "repeatable-draw",
+        "repeatable-pp-counters",
+        "repeatable-pure-draw",
+        "selective-group-hug",
+        "times-resolved-matters",
+        "triggered-ability",
+        "unique-type-line"
+      ],
+      "role": "commander",
+      "type_line": "Legendary Creature \u2014 Rabbit Citizen"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "U",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Adarkar Wastes",
+      "oracle_id": "d5ad26cc-2bdb-46b7-b8bf-dd099d5fa09b",
+      "oracle_text": "{T}: Add {C}.\n{T}: Add {W} or {U}. This land deals 1 damage to you.",
+      "otags": [
+        "activated-ability",
+        "burn-you",
+        "cycle",
+        "cycle-dual-land",
+        "cycle-ice-painland",
+        "cycle-land",
+        "cycle-painland",
+        "dual-land",
+        "life-payment",
+        "mana-ability-with-extra-effect",
+        "painland",
+        "vanity-card"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Brushland",
+      "oracle_id": "5eb8b497-ec9a-4a89-ad29-1ec3ca82da7c",
+      "oracle_text": "{T}: Add {C}.\n{T}: Add {G} or {W}. This land deals 1 damage to you.",
+      "otags": [
+        "activated-ability",
+        "burn-you",
+        "card-names",
+        "cycle",
+        "cycle-dual-land",
+        "cycle-ice-painland",
+        "cycle-land",
+        "cycle-painland",
+        "dual-land",
+        "life-payment",
+        "mana-ability-with-extra-effect",
+        "painland",
+        "single-english-word-name"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Canopy Vista",
+      "oracle_id": "dcb7e046-f01b-497c-88e5-57794eb30ce5",
+      "oracle_text": "({T}: Add {G} or {W}.)\nThis land enters tapped unless you control two or more basic lands.",
+      "otags": [
+        "activated-ability",
+        "conditional-tapland",
+        "cycle",
+        "cycle-bfz-tangoland",
+        "cycle-dual-land",
+        "cycle-land",
+        "cycle-tangoland",
+        "dual-land",
+        "lands-matter",
+        "nonbasic-basic-land-type",
+        "synergy-basic"
+      ],
+      "role": null,
+      "type_line": "Land \u2014 Forest Plains"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Command Tower",
+      "oracle_id": "0895c9b7-ae7d-4bb3-af17-3b75deb50a25",
+      "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "commander-identity-matters",
+        "commander-matters",
+        "rainbow-land",
+        "synergy-color-share",
+        "synergy-commander",
+        "tutored-by-name",
+        "virtual-legendary"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Evolving Wilds",
+      "oracle_id": "a75445d3-1303-4bb5-89ad-26ea93fecd48",
+      "oracle_text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+      "otags": [
+        "activated-ability",
+        "fetchland",
+        "sacrifice-self",
+        "tutor",
+        "tutor-land",
+        "tutor-land-basic",
+        "tutor-land-to-battlefield",
+        "tutor-to",
+        "tutor-to-battlefield"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Exotic Orchard",
+      "oracle_id": "27b047e3-0d41-45e2-98e9-9391d7923a1e",
+      "oracle_text": "{T}: Add one mana of any color that a land an opponent controls could produce.",
+      "otags": [
+        "activated-ability",
+        "rainbow-land"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Flooded Grove",
+      "oracle_id": "dc974eb4-72b9-4213-887b-8ee684b93420",
+      "oracle_text": "{T}: Add {C}.\n{G/U}, {T}: Add {G}{G}, {G}{U}, or {U}{U}.",
+      "otags": [
+        "activated-ability",
+        "cycle",
+        "cycle-dual-land",
+        "cycle-eve-filterland",
+        "cycle-hybrid-filterland",
+        "cycle-land",
+        "dual-land",
+        "filterland",
+        "mana-filter"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Forest",
+      "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+      "oracle_text": "({T}: Add {G}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "single-english-word-name",
+        "tutored-by-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Forest"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Forest",
+      "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+      "oracle_text": "({T}: Add {G}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "single-english-word-name",
+        "tutored-by-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Forest"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Forest",
+      "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+      "oracle_text": "({T}: Add {G}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "single-english-word-name",
+        "tutored-by-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Forest"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Forest",
+      "oracle_id": "b34bb2dc-c1af-4d77-b0b3-a0fb342a5fc6",
+      "oracle_text": "({T}: Add {G}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "single-english-word-name",
+        "tutored-by-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Forest"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "U",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Glacial Fortress",
+      "oracle_id": "027dd013-baa7-4111-b3c9-f4d1414e9c45",
+      "oracle_text": "This land enters tapped unless you control a Plains or an Island.\n{T}: Add {W} or {U}.",
+      "otags": [
+        "activated-ability",
+        "conditional-tapland",
+        "cycle",
+        "cycle-checkland",
+        "cycle-dual-land",
+        "cycle-land",
+        "cycle-m10-checkland",
+        "dual-land",
+        "synergy-island",
+        "synergy-plains"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Hinterland Harbor",
+      "oracle_id": "fb5a3403-7f0b-406c-8c4f-d693be010ca6",
+      "oracle_text": "This land enters tapped unless you control a Forest or an Island.\n{T}: Add {G} or {U}.",
+      "otags": [
+        "activated-ability",
+        "alliteration",
+        "card-names",
+        "conditional-tapland",
+        "cycle",
+        "cycle-checkland",
+        "cycle-dual-land",
+        "cycle-isd-checkland",
+        "cycle-land",
+        "dual-land",
+        "synergy-forest",
+        "synergy-island"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Island",
+      "oracle_id": "b2c6aa39-2d2a-459c-a555-fb48ba993373",
+      "oracle_text": "({T}: Add {U}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "meme",
+        "single-english-word-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Island"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Island",
+      "oracle_id": "b2c6aa39-2d2a-459c-a555-fb48ba993373",
+      "oracle_text": "({T}: Add {U}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "meme",
+        "single-english-word-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Island"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Island",
+      "oracle_id": "b2c6aa39-2d2a-459c-a555-fb48ba993373",
+      "oracle_text": "({T}: Add {U}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "meme",
+        "single-english-word-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Island"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Island",
+      "oracle_id": "b2c6aa39-2d2a-459c-a555-fb48ba993373",
+      "oracle_text": "({T}: Add {U}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "meme",
+        "single-english-word-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Island"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Overflowing Basin",
+      "oracle_id": "5ac8e01c-b0a7-4855-a122-1cd26b07c4a5",
+      "oracle_text": "{1}, {T}: Add {G}{U}.",
+      "otags": [
+        "activated-ability",
+        "cycle",
+        "cycle-dual-land",
+        "cycle-land",
+        "cycle-ody-filterland",
+        "cycle-pip-enemy-filterland",
+        "dual-land",
+        "filterland",
+        "mana-filter"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Plains",
+      "oracle_id": "bc71ebf6-2056-41f7-be35-b2e5c34afa99",
+      "oracle_text": "({T}: Add {W}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "single-english-word-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Plains"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Plains",
+      "oracle_id": "bc71ebf6-2056-41f7-be35-b2e5c34afa99",
+      "oracle_text": "({T}: Add {W}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "single-english-word-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Plains"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Plains",
+      "oracle_id": "bc71ebf6-2056-41f7-be35-b2e5c34afa99",
+      "oracle_text": "({T}: Add {W}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "single-english-word-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Plains"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Plains",
+      "oracle_id": "bc71ebf6-2056-41f7-be35-b2e5c34afa99",
+      "oracle_text": "({T}: Add {W}.)",
+      "otags": [
+        "activated-ability",
+        "card-names",
+        "cycle",
+        "cycle-land",
+        "cycle-lea-basic-land",
+        "cycle-mono-land",
+        "eponymous",
+        "single-english-word-name",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Basic Land \u2014 Plains"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "U",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Prairie Stream",
+      "oracle_id": "5330e24a-8568-446e-840a-594cd08bd1bc",
+      "oracle_text": "({T}: Add {W} or {U}.)\nThis land enters tapped unless you control two or more basic lands.",
+      "otags": [
+        "activated-ability",
+        "conditional-tapland",
+        "cycle",
+        "cycle-bfz-tangoland",
+        "cycle-dual-land",
+        "cycle-land",
+        "cycle-tangoland",
+        "dual-land",
+        "lands-matter",
+        "nonbasic-basic-land-type",
+        "synergy-basic"
+      ],
+      "role": null,
+      "type_line": "Land \u2014 Plains Island"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Razorverge Thicket",
+      "oracle_id": "94f6c407-e665-4032-be13-a01e40c1f306",
+      "oracle_text": "This land enters tapped unless you control two or fewer other lands.\n{T}: Add {G} or {W}.",
+      "otags": [
+        "activated-ability",
+        "conditional-tapland",
+        "cycle",
+        "cycle-dual-land",
+        "cycle-fastland",
+        "cycle-land",
+        "cycle-som-fastland",
+        "dual-land"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Reliquary Tower",
+      "oracle_id": "c23e5b80-08d2-4e24-9908-fe2aa4f30f6f",
+      "oracle_text": "You have no maximum hand size.\n{T}: Add {C}.",
+      "otags": [
+        "activated-ability",
+        "hand-size-increase",
+        "utility-land"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "U",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Seachrome Coast",
+      "oracle_id": "9e7a240d-dc33-47ac-9f17-77fab4c1c340",
+      "oracle_text": "This land enters tapped unless you control two or fewer other lands.\n{T}: Add {W} or {U}.",
+      "otags": [
+        "activated-ability",
+        "conditional-tapland",
+        "cycle",
+        "cycle-dual-land",
+        "cycle-fastland",
+        "cycle-land",
+        "cycle-som-fastland",
+        "dual-land"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "U",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Seaside Citadel",
+      "oracle_id": "2ae77795-6a80-498b-bf69-6fd612f601e4",
+      "oracle_text": "This land enters tapped.\n{T}: Add {G}, {W}, or {U}.",
+      "otags": [
+        "activated-ability",
+        "cycle",
+        "cycle-ala-shardland",
+        "cycle-land",
+        "cycle-triland",
+        "cycle-triple-tapland",
+        "shardland",
+        "tapland",
+        "triland"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "U",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Skycloud Expanse",
+      "oracle_id": "76f335d0-7f71-4b1a-b60d-73de954cbe2c",
+      "oracle_text": "{1}, {T}: Add {W}{U}.",
+      "otags": [
+        "activated-ability",
+        "cycle",
+        "cycle-dual-land",
+        "cycle-land",
+        "cycle-ody-ally-filterland",
+        "cycle-ody-filterland",
+        "dual-land",
+        "filterland",
+        "mana-filter"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Sungrass Prairie",
+      "oracle_id": "0a28dff0-2bd6-4105-b73a-b6c4735833fd",
+      "oracle_text": "{1}, {T}: Add {G}{W}.",
+      "otags": [
+        "activated-ability",
+        "cycle",
+        "cycle-dual-land",
+        "cycle-land",
+        "cycle-ody-ally-filterland",
+        "cycle-ody-filterland",
+        "dual-land",
+        "filterland",
+        "mana-filter"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Sunpetal Grove",
+      "oracle_id": "402ec768-76fb-474e-ae74-babc90d833c4",
+      "oracle_text": "This land enters tapped unless you control a Forest or a Plains.\n{T}: Add {G} or {W}.",
+      "otags": [
+        "activated-ability",
+        "conditional-tapland",
+        "cycle",
+        "cycle-checkland",
+        "cycle-dual-land",
+        "cycle-land",
+        "cycle-m10-checkland",
+        "dual-land",
+        "synergy-forest",
+        "synergy-plains"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "U",
+        "W"
+      ],
+      "keywords": [
+        "Scry"
+      ],
+      "mana_cost": "",
+      "name": "Temple of Enlightenment",
+      "oracle_id": "89f43e27-790b-4ca1-8ba7-0882b31e0783",
+      "oracle_text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {W} or {U}.",
+      "otags": [
+        "activated-ability",
+        "bottom-deck-manipulation",
+        "cycle",
+        "cycle-block-ths-scry-land",
+        "cycle-dual-land",
+        "cycle-land",
+        "dual-land",
+        "library-manipulation",
+        "peek",
+        "peek-library",
+        "scry",
+        "tapland",
+        "top-deck-manipulation",
+        "triggered-ability",
+        "utility-land"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "U"
+      ],
+      "keywords": [
+        "Scry"
+      ],
+      "mana_cost": "",
+      "name": "Temple of Mystery",
+      "oracle_id": "7e26f0b7-20e6-46d5-8130-d98c14d6aa29",
+      "oracle_text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {G} or {U}.",
+      "otags": [
+        "activated-ability",
+        "bottom-deck-manipulation",
+        "cycle",
+        "cycle-block-ths-scry-land",
+        "cycle-dual-land",
+        "cycle-land",
+        "dual-land",
+        "library-manipulation",
+        "peek",
+        "peek-library",
+        "scry",
+        "tapland",
+        "top-deck-manipulation",
+        "triggered-ability",
+        "utility-land"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "W"
+      ],
+      "keywords": [
+        "Scry"
+      ],
+      "mana_cost": "",
+      "name": "Temple of Plenty",
+      "oracle_id": "e521322b-0e83-458c-8936-7021a80ee279",
+      "oracle_text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {G} or {W}.",
+      "otags": [
+        "activated-ability",
+        "bottom-deck-manipulation",
+        "cycle",
+        "cycle-block-ths-scry-land",
+        "cycle-dual-land",
+        "cycle-land",
+        "dual-land",
+        "library-manipulation",
+        "peek",
+        "peek-library",
+        "scry",
+        "tapland",
+        "top-deck-manipulation",
+        "triggered-ability",
+        "utility-land"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Terramorphic Expanse",
+      "oracle_id": "1bd3e453-aa21-4ee6-95c2-d6d920ee8e7a",
+      "oracle_text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+      "otags": [
+        "activated-ability",
+        "fetchland",
+        "sacrifice-self",
+        "tutor",
+        "tutor-land",
+        "tutor-land-basic",
+        "tutor-land-to-battlefield",
+        "tutor-to",
+        "tutor-to-battlefield"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Thriving Grove",
+      "oracle_id": "a8052556-8962-4130-86a8-6fb7b6a324f7",
+      "oracle_text": "This land enters tapped. As it enters, choose a color other than green.\n{T}: Add {G} or one mana of the chosen color.",
+      "otags": [
+        "activated-ability",
+        "color-choose-land",
+        "cycle",
+        "cycle-dual-land",
+        "cycle-jmp-thriving-land",
+        "cycle-land",
+        "dual-land",
+        "tapland"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Thriving Heath",
+      "oracle_id": "d1946630-e224-40db-8f0d-388b09622288",
+      "oracle_text": "This land enters tapped. As it enters, choose a color other than white.\n{T}: Add {W} or one mana of the chosen color.",
+      "otags": [
+        "activated-ability",
+        "color-choose-land",
+        "cycle",
+        "cycle-dual-land",
+        "cycle-jmp-thriving-land",
+        "cycle-land",
+        "dual-land",
+        "tapland"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Thriving Isle",
+      "oracle_id": "69fc70b8-b143-4662-ac95-e2743037239d",
+      "oracle_text": "This land enters tapped. As it enters, choose a color other than blue.\n{T}: Add {U} or one mana of the chosen color.",
+      "otags": [
+        "activated-ability",
+        "color-choose-land",
+        "cycle",
+        "cycle-dual-land",
+        "cycle-jmp-thriving-land",
+        "cycle-land",
+        "dual-land",
+        "tapland"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 0.0,
+      "color_identity": [
+        "G",
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "",
+      "name": "Yavimaya Coast",
+      "oracle_id": "40b36bc6-c185-4bda-99e7-0118953c2c97",
+      "oracle_text": "{T}: Add {C}.\n{T}: Add {G} or {U}. This land deals 1 damage to you.",
+      "otags": [
+        "activated-ability",
+        "burn-you",
+        "cycle",
+        "cycle-apc-painland",
+        "cycle-dual-land",
+        "cycle-land",
+        "cycle-painland",
+        "dual-land",
+        "life-payment",
+        "mana-ability-with-extra-effect",
+        "painland"
+      ],
+      "role": null,
+      "type_line": "Land"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "{2}{G}",
+      "name": "Cultivate",
+      "oracle_id": "8b755881-a72d-4e21-a369-d2924eb4585a",
+      "oracle_text": "Search your library for up to two basic land cards, reveal those cards, put one onto the battlefield tapped and the other into your hand, then shuffle.",
+      "otags": [
+        "card-names",
+        "land-ramp",
+        "ramp",
+        "single-english-word-name",
+        "tutor",
+        "tutor-land",
+        "tutor-land-basic",
+        "tutor-land-to-battlefield",
+        "tutor-to",
+        "tutor-to-battlefield",
+        "tutor-to-hand"
+      ],
+      "role": null,
+      "type_line": "Sorcery"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "{1}{G}",
+      "name": "Farseek",
+      "oracle_id": "495e52e6-4c2b-4574-9474-eadbdcc8b4ac",
+      "oracle_text": "Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield tapped, then shuffle.",
+      "otags": [
+        "land-ramp",
+        "ramp",
+        "tutor",
+        "tutor-land",
+        "tutor-land-island",
+        "tutor-land-mountain",
+        "tutor-land-plains",
+        "tutor-land-swamp",
+        "tutor-land-to-battlefield",
+        "tutor-to",
+        "tutor-to-battlefield"
+      ],
+      "role": null,
+      "type_line": "Sorcery"
+    },
+    {
+      "cmc": 5.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "{4}{W}",
+      "name": "Promise of Loyalty",
+      "oracle_id": "e1d294e8-67b1-4a4a-86b8-f98f28a327d9",
+      "oracle_text": "Each player puts a vow counter on a creature they control and sacrifices the rest. Each of those creatures can't attack you or planeswalkers you control for as long as it has a vow counter on it.",
+      "otags": [
+        "aesthetic-counter",
+        "fun-ruling",
+        "functional-reminder-counter",
+        "prevent-attack",
+        "removal",
+        "removal-creature",
+        "removal-sacrifice",
+        "sweeper",
+        "synergy-planeswalker",
+        "unique-counter"
+      ],
+      "role": null,
+      "type_line": "Sorcery"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "{1}{W}{W}",
+      "name": "Secret Rendezvous",
+      "oracle_id": "34b90d3e-f48c-41ff-b3e4-5cab7a9cd597",
+      "oracle_text": "You and target opponent each draw three cards.",
+      "otags": [
+        "burst-draw",
+        "card-advantage",
+        "draw",
+        "force-draw",
+        "group-hug",
+        "pure-draw",
+        "selective-group-hug",
+        "single-target-instant-sorcery",
+        "symmetrical"
+      ],
+      "role": null,
+      "type_line": "Sorcery"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [
+        "Tempting offer"
+      ],
+      "mana_cost": "{2}{W}",
+      "name": "Tempt with Bunnies",
+      "oracle_id": "6874be51-623d-4eaf-a67a-2fcbb9a8ceca",
+      "oracle_text": "Tempting Offer \u2014 Draw a card and create a 1/1 white Rabbit creature token. Then each opponent may draw a card and create a 1/1 white Rabbit creature token. For each opponent who does, you draw a card and you create a 1/1 white Rabbit creature token.",
+      "otags": [
+        "bribery",
+        "card-advantage",
+        "donate-token",
+        "draw",
+        "group-hug",
+        "multiplayer",
+        "multiple-bodies",
+        "per-player",
+        "pure-draw"
+      ],
+      "role": null,
+      "type_line": "Sorcery"
+    },
+    {
+      "cmc": 4.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [
+        "Tempting offer"
+      ],
+      "mana_cost": "{3}{G}",
+      "name": "Tempt with Discovery",
+      "oracle_id": "4baa6145-216e-476b-b178-aaaa1e633701",
+      "oracle_text": "Tempting offer \u2014 Search your library for a land card and put it onto the battlefield. Each opponent may search their library for a land card and put it onto the battlefield. For each opponent who searches a library this way, search your library for a land card and put it onto the battlefield. Then each player who searched a library this way shuffles.",
+      "otags": [
+        "bribery",
+        "cycle",
+        "cycle-c13-tempting-offer",
+        "donate-rampant-growth",
+        "green-effect",
+        "group-hug",
+        "land-ramp",
+        "multi-land-ramp",
+        "multiplayer",
+        "per-player",
+        "ramp",
+        "ramp-with-set-s-mechanic",
+        "refund",
+        "staple-with-set-s-mechanic",
+        "tutor",
+        "tutor-land",
+        "tutor-land-any",
+        "tutor-land-to-battlefield",
+        "tutor-to",
+        "tutor-to-battlefield"
+      ],
+      "role": null,
+      "type_line": "Sorcery"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [
+        "Gift"
+      ],
+      "mana_cost": "{1}{G}",
+      "name": "Wear Down",
+      "oracle_id": "27905301-333e-4cdd-90cf-188159fcf8e9",
+      "oracle_text": "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nDestroy target artifact or enchantment. If the gift was promised, instead destroy two target artifacts and/or enchantments.",
+      "otags": [
+        "additional-cost",
+        "disenchant-naturalize",
+        "force-draw",
+        "group-hug",
+        "multi-removal",
+        "multiple-targets",
+        "naturalize-with-set-mechanic",
+        "removal",
+        "removal-artifact",
+        "removal-destroy",
+        "removal-enchantment",
+        "selective-group-hug",
+        "single-target-instant-sorcery",
+        "spot-removal",
+        "staple-with-set-s-mechanic"
+      ],
+      "role": null,
+      "type_line": "Sorcery"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "{2}",
+      "name": "Arcane Signet",
+      "oracle_id": "0bc7f093-bef0-4f1a-852c-4b75ebf54838",
+      "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
+      "otags": [
+        "activated-ability",
+        "commander-identity-matters",
+        "commander-matters",
+        "mana-producer",
+        "mana-rock",
+        "mana-rock-with-set-s-mechanic",
+        "mini-refund",
+        "ramp",
+        "refund",
+        "staple-with-set-s-mechanic",
+        "synergy-commander"
+      ],
+      "role": null,
+      "type_line": "Artifact"
+    },
+    {
+      "cmc": 6.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "{6}",
+      "name": "Coveted Jewel",
+      "oracle_id": "98492d7d-3b9e-4ae1-ac45-1b508d6d2670",
+      "oracle_text": "When this artifact enters, draw three cards.\n{T}: Add three mana of any one color.\nWhenever one or more creatures an opponent controls attack you and aren't blocked, that player draws three cards and gains control of this artifact. Untap it.",
+      "otags": [
+        "activated-ability",
+        "adds-multiple-mana",
+        "attacking-matters",
+        "burst-draw",
+        "card-advantage",
+        "control-changing-effects",
+        "defector",
+        "draw",
+        "draw-engine",
+        "drawback",
+        "group-hug",
+        "mana-producer",
+        "mana-rock",
+        "pure-draw",
+        "ramp",
+        "refund",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-pure-draw",
+        "triggered-ability",
+        "unblocked-trigger",
+        "untapper",
+        "untaps-self",
+        "utility-mana-rock"
+      ],
+      "role": null,
+      "type_line": "Artifact"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "{2}",
+      "name": "Fellwar Stone",
+      "oracle_id": "95560508-7ac9-4be9-8a3f-3c7d5b52807b",
+      "oracle_text": "{T}: Add one mana of any color that a land an opponent controls could produce.",
+      "otags": [
+        "activated-ability",
+        "mana-producer",
+        "mana-rock",
+        "ramp",
+        "refund"
+      ],
+      "role": null,
+      "type_line": "Artifact"
+    },
+    {
+      "cmc": 4.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "{4}",
+      "name": "Ghirapur Orrery",
+      "oracle_id": "c6bb3a58-131a-4d7b-8c07-173a7de23b06",
+      "oracle_text": "Each player may play an additional land on each of their turns.\nAt the beginning of each player's upkeep, if that player has no cards in hand, that player draws three cards.",
+      "otags": [
+        "burst-draw",
+        "card-advantage",
+        "draw",
+        "draw-engine",
+        "extra-land",
+        "force-draw",
+        "hand-size-matters",
+        "hellbent",
+        "intervening-if-clause",
+        "land-ramp",
+        "play-additional-land",
+        "pure-draw",
+        "ramp",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-pure-draw",
+        "symmetrical",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Artifact"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "{2}",
+      "name": "Mind Stone",
+      "oracle_id": "c97361b5-af16-4a7b-af85-a429dbaf4ad2",
+      "oracle_text": "{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.",
+      "otags": [
+        "activated-ability",
+        "card-advantage",
+        "draw",
+        "egg",
+        "mana-producer",
+        "mana-rock",
+        "pure-draw",
+        "ramp",
+        "refund",
+        "sacrifice-self",
+        "utility-mana-rock"
+      ],
+      "role": null,
+      "type_line": "Artifact"
+    },
+    {
+      "cmc": 1.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "{1}",
+      "name": "Sol Ring",
+      "oracle_id": "6ad8011d-3471-4369-9d68-b264cc027487",
+      "oracle_text": "{T}: Add {C}{C}.",
+      "otags": [
+        "activated-ability",
+        "adds-multiple-mana",
+        "full-refund",
+        "mana-producer",
+        "mana-rock",
+        "ramp",
+        "refund"
+      ],
+      "role": null,
+      "type_line": "Artifact"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [],
+      "keywords": [
+        "Equip"
+      ],
+      "mana_cost": "{2}",
+      "name": "Swiftfoot Boots",
+      "oracle_id": "c8b143ad-43ec-4e0d-a440-e348daa31391",
+      "oracle_text": "Equipped creature has hexproof and haste. (It can't be the target of spells or abilities your opponents control. It can attack and {T} no matter when it came under your control.)\nEquip {1} ({1}: Attach to target creature you control. Equip only as a sorcery.)",
+      "otags": [
+        "activated-ability",
+        "french-vanilla-equipment",
+        "gives-haste",
+        "gives-hexproof",
+        "protection",
+        "protects-creature"
+      ],
+      "role": null,
+      "type_line": "Artifact \u2014 Equipment"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "{2}",
+      "name": "Thought Vessel",
+      "oracle_id": "9965d9c5-2ebf-4a6c-930e-55c5890979be",
+      "oracle_text": "You have no maximum hand size.\n{T}: Add {C}.",
+      "otags": [
+        "activated-ability",
+        "hand-size-increase",
+        "mana-producer",
+        "mana-rock",
+        "ramp",
+        "refund",
+        "utility-mana-rock"
+      ],
+      "role": null,
+      "type_line": "Artifact"
+    },
+    {
+      "cmc": 4.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [
+        "Vigilance"
+      ],
+      "mana_cost": "{2}{W}{W}",
+      "name": "Baird, Steward of Argive",
+      "oracle_id": "69aa6809-5468-413a-94c9-562e6de93957",
+      "oracle_text": "Vigilance\nCreatures can't attack you or planeswalkers you control unless their controller pays {1} for each of those creatures.",
+      "otags": [
+        "pillowfort",
+        "protection",
+        "protects-planeswalker",
+        "synergy-planeswalker",
+        "tax-attack"
+      ],
+      "role": null,
+      "type_line": "Legendary Creature \u2014 Human Soldier"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [
+        "Toxic",
+        "Treasure"
+      ],
+      "mana_cost": "{2}{G}",
+      "name": "Bloodroot Apothecary",
+      "oracle_id": "09ecb8df-2a17-4e5a-814c-474bce54794d",
+      "oracle_text": "Toxic 2 (Players dealt combat damage by this creature also get two poison counters. A player with ten or more poison counters loses the game.)\nWhen this creature enters, you and target opponent each create a Treasure token.\nWhenever an opponent sacrifices a noncreature token, that player gets two poison counters.",
+      "otags": [
+        "donate-mana",
+        "donate-token",
+        "group-hug",
+        "group-slug",
+        "hate",
+        "hate-token",
+        "mini-refund",
+        "opponent-sacrifice-matters",
+        "poison-mechanics",
+        "poisonous",
+        "ramp",
+        "refund",
+        "sacrifice-matters",
+        "selective-group-hug",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Squirrel Druid"
+    },
+    {
+      "cmc": 5.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "{3}{U}{U}",
+      "name": "Body of Knowledge",
+      "oracle_id": "7fc6a5c1-f0da-42f6-93d0-6d94467e2ac0",
+      "oracle_text": "Body of Knowledge's power and toughness are each equal to the number of cards in your hand.\nYou have no maximum hand size.\nWhenever this creature is dealt damage, draw that many cards.",
+      "otags": [
+        "burst-draw",
+        "card-advantage",
+        "card-names",
+        "cda-power",
+        "cda-toughness",
+        "characteristic-defining-ability",
+        "draw",
+        "draw-engine",
+        "enrage",
+        "hand-size-increase",
+        "hand-size-matters",
+        "maro",
+        "punny-name",
+        "pure-draw",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-pure-draw",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Avatar"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "{2}{U}",
+      "name": "Chasm Skulker",
+      "oracle_id": "69facbc7-3859-4716-b627-5199571fb3cf",
+      "oracle_text": "Whenever you draw a card, put a +1/+1 counter on this creature.\nWhen this creature dies, create X 1/1 blue Squid creature tokens with islandwalk, where X is the number of +1/+1 counters on this creature. (They can't be blocked as long as defending player controls an Island.)",
+      "otags": [
+        "counters-matter",
+        "death-trigger",
+        "death-trigger-self",
+        "draw-matters",
+        "gains-pp-counters",
+        "guest-designer",
+        "leaves-body-behind",
+        "pp-counters-matter",
+        "repeatable-pp-counters",
+        "splits-on-death",
+        "triggered-ability",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Squid Horror"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "G",
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "{G}{U}",
+      "name": "Coiling Oracle",
+      "oracle_id": "69fd4ddf-9ed8-4c56-bef3-9944daf05e4f",
+      "oracle_text": "When this creature enters, reveal the top card of your library. If it's a land card, put it onto the battlefield. Otherwise, put that card into your hand.",
+      "otags": [
+        "cantrip",
+        "card-advantage",
+        "cycle",
+        "cycle-cn2-draft-signpost",
+        "cycle-rvr-c-two-color",
+        "draft-signpost",
+        "draw",
+        "extra-land",
+        "flavors-of-vanilla",
+        "land-or-hand",
+        "land-ramp",
+        "multiple-species-types",
+        "pure-draw",
+        "ramp",
+        "triggered-ability",
+        "unique-type-line",
+        "virtual-vanilla"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Snake Elf Druid"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "G",
+        "W"
+      ],
+      "keywords": [
+        "Vigilance"
+      ],
+      "mana_cost": "{1}{G}{W}",
+      "name": "Faeburrow Elder",
+      "oracle_id": "70a6f08e-854d-4e2f-9d8c-c45ec3231157",
+      "oracle_text": "Vigilance\nThis creature gets +1/+1 for each color among permanents you control.\n{T}: For each color among permanents you control, add one mana of that color.",
+      "otags": [
+        "activated-ability",
+        "adds-multiple-mana",
+        "cycle",
+        "cycle-eld-r-m-two-color",
+        "mana-dork",
+        "mana-producer",
+        "ramp",
+        "synergy-color-each",
+        "vivid"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Treefolk Druid"
+    },
+    {
+      "cmc": 4.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "{3}{G}",
+      "name": "Forgotten Ancient",
+      "oracle_id": "2ef75cf3-30dc-4852-a6d1-1d6391fad022",
+      "oracle_text": "Whenever a player casts a spell, you may put a +1/+1 counter on this creature.\nAt the beginning of your upkeep, you may move any number of +1/+1 counters from this creature onto other creatures.",
+      "otags": [
+        "cast-trigger",
+        "counters-matter",
+        "gains-pp-counters",
+        "gives-pp-counters",
+        "mana-gorger",
+        "move-counters",
+        "pp-counters-matter",
+        "repeatable-pp-counters",
+        "tax",
+        "toll",
+        "triggered-ability",
+        "you-make-the-card"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Elemental"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "{1}{W}",
+      "name": "Jolly Gerbils",
+      "oracle_id": "8e22bf51-1b1b-459b-af78-91188b6e3f09",
+      "oracle_text": "Whenever you give a gift, draw a card.",
+      "otags": [
+        "card-advantage",
+        "draw",
+        "draw-engine",
+        "pure-draw",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-pure-draw",
+        "synergy-gift",
+        "triggered-ability",
+        "unique-creature-type",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Hamster Citizen"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "{1}{G}",
+      "name": "Jolrael, Mwonvuli Recluse",
+      "oracle_id": "f8640899-2458-40f2-98a3-35c402ee9a7a",
+      "oracle_text": "Whenever you draw your second card each turn, create a 2/2 green Cat creature token.\n{4}{G}{G}: Until end of turn, creatures you control have base power and toughness X/X, where X is the number of cards in your hand.",
+      "otags": [
+        "activated-ability",
+        "creates-bigger-body",
+        "cycle",
+        "cycle-m21-mono-teferi-legend",
+        "draw-matters",
+        "hand-size-matters",
+        "mana-sink",
+        "maro",
+        "repeatable-creature-tokens",
+        "repeatable-token-generator",
+        "second-draw-matters",
+        "shapechange",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Legendary Creature \u2014 Human Druid"
+    },
+    {
+      "cmc": 5.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [
+        "Trample",
+        "Double"
+      ],
+      "mana_cost": "{3}{G}{G}",
+      "name": "Kalonian Hydra",
+      "oracle_id": "7bd36106-04fe-481f-b16e-e076dcbb183b",
+      "oracle_text": "Trample\nThis creature enters with four +1/+1 counters on it.\nWhenever this creature attacks, double the number of +1/+1 counters on each creature you control.",
+      "otags": [
+        "attack-trigger",
+        "attacking-matters-self",
+        "counter-doubler",
+        "counter-increaser",
+        "counters-matter",
+        "cycle",
+        "cycle-m14-iconic-creature",
+        "exponential",
+        "gains-pp-counters",
+        "pp-counters-matter",
+        "pseudo-proliferate",
+        "repeatable-pp-counters",
+        "repeatable-proliferate",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Hydra"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "U",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "{W}{U}",
+      "name": "Kwain, Itinerant Meddler",
+      "oracle_id": "ce6a85b5-e249-4582-a6be-ce200da5fd53",
+      "oracle_text": "{T}: Each player may draw a card, then each player who drew a card this way gains 1 life.",
+      "otags": [
+        "activated-ability",
+        "card-advantage",
+        "cycle",
+        "cycle-cmr-r-two-color",
+        "draw",
+        "draw-engine",
+        "group-hug",
+        "lifegain",
+        "opponent-lifegain",
+        "pure-draw",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-lifegain",
+        "repeatable-pure-draw",
+        "symmetrical"
+      ],
+      "role": null,
+      "type_line": "Legendary Creature \u2014 Rabbit Wizard"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [
+        "Vigilance"
+      ],
+      "mana_cost": "{2}{W}",
+      "name": "Loran of the Third Path",
+      "oracle_id": "b3d81980-76f2-44e2-b1c9-01e30c726312",
+      "oracle_text": "Vigilance\nWhen Loran enters, destroy up to one target artifact or enchantment.\n{T}: You and target opponent each draw a card.",
+      "otags": [
+        "activated-ability",
+        "card-advantage",
+        "disenchant-naturalize",
+        "draw",
+        "draw-engine",
+        "force-draw",
+        "group-hug",
+        "pure-draw",
+        "removal",
+        "removal-artifact",
+        "removal-destroy",
+        "removal-enchantment",
+        "repeatable-card-advantage",
+        "repeatable-crime",
+        "repeatable-draw",
+        "repeatable-pure-draw",
+        "selective-group-hug",
+        "spot-removal",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Legendary Creature \u2014 Human Artificer"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [
+        "Trample"
+      ],
+      "mana_cost": "{2}{G}",
+      "name": "Managorger Hydra",
+      "oracle_id": "b3f2265b-dd65-4b74-8b74-35ee0b147617",
+      "oracle_text": "Trample\nWhenever a player casts a spell, put a +1/+1 counter on this creature.",
+      "otags": [
+        "cast-trigger",
+        "gains-pp-counters",
+        "mana-gorger",
+        "repeatable-pp-counters",
+        "tax",
+        "toll",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Hydra"
+    },
+    {
+      "cmc": 4.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [
+        "Lifelink"
+      ],
+      "mana_cost": "{3}{W}",
+      "name": "Mangara, the Diplomat",
+      "oracle_id": "cbcb6d9a-6ae5-4bcd-8013-2b657553764a",
+      "oracle_text": "Lifelink\nWhenever an opponent attacks with creatures, if two or more of those creatures are attacking you and/or planeswalkers you control, draw a card.\nWhenever an opponent casts their second spell each turn, draw a card.",
+      "otags": [
+        "anagram",
+        "attack-trigger",
+        "card-advantage",
+        "card-names",
+        "cast-trigger",
+        "cast-trigger-other",
+        "cycle",
+        "cycle-m21-mono-teferi-legend",
+        "draw",
+        "draw-engine",
+        "hate",
+        "hate-attacker",
+        "intervening-if-clause",
+        "lifegain",
+        "pure-draw",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-lifegain",
+        "repeatable-pure-draw",
+        "synergy-planeswalker",
+        "tax",
+        "toll",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Legendary Creature \u2014 Human Cleric"
+    },
+    {
+      "cmc": 5.0,
+      "color_identity": [
+        "G",
+        "U",
+        "W"
+      ],
+      "keywords": [
+        "Lifelink"
+      ],
+      "mana_cost": "{2}{G}{W}{U}",
+      "name": "Mr. Foxglove",
+      "oracle_id": "c2008ba9-00df-4607-ba0c-189af52033eb",
+      "oracle_text": "Lifelink\nWhenever Mr. Foxglove attacks, draw cards equal to the number of cards in defending player's hand minus the number of cards in your hand. If you didn't draw cards this way, you may put a creature card from your hand onto the battlefield.",
+      "otags": [
+        "alt-commander",
+        "attack-trigger",
+        "attacking-matters-self",
+        "burst-draw",
+        "card-advantage",
+        "cost-ignorer",
+        "cycle",
+        "cycle-blc-alt-commander",
+        "draw",
+        "draw-engine",
+        "hand-size-hate",
+        "hand-size-matters",
+        "hate",
+        "hate-empty-hand",
+        "hate-full-hand",
+        "lifegain",
+        "pure-draw",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-lifegain",
+        "repeatable-pure-draw",
+        "sneak",
+        "sneak-creature",
+        "triggered-ability",
+        "unique-type-line"
+      ],
+      "role": null,
+      "type_line": "Legendary Creature \u2014 Fox Rogue"
+    },
+    {
+      "cmc": 5.0,
+      "color_identity": [
+        "G",
+        "U"
+      ],
+      "keywords": [
+        "Gift"
+      ],
+      "mana_cost": "{3}{G}{U}",
+      "name": "Octomancer",
+      "oracle_id": "1cf7e5a0-cc8f-4bf7-9767-2f3bcae26339",
+      "oracle_text": "Gift an Octopus (You may promise an opponent a gift as you cast this spell. If you do, when it enters, they create an 8/8 blue Octopus creature token.)\nAt the beginning of each end step, create a token that's a copy of target creature token that entered the battlefield this turn.",
+      "otags": [
+        "additional-cost",
+        "card-names",
+        "copy",
+        "copy-token",
+        "donate-token",
+        "group-hug",
+        "intervening-if-clause",
+        "portmanteau",
+        "repeatable-creature-tokens",
+        "repeatable-crime",
+        "repeatable-token-generator",
+        "selective-group-hug",
+        "synergy-token",
+        "thingfall",
+        "tokenfall",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Frog Druid"
+    },
+    {
+      "cmc": 5.0,
+      "color_identity": [],
+      "keywords": [],
+      "mana_cost": "{5}",
+      "name": "Psychosis Crawler",
+      "oracle_id": "2876e74f-a242-4995-9702-0b737a1ab67a",
+      "oracle_text": "Psychosis Crawler's power and toughness are each equal to the number of cards in your hand.\nWhenever you draw a card, each opponent loses 1 life.",
+      "otags": [
+        "cda-power",
+        "cda-toughness",
+        "characteristic-defining-ability",
+        "draw-matters",
+        "group-slug",
+        "hand-size-matters",
+        "maro",
+        "opponent-loses-life",
+        "triggered-ability",
+        "type-addition-phyrexian",
+        "type-errata",
+        "type-errata-addition"
+      ],
+      "role": null,
+      "type_line": "Artifact Creature \u2014 Phyrexian Horror"
+    },
+    {
+      "cmc": 7.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [
+        "Vigilance"
+      ],
+      "mana_cost": "{5}{W}{W} // {3}{W}{W}",
+      "name": "Realm-Cloaked Giant",
+      "oracle_id": "a1d17244-9c92-4094-9843-d7ee31c85ea4",
+      "oracle_text": "Vigilance\n//\nDestroy all non-Giant creatures. (Then exile this card. You may cast the creature later from exile.)",
+      "otags": [
+        "castable-from-exile",
+        "castable-from-nonhand",
+        "cheaper-than-mv",
+        "exile-self",
+        "flavors-of-vanilla",
+        "removal",
+        "removal-creature",
+        "removal-destroy",
+        "sweeper",
+        "typal",
+        "typal-creature",
+        "typal-giant",
+        "unexile",
+        "virtual-french-vanilla"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Giant // Sorcery \u2014 Adventure"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "{2}{G}",
+      "name": "Rishkar, Peema Renegade",
+      "oracle_id": "761021ce-4559-464e-aa03-85c2fe78e267",
+      "oracle_text": "When Rishkar enters, put a +1/+1 counter on each of up to two target creatures.\nEach creature you control with a counter on it has \"{T}: Add {G}.\"",
+      "otags": [
+        "alliteration",
+        "card-names",
+        "counters-matter",
+        "cycle",
+        "cycle-aer-legend",
+        "gains-pp-counters",
+        "gives-mana-ability",
+        "gives-pp-counters",
+        "gives-tap-ability",
+        "mana-dork",
+        "mana-producer",
+        "multiple-targets",
+        "ramp",
+        "support",
+        "tap-fuel-creature",
+        "tap-outlet",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Legendary Creature \u2014 Elf Druid"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "G",
+        "W"
+      ],
+      "keywords": [
+        "Parley"
+      ],
+      "mana_cost": "{1}{G}{W}",
+      "name": "Selvala, Explorer Returned",
+      "oracle_id": "b628a39b-c923-473d-900a-1617f47ecb76",
+      "oracle_text": "Parley \u2014 {T}: Each player reveals the top card of their library. For each nonland card revealed this way, add {G} and you gain 1 life. Then each player draws a card. (Activate only as an instant.)",
+      "otags": [
+        "activated-ability",
+        "adds-multiple-mana",
+        "card-advantage",
+        "cycle",
+        "cycle-cns-r-two-color",
+        "cycle-vma-r-two-color",
+        "draw",
+        "draw-engine",
+        "force-draw",
+        "group-hug",
+        "lifegain",
+        "mana-dork",
+        "mana-producer",
+        "multiplayer",
+        "non-mana-ability-mana",
+        "per-player",
+        "pure-draw",
+        "ramp",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-lifegain",
+        "repeatable-pure-draw",
+        "top-matters"
+      ],
+      "role": null,
+      "type_line": "Legendary Creature \u2014 Elf Scout"
+    },
+    {
+      "cmc": 6.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [
+        "Flying"
+      ],
+      "mana_cost": "{4}{U}{U}",
+      "name": "Sphinx of Enlightenment",
+      "oracle_id": "e6284fb3-7cf8-4730-b156-10085b70b0e8",
+      "oracle_text": "Flying\nWhen this creature enters, target opponent draws a card and you draw three cards.",
+      "otags": [
+        "burst-draw",
+        "card-advantage",
+        "cycle",
+        "cycle-gn2-mythic",
+        "draw",
+        "drawback",
+        "evasion",
+        "flavors-of-vanilla",
+        "force-draw",
+        "group-hug",
+        "pure-draw",
+        "selective-group-hug",
+        "triggered-ability",
+        "virtual-french-vanilla"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Sphinx"
+    },
+    {
+      "cmc": 1.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "{G}",
+      "name": "Spore Frog",
+      "oracle_id": "97db6c39-e690-49b6-93a6-e51b8dfad10b",
+      "oracle_text": "Sacrifice this creature: Prevent all combat damage that would be dealt this turn.",
+      "otags": [
+        "activated-ability",
+        "damage-prevention",
+        "fog",
+        "martyr",
+        "protection",
+        "protects-planeswalker",
+        "sacrifice-self",
+        "symmetrical"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Frog"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [
+        "Offspring",
+        "Vigilance"
+      ],
+      "mana_cost": "{2}{W}",
+      "name": "Steelburr Champion",
+      "oracle_id": "d1f3d5ca-cb17-400f-8ed9-3b9a4f151b62",
+      "oracle_text": "Offspring {1}{W} (You may pay an additional {1}{W} as you cast this spell. If you do, when this creature enters, create a 1/1 token copy of it.)\nVigilance\nWhenever an opponent casts a noncreature spell, put a +1/+1 counter on this creature.",
+      "otags": [
+        "additional-cost",
+        "cast-trigger",
+        "cast-trigger-other",
+        "copy",
+        "copy-self",
+        "creates-token-of-a-card",
+        "enters-in-company",
+        "gains-pp-counters",
+        "has-identical-token",
+        "hate",
+        "hate-noncreature",
+        "intervening-if-clause",
+        "mana-gorger",
+        "more-expensive-than-mv",
+        "multiple-bodies",
+        "repeatable-pp-counters",
+        "tax",
+        "token-versions-of-cards",
+        "toll",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Mouse Soldier"
+    },
+    {
+      "cmc": 5.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [
+        "Flying"
+      ],
+      "mana_cost": "{3}{W}{W}",
+      "name": "Sunscorch Regent",
+      "oracle_id": "c8ff464f-0059-4055-a2f2-556fe6db8fbf",
+      "oracle_text": "Flying\nWhenever an opponent casts a spell, put a +1/+1 counter on this creature and you gain 1 life.",
+      "otags": [
+        "cast-trigger",
+        "cast-trigger-other",
+        "cycle",
+        "cycle-dtk-regent",
+        "evasion",
+        "gains-pp-counters",
+        "lifegain",
+        "mana-gorger",
+        "repeatable-lifegain",
+        "repeatable-pp-counters",
+        "tax",
+        "toll",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Dragon"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "{1}{U}",
+      "name": "Triskaidekaphile",
+      "oracle_id": "ef238ba8-acf0-4e62-9abd-5291886a32e8",
+      "oracle_text": "You have no maximum hand size.\nAt the beginning of your upkeep, if you have exactly thirteen cards in your hand, you win the game.\n{3}{U}: Draw a card.",
+      "otags": [
+        "activated-ability",
+        "alternate-win-condition",
+        "bottomless-mana-sink",
+        "card-advantage",
+        "card-names",
+        "draw",
+        "draw-engine",
+        "hand-size-increase",
+        "hand-size-matters",
+        "intervening-if-clause",
+        "mana-sink",
+        "pure-draw",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-pure-draw",
+        "single-english-word-name",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Human Wizard"
+    },
+    {
+      "cmc": 4.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "{3}{U}",
+      "name": "Twenty-Toed Toad",
+      "oracle_id": "cce643fb-cd88-457c-8f13-c203554df675",
+      "oracle_text": "Your maximum hand size is twenty.\nWhenever you attack with two or more creatures, put a +1/+1 counter on this creature and draw a card.\nWhenever this creature attacks, you win the game if there are twenty or more counters on it or you have twenty or more cards in hand.",
+      "otags": [
+        "alliteration",
+        "alternate-win-condition",
+        "attack-trigger",
+        "attacking-matters",
+        "attacking-matters-self",
+        "card-advantage",
+        "card-names",
+        "counters-matter",
+        "draw",
+        "draw-engine",
+        "gains-pp-counters",
+        "hand-size-increase",
+        "hand-size-matters",
+        "punny-name",
+        "pure-draw",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-pp-counters",
+        "repeatable-pure-draw",
+        "rhyming-name",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Creature \u2014 Frog Wizard"
+    },
+    {
+      "cmc": 1.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [
+        "Treasure"
+      ],
+      "mana_cost": "{U}",
+      "name": "An Offer You Can't Refuse",
+      "oracle_id": "234a734b-ba28-4f1b-9d01-3c3e7d516590",
+      "oracle_text": "Counter target noncreature spell. Its controller creates two Treasure tokens. (They're artifacts with \"{T}, Sacrifice this token: Add one mana of any color.\")",
+      "otags": [
+        "blue-effect",
+        "card-names",
+        "counterspell",
+        "counterspell-noncreature",
+        "donate-mana",
+        "donate-token",
+        "drawback",
+        "mob-name",
+        "single-target-instant-sorcery",
+        "swap-removal"
+      ],
+      "role": null,
+      "type_line": "Instant"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "{2}{G}",
+      "name": "Broken Wings",
+      "oracle_id": "5e316864-d55c-496f-8f46-773567896864",
+      "oracle_text": "Destroy target artifact, enchantment, or creature with flying.",
+      "otags": [
+        "disenchant-naturalize",
+        "hate",
+        "hate-flying",
+        "removal",
+        "removal-artifact",
+        "removal-creature",
+        "removal-destroy",
+        "removal-enchantment",
+        "single-target-instant-sorcery",
+        "spot-removal"
+      ],
+      "role": null,
+      "type_line": "Instant"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "{2}{W}",
+      "name": "Generous Gift",
+      "oracle_id": "fae37e28-e137-4177-b973-fa8b4dd8f409",
+      "oracle_text": "Destroy target permanent. Its controller creates a 3/3 green Elephant creature token.",
+      "otags": [
+        "alliteration",
+        "card-names",
+        "donate-token",
+        "out-of-color-token",
+        "removal",
+        "removal-artifact",
+        "removal-aura",
+        "removal-battle",
+        "removal-creature",
+        "removal-destroy",
+        "removal-enchantment",
+        "removal-equipment",
+        "removal-land",
+        "removal-permanent",
+        "removal-planeswalker",
+        "removal-spacecraft",
+        "removal-vehicle",
+        "single-target-instant-sorcery",
+        "spot-removal",
+        "swap-removal"
+      ],
+      "role": null,
+      "type_line": "Instant"
+    },
+    {
+      "cmc": 4.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "{2}{U}{U}",
+      "name": "Illusionist's Gambit",
+      "oracle_id": "333745d9-e930-439b-94d6-3aeea2877f69",
+      "oracle_text": "Cast this spell only during the declare blockers step on an opponent's turn.\nRemove all attacking creatures from combat and untap them. After this phase, there is an additional combat phase. Each of those creatures attacks that combat if able. They can't attack you or planeswalkers you control that combat.",
+      "otags": [
+        "casting-restriction",
+        "combat-manipulation",
+        "combat-timing-restriction",
+        "extra-combat-phase",
+        "force-attacker",
+        "multiplayer",
+        "phase-manipulation",
+        "prevent-attack",
+        "protection",
+        "protects-planeswalker",
+        "pseudo-fog",
+        "remove-from-combat",
+        "timing-restriction",
+        "untapper",
+        "untapper-creature"
+      ],
+      "role": null,
+      "type_line": "Instant"
+    },
+    {
+      "cmc": 5.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "{4}{U}",
+      "name": "Intellectual Offering",
+      "oracle_id": "73ec7a0b-274a-4a10-a173-ff1625d62fce",
+      "oracle_text": "Choose an opponent. You and that player each draw three cards.\nChoose an opponent. Untap all nonland permanents you control and all nonland permanents that player controls.",
+      "otags": [
+        "burst-draw",
+        "card-advantage",
+        "cycle",
+        "cycle-c14-offering",
+        "draw",
+        "extra-untap",
+        "faux-targeting",
+        "force-draw",
+        "group-hug",
+        "pure-draw",
+        "ritual-untap",
+        "selective-group-hug",
+        "untapper",
+        "untapper-artifact",
+        "untapper-creature",
+        "untapper-nonland"
+      ],
+      "role": null,
+      "type_line": "Instant"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [
+        "Gift"
+      ],
+      "mana_cost": "{U}{U}",
+      "name": "Long River's Pull",
+      "oracle_id": "f1993767-1d07-49c8-b8dc-04ec9840a999",
+      "oracle_text": "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nCounter target creature spell. If the gift was promised, instead counter target spell.",
+      "otags": [
+        "additional-cost",
+        "blue-effect",
+        "counterspell",
+        "counterspell-creature",
+        "counterspell-with-set-mechanic",
+        "force-draw",
+        "group-hug",
+        "selective-group-hug",
+        "single-target-instant-sorcery",
+        "staple-with-set-s-mechanic"
+      ],
+      "role": null,
+      "type_line": "Instant"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [
+        "Gift"
+      ],
+      "mana_cost": "{1}{G}",
+      "name": "Peerless Recycling",
+      "oracle_id": "938c03fc-8adf-4c7a-8ae1-eca8401f7a83",
+      "oracle_text": "Gift a card (You may promise an opponent a gift as you cast this spell. If you do, they draw a card before its other effects.)\nReturn target permanent card from your graveyard to your hand. If the gift was promised, instead return two target permanent cards from your graveyard to your hand.",
+      "otags": [
+        "additional-cost",
+        "card-advantage",
+        "force-draw",
+        "group-hug",
+        "multiple-targets",
+        "recursion",
+        "recursion-permanent",
+        "regrowth",
+        "regrowth-permanent",
+        "selective-group-hug",
+        "single-target-instant-sorcery"
+      ],
+      "role": null,
+      "type_line": "Instant"
+    },
+    {
+      "cmc": 6.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [
+        "Gift"
+      ],
+      "mana_cost": "{4}{W}{W}",
+      "name": "Perch Protection",
+      "oracle_id": "295fe873-ecb5-4d5e-a73c-3af6c478afc5",
+      "oracle_text": "Gift an extra turn (You may promise an opponent a gift as you cast this spell. If you do, they take an extra turn after this one.)\nCreate four 2/2 blue Bird creature tokens with flying. If the gift was promised, all permanents you control phase out, and until your next turn, your life total can't change and you gain protection from everything.\nExile Perch Protection.",
+      "otags": [
+        "additional-cost",
+        "alliteration",
+        "blue-effect",
+        "card-names",
+        "damage-prevention",
+        "damage-prevention-you",
+        "evasion",
+        "exile-on-resolution",
+        "exile-self",
+        "extra-turn",
+        "fog",
+        "fog-selective",
+        "gives-player-ability",
+        "gives-player-protection",
+        "group-hug",
+        "multiple-bodies",
+        "out-of-color-token",
+        "phasing",
+        "protection",
+        "protects-all",
+        "protects-creature",
+        "protects-land",
+        "protects-planeswalker",
+        "selective-group-hug"
+      ],
+      "role": null,
+      "type_line": "Instant"
+    },
+    {
+      "cmc": 5.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "{3}{U}{U}",
+      "name": "Perplexing Test",
+      "oracle_id": "8682266c-2b0f-496e-b1c6-1fb338feac24",
+      "oracle_text": "Choose one \u2014\n\u2022 Return all creature tokens to their owners' hands.\n\u2022 Return all nontoken creatures to their owners' hands.",
+      "otags": [
+        "blue-effect",
+        "bounce",
+        "hate",
+        "hate-token",
+        "modal",
+        "modal-inverse-choices",
+        "pseudo-fog",
+        "removal",
+        "removal-bounce",
+        "removal-creature",
+        "sweeper",
+        "synergy-token",
+        "synergy-token-creature"
+      ],
+      "role": null,
+      "type_line": "Instant"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "{2}{W}",
+      "name": "Riot Control",
+      "oracle_id": "a189e20f-1072-4608-9e50-da2a9d7a7ee3",
+      "oracle_text": "You gain 1 life for each creature your opponents control. Prevent all damage that would be dealt to you this turn.",
+      "otags": [
+        "aikido",
+        "damage-prevention",
+        "damage-prevention-you",
+        "fog",
+        "fog-selective",
+        "hate",
+        "hate-wide",
+        "lifegain"
+      ],
+      "role": null,
+      "type_line": "Instant"
+    },
+    {
+      "cmc": 1.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "{W}",
+      "name": "Swords to Plowshares",
+      "oracle_id": "b1544f21-7e98-461b-aed5-e748b0168c52",
+      "oracle_text": "Exile target creature. Its controller gains life equal to its power.",
+      "otags": [
+        "drawback",
+        "lifegain",
+        "opponent-lifegain",
+        "removal",
+        "removal-creature",
+        "removal-exile",
+        "single-target-instant-sorcery",
+        "spot-removal"
+      ],
+      "role": null,
+      "type_line": "Instant"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "{2}{G}",
+      "name": "Communal Brewing",
+      "oracle_id": "99deac41-584b-43f2-804e-c56ae0fef047",
+      "oracle_text": "When this enchantment enters, any number of target opponents each draw a card. Put an ingredient counter on this enchantment, then put an ingredient counter on it for each card drawn this way.\nWhenever you cast a creature spell, that creature enters with X additional +1/+1 counters on it, where X is the number of ingredient counters on this enchantment.",
+      "otags": [
+        "aesthetic-counter",
+        "cast-trigger",
+        "cast-trigger-you",
+        "force-draw",
+        "gives-pp-counters",
+        "group-hug",
+        "multiple-targets",
+        "repeatable-pp-counters",
+        "selective-group-hug",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Enchantment"
+    },
+    {
+      "cmc": 4.0,
+      "color_identity": [
+        "G",
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "{2}{G}{U}",
+      "name": "Fisher's Talent",
+      "oracle_id": "44ba2aa5-2bf5-4267-ae82-f0daf8f5e3e8",
+      "oracle_text": "(Gain the next level as a sorcery to add its ability.)\nAt the beginning of your upkeep, look at the top card of your library. You may reveal it if it's a land card. Create a 1/1 blue Fish creature token if you revealed it this way. Then draw a card.\n{G}{U}: Level 2\nIf you would create a Fish token, create a 3/3 blue Shark creature token instead.\n{2}{G}{U}: Level 3\nIf you would create a Shark token, create an 8/8 blue Octopus creature token instead.",
+      "otags": [
+        "activated-ability",
+        "card-advantage",
+        "cycle",
+        "cycle-blc-talent",
+        "draw",
+        "draw-engine",
+        "fun-ruling",
+        "noncreature-typal",
+        "peek",
+        "peek-library",
+        "pure-draw",
+        "repeatable-card-advantage",
+        "repeatable-creature-tokens",
+        "repeatable-draw",
+        "repeatable-pure-draw",
+        "repeatable-token-generator",
+        "synergy-token",
+        "synergy-token-creature",
+        "top-matters",
+        "triggered-ability",
+        "typal",
+        "typal-coupling",
+        "typal-creature",
+        "typal-fish",
+        "typal-shark"
+      ],
+      "role": null,
+      "type_line": "Enchantment \u2014 Class"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "{1}{W}",
+      "name": "Hoofprints of the Stag",
+      "oracle_id": "17739f55-486b-46ea-8785-70cc2bd2d872",
+      "oracle_text": "Whenever you draw a card, you may put a hoofprint counter on this enchantment.\n{2}{W}, Remove four hoofprint counters from this enchantment: Create a 4/4 white Elemental creature token with flying. Activate only during your turn.",
+      "otags": [
+        "activated-ability",
+        "aesthetic-counter",
+        "counter-fuel",
+        "counter-fuel-aesthetic",
+        "counters-matter",
+        "draw-matters",
+        "evasion",
+        "mana-sink",
+        "remove-counters",
+        "remove-counters-you",
+        "repeatable-creature-tokens",
+        "repeatable-token-generator",
+        "triggered-ability",
+        "unique-counter"
+      ],
+      "role": null,
+      "type_line": "Kindred Enchantment \u2014 Elemental"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [
+        "Goad",
+        "Enchant"
+      ],
+      "mana_cost": "{2}{W}",
+      "name": "Martial Impetus",
+      "oracle_id": "c8decfdf-1421-4649-acde-5215e7f08bb9",
+      "oracle_text": "Enchant creature\nEnchanted creature gets +1/+1 and is goaded. (It attacks each combat if able and attacks a player other than you if able.)\nWhenever enchanted creature attacks, each other creature that's attacking one of your opponents gets +1/+1 until end of turn.",
+      "otags": [
+        "attack-trigger",
+        "attacking-matters",
+        "attacking-opponents-matters",
+        "combat-manipulation",
+        "cycle",
+        "cycle-c20-impetus",
+        "force-attacker",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Enchantment \u2014 Aura"
+    },
+    {
+      "cmc": 3.0,
+      "color_identity": [
+        "G"
+      ],
+      "keywords": [],
+      "mana_cost": "{2}{G}",
+      "name": "Rites of Flourishing",
+      "oracle_id": "7080fb43-5d93-41f5-87d3-bc1801805ea0",
+      "oracle_text": "At the beginning of each player's draw step, that player draws an additional card.\nEach player may play an additional land on each of their turns.",
+      "otags": [
+        "card-advantage",
+        "draw",
+        "draw-engine",
+        "extra-land",
+        "force-draw",
+        "group-hug",
+        "land-ramp",
+        "play-additional-land",
+        "pure-draw",
+        "ramp",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-pure-draw",
+        "symmetrical",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Enchantment"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "G",
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "{G}{U}",
+      "name": "Simic Ascendancy",
+      "oracle_id": "57c1a98e-c4fb-4144-9e3e-d0fe6789ba26",
+      "oracle_text": "{1}{G}{U}: Put a +1/+1 counter on target creature you control.\nWhenever one or more +1/+1 counters are put on a creature you control, put that many growth counters on this enchantment.\nAt the beginning of your upkeep, if this enchantment has twenty or more growth counters on it, you win the game.",
+      "otags": [
+        "activated-ability",
+        "aesthetic-counter",
+        "alternate-win-condition",
+        "counters-matter",
+        "gives-pp-counters",
+        "intervening-if-clause",
+        "pp-counters-matter",
+        "repeatable-pp-counters",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Enchantment"
+    },
+    {
+      "cmc": 2.0,
+      "color_identity": [
+        "W"
+      ],
+      "keywords": [
+        "Enchant"
+      ],
+      "mana_cost": "{1}{W}",
+      "name": "Tenuous Truce",
+      "oracle_id": "f0bf2923-aea2-4bac-b061-64bc84437ef1",
+      "oracle_text": "Enchant opponent\nAt the beginning of enchanted opponent's end step, you and that player each draw a card.\nWhen you attack enchanted opponent or a planeswalker they control or when they attack you or a planeswalker you control, sacrifice this Aura.",
+      "otags": [
+        "alliteration",
+        "attack-trigger",
+        "bribery",
+        "card-advantage",
+        "card-names",
+        "commander-set-booster-cards",
+        "draw",
+        "draw-engine",
+        "force-draw",
+        "group-hug",
+        "pure-draw",
+        "repeatable-card-advantage",
+        "repeatable-draw",
+        "repeatable-pure-draw",
+        "selective-group-hug",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Enchantment \u2014 Aura"
+    },
+    {
+      "cmc": 1.0,
+      "color_identity": [
+        "U"
+      ],
+      "keywords": [],
+      "mana_cost": "{U}",
+      "name": "Wizard Class",
+      "oracle_id": "36f68aa3-9955-46f1-bc87-497f16ef5222",
+      "oracle_text": "(Gain the next level as a sorcery to add its ability.)\nYou have no maximum hand size.\n{2}{U}: Level 2\nWhen this Class becomes level 2, draw two cards.\n{4}{U}: Level 3\nWhenever you draw a card, put a +1/+1 counter on target creature you control.",
+      "otags": [
+        "activated-ability",
+        "card-advantage",
+        "cycle",
+        "cycle-afr-u-class",
+        "dnd",
+        "dnd-mechanic",
+        "draw",
+        "draw-matters",
+        "gives-pp-counters",
+        "hand-size-increase",
+        "pure-draw",
+        "repeatable-pp-counters",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Enchantment \u2014 Class"
+    },
+    {
+      "cmc": 4.0,
+      "color_identity": [
+        "G",
+        "U",
+        "W"
+      ],
+      "keywords": [],
+      "mana_cost": "{1}{G}{W}{U}",
+      "name": "Tamiyo, Field Researcher",
+      "oracle_id": "9cf99129-f51a-4418-a8cc-8ca2992b17fa",
+      "oracle_text": "+1: Choose up to two target creatures. Until your next turn, whenever either of those creatures deals combat damage, you draw a card.\n\u22122: Tap up to two target nonland permanents. They don't untap during their controller's next untap step.\n\u22127: Draw three cards. You get an emblem with \"You may cast spells from your hand without paying their mana costs.\"",
+      "otags": [
+        "activated-ability",
+        "burst-draw",
+        "card-advantage",
+        "cost-ignorer",
+        "curiosity",
+        "curiosity-like",
+        "delayed-trigger",
+        "draw",
+        "draw-engine",
+        "free-cast-another",
+        "freeze",
+        "freeze-nonland",
+        "multiple-targets",
+        "pure-draw",
+        "repeatable-card-advantage",
+        "repeatable-crime",
+        "repeatable-draw",
+        "repeatable-pure-draw",
+        "saboteur",
+        "tapper",
+        "tapper-artifact",
+        "tapper-creature",
+        "tapper-nonland",
+        "triggered-ability"
+      ],
+      "role": null,
+      "type_line": "Legendary Planeswalker \u2014 Tamiyo"
+    }
+  ],
+  "commander_hint": "Ms. Bumbleflower",
+  "name": "Peace Offering",
+  "source": "precon",
+  "unresolved": []
+}

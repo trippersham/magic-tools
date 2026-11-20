@@ -1,0 +1,618 @@
+/* Combo OVERVIEW graph (/combos) — Phase 2 static overview.
+   The stage fills the viewport; nodes are absolutely-positioned tiles the client
+   moves via `transform: translate()`; the SVG edge layer sits behind them. */
+
+.combo-page {
+  overflow-x: hidden; /* the graph must never scroll the body sideways */
+}
+
+.combo-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem 0.75rem;
+}
+.combo-header h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.combo-header .combo-sub {
+  font-size: 0.85rem;
+  color: #a1a1aa;
+}
+.combo-header a.combo-back {
+  font-size: 0.85rem;
+  color: #93c5fd;
+  text-decoration: none;
+}
+.combo-header a.combo-back:hover {
+  text-decoration: underline;
+}
+
+/* Legend — one chip per outcome tint present. */
+.combo-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0 1.25rem 0.5rem;
+}
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: #d4d4d8;
+}
+.legend-swatch {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 999px;
+  background: var(--outcome-color, #a78bfa);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+/* Stage — the positioned coordinate space for the graph. */
+#combo-stage {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 120px);
+  min-height: 520px;
+  /* The graph stays bounded to the viewport WIDTH and scrolls VERTICALLY when it
+     has to exceed the viewport height; horizontal scroll is never allowed. */
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+#edge-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.graph-node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  will-change: transform;
+  /* A gentle settle when positions (re)compute — mirrors the app's transitions. */
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Card nodes reuse Card.astro; the container scales the whole tile by degree.
+   --tile-base is the MINIMUM readable width floor (degree-1 cards); hub-degree
+   scales UP from it, and the layout never renders a card below this size. */
+.graph-node.card {
+  --tile-base: 120px;
+  width: calc(var(--tile-base) * var(--hub-scale, 1));
+}
+.graph-node.card .card {
+  width: 100%;
+}
+/* Hub emphasis: a bigger degree gets a slightly stronger ring + lift shadow. */
+.graph-node.card[data-hub='true'] .card {
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55);
+}
+
+/* Outcome nodes — a distinct, clearly-not-a-card tinted capsule/pill. */
+.graph-node.outcome {
+  z-index: 2;
+}
+.outcome-pill {
+  --outcome-color: #a78bfa;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: #fff;
+  background: var(--outcome-color);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--outcome-color) 35%, transparent),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.outcome-pill .outcome-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.outcome-pill .outcome-label {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* TRUE LAYER 0 — trigger-mechanic capsule (left of the clicked card). Visually
+   distinct from the right-side outcome pills: cool slate/indigo, a left-pointing
+   notch, an uppercase "Trigger" tag, and a stacked label/sublabel. */
+.graph-node.trigger {
+  z-index: 3;
+}
+.trigger-pill {
+  --trigger-color: #818cf8; /* indigo-400 */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: 15rem;
+  padding: 0.5rem 0.85rem 0.5rem 0.75rem;
+  border-radius: 0.7rem;
+  color: #ede9fe;
+  background: linear-gradient(180deg, rgba(49, 46, 129, 0.96), rgba(30, 27, 75, 0.96));
+  border: 1.5px solid color-mix(in srgb, var(--trigger-color) 70%, transparent);
+  border-left: 4px solid var(--trigger-color);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--trigger-color) 22%, transparent),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.trigger-pill .trigger-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  flex: none;
+}
+.trigger-pill .trigger-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+.trigger-pill .trigger-tag {
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--trigger-color) 60%, #ffffff);
+}
+.trigger-pill .trigger-label {
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trigger-pill .trigger-sub {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #c7d2fe;
+  opacity: 0.85;
+}
+
+/* AMPLIFIER (v2 role) — a Layer-0 tile that MULTIPLIES the mechanic (×2 doubler)
+   rather than enabling it. Amber ring + a "×2 AMPLIFIES" corner badge distinguish
+   it from the plain enabler tiles; the feeding edge is drawn amber+dashed. The
+   badge is a CSS ::after (CSP-clean, no injected markup) anchored to the node box. */
+.graph-node.card[data-amp='true'] .card {
+  box-shadow:
+    0 0 0 2px #f59e0b,
+    0 0 0 5px rgba(245, 158, 11, 0.35),
+    0 10px 26px rgba(0, 0, 0, 0.5);
+}
+.graph-node.card[data-amp='true']::after {
+  content: '×2 AMPLIFIES';
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  z-index: 7;
+  padding: 0.12rem 0.4rem;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: #1c1400;
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.edge-amplifier {
+  pointer-events: none;
+}
+
+/* Layer-0 → clicked feed (neutral) and the dotted faux-edge chaining further left. */
+.edge-trigger {
+  pointer-events: none;
+}
+.faux-edge {
+  pointer-events: none;
+}
+
+.edge {
+  pointer-events: none;
+}
+/* Transparent wide hit overlay over each thin edge so taps land on the line.
+   pointer-events is set on the overlay itself so it stays hittable even though
+   the parent #edge-layer opts out. */
+.edge-hit {
+  pointer-events: stroke;
+  cursor: pointer;
+  transition: stroke 0.12s ease;
+}
+/* Hover feedback: the wide transparent overlay lights up as a translucent band
+   beneath the thin visible line. */
+.edge-hit:hover {
+  stroke: rgba(255, 255, 255, 0.16) !important;
+}
+
+/* Card nodes are the primary navigation surface → clear tappable affordance. */
+.graph-node.card {
+  cursor: pointer;
+}
+.graph-node.card .card {
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.graph-node.card:hover .card {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+}
+/* "You are here" — the focused root card. */
+.graph-node[data-focus-state='root'] .card {
+  box-shadow:
+    0 0 0 3px #f4f4f5,
+    0 0 0 6px rgba(147, 197, 253, 0.5),
+    0 12px 30px rgba(0, 0, 0, 0.6);
+}
+/* ⤺ Overview reset — a floating control shown only in focus mode. */
+#combo-reset {
+  position: fixed;
+  top: 0.85rem;
+  right: 0.9rem;
+  z-index: 30;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #e4e4e7;
+  background: rgba(24, 24, 27, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+}
+#combo-reset[hidden] {
+  display: none;
+}
+#combo-reset:hover {
+  background: rgba(39, 39, 42, 0.95);
+}
+/* Also transition opacity for the focus fade (transform already animated above). */
+.graph-node {
+  transition:
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.4s ease;
+}
+
+/* In focus mode the stage is a dismiss surface. */
+#combo-stage[data-mode='focus'] {
+  cursor: zoom-out;
+}
+.focus-edge {
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * Desktop hover-enlarge preview — a floating, readable card image raised over
+ * the graph (mirrors the deck-diff "hover to read" idiom). Fixed + pointer-none
+ * so it never clips against the stage overflow nor blocks click-to-re-root.
+ * ------------------------------------------------------------------ */
+#combo-card-zoom {
+  position: fixed;
+  z-index: 60;
+  width: 300px;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.94);
+  transform-origin: center center;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  filter: drop-shadow(0 22px 44px rgba(0, 0, 0, 0.7));
+}
+#combo-card-zoom[data-show='true'] {
+  opacity: 1;
+  transform: scale(1);
+}
+#combo-card-zoom img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 4.75% / 3.5%;
+}
+/* Touch / coarse pointers never hover — suppress the desktop preview entirely. */
+@media (hover: none), (max-width: 640px) {
+  #combo-card-zoom {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * MOBILE focus column-pager (≤640px). Keep the LR DAG but show ONE rank-column
+ * at a time: full-size cards, centred horizontally, stacked + scrolling
+ * vertically within the stage. ‹ › arrows + swipe page between columns.
+ * ------------------------------------------------------------------ */
+#combo-pager {
+  position: fixed;
+  bottom: 0.9rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(24, 24, 27, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+}
+#combo-pager[hidden] {
+  display: none;
+}
+#combo-prev,
+#combo-next {
+  width: 2.3rem;
+  height: 2.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  line-height: 1;
+  color: #f4f4f5;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  cursor: pointer;
+}
+#combo-prev[hidden],
+#combo-next[hidden] {
+  visibility: hidden; /* keep layout stable at the ends */
+  display: inline-flex;
+}
+#combo-prev:active,
+#combo-next:active {
+  background: rgba(255, 255, 255, 0.16);
+}
+#combo-pager-ind {
+  min-width: 3.2rem;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #d4d4d8;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The column-pager is now the fit-aware FALLBACK (Mode B) at ANY viewport — not
+   gated on ≤640px — so these apply whenever the stage is in pager mode. Paged
+   cards render at a readable size (NOT shrunk to fit) and the stage owns the
+   vertical scroll for the current column. */
+#combo-stage[data-mobile-pager='true'] {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+/* Full-size, readable cards in the paged column (NOT shrunk to fit). */
+#combo-stage[data-mobile-pager='true'] .graph-node.card {
+  --tile-base: 148px;
+}
+
+/* Enlarge affordance on a paged card (mobile: tap = re-root, so this is a
+   dedicated button). */
+.mobile-zoom-btn {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  z-index: 3;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+  color: #f4f4f5;
+  background: rgba(9, 9, 11, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* Mobile enlarge overlay — full-bleed readable card image, tap to dismiss. */
+#combo-zoom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.82);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+#combo-zoom-overlay[data-open='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+#combo-zoom-overlay img {
+  max-width: min(90vw, 460px);
+  max-height: 88vh;
+  width: auto;
+  height: auto;
+  border-radius: 4.75% / 3.5%;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+}
+
+
+/* ------------------------------------------------------------------ *
+ * Transient BOTTOM SHEET (Phase 5). Slides up over the graph to explain ONE
+ * combo line; dismiss via swipe-down, scrim tap, ✕, or Esc. Height-capped with
+ * internal scroll so the DAG stays visible above. Desktop + mobile share it.
+ * ------------------------------------------------------------------ */
+#combo-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.38s ease;
+}
+#combo-sheet-scrim[data-open='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#combo-sheet {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  z-index: 45;
+  width: min(560px, 100%);
+  max-height: 45vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(9, 9, 11, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: none;
+  border-radius: 1rem 1rem 0 0;
+  box-shadow: 0 -18px 46px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, 100%);
+  will-change: transform;
+  transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+#combo-sheet[data-open='true'] {
+  transform: translate(-50%, 0);
+}
+@media (max-width: 640px) {
+  #combo-sheet {
+    max-height: 60vh;
+    border-radius: 1.1rem 1.1rem 0 0;
+  }
+}
+
+.sheet-grip {
+  flex: none;
+  width: 2.4rem;
+  height: 0.28rem;
+  margin: 0.55rem auto 0.2rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+}
+.sheet-head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 1.15rem 0.5rem;
+}
+.sheet-head h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: #f4f4f5;
+}
+.sheet-close {
+  flex: none;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e4e4e7;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.sheet-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.sheet-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.25rem 1.15rem 1.4rem;
+}
+.sheet-outcomes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.7rem;
+}
+.sheet-outcome {
+  --outcome-color: #a78bfa;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fff;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--outcome-color);
+  white-space: nowrap;
+}
+.sheet-block {
+  margin-bottom: 0.7rem;
+}
+.sheet-block h4 {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a1a1aa;
+  margin: 0.2rem 0 0.3rem;
+}
+.sheet-pieces,
+.sheet-prereq,
+.sheet-produces {
+  list-style: disc;
+  padding-left: 1.15rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #d4d4d8;
+}
+.sheet-steps {
+  list-style: decimal;
+  padding-left: 1.25rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #d4d4d8;
+}
+.sheet-pieces li,
+.sheet-steps li,
+.sheet-prereq li,
+.sheet-produces li {
+  margin-bottom: 0.2rem;
+}
+.sheet-piece {
+  font-weight: 600;
+  color: #f4f4f5;
+}
+.sheet-produces li[data-win='true'] {
+  color: #fca5a5;
+  font-weight: 600;
+}
+.sheet-spellbook {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #93c5fd;
+  text-decoration: none;
+}
+.sheet-spellbook:hover {
+  text-decoration: underline;
+}

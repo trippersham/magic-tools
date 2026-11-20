@@ -27,3 +27,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 # uv.lock IS committed (reproducible installs; pinned by exclude-newer).
+
+# Dev scratch — subagent prompts/outboxes + research deltas (never ship)
+subagents/
+research/

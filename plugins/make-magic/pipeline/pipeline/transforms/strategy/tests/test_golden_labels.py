@@ -1,0 +1,222 @@
+"""Golden regression labels — the validated per-deck verdicts.
+
+These encode the behavior the T1→T5.5 study validated: the label (or tribe, or
+abstain) the engine must produce for representative decks across the gauntlet +
+owned corpus.
+"""
+
+from __future__ import annotations
+
+from pipeline.transforms.strategy import resolve
+from pipeline.transforms.strategy.naming import headline_strategy
+
+
+def test_sokka_tribe_is_ally(load_deck, combos):
+    rec = resolve(load_deck('owned__sokka'), combos)
+    assert rec['tribe'] == 'Ally'
+
+
+def test_tuvasa_is_enchantress(load_deck, combos):
+    rec = resolve(load_deck('gauntlet__tuvasa-the-sunlit'), combos)
+    assert headline_strategy(rec) == 'enchantress'
+
+
+def test_grandlarceny_is_theft(load_deck, combos):
+    rec = resolve(load_deck('gauntlet__grandlarceny_2024'), combos)
+    assert headline_strategy(rec) == 'theft'
+
+
+def test_kess_is_combo(load_deck, combos):
+    rec = resolve(load_deck('gauntlet__kess-dissident-mage'), combos)
+    assert headline_strategy(rec) == 'alt-wincon/combo'
+    assert rec['combo_override_applied'] is True
+
+
+def test_urza_is_artifacts(load_deck, combos):
+    # With correct (non-art-series) card data (#69 fix), Urza's artifact signals
+    # now outweigh the combo signals. The combo override no longer fires because
+    # the primary strategy is already artifact-dense.
+    rec = resolve(load_deck('gauntlet__urza-lord-high-artificer'), combos)
+    assert headline_strategy(rec) == 'artifacts'
+
+
+def test_krrik_is_combo(load_deck, combos):
+    rec = resolve(load_deck('gauntlet__krrik-son-of-yawgmoth'), combos)
+    assert headline_strategy(rec) == 'alt-wincon/combo'
+    assert rec['combo_override_applied'] is True
+
+
+def test_world_reclaimer_lands_with_fused_sacrifice_engine(load_deck, combos):
+    # World Reclaimer is landfall-dense: since the landfall split (EDHREC treats
+    # landfall and lands-matter as distinct themes) its ETB-land trigger family is
+    # the LEAD archetype, with lands-matter riding secondary. Before the split both
+    # folded into one lands-matter label.
+    rec = resolve(load_deck('owned__world-reclaimer'), combos)
+    assert headline_strategy(rec) == 'landfall'
+    sid = [s['strategy'] for s in rec['archetype_identity']]
+    assert sid[0] == 'landfall'  # landfall leads the identity set...
+    assert 'lands-matter' in sid  # ...and lands-matter stays a real 2nd axis
+    strategies = rec['facts']['strategies']
+    # the aristocrats/sacrifice plan is a real, requires-met strategy...
+    assert strategies['aristocrats/sacrifice']['requires_met'] is True
+    # ...and the top convergent engine FUSES the land plan + sacrifice (shared hubs)
+    top_engine = rec['facts']['engines']['convergent_event_components'][0]
+    assert 'landfall' in top_engine['archetypes']
+    assert 'lands-matter' in top_engine['archetypes']
+    assert 'aristocrats/sacrifice' in top_engine['archetypes']
+
+
+def test_baral_is_control(load_deck, combos):
+    # With correct card data (#69 fix), Baral's richer otags shift the density
+    # profile: still control/permission but at MED confidence (the counterspell
+    # gate is met, yet draw/artifact signals are now correctly weighted).
+    rec = resolve(load_deck('gauntlet__baral-chief-of-compliance'), combos)
+    assert headline_strategy(rec) == 'control/permission'
+    assert rec['confidence'] == 'MED'
+    assert rec['control_cs_gate_met'] is True
+
+
+def test_abzan_armor_is_toughness_matters(load_deck, combos):
+    # Felothar (assign-damage-by-toughness + Walls-attack) is a toughness-matters
+    # deck. Before the vocab add it shattered across lifegain/anthem/counters and
+    # read "diffuse"; the dedicated archetype recovers the real identity.
+    rec = resolve(load_deck('gauntlet__abzanarmor_2025'), combos)
+    assert headline_strategy(rec) == 'toughness-matters'
+    assert rec['archetype_identity'][0]['strategy'] == 'toughness-matters'
+
+
+def test_faceless_menace_is_morph(load_deck, combos):
+    # Kadena morph deck. Morph is a KEYWORD (no clean otag), so detection is
+    # synthesized from the keyword — the archetype must see the full body of
+    # face-down creatures, not just the handful of flip-trigger payoffs.
+    rec = resolve(load_deck('gauntlet__facelessmenace_sultai_2019'), combos)
+    assert headline_strategy(rec) == 'morph'
+    assert rec['facts']['strategies']['morph']['n_member_cards'] >= 12
+
+
+def test_peace_offering_is_group_hug(load_deck, combos):
+    # Ms. Bumbleflower (Bloomburrow) group-hug/food precon. Before the vocab add it
+    # shattered onto +1/+1 counters; the dedicated archetype recovers group-hug as
+    # the clean lead (19 member cards) — the engine's cleanest politics-family win.
+    rec = resolve(load_deck('precon__peace-offering'), combos)
+    assert headline_strategy(rec) == 'group-hug'
+    assert rec['archetype_identity'][0]['strategy'] == 'group-hug'
+    assert rec['facts']['strategies']['group-hug']['requires_met'] is True
+
+
+def test_blame_game_surfaces_pillowfort(load_deck, combos):
+    # Nelly Borca (Karlov Manor) goad/forced-combat precon. The deck legitimately
+    # leads combat/aggro (goad IS forced combat), but its fog/prevent-attack shell
+    # was invisible before the vocab add; pillowfort now recovers as a real second
+    # axis of the identity set (12 member cards).
+    rec = resolve(load_deck('precon__blame-game'), combos)
+    sid = [s['strategy'] for s in rec['archetype_identity']]
+    assert headline_strategy(rec) == 'combat/aggro'
+    assert 'pillowfort' in sid
+    assert rec['facts']['strategies']['pillowfort']['requires_met'] is True
+
+
+def test_political_puppets_is_pillowfort(load_deck, combos):
+    # Zedruu the Greathearted (Commander 2011) reads pillowfort — its true top
+    # EDHREC theme (fog/propaganda donate-shell). The `politics` family routes
+    # correctly (monarch/vote/goad), but the 2011 deck predates all three mechanics,
+    # so pillowfort is the dense, correct lead; group-hug (donate) rides secondary.
+    rec = resolve(load_deck('precon__political-puppets'), combos)
+    assert headline_strategy(rec) == 'pillowfort'
+    assert rec['facts']['strategies']['group-hug']['requires_met'] is True
+
+
+def test_new_archetypes_route_their_anchor_slugs():
+    # The three added identities route their EXACT anchor slugs (hermetic, no lake);
+    # the answer/body slugs stay unrouted. This pins the vocab wiring independent of
+    # any deck surfacing them.
+    from pipeline.transforms.strategy.assets import load_assets
+
+    a = load_assets()
+    assert a.distill_attr('pillowfort') == 'pillowfort'
+    assert a.distill_attr('fog') == 'pillowfort'
+    assert a.distill_attr('prevent-attack') == 'pillowfort'
+    assert a.distill_attr('group-hug') == 'group-hug'
+    assert a.distill_attr('selective-group-hug') == 'group-hug'
+    assert a.distill_attr('monarch-matters') == 'politics'
+    assert a.distill_attr('synergy-vote') == 'politics'
+    assert a.distill_attr('synergy-goad') == 'politics'  # the goad PAYOFF
+    assert a.distill_attr('hate-goad') is None  # the goad ANSWER
+    assert a.distill_attr('evasion') is None  # broad body, never a primary
+
+
+def test_landfall_splits_from_lands_matter():
+    # EDHREC treats landfall and lands-matter as DISTINCT themes. The split routes
+    # the ETB-land trigger family (`landfall`/`landfall-other`) to its own identity,
+    # while the broader lands-as-resource slugs stay lands-matter. The two queries
+    # must share NO slug (clean separation) and landfall is 1:1 with its edge.
+    import re
+
+    from pipeline.transforms.strategy.assets import load_assets
+    from pipeline.transforms.strategy.distill_strategies import ARCHETYPE_EDGES, BASE_IDENTITIES
+
+    a = load_assets()
+    # landfall routes its exact family slugs to the landfall strategy ...
+    assert a.distill_attr('landfall') == 'landfall'
+    assert a.distill_attr('landfall-other') == 'landfall'
+    # ... and lands-matter keeps its own, disjoint family
+    assert a.distill_attr('lands-matter') == 'lands-matter'
+    assert a.distill_attr('land-count-matters') == 'lands-matter'
+    assert a.distill_attr('extra-land') == 'lands-matter'
+    # landfall no longer routes to lands-matter (no slug leak)
+    assert a.distill_attr('landfall') != 'lands-matter'
+    # 1:1 identity<->edge for the new archetype
+    assert ARCHETYPE_EDGES['landfall'] == 'landfall'
+    # the two query slug-sets are disjoint
+    queries = dict(BASE_IDENTITIES)
+
+    def otags(q: str) -> set[str]:
+        return set(re.findall(r'otag:([a-z0-9-]+)', q))
+
+    landfall_slugs = otags(queries['landfall'])
+    lands_slugs = otags(queries['lands-matter'])
+    assert landfall_slugs == {'landfall', 'landfall-other'}
+    assert landfall_slugs & lands_slugs == set()
+
+
+def test_welcoming_vampire_goodstuff_abstains(load_deck, combos):
+    rec = resolve(load_deck('owned__welcoming-vampire'), combos)
+    assert rec['abstain'] is True
+    assert headline_strategy(rec) is None
+    # a goodstuff deck: nothing but support axes -> honest abstain (or low-conf)
+    assert rec['abstain_reason'] in {'only-support-axis', 'no-coherent-engine', 'low-coverage'}
+    # an abstaining deck has no identity set
+    assert rec['archetype_identity'] == []
+
+
+def test_grandlarceny_archetype_identity_is_ranked_set(load_deck, combos):
+    # the single-label collapse hid the real #2 axis; the set surfaces it.
+    rec = resolve(load_deck('gauntlet__grandlarceny_2024'), combos)
+    sid = [s['strategy'] for s in rec['archetype_identity']]
+    assert sid[0] == 'theft'  # leads with the headline
+    assert 'mill' in sid  # ...and surfaces the real second axis
+    assert len(sid) <= 3  # capped at max_identity
+    wqs = [s['weighted_quantity'] for s in rec['archetype_identity']]
+    assert wqs == sorted(wqs, reverse=True)  # ranked descending
+
+
+def test_archetype_identity_headline_matches_named_strategy(load_deck, combos):
+    # for a non-combo, non-abstaining deck, archetype_identity[0] IS the headline
+    # (headline_strategy() derives the headline as the set's leader).
+    for fx, label in [
+        ('gauntlet__grandlarceny_2024', 'theft'),
+        ('gauntlet__tuvasa-the-sunlit', 'enchantress'),
+        ('gauntlet__baral-chief-of-compliance', 'control/permission'),
+    ]:
+        rec = resolve(load_deck(fx), combos)
+        assert headline_strategy(rec) == label
+        assert rec['archetype_identity'][0]['strategy'] == label
+
+
+def test_kess_combo_keeps_strategic_identity_set(load_deck, combos):
+    # combo is a separate axis: the override sets named_strategy + combo_identity,
+    # but archetype_identity still reports the deck's strategic composition.
+    rec = resolve(load_deck('gauntlet__kess-dissident-mage'), combos)
+    assert headline_strategy(rec) == 'alt-wincon/combo'
+    assert rec['combo_override_applied'] is True
+    assert 'alt-wincon/combo' not in [s['strategy'] for s in rec['archetype_identity']]

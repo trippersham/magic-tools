@@ -101,25 +101,47 @@ def _load(cards: list[dict[str, Any]]) -> Path:
     return path
 
 
+def _dfc_oracle_text(card: dict[str, Any]) -> str | None:
+    """Extract oracle_text, joining card_faces for DFCs (#68).
+
+    Scryfall DFCs (modal, transform, adventure, split) carry ``oracle_text``
+    on each ``card_faces[]`` entry, not at the top level. When the top-level
+    field is absent we join the faces with ``\\n//\\n`` (the standard
+    front // back separator used by Scryfall's own search syntax).
+    """
+    top = card.get('oracle_text')
+    if top is not None:
+        return top
+    faces = card.get('card_faces')
+    if not faces:
+        return None
+    parts = [f.get('oracle_text', '') for f in faces if f.get('oracle_text')]
+    return '\n//\n'.join(parts) if parts else None
+
+
 def _project(card: dict[str, Any]) -> dict[str, Any]:
     """Project a Scryfall oracle card to the columns the pipeline consumes."""
+    face = card
+    if card.get('oracle_text') is None and card.get('card_faces'):
+        face = card['card_faces'][0]
+    image_uris = card.get('image_uris') or face.get('image_uris') or {}
     return {
         'oracle_id': card.get('oracle_id'),
         'name': card.get('name'),
         'cmc': card.get('cmc'),
-        'mana_cost': card.get('mana_cost'),
-        'type_line': card.get('type_line'),
+        'mana_cost': card.get('mana_cost') or face.get('mana_cost'),
+        'type_line': card.get('type_line') or face.get('type_line'),
         'colors': card.get('colors', []),
         'color_identity': card.get('color_identity', []),
         'produced_mana': card.get('produced_mana', []),
         'keywords': card.get('keywords', []),
-        'oracle_text': card.get('oracle_text'),
+        'oracle_text': _dfc_oracle_text(card),
         # --- presentation fields (all present in the daily oracle_cards bulk;
         #     price is not projected — it is volatile and served live) --- #
-        'power': card.get('power'),
-        'toughness': card.get('toughness'),
-        'art_crop': card.get('image_uris', {}).get('art_crop'),
-        'image_normal': card.get('image_uris', {}).get('normal'),
+        'power': card.get('power') if card.get('power') is not None else face.get('power'),
+        'toughness': card.get('toughness') if card.get('toughness') is not None else face.get('toughness'),
+        'art_crop': image_uris.get('art_crop'),
+        'image_normal': image_uris.get('normal'),
         'scryfall_uri': card.get('scryfall_uri'),
         'set_name': card.get('set_name'),
     }

@@ -1088,7 +1088,21 @@ def _deck_combos(argv: list[str]) -> None:
     out = {
         'deck': deck.name,
         'combo_data_available': available,
-        'combos': [{'variant_id': c.variant_id, 'cards': list(c.card_names), 'result': c.result} for c in matched],
+        'combos': [
+            {
+                'variant_id': c.variant_id,
+                'cards': list(c.card_names),
+                'result': c.result,
+                'steps': list(c.steps),
+                'prerequisites': list(c.prerequisites),
+                'produces': [
+                    {'name': p.get('name', ''), 'status': p.get('status', ''), 'win': bool(p.get('win'))}
+                    for p in c.produces
+                ],
+                'spellbookUrl': f'https://commanderspellbook.com/combo/{c.variant_id}/',
+            }
+            for c in matched
+        ],
     }
     print(json.dumps(out, indent=2))
 

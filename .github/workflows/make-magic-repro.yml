@@ -1,0 +1,63 @@
+name: make-magic repro gate
+
+# Standing reproducibility gate for the strategy engine (ADR 0003/0022). Proves the
+# rich extraction (attributes -> events -> eventeffects -> strategies -> engines) is a
+# property of the PROJECT (code + its committed pinned lake), not of a developer's
+# machine state. INFREQUENT by design — NOT on ordinary push/PR (that is ci.yml's
+# offline suite). Runs:
+#   * pinned (reproducibility): two fresh runs vs the committed pinned lake under a varied
+#     PYTHONHASHSEED + CPU load -> identical ENGINE/RESOLVE/FULL_CORPUS composites +
+#     a zero-divergence semantic diff. Network-free; works from the in-repo fixture.
+#   * upstream (drift impact): ONE genuine live Scryfall oracle_tags fetch into a
+#     frozen-card-bulk lake -> quantifies how upstream tag drift perturbs the rich
+#     outputs vs the pin. Opt-in only (it hits the network).
+#
+# Triggers: manual (workflow_dispatch, with a boolean to also run upstream) + pre-release
+# tags. The repo has no pipeline-wide release-tag convention (only the component-specific
+# `xmage-dist-*`), so this uses the conventional `v*` tag pattern for the pre-release run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_upstream:
+        description: 'Also run upstream (ONE live Scryfall oracle_tags fetch)'
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'            # pre-release gate (no pipeline-wide release convention -> `v*`)
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: plugins/make-magic/pipeline
+
+jobs:
+  repro:
+    name: pinned (reproducibility) + optional upstream (drift)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dev dependencies
+        run: uv sync --extra dev
+
+      - name: pinned — reproducibility (from the committed pinned lake, network-free)
+        run: uv run --extra dev pytest -m 'repro and not live' -q -rs
+
+      - name: upstream — drift impact (ONE live Scryfall fetch; opt-in only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_upstream }}
+        env:
+          MAKE_MAGIC_REPRO_ALLOW_LIVE: '1'
+        run: uv run --extra dev pytest -m 'repro and live' -q -rs
+
+      - name: upstream — skipped notice (not opted in)
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.run_upstream) }}
+        run: echo "upstream (live Scryfall drift probe) NOT run — re-dispatch with run_upstream=true to opt in."

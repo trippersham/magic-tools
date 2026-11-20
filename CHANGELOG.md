@@ -12,6 +12,47 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-11-19
+
+A **feature** release — under this project's pre-1.0 `0.y.z` convention the **minor**
+bump is the major/breaking increment. Ships the higher-order **Strategy / Engine
+classification engine**: a deck is resolved into the strategy graph and its engine,
+not just a flat archetype guess.
+
+### Added
+
+- **Higher-order Strategy / Engine classification engine (Card → Strategy → Engine; ADR 0021).**
+  A deck resolves through a staged, deterministic pipeline — **derive** CardAttributes +
+  Events from Scryfall otags, **distill** the substantive strategy sub-graph, **determine**
+  substantiveness at every grain (attribute / event / archetype), **elect** the ranked engine
+  units by mass-centrality, and **synthesize** the engine. *Strategy* is the substantive
+  sub-graph and its ranked engine units; `archetype_identity` is a **compatibility projection**
+  into the shared community archetype vocabulary (validated against published precon themes —
+  12/12 recoverable, 0 misses), not the strategy itself. Built on the one-CardAttribute query
+  model (ADR 0009), concept-anchored event-candidate discovery with role-purity +
+  decomposition-escalation (ADR 0022), the wincon-as-event model (ADR 0024), grant-vs-use
+  event granularity (ADR 0025), and the naming doctrine (ADR 0023). Tier 1 is
+  byte-deterministic and network-free, SHA-pinned (ADR 0003); a standing **reproducibility
+  gate** (pinned + upstream legs, `pytest -m repro`) proves the extraction reproduces from the
+  lake and is robust to upstream otag drift.
+
+- **`collection deck-combos` returns the full combo line, not just a label.** Each detected
+  combo now carries the ORDERED assembly `steps` (the Spellbook `description`, newline-split
+  and stripped), the non-empty `prerequisites` (easy → notable → mana needed, in source
+  order), a typed `produces` list (`{name, status, win}` with a per-feature game-win litmus),
+  and a `spellbookUrl`, alongside the existing `variant_id` / `cards` / `result`. Purely
+  **additive / non-breaking**: a pure projection widening — combo detection and the
+  game-win litmus are untouched, the widened fields default to empty and round-trip through
+  a new `steps` / `prerequisites` / `produces` column set in the normalized lake, and every
+  legacy `Combo(...)` call site (seeds, driver-batch reconstruction) stays valid.
+
+## [0.7.3] — 2026-09-11
+
+A **non-breaking** simulation-integrity release (a *patch* under this project's `0.y.z`
+convention). Delivers 0.7.2's lethality fix to the path every normal run actually uses;
+everything existing is unchanged — no CLI removals, no store or Airtable schema changes,
+and no XMage-dist re-pin (the classpath prepend makes the existing `-3` dist carry the fix).
+
 ### Fixed
 
 - **0.7.2's lethality fix now actually loads on the default run path.** The `killed =

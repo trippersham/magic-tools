@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { curveBucket, primaryType, countPips, stats, delta } from './metadata';
-import type { MetaCard } from './types';
+import type { MetaCard } from './metadata';
 
 describe('curveBucket', () => {
   it('buckets 0..6 by floor', () => {

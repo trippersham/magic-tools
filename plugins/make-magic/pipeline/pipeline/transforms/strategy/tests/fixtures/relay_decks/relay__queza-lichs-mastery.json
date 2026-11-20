@@ -1,0 +1,225 @@
+{
+  "_note": "Synthetic fixture for Phase 2 relay-node derivation test. Queza (draw->drain+gain) + Lich's Mastery (gain->draw) + filler cards to get the edge attrs into nodes. The loop draw-a-card -> lifegain -> draw-a-card should close on the augmented path but NOT the default path.",
+  "name": "Relay Fixture: Queza + Lich's Mastery",
+  "cards": [
+    {
+      "name": "Queza, Augur of Agonies",
+      "role": "commander",
+      "oracle_text": "Whenever you draw a card, target opponent loses 1 life and you gain 1 life.",
+      "otags": [
+        "draw-matters",
+        "lifegain",
+        "opponent-loses-life",
+        "drain-life"
+      ],
+      "keywords": [],
+      "type_line": "Legendary Creature — Cephalid Advisor",
+      "color_identity": ["W", "U", "B"],
+      "mana_cost": "{1}{W}{U}{B}"
+    },
+    {
+      "name": "Lich's Mastery",
+      "role": null,
+      "oracle_text": "Hexproof, indestructible\nYou can't lose the game.\nWhenever you gain life, draw that many cards.",
+      "otags": [
+        "lifegain-matters",
+        "draw",
+        "draw-engine",
+        "repeatable-draw"
+      ],
+      "keywords": ["Hexproof", "Indestructible"],
+      "type_line": "Legendary Enchantment",
+      "color_identity": ["B"],
+      "mana_cost": "{3}{B}{B}{B}"
+    },
+    {
+      "name": "Vilis, Broker of Blood",
+      "role": null,
+      "oracle_text": "Whenever you lose life, draw that many cards.\n{B}, Pay 2 life: Target creature gets -1/-1 until end of turn.",
+      "otags": [
+        "lifegain-matters",
+        "draw",
+        "draw-engine",
+        "repeatable-draw",
+        "self-life-loss-matters"
+      ],
+      "keywords": [],
+      "type_line": "Legendary Creature — Demon",
+      "color_identity": ["B"],
+      "mana_cost": "{5}{B}{B}{B}"
+    },
+    {
+      "name": "Drogskol Reaver",
+      "role": null,
+      "oracle_text": "Flying, double strike, lifelink\nWhenever you gain life, draw a card.",
+      "otags": [
+        "lifegain-matters",
+        "draw",
+        "draw-engine",
+        "repeatable-draw"
+      ],
+      "keywords": ["Flying", "Double strike", "Lifelink"],
+      "type_line": "Creature — Spirit",
+      "color_identity": ["W", "U"],
+      "mana_cost": "{5}{W}{U}"
+    },
+    {
+      "name": "Archangel of Thune",
+      "role": null,
+      "oracle_text": "Flying\nLifelink\nWhenever you gain life, put a +1/+1 counter on each creature you control.",
+      "otags": [
+        "lifegain-matters",
+        "gives-pp-counters-to-all",
+        "counters"
+      ],
+      "keywords": ["Flying", "Lifelink"],
+      "type_line": "Creature — Angel",
+      "color_identity": ["W"],
+      "mana_cost": "{3}{W}{W}"
+    },
+    {
+      "name": "Sanguine Bond",
+      "role": null,
+      "oracle_text": "Whenever you gain life, target opponent loses that much life.",
+      "otags": [
+        "lifegain-matters",
+        "opponent-loses-life",
+        "drain-life",
+        "lifegain-to-damage"
+      ],
+      "keywords": [],
+      "type_line": "Enchantment",
+      "color_identity": ["B"],
+      "mana_cost": "{3}{B}{B}"
+    },
+    {
+      "name": "Exquisite Blood",
+      "role": null,
+      "oracle_text": "Whenever an opponent loses life, you gain that much life.",
+      "otags": [
+        "life-loss-matters",
+        "lifegain",
+        "repeatable-lifegain"
+      ],
+      "keywords": [],
+      "type_line": "Enchantment",
+      "color_identity": ["B"],
+      "mana_cost": "{4}{B}"
+    },
+    {
+      "name": "Rhox Faithmender",
+      "role": null,
+      "oracle_text": "Lifelink\nIf you would gain life, you gain twice that much life instead.",
+      "otags": [
+        "lifegain",
+        "lifegain-increaser",
+        "repeatable-lifegain"
+      ],
+      "keywords": ["Lifelink"],
+      "type_line": "Creature — Rhino Monk",
+      "color_identity": ["W"],
+      "mana_cost": "{3}{W}"
+    },
+    {
+      "name": "Erebos's Intervention",
+      "role": null,
+      "oracle_text": "Choose one —\n• Target creature gets -X/-X until end of turn. You gain X life.\n• Exile up to twice X target cards from graveyards.",
+      "otags": [
+        "lifegain",
+        "removal",
+        "removal-creature"
+      ],
+      "keywords": [],
+      "type_line": "Instant",
+      "color_identity": ["B"],
+      "mana_cost": "{X}{B}"
+    },
+    {
+      "name": "Cleric of Life's Bond",
+      "role": null,
+      "oracle_text": "Whenever another Cleric enters the battlefield under your control, you gain 1 life.\nWhenever you gain life for the first time each turn, put a +1/+1 counter on Cleric of Life's Bond.",
+      "otags": [
+        "lifegain",
+        "lifegain-matters",
+        "gains-pp-counters"
+      ],
+      "keywords": [],
+      "type_line": "Creature — Vampire Cleric",
+      "color_identity": ["W", "B"],
+      "mana_cost": "{W}{B}"
+    },
+    {
+      "name": "Well of Lost Dreams",
+      "role": null,
+      "oracle_text": "Whenever you gain life, you may pay {X}, where X is less than or equal to the amount of life you gained. If you do, draw X cards.",
+      "otags": [
+        "lifegain-matters",
+        "draw",
+        "draw-engine"
+      ],
+      "keywords": [],
+      "type_line": "Artifact",
+      "color_identity": [],
+      "mana_cost": "{4}"
+    },
+    {
+      "_note": "Synthetic card matching gain-to-draw to reach the 3-card nodes threshold. Real-card examples of this exact pattern are Lich's Mastery + Drogskol Reaver; this is a minimal third.",
+      "name": "Gain-Draw Relay Filler",
+      "role": null,
+      "oracle_text": "Whenever you gain life, draw a card, then discard a card.",
+      "otags": [
+        "lifegain-matters",
+        "draw",
+        "loot"
+      ],
+      "keywords": [],
+      "type_line": "Enchantment",
+      "color_identity": ["U"],
+      "mana_cost": "{2}{U}"
+    },
+    {
+      "name": "Trudge Garden",
+      "role": null,
+      "oracle_text": "Whenever you gain life, you may pay {2}. If you do, create a 4/4 green Fungus Beast creature token with trample.",
+      "otags": [
+        "lifegain-matters",
+        "tokens",
+        "repeatable-creature-tokens"
+      ],
+      "keywords": [],
+      "type_line": "Enchantment",
+      "color_identity": ["G"],
+      "mana_cost": "{3}{G}{G}"
+    },
+    {
+      "name": "Island",
+      "role": null,
+      "oracle_text": "",
+      "otags": [],
+      "keywords": [],
+      "type_line": "Basic Land — Island",
+      "color_identity": ["U"],
+      "mana_cost": ""
+    },
+    {
+      "name": "Swamp",
+      "role": null,
+      "oracle_text": "",
+      "otags": [],
+      "keywords": [],
+      "type_line": "Basic Land — Swamp",
+      "color_identity": ["B"],
+      "mana_cost": ""
+    },
+    {
+      "name": "Plains",
+      "role": null,
+      "oracle_text": "",
+      "otags": [],
+      "keywords": [],
+      "type_line": "Basic Land — Plains",
+      "color_identity": ["W"],
+      "mana_cost": ""
+    }
+  ]
+}

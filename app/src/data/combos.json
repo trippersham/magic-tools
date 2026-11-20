@@ -1,0 +1,2385 @@
+{
+  "generated_for": "Paul Atreides, Kwisatz Haderach (Queza)",
+  "combo_data_available": true,
+  "outcomeTypes": [
+    {
+      "id": "drain",
+      "label": "Infinite Drain / Opponent Loses",
+      "icon": "🩸",
+      "win": true
+    },
+    {
+      "id": "draw",
+      "label": "Card Draw",
+      "icon": "📜",
+      "win": false
+    },
+    {
+      "id": "tokens",
+      "label": "Tokens / Counters",
+      "icon": "🪙",
+      "win": false
+    },
+    {
+      "id": "lifegain",
+      "label": "Lifegain",
+      "icon": "❤️",
+      "win": false
+    }
+  ],
+  "nodes": [
+    {
+      "id": "card:Sanguine Bond",
+      "kind": "card",
+      "name": "Sanguine Bond",
+      "image": "https://cards.scryfall.io/normal/front/a/d/ad4de9f1-7a39-45af-828e-c59234d9e9b9.jpg?1783927550",
+      "labels": [
+        "Gain → drain",
+        "Infinite combo piece"
+      ],
+      "degree": 2
+    },
+    {
+      "id": "card:Exquisite Blood",
+      "kind": "card",
+      "name": "Exquisite Blood",
+      "image": "https://cards.scryfall.io/normal/front/0/e/0e8ccfa7-4178-476a-a155-0ca1c98556c9.jpg?1783913874",
+      "labels": [
+        "Gain → drain",
+        "Infinite combo piece"
+      ],
+      "degree": 6
+    },
+    {
+      "id": "card:Vito, Thorn of the Dusk Rose",
+      "kind": "card",
+      "name": "Vito, Thorn of the Dusk Rose",
+      "image": "https://cards.scryfall.io/normal/front/0/f/0fe79ee4-c3f3-4a6b-a967-203ca3b70ee5.jpg?1783930698",
+      "labels": [
+        "Gain → drain",
+        "Infinite combo piece"
+      ],
+      "degree": 2
+    },
+    {
+      "id": "card:Bloodthirsty Conqueror",
+      "kind": "card",
+      "name": "Bloodthirsty Conqueror",
+      "image": "https://cards.scryfall.io/normal/front/c/e/ce860ed4-a5bd-4347-9eab-dd716ea84db1.jpg?1783909112",
+      "labels": [
+        "Gain → drain",
+        "Infinite combo piece"
+      ],
+      "degree": 6
+    },
+    {
+      "id": "card:Enduring Tenacity",
+      "kind": "card",
+      "name": "Enduring Tenacity",
+      "image": "https://cards.scryfall.io/normal/front/d/5/d5756d4b-3068-412c-8643-880d3459151e.jpg?1783909481",
+      "labels": [
+        "Gain → drain",
+        "Infinite combo piece"
+      ],
+      "degree": 2
+    },
+    {
+      "id": "card:Marauding Blight-Priest",
+      "kind": "card",
+      "name": "Marauding Blight-Priest",
+      "image": "https://cards.scryfall.io/normal/front/5/f/5f70dafc-c638-4ec0-ab5b-62998f752720.jpg?1783909072",
+      "labels": [
+        "Gain → drain",
+        "Infinite combo piece"
+      ],
+      "degree": 2
+    },
+    {
+      "id": "card:Sheoldred, the Apocalypse",
+      "kind": "card",
+      "name": "Sheoldred, the Apocalypse",
+      "image": "https://cards.scryfall.io/normal/front/d/6/d67be074-cdd4-41d9-ac89-0a0456c4e4b2.jpg?1783921327",
+      "labels": [
+        "Draw → drain",
+        "Opp-draw punisher",
+        "Lifegain igniter"
+      ],
+      "degree": 3
+    },
+    {
+      "id": "card:Peer into the Abyss",
+      "kind": "card",
+      "name": "Peer into the Abyss",
+      "image": "https://cards.scryfall.io/normal/front/a/a/aac00055-640e-4749-8d23-d242e6d0b23a.jpg?1783930701",
+      "labels": [
+        "Draw → drain",
+        "Infinite combo piece",
+        "Mass draw / wheel"
+      ],
+      "degree": 4
+    },
+    {
+      "id": "card:Orcish Bowmasters",
+      "kind": "card",
+      "name": "Orcish Bowmasters",
+      "image": "https://cards.scryfall.io/normal/front/7/c/7c024bae-5631-4e20-ac69-df392ac9e109.jpg?1783916299",
+      "labels": [
+        "Opp-draw punisher"
+      ],
+      "degree": 1
+    },
+    {
+      "id": "card:Psychosis Crawler",
+      "kind": "card",
+      "name": "Psychosis Crawler",
+      "image": "https://cards.scryfall.io/normal/front/d/0/d0f42a19-c180-45b1-9f4c-787cf3a4a649.jpg?1783912973",
+      "labels": [
+        "Draw → drain"
+      ],
+      "degree": 1
+    },
+    {
+      "id": "card:Sensei's Divining Top",
+      "kind": "card",
+      "name": "Sensei's Divining Top",
+      "image": "https://cards.scryfall.io/normal/front/e/5/e5142b7a-e580-4737-a4aa-2590f6610ceb.jpg?1783921788",
+      "labels": [
+        "Infinite combo piece",
+        "Card selection"
+      ],
+      "degree": 1
+    },
+    {
+      "id": "card:Bolas's Citadel",
+      "kind": "card",
+      "name": "Bolas's Citadel",
+      "image": "https://cards.scryfall.io/normal/front/d/2/d2124603-d20e-40eb-97f0-a66323397ac2.jpg?1783933451",
+      "labels": [
+        "Infinite combo piece",
+        "Cast-fuel (non-draw)"
+      ],
+      "degree": 1
+    },
+    {
+      "id": "card:Cliffhaven Vampire",
+      "kind": "card",
+      "name": "Cliffhaven Vampire",
+      "image": "https://cards.scryfall.io/normal/front/5/5/5544247d-1f8f-443f-a4c4-d8461db28a79.jpg?1783937896",
+      "labels": [
+        "Gain → drain",
+        "Infinite combo piece"
+      ],
+      "degree": 2
+    },
+    {
+      "id": "card:Vizkopa Guildmage",
+      "kind": "card",
+      "name": "Vizkopa Guildmage",
+      "image": "https://cards.scryfall.io/normal/front/d/f/dfdce9d1-a163-40e1-a70a-1f09cf400a6c.jpg?1783935509",
+      "labels": [
+        "Gain → drain",
+        "Infinite combo piece"
+      ],
+      "degree": 2
+    },
+    {
+      "id": "card:Alhammarret's Archive",
+      "kind": "card",
+      "name": "Alhammarret's Archive",
+      "image": "https://cards.scryfall.io/normal/front/4/f/4f4187f1-05bd-4db6-a2e7-d677eff588ee.jpg?1783927520",
+      "labels": [
+        "Draw doubler",
+        "Gain → draw"
+      ],
+      "degree": 1
+    },
+    {
+      "id": "card:Drogskol Reaver",
+      "kind": "card",
+      "name": "Drogskol Reaver",
+      "image": "https://cards.scryfall.io/normal/front/c/0/c0a4450c-8dfd-4d05-adb9-e84ec6066c7d.jpg?1783908917",
+      "labels": [
+        "Infinite combo piece",
+        "Gain → draw"
+      ],
+      "degree": 2
+    },
+    {
+      "id": "card:Queza, Augur of Agonies",
+      "kind": "card",
+      "name": "Queza, Augur of Agonies",
+      "image": "https://cards.scryfall.io/normal/front/7/e/7edb7a26-82be-4efd-9a5c-a3816e1ee2d6.jpg?1783923073",
+      "labels": [
+        "Draw → drain",
+        "Infinite combo piece"
+      ],
+      "degree": 1
+    },
+    {
+      "id": "outcome:drain",
+      "kind": "outcome",
+      "outcomeType": "drain"
+    },
+    {
+      "id": "outcome:draw",
+      "kind": "outcome",
+      "outcomeType": "draw"
+    },
+    {
+      "id": "outcome:tokens",
+      "kind": "outcome",
+      "outcomeType": "tokens"
+    },
+    {
+      "id": "outcome:lifegain",
+      "kind": "outcome",
+      "outcomeType": "lifegain"
+    }
+  ],
+  "edges": [
+    {
+      "source": "card:Sanguine Bond",
+      "target": "card:Exquisite Blood",
+      "kind": "combo",
+      "comboId": "690-3966"
+    },
+    {
+      "source": "card:Sanguine Bond",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "690-3966"
+    },
+    {
+      "source": "card:Sanguine Bond",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "690-3966"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "690-3966"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "690-3966"
+    },
+    {
+      "source": "card:Vito, Thorn of the Dusk Rose",
+      "target": "card:Exquisite Blood",
+      "kind": "combo",
+      "comboId": "314-3966"
+    },
+    {
+      "source": "card:Vito, Thorn of the Dusk Rose",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "314-3966"
+    },
+    {
+      "source": "card:Vito, Thorn of the Dusk Rose",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "314-3966"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "314-3966"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "314-3966"
+    },
+    {
+      "source": "card:Vito, Thorn of the Dusk Rose",
+      "target": "card:Bloodthirsty Conqueror",
+      "kind": "combo",
+      "comboId": "314-6191"
+    },
+    {
+      "source": "card:Vito, Thorn of the Dusk Rose",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "314-6191"
+    },
+    {
+      "source": "card:Vito, Thorn of the Dusk Rose",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "314-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "314-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "314-6191"
+    },
+    {
+      "source": "card:Sanguine Bond",
+      "target": "card:Bloodthirsty Conqueror",
+      "kind": "combo",
+      "comboId": "690-6191"
+    },
+    {
+      "source": "card:Sanguine Bond",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "690-6191"
+    },
+    {
+      "source": "card:Sanguine Bond",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "690-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "690-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "690-6191"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "card:Enduring Tenacity",
+      "kind": "combo",
+      "comboId": "3966-5755"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "3966-5755"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "3966-5755"
+    },
+    {
+      "source": "card:Enduring Tenacity",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "3966-5755"
+    },
+    {
+      "source": "card:Enduring Tenacity",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "3966-5755"
+    },
+    {
+      "source": "card:Marauding Blight-Priest",
+      "target": "card:Exquisite Blood",
+      "kind": "combo",
+      "comboId": "110-3966"
+    },
+    {
+      "source": "card:Marauding Blight-Priest",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "110-3966"
+    },
+    {
+      "source": "card:Marauding Blight-Priest",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "110-3966"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "110-3966"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "110-3966"
+    },
+    {
+      "source": "card:Enduring Tenacity",
+      "target": "card:Bloodthirsty Conqueror",
+      "kind": "combo",
+      "comboId": "5755-6191"
+    },
+    {
+      "source": "card:Enduring Tenacity",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "5755-6191"
+    },
+    {
+      "source": "card:Enduring Tenacity",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "5755-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "5755-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "5755-6191"
+    },
+    {
+      "source": "card:Sheoldred, the Apocalypse",
+      "target": "card:Peer into the Abyss",
+      "kind": "combo",
+      "comboId": "1561-2498"
+    },
+    {
+      "source": "card:Sheoldred, the Apocalypse",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "1561-2498"
+    },
+    {
+      "source": "card:Sheoldred, the Apocalypse",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "1561-2498"
+    },
+    {
+      "source": "card:Peer into the Abyss",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "1561-2498"
+    },
+    {
+      "source": "card:Peer into the Abyss",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "1561-2498"
+    },
+    {
+      "source": "card:Orcish Bowmasters",
+      "target": "card:Peer into the Abyss",
+      "kind": "combo",
+      "comboId": "1561-3862"
+    },
+    {
+      "source": "card:Orcish Bowmasters",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "1561-3862"
+    },
+    {
+      "source": "card:Orcish Bowmasters",
+      "target": "outcome:tokens",
+      "kind": "produces",
+      "comboId": "1561-3862"
+    },
+    {
+      "source": "card:Orcish Bowmasters",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "1561-3862"
+    },
+    {
+      "source": "card:Peer into the Abyss",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "1561-3862"
+    },
+    {
+      "source": "card:Peer into the Abyss",
+      "target": "outcome:tokens",
+      "kind": "produces",
+      "comboId": "1561-3862"
+    },
+    {
+      "source": "card:Peer into the Abyss",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "1561-3862"
+    },
+    {
+      "source": "card:Marauding Blight-Priest",
+      "target": "card:Bloodthirsty Conqueror",
+      "kind": "combo",
+      "comboId": "110-6191"
+    },
+    {
+      "source": "card:Marauding Blight-Priest",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "110-6191"
+    },
+    {
+      "source": "card:Marauding Blight-Priest",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "110-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "110-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "110-6191"
+    },
+    {
+      "source": "card:Psychosis Crawler",
+      "target": "card:Peer into the Abyss",
+      "kind": "combo",
+      "comboId": "1561-2384"
+    },
+    {
+      "source": "card:Psychosis Crawler",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "1561-2384"
+    },
+    {
+      "source": "card:Psychosis Crawler",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "1561-2384"
+    },
+    {
+      "source": "card:Peer into the Abyss",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "1561-2384"
+    },
+    {
+      "source": "card:Peer into the Abyss",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "1561-2384"
+    },
+    {
+      "source": "card:Sensei's Divining Top",
+      "target": "card:Sheoldred, the Apocalypse",
+      "kind": "combo",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Sensei's Divining Top",
+      "target": "card:Bolas's Citadel",
+      "kind": "combo",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Sheoldred, the Apocalypse",
+      "target": "card:Bolas's Citadel",
+      "kind": "combo",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Sensei's Divining Top",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Sensei's Divining Top",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Sensei's Divining Top",
+      "target": "outcome:tokens",
+      "kind": "produces",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Sheoldred, the Apocalypse",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Sheoldred, the Apocalypse",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Sheoldred, the Apocalypse",
+      "target": "outcome:tokens",
+      "kind": "produces",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Bolas's Citadel",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Bolas's Citadel",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Bolas's Citadel",
+      "target": "outcome:tokens",
+      "kind": "produces",
+      "comboId": "2173-2498-5078"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "card:Cliffhaven Vampire",
+      "kind": "combo",
+      "comboId": "3966-4789"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "3966-4789"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "3966-4789"
+    },
+    {
+      "source": "card:Cliffhaven Vampire",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "3966-4789"
+    },
+    {
+      "source": "card:Cliffhaven Vampire",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "3966-4789"
+    },
+    {
+      "source": "card:Vizkopa Guildmage",
+      "target": "card:Exquisite Blood",
+      "kind": "combo",
+      "comboId": "92-3966"
+    },
+    {
+      "source": "card:Vizkopa Guildmage",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "92-3966"
+    },
+    {
+      "source": "card:Vizkopa Guildmage",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "92-3966"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "92-3966"
+    },
+    {
+      "source": "card:Exquisite Blood",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "92-3966"
+    },
+    {
+      "source": "card:Peer into the Abyss",
+      "target": "card:Alhammarret's Archive",
+      "kind": "combo",
+      "comboId": "1561-4435"
+    },
+    {
+      "source": "card:Peer into the Abyss",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "1561-4435"
+    },
+    {
+      "source": "card:Alhammarret's Archive",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "1561-4435"
+    },
+    {
+      "source": "card:Drogskol Reaver",
+      "target": "card:Queza, Augur of Agonies",
+      "kind": "combo",
+      "comboId": "444-1786"
+    },
+    {
+      "source": "card:Drogskol Reaver",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "444-1786"
+    },
+    {
+      "source": "card:Drogskol Reaver",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "444-1786"
+    },
+    {
+      "source": "card:Drogskol Reaver",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "444-1786"
+    },
+    {
+      "source": "card:Queza, Augur of Agonies",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "444-1786"
+    },
+    {
+      "source": "card:Queza, Augur of Agonies",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "444-1786"
+    },
+    {
+      "source": "card:Queza, Augur of Agonies",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "444-1786"
+    },
+    {
+      "source": "card:Cliffhaven Vampire",
+      "target": "card:Bloodthirsty Conqueror",
+      "kind": "combo",
+      "comboId": "4789-6191"
+    },
+    {
+      "source": "card:Cliffhaven Vampire",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "4789-6191"
+    },
+    {
+      "source": "card:Cliffhaven Vampire",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "4789-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "4789-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "4789-6191"
+    },
+    {
+      "source": "card:Vizkopa Guildmage",
+      "target": "card:Bloodthirsty Conqueror",
+      "kind": "combo",
+      "comboId": "92-6191"
+    },
+    {
+      "source": "card:Vizkopa Guildmage",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "92-6191"
+    },
+    {
+      "source": "card:Vizkopa Guildmage",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "92-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:drain",
+      "kind": "produces",
+      "comboId": "92-6191"
+    },
+    {
+      "source": "card:Bloodthirsty Conqueror",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "92-6191"
+    },
+    {
+      "source": "card:Drogskol Reaver",
+      "target": "card:Sheoldred, the Apocalypse",
+      "kind": "combo",
+      "comboId": "444-2498"
+    },
+    {
+      "source": "card:Drogskol Reaver",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "444-2498"
+    },
+    {
+      "source": "card:Drogskol Reaver",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "444-2498"
+    },
+    {
+      "source": "card:Sheoldred, the Apocalypse",
+      "target": "outcome:draw",
+      "kind": "produces",
+      "comboId": "444-2498"
+    },
+    {
+      "source": "card:Sheoldred, the Apocalypse",
+      "target": "outcome:lifegain",
+      "kind": "produces",
+      "comboId": "444-2498"
+    }
+  ],
+  "combos": [
+    {
+      "id": "690-3966",
+      "variantId": "690-3966",
+      "cards": [
+        "Sanguine Bond",
+        "Exquisite Blood"
+      ],
+      "steps": [
+        "Gain life.",
+        "Sanguine Bond triggers, causing an opponent to lose 1 life.",
+        "Exquisite Blood triggers, causing you to gain 1 life.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to gain life."
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/690-3966/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "314-3966",
+      "variantId": "314-3966",
+      "cards": [
+        "Vito, Thorn of the Dusk Rose",
+        "Exquisite Blood"
+      ],
+      "steps": [
+        "Gain life.",
+        "Vito triggers, causing an opponent to lose 1 life.",
+        "Exquisite Blood triggers, causing you to gain 1 life.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to gain life."
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/314-3966/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "314-6191",
+      "variantId": "314-6191",
+      "cards": [
+        "Vito, Thorn of the Dusk Rose",
+        "Bloodthirsty Conqueror"
+      ],
+      "steps": [
+        "Gain life.",
+        "Vito triggers, causing an opponent to lose 1 life.",
+        "Bloodthirsty Conqueror triggers, causing you to gain 1 life.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to gain life."
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/314-6191/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "690-6191",
+      "variantId": "690-6191",
+      "cards": [
+        "Sanguine Bond",
+        "Bloodthirsty Conqueror"
+      ],
+      "steps": [
+        "Gain life.",
+        "Sanguine Bond triggers, causing an opponent to lose 1 life.",
+        "Bloodthirsty Conqueror triggers, causing you to gain 1 life.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to gain life."
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/690-6191/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "3966-5755",
+      "variantId": "3966-5755",
+      "cards": [
+        "Exquisite Blood",
+        "Enduring Tenacity"
+      ],
+      "steps": [
+        "Gain life.",
+        "Enduring Tenacity triggers, causing an opponent to lose 1 life.",
+        "Exquisite Blood triggers, causing you to gain 1 life.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to gain life."
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/3966-5755/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "110-3966",
+      "variantId": "110-3966",
+      "cards": [
+        "Marauding Blight-Priest",
+        "Exquisite Blood"
+      ],
+      "steps": [
+        "Gain life.",
+        "Marauding Blight-Priest triggers, causing each opponent to lose 1 life.",
+        "Exquisite Blood triggers for each opponent that lost life.",
+        "Resolve a Exquisite Blood trigger, gaining 1 life.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to gain life."
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/110-3966/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "5755-6191",
+      "variantId": "5755-6191",
+      "cards": [
+        "Enduring Tenacity",
+        "Bloodthirsty Conqueror"
+      ],
+      "steps": [
+        "Gain life.",
+        "Enduring Tenacity triggers, causing an opponent to lose 1 life.",
+        "Bloodthirsty Conqueror triggers, causing you to gain 1 life.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to gain life."
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/5755-6191/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "1561-2498",
+      "variantId": "1561-2498",
+      "cards": [
+        "Sheoldred, the Apocalypse",
+        "Peer into the Abyss"
+      ],
+      "steps": [
+        "Cast Peer into the Abyss by paying {4}{B}{B}{B}, causing an opponent to draw cards equal to half their library size and lose half their life total, rounded up.",
+        "Sheoldred's second ability triggers for each card drawn this way.",
+        "Resolve the first Sheoldred trigger, causing the opponent to lose 2 life.",
+        "Repeat step 3 until the opponent loses the game due to having zero or less life."
+      ],
+      "prerequisites": [
+        "An opponent has a library size that is at least half their life total.",
+        "{4}{B}{B}{B}"
+      ],
+      "produces": [
+        {
+          "name": "Near-infinite card draw for target opponent",
+          "status": "S",
+          "win": false
+        },
+        {
+          "name": "Near-infinite draw triggers for target opponent",
+          "status": "H",
+          "win": false
+        },
+        {
+          "name": "Near-infinite lifeloss for target opponent",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Target opponent loses the game",
+          "status": "S",
+          "win": true
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "draw"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/1561-2498/",
+      "triggerMechanic": null
+    },
+    {
+      "id": "1561-3862",
+      "variantId": "1561-3862",
+      "cards": [
+        "Orcish Bowmasters",
+        "Peer into the Abyss"
+      ],
+      "steps": [
+        "Cast Peer into the Abyss by paying {4}{B}{B}{B}, targeting an opponent whose library size is larger than or equal to their life total.",
+        "Resolve Peer into the Abyss, causing that opponent to draw cards equal to half their library size and causing them to lose half their life total, rounded up.",
+        "Orcish Bowmasters triggers for each card drawn, dealing 1 damage to the opponent for each card drawn this way and putting that many +1/+1 counters on an Army you control.",
+        "The opponent loses the game due to having zero or less life."
+      ],
+      "prerequisites": [
+        "An opponent has a library size which is larger than or equal to their life total.",
+        "{4}{B}{B}{B}"
+      ],
+      "produces": [
+        {
+          "name": "Infinite +1/+1 counters on a creature",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Near-infinite card draw for target opponent",
+          "status": "S",
+          "win": false
+        },
+        {
+          "name": "Near-infinite damage",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Near-infinite draw triggers for target opponent",
+          "status": "H",
+          "win": false
+        },
+        {
+          "name": "Target opponent loses the game",
+          "status": "S",
+          "win": true
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "tokens",
+        "draw"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/1561-3862/",
+      "triggerMechanic": null
+    },
+    {
+      "id": "110-6191",
+      "variantId": "110-6191",
+      "cards": [
+        "Marauding Blight-Priest",
+        "Bloodthirsty Conqueror"
+      ],
+      "steps": [
+        "Gain life.",
+        "Marauding Blight-Priest triggers, causing each opponent to lose 1 life.",
+        "Bloodthirsty Conqueror triggers for each opponent that lost life.",
+        "Resolve a Bloodthirsty Conqueror trigger, gaining 1 life.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to gain life."
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/110-6191/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "1561-2384",
+      "variantId": "1561-2384",
+      "cards": [
+        "Psychosis Crawler",
+        "Peer into the Abyss"
+      ],
+      "steps": [
+        "Cast Peer into the Abyss by paying {4}{B}{B}{B}, causing you to draw half your library and lose half your life total, rounding up each time.",
+        "Psychosis Crawler triggers for each card you drew, causing each opponent to lose life equal to the number of cards you drew."
+      ],
+      "prerequisites": [
+        "Your life total is at least 2.",
+        "{4}{B}{B}{B}"
+      ],
+      "produces": [
+        {
+          "name": "Near-infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Near-infinite card draw",
+          "status": "S",
+          "win": false
+        },
+        {
+          "name": "Near-infinite draw triggers",
+          "status": "H",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "draw"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/1561-2384/",
+      "triggerMechanic": null
+    },
+    {
+      "id": "2173-2498-5078",
+      "variantId": "2173-2498-5078",
+      "cards": [
+        "Sensei's Divining Top",
+        "Sheoldred, the Apocalypse",
+        "Bolas's Citadel"
+      ],
+      "steps": [
+        "Activate Sense's Divining Top's second ability by tapping it, causing you to draw a card and put Sensei's Divining Top on top of your library from the battlefield.",
+        "Sheoldred triggers, causing you to gain 2 life",
+        "Cast Sensei's Divining Top from the top of your library by paying 1 life.",
+        "Repeat."
+      ],
+      "prerequisites": [],
+      "produces": [
+        {
+          "name": "Infinite card draw",
+          "status": "S",
+          "win": false
+        },
+        {
+          "name": "Infinite draw triggers",
+          "status": "H",
+          "win": false
+        },
+        {
+          "name": "Near-infinite lifegain",
+          "status": "S",
+          "win": false
+        },
+        {
+          "name": "Near-infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Near-infinite storm count",
+          "status": "H",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "draw",
+        "lifegain",
+        "tokens"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/2173-2498-5078/",
+      "triggerMechanic": null
+    },
+    {
+      "id": "3966-4789",
+      "variantId": "3966-4789",
+      "cards": [
+        "Exquisite Blood",
+        "Cliffhaven Vampire"
+      ],
+      "steps": [
+        "Gain life.",
+        "Cliffhaven Vampire triggers, causing each opponent to lose 1 life.",
+        "Exquisite Blood triggers for each opponent that lost life.",
+        "Resolve a Exquisite Blood trigger, gaining 1 life.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to gain life."
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/3966-4789/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "92-3966",
+      "variantId": "92-3966",
+      "cards": [
+        "Vizkopa Guildmage",
+        "Exquisite Blood"
+      ],
+      "steps": [
+        "Activate Vizkopa Guildmage's second ability by paying {1}{W}{B}, causing each opponent to lose life whenever you gain life this turn.",
+        "Gain life.",
+        "Vizkopa Guildmage triggers, causing each opponent to lose 1 life.",
+        "Exquisite Blood triggers for each opponent that lost life.",
+        "Resolve a Exquisite Blood trigger, gaining 1 life.",
+        "Repeat from step 3."
+      ],
+      "prerequisites": [
+        "You have a way to gain life.",
+        "{1}{W}{B}"
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/92-3966/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "1561-4435",
+      "variantId": "1561-4435",
+      "cards": [
+        "Peer into the Abyss",
+        "Alhammarret's Archive"
+      ],
+      "steps": [
+        "Cast Peer into the Abyss by paying {4}{B}{B}{B}, causing you to lose half your life total rounded up and draw your library due to Alhammarret's Archive."
+      ],
+      "prerequisites": [
+        "Your life total is at least 2.\nYour deck size is even.",
+        "{4}{B}{B}{B}"
+      ],
+      "produces": [
+        {
+          "name": "Infinite card draw",
+          "status": "S",
+          "win": false
+        },
+        {
+          "name": "Infinite draw triggers",
+          "status": "H",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "draw"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/1561-4435/",
+      "triggerMechanic": null
+    },
+    {
+      "id": "444-1786",
+      "variantId": "444-1786",
+      "cards": [
+        "Drogskol Reaver",
+        "Queza, Augur of Agonies"
+      ],
+      "steps": [
+        "Draw a card.",
+        "Queza triggers, causing target opponent to lose 1 life and you to gain 1 life.",
+        "Drogskol Reaver triggers, causing you to draw a card.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to draw a card.\nYour deck size is greater than your opponents' combined life totals."
+      ],
+      "produces": [
+        {
+          "name": "Infinite card draw",
+          "status": "S",
+          "win": false
+        },
+        {
+          "name": "Infinite draw triggers",
+          "status": "H",
+          "win": false
+        },
+        {
+          "name": "Near-infinite lifegain",
+          "status": "S",
+          "win": false
+        },
+        {
+          "name": "Near-infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Near-infinite lifeloss",
+          "status": "S",
+          "win": true
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "draw",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/444-1786/",
+      "triggerMechanic": "draw a card"
+    },
+    {
+      "id": "4789-6191",
+      "variantId": "4789-6191",
+      "cards": [
+        "Cliffhaven Vampire",
+        "Bloodthirsty Conqueror"
+      ],
+      "steps": [
+        "Gain life.",
+        "Cliffhaven Vampire triggers, causing each opponent to lose 1 life.",
+        "Bloodthirsty Conqueror triggers for each opponent that lost life.",
+        "Resolve a Bloodthirsty Conqueror trigger, gaining 1 life.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to gain life."
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/4789-6191/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "92-6191",
+      "variantId": "92-6191",
+      "cards": [
+        "Vizkopa Guildmage",
+        "Bloodthirsty Conqueror"
+      ],
+      "steps": [
+        "Activate Vizkopa Guildmage's second ability by paying {1}{W}{B}, causing each opponent to lose life whenever you gain life this turn.",
+        "Gain life.",
+        "Vizkopa Guildmage triggers, causing each opponent to lose 1 life.",
+        "Bloodthirsty Conqueror triggers for each opponent that lost life.",
+        "Resolve a Bloodthirsty Conqueror trigger, gaining 1 life.",
+        "Repeat from step 3."
+      ],
+      "prerequisites": [
+        "You have a way to gain life.",
+        "{1}{W}{B}"
+      ],
+      "produces": [
+        {
+          "name": "Infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        },
+        {
+          "name": "Infinite lifeloss",
+          "status": "S",
+          "win": true
+        },
+        {
+          "name": "Infinite lifegain",
+          "status": "S",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "drain",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/92-6191/",
+      "triggerMechanic": "gain life"
+    },
+    {
+      "id": "444-2498",
+      "variantId": "444-2498",
+      "cards": [
+        "Drogskol Reaver",
+        "Sheoldred, the Apocalypse"
+      ],
+      "steps": [
+        "Draw a card.",
+        "Sheoldred's first ability triggers, causing you to gain two life.",
+        "Drogskol Reaver triggers, causing you to draw a card.",
+        "Repeat from step 2."
+      ],
+      "prerequisites": [
+        "You have a way to draw a card."
+      ],
+      "produces": [
+        {
+          "name": "Infinite card draw",
+          "status": "S",
+          "win": false
+        },
+        {
+          "name": "Infinite draw triggers",
+          "status": "H",
+          "win": false
+        },
+        {
+          "name": "Near-infinite lifegain",
+          "status": "S",
+          "win": false
+        },
+        {
+          "name": "Near-infinite lifegain triggers",
+          "status": "C",
+          "win": false
+        }
+      ],
+      "outcomeTypes": [
+        "draw",
+        "lifegain"
+      ],
+      "spellbookUrl": "https://commanderspellbook.com/combo/444-2498/",
+      "triggerMechanic": "draw a card"
+    }
+  ],
+  "triggers": {
+    "mechanics": {
+      "draw a card": {
+        "mechanic": "draw a card",
+        "label": "Draw a card",
+        "sublabel": "Draw Step",
+        "icon": "📜",
+        "enablers": [
+          {
+            "name": "Brainstorm",
+            "image": "https://cards.scryfall.io/normal/front/b/5/b5545882-6963-4729-b2c6-fb4bdc75ffcc.jpg?1783904806",
+            "labels": [
+              "Card selection"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Rhystic Study",
+            "image": "https://cards.scryfall.io/normal/front/9/f/9f37c5b6-a59c-45cd-9a99-e9357fe9ea1b.jpg?1783919146",
+            "labels": [
+              "Card draw engine"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Mystic Remora",
+            "image": "https://cards.scryfall.io/normal/front/4/0/40140991-cffa-4b52-9a25-37e9a8aa9ddd.jpg?1783918491",
+            "labels": [
+              "Card draw engine"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Esper Sentinel",
+            "image": "https://cards.scryfall.io/normal/front/f/3/f3537373-ef54-4578-9d05-6216420ee349.jpg?1783926893",
+            "labels": [
+              "Card draw engine"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Consecrated Sphinx",
+            "image": "https://cards.scryfall.io/normal/front/c/9/c9bd60fc-2777-44bc-b314-a792e8e48360.jpg?1783921921",
+            "labels": [
+              "Card draw engine"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Phyrexian Arena",
+            "image": "https://cards.scryfall.io/normal/front/0/7/0784b6f0-9ebf-43d2-ba0f-a6bc93ba0c48.jpg?1783909072",
+            "labels": [
+              "Card draw engine"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Windfall",
+            "image": "https://cards.scryfall.io/normal/front/9/c/9ce7113b-08f7-4584-b65f-a7b5caa90c2f.jpg?1783911933",
+            "labels": [
+              "Mass draw / wheel"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Timetwister",
+            "image": "https://cards.scryfall.io/normal/front/f/b/fbee1e10-0b8c-44ea-b0e5-44cdd0bfcd76.jpg?1783939333",
+            "labels": [
+              "Mass draw / wheel"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Peer into the Abyss",
+            "image": "https://cards.scryfall.io/normal/front/a/a/aac00055-640e-4749-8d23-d242e6d0b23a.jpg?1783930701",
+            "labels": [
+              "Draw → drain",
+              "Infinite combo piece",
+              "Mass draw / wheel"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Sensei's Divining Top",
+            "image": "https://cards.scryfall.io/normal/front/e/5/e5142b7a-e580-4737-a4aa-2590f6610ceb.jpg?1783921788",
+            "labels": [
+              "Infinite combo piece",
+              "Card selection"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Notion Thief",
+            "image": "https://cards.scryfall.io/normal/front/f/6/f675f509-4343-4568-96dd-265626cb6c2b.jpg?1783929456",
+            "labels": [
+              "Card draw engine"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Drogskol Reaver",
+            "image": "https://cards.scryfall.io/normal/front/c/0/c0a4450c-8dfd-4d05-adb9-e84ec6066c7d.jpg?1783908917",
+            "labels": [
+              "Infinite combo piece",
+              "Gain → draw"
+            ],
+            "chainsLeft": true
+          }
+        ]
+      },
+      "gain life": {
+        "mechanic": "gain life",
+        "label": "Gain life",
+        "sublabel": null,
+        "icon": "❤️",
+        "enablers": [
+          {
+            "name": "Drogskol Reaver",
+            "image": "https://cards.scryfall.io/normal/front/c/0/c0a4450c-8dfd-4d05-adb9-e84ec6066c7d.jpg?1783908917",
+            "labels": [
+              "Infinite combo piece",
+              "Gain → draw"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Elixir of Immortality",
+            "image": "https://cards.scryfall.io/normal/front/6/7/6741ab27-9e1f-4aa5-96b9-b450eda7c5c2.jpg?1783927513",
+            "labels": [
+              "Lifegain igniter",
+              "Deck-out insurance"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Exquisite Blood",
+            "image": "https://cards.scryfall.io/normal/front/0/e/0e8ccfa7-4178-476a-a155-0ca1c98556c9.jpg?1783913874",
+            "labels": [
+              "Gain → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Queza, Augur of Agonies",
+            "image": "https://cards.scryfall.io/normal/front/7/e/7edb7a26-82be-4efd-9a5c-a3816e1ee2d6.jpg?1783923073",
+            "labels": [
+              "Draw → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Sheoldred, the Apocalypse",
+            "image": "https://cards.scryfall.io/normal/front/d/6/d67be074-cdd4-41d9-ac89-0a0456c4e4b2.jpg?1783921327",
+            "labels": [
+              "Draw → drain",
+              "Opp-draw punisher",
+              "Lifegain igniter"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Vito, Thorn of the Dusk Rose",
+            "image": "https://cards.scryfall.io/normal/front/0/f/0fe79ee4-c3f3-4a6b-a967-203ca3b70ee5.jpg?1783930698",
+            "labels": [
+              "Gain → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          }
+        ]
+      },
+      "opponent draws": {
+        "mechanic": "opponent draws",
+        "label": "An opponent draws",
+        "sublabel": "forced / symmetric draw",
+        "icon": "🃏",
+        "enablers": [
+          {
+            "name": "Peer into the Abyss",
+            "image": "https://cards.scryfall.io/normal/front/a/a/aac00055-640e-4749-8d23-d242e6d0b23a.jpg?1783930701",
+            "labels": [
+              "Draw → drain",
+              "Infinite combo piece",
+              "Mass draw / wheel"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Timetwister",
+            "image": "https://cards.scryfall.io/normal/front/f/b/fbee1e10-0b8c-44ea-b0e5-44cdd0bfcd76.jpg?1783939333",
+            "labels": [
+              "Mass draw / wheel"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Windfall",
+            "image": "https://cards.scryfall.io/normal/front/9/c/9ce7113b-08f7-4584-b65f-a7b5caa90c2f.jpg?1783911933",
+            "labels": [
+              "Mass draw / wheel"
+            ],
+            "chainsLeft": false
+          }
+        ]
+      },
+      "opponent loses life": {
+        "mechanic": "opponent loses life",
+        "label": "An opponent loses life",
+        "sublabel": "drain / damage",
+        "icon": "🩸",
+        "enablers": [
+          {
+            "name": "Bolas's Citadel",
+            "image": "https://cards.scryfall.io/normal/front/d/2/d2124603-d20e-40eb-97f0-a66323397ac2.jpg?1783933451",
+            "labels": [
+              "Infinite combo piece",
+              "Cast-fuel (non-draw)"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Cliffhaven Vampire",
+            "image": "https://cards.scryfall.io/normal/front/5/5/5544247d-1f8f-443f-a4c4-d8461db28a79.jpg?1783937896",
+            "labels": [
+              "Gain → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Marauding Blight-Priest",
+            "image": "https://cards.scryfall.io/normal/front/5/f/5f70dafc-c638-4ec0-ab5b-62998f752720.jpg?1783909072",
+            "labels": [
+              "Gain → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Orcish Bowmasters",
+            "image": "https://cards.scryfall.io/normal/front/7/c/7c024bae-5631-4e20-ac69-df392ac9e109.jpg?1783916299",
+            "labels": [
+              "Opp-draw punisher"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Peer into the Abyss",
+            "image": "https://cards.scryfall.io/normal/front/a/a/aac00055-640e-4749-8d23-d242e6d0b23a.jpg?1783930701",
+            "labels": [
+              "Draw → drain",
+              "Infinite combo piece",
+              "Mass draw / wheel"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Psychosis Crawler",
+            "image": "https://cards.scryfall.io/normal/front/d/0/d0f42a19-c180-45b1-9f4c-787cf3a4a649.jpg?1783912973",
+            "labels": [
+              "Draw → drain"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Queza, Augur of Agonies",
+            "image": "https://cards.scryfall.io/normal/front/7/e/7edb7a26-82be-4efd-9a5c-a3816e1ee2d6.jpg?1783923073",
+            "labels": [
+              "Draw → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Sanguine Bond",
+            "image": "https://cards.scryfall.io/normal/front/a/d/ad4de9f1-7a39-45af-828e-c59234d9e9b9.jpg?1783927550",
+            "labels": [
+              "Gain → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Sheoldred, the Apocalypse",
+            "image": "https://cards.scryfall.io/normal/front/d/6/d67be074-cdd4-41d9-ac89-0a0456c4e4b2.jpg?1783921327",
+            "labels": [
+              "Draw → drain",
+              "Opp-draw punisher",
+              "Lifegain igniter"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Vito, Thorn of the Dusk Rose",
+            "image": "https://cards.scryfall.io/normal/front/0/f/0fe79ee4-c3f3-4a6b-a967-203ca3b70ee5.jpg?1783930698",
+            "labels": [
+              "Gain → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          }
+        ]
+      },
+      "creature enters": {
+        "mechanic": "creature enters",
+        "label": "A creature enters",
+        "sublabel": "ETB",
+        "icon": "🐾",
+        "enablers": [
+          {
+            "name": "Cliffhaven Vampire",
+            "image": "https://cards.scryfall.io/normal/front/5/5/5544247d-1f8f-443f-a4c4-d8461db28a79.jpg?1783937896",
+            "labels": [
+              "Gain → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Consecrated Sphinx",
+            "image": "https://cards.scryfall.io/normal/front/c/9/c9bd60fc-2777-44bc-b314-a792e8e48360.jpg?1783921921",
+            "labels": [
+              "Card draw engine"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Drogskol Reaver",
+            "image": "https://cards.scryfall.io/normal/front/c/0/c0a4450c-8dfd-4d05-adb9-e84ec6066c7d.jpg?1783908917",
+            "labels": [
+              "Infinite combo piece",
+              "Gain → draw"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Esper Sentinel",
+            "image": "https://cards.scryfall.io/normal/front/f/3/f3537373-ef54-4578-9d05-6216420ee349.jpg?1783926893",
+            "labels": [
+              "Card draw engine"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Grand Abolisher",
+            "image": "https://cards.scryfall.io/normal/front/e/e/ee793ed2-7d59-4640-8868-ad486600df2c.jpg?1783912003",
+            "labels": [
+              "Protection"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Marauding Blight-Priest",
+            "image": "https://cards.scryfall.io/normal/front/5/f/5f70dafc-c638-4ec0-ab5b-62998f752720.jpg?1783909072",
+            "labels": [
+              "Gain → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Notion Thief",
+            "image": "https://cards.scryfall.io/normal/front/f/6/f675f509-4343-4568-96dd-265626cb6c2b.jpg?1783929456",
+            "labels": [
+              "Card draw engine"
+            ],
+            "chainsLeft": false
+          },
+          {
+            "name": "Orcish Bowmasters",
+            "image": "https://cards.scryfall.io/normal/front/7/c/7c024bae-5631-4e20-ac69-df392ac9e109.jpg?1783916299",
+            "labels": [
+              "Opp-draw punisher"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Psychosis Crawler",
+            "image": "https://cards.scryfall.io/normal/front/d/0/d0f42a19-c180-45b1-9f4c-787cf3a4a649.jpg?1783912973",
+            "labels": [
+              "Draw → drain"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Queza, Augur of Agonies",
+            "image": "https://cards.scryfall.io/normal/front/7/e/7edb7a26-82be-4efd-9a5c-a3816e1ee2d6.jpg?1783923073",
+            "labels": [
+              "Draw → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Sheoldred, the Apocalypse",
+            "image": "https://cards.scryfall.io/normal/front/d/6/d67be074-cdd4-41d9-ac89-0a0456c4e4b2.jpg?1783921327",
+            "labels": [
+              "Draw → drain",
+              "Opp-draw punisher",
+              "Lifegain igniter"
+            ],
+            "chainsLeft": true
+          },
+          {
+            "name": "Vito, Thorn of the Dusk Rose",
+            "image": "https://cards.scryfall.io/normal/front/0/f/0fe79ee4-c3f3-4a6b-a967-203ca3b70ee5.jpg?1783930698",
+            "labels": [
+              "Gain → drain",
+              "Infinite combo piece"
+            ],
+            "chainsLeft": true
+          }
+        ]
+      }
+    },
+    "amplifiers": {
+      "draw a card": [
+        {
+          "name": "Alhammarret's Archive",
+          "image": "https://cards.scryfall.io/normal/front/4/f/4f4187f1-05bd-4db6-a2e7-d677eff588ee.jpg?1783927520",
+          "labels": [
+            "Draw doubler",
+            "Gain → draw"
+          ]
+        }
+      ],
+      "gain life": [
+        {
+          "name": "Alhammarret's Archive",
+          "image": "https://cards.scryfall.io/normal/front/4/f/4f4187f1-05bd-4db6-a2e7-d677eff588ee.jpg?1783927520",
+          "labels": [
+            "Draw doubler",
+            "Gain → draw"
+          ]
+        }
+      ]
+    },
+    "comboMechanic": {
+      "690-3966": "gain life",
+      "314-3966": "gain life",
+      "314-6191": "gain life",
+      "690-6191": "gain life",
+      "3966-5755": "gain life",
+      "110-3966": "gain life",
+      "5755-6191": "gain life",
+      "1561-2498": null,
+      "1561-3862": null,
+      "110-6191": "gain life",
+      "1561-2384": null,
+      "2173-2498-5078": null,
+      "3966-4789": "gain life",
+      "92-3966": "gain life",
+      "1561-4435": null,
+      "444-1786": "draw a card",
+      "4789-6191": "gain life",
+      "92-6191": "gain life",
+      "444-2498": "draw a card"
+    },
+    "layer0Mechanics": {
+      "Queza, Augur of Agonies": [
+        "draw a card"
+      ],
+      "Consecrated Sphinx": [
+        "opponent draws"
+      ],
+      "Sheoldred, the Apocalypse": [
+        "draw a card",
+        "opponent draws"
+      ],
+      "Psychosis Crawler": [
+        "draw a card"
+      ],
+      "Sanguine Bond": [
+        "gain life"
+      ],
+      "Exquisite Blood": [
+        "opponent loses life",
+        "gain life"
+      ],
+      "Vito, Thorn of the Dusk Rose": [
+        "gain life"
+      ],
+      "Drogskol Reaver": [
+        "gain life",
+        "draw a card"
+      ],
+      "Marauding Blight-Priest": [
+        "gain life"
+      ],
+      "Cliffhaven Vampire": [
+        "gain life"
+      ],
+      "Vizkopa Guildmage": [
+        "gain life"
+      ],
+      "Bloodthirsty Conqueror": [
+        "gain life"
+      ],
+      "Enduring Tenacity": [
+        "gain life"
+      ],
+      "Orcish Bowmasters": [
+        "opponent draws"
+      ]
+    },
+    "fauxEdge": {
+      "draw a card": [
+        "Peer into the Abyss",
+        "Sensei's Divining Top",
+        "Drogskol Reaver"
+      ],
+      "gain life": [
+        "Drogskol Reaver",
+        "Exquisite Blood",
+        "Queza, Augur of Agonies",
+        "Sheoldred, the Apocalypse",
+        "Vito, Thorn of the Dusk Rose"
+      ],
+      "opponent draws": [
+        "Peer into the Abyss"
+      ],
+      "opponent loses life": [
+        "Bolas's Citadel",
+        "Cliffhaven Vampire",
+        "Marauding Blight-Priest",
+        "Orcish Bowmasters",
+        "Peer into the Abyss",
+        "Psychosis Crawler",
+        "Queza, Augur of Agonies",
+        "Sanguine Bond",
+        "Sheoldred, the Apocalypse",
+        "Vito, Thorn of the Dusk Rose"
+      ],
+      "creature enters": [
+        "Cliffhaven Vampire",
+        "Drogskol Reaver",
+        "Marauding Blight-Priest",
+        "Orcish Bowmasters",
+        "Psychosis Crawler",
+        "Queza, Augur of Agonies",
+        "Sheoldred, the Apocalypse",
+        "Vito, Thorn of the Dusk Rose"
+      ]
+    }
+  },
+  "triggerNodes": [
+    {
+      "id": "trigger:draw a card",
+      "kind": "trigger",
+      "mechanic": "draw a card",
+      "label": "Draw a card",
+      "sublabel": "Draw Step",
+      "icon": "📜"
+    },
+    {
+      "id": "trigger:gain life",
+      "kind": "trigger",
+      "mechanic": "gain life",
+      "label": "Gain life",
+      "sublabel": null,
+      "icon": "❤️"
+    },
+    {
+      "id": "trigger:opponent draws",
+      "kind": "trigger",
+      "mechanic": "opponent draws",
+      "label": "An opponent draws",
+      "sublabel": "forced / symmetric draw",
+      "icon": "🃏"
+    },
+    {
+      "id": "trigger:opponent loses life",
+      "kind": "trigger",
+      "mechanic": "opponent loses life",
+      "label": "An opponent loses life",
+      "sublabel": "drain / damage",
+      "icon": "🩸"
+    },
+    {
+      "id": "trigger:creature enters",
+      "kind": "trigger",
+      "mechanic": "creature enters",
+      "label": "A creature enters",
+      "sublabel": "ETB",
+      "icon": "🐾"
+    }
+  ],
+  "enablerNodes": [
+    {
+      "id": "card:Brainstorm",
+      "kind": "card",
+      "name": "Brainstorm",
+      "image": "https://cards.scryfall.io/normal/front/b/5/b5545882-6963-4729-b2c6-fb4bdc75ffcc.jpg?1783904806",
+      "labels": [
+        "Card selection"
+      ],
+      "degree": 0,
+      "enablerOnly": true
+    },
+    {
+      "id": "card:Consecrated Sphinx",
+      "kind": "card",
+      "name": "Consecrated Sphinx",
+      "image": "https://cards.scryfall.io/normal/front/c/9/c9bd60fc-2777-44bc-b314-a792e8e48360.jpg?1783921921",
+      "labels": [
+        "Card draw engine"
+      ],
+      "degree": 0,
+      "enablerOnly": true
+    },
+    {
+      "id": "card:Elixir of Immortality",
+      "kind": "card",
+      "name": "Elixir of Immortality",
+      "image": "https://cards.scryfall.io/normal/front/6/7/6741ab27-9e1f-4aa5-96b9-b450eda7c5c2.jpg?1783927513",
+      "labels": [
+        "Lifegain igniter",
+        "Deck-out insurance"
+      ],
+      "degree": 0,
+      "enablerOnly": true
+    },
+    {
+      "id": "card:Esper Sentinel",
+      "kind": "card",
+      "name": "Esper Sentinel",
+      "image": "https://cards.scryfall.io/normal/front/f/3/f3537373-ef54-4578-9d05-6216420ee349.jpg?1783926893",
+      "labels": [
+        "Card draw engine"
+      ],
+      "degree": 0,
+      "enablerOnly": true
+    },
+    {
+      "id": "card:Grand Abolisher",
+      "kind": "card",
+      "name": "Grand Abolisher",
+      "image": "https://cards.scryfall.io/normal/front/e/e/ee793ed2-7d59-4640-8868-ad486600df2c.jpg?1783912003",
+      "labels": [
+        "Protection"
+      ],
+      "degree": 0,
+      "enablerOnly": true
+    },
+    {
+      "id": "card:Mystic Remora",
+      "kind": "card",
+      "name": "Mystic Remora",
+      "image": "https://cards.scryfall.io/normal/front/4/0/40140991-cffa-4b52-9a25-37e9a8aa9ddd.jpg?1783918491",
+      "labels": [
+        "Card draw engine"
+      ],
+      "degree": 0,
+      "enablerOnly": true
+    },
+    {
+      "id": "card:Notion Thief",
+      "kind": "card",
+      "name": "Notion Thief",
+      "image": "https://cards.scryfall.io/normal/front/f/6/f675f509-4343-4568-96dd-265626cb6c2b.jpg?1783929456",
+      "labels": [
+        "Card draw engine"
+      ],
+      "degree": 0,
+      "enablerOnly": true
+    },
+    {
+      "id": "card:Phyrexian Arena",
+      "kind": "card",
+      "name": "Phyrexian Arena",
+      "image": "https://cards.scryfall.io/normal/front/0/7/0784b6f0-9ebf-43d2-ba0f-a6bc93ba0c48.jpg?1783909072",
+      "labels": [
+        "Card draw engine"
+      ],
+      "degree": 0,
+      "enablerOnly": true
+    },
+    {
+      "id": "card:Rhystic Study",
+      "kind": "card",
+      "name": "Rhystic Study",
+      "image": "https://cards.scryfall.io/normal/front/9/f/9f37c5b6-a59c-45cd-9a99-e9357fe9ea1b.jpg?1783919146",
+      "labels": [
+        "Card draw engine"
+      ],
+      "degree": 0,
+      "enablerOnly": true
+    },
+    {
+      "id": "card:Timetwister",
+      "kind": "card",
+      "name": "Timetwister",
+      "image": "https://cards.scryfall.io/normal/front/f/b/fbee1e10-0b8c-44ea-b0e5-44cdd0bfcd76.jpg?1783939333",
+      "labels": [
+        "Mass draw / wheel"
+      ],
+      "degree": 0,
+      "enablerOnly": true
+    },
+    {
+      "id": "card:Windfall",
+      "kind": "card",
+      "name": "Windfall",
+      "image": "https://cards.scryfall.io/normal/front/9/c/9ce7113b-08f7-4584-b65f-a7b5caa90c2f.jpg?1783911933",
+      "labels": [
+        "Mass draw / wheel"
+      ],
+      "degree": 0,
+      "enablerOnly": true
+    }
+  ]
+}
