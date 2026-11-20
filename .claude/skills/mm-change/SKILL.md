@@ -35,7 +35,7 @@ Never push to `main`, and never force-push a branch another person has pulled. T
 git switch -c <type>/<slug> origin/main
 ```
 
-The type is one of feat, fix, chore, docs, ci, test, refactor. The slug is two to four words joined by hyphens, such as `feat/strategy-overlay`. When your task builds on an open PR that is not merged, branch from that branch instead of `origin/main`.
+The type is one of feat, fix, chore, docs, ci, test, refactor, release. The slug is two to four words joined by hyphens, such as `feat/strategy-overlay`. A release branch is named for its version, `release/x.y.z`, and its PR bumps both version files to that version. When your task builds on an open PR that is not merged, branch from that branch instead of `origin/main`.
 
 ### 2. Work
 
