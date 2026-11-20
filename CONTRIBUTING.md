@@ -1,6 +1,6 @@
-# Contributing to magic-tools
+# Contributing to make-magic
 
-Thanks for your interest! This repo is the **magic-tools** Claude Code plugin
+Thanks for your interest! This repo is the **make-magic** Claude Code plugin
 marketplace; the substantive code lives in the **make-magic** plugin
 (`plugins/make-magic/`), whose Python package is under
 `plugins/make-magic/pipeline/`.
@@ -119,7 +119,7 @@ These are fetched at runtime and pinned by SHA:
 
 ## Reporting issues
 
-Use the [issue tracker](https://github.com/trippersham/magic-tools/issues). For a
+Use the [issue tracker](https://github.com/trippersham/make-magic/issues). For a
 simulation bug, include the `scripts/simulate doctor` output and, where relevant,
 the stored game log (`scripts/simulate log …`).
 

@@ -34,9 +34,9 @@ airtable = ["pyairtable>=3.0"]
 dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1", "typer>=0.12"]
 
 [project.urls]
-Homepage = "https://github.com/trippersham/magic-tools"
-Repository = "https://github.com/trippersham/magic-tools"
-Issues = "https://github.com/trippersham/magic-tools/issues"
+Homepage = "https://github.com/trippersham/make-magic"
+Repository = "https://github.com/trippersham/make-magic"
+Issues = "https://github.com/trippersham/make-magic/issues"
 
 [tool.uv]
 # Match the existing plugin scripts' reproducibility pin.

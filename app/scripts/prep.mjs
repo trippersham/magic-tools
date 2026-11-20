@@ -51,7 +51,7 @@ const PIPELINE_DIR =
 // version differs from the worktree.
 const SCRYFALL =
   process.env.SCRYFALL_CACHE ||
-  `${HOME}/.claude/plugins/cache/magic-tools/make-magic/0.6.1/scripts/scryfall_cache.py`;
+  `${HOME}/.claude/plugins/cache/make-magic/make-magic/0.6.1/scripts/scryfall_cache.py`;
 
 // --- batched, zero-network lake read ------------------------------------- //
 

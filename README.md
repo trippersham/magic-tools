@@ -1,4 +1,4 @@
-# magic-tools
+# make-magic
 
 A Claude Code plugin marketplace for Magic: The Gathering.
 
@@ -21,8 +21,8 @@ redistributed. See the [simulate section](plugins/make-magic/README.md#simulatin
 and [NOTICE](NOTICE).
 
 ```bash
-claude plugin marketplace add trippersham/magic-tools
-claude plugin install make-magic@magic-tools
+claude plugin marketplace add trippersham/make-magic
+claude plugin install make-magic@make-magic
 ```
 
 Then `/reload-plugins` (or restart). Verify with `${CLAUDE_PLUGIN_ROOT}/scripts/collection status`

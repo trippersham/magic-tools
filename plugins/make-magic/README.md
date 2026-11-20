@@ -20,13 +20,13 @@ plugin — it self-provisions everything it needs on first use.
 ## Install
 
 ```bash
-claude plugin marketplace add trippersham/magic-tools
-claude plugin install make-magic@magic-tools
+claude plugin marketplace add trippersham/make-magic
+claude plugin install make-magic@make-magic
 ```
 
 Then `/reload-plugins` (or restart Claude Code).
 
-- **Desktop:** Settings → Plugins → Add marketplace `trippersham/magic-tools` → install `make-magic`.
+- **Desktop:** Settings → Plugins → Add marketplace `trippersham/make-magic` → install `make-magic`.
 - **Web (Cowork):** this repo's settings enable the plugin automatically — nothing to install.
 
 To confirm it's live, just ask: **"is make-magic working?"** — Claude runs a zero-setup
