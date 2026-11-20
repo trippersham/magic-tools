@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -eu
+hook=$(git rev-parse --git-path hooks/pre-commit)
+mkdir -p "$(dirname "$hook")"
+cat > "$hook" <<'HOOK'
+#!/bin/sh
+exec ./scripts/check --fast
+HOOK
+chmod +x "$hook"

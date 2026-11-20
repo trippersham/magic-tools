@@ -1,14 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "extraKnownMarketplaces": {
-    "magic-tools": {
+    "make-magic": {
       "source": {
         "source": "github",
-        "repo": "trippersham/magic-tools"
+        "repo": "trippersham/make-magic"
       }
     }
   },
   "enabledPlugins": {
-    "make-magic@magic-tools": true
+    "make-magic@make-magic": true
   }
 }

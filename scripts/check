@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# The one check entrypoint: local == CI == pre-commit hook. uv-backed, no
+# contributor dependency beyond uv. By default it runs the exact
+# ruff/format/pyright/pytest the CI `check` job runs against
+# plugins/make-magic/pipeline, then markdown-lints the agent files, then the
+# single-source-of-truth context linter.
+#
+# --fast drops the two slow steps (pyright and the full pytest suite) so the
+# pre-commit hook stays near-instant. CI and a pre-push run use the full gate, so
+# a fast local pass is not a CI pass on its own: run `./scripts/check` with no
+# flag before you push.
+cd "$(dirname "$0")/.." || exit 1
+set -euo pipefail
+
+fast=
+case "${1:-}" in
+  --fast) fast=1 ;;
+  "") ;;
+  *) echo "usage: scripts/check [--fast]" >&2; exit 2 ;;
+esac
+
+version() {
+  name=$1
+  shift
+  value=$("$@")
+  printf 'VERSION %s=%s\n' "$name" "$value"
+}
+
+export UV_PYTHON="$(cat .python-version)"
+export PYRIGHT_PYTHON_IGNORE_WARNINGS=1
+
+# uv-only: no node gate, no .node-version. pyright self-provisions node via
+# nodeenv inside the uv env, exactly as the real repo's CI does.
+version uv uv --version
+
+cd plugins/make-magic/pipeline
+# No --locked: the real uv.lock carries `>=` floors and `uv lock --check` does not
+# pass clean, so we match CI's `uv run --extra dev` (auto-syncs) instead.
+version python uv run --extra dev python --version
+version ruff uv run --extra dev ruff --version
+uv run --extra dev ruff check
+uv run --extra dev ruff format --check
+if [ -z "$fast" ]; then
+  version pyright uv run --extra dev pyright --version
+  version pytest uv run --extra dev pytest --version
+  uv run --extra dev pyright
+  uv run --extra dev pytest -q
+else
+  echo "fast: skipped pyright and the full pytest suite (run ./scripts/check before pushing)"
+fi
+cd ../../..
+
+# Markdown-lint ONLY the agent files (not README/CONTRIBUTING/CHANGELOG). Some may
+# not exist yet in Phase 1 — lint only the ones present so the gate is green now.
+lint_markdown() {
+  uvx --python "$UV_PYTHON" --from pymarkdownlnt==0.9.33 pymarkdown "$@"
+}
+version pymarkdown lint_markdown version
+md_targets=()
+for f in AGENTS.md .claude/skills/mm-change/SKILL.md .github/pull_request_template.md; do
+  [ -f "$f" ] && md_targets+=("$f")
+done
+for f in .claude/rules/*.md; do
+  [ -f "$f" ] && md_targets+=("$f")
+done
+if [ "${#md_targets[@]}" -gt 0 ]; then
+  lint_markdown --enable-extensions front-matter,markdown-tables --disable-rules md013,md033,md041 scan "${md_targets[@]}"
+else
+  echo "markdown: no agent files yet (skipped)"
+fi
+
+# Single-source-of-truth gate, last. Pure stdlib, run on the pipeline venv python
+# that the `uv run` steps above have already created (true in both --fast and full
+# mode, since ruff runs via uv either way). Keep an invocation above this line.
+plugins/make-magic/pipeline/.venv/bin/python scripts/check_context.py

@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# Apply the make-magic `main` branch ruleset through the GitHub API, then read it
+# back and assert the applied state. Idempotent: it updates the existing ruleset
+# named "main" in place, or creates it when absent.
+#
+# The ruleset is the enforced half of the git flow AGENTS.md describes. It makes
+# the branch-and-PR the only path into `main`:
+#   - pull request required, squash-merge only (no direct push, no merge commit)
+#   - linear history, no force-push, `main` cannot be deleted
+#   - the one required status check is `ci-ok`
+# Repo-level merge settings are aligned to the same shape (squash-only, delete the
+# head branch on merge) so the merge button cannot offer a disallowed method.
+#
+# Phase-1 trust model: no required review count is set. "the author never merges"
+# is a documented convention here, not a GitHub rule, so the solo owner and their
+# agents keep working day one; the untrusted-contributor review gate is reserved
+# for a later phase.
+#
+# Needs: `gh` authenticated with admin on the repo (the `repo` scope is enough).
+# Usage: scripts/apply-ruleset [--dry-run]
+#   --dry-run prints the current state and the exact payload, and applies nothing.
+set -euo pipefail
+
+dry_run=
+case "${1:-}" in
+  --dry-run) dry_run=1 ;;
+  "") ;;
+  *) echo "usage: scripts/apply-ruleset [--dry-run]" >&2; exit 2 ;;
+esac
+
+slug=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+echo "repo: $slug"
+
+# The ruleset payload. `~DEFAULT_BRANCH` targets whatever the default branch is,
+# so the rule follows a future default-branch rename.
+payload=$(cat <<'JSON'
+{
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    { "type": "pull_request", "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "allowed_merge_methods": ["squash"]
+    } },
+    { "type": "required_status_checks", "parameters": {
+        "strict_required_status_checks_policy": false,
+        "required_status_checks": [ { "context": "ci-ok" } ]
+    } }
+  ],
+  "bypass_actors": []
+}
+JSON
+)
+
+# Find an existing ruleset named "main" so a re-run updates in place.
+rid=$(gh api "repos/$slug/rulesets" --jq '.[] | select(.name=="main") | .id' | head -n1 || true)
+
+if [ -n "$dry_run" ]; then
+  echo "would ${rid:+update ruleset $rid}${rid:-create a new ruleset} with:"
+  echo "$payload"
+  echo
+  echo "would set repo merge settings: allow_squash_merge=true, allow_merge_commit=false, allow_rebase_merge=false, delete_branch_on_merge=true"
+  echo
+  echo "current repo merge settings:"
+  gh api "repos/$slug" --jq '{allow_squash_merge, allow_merge_commit, allow_rebase_merge, delete_branch_on_merge}'
+  echo "current ruleset named main: ${rid:-<none>}"
+  exit 0
+fi
+
+if [ -n "$rid" ]; then
+  echo "updating ruleset $rid"
+  printf '%s' "$payload" | gh api -X PUT "repos/$slug/rulesets/$rid" --input - >/dev/null
+else
+  echo "creating ruleset"
+  rid=$(printf '%s' "$payload" | gh api -X POST "repos/$slug/rulesets" --input - --jq .id)
+  echo "created ruleset $rid"
+fi
+
+# Align the repo merge button to the ruleset: squash-only, auto-delete head branch.
+gh api -X PATCH "repos/$slug" \
+  -F allow_squash_merge=true \
+  -F allow_merge_commit=false \
+  -F allow_rebase_merge=false \
+  -F delete_branch_on_merge=true >/dev/null
+
+# Read back and assert the applied state. Fetch once, parse with stdlib python3.
+echo "readback:"
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+gh api "repos/$slug/rulesets/$rid" > "$tmp"
+
+read_rules='
+import json, sys
+d = json.load(open(sys.argv[1]))
+rules = d["rules"]
+types = sorted(r["type"] for r in rules)
+checks = [c["context"] for r in rules if r["type"] == "required_status_checks"
+          for c in r["parameters"]["required_status_checks"]]
+methods = [m for r in rules if r["type"] == "pull_request"
+           for m in r["parameters"]["allowed_merge_methods"]]
+print(",".join(types))
+print(",".join(checks))
+print(",".join(methods))
+'
+{ read -r types; read -r checks; read -r methods; } < <(python3 -c "$read_rules" "$tmp")
+merge=$(gh api "repos/$slug" --jq '[.allow_squash_merge, .allow_merge_commit, .allow_rebase_merge, .delete_branch_on_merge] | join(",")')
+
+echo "  rule types: $types"
+echo "  required checks: $checks"
+echo "  allowed merge methods: $methods"
+echo "  merge settings (squash,merge,rebase,delete-on-merge): $merge"
+
+fail=0
+for want in deletion non_fast_forward pull_request required_linear_history required_status_checks; do
+  case ",$types," in *",$want,"*) ;; *) echo "ASSERT FAIL: ruleset missing rule '$want'" >&2; fail=1 ;; esac
+done
+[ "$checks" = "ci-ok" ] || { echo "ASSERT FAIL: required checks are '$checks', expected exactly 'ci-ok'" >&2; fail=1; }
+[ "$methods" = "squash" ] || { echo "ASSERT FAIL: allowed merge methods are '$methods', expected exactly 'squash'" >&2; fail=1; }
+[ "$merge" = "true,false,false,true" ] || { echo "ASSERT FAIL: repo merge settings are '$merge', expected 'true,false,false,true'" >&2; fail=1; }
+
+if [ "$fail" -ne 0 ]; then
+  echo "ruleset: FAIL" >&2
+  exit 1
+fi
+echo "ruleset: OK"

@@ -1,18 +1,25 @@
 name: CI
 
-# Offline gate for the make-magic pipeline: the 690+ test suite, ruff (lint +
-# format), and pyright. The `live` (real Airtable/Scryfall) and `forge` (real
-# Forge JVM) markers are deselected by the package's pytest addopts, so nothing
-# here needs network access or a provisioned Forge/JRE.
+# Offline gate for the make-magic pipeline, wired through the one check spine.
+# The `check` job runs `./scripts/check` (ruff lint + format, pyright, the 690+
+# offline test suite, the agent-file markdown lint, then the context linter);
+# `scripts/check` self-cds into plugins/make-magic/pipeline, so there is no
+# working-directory default here. The `live` (real Airtable/Scryfall) and
+# `forge`/`xmage` (real JVM) markers are deselected by the package's pytest
+# addopts, so nothing here needs network access or a provisioned Forge/JRE.
+#
+# `pr-body` validates the pull request body on PR events only. `ci-ok` fans in
+# over both and is the single required status: it passes when every needed job
+# is success or skipped and fails on any failure or cancellation.
 
 on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, reopened, synchronize, edited]
 
-defaults:
-  run:
-    working-directory: plugins/make-magic/pipeline
+permissions:
+  contents: read
 
 jobs:
   check:
@@ -20,23 +27,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
-      - name: Sync dev dependencies
-        run: uv sync --extra dev
+      - name: Check
+        run: ./scripts/check
 
-      - name: Ruff lint
-        run: uv run --extra dev ruff check
+  pr-body:
+    name: PR body
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Ruff format check
-        run: uv run --extra dev ruff format --check
+      - name: Validate PR body
+        run: python3 scripts/check_pr.py --event "$GITHUB_EVENT_PATH"
 
-      - name: Pyright
-        run: uv run --extra dev pyright
-
-      - name: Pytest (offline)
-        run: uv run --extra dev pytest -q
+  ci-ok:
+    name: ci-ok
+    needs: [check, pr-body]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every needed job to pass or skip
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            echo "ci-ok: $result"
+            case "$result" in
+              success|skipped) ;;
+              *) exit 1 ;;
+            esac
+          done

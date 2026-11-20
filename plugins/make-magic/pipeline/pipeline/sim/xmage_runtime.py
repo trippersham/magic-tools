@@ -102,7 +102,7 @@ _DIST_JAR_NAME = 'make-magic-xmage-dist.jar'
 _DIST_TAG = f'xmage-dist-{XMAGE_VERSION}-3'
 #: The release asset URL — pinned to :data:`_DIST_TAG`. (Bump ``_DIST_TAG`` + re-pin the
 #: SHA below when a new dist is cut.)
-XMAGE_DIST_URL = f'https://github.com/trippersham/magic-tools/releases/download/{_DIST_TAG}/{_DIST_JAR_NAME}'
+XMAGE_DIST_URL = f'https://github.com/trippersham/make-magic/releases/download/{_DIST_TAG}/{_DIST_JAR_NAME}'
 #: SHA256 of the published jar — the fail-closed integrity gate, pinned to the
 #: :data:`_DIST_TAG` release's ``make-magic-xmage-dist.jar.sha256`` asset (shaded jars
 #: are not byte-reproducible across builds, so the canonical hash comes from the release

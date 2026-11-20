@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "magic-tools",
+  "name": "make-magic",
   "description": "MTG toolkit for Claude Code: deck building, card chasing, inventory, and Forge-backed game simulation — local-first with Scryfall, optional Airtable.",
   "owner": {
     "name": "Tripp Wickersham"
