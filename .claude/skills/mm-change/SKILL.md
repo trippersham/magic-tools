@@ -48,13 +48,13 @@ uv run --extra dev pytest
 
 ### 3. Run the gate
 
-Run the one gate from the repo root before every commit:
+Run the full gate from the repo root before you push:
 
 ```bash
 ./scripts/check
 ```
 
-It runs ruff, pyright, pytest, the markdown lint of the agent files, and the context linter, which is the same set CI runs. Fix every finding. When you edited a path or a command named in `AGENTS.md`, update that row's state mark in the same change, so the context linter stays green.
+It runs ruff, pyright, pytest, the markdown lint of the agent files, and the context linter, which is exactly what CI runs. Fix every finding. The pre-commit hook runs only the fast subset (`./scripts/check --fast`: ruff, format, markdown lint, context linter, no pyright or tests) so commits stay quick; run the full `./scripts/check` yourself before you push. When you added or removed a path named in `AGENTS.md`, move it between the repo map and the Planned section in the same change, so the context linter stays green.
 
 ### 4. Commit
 
@@ -65,7 +65,7 @@ git add -- <paths>
 git commit
 ```
 
-Write a Conventional Commits subject, `type: subject` or `type(scope): subject`, of about 80 characters, and a body that says what changed and why. More than one commit per PR is fine. The hook runs `./scripts/check` on commit; never pass `--no-verify`.
+Write a Conventional Commits subject, `type: subject` or `type(scope): subject`, of about 80 characters, and a body that says what changed and why. More than one commit per PR is fine. The pre-commit hook runs the fast gate (`./scripts/check --fast`) on commit; never pass `--no-verify`.
 
 ### 5. Push and open the PR
 

@@ -53,7 +53,7 @@ Work is trunk-based off `main`. The skill at `.claude/skills/mm-change/SKILL.md`
 
 - branch `<type>/<slug>` off `main`. the type is one of feat, fix, chore, docs, ci, test, refactor. never push to `main`, because the branch and PR are the only path in.
 - write Conventional Commits. the PR title becomes the squash subject on `main`.
-- run `./scripts/check` before you commit. the pre-commit hook runs the same gate, so a local pass is a CI pass.
+- the pre-commit hook runs `./scripts/check --fast` (ruff, format, markdown, context linter) on commit, so commits stay quick. run the full `./scripts/check` before you push, because CI runs the full gate and a fast pass is not a CI pass.
 - open a PR and fill the template. the PR body references an issue with `Closes #N` or `Part of #N` and ends with the attribution footer. the template and its validator arrive in phase 3.
 - merge is squash-only with linear history, and the branch deletes on merge. the author never merges; a separate reviewer merges on a green gate, because a second person is the last check before `main`.
 - the synthesized `ci-ok` status is the one required check. it arrives in phase 3; until it lands, the `check` job is the gate.
