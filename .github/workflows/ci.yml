@@ -8,9 +8,11 @@ name: CI
 # `forge`/`xmage` (real JVM) markers are deselected by the package's pytest
 # addopts, so nothing here needs network access or a provisioned Forge/JRE.
 #
-# `pr-body` validates the pull request body on PR events only. `ci-ok` fans in
-# over both and is the single required status: it passes when every needed job
-# is success or skipped and fails on any failure or cancellation.
+# `pr-body` validates the pull request body on PR events only. `repro` runs the
+# pinned reproducibility suite as a pre-merge gate, but ONLY on a `release/*` PR
+# (skipped — so a free pass — on every other PR). `ci-ok` fans in over all three
+# and is the single required status: it passes when every needed job is success or
+# skipped and fails on any failure or cancellation, so a skipped `repro` is a pass.
 
 on:
   push:
@@ -50,9 +52,18 @@ jobs:
       - name: Validate PR body
         run: python3 scripts/check_pr.py --event "$GITHUB_EVENT_PATH"
 
+  repro:
+    name: repro
+    # Pre-merge regression gate, release-PR only. `head_ref` is set on PR events and
+    # empty on push, so this is skipped on pushes and on any non-`release/*` PR —
+    # skipped counts as a pass in ci-ok, so it is a no-op (zero cost) there and a
+    # required gate on a `release/*` PR. Honors repro's "INFREQUENT by design" intent.
+    if: startsWith(github.head_ref, 'release/')
+    uses: ./.github/workflows/make-magic-repro.yml
+
   ci-ok:
     name: ci-ok
-    needs: [check, pr-body]
+    needs: [check, pr-body, repro]
     if: always()
     runs-on: ubuntu-latest
     steps:
