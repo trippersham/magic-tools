@@ -14,6 +14,7 @@ and CI invoke it.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -89,3 +90,38 @@ def test_missing_issue_reference_fails(tmp_path: Path) -> None:
     result = _run(body)
     assert result.returncode == 1
     assert 'Closes #N or Part of #N' in result.stderr
+
+
+def _run_event(event_file: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(_LINTER), '--event', str(event_file)],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_event_path_conformant_passes(tmp_path: Path) -> None:
+    # The --event JSON path is how CI invokes the linter.
+    event = tmp_path / 'event.json'
+    event.write_text(json.dumps({'pull_request': {'body': _CONFORMANT_BODY}}), encoding='utf-8')
+    result = _run_event(event)
+    assert result.returncode == 0, result.stderr
+    assert 'PR: PASS' in result.stdout
+
+
+def test_event_null_body_fails(tmp_path: Path) -> None:
+    # A PR opened with an empty body is a valid event but fails the contract.
+    event = tmp_path / 'event.json'
+    event.write_text(json.dumps({'pull_request': {'body': None}}), encoding='utf-8')
+    result = _run_event(event)
+    assert result.returncode == 1
+    assert 'Posted on behalf of' in result.stderr
+
+
+def test_event_without_pull_request_fails_cleanly(tmp_path: Path) -> None:
+    # A malformed event must exit 1 with a clear message, not a bare KeyError.
+    event = tmp_path / 'event.json'
+    event.write_text(json.dumps({'action': 'opened'}), encoding='utf-8')
+    result = _run_event(event)
+    assert result.returncode == 1
+    assert 'no pull_request.body' in result.stderr

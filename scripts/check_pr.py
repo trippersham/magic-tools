@@ -73,7 +73,10 @@ def main():
     try:
         body = (args.event or args.body_file).read_text(encoding='utf-8')
         if args.event:
-            body = json.loads(body)['pull_request']['body']
+            pull_request = json.loads(body).get('pull_request')
+            if not isinstance(pull_request, dict) or 'body' not in pull_request:
+                raise ValueError('event JSON has no pull_request.body')
+            body = pull_request['body']
         findings = list(check('' if body is None else body))
     except (OSError, ValueError, KeyError, TypeError) as error:
         findings = [str(error)]
