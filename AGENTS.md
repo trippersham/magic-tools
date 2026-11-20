@@ -17,7 +17,9 @@ This file is the one always-on contract. Read it first. Everything the repo map 
 | `scripts/check` | the one check that local, CI, and the pre-commit hook all run |
 | `scripts/install-hooks` | installs the pre-commit hook that runs the check |
 | `scripts/check_context.py` | the linter that keeps this file honest against the tree |
-| `.github/workflows/ci.yml` | the offline lint, type, and test gate |
+| `scripts/check_pr.py` | the PR-body and attribution-footer validator |
+| `.github/pull_request_template.md` | the PR body template the validator checks |
+| `.github/workflows/ci.yml` | the offline gate plus the PR-body and ci-ok jobs |
 | `.github/workflows/upstream-canary.yml` | the weekly check that runtime-fetched deps still resolve |
 | `.github/workflows/forge-simai-build.yml` | the Forge sim-AI harness jar bytecode check |
 | `.github/workflows/xmage-dist-release.yml` | the XMage dist build and harness jar check |
@@ -54,9 +56,9 @@ Work is trunk-based off `main`. The skill at `.claude/skills/mm-change/SKILL.md`
 - branch `<type>/<slug>` off `main`. the type is one of feat, fix, chore, docs, ci, test, refactor. never push to `main`, because the branch and PR are the only path in.
 - write Conventional Commits. the PR title becomes the squash subject on `main`.
 - the pre-commit hook runs `./scripts/check --fast` (ruff, format, markdown, context linter) on commit, so commits stay quick. run the full `./scripts/check` before you push, because CI runs the full gate and a fast pass is not a CI pass.
-- open a PR and fill the template. the PR body references an issue with `Closes #N` or `Part of #N` and ends with the attribution footer. the template and its validator arrive in phase 3.
+- open a PR and fill the template. the PR body references an issue with `Closes #N` or `Part of #N` and ends with the attribution footer. the template is `.github/pull_request_template.md` and `scripts/check_pr.py` validates the body in CI.
 - merge is squash-only with linear history, and the branch deletes on merge. the author never merges; a separate reviewer merges on a green gate, because a second person is the last check before `main`.
-- the synthesized `ci-ok` status is the one required check. it arrives in phase 3; until it lands, the `check` job is the gate.
+- the synthesized `ci-ok` status is the one required check. it fans in over the `check` and `pr-body` jobs and passes only when both do.
 
 ## Safety
 
@@ -74,7 +76,6 @@ Work is trunk-based off `main`. The skill at `.claude/skills/mm-change/SKILL.md`
 
 Later phases bolt on the untrusted-contributor governance, modeled on the rae-labs exemplar and reserved here, not built. Each path moves into the repo map in the same change that creates it:
 
-- `.github/pull_request_template.md` and `scripts/check_pr.py`: the PR template and the validator that rejects a PR whose body is missing its issue link, filled template, or attribution footer. phase 3.
 - `scripts/apply-ruleset`: the main-branch ruleset applied through gh api. phase 5.
 - `.github/areas.json`: the reviewer auto-assign map. phase 2.
 
