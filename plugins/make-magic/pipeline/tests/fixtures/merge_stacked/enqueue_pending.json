@@ -1,0 +1,10 @@
+{
+  "status": "pending",
+  "details": {
+    "uuid": "b3f8c1d2-7e4a-4c9b-9a21-0f6e5d4c3b2a",
+    "merge_method": "squash",
+    "merge_action": "default",
+    "bypass_rules": false,
+    "expected_head_sha": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+  }
+}
