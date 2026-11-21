@@ -118,6 +118,15 @@ The author never merges; this section is for the reviewer who merges on a green 
 
 In both cases merge only on a green `ci-ok`. For a stacked PR, merge the bottom of the stack first; GitHub restacks the rest server-side.
 
+## Keeping stacked worktrees fresh (observe-first)
+
+After a parent merges, GitHub restacks the rest of the stack on the server, but a local working copy only catches up when `gh stack sync --prune` runs in that worktree — and that sync force-pushes a rewritten child branch. `scripts/stack_hygiene.py` keeps this safe and hands-off:
+
+- `scripts/stack_hygiene.py detect` classifies every worktree and prints the restack candidates. A worktree is **dormant** only when all hold: no omnigent session occupies it, it has been quiescent past the idle threshold (default 45 min, by the per-worktree `HEAD`/`index`/reflog mtime) with no git lock, and its working tree is clean. It fails safe: any uncertainty — including missing session data — classifies a worktree **not** dormant, so live work is never a candidate. A candidate is a dormant worktree whose branch `gh stack view --json` flags `⚠ Needs rebase`.
+- `scripts/stack_hygiene.py sweep` is the restack sweep. It ships in **observe mode**: it logs the one `gh stack sync --prune` it would run per candidate and force-pushes nothing. The real action is gated behind `--apply` (or `MM_STACK_SWEEP_APPLY=1`), which defaults off; with the flag off no `gh stack sync` call is reachable.
+
+An hourly omnigent task runs the sweep (it gathers the live sessions through the omnigent MCP layer and passes them to `--sessions`, because the script never calls omnigent itself). Registering that task is a deliberate post-merge step, and flipping the sweep from observe to active is the one `--apply` flag — the recipe and the flip are documented in the header of `scripts/stack_hygiene.py`.
+
 ## Red flags
 
 | Bad instinct | Do this instead |

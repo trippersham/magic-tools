@@ -21,8 +21,10 @@ This file is the one always-on contract. Read it first. Everything the repo map 
 | `scripts/check_versions.py` | the plugin-version lockstep linter the check runs |
 | `scripts/apply-ruleset` | applies the main-branch ruleset through gh api and reads it back |
 | `scripts/merge-stacked` | squash-merges a native stacked PR through merge-async and polls until it lands |
+| `scripts/stack_hygiene.py` | the dormancy detector and observe-mode restack sweep (force-pushes nothing until `--apply`) |
+| `scripts/check_base.py` | the stale-base decision the `base-guard` CI job runs |
 | `.github/pull_request_template.md` | the PR body template the validator checks |
-| `.github/workflows/ci.yml` | the offline gate plus the PR-body, repro, and ci-ok jobs |
+| `.github/workflows/ci.yml` | the offline gate plus the PR-body, repro, base-guard, and ci-ok jobs |
 | `.github/workflows/release.yml` | cuts the GitHub Release on a `v<x.y.z>` tag push |
 | `.github/workflows/make-magic-repro.yml` | the reproducibility gate, called on a release PR |
 | `.github/workflows/upstream-canary.yml` | the weekly check that runtime-fetched deps still resolve |
@@ -63,7 +65,7 @@ Work is trunk-based off `main`. The skill at `.claude/skills/mm-change/SKILL.md`
 - the pre-commit hook runs `./scripts/check --fast` (ruff, format, markdown, version lockstep, context linter) on commit, so commits stay quick. run the full `./scripts/check` before you push, because CI runs the full gate and a fast pass is not a CI pass.
 - open a PR and fill the template. the PR body references an issue with `Closes #N` or `Part of #N` and ends with the attribution footer. the template is `.github/pull_request_template.md` and `scripts/check_pr.py` validates the body in CI.
 - merge is squash-only with linear history, and the branch deletes on merge. the author never merges; a separate reviewer merges on a green gate, because a second person is the last check before `main`.
-- the synthesized `ci-ok` status is the one required check. it fans in over the `check`, `pr-body`, and `repro` jobs and passes when each is success or skipped. `repro` runs only on a `release/*` PR and is skipped (a pass) elsewhere.
+- the synthesized `ci-ok` status is the one required check. it fans in over the `check`, `pr-body`, `repro`, and `base-guard` jobs and passes when each is success or skipped. `repro` runs only on a `release/*` PR and is skipped (a pass) elsewhere; `base-guard` runs on every PR and fails only when the base is a merged or deleted branch.
 
 ### Releases
 

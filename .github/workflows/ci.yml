@@ -10,9 +10,12 @@ name: CI
 #
 # `pr-body` validates the pull request body on PR events only. `repro` runs the
 # pinned reproducibility suite as a pre-merge gate, but ONLY on a `release/*` PR
-# (skipped — so a free pass — on every other PR). `ci-ok` fans in over all three
-# and is the single required status: it passes when every needed job is success or
-# skipped and fails on any failure or cancellation, so a skipped `repro` is a pass.
+# (skipped — so a free pass — on every other PR). `base-guard` asserts (PR events
+# only) that the PR's base is still a live branch — `main` or a still-open PR's
+# head — so a PR on a merged/deleted base is a red check, not a silent surprise.
+# `ci-ok` fans in over all four and is the single required status: it passes when
+# every needed job is success or skipped and fails on any failure or cancellation,
+# so a skipped `repro`/`base-guard` is a pass.
 
 on:
   push:
@@ -61,9 +64,33 @@ jobs:
     if: startsWith(github.head_ref, 'release/')
     uses: ./.github/workflows/make-magic-repro.yml
 
+  base-guard:
+    name: base guard
+    # Stale-base guard (design §10a A3). PR events only — `base_ref` is set there and
+    # empty on push. A native stack parent lives in the PR base ref, not in body text,
+    # so this is a gh-API check: the base must be `main` or the head of a still-open
+    # PR; a merged/deleted base fails. Uses only the ambient GITHUB_TOKEN, no network
+    # beyond the gh API, and joins ci-ok below.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check the PR base is a live branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.base_ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr list --repo "$REPO" --state open --json headRefName \
+            --jq '.[].headRefName' > open-heads.txt
+          python3 scripts/check_base.py --base "$BASE_REF" --open-heads-file open-heads.txt
+
   ci-ok:
     name: ci-ok
-    needs: [check, pr-body, repro]
+    needs: [check, pr-body, repro, base-guard]
     if: always()
     runs-on: ubuntu-latest
     steps:
